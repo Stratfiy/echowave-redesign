@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EchoWave — Redesign Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+<style>
+:root {
+  --brand-blue: #28B3F0;
+  --brand-blue-hover: #0A6BC7;
+  --brand-blue-soft: rgba(40, 179, 240, 0.18);
+  --brand-blue-glow: rgba(30, 136, 229, 0.22);
+  --brand-panel-1: #F1F8FE;
+  --brand-panel-2: #E6F3FC;
+  --brand-panel-3: #DCEEFB;
+  --brand-heading: #0B1E33;
+  --brand-body: #4B6076;
+  --brand-chip: rgba(255, 255, 255, 0.6);
+  --brand-chip-border: rgba(20, 90, 150, 0.14);
+  --brand-chip-fg: #1D3A54;
+  --brand-card: rgba(255, 255, 255, 0.72);
+  --bg: #FFFFFF;
+  --fg: #0B1E33;
+  --card: #FFFFFF;
+  --card-fg: #0B1E33;
+  --border: #E5EEF6;
+  --muted-fg: #6B7C90;
+  --input-border: #DCE6EF;
+}
+html.dark {
+  --brand-blue: #5CC8FF;
+  --brand-blue-hover: #28B3F0;
+  --brand-blue-soft: rgba(92, 200, 255, 0.22);
+  --brand-blue-glow: rgba(40, 179, 240, 0.26);
+  --brand-panel-1: #0A1A2E;
+  --brand-panel-2: #0E2540;
+  --brand-panel-3: #123256;
+  --brand-heading: #F1F8FE;
+  --brand-body: #A6B8CC;
+  --brand-chip: rgba(255, 255, 255, 0.06);
+  --brand-chip-border: rgba(92, 200, 255, 0.22);
+  --brand-chip-fg: #DDEEFA;
+  --brand-card: rgba(20, 40, 70, 0.5);
+  --bg: #0A1420;
+  --fg: #F1F8FE;
+  --card: #14212F;
+  --card-fg: #F1F8FE;
+  --border: rgba(255,255,255,0.10);
+  --muted-fg: #94A5B8;
+  --input-border: rgba(255,255,255,0.14);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  transition: background .25s ease, color .25s ease;
+}
+
+/* Top toolbar (preview meta) */
+.preview-bar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 24px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  font-size: 13px;
+}
+.preview-bar .left { display: flex; align-items: center; gap: 12px; }
+.preview-bar .badge {
+  background: var(--brand-blue-soft);
+  color: var(--brand-blue);
+  border: 1px solid var(--brand-chip-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+}
+.preview-bar .tabs { display: flex; gap: 6px; }
+.preview-bar .tab {
+  padding: 6px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--muted-fg); font-size: 12px; font-weight: 500;
+  transition: all .15s ease;
+}
+.preview-bar .tab.active {
+  background: var(--brand-blue); color: white; border-color: var(--brand-blue);
+}
+.preview-bar .right { display: flex; align-items: center; gap: 10px; }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--card);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--fg); transition: all .2s ease;
+}
+.icon-btn:hover { border-color: var(--brand-blue); color: var(--brand-blue); }
+
+/* Auth layout */
+.auth {
+  display: grid; grid-template-columns: 52% 48%;
+  min-height: calc(100vh - 57px);
+  width: 100%;
+}
+@media (max-width: 900px) { .auth { grid-template-columns: 1fr; } .brand-panel { display: none !important; } }
+
+/* Brand panel (left) */
+.brand-panel {
+  position: relative; overflow: hidden;
+  padding: 56px;
+  display: flex; flex-direction: column; justify-content: space-between;
+  background: linear-gradient(160deg, var(--brand-panel-1) 0%, var(--brand-panel-2) 50%, var(--brand-panel-3) 100%);
+}
+.brand-panel::before {
+  content: ''; position: absolute; left: -100px; top: 20%;
+  width: 32rem; height: 32rem; border-radius: 999px;
+  background: radial-gradient(circle, var(--brand-blue-soft), transparent 65%);
+  filter: blur(60px); opacity: .8;
+}
+.brand-panel::after {
+  content: ''; position: absolute; right: -60px; bottom: -60px;
+  width: 24rem; height: 24rem; border-radius: 999px;
+  background: radial-gradient(circle, var(--brand-blue-glow), transparent 70%);
+  filter: blur(60px); opacity: .7;
+}
+
+.brand-top { display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 2; }
+.brand-logo { display: inline-flex; align-items: center; gap: 12px; }
+.brand-logo .mark {
+  width: 40px; height: 40px; border-radius: 12px;
+  background: linear-gradient(135deg, #28B3F0, #0A6BC7);
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 10px 30px -10px rgba(10, 107, 199, 0.5);
+}
+.brand-logo .mark svg { width: 24px; height: 24px; }
+.brand-logo .name {
+  font-weight: 700; font-size: 22px; letter-spacing: -0.02em; color: var(--brand-heading);
+}
+.brand-tag {
+  border-radius: 999px; padding: 4px 12px;
+  background: var(--brand-blue-soft); color: var(--brand-blue);
+  border: 1px solid var(--brand-chip-border);
+  font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+.brand-hero { position: relative; z-index: 2; max-width: 520px; }
+.waveform {
+  display: inline-flex; align-items: center; gap: 6px; height: 56px; margin-bottom: 28px;
+}
+.waveform span {
+  display: block; width: 5px; border-radius: 999px;
+  background: linear-gradient(to top, var(--brand-blue), rgba(40,179,240,0.3));
+  animation: wave 1.4s ease-in-out infinite;
+}
+.waveform span:nth-child(1) { animation-delay: 0s; height: 35%; }
+.waveform span:nth-child(2) { animation-delay: 0.15s; height: 65%; }
+.waveform span:nth-child(3) { animation-delay: 0.3s; height: 100%; }
+.waveform span:nth-child(4) { animation-delay: 0.45s; height: 55%; }
+.waveform span:nth-child(5) { animation-delay: 0.6s; height: 80%; }
+.waveform span:nth-child(6) { animation-delay: 0.3s; height: 45%; }
+.waveform span:nth-child(7) { animation-delay: 0.15s; height: 70%; }
+.waveform span:nth-child(8) { animation-delay: 0s; height: 30%; }
+@keyframes wave { 0%,100% { transform: scaleY(0.4); opacity: .7; } 50% { transform: scaleY(1); opacity: 1; } }
+
+.brand-hero h1 {
+  font-size: 44px; line-height: 1.05; letter-spacing: -0.025em; font-weight: 700;
+  color: var(--brand-heading); margin: 0 0 22px;
+}
+.brand-hero h1 .accent { color: var(--brand-blue); }
+.brand-hero p {
+  font-size: 15.5px; line-height: 1.65; color: var(--brand-body); margin: 0 0 26px; max-width: 460px;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border-radius: 999px; padding: 6px 12px;
+  background: var(--brand-chip); border: 1px solid var(--brand-chip-border);
+  color: var(--brand-chip-fg); font-size: 12px; font-weight: 500;
+  backdrop-filter: blur(6px);
+}
+
+.enterprise {
+  position: relative; z-index: 2; max-width: 460px;
+  border: 1px solid var(--brand-chip-border);
+  background: var(--brand-card);
+  backdrop-filter: blur(10px);
+  border-radius: 18px; padding: 22px;
+}
+.enterprise h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--brand-heading); }
+.enterprise p { margin: 0 0 14px; font-size: 13px; line-height: 1.55; color: var(--brand-body); }
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; padding: 10px 18px; border-radius: 12px;
+  background: var(--brand-blue); color: white; font-weight: 600; font-size: 14px;
+  border: none; cursor: pointer;
+  box-shadow: 0 12px 28px -12px rgba(40, 179, 240, 0.7);
+  transition: transform .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.btn-primary:hover { background: var(--brand-blue-hover); transform: translateY(-1px); }
+
+/* Form column (right) */
+.form-col {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  padding: 40px; overflow-y: auto;
+}
+.form-card {
+  width: 100%; max-width: 440px;
+  background: var(--card); color: var(--card-fg);
+  border: 1px solid var(--border); border-radius: 20px;
+  padding: 34px; box-shadow: 0 30px 80px -40px rgba(15, 60, 120, 0.25);
+}
+html.dark .form-card { box-shadow: 0 30px 80px -40px rgba(0, 0, 0, 0.5); }
+.form-card h2 { margin: 0 0 6px; font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+.form-card > p.sub { margin: 0 0 26px; font-size: 14px; color: var(--muted-fg); }
+
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.field label { font-size: 13px; font-weight: 500; color: var(--fg); }
+.field input {
+  height: 42px; padding: 0 14px; border-radius: 10px;
+  border: 1px solid var(--input-border); background: var(--card); color: var(--fg);
+  font-size: 14px; font-family: inherit; transition: border-color .15s ease, box-shadow .15s ease;
+}
+.field input::placeholder { color: var(--muted-fg); opacity: .7; }
+.field input:focus { outline: none; border-color: var(--brand-blue); box-shadow: 0 0 0 4px var(--brand-blue-soft); }
+
+.form-submit {
+  width: 100%; padding: 12px 18px; border-radius: 12px;
+  background: var(--brand-blue); color: white; border: none; cursor: pointer;
+  font-weight: 600; font-size: 14.5px;
+  box-shadow: 0 12px 30px -12px rgba(40, 179, 240, 0.6);
+  transition: transform .15s ease, background .15s ease;
+  margin-top: 8px;
+}
+.form-submit:hover { background: var(--brand-blue-hover); transform: translateY(-1px); }
+
+.form-foot { text-align: center; font-size: 13.5px; color: var(--muted-fg); margin-top: 22px; }
+.form-foot a { color: var(--brand-blue); font-weight: 600; text-decoration: none; }
+.form-foot a:hover { text-decoration: underline; }
+
+.divider {
+  display: flex; align-items: center; gap: 12px; margin: 22px 0;
+  color: var(--muted-fg); font-size: 12px;
+}
+.divider::before, .divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+.oauth-btn {
+  width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 10px 14px; border-radius: 12px;
+  background: transparent; border: 1px solid var(--input-border);
+  color: var(--fg); cursor: pointer; font-weight: 500; font-size: 14px;
+  transition: border-color .15s ease, background .15s ease;
+}
+.oauth-btn:hover { border-color: var(--brand-blue); }
+
+/* Info footer */
+.info {
+  padding: 18px 24px; font-size: 12px; color: var(--muted-fg);
+  border-top: 1px solid var(--border); background: var(--card);
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}
+
+/* Hide non-active views */
+[data-view]:not(.active) { display: none; }
+</style>
+</head>
+<body>
+
+<div class="preview-bar">
+  <div class="left">
+    <span class="badge">Redesign Preview</span>
+    <div class="tabs">
+      <button class="tab active" data-tab="signup">Sign up</button>
+      <button class="tab" data-tab="login">Sign in</button>
+    </div>
+  </div>
+  <div class="right">
+    <span style="color:var(--muted-fg); font-size:12px;">EchoWave • by nAutomation Labs</span>
+    <button class="icon-btn" id="theme-toggle" title="Toggle theme" data-testid="preview-theme-toggle">
+      <i class="fa-solid fa-moon" id="theme-icon"></i>
+    </button>
+  </div>
+</div>
+
+<!-- SIGNUP VIEW -->
+<div class="auth active" data-view="signup">
+  <aside class="brand-panel">
+    <div class="brand-top">
+      <div class="brand-logo">
+        <span class="mark">
+          <svg viewBox="0 0 44 44" fill="none">
+            <g stroke="#fff" stroke-width="2.6" stroke-linecap="round">
+              <line x1="10" y1="22" x2="10" y2="22"/>
+              <line x1="15" y1="17" x2="15" y2="27"/>
+              <line x1="20" y1="12" x2="20" y2="32"/>
+              <line x1="25" y1="7" x2="25" y2="37"/>
+              <line x1="30" y1="12" x2="30" y2="32"/>
+              <line x1="35" y1="17" x2="35" y2="27"/>
+            </g>
+          </svg>
+        </span>
+        <span class="name">EchoWave</span>
+      </div>
+      <span class="brand-tag">by nAutomation Labs</span>
+    </div>
+
+    <div class="brand-hero">
+      <div class="waveform"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <h1>Build production<br/><span class="accent">voice AI agents</span><br/>without vendor lock-in.</h1>
+      <p>EchoWave is the open, self-hostable voice AI platform. Design workflows visually, connect any LLM / STT / TTS provider, and ship real conversations in minutes.</p>
+      <div class="chips">
+        <span class="chip"><i class="fa-solid fa-microphone-lines" style="margin-right:6px;font-size:10px;"></i>Speech-to-speech</span>
+        <span class="chip"><i class="fa-solid fa-plug" style="margin-right:6px;font-size:10px;"></i>MCP-native</span>
+        <span class="chip"><i class="fa-solid fa-key" style="margin-right:6px;font-size:10px;"></i>BYOK · any model</span>
+        <span class="chip"><i class="fa-solid fa-server" style="margin-right:6px;font-size:10px;"></i>Self-hostable</span>
+      </div>
+    </div>
+
+    <div class="enterprise">
+      <h3>Need on-prem, data residency &amp; a data perimeter?</h3>
+      <p>We deploy EchoWave inside your environment for regulated and high-scale teams.</p>
+      <button class="btn-primary" data-testid="enterprise-cta">Talk to Sales <i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+  </aside>
+
+  <main class="form-col">
+    <div class="form-card">
+      <h2 data-testid="signup-title">Create your account</h2>
+      <p class="sub">Start building voice agents in minutes — no credit card required.</p>
+
+      <form onsubmit="event.preventDefault(); alert('This is a static preview — deploy the redesigned code on your EC2 to make signup live.');" data-testid="signup-form">
+        <div class="field">
+          <label>Work email</label>
+          <input type="email" placeholder="you@company.com" data-testid="signup-email-input" />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" placeholder="At least 8 characters" data-testid="signup-password-input" />
+        </div>
+        <div class="field">
+          <label>Confirm password</label>
+          <input type="password" placeholder="Re-enter your password" data-testid="signup-confirm-password-input" />
+        </div>
+        <button type="submit" class="form-submit" data-testid="signup-submit-btn">Create account <i class="fa-solid fa-arrow-right" style="margin-left:4px;"></i></button>
+      </form>
+
+      <div class="divider">or continue with</div>
+      <button class="oauth-btn"><i class="fa-brands fa-google" style="color:#4285F4;"></i> Google</button>
+
+      <p class="form-foot">
+        Already have an account? <a href="#" onclick="switchTab('login'); return false;" data-testid="signup-signin-link">Sign in</a>
+      </p>
+    </div>
+  </main>
+</div>
+
+<!-- LOGIN VIEW -->
+<div class="auth" data-view="login">
+  <aside class="brand-panel">
+    <div class="brand-top">
+      <div class="brand-logo">
+        <span class="mark">
+          <svg viewBox="0 0 44 44" fill="none">
+            <g stroke="#fff" stroke-width="2.6" stroke-linecap="round">
+              <line x1="10" y1="22" x2="10" y2="22"/>
+              <line x1="15" y1="17" x2="15" y2="27"/>
+              <line x1="20" y1="12" x2="20" y2="32"/>
+              <line x1="25" y1="7" x2="25" y2="37"/>
+              <line x1="30" y1="12" x2="30" y2="32"/>
+              <line x1="35" y1="17" x2="35" y2="27"/>
+            </g>
+          </svg>
+        </span>
+        <span class="name">EchoWave</span>
+      </div>
+      <span class="brand-tag">by nAutomation Labs</span>
+    </div>
+
+    <div class="brand-hero">
+      <div class="waveform"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <h1>Welcome back to<br/><span class="accent">EchoWave</span>.</h1>
+      <p>Sign in to continue building, testing, and shipping voice AI agents across your organization.</p>
+      <div class="chips">
+        <span class="chip"><i class="fa-solid fa-microphone-lines" style="margin-right:6px;font-size:10px;"></i>Speech-to-speech</span>
+        <span class="chip"><i class="fa-solid fa-plug" style="margin-right:6px;font-size:10px;"></i>MCP-native</span>
+        <span class="chip"><i class="fa-solid fa-key" style="margin-right:6px;font-size:10px;"></i>BYOK · any model</span>
+        <span class="chip"><i class="fa-solid fa-server" style="margin-right:6px;font-size:10px;"></i>Self-hostable</span>
+      </div>
+    </div>
+
+    <div class="enterprise">
+      <h3>Need on-prem, data residency &amp; a data perimeter?</h3>
+      <p>We deploy EchoWave inside your environment for regulated and high-scale teams.</p>
+      <button class="btn-primary">Talk to Sales <i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+  </aside>
+
+  <main class="form-col">
+    <div class="form-card">
+      <h2 data-testid="login-title">Welcome back</h2>
+      <p class="sub">Sign in to your EchoWave workspace.</p>
+
+      <form onsubmit="event.preventDefault(); alert('This is a static preview — deploy the redesigned code on your EC2 to make login live.');" data-testid="login-form">
+        <div class="field">
+          <label>Work email</label>
+          <input type="email" placeholder="you@company.com" data-testid="login-email-input" />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" placeholder="Enter your password" data-testid="login-password-input" />
+        </div>
+        <button type="submit" class="form-submit" data-testid="login-submit-btn">Sign in <i class="fa-solid fa-arrow-right" style="margin-left:4px;"></i></button>
+      </form>
+
+      <div class="divider">or continue with</div>
+      <button class="oauth-btn"><i class="fa-brands fa-google" style="color:#4285F4;"></i> Google</button>
+
+      <p class="form-foot">
+        Don't have an account? <a href="#" onclick="switchTab('signup'); return false;" data-testid="login-signup-link">Sign up</a>
+      </p>
+    </div>
+  </main>
+</div>
+
+<div class="info">
+  <div>
+    <i class="fa-solid fa-circle-info" style="color:var(--brand-blue); margin-right:6px;"></i>
+    Static preview only. The full Next.js redesign lives in <code style="background:var(--brand-blue-soft); color:var(--brand-blue); padding:2px 6px; border-radius:4px;">/app/echowave/ui</code> — pull it to your EC2 and rebuild Docker Compose to ship.
+  </div>
+  <div>
+    <a href="https://github.com/Stratfiy/echowave" target="_blank" style="color:var(--brand-blue); text-decoration:none;">
+      <i class="fa-brands fa-github"></i> Repo
+    </a>
+    &nbsp; · &nbsp;
+    <a href="https://echowave.nautomationlabs.com" target="_blank" style="color:var(--brand-blue); text-decoration:none;">
+      <i class="fa-solid fa-arrow-up-right-from-square"></i> Live (old design)
+    </a>
+  </div>
+</div>
+
+<script>
+// Theme toggle
+const themeToggle = document.getElementById('theme-toggle');
+const themeIcon = document.getElementById('theme-icon');
+function applyTheme(t) {
+  document.documentElement.classList.toggle('dark', t === 'dark');
+  themeIcon.className = t === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+  try { localStorage.setItem('ew-preview-theme', t); } catch(e){}
+}
+const saved = (function(){ try { return localStorage.getItem('ew-preview-theme'); } catch(e) { return null; }})();
+applyTheme(saved === 'dark' ? 'dark' : 'light');
+themeToggle.addEventListener('click', () => {
+  const isDark = document.documentElement.classList.contains('dark');
+  applyTheme(isDark ? 'light' : 'dark');
+});
+
+// Tab switching
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('[data-view]').forEach(v => v.classList.toggle('active', v.dataset.view === name));
+}
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+</script>
+</body>
+</html>
