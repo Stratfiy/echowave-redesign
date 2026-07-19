@@ -93,7 +93,7 @@ export type AriConfigurationRequest = {
     /**
      * Ws Client Name
      *
-     * websocket_client.conf connection name for externalMedia (e.g., echowave_staging)
+     * websocket_client.conf connection name for externalMedia (e.g., dograh_staging)
      */
     ws_client_name?: string;
     /**
@@ -518,7 +518,7 @@ export type ByokPipelineAiModelConfiguration = {
     } & GoogleLlmService) | ({
         provider: 'azure';
     } & AzureLlmService) | ({
-        provider: 'echowave';
+        provider: 'dograh';
     } & EchoWaveLlmService) | ({
         provider: 'aws_bedrock';
     } & AwsBedrockLlmConfiguration) | ({
@@ -546,7 +546,7 @@ export type ByokPipelineAiModelConfiguration = {
     } & CartesiaTtsConfiguration) | ({
         provider: 'inworld';
     } & InworldTtsConfiguration) | ({
-        provider: 'echowave';
+        provider: 'dograh';
     } & EchoWaveTtsService) | ({
         provider: 'sarvam';
     } & SarvamTtsConfiguration) | ({
@@ -576,7 +576,7 @@ export type ByokPipelineAiModelConfiguration = {
     } & OpenAisttConfiguration) | ({
         provider: 'google';
     } & GoogleSttConfiguration) | ({
-        provider: 'echowave';
+        provider: 'dograh';
     } & EchoWaveSttService) | ({
         provider: 'speechmatics';
     } & SpeechmaticsSttConfiguration) | ({
@@ -606,7 +606,7 @@ export type ByokPipelineAiModelConfiguration = {
     } & OpenRouterEmbeddingsConfiguration) | ({
         provider: 'azure';
     } & AzureOpenAiEmbeddingsConfiguration) | ({
-        provider: 'echowave';
+        provider: 'dograh';
     } & EchoWaveEmbeddingsConfiguration) | null;
 };
 
@@ -646,7 +646,7 @@ export type ByokRealtimeAiModelConfiguration = {
     } & GoogleLlmService) | ({
         provider: 'azure';
     } & AzureLlmService) | ({
-        provider: 'echowave';
+        provider: 'dograh';
     } & EchoWaveLlmService) | ({
         provider: 'aws_bedrock';
     } & AwsBedrockLlmConfiguration) | ({
@@ -668,7 +668,7 @@ export type ByokRealtimeAiModelConfiguration = {
     } & OpenRouterEmbeddingsConfiguration) | ({
         provider: 'azure';
     } & AzureOpenAiEmbeddingsConfiguration) | ({
-        provider: 'echowave';
+        provider: 'dograh';
     } & EchoWaveEmbeddingsConfiguration) | null;
 };
 
@@ -1694,7 +1694,7 @@ export type CurrentUsageResponse = {
     /**
      * Used EchoWave Tokens
      */
-    used_echowave_tokens: number;
+    used_dograh_tokens: number;
     /**
      * Total Duration Seconds
      */
@@ -1768,7 +1768,7 @@ export type DailyUsageBreakdownResponse = {
     /**
      * Total EchoWave Tokens
      */
-    total_echowave_tokens: number;
+    total_dograh_tokens: number;
     /**
      * Currency
      */
@@ -1794,7 +1794,7 @@ export type DailyUsageItem = {
     /**
      * EchoWave Tokens
      */
-    echowave_tokens: number;
+    dograh_tokens: number;
     /**
      * Call Count
      */
@@ -2099,7 +2099,7 @@ export type EchoWaveEmbeddingsConfiguration = {
     /**
      * Provider
      */
-    provider?: 'echowave';
+    provider?: 'dograh';
     /**
      * Api Key
      */
@@ -2119,7 +2119,7 @@ export type EchoWaveLlmService = {
     /**
      * Provider
      */
-    provider?: 'echowave';
+    provider?: 'dograh';
     /**
      * Api Key
      */
@@ -2161,7 +2161,7 @@ export type EchoWaveSttService = {
     /**
      * Provider
      */
-    provider?: 'echowave';
+    provider?: 'dograh';
     /**
      * Api Key
      */
@@ -2187,7 +2187,7 @@ export type EchoWaveTtsService = {
     /**
      * Provider
      */
-    provider?: 'echowave';
+    provider?: 'dograh';
     /**
      * Api Key
      */
@@ -3744,7 +3744,7 @@ export type ModelConfigurationMetricPrice = {
  */
 export type ModelConfigurationPricingResponse = {
     platform_usage?: ModelConfigurationMetricPrice | null;
-    echowave_model?: ModelConfigurationMetricPrice | null;
+    dograh_model?: ModelConfigurationMetricPrice | null;
 };
 
 /**
@@ -4138,8 +4138,8 @@ export type OrganizationAiModelConfigurationV2 = {
     /**
      * Mode
      */
-    mode: 'echowave' | 'byok';
-    echowave?: EchoWaveManagedAiModelConfiguration | null;
+    mode: 'dograh' | 'byok';
+    dograh?: EchoWaveManagedAiModelConfiguration | null;
     byok?: ByokaiModelConfiguration | null;
 };
 
@@ -6308,7 +6308,7 @@ export type UsageHistoryResponse = {
     /**
      * Total EchoWave Tokens
      */
-    total_echowave_tokens: number;
+    total_dograh_tokens: number;
     /**
      * Total Duration Seconds
      */
@@ -7111,7 +7111,7 @@ export type WorkflowRunUsageResponse = {
     /**
      * EchoWave Token Usage
      */
-    echowave_token_usage: number;
+    dograh_token_usage: number;
     /**
      * Call Duration Seconds
      */
@@ -9574,7 +9574,7 @@ export type GetVoicesApiV1UserConfigurationsVoicesProviderGetData = {
         /**
          * Provider
          */
-        provider: 'elevenlabs' | 'deepgram' | 'sarvam' | 'cartesia' | 'echowave' | 'rime';
+        provider: 'elevenlabs' | 'deepgram' | 'sarvam' | 'cartesia' | 'dograh' | 'rime';
     };
     query?: {
         /**
@@ -14185,9 +14185,9 @@ export type ActiveCallsApiV1HealthActiveCallsGetData = {
     body?: never;
     headers?: {
         /**
-         * X-EchoWave-Devops-Secret
+         * X-Dograh-Devops-Secret
          */
-        'X-EchoWave-Devops-Secret'?: string | null;
+        'X-Dograh-Devops-Secret'?: string | null;
     };
     path?: never;
     query?: never;
