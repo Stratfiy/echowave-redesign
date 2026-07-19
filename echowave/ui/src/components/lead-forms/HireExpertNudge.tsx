@@ -16,7 +16,7 @@ const SHOW_DELAY_MS = 5 * 60 * 1000; // 5 minutes on the builder
 const AUTO_FADE_MS = 30 * 1000; // visible for 30s
 
 function nudgeDoneKey(workflowId: number) {
-  return `echowave:hireNudge:${workflowId}`;
+  return `dograh:hireNudge:${workflowId}`;
 }
 
 export function HireExpertNudge({ workflowId }: HireExpertNudgeProps) {

@@ -43,7 +43,7 @@ interface WorkflowRunResponse {
     user_recording_url: string | null;
     bot_recording_url: string | null;
     cost_info: {
-        echowave_token_usage?: number | null;
+        dograh_token_usage?: number | null;
         call_duration_seconds?: number | null;
     } | null;
     initial_context: Record<string, string | number | boolean | object> | null;

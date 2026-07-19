@@ -24,12 +24,12 @@ import { VoiceSelectorModal } from "@/components/VoiceSelectorModal";
 import { LANGUAGE_DISPLAY_NAMES } from "@/constants/languages";
 import { formatRoundingPolicy } from "@/lib/billingDisplay";
 
-type ModelMode = "realtime" | "echowave" | "byok";
+type ModelMode = "realtime" | "dograh" | "byok";
 
 // Sentinel language value for "Multilingual (Auto-detect)".
 const MULTILINGUAL_LANGUAGE_CODE = "multi";
 
-interface EchoWaveDefaults {
+interface DograhDefaults {
     voices: string[];
     allow_custom_input?: boolean;
     speeds: number[];
@@ -49,7 +49,7 @@ interface EchoWaveDefaults {
 }
 
 export interface ModelConfigurationDefaultsV2 {
-    echowave: EchoWaveDefaults;
+    dograh: DograhDefaults;
     byok: {
         pipeline: ServiceConfigurationDefaults;
         realtime: {
@@ -61,7 +61,7 @@ export interface ModelConfigurationDefaultsV2 {
     };
 }
 
-interface EchoWaveFormState {
+interface DograhFormState {
     api_key: string;
     voice: string;
     speed: number;
@@ -93,12 +93,12 @@ function asRecord(value: unknown): Record<string, unknown> | null {
         : null;
 }
 
-function isEchoWaveEffectiveConfig(config: Record<string, unknown> | null | undefined): boolean {
+function isDograhEffectiveConfig(config: Record<string, unknown> | null | undefined): boolean {
     if (!config || config.is_realtime) return false;
     const llm = asRecord(config.llm);
     const tts = asRecord(config.tts);
     const stt = asRecord(config.stt);
-    return llm?.provider === "echowave" && tts?.provider === "echowave" && stt?.provider === "echowave";
+    return llm?.provider === "dograh" && tts?.provider === "dograh" && stt?.provider === "dograh";
 }
 
 function byokDefaults(defaults: ModelConfigurationDefaultsV2): ServiceConfigurationDefaults {
@@ -172,7 +172,7 @@ function getByokInitialConfig(
         return matchesTab(byokConfiguration) ? byokConfiguration : emptyByokInitialConfig(wantRealtime);
     }
 
-    if (configuration?.mode === "echowave" || isEchoWaveEffectiveConfig(effectiveConfiguration)) {
+    if (configuration?.mode === "dograh" || isDograhEffectiveConfig(effectiveConfiguration)) {
         return emptyByokInitialConfig(wantRealtime);
     }
 
@@ -180,23 +180,23 @@ function getByokInitialConfig(
     return matchesTab(effective) ? (effective as Record<string, unknown>) : emptyByokInitialConfig(wantRealtime);
 }
 
-function buildEchoWaveState(
+function buildDograhState(
     defaults: ModelConfigurationDefaultsV2,
     configuration: Record<string, unknown> | null,
     effectiveConfiguration: Record<string, unknown> | null,
-): EchoWaveFormState {
-    const fallback = defaults.echowave.defaults;
-    const configuredEchoWave = configuration?.mode === "echowave" ? asRecord(configuration.echowave) : null;
-    if (configuredEchoWave) {
+): DograhFormState {
+    const fallback = defaults.dograh.defaults;
+    const configuredDograh = configuration?.mode === "dograh" ? asRecord(configuration.dograh) : null;
+    if (configuredDograh) {
         return {
-            api_key: String(configuredEchoWave.api_key || ""),
-            voice: String(configuredEchoWave.voice || fallback.voice),
-            speed: numberOrDefault(configuredEchoWave.speed, fallback.speed),
-            language: String(configuredEchoWave.language || fallback.language),
+            api_key: String(configuredDograh.api_key || ""),
+            voice: String(configuredDograh.voice || fallback.voice),
+            speed: numberOrDefault(configuredDograh.speed, fallback.speed),
+            language: String(configuredDograh.language || fallback.language),
         };
     }
 
-    if (isEchoWaveEffectiveConfig(effectiveConfiguration)) {
+    if (isDograhEffectiveConfig(effectiveConfiguration)) {
         const llm = asRecord(effectiveConfiguration?.llm);
         const tts = asRecord(effectiveConfiguration?.tts);
         const stt = asRecord(effectiveConfiguration?.stt);
@@ -220,11 +220,11 @@ function preferredMode(
     configuration: Record<string, unknown> | null,
     effectiveConfiguration: Record<string, unknown> | null,
 ): ModelMode {
-    if (configuration?.mode === "echowave") return "echowave";
+    if (configuration?.mode === "dograh") return "dograh";
     if (configuration?.mode === "byok") {
         return asRecord(configuration.byok)?.mode === "realtime" ? "realtime" : "byok";
     }
-    if (isEchoWaveEffectiveConfig(effectiveConfiguration)) return "echowave";
+    if (isDograhEffectiveConfig(effectiveConfiguration)) return "dograh";
     return Boolean(effectiveConfiguration?.is_realtime) ? "realtime" : "byok";
 }
 
@@ -257,7 +257,7 @@ function requireByokService(
     if (
         !serviceConfiguration
         || !serviceConfiguration.provider
-        || serviceConfiguration.provider === "echowave"
+        || serviceConfiguration.provider === "dograh"
         || !hasRequiredApiKey(service, serviceConfiguration, defaults)
     ) {
         throw new Error(`${service} configuration is required`);
@@ -267,7 +267,7 @@ function requireByokService(
 
 function optionalByokService(config: Record<string, unknown>, service: ServiceSegment): Record<string, unknown> | undefined {
     const serviceConfiguration = asRecord(config[service]);
-    if (!serviceConfiguration?.provider || serviceConfiguration.provider === "echowave") return undefined;
+    if (!serviceConfiguration?.provider || serviceConfiguration.provider === "dograh") return undefined;
     return serviceConfiguration;
 }
 
@@ -318,16 +318,16 @@ function MetricPrice({
 
 function PricingSummary({
     pricing,
-    includeEchoWaveModel,
+    includeDograhModel,
     thirdPartyModels,
 }: {
     pricing?: ModelConfigurationPricingResponse | null;
-    includeEchoWaveModel: boolean;
+    includeDograhModel: boolean;
     thirdPartyModels?: boolean;
 }) {
     const platformPrice = pricing?.platform_usage;
-    const echowaveModelPrice = includeEchoWaveModel ? pricing?.echowave_model : null;
-    if (!platformPrice && !echowaveModelPrice) return null;
+    const dograhModelPrice = includeDograhModel ? pricing?.dograh_model : null;
+    if (!platformPrice && !dograhModelPrice) return null;
 
     return (
         <Card className="mb-4 border-primary/20 bg-primary/[0.03]">
@@ -336,8 +336,8 @@ function PricingSummary({
                 {platformPrice && (
                     <MetricPrice label="Platform usage" price={platformPrice} />
                 )}
-                {echowaveModelPrice && (
-                    <MetricPrice label="EchoWave model usage" price={echowaveModelPrice} />
+                {dograhModelPrice && (
+                    <MetricPrice label="EchoWave model usage" price={dograhModelPrice} />
                 )}
                 {thirdPartyModels && (
                     <p className="text-muted-foreground">
@@ -358,63 +358,63 @@ export function AIModelConfigurationV2Editor({
     submitLabel = "Save Configuration",
 }: AIModelConfigurationV2EditorProps) {
     const defaultsForByok = useMemo(() => byokDefaults(defaults), [defaults]);
-    const [mode, setMode] = useState<ModelMode>("echowave");
-    const [echowave, setEchoWave] = useState<EchoWaveFormState>(() => ({
+    const [mode, setMode] = useState<ModelMode>("dograh");
+    const [dograh, setDograh] = useState<DograhFormState>(() => ({
         api_key: "",
-        voice: defaults.echowave.defaults.voice,
-        speed: defaults.echowave.defaults.speed,
-        language: defaults.echowave.defaults.language,
+        voice: defaults.dograh.defaults.voice,
+        speed: defaults.dograh.defaults.speed,
+        language: defaults.dograh.defaults.language,
     }));
     const [realtimeInitialConfig, setRealtimeInitialConfig] = useState<Record<string, unknown> | null>(null);
     const [pipelineInitialConfig, setPipelineInitialConfig] = useState<Record<string, unknown> | null>(null);
-    const [isSavingEchoWave, setIsSavingEchoWave] = useState(false);
+    const [isSavingDograh, setIsSavingDograh] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const allowCustomVoice = defaults.echowave.allow_custom_input ?? false;
-    const echowaveSpeedRange = defaults.echowave.speed_range ?? { min: 0.5, max: 2.0, step: 0.1 };
+    const allowCustomVoice = defaults.dograh.allow_custom_input ?? false;
+    const dograhSpeedRange = defaults.dograh.speed_range ?? { min: 0.5, max: 2.0, step: 0.1 };
     const multilingualLanguageNames = useMemo(() => {
-        const codes = defaults.echowave.multilingual_languages ?? [];
+        const codes = defaults.dograh.multilingual_languages ?? [];
         if (codes.length === 0) return null;
         return codes.map((code) => LANGUAGE_DISPLAY_NAMES[code] || code).join(", ");
-    }, [defaults.echowave.multilingual_languages]);
+    }, [defaults.dograh.multilingual_languages]);
 
     useEffect(() => {
         const rawConfiguration = asRecord(configuration);
         const rawEffectiveConfiguration = asRecord(effectiveConfiguration);
         setMode(preferredMode(rawConfiguration, rawEffectiveConfiguration));
-        const nextEchoWave = buildEchoWaveState(defaults, rawConfiguration, rawEffectiveConfiguration);
-        setEchoWave(nextEchoWave);
+        const nextDograh = buildDograhState(defaults, rawConfiguration, rawEffectiveConfiguration);
+        setDograh(nextDograh);
         setRealtimeInitialConfig(getByokInitialConfig(rawConfiguration, rawEffectiveConfiguration, true));
         setPipelineInitialConfig(getByokInitialConfig(rawConfiguration, rawEffectiveConfiguration, false));
     }, [configuration, defaults, effectiveConfiguration, allowCustomVoice]);
 
-    const saveEchoWaveConfiguration = async () => {
-        setIsSavingEchoWave(true);
+    const saveDograhConfiguration = async () => {
+        setIsSavingDograh(true);
         setError(null);
         try {
             if (
-                !Number.isFinite(echowave.speed)
-                || echowave.speed < echowaveSpeedRange.min
-                || echowave.speed > echowaveSpeedRange.max
+                !Number.isFinite(dograh.speed)
+                || dograh.speed < dograhSpeedRange.min
+                || dograh.speed > dograhSpeedRange.max
             ) {
                 throw new Error(
-                    `EchoWave speed must be between ${echowaveSpeedRange.min} and ${echowaveSpeedRange.max}.`,
+                    `EchoWave speed must be between ${dograhSpeedRange.min} and ${dograhSpeedRange.max}.`,
                 );
             }
             await onSave({
                 version: 2,
-                mode: "echowave",
-                echowave: {
-                    api_key: echowave.api_key.trim(),
-                    voice: echowave.voice,
-                    speed: echowave.speed,
-                    language: echowave.language,
+                mode: "dograh",
+                dograh: {
+                    api_key: dograh.api_key.trim(),
+                    voice: dograh.voice,
+                    speed: dograh.speed,
+                    language: dograh.language,
                 },
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to save configuration");
         } finally {
-            setIsSavingEchoWave(false);
+            setIsSavingDograh(false);
         }
     };
 
@@ -460,7 +460,7 @@ export function AIModelConfigurationV2Editor({
             <Tabs value={mode} onValueChange={(value) => setMode(value as ModelMode)} className="space-y-6">
                 <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="realtime">Speech to Speech</TabsTrigger>
-                    <TabsTrigger value="echowave">EchoWave</TabsTrigger>
+                    <TabsTrigger value="dograh">EchoWave</TabsTrigger>
                     <TabsTrigger value="byok">BYOK</TabsTrigger>
                 </TabsList>
 
@@ -468,7 +468,7 @@ export function AIModelConfigurationV2Editor({
                     <p className="mb-4 text-sm text-muted-foreground">
                         A single speech-to-speech model handles the conversation in realtime (no separate transcriber or voice). An LLM is still required for variable extraction and QA.
                     </p>
-                    <PricingSummary pricing={pricing} includeEchoWaveModel={false} thirdPartyModels />
+                    <PricingSummary pricing={pricing} includeDograhModel={false} thirdPartyModels />
                     <ServiceConfigurationForm
                         key={`realtime-${JSON.stringify(realtimeInitialConfig)}`}
                         mode="global"
@@ -481,7 +481,7 @@ export function AIModelConfigurationV2Editor({
                     <ThirdPartyProviderNotice />
                 </TabsContent>
 
-                <TabsContent value="echowave" className="mt-0">
+                <TabsContent value="dograh" className="mt-0">
                     <p className="mb-4 text-sm text-muted-foreground">
                         EchoWave provides a managed transcriber, LLM, and voice pipeline. Select a voice and language while EchoWave manages the underlying model providers.{" "}
                         We offer custom pricing and a 15-second pulse with a monthly commitment.{" "}
@@ -495,35 +495,35 @@ export function AIModelConfigurationV2Editor({
                         </a>
                         .
                     </p>
-                    <PricingSummary pricing={pricing} includeEchoWaveModel />
+                    <PricingSummary pricing={pricing} includeDograhModel />
                     <Card>
                         <CardContent className="pt-6">
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <div className="space-y-2 sm:col-span-2">
                                     <Label>Voice</Label>
                                     <VoiceSelectorModal
-                                        provider="echowave"
-                                        value={echowave.voice}
-                                        onChange={(voice) => setEchoWave({ ...echowave, voice })}
+                                        provider="dograh"
+                                        value={dograh.voice}
+                                        onChange={(voice) => setDograh({ ...dograh, voice })}
                                         allowManualInput={allowCustomVoice}
                                     />
                                 </div>
 
                                 <div className="space-y-2 sm:col-span-2">
                                     <Label>Language</Label>
-                                    <Select value={echowave.language} onValueChange={(language) => setEchoWave({ ...echowave, language })}>
+                                    <Select value={dograh.language} onValueChange={(language) => setDograh({ ...dograh, language })}>
                                         <SelectTrigger className="w-full">
                                             <SelectValue placeholder="Select language" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {defaults.echowave.languages.map((language) => (
+                                            {defaults.dograh.languages.map((language) => (
                                                 <SelectItem key={language} value={language}>
                                                     {LANGUAGE_DISPLAY_NAMES[language] || language}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                    {echowave.language === MULTILINGUAL_LANGUAGE_CODE && multilingualLanguageNames && (
+                                    {dograh.language === MULTILINGUAL_LANGUAGE_CODE && multilingualLanguageNames && (
                                         <p className="text-xs text-muted-foreground">
                                             Auto-detects {multilingualLanguageNames}.
                                         </p>
@@ -531,42 +531,42 @@ export function AIModelConfigurationV2Editor({
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="echowave-speed">Speed</Label>
+                                    <Label htmlFor="dograh-speed">Speed</Label>
                                     <Input
-                                        id="echowave-speed"
+                                        id="dograh-speed"
                                         type="number"
-                                        min={echowaveSpeedRange.min}
-                                        max={echowaveSpeedRange.max}
-                                        step={echowaveSpeedRange.step ?? 0.1}
-                                        value={echowave.speed}
+                                        min={dograhSpeedRange.min}
+                                        max={dograhSpeedRange.max}
+                                        step={dograhSpeedRange.step ?? 0.1}
+                                        value={dograh.speed}
                                         onChange={(event) => {
                                             const speed = event.currentTarget.valueAsNumber;
-                                            setEchoWave({
-                                                ...echowave,
-                                                speed: Number.isFinite(speed) ? speed : defaults.echowave.defaults.speed,
+                                            setDograh({
+                                                ...dograh,
+                                                speed: Number.isFinite(speed) ? speed : defaults.dograh.defaults.speed,
                                             });
                                         }}
                                     />
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="echowave-api-key">API Key</Label>
+                                    <Label htmlFor="dograh-api-key">API Key</Label>
                                     <div className="relative">
                                         <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                         <Input
-                                            id="echowave-api-key"
+                                            id="dograh-api-key"
                                             className="pl-9"
-                                            value={echowave.api_key}
-                                            onChange={(event) => setEchoWave({ ...echowave, api_key: event.target.value })}
+                                            value={dograh.api_key}
+                                            onChange={(event) => setDograh({ ...dograh, api_key: event.target.value })}
                                             placeholder="Enter API key"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <Button type="button" className="mt-6 w-full" onClick={saveEchoWaveConfiguration} disabled={isSavingEchoWave}>
+                            <Button type="button" className="mt-6 w-full" onClick={saveDograhConfiguration} disabled={isSavingDograh}>
                                 <Save className="mr-2 h-4 w-4" />
-                                {isSavingEchoWave ? "Saving..." : submitLabel}
+                                {isSavingDograh ? "Saving..." : submitLabel}
                             </Button>
                         </CardContent>
                     </Card>
@@ -576,7 +576,7 @@ export function AIModelConfigurationV2Editor({
                     <p className="mb-4 text-sm text-muted-foreground">
                         Configure separate transcriber, LLM, and voice providers using your own API keys. An embeddings model can also be configured for knowledge retrieval.
                     </p>
-                    <PricingSummary pricing={pricing} includeEchoWaveModel={false} thirdPartyModels />
+                    <PricingSummary pricing={pricing} includeDograhModel={false} thirdPartyModels />
                     <ServiceConfigurationForm
                         key={`byok-${JSON.stringify(pipelineInitialConfig)}`}
                         mode="global"
