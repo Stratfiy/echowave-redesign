@@ -271,7 +271,7 @@
   /* Matte app background — flat charcoal (dark) / soft paper (light), NO
      gradients, with one subtle graphic in BOTH themes: the giant faded
      "echowave" wordmark (--brand-imprint, defined in :root/.dark) pinned to
-     the bottom of the viewport, echoing the echowave.com footer. */
+     the bottom of the viewport, echoing the dograh.com footer. */
   /* NOTE: background-attachment: fixed positions in VIEWPORT space but only
      paints inside .app-surface, which starts right of the ~270px sidebar —
      the +135px x-shift recentres the wordmark on the VISIBLE canvas. */

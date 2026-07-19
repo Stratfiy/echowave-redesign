@@ -70,7 +70,7 @@ Set these when `AUTH_PROVIDER=stack` to delegate sign-in to [Stack Auth](https:/
 | `PUBLIC_HOST` | `null` | Public host without scheme (e.g. `203-0-113-10.sslip.io`); `TURN_HOST` derives from it |
 | `BACKEND_API_ENDPOINT` | `PUBLIC_BASE_URL`, else `http://localhost:8000` | Public URL the backend builds webhook / callback / embed links from. Set explicitly only to override the value derived from `PUBLIC_BASE_URL` |
 | `UI_APP_URL` | `http://localhost:3010` | URL of the frontend application |
-| `MPS_API_URL` | `https://services.echowave.com` | EchoWave Managed Platform Services URL |
+| `MPS_API_URL` | `https://services.dograh.com` | EchoWave Managed Platform Services URL |
 | `ECHOWAVE_MPS_SECRET_KEY` | `null` | **Required for non-OSS deployments.** Secret key for authenticating with MPS |
 | `CORS_ALLOWED_ORIGINS` | `null` | **Required for non-OSS deployments.** Comma-separated list of origins allowed to make credentialed cross-origin requests (e.g. `https://app.example.com,https://admin.example.com`). Ignored in OSS mode, which serves a permissive same-origin policy without credentials |
 

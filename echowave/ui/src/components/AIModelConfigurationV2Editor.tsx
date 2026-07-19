@@ -486,7 +486,7 @@ export function AIModelConfigurationV2Editor({
                         EchoWave provides a managed transcriber, LLM, and voice pipeline. Select a voice and language while EchoWave manages the underlying model providers.{" "}
                         We offer custom pricing and a 15-second pulse with a monthly commitment.{" "}
                         <a
-                            href="https://www.echowave.com/contact"
+                            href="https://www.dograh.com/contact"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="underline"

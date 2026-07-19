@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const GHCR_IMAGES = ["echowave-hq/echowave-ui", "echowave-hq/echowave-api"] as const;
+const GHCR_IMAGES = ["dograh-hq/dograh-ui", "dograh-hq/dograh-api"] as const;
 const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)$/;
 const REVALIDATE_SECONDS = 60 * 60;
 
