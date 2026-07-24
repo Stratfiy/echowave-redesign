@@ -27,7 +27,7 @@ async def resolve_embedding_correlation_id(
 ) -> Optional[str]:
     """Mint an MPS correlation id for a managed embedding call made outside a run.
 
-    Matches the voice path's ``_authorize_oss_managed_v2_correlation``: the
+    Matches the voice path's managed-model correlation minting: the
     correlation is minted via the bearer service-key endpoint, so it works for
     hosted orgs and OSS keys alike. Returns ``None`` when minting fails; MPS
     accepts un-correlated embedding calls.

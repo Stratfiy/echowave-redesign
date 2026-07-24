@@ -1,16 +1,21 @@
 """Workflow-run billing hooks.
 
-Dograh does not rate or deduct credits locally. MPS owns credit accounting.
-For hosted deployments, Dograh reports completed platform usage to MPS.
-When a server-minted MPS correlation id exists, MPS uses model-service usage
-as the canonical duration. Otherwise Dograh reports the completed run duration.
+rate_and_record_platform_usage() is the local rating path: it charges a
+completed run's duration against the organization's prepaid credit ledger
+(api/db/organization_credit_ledger_client.py) at PLATFORM_RATE_USD_PER_MINUTE,
+or the org's price_per_second_usd override when set.
+
+report_workflow_run_platform_usage() below it is the older MPS-reporting path
+(non-OSS deployments only; a no-op with MPS_API_URL unset). It's independent
+of local rating and kept only for deployments that still point at an owned
+MPS-compatible backend.
 """
 
 from typing import Any
 
 from loguru import logger
 
-from api.constants import DEPLOYMENT_MODE
+from api.constants import DEPLOYMENT_MODE, PLATFORM_RATE_USD_PER_MINUTE
 from api.db import db_client
 from api.services.managed_model_services import get_mps_correlation_id
 from api.services.mps_service_key_client import mps_service_key_client
@@ -30,6 +35,100 @@ def _duration_seconds_from_usage_info(workflow_run) -> float | None:
         return None
 
     return duration_seconds if duration_seconds > 0 else None
+
+
+async def _platform_rate_per_second(organization_id: int) -> float:
+    organization = await db_client.get_organization_by_id(organization_id)
+    override = getattr(organization, "price_per_second_usd", None)
+    if override is not None:
+        return float(override)
+    return PLATFORM_RATE_USD_PER_MINUTE / 60.0
+
+
+async def rate_and_record_platform_usage(workflow_run_id: int) -> None:
+    """Charge a completed run's duration against the org's prepaid ledger.
+
+    Idempotent: a run whose cost_info already has a charge_usd is assumed
+    already rated and is skipped, so a retried completion task can't
+    double-charge.
+    """
+    workflow_run = await db_client.get_workflow_run_by_id(workflow_run_id)
+    if not workflow_run:
+        logger.warning(
+            "Skipping platform usage rating: workflow run {} not found",
+            workflow_run_id,
+        )
+        return
+
+    if not getattr(workflow_run, "is_completed", False):
+        logger.warning(
+            "Workflow run {} is not completed in rate_and_record_platform_usage",
+            workflow_run_id,
+        )
+        return
+
+    existing_cost_info: dict[str, Any] = getattr(workflow_run, "cost_info", None) or {}
+    if existing_cost_info.get("charge_usd") is not None:
+        logger.info(
+            "Workflow run {} already rated; skipping", workflow_run_id
+        )
+        return
+
+    organization_id = _workflow_run_organization_id(workflow_run)
+    if organization_id is None:
+        logger.warning(
+            "Skipping platform usage rating for workflow run {}: no organization_id",
+            workflow_run_id,
+        )
+        return
+
+    duration_seconds = _duration_seconds_from_usage_info(workflow_run)
+    if duration_seconds is None:
+        logger.info(
+            "Skipping platform usage rating for workflow run {}: no billable duration",
+            workflow_run_id,
+        )
+        return
+
+    rate_per_second = await _platform_rate_per_second(organization_id)
+    charge_usd = round(duration_seconds * rate_per_second, 4)
+
+    cost_info = dict(existing_cost_info)
+    cost_info.update(
+        {
+            "charge_usd": charge_usd,
+            "call_duration_seconds": duration_seconds,
+            "rate_usd_per_second": rate_per_second,
+        }
+    )
+
+    try:
+        await db_client.update_workflow_run(workflow_run_id, cost_info=cost_info)
+        await db_client.record_entry(
+            organization_id,
+            "charge",
+            -charge_usd,
+            workflow_run_id=workflow_run_id,
+            description=f"Platform usage: {duration_seconds:.0f}s",
+        )
+        await db_client.record_run_usage(
+            organization_id,
+            duration_seconds=duration_seconds,
+            amount_usd=charge_usd,
+        )
+        logger.info(
+            "Rated workflow run {} for org {}: ${:.4f} for {:.0f}s",
+            workflow_run_id,
+            organization_id,
+            charge_usd,
+            duration_seconds,
+        )
+    except Exception as e:
+        logger.error(
+            "Failed to rate platform usage for workflow run {}: {}",
+            workflow_run_id,
+            e,
+        )
 
 
 def _is_usage_not_ready_error(exc: Exception) -> bool:

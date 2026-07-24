@@ -675,6 +675,56 @@ class OrganizationUsageCycleModel(Base):
     )
 
 
+class OrganizationCreditLedgerModel(Base):
+    """Append-only ledger of an organization's prepaid platform-fee credits.
+
+    An organization's balance is the SUM of amount_usd across its entries
+    (positive for purchase/trial_grant/adjustment-up, negative for charge/
+    adjustment-down). balance_after_usd is a denormalized snapshot taken at
+    write time for display/audit convenience only — the ledger sum is always
+    the source of truth for the authoritative balance.
+    """
+
+    __tablename__ = "organization_credit_ledger"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    entry_type = Column(
+        Enum(
+            "purchase",
+            "charge",
+            "trial_grant",
+            "adjustment",
+            "refund",
+            name="credit_ledger_entry_type",
+        ),
+        nullable=False,
+    )
+    amount_usd = Column(Float, nullable=False)
+    balance_after_usd = Column(Float, nullable=False)
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    description = Column(String, nullable=True)
+    # External reference for purchase entries, e.g. a Razorpay payment id.
+    reference = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    # Relationships
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index(
+            "idx_credit_ledger_org_created", "organization_id", "created_at"
+        ),
+        Index(
+            "ix_credit_ledger_workflow_run_id", "workflow_run_id"
+        ),
+    )
+
+
 class CampaignModel(Base):
     __tablename__ = "campaigns"
 

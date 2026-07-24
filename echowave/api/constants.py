@@ -60,6 +60,20 @@ MPS_SECRET_KEY = os.getenv("MPS_SECRET_KEY", None)
 MPS_API_URL = os.getenv("MPS_API_URL", "")
 DEVOPS_SECRET = os.getenv("DEVOPS_SECRET") or None
 
+# Local prepaid platform-fee billing. This is independent of whichever LLM/
+# STT/TTS providers an org brings (BYOK) — it's the flat per-minute fee for
+# running the call pipeline itself. An org's price_per_second_usd override
+# (OrganizationModel.price_per_second_usd), when set, takes precedence over
+# PLATFORM_RATE_USD_PER_MINUTE.
+PLATFORM_RATE_USD_PER_MINUTE = float(
+    os.getenv("PLATFORM_RATE_USD_PER_MINUTE", "0.02")
+)
+# A run may not start unless the org's prepaid balance is at least this much.
+MINIMUM_CALL_BALANCE_USD = float(os.getenv("MINIMUM_CALL_BALANCE_USD", "0.10"))
+# One-time credit granted to a new organization at signup so it can place
+# calls before making its first top-up.
+TRIAL_GRANT_USD = float(os.getenv("TRIAL_GRANT_USD", "10.00"))
+
 # Storage Configuration
 ENABLE_AWS_S3 = os.getenv("ENABLE_AWS_S3", "false").lower() == "true"
 

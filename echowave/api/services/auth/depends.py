@@ -5,7 +5,7 @@ from fastapi import Depends, Header, HTTPException, Query, WebSocket
 from loguru import logger
 from pydantic import ValidationError
 
-from api.constants import AUTH_PROVIDER, MPS_API_URL, MPS_SECRET_KEY
+from api.constants import AUTH_PROVIDER, MPS_API_URL, MPS_SECRET_KEY, TRIAL_GRANT_USD
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import PostHogEvent
@@ -140,6 +140,20 @@ async def get_user(
             # This prevents race conditions where multiple concurrent requests
             # might try to create configurations
             if org_was_created:
+                try:
+                    await db_client.record_entry(
+                        organization.id,
+                        "trial_grant",
+                        TRIAL_GRANT_USD,
+                        description="Signup trial credit",
+                    )
+                except Exception:
+                    logger.warning(
+                        "Failed to grant trial credit for organization {}",
+                        organization.id,
+                        exc_info=True,
+                    )
+
                 try:
                     await ensure_hosted_mps_billing_account_v2(
                         organization.id,
