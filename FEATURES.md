@@ -1,6 +1,6 @@
 # EchoWave — Feature Documentation
 
-**EchoWave** is an open-source, self-hostable voice AI agent platform — positioned as an alternative to Vapi and Retell. It lets teams design, test, and run production voice agents through a visual workflow builder, connect them to real phone lines, and let AI coding assistants (via MCP) help build and edit agents. It is a rebrand/redesign of the open-source project **Dograh** (`Stratfiy/echowave`, rebranded for **EchoWave by nAutomation Labs**).
+**EchoWave** is a hosted voice AI agent platform, priced at **$0.02/minute** of call time — positioned as a paid alternative to Vapi and Retell. It lets teams design, test, and run production voice agents through a visual workflow builder, connect them to real phone lines, and let AI coding assistants (via MCP) help build and edit agents. It is built on **Dograh** (`Stratfiy/echowave`), an open-source codebase, but is being taken to market by **nAutomation Labs** as a closed, commercial, usage-billed product rather than a self-hosted open-source offering.
 
 This document catalogs the features present in this repository, which contains two things:
 
@@ -85,28 +85,36 @@ Run a workflow against a large contact list automatically instead of triggering 
 - **Authentication** — signup/login flows, Google OAuth, organization-scoped accounts (`ui/src/app/auth`, `ui/src/lib/auth`).
 - **Organizations** — organization-level configuration/preferences, model configuration defaults, quota service, usage billing (`api/db/organization_*`, `api/services/quota_service.py`).
 - **Impersonation & Superadmin** — internal tooling for support/ops (`ui/src/app/impersonate`, `ui/src/app/superadmin`, `api/routes/superuser.py`).
-- **Billing** — credits-based billing UI (`BuyCreditsControl.tsx`) and an underlying `billing`/`usage` module (subscription tiers deferred per `REBRAND_HANDOFF.md`).
+- **Billing** — usage-metered billing at **$0.02/minute** of call time, tracked via the `billing`/`usage` module and organization usage client (`api/db/organization_usage_client.py`, `api/services/mps_billing.py`) and surfaced in the UI's credits/usage controls (`BuyCreditsControl.tsx`, `ui/src/app/usage`).
 - **Theming** — light/dark mode with a floating in-app theme switcher.
 - **Telemetry** — anonymous usage analytics via PostHog, opt-out via `ENABLE_TELEMETRY=false`; Sentry error boundary for the UI.
 
-## 8. Deployment
+## 8. Deployment & Pricing
 
-- **One-command Docker self-hosting** (`docker-compose.yaml`, `scripts/start_docker.sh`) — local or remote server, with HTTPS/custom-domain support.
-- **AI-agent-assisted setup** — an official Claude Code / Codex plugin (`echowave-hq/echowave-plugins`) that detects the OS, picks a deploy path, and runs setup/verification for you.
-- **Managed cloud offering** at `app.echowave.com` as an alternative to self-hosting.
-- **Scaling & update guides** for production deployments (`docs/deployment`).
+- **Product model: hosted, metered SaaS.** EchoWave is offered as a managed cloud service billed at **$0.02 per minute** of call time — the customer signs up, connects a phone number/telephony provider, and is billed on usage rather than running their own infrastructure.
+- **Underlying self-host capability (inherited, not the go-to-market).** Because the codebase derives from the open-source Dograh project, Docker Compose files and setup scripts for self-hosting still exist in the repo (`docker-compose.yaml`, `scripts/start_docker.sh`). These are implementation detail carried over from the fork, not part of the commercial offering — the auth UI's "Self-hostable" feature chip (see redesign notes below) should be revisited so it doesn't advertise a capability that isn't part of this product's plan.
+- **Scaling & update guides** for the underlying deployment remain in `docs/deployment` for internal/ops use.
 
 ---
 
 ## This Repository's Redesign Work (Dograh → EchoWave)
 
-Per `echowave/REBRAND_HANDOFF.md`, this pass rebranded the open-source **Dograh** fork into **EchoWave** and redesigned the auth surface:
+Per `echowave/REBRAND_HANDOFF.md`, this pass rebranded the **Dograh** fork into **EchoWave** and redesigned the auth surface. Note: the handoff notes describe this as an *open-source, self-hostable* product — that framing predates the current direction of turning EchoWave into a closed, commercially-priced product at $0.02/minute, and should not be treated as the current business model.
 
 - **Global rebrand** — `Dograh`/`dograh`/`DOGRAH` → `EchoWave`/`echowave`/`ECHOWAVE` across UI, root docs, and Docker Compose files. Intentionally left untouched: external `dograh.com` URLs not yet owned, the `dograh_sdk` Python package name, the `pipecat` submodule, and existing `DOGRAH_*` env vars (to avoid breaking the live deployment).
 - **New brand assets** — SVG wordmark/inverse wordmark/app icon (`ui/public/echowave-*.svg`), with `BrandLogo.tsx` updated to use them.
 - **Redesigned auth experience** (`ui/src/components/auth`, `ui/src/app/auth`) — a new two-column shell with an animated CSS waveform, gradient brand panel (light/dark variants), feature chips (*Speech-to-speech*, *MCP-native*, *BYOK · any model*, *Self-hostable*), a solid-CTA "Talk to Sales" card, and a floating theme toggle. Light theme is now the default.
+  - ⚠️ **Needs follow-up**: the *"Self-hostable"* chip and the open-source/BSD-license framing in `README.md` conflict with the $0.02/minute closed-product pricing model — these should be swapped for messaging that matches the actual offering (e.g. a pricing/usage chip) before this ships publicly.
 - **In-container preview** — `frontend/public/preview.html` is a static HTML mirror of the redesigned sign-up/sign-in pages (tab switcher, live theme toggle) with `frontend/src/App.js` redirecting `/` to it, so the redesign is viewable without running the full `echowave/` stack.
 - **Explicitly out of scope this pass**: a custom docs site under the new domain, a marketing landing page, Stripe billing/subscription tiers, and an audit of transactional email templates for lingering "Dograh" strings.
+
+## Pricing
+
+| Plan | Rate |
+|---|---|
+| Usage | **$0.02 / minute** of call time (platform fee, metered per call) |
+
+This is the only pricing tier reflected in this document. Underlying LLM/STT/TTS provider costs (when not using EchoWave-managed models) are separate and billed by the customer's own provider accounts under the BYOK model described in section 3.
 
 ---
 
