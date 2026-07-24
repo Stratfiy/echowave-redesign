@@ -1,4 +1,4 @@
-"""Quota checking service for Dograh credits.
+"""Quota checking service for call credits.
 
 This module provides reusable quota checking functionality that can be used
 across different endpoints (WebRTC signaling, telephony, public API triggers).
@@ -35,18 +35,17 @@ _MPS_UNREACHABLE_ERRORS = (
 
 OSS_QUOTA_EXCEEDED_MESSAGE = (
     "You have exhausted your trial credits. "
-    "Please sign up on app.dograh.com to create a "
-    "new service key and set up in your model configurations."
+    "Please add your own provider keys in Model Configurations to keep making calls."
 )
 
 HOSTED_QUOTA_EXCEEDED_MESSAGE = (
-    "You have exhausted your Dograh credits. "
+    "You have exhausted your credits. "
     "Please purchase more credits from /billing "
     "or change providers in Models configurations."
 )
 
 SERVICE_TOKEN_ORG_MISMATCH_MESSAGE = (
-    "The Dograh service token being used is created from another account. "
+    "The service token being used is created from another account. "
     "Please create a new service token from the Developers tab and use it in "
     "your model configuration."
 )
@@ -233,7 +232,7 @@ async def _authorize_hosted_workflow_run_start(
         return QuotaCheckResult(
             has_quota=False,
             error_code="quota_check_failed",
-            error_message="Could not verify Dograh credits. Please try again.",
+            error_message="Could not verify call credits. Please try again.",
         )
 
     remaining = _safe_float(authorization.get("remaining_credits"))
@@ -262,7 +261,7 @@ async def _authorize_hosted_workflow_run_start(
         return QuotaCheckResult(
             has_quota=False,
             error_code="quota_check_failed",
-            error_message="Could not verify Dograh credits. Please try again.",
+            error_message="Could not verify call credits. Please try again.",
         )
     logger.info(
         "Dograh run authorization passed for org {}: {:.2f} credits remaining",
@@ -308,7 +307,7 @@ async def _authorize_oss_dograh_keys(
             return QuotaCheckResult(
                 has_quota=False,
                 error_code="quota_check_failed",
-                error_message="Could not verify Dograh credits. Please try again.",
+                error_message="Could not verify call credits. Please try again.",
             )
 
     return QuotaCheckResult(has_quota=True)
@@ -355,7 +354,7 @@ async def _authorize_oss_managed_v2_correlation(
         return QuotaCheckResult(
             has_quota=False,
             error_code="quota_check_failed",
-            error_message="Could not verify Dograh credits. Please try again.",
+            error_message="Could not verify call credits. Please try again.",
         )
 
     return QuotaCheckResult(has_quota=True)
@@ -540,5 +539,5 @@ async def authorize_workflow_run_start(
         return QuotaCheckResult(
             has_quota=False,
             error_code="quota_check_failed",
-            error_message="Could not verify Dograh credits. Please try again.",
+            error_message="Could not verify call credits. Please try again.",
         )
