@@ -7,6 +7,7 @@ from api.db.integration_client import IntegrationClient
 from api.db.knowledge_base_client import KnowledgeBaseClient
 from api.db.organization_client import OrganizationClient
 from api.db.organization_configuration_client import OrganizationConfigurationClient
+from api.db.organization_credit_ledger_client import OrganizationCreditLedgerClient
 from api.db.organization_usage_client import OrganizationUsageClient
 from api.db.reports_client import ReportsClient
 from api.db.telephony_configuration_client import TelephonyConfigurationClient
@@ -29,6 +30,7 @@ class DBClient(
     UserClient,
     OrganizationClient,
     OrganizationConfigurationClient,
+    OrganizationCreditLedgerClient,
     OrganizationUsageClient,
     IntegrationClient,
     WorkflowTemplateClient,
