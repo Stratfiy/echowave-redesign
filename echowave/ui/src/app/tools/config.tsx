@@ -105,21 +105,136 @@ export const TOOL_CATEGORIES: ToolCategoryConfig[] = [
     },
     {
         value: "native",
-        label: "Native (Coming Soon)",
-        description: "Built-in tools like call transfer, DTMF input",
+        label: "Native",
+        description: "Built-in tools like DTMF keypad tones and SMS",
         icon: Cog,
         iconName: "cog",
         iconColor: "#6B7280",
-        disabled: true,
     },
     {
         value: "integration",
-        label: "Integration (Coming Soon)",
-        description: "Third-party integrations like Google Calendar",
+        label: "Integration",
+        description: "Third-party integrations like Google Calendar and Gmail",
         icon: Puzzle,
         iconName: "puzzle",
         iconColor: "#8B5CF6",
-        disabled: true,
+    },
+];
+
+export type NativeToolType = "dtmf" | "sms";
+
+export interface NativeToolConfig {
+    native_type: NativeToolType;
+    parameters?: ToolParameter[] | null;
+}
+
+export interface NativeToolDefinition {
+    schema_version: 1;
+    type: "native";
+    config: NativeToolConfig;
+}
+
+export const NATIVE_TOOL_TYPES: {
+    value: NativeToolType;
+    label: string;
+    description: string;
+    defaultParameters: ToolParameter[];
+    autoFill: { name: string; description: string };
+}[] = [
+    {
+        value: "dtmf",
+        label: "Send DTMF Tones",
+        description: "Send keypad tones during the call — e.g. to navigate an IVR menu",
+        defaultParameters: [
+            {
+                name: "digits",
+                type: "string",
+                description: "The digits to send, e.g. '1', '4#', '9302'.",
+                required: true,
+            },
+        ],
+        autoFill: {
+            name: "Send DTMF",
+            description: "Send keypad tones (0-9, *, #) during the call when needed, e.g. to navigate an automated phone menu.",
+        },
+    },
+    {
+        value: "sms",
+        label: "Send SMS",
+        description: "Send a text message during or after the call (Twilio only)",
+        defaultParameters: [
+            {
+                name: "to_number",
+                type: "string",
+                description: "The phone number to send the SMS to, in E.164 format (e.g. +14155550100).",
+                required: true,
+            },
+            {
+                name: "message",
+                type: "string",
+                description: "The SMS message body to send.",
+                required: true,
+            },
+        ],
+        autoFill: {
+            name: "Send SMS",
+            description: "Send a text message to the caller when requested, e.g. to share a link or confirmation.",
+        },
+    },
+];
+
+export type IntegrationProvider = "google";
+export type IntegrationAction = "google_calendar_create_event" | "google_gmail_send";
+
+export interface IntegrationToolConfig {
+    provider: IntegrationProvider;
+    action: IntegrationAction;
+    connection_id: number;
+    parameters?: ToolParameter[] | null;
+}
+
+export interface IntegrationToolDefinition {
+    schema_version: 1;
+    type: "integration";
+    config: IntegrationToolConfig;
+}
+
+export const GOOGLE_INTEGRATION_ACTIONS: {
+    value: IntegrationAction;
+    label: string;
+    description: string;
+    defaultParameters: ToolParameter[];
+    autoFill: { name: string; description: string };
+}[] = [
+    {
+        value: "google_calendar_create_event",
+        label: "Create Calendar Event",
+        description: "Create an event on the connected Google Calendar",
+        defaultParameters: [
+            { name: "summary", type: "string", description: "Event title.", required: true },
+            { name: "start_time", type: "string", description: "Event start time, RFC3339 (e.g. 2026-08-01T15:00:00-07:00).", required: true },
+            { name: "end_time", type: "string", description: "Event end time, RFC3339.", required: true },
+            { name: "description", type: "string", description: "Event description.", required: false },
+            { name: "attendee_emails", type: "string", description: "Comma-separated attendee email addresses.", required: false },
+        ],
+        autoFill: {
+            name: "Create Calendar Event",
+            description: "Create a calendar event when the caller wants to schedule something.",
+        },
+    },
+    {
+        value: "google_gmail_send",
+        label: "Send Email",
+        description: "Send an email from the connected Google account",
+        defaultParameters: [
+            { name: "to", type: "string", description: "Recipient email address.", required: true },
+            { name: "subject", type: "string", description: "Email subject.", required: true },
+            { name: "body", type: "string", description: "Email body text.", required: true },
+        ],
+        autoFill: {
+            name: "Send Email",
+            description: "Send an email when the caller requests information be emailed to them.",
+        },
     },
 ];
 
@@ -184,7 +299,9 @@ export type ToolDefinition =
     | EndCallToolDefinition
     | TransferCallToolDefinition
     | CalculatorToolDefinition
-    | McpToolDefinition;
+    | McpToolDefinition
+    | NativeToolDefinition
+    | IntegrationToolDefinition;
 
 export function createEndCallDefinition(config: EndCallConfig): EndCallToolDefinition {
     return {
@@ -238,6 +355,38 @@ export function createMcpDefinition(
                 .split(",")
                 .map((s) => s.trim())
                 .filter((s) => s.length > 0),
+        },
+    };
+}
+
+export function createNativeDefinition(
+    nativeType: NativeToolType,
+    parameters: ToolParameter[],
+): NativeToolDefinition {
+    return {
+        schema_version: 1,
+        type: "native",
+        config: {
+            native_type: nativeType,
+            parameters,
+        },
+    };
+}
+
+export function createIntegrationDefinition(
+    provider: IntegrationProvider,
+    action: IntegrationAction,
+    connectionId: number,
+    parameters: ToolParameter[],
+): IntegrationToolDefinition {
+    return {
+        schema_version: 1,
+        type: "integration",
+        config: {
+            provider,
+            action,
+            connection_id: connectionId,
+            parameters,
         },
     };
 }

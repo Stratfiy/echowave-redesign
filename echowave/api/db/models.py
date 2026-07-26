@@ -348,6 +348,49 @@ class IntegrationModel(Base):
     organization = relationship("OrganizationModel", back_populates="integrations")
 
 
+class OAuthConnectionModel(Base):
+    """An org-scoped OAuth-connected third-party account (e.g. Google).
+
+    Distinct from IntegrationModel above: that table backs the post-call
+    node-integration framework (Paygent/Tuner). This one backs live,
+    LLM-invocable tools (ToolCategory.INTEGRATION) that need a connected
+    account's access token during a call — e.g. "create a calendar event".
+
+    access/refresh tokens are stored Fernet-encrypted (see
+    api/utils/token_encryption.py); never store them in plaintext.
+    """
+
+    __tablename__ = "oauth_connections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    provider = Column(String, nullable=False)
+    external_account_email = Column(String, nullable=False)
+    encrypted_access_token = Column(Text, nullable=False)
+    encrypted_refresh_token = Column(Text, nullable=True)
+    token_expires_at = Column(DateTime(timezone=True), nullable=True)
+    scopes = Column(JSON, nullable=False, default=list)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    # Relationships
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index(
+            "idx_oauth_connections_org_provider", "organization_id", "provider"
+        ),
+    )
+
+
 class WorkflowDefinitionModel(Base):
     __tablename__ = "workflow_definitions"
     id = Column(Integer, primary_key=True, index=True)

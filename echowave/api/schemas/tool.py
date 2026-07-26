@@ -373,6 +373,68 @@ class McpToolDefinition(BaseModel):
     config: McpToolConfig = Field(description="MCP server configuration.")
 
 
+IntegrationAction = Literal[
+    "google_calendar_create_event",
+    "google_gmail_send",
+]
+
+
+class IntegrationToolConfig(BaseModel):
+    """Configuration for a third-party OAuth-connected-account tool.
+
+    ``parameters`` follows the same shape as HttpApiConfig.parameters — the
+    model provides these as function-call arguments at runtime (e.g.
+    ``summary``/``start_time``/``end_time`` for a calendar-event action).
+    """
+
+    provider: Literal["google"] = Field(description="Connected-account provider.")
+    action: IntegrationAction = Field(
+        description="The specific action this tool performs."
+    )
+    connection_id: int = Field(
+        description=(
+            "ID of the org's connected OAuth account (see "
+            "GET /integrations/google/connections) providing this tool's access."
+        )
+    )
+    parameters: Optional[List[ToolParameter]] = Field(
+        default=None,
+        description="Parameters the model must provide when calling this tool.",
+    )
+
+
+class IntegrationToolDefinition(BaseModel):
+    """Tool definition for third-party OAuth-connected-account tools."""
+
+    schema_version: int = Field(default=1, description="Schema version.")
+    type: Literal["integration"] = Field(description="Tool type.")
+    config: IntegrationToolConfig = Field(description="Integration configuration.")
+
+
+class NativeToolConfig(BaseModel):
+    """Configuration for a built-in native (non-OAuth) telephony tool.
+
+    ``parameters`` follows the same shape as HttpApiConfig.parameters — e.g.
+    a ``digits`` parameter for DTMF, or ``to_number``/``message`` for SMS.
+    """
+
+    native_type: Literal["dtmf", "sms"] = Field(
+        description="Which native tool this is."
+    )
+    parameters: Optional[List[ToolParameter]] = Field(
+        default=None,
+        description="Parameters the model must provide when calling this tool.",
+    )
+
+
+class NativeToolDefinition(BaseModel):
+    """Tool definition for built-in native tools (DTMF, SMS)."""
+
+    schema_version: int = Field(default=1, description="Schema version.")
+    type: Literal["native"] = Field(description="Tool type.")
+    config: NativeToolConfig = Field(description="Native tool configuration.")
+
+
 ToolDefinition = Annotated[
     Union[
         HttpApiToolDefinition,
@@ -380,6 +442,8 @@ ToolDefinition = Annotated[
         TransferCallToolDefinition,
         CalculatorToolDefinition,
         McpToolDefinition,
+        IntegrationToolDefinition,
+        NativeToolDefinition,
     ],
     Field(discriminator="type"),
 ]

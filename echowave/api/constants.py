@@ -74,6 +74,16 @@ MINIMUM_CALL_BALANCE_USD = float(os.getenv("MINIMUM_CALL_BALANCE_USD", "0.10"))
 # calls before making its first top-up.
 TRIAL_GRANT_USD = float(os.getenv("TRIAL_GRANT_USD", "10.00"))
 
+# OAuth-connected third-party integration tools (e.g. Google Calendar/Gmail).
+# Client credentials come from a Google Cloud OAuth client (console.cloud.google.com);
+# unset disables the integration-tool code paths rather than failing at import time.
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID") or None
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or None
+# Fernet key (44-char urlsafe-base64, `Fernet.generate_key()`) used to encrypt
+# stored OAuth access/refresh tokens at rest. Required for any OAuth connection
+# to be created; there is no fallback plaintext-storage mode.
+TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY") or None
+
 # Storage Configuration
 ENABLE_AWS_S3 = os.getenv("ENABLE_AWS_S3", "false").lower() == "true"
 
