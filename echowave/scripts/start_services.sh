@@ -33,12 +33,12 @@ if [[ -f "$ENV_FILE" ]]; then
   set -a && . "$ENV_FILE" && set +a
 fi
 
-if [[ -z "${DOGRAH_DEVOPS_SECRET:-}" ]]; then
-  echo "ERROR: DOGRAH_DEVOPS_SECRET is not set. Add it to $ENV_FILE before starting production services."
+if [[ -z "${DEVOPS_SECRET:-}" ]]; then
+  echo "ERROR: DEVOPS_SECRET is not set. Add it to $ENV_FILE before starting production services."
   exit 1
 fi
-if [[ "$DOGRAH_DEVOPS_SECRET" == "change-me-dograh-devops-secret" ]]; then
-  echo "ERROR: DOGRAH_DEVOPS_SECRET still has the example placeholder value. Replace it in $ENV_FILE."
+if [[ "$DEVOPS_SECRET" == "change-me-devops-secret" ]]; then
+  echo "ERROR: DEVOPS_SECRET still has the example placeholder value. Replace it in $ENV_FILE."
   exit 1
 fi
 

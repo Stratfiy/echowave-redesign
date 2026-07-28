@@ -10,6 +10,7 @@ from api.routes.auth import router as auth_router
 from api.routes.campaign import router as campaign_router
 from api.routes.credentials import router as credentials_router
 from api.routes.folder import router as folder_router
+from api.routes.integrations_oauth import router as integrations_oauth_router
 from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.node_types import router as node_types_router
 from api.routes.organization import router as organization_router
@@ -57,6 +58,7 @@ router.include_router(public_agent_router)
 router.include_router(public_download_router)
 router.include_router(workflow_embed_router)
 router.include_router(knowledge_base_router)
+router.include_router(integrations_oauth_router)
 router.include_router(workflow_recording_router)
 router.include_router(folder_router)
 router.include_router(auth_router)
@@ -137,7 +139,7 @@ class ActiveCallsResponse(BaseModel):
     active_calls: int
 
 
-DOGRAH_DEVOPS_SECRET_HEADER = "X-Dograh-Devops-Secret"
+DEVOPS_SECRET_HEADER = "X-Devops-Secret"
 
 
 def _verify_devops_secret(
@@ -161,9 +163,9 @@ def _verify_devops_secret(
 
 @router.get("/health/active-calls", response_model=ActiveCallsResponse)
 async def active_calls(
-    x_dograh_devops_secret: Annotated[
+    x_devops_secret: Annotated[
         str | None,
-        Header(alias=DOGRAH_DEVOPS_SECRET_HEADER),
+        Header(alias=DEVOPS_SECRET_HEADER),
     ] = None,
 ) -> ActiveCallsResponse:
     """In-flight call count for THIS worker — the drain signal for deploys.
@@ -174,8 +176,8 @@ async def active_calls(
     count is per-process: one uvicorn per VM port (scripts/rolling_update.sh)
     or per Kubernetes pod (preStop hook). See api/services/pipecat/active_calls.py.
     """
-    from api.constants import DOGRAH_DEVOPS_SECRET
+    from api.constants import DEVOPS_SECRET
     from api.services.pipecat.active_calls import active_call_count
 
-    _verify_devops_secret(DOGRAH_DEVOPS_SECRET, x_dograh_devops_secret)
+    _verify_devops_secret(DEVOPS_SECRET, x_devops_secret)
     return ActiveCallsResponse(active_calls=active_call_count())

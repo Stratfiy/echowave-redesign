@@ -39,22 +39,37 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAppConfig } from "@/context/AppConfigContext";
 import { detailFromError } from "@/lib/apiError";
+import { resolveBrowserBackendUrl } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth";
 
 import {
+    createIntegrationDefinition,
     createMcpDefinition,
+    createNativeDefinition,
     createToolDefinition,
     getCategoryConfig,
+    GOOGLE_INTEGRATION_ACTIONS,
     MCP_URL_PATTERN,
+    NATIVE_TOOL_TYPES,
     renderToolIcon,
     TOOL_CATEGORIES,
+    type IntegrationAction,
+    type NativeToolType,
     type ToolCategory,
 } from "./config";
+
+interface GoogleConnection {
+    id: number;
+    external_account_email: string;
+}
 
 export default function ToolsPage() {
     const { user, getAccessToken, redirectToLogin, loading } = useAuth();
     const router = useRouter();
+    const { config: appConfig } = useAppConfig();
+    const apiBaseUrl = resolveBrowserBackendUrl(appConfig?.backendApiEndpoint);
 
     const [tools, setTools] = useState<ToolResponse[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -72,12 +87,100 @@ export default function ToolsPage() {
     const [mcpCredentialUuid, setMcpCredentialUuid] = useState("");
     const [mcpToolsFilter, setMcpToolsFilter] = useState("");
 
+    // Native-specific create dialog state
+    const [nativeType, setNativeType] = useState<NativeToolType>("dtmf");
+
+    // Integration (Google)-specific create dialog state
+    const [googleConnections, setGoogleConnections] = useState<GoogleConnection[]>([]);
+    const [isLoadingConnections, setIsLoadingConnections] = useState(false);
+    const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
+    const [selectedConnectionId, setSelectedConnectionId] = useState<string>("");
+    const [selectedGoogleAction, setSelectedGoogleAction] = useState<IntegrationAction>(
+        "google_calendar_create_event",
+    );
+    const [connectBanner, setConnectBanner] = useState<string | null>(null);
+
     // Redirect if not authenticated
     useEffect(() => {
         if (!loading && !user) {
             redirectToLogin();
         }
     }, [loading, user, redirectToLogin]);
+
+    // Surface the result of a just-completed Google OAuth redirect.
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const params = new URLSearchParams(window.location.search);
+        const status = params.get("google_connect");
+        if (!status) return;
+
+        if (status === "success") {
+            setConnectBanner("Google account connected.");
+        } else if (status === "expired") {
+            setConnectBanner("That connection attempt expired. Please try connecting again.");
+        } else {
+            setConnectBanner("Could not connect the Google account. Please try again.");
+        }
+
+        params.delete("google_connect");
+        const newSearch = params.toString();
+        router.replace(`/tools${newSearch ? `?${newSearch}` : ""}`);
+    }, [router]);
+
+    const fetchGoogleConnections = useCallback(async () => {
+        if (loading || !user) return;
+        try {
+            setIsLoadingConnections(true);
+            const accessToken = await getAccessToken();
+            const response = await fetch(`${apiBaseUrl}/api/v1/integrations/google/connections`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (response.ok) {
+                const data = (await response.json()) as GoogleConnection[];
+                setGoogleConnections(data);
+                if (data.length > 0 && !selectedConnectionId) {
+                    setSelectedConnectionId(String(data[0].id));
+                }
+            }
+        } catch (err) {
+            console.error("Error fetching Google connections:", err);
+        } finally {
+            setIsLoadingConnections(false);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loading, user, getAccessToken, apiBaseUrl]);
+
+    useEffect(() => {
+        if (newToolCategory === "integration") {
+            fetchGoogleConnections();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [newToolCategory]);
+
+    const handleConnectGoogle = async () => {
+        try {
+            setIsConnectingGoogle(true);
+            setCreateError(null);
+            const accessToken = await getAccessToken();
+            const response = await fetch(`${apiBaseUrl}/api/v1/integrations/google/oauth/start`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (!response.ok) {
+                const body = await response.json().catch(() => null);
+                setCreateError(
+                    body?.detail || "Could not start the Google connection. Please try again.",
+                );
+                return;
+            }
+            const data = (await response.json()) as { authorization_url: string };
+            window.location.href = data.authorization_url;
+        } catch (err) {
+            console.error("Error starting Google OAuth:", err);
+            setCreateError("Could not start the Google connection. Please try again.");
+        } finally {
+            setIsConnectingGoogle(false);
+        }
+    };
 
     const fetchTools = useCallback(async () => {
         if (loading || !user) return;
@@ -127,6 +230,11 @@ export default function ToolsPage() {
             return;
         }
 
+        if (newToolCategory === "integration" && !selectedConnectionId) {
+            setCreateError("Connect a Google account first.");
+            return;
+        }
+
         try {
             setIsCreating(true);
             setCreateError(null);
@@ -134,9 +242,28 @@ export default function ToolsPage() {
 
             const categoryConfig = getCategoryConfig(newToolCategory);
 
-            const definition = newToolCategory === "mcp"
-                ? createMcpDefinition(mcpUrl, mcpCredentialUuid, mcpToolsFilter)
-                : createToolDefinition(newToolCategory);
+            let definition;
+            if (newToolCategory === "mcp") {
+                definition = createMcpDefinition(mcpUrl, mcpCredentialUuid, mcpToolsFilter);
+            } else if (newToolCategory === "native") {
+                const nativeTypeConfig = NATIVE_TOOL_TYPES.find((t) => t.value === nativeType);
+                definition = createNativeDefinition(
+                    nativeType,
+                    nativeTypeConfig?.defaultParameters ?? [],
+                );
+            } else if (newToolCategory === "integration") {
+                const actionConfig = GOOGLE_INTEGRATION_ACTIONS.find(
+                    (a) => a.value === selectedGoogleAction,
+                );
+                definition = createIntegrationDefinition(
+                    "google",
+                    selectedGoogleAction,
+                    Number(selectedConnectionId),
+                    actionConfig?.defaultParameters ?? [],
+                );
+            } else {
+                definition = createToolDefinition(newToolCategory);
+            }
 
             const requestBody: CreateToolRequest = {
                 name: newToolName,
@@ -144,7 +271,11 @@ export default function ToolsPage() {
                 category: newToolCategory,
                 icon: categoryConfig?.iconName || "globe",
                 icon_color: categoryConfig?.iconColor || "#3B82F6",
-                definition,
+                // Cast: native/integration definition shapes are new and not yet
+                // reflected in the generated client types. Run `npm run
+                // generate-client` (with the backend running) to pick them up,
+                // then this cast can be dropped.
+                definition: definition as CreateToolRequest["definition"],
             };
 
             const response = await createToolApiV1ToolsPost({
@@ -167,6 +298,9 @@ export default function ToolsPage() {
                 setMcpUrl("");
                 setMcpCredentialUuid("");
                 setMcpToolsFilter("");
+                setNativeType("dtmf");
+                setSelectedConnectionId("");
+                setSelectedGoogleAction("google_calendar_create_event");
                 // Navigate to the new tool's detail page
                 router.push(`/tools/${response.data.tool_uuid}`);
             }
@@ -502,6 +636,10 @@ export default function ToolsPage() {
                     setMcpUrl("");
                     setMcpCredentialUuid("");
                     setMcpToolsFilter("");
+                    // Reset native/integration fields too
+                    setNativeType("dtmf");
+                    setSelectedConnectionId("");
+                    setSelectedGoogleAction("google_calendar_create_event");
                 }
             }}>
                 <DialogContent>
@@ -609,6 +747,125 @@ export default function ToolsPage() {
                                     </p>
                                 </div>
                             </>
+                        )}
+
+                        {newToolCategory === "native" && (
+                            <div className="grid gap-2">
+                                <Label>Native Tool</Label>
+                                <Select
+                                    value={nativeType}
+                                    onValueChange={(v) => {
+                                        const type = v as NativeToolType;
+                                        setNativeType(type);
+                                        const typeConfig = NATIVE_TOOL_TYPES.find((t) => t.value === type);
+                                        if (typeConfig) {
+                                            setNewToolName(typeConfig.autoFill.name);
+                                            setNewToolDescription(typeConfig.autoFill.description);
+                                        }
+                                    }}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {NATIVE_TOOL_TYPES.map((t) => (
+                                            <SelectItem key={t.value} value={t.value}>
+                                                {t.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    {NATIVE_TOOL_TYPES.find((t) => t.value === nativeType)?.description}
+                                </p>
+                            </div>
+                        )}
+
+                        {newToolCategory === "integration" && (
+                            <div className="grid gap-3">
+                                {connectBanner && (
+                                    <p className="text-xs text-muted-foreground">{connectBanner}</p>
+                                )}
+                                {isLoadingConnections ? (
+                                    <Skeleton className="h-9 w-full" />
+                                ) : googleConnections.length === 0 ? (
+                                    <div className="flex items-center justify-between rounded-md border p-3">
+                                        <p className="text-sm text-muted-foreground">
+                                            No Google account connected yet.
+                                        </p>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            onClick={handleConnectGoogle}
+                                            disabled={isConnectingGoogle}
+                                        >
+                                            {isConnectingGoogle ? "Connecting..." : "Connect Google"}
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="grid gap-2">
+                                            <Label>Google Account</Label>
+                                            <Select
+                                                value={selectedConnectionId}
+                                                onValueChange={setSelectedConnectionId}
+                                            >
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {googleConnections.map((c) => (
+                                                        <SelectItem key={c.id} value={String(c.id)}>
+                                                            {c.external_account_email}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <Button
+                                                type="button"
+                                                variant="link"
+                                                size="sm"
+                                                className="justify-start px-0"
+                                                onClick={handleConnectGoogle}
+                                                disabled={isConnectingGoogle}
+                                            >
+                                                {isConnectingGoogle ? "Connecting..." : "+ Connect another Google account"}
+                                            </Button>
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label>Available Tools</Label>
+                                            <Select
+                                                value={selectedGoogleAction}
+                                                onValueChange={(v) => {
+                                                    const action = v as IntegrationAction;
+                                                    setSelectedGoogleAction(action);
+                                                    const actionConfig = GOOGLE_INTEGRATION_ACTIONS.find(
+                                                        (a) => a.value === action,
+                                                    );
+                                                    if (actionConfig) {
+                                                        setNewToolName(actionConfig.autoFill.name);
+                                                        setNewToolDescription(actionConfig.autoFill.description);
+                                                    }
+                                                }}
+                                            >
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {GOOGLE_INTEGRATION_ACTIONS.map((a) => (
+                                                        <SelectItem key={a.value} value={a.value}>
+                                                            {a.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <p className="text-xs text-muted-foreground">
+                                                {GOOGLE_INTEGRATION_ACTIONS.find((a) => a.value === selectedGoogleAction)?.description}
+                                            </p>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         )}
                     </div>
                     {createError && (

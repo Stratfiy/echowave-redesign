@@ -348,6 +348,49 @@ class IntegrationModel(Base):
     organization = relationship("OrganizationModel", back_populates="integrations")
 
 
+class OAuthConnectionModel(Base):
+    """An org-scoped OAuth-connected third-party account (e.g. Google).
+
+    Distinct from IntegrationModel above: that table backs the post-call
+    node-integration framework (Paygent/Tuner). This one backs live,
+    LLM-invocable tools (ToolCategory.INTEGRATION) that need a connected
+    account's access token during a call — e.g. "create a calendar event".
+
+    access/refresh tokens are stored Fernet-encrypted (see
+    api/utils/token_encryption.py); never store them in plaintext.
+    """
+
+    __tablename__ = "oauth_connections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    provider = Column(String, nullable=False)
+    external_account_email = Column(String, nullable=False)
+    encrypted_access_token = Column(Text, nullable=False)
+    encrypted_refresh_token = Column(Text, nullable=True)
+    token_expires_at = Column(DateTime(timezone=True), nullable=True)
+    scopes = Column(JSON, nullable=False, default=list)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    # Relationships
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index(
+            "idx_oauth_connections_org_provider", "organization_id", "provider"
+        ),
+    )
+
+
 class WorkflowDefinitionModel(Base):
     __tablename__ = "workflow_definitions"
     id = Column(Integer, primary_key=True, index=True)
@@ -672,6 +715,56 @@ class OrganizationUsageCycleModel(Base):
             "organization_id", "period_start", "period_end", name="unique_org_period"
         ),
         Index("idx_usage_cycles_org_period", "organization_id", "period_end"),
+    )
+
+
+class OrganizationCreditLedgerModel(Base):
+    """Append-only ledger of an organization's prepaid platform-fee credits.
+
+    An organization's balance is the SUM of amount_usd across its entries
+    (positive for purchase/trial_grant/adjustment-up, negative for charge/
+    adjustment-down). balance_after_usd is a denormalized snapshot taken at
+    write time for display/audit convenience only — the ledger sum is always
+    the source of truth for the authoritative balance.
+    """
+
+    __tablename__ = "organization_credit_ledger"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    entry_type = Column(
+        Enum(
+            "purchase",
+            "charge",
+            "trial_grant",
+            "adjustment",
+            "refund",
+            name="credit_ledger_entry_type",
+        ),
+        nullable=False,
+    )
+    amount_usd = Column(Float, nullable=False)
+    balance_after_usd = Column(Float, nullable=False)
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    description = Column(String, nullable=True)
+    # External reference for purchase entries, e.g. a Razorpay payment id.
+    reference = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    # Relationships
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index(
+            "idx_credit_ledger_org_created", "organization_id", "created_at"
+        ),
+        Index(
+            "ix_credit_ledger_workflow_run_id", "workflow_run_id"
+        ),
     )
 
 

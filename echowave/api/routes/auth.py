@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 
-from api.constants import ENABLE_SIGNUP
+from api.constants import ENABLE_SIGNUP, TRIAL_GRANT_USD
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationConfigurationKey, PostHogEvent
@@ -47,13 +47,30 @@ async def signup(request: SignupRequest):
 
     # Create organization for the user
     org_provider_id = f"org_{user.provider_id}"
-    organization, _ = await db_client.get_or_create_organization_by_provider_id(
+    organization, org_was_created = await db_client.get_or_create_organization_by_provider_id(
         org_provider_id=org_provider_id, user_id=user.id
     )
 
     # Link user to organization
     await db_client.add_user_to_organization(user.id, organization.id)
     await db_client.update_user_selected_organization(user.id, organization.id)
+
+    # New orgs start with a trial platform-fee credit so they can place calls
+    # (BYOK model/telephony keys) before their first top-up.
+    if org_was_created:
+        try:
+            await db_client.record_entry(
+                organization.id,
+                "trial_grant",
+                TRIAL_GRANT_USD,
+                description="Signup trial credit",
+            )
+        except Exception:
+            logger.warning(
+                "Failed to grant trial credit for organization {}",
+                organization.id,
+                exc_info=True,
+            )
 
     # Create default service configuration
     try:

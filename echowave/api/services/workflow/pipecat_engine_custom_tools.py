@@ -31,6 +31,9 @@ from api.services.workflow.tools.custom_tool import (
     execute_http_tool,
     tool_to_function_schema,
 )
+from api.services.workflow.tools.dtmf import InvalidDtmfDigits, generate_dtmf_tone_pcm16
+from api.services.workflow.tools.integration_tool import execute_integration_tool
+from api.services.workflow.tools.native_tool import execute_sms_tool
 from api.services.workflow.tools.transfer_resolver import (
     TransferResolutionError,
     resolve_transfer_config,
@@ -328,6 +331,11 @@ class CustomToolManager:
         elif tool.category == ToolCategory.TRANSFER_CALL.value:
             timeout_secs = self._transfer_handler_timeout_secs(tool)
             handler = self._create_transfer_call_handler(tool, function_name)
+        elif tool.category == ToolCategory.NATIVE.value:
+            handler = self._create_native_tool_handler(tool, function_name)
+        elif tool.category == ToolCategory.INTEGRATION.value:
+            timeout_secs = 15.0
+            handler = self._create_integration_tool_handler(tool, function_name)
         else:
             timeout_ms = ((tool.definition or {}).get("config", {}) or {}).get(
                 "timeout_ms", 5000
@@ -448,6 +456,107 @@ class CustomToolManager:
                 )
 
         return http_tool_handler
+
+    def _create_native_tool_handler(self, tool: Any, function_name: str):
+        """Create a handler for a built-in native tool (DTMF or SMS).
+
+        DTMF plays a tone through the live audio pipeline directly (it is
+        not an outbound API call); SMS sends via the org's Twilio account.
+        """
+
+        async def native_tool_handler(
+            function_call_params: FunctionCallParams,
+        ) -> None:
+            logger.info(f"Native Tool EXECUTED: {function_name}")
+            logger.info(f"Arguments: {function_call_params.arguments}")
+
+            config = (tool.definition or {}).get("config", {}) or {}
+            native_type = config.get("native_type")
+
+            try:
+                if native_type == "dtmf":
+                    digits = (function_call_params.arguments or {}).get("digits", "")
+                    sample_rate = (
+                        self._engine._audio_config.pipeline_sample_rate
+                        if self._engine._audio_config
+                        else 16000
+                    )
+                    try:
+                        audio = generate_dtmf_tone_pcm16(digits, sample_rate)
+                    except InvalidDtmfDigits as e:
+                        await function_call_params.result_callback(
+                            {"status": "error", "error": str(e)}
+                        )
+                        return
+                    await play_audio(
+                        audio,
+                        sample_rate=sample_rate,
+                        queue_frame=self._engine._transport_output.queue_frame,
+                    )
+                    await function_call_params.result_callback(
+                        {"status": "success", "digits_sent": digits}
+                    )
+                    return
+
+                if native_type == "sms":
+                    organization_id = await self.get_organization_id()
+                    workflow_run = await db_client.get_workflow_run_by_id(
+                        self._engine._workflow_run_id
+                    )
+                    telephony_configuration_id = (
+                        (workflow_run.initial_context or {}).get(
+                            "telephony_configuration_id"
+                        )
+                        if workflow_run
+                        else None
+                    )
+                    result = await execute_sms_tool(
+                        tool,
+                        function_call_params.arguments,
+                        organization_id=organization_id,
+                        telephony_configuration_id=telephony_configuration_id,
+                    )
+                    await function_call_params.result_callback(result)
+                    return
+
+                await function_call_params.result_callback(
+                    {"status": "error", "error": f"Unknown native tool type: {native_type}"}
+                )
+
+            except Exception as e:
+                logger.error(f"Native tool '{function_name}' execution failed: {e}")
+                await function_call_params.result_callback(
+                    {"status": "error", "error": str(e)}
+                )
+
+        return native_tool_handler
+
+    def _create_integration_tool_handler(self, tool: Any, function_name: str):
+        """Create a handler for an OAuth-connected-account (integration) tool."""
+
+        async def integration_tool_handler(
+            function_call_params: FunctionCallParams,
+        ) -> None:
+            logger.info(f"Integration Tool EXECUTED: {function_name}")
+            logger.info(f"Arguments: {function_call_params.arguments}")
+
+            try:
+                organization_id = await self.get_organization_id()
+                result = await execute_integration_tool(
+                    tool,
+                    function_call_params.arguments,
+                    organization_id=organization_id,
+                )
+                await function_call_params.result_callback(result)
+            except Exception as e:
+                logger.error(
+                    f"Integration tool '{function_name}' execution failed: {e}"
+                )
+                await function_call_params.result_callback(
+                    {"status": "error", "error": str(e)}
+                )
+
+        return integration_tool_handler
 
     def _create_mcp_handler(self, session: "McpToolSession", function_name: str):
         """Create a handler that proxies an LLM function call to a live MCP

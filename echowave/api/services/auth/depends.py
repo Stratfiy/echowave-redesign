@@ -5,7 +5,7 @@ from fastapi import Depends, Header, HTTPException, Query, WebSocket
 from loguru import logger
 from pydantic import ValidationError
 
-from api.constants import AUTH_PROVIDER, DOGRAH_MPS_SECRET_KEY, MPS_API_URL
+from api.constants import AUTH_PROVIDER, MPS_API_URL, MPS_SECRET_KEY, TRIAL_GRANT_USD
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import PostHogEvent
@@ -140,6 +140,20 @@ async def get_user(
             # This prevents race conditions where multiple concurrent requests
             # might try to create configurations
             if org_was_created:
+                try:
+                    await db_client.record_entry(
+                        organization.id,
+                        "trial_grant",
+                        TRIAL_GRANT_USD,
+                        description="Signup trial credit",
+                    )
+                except Exception:
+                    logger.warning(
+                        "Failed to grant trial credit for organization {}",
+                        organization.id,
+                        exc_info=True,
+                    )
+
                 try:
                     await ensure_hosted_mps_billing_account_v2(
                         organization.id,
@@ -356,8 +370,14 @@ async def create_user_configuration_with_mps_key(
         user_provider_id: The user's provider ID (for created_by field)
 
     Returns:
-        EffectiveAIModelConfiguration with MPS-provided API keys or None if failed
+        EffectiveAIModelConfiguration with MPS-provided API keys, or None if the
+        managed-model backend isn't configured or provisioning failed
     """
+    if not MPS_API_URL:
+        # No managed-model backend configured: new orgs land with no default
+        # model configuration and must add BYOK provider keys. This is the
+        # expected state for a deployment that doesn't run its own MPS.
+        return None
 
     async with httpx.AsyncClient() as client:
         # Use MPS API URL from constants
@@ -366,7 +386,7 @@ async def create_user_configuration_with_mps_key(
             response = await client.post(
                 f"{MPS_API_URL}/api/v1/service-keys/",
                 json={
-                    "name": "Default Dograh Model Service Key",
+                    "name": "Default Managed Model Service Key",
                     "description": "Auto-generated key for OSS user",
                     "expires_in_days": 7,  # Short-lived for OSS
                     "created_by": user_provider_id,
@@ -375,22 +395,22 @@ async def create_user_configuration_with_mps_key(
             )
         else:
             # For authenticated mode, use the secret key and organization ID
-            if not DOGRAH_MPS_SECRET_KEY:
+            if not MPS_SECRET_KEY:
                 logger.warning(
-                    "Warning: DOGRAH_MPS_SECRET_KEY not set for authenticated mode"
+                    "Warning: MPS_SECRET_KEY not set for authenticated mode"
                 )
-                raise ValidationError("Missing DOGRAH_MPS_SECRET_KEY in non oss mode")
+                raise ValidationError("Missing MPS_SECRET_KEY in non oss mode")
 
             response = await client.post(
                 f"{MPS_API_URL}/api/v1/service-keys/",
                 json={
-                    "name": "Default Dograh Model Service Key",
+                    "name": "Default Managed Model Service Key",
                     "description": f"Auto-generated key for organization {organization_id}",
                     "organization_id": organization_id,
                     "expires_in_days": 90,  # Longer-lived for authenticated users
                     "created_by": user_provider_id,
                 },
-                headers={"X-Secret-Key": DOGRAH_MPS_SECRET_KEY},
+                headers={"X-Secret-Key": MPS_SECRET_KEY},
                 timeout=10.0,
             )
 

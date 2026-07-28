@@ -3,7 +3,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import Date, and_, cast, func, select
+from sqlalchemy import Date, and_, cast, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import joinedload
 
@@ -93,6 +93,32 @@ class OrganizationUsageClient(BaseDBClient):
             )
         )
         return cycle_result.scalar_one()
+
+    async def record_run_usage(
+        self,
+        organization_id: int,
+        *,
+        duration_seconds: float,
+        amount_usd: float,
+    ) -> None:
+        """Add a rated run's duration/cost to the org's current usage cycle."""
+        async with self.async_session() as session:
+            cycle = await self._get_or_create_current_cycle_impl(
+                organization_id, session, commit=False
+            )
+            await session.execute(
+                update(OrganizationUsageCycleModel)
+                .where(OrganizationUsageCycleModel.id == cycle.id)
+                .values(
+                    total_duration_seconds=OrganizationUsageCycleModel.total_duration_seconds
+                    + int(round(duration_seconds)),
+                    used_amount_usd=func.coalesce(
+                        OrganizationUsageCycleModel.used_amount_usd, 0.0
+                    )
+                    + amount_usd,
+                )
+            )
+            await session.commit()
 
     async def get_current_usage(self, organization_id: int) -> dict:
         """Get current reporting-period usage information."""

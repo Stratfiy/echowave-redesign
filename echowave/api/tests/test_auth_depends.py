@@ -23,6 +23,7 @@ async def test_get_user_initializes_hosted_mps_billing_for_new_org(monkeypatch):
     existing_config = SimpleNamespace(llm=object(), tts=None, stt=None)
 
     ensure_billing = AsyncMock(return_value={"billing_mode": "v2"})
+    record_entry = AsyncMock()
     group_calls = []
     capture_calls = []
     person_calls = []
@@ -59,6 +60,11 @@ async def test_get_user_initializes_hosted_mps_billing_for_new_org(monkeypatch):
         AsyncMock(return_value=existing_config),
     )
     monkeypatch.setattr(
+        auth_depends.db_client,
+        "record_entry",
+        record_entry,
+    )
+    monkeypatch.setattr(
         auth_depends,
         "ensure_hosted_mps_billing_account_v2",
         ensure_billing,
@@ -83,6 +89,12 @@ async def test_get_user_initializes_hosted_mps_billing_for_new_org(monkeypatch):
 
     assert result is user
     assert result.selected_organization_id == 42
+    record_entry.assert_awaited_once_with(
+        42,
+        "trial_grant",
+        auth_depends.TRIAL_GRANT_USD,
+        description="Signup trial credit",
+    )
     ensure_billing.assert_awaited_once_with(42, created_by="stack-user-1")
 
     assert len(group_calls) == 1

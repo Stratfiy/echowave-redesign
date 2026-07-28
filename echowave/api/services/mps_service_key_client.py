@@ -10,7 +10,7 @@ from typing import List, Optional
 import httpx
 from loguru import logger
 
-from api.constants import DEPLOYMENT_MODE, DOGRAH_MPS_SECRET_KEY, MPS_API_URL
+from api.constants import DEPLOYMENT_MODE, MPS_API_URL, MPS_SECRET_KEY
 
 
 class MPSServiceKeyClient:
@@ -39,8 +39,8 @@ class MPSServiceKeyClient:
 
         # Add authentication for non-OSS mode
         if DEPLOYMENT_MODE != "oss":
-            if DOGRAH_MPS_SECRET_KEY:
-                headers["X-Secret-Key"] = DOGRAH_MPS_SECRET_KEY
+            if MPS_SECRET_KEY:
+                headers["X-Secret-Key"] = MPS_SECRET_KEY
             if organization_id:
                 headers["X-Organization-Id"] = str(organization_id)
         else:
