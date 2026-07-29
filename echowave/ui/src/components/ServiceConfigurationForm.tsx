@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet } from '@/client/sdk.gen';
+import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -903,6 +904,21 @@ export function ServiceConfigurationForm({
                     />
                 </div>
             )}
+
+            {/* What this stack costs, before the first call rather than on
+                the first invoice. Reads the live selection, so switching model
+                moves the number immediately. */}
+            <CostPerMinuteBar
+                className="mb-4"
+                stack={{
+                    stt_provider: isRealtime ? null : serviceProviders.stt || null,
+                    stt_model: (watch("stt_model") as string) || "",
+                    llm_provider: serviceProviders.llm || null,
+                    llm_model: (watch("llm_model") as string) || "",
+                    tts_provider: isRealtime ? null : serviceProviders.tts || null,
+                    tts_model: (watch("tts_model") as string) || "",
+                }}
+            />
 
             <Card>
                 <CardContent className="pt-6">

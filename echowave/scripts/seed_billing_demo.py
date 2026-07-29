@@ -88,11 +88,26 @@ LANGUAGE_LATENCY_MS = {
 
 DISPOSITIONS = ["XFER", "DNC", "CALLBACK", "NOT_INTERESTED", "COMPLETED"]
 
+# (provider, model, component, unit, rate in millipaise).
+# model "" is the provider-wide fallback that applies to any model without its
+# own row; a model-specific row beats it. The spread inside one provider is the
+# whole reason rates carry a model at all — gpt-4o against gpt-4o-mini is more
+# than an order of magnitude.
 PROVIDER_RATES = [
-    ("deepgram", CostComponent.STT, RateUnit.MINUTE, 25_000),
-    ("openai", CostComponent.LLM, RateUnit.THOUSAND_TOKENS, 12_000),
-    ("sarvam", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 40_000),
-    ("twilio", CostComponent.TELEPHONY, RateUnit.MINUTE, 55_000),
+    ("deepgram", "", CostComponent.STT, RateUnit.MINUTE, 25_000),
+    ("sarvam", "", CostComponent.STT, RateUnit.MINUTE, 18_000),
+    ("openai", "", CostComponent.LLM, RateUnit.THOUSAND_TOKENS, 12_000),
+    ("openai", "gpt-4o", CostComponent.LLM, RateUnit.THOUSAND_TOKENS, 12_000),
+    ("openai", "gpt-4o-mini", CostComponent.LLM, RateUnit.THOUSAND_TOKENS, 700),
+    ("openai", "gpt-4.1-mini", CostComponent.LLM, RateUnit.THOUSAND_TOKENS, 1_400),
+    ("azure", "", CostComponent.LLM, RateUnit.THOUSAND_TOKENS, 11_000),
+    ("azure", "gpt-4.1-mini", CostComponent.LLM, RateUnit.THOUSAND_TOKENS, 1_300),
+    ("anthropic", "", CostComponent.LLM, RateUnit.THOUSAND_TOKENS, 14_000),
+    ("sarvam", "", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 40_000),
+    ("elevenlabs", "", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 90_000),
+    ("elevenlabs", "turbo-v2", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 45_000),
+    ("twilio", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 55_000),
+    ("plivo", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 42_000),
 ]
 
 
@@ -181,10 +196,11 @@ async def seed(session: AsyncSession) -> None:
         print("Seed data already present. Re-run with --reset to rebuild.")
         return
 
-    for provider, component, unit, rate in PROVIDER_RATES:
+    for provider, model, component, unit, rate in PROVIDER_RATES:
         session.add(
             ProviderRateModel(
                 provider=provider,
+                model=model,
                 component=component.value,
                 unit=unit.value,
                 rate_mpaise=rate,
@@ -360,17 +376,20 @@ def _make_run(rng, *, workflow, campaign, day_start, behaviour) -> WorkflowRunMo
     token_rate = 90 if behaviour == "thin_margin" else 35
     char_rate = 60 if behaviour == "thin_margin" else 22
 
+    # Processor keys carry the "#N" instance suffix pipecat really emits, so the
+    # seeded data exercises the same parsing path as a production call.
     usage_info = {"call_duration_seconds": duration}
     if duration:
         usage_info["llm"] = {
-            "OpenAILLMService|||gpt-4o-mini": {
+            "OpenAILLMService#0|||gpt-4o-mini": {
                 "prompt_tokens": duration * token_rate,
                 "completion_tokens": duration * (token_rate // 3),
                 "total_tokens": duration * token_rate,
             }
         }
-        usage_info["tts"] = {"SarvamTTSService|||bulbul": duration * char_rate}
-        usage_info["stt"] = {"DeepgramSTTService|||nova-3": duration}
+        usage_info["tts"] = {"SarvamTTSService#0|||bulbul": duration * char_rate}
+        usage_info["stt"] = {"DeepgramSTTService#0|||nova-3": duration}
+        usage_info["telephony"] = {"twilio": duration}
 
     return WorkflowRunModel(
         name=f"call-{rng.randint(100000, 999999)}",

@@ -213,6 +213,34 @@ requested.
 
 ---
 
+## Cost estimate (forward-looking)
+
+Everything above prices a call *after* it happens. `POST /cost-estimate/per-minute`
+answers the question asked *before*: what will a minute cost on this stack?
+
+It prices from the same effective-dated rate rows the receipts use, so an
+estimate and the invoice it predicts cannot drift apart, and it uses the
+caller's own account platform rate rather than a list price.
+
+What has to be assumed is consumption — tokens and characters per minute.
+Rather than ship a constant, that is the **median of our own completed calls on
+that exact model** over the last 30 days, once there are at least 20 of them.
+A vendor's generic figure is a guess about someone else's traffic; the median
+of ours is a statement about ours. Below that threshold it falls back to a
+documented default, and every line reports which basis it used (`measured`,
+`default`, or `exact` for components already quoted per minute).
+
+The response splits into the three groups the UI bar renders — agent cost
+(STT + LLM + TTS), telephony, and the platform fee — and the total is defined
+as the sum of its own lines, the same reconciliation rule the receipt uses. A
+component with no rate on file is reported in `unpriced` rather than priced at
+zero, which would silently understate the estimate.
+
+`CostPerMinuteBar` renders it live on the model-configuration screen, so
+switching model moves the number immediately.
+
+---
+
 ## Not built yet
 
 * **Export**, **alerting** and **role management** — deliberately out of scope.

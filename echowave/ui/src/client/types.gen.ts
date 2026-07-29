@@ -1330,6 +1330,43 @@ export type CloudonixConfigurationResponse = {
 };
 
 /**
+ * CostEstimateRequest
+ *
+ * The stack to price. Every component is optional so the estimate can be
+ * shown while the agent is still half-configured.
+ */
+export type CostEstimateRequest = {
+    /**
+     * Stt Provider
+     */
+    stt_provider?: string | null;
+    /**
+     * Stt Model
+     */
+    stt_model?: string;
+    /**
+     * Llm Provider
+     */
+    llm_provider?: string | null;
+    /**
+     * Llm Model
+     */
+    llm_model?: string;
+    /**
+     * Tts Provider
+     */
+    tts_provider?: string | null;
+    /**
+     * Tts Model
+     */
+    tts_model?: string;
+    /**
+     * Telephony Provider
+     */
+    telephony_provider?: string | null;
+};
+
+/**
  * CreateAPIKeyRequest
  */
 export type CreateApiKeyRequest = {
@@ -8392,6 +8429,49 @@ export type GetLatencyApiV1AdminBillingLatencyGetResponses = {
 };
 
 export type GetLatencyApiV1AdminBillingLatencyGetResponse = GetLatencyApiV1AdminBillingLatencyGetResponses[keyof GetLatencyApiV1AdminBillingLatencyGetResponses];
+
+export type GetCostPerMinuteApiV1CostEstimatePerMinutePostData = {
+    body: CostEstimateRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/cost-estimate/per-minute';
+};
+
+export type GetCostPerMinuteApiV1CostEstimatePerMinutePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCostPerMinuteApiV1CostEstimatePerMinutePostError = GetCostPerMinuteApiV1CostEstimatePerMinutePostErrors[keyof GetCostPerMinuteApiV1CostEstimatePerMinutePostErrors];
+
+export type GetCostPerMinuteApiV1CostEstimatePerMinutePostResponses = {
+    /**
+     * Response Get Cost Per Minute Api V1 Cost Estimate Per Minute Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCostPerMinuteApiV1CostEstimatePerMinutePostResponse = GetCostPerMinuteApiV1CostEstimatePerMinutePostResponses[keyof GetCostPerMinuteApiV1CostEstimatePerMinutePostResponses];
 
 export type ValidateWorkflowApiV1WorkflowWorkflowIdValidatePostData = {
     body?: never;
