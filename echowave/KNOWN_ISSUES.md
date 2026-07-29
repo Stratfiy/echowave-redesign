@@ -59,6 +59,29 @@ or docs domain would be worse than a known-dead link.
 
 ---
 
+### 10. Pre-existing schema drift between models and the database
+
+**Status:** OPEN · **Severity: medium** — `alembic check` fails
+
+Two differences between `db/models.py` and a migrated database predate this
+work and are identical on `main`:
+
+| Drift | Direction |
+|---|---|
+| `idx_queued_runs_campaign_state_optimized` on `queued_runs(campaign_id, state)` | in the model, missing from the database |
+| `workflow_definitions.call_disposition_codes` | in the database, missing from the model |
+
+Because of these, `alembic check` fails and **every `--autogenerate` run sweeps
+them into the new migration**. They were removed by hand from the billing
+migration (`810aaefd657d`); the column drop in particular would have destroyed
+data. Anyone generating a migration must do the same until this is resolved.
+
+**To fix:** decide each direction deliberately — add the missing index via a
+migration, and either restore `call_disposition_codes` to the model or write an
+explicit, reviewed migration to drop it. Do not let autogenerate decide.
+
+---
+
 ### 7. Top-level directory is still named `echowave/`
 
 **Status:** DECISION NEEDED · **Severity: low**

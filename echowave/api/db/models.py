@@ -4,8 +4,10 @@ from datetime import UTC, datetime
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     Column,
+    Date,
     DateTime,
     Enum,
     Float,
@@ -150,6 +152,27 @@ class OrganizationModel(Base):
     )
 
     price_per_second_usd = Column(Float, nullable=True)
+
+    # ------------------------------------------------------------------
+    # Decibyl billing (see api/services/billing and DASHBOARD.md)
+    # ------------------------------------------------------------------
+    # Explicit per-account platform rate. NULL means "no account override" and
+    # the resolver falls through to the volume tier, then the global default.
+    # This column is the *current* value for convenience; the effective-dated
+    # history in organization_rate_history is the source of truth for
+    # recomputing any historical invoice.
+    platform_rate_mpaise = Column(Integer, nullable=True)
+    billing_currency = Column(
+        String(3), nullable=False, default="INR", server_default=text("'INR'")
+    )
+    # Commercial shape, used for dashboard segmentation. Stored as VARCHAR
+    # rather than a Postgres ENUM so new account types need no migration —
+    # same convention as workflow_runs.mode. Values: see AccountType.
+    account_type = Column(String(32), nullable=True)
+    billing_name = Column(String, nullable=True)
+    billing_status = Column(
+        String(16), nullable=False, default="active", server_default=text("'active'")
+    )
 
     # Relationships
     users = relationship(
@@ -570,6 +593,41 @@ class WorkflowRunModel(Base):
         cascade="all, delete-orphan",
     )
 
+    # ------------------------------------------------------------------
+    # Decibyl billing snapshot (see api/services/billing and DASHBOARD.md)
+    # ------------------------------------------------------------------
+    # Call lifecycle timestamps. created_at is when the row was made; these
+    # describe the call itself and drive answer/completion rates.
+    answered_at = Column(DateTime(timezone=True), nullable=True)
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+    # Primary spoken language, for the latency-by-language breakdown.
+    language = Column(String(16), nullable=True)
+    billable_seconds = Column(Integer, nullable=True)
+
+    # The platform rate resolved at call time, snapshotted so that recomputing
+    # this call later reproduces the original number even if the account's rate
+    # has since changed.
+    platform_rate_mpaise_applied = Column(Integer, nullable=True)
+    # Denormalised from call_cost_items for fast dashboard scans. Provider cost
+    # and the platform fee are kept in separate columns and are never summed
+    # into a single stored number — that is what makes a hidden markup
+    # structurally impossible.
+    total_provider_cost_paise = Column(BigInteger, nullable=True)
+    total_charged_paise = Column(BigInteger, nullable=True)
+    # Set when the cost engine has run for this call; makes costing idempotent.
+    costed_at = Column(DateTime(timezone=True), nullable=True)
+
+    cost_items = relationship(
+        "CallCostItemModel",
+        back_populates="workflow_run",
+        cascade="all, delete-orphan",
+    )
+    turn_metrics = relationship(
+        "CallTurnMetricModel",
+        back_populates="workflow_run",
+        cascade="all, delete-orphan",
+    )
+
     # Indexes
     __table_args__ = (
         Index(
@@ -585,6 +643,14 @@ class WorkflowRunModel(Base):
         ),
         Index("idx_workflow_runs_workflow_id", "workflow_id"),
         Index("idx_workflow_runs_campaign_id", "campaign_id"),
+        # Dashboard drill-down is always a time-range scan, either global or
+        # narrowed to one account. workflow_runs has no organization_id of its
+        # own — it is reached through workflows — so the per-account form is
+        # (workflow_id, created_at) and the join to workflows is cheap because
+        # that table is small. Headline aggregates never touch these tables;
+        # they are served from daily_organization_rollup.
+        Index("idx_workflow_runs_created_at", "created_at"),
+        Index("idx_workflow_runs_workflow_created_at", "workflow_id", "created_at"),
     )
 
 
@@ -1447,4 +1513,305 @@ class KnowledgeBaseChunkModel(Base):
             postgresql_with={"lists": 100},  # Adjust based on dataset size
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Billing: rate configuration, per-call costing, credits and rollups.
+# See api/services/billing/ for the engine and DASHBOARD.md for definitions.
+# ---------------------------------------------------------------------------
+
+
+class OrganizationRateHistoryModel(Base):
+    """Effective-dated history of an account's platform rate.
+
+    Rates are never updated in place. Changing a rate closes the current row
+    (sets ``effective_to``) and inserts a new one, so recomputing an old
+    invoice reproduces the original number. ``set_by`` and ``note`` make every
+    change attributable.
+    """
+
+    __tablename__ = "organization_rate_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    platform_rate_mpaise = Column(Integer, nullable=False)
+    effective_from = Column(DateTime(timezone=True), nullable=False)
+    # NULL means "still in effect". At most one open row per organization.
+    effective_to = Column(DateTime(timezone=True), nullable=True)
+    set_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    organization = relationship("OrganizationModel")
+    set_by_user = relationship("UserModel")
+
+    __table_args__ = (
+        Index(
+            "ix_org_rate_history_org_effective",
+            "organization_id",
+            "effective_from",
+        ),
+        # Guards the invariant that an account has at most one open rate row.
+        Index(
+            "uq_org_rate_history_open",
+            "organization_id",
+            unique=True,
+            postgresql_where=text("effective_to IS NULL"),
+        ),
+    )
+
+
+class PlatformVolumeTierModel(Base):
+    """Optional volume tiers, applied when an account has no explicit override.
+
+    A tier matches when the account's billable minutes in the current billing
+    period reach ``min_period_minutes``. The highest matching threshold wins.
+    """
+
+    __tablename__ = "platform_volume_tiers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(64), nullable=False)
+    min_period_minutes = Column(Integer, nullable=False)
+    platform_rate_mpaise = Column(Integer, nullable=False)
+    effective_from = Column(DateTime(timezone=True), nullable=False)
+    effective_to = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        Index("ix_platform_volume_tiers_effective", "effective_from", "effective_to"),
+    )
+
+
+class ProviderRateModel(Base):
+    """Effective-dated provider unit rates, passed through at cost.
+
+    Same no-destructive-update rule as the platform rate: superseding a rate
+    closes the old row and inserts a new one, so historical calls re-cost to
+    the number that was actually charged.
+    """
+
+    __tablename__ = "provider_rates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    provider = Column(String(64), nullable=False)
+    # stt | llm | tts | telephony — see CostComponent.
+    component = Column(String(16), nullable=False)
+    # minute | 1k_chars | 1k_tokens — see RateUnit.
+    unit = Column(String(16), nullable=False)
+    rate_mpaise = Column(Integer, nullable=False)
+    effective_from = Column(DateTime(timezone=True), nullable=False)
+    effective_to = Column(DateTime(timezone=True), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        Index(
+            "ix_provider_rates_lookup",
+            "provider",
+            "component",
+            "effective_from",
+        ),
+        Index(
+            "uq_provider_rates_open",
+            "provider",
+            "component",
+            unique=True,
+            postgresql_where=text("effective_to IS NULL"),
+        ),
+    )
+
+
+class CallCostItemModel(Base):
+    """One itemised line on a call receipt.
+
+    Every component is stored separately — provider costs and the platform fee
+    are never collapsed into one number. ``units`` is the raw measured quantity
+    (seconds, characters, tokens) and ``unit_rate_mpaise`` the rate applied, so
+    a receipt can always be re-derived and audited.
+    """
+
+    __tablename__ = "call_cost_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    # stt | llm | tts | telephony | platform — see CostComponent.
+    component = Column(String(16), nullable=False)
+    # NULL for the platform fee, which has no third-party provider.
+    provider = Column(String(64), nullable=True)
+    units = Column(BigInteger, nullable=False, default=0)
+    unit_rate_mpaise = Column(Integer, nullable=False, default=0)
+    cost_paise = Column(BigInteger, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    workflow_run = relationship("WorkflowRunModel", back_populates="cost_items")
+
+    __table_args__ = (
+        Index("ix_call_cost_items_run", "workflow_run_id"),
+        Index("ix_call_cost_items_component", "component"),
+    )
+
+
+class CallTurnMetricModel(Base):
+    """Per-turn latency instrumentation for one call.
+
+    Stage timestamps are milliseconds relative to the start of the call rather
+    than absolute times: they are only ever used as differences, and integer
+    offsets keep the percentile queries free of timezone and clock-skew
+    concerns. ``latency_ms`` is the perceived latency
+    (``t_audio_out - t_user_stopped``) stored so percentiles can be computed in
+    SQL over raw rows — averaging pre-bucketed percentiles gives wrong answers.
+    """
+
+    __tablename__ = "call_turn_metrics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    turn_index = Column(Integer, nullable=False)
+
+    t_user_stopped_ms = Column(Integer, nullable=True)
+    t_endpoint_fired_ms = Column(Integer, nullable=True)
+    t_stt_final_ms = Column(Integer, nullable=True)
+    t_llm_first_token_ms = Column(Integer, nullable=True)
+    t_tts_first_byte_ms = Column(Integer, nullable=True)
+    t_audio_out_ms = Column(Integer, nullable=True)
+
+    # Denormalised t_audio_out_ms - t_user_stopped_ms, so percentile queries
+    # never have to recompute it across millions of rows.
+    latency_ms = Column(Integer, nullable=True)
+
+    tool_called = Column(String(128), nullable=True)
+    tool_ms = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    workflow_run = relationship("WorkflowRunModel", back_populates="turn_metrics")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "workflow_run_id", "turn_index", name="uq_call_turn_metrics_run_turn"
+        ),
+        Index("ix_call_turn_metrics_run", "workflow_run_id"),
+        # Percentiles are computed over raw rows filtered by time and language.
+        Index("ix_call_turn_metrics_latency", "created_at", "latency_ms"),
+    )
+
+
+class CreditLedgerModel(Base):
+    """Append-only credit ledger. Balance is derived, never edited in place.
+
+    ``balance_after_paise`` is the running balance at the time the row was
+    written, so a statement can be rendered without replaying the whole table.
+    """
+
+    __tablename__ = "credit_ledger"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    # Positive credits the account, negative debits it.
+    delta_paise = Column(BigInteger, nullable=False)
+    # topup | usage | adjustment | trial — see CreditLedgerKind.
+    kind = Column(String(16), nullable=False)
+    # What caused this entry, e.g. ("workflow_run", 1234).
+    ref_type = Column(String(32), nullable=True)
+    ref_id = Column(String(64), nullable=True)
+    balance_after_paise = Column(BigInteger, nullable=False)
+    note = Column(Text, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    organization = relationship("OrganizationModel")
+    created_by_user = relationship("UserModel")
+
+    __table_args__ = (
+        Index("ix_credit_ledger_org_created", "organization_id", "created_at"),
+        # A completed run must debit the ledger at most once, even if the
+        # completion task is retried.
+        Index(
+            "uq_credit_ledger_usage_ref",
+            "organization_id",
+            "ref_type",
+            "ref_id",
+            unique=True,
+            postgresql_where=text("kind = 'usage' AND ref_id IS NOT NULL"),
+        ),
+    )
+
+
+class DailyOrganizationRollupModel(Base):
+    """Pre-aggregated per-account, per-day figures backing the dashboard.
+
+    Dashboard pages read from here rather than scanning workflow_runs, which is
+    what keeps them inside the performance budget at a million calls.
+
+    ``day`` is an **IST calendar day**, not a UTC one. Timestamps are stored in
+    UTC everywhere else, but bucketing by UTC day would split an Indian working
+    day across two rows and make every number look wrong to us.
+    """
+
+    __tablename__ = "daily_organization_rollup"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    day = Column(Date, nullable=False)
+
+    calls = Column(Integer, nullable=False, default=0)
+    answered_calls = Column(Integer, nullable=False, default=0)
+    completed_calls = Column(Integer, nullable=False, default=0)
+    billable_seconds = Column(BigInteger, nullable=False, default=0)
+    billable_minutes = Column(BigInteger, nullable=False, default=0)
+
+    provider_cost_paise = Column(BigInteger, nullable=False, default=0)
+    charged_paise = Column(BigInteger, nullable=False, default=0)
+    # charged_paise - provider_cost_paise, stored so margin sorting is indexable.
+    margin_paise = Column(BigInteger, nullable=False, default=0)
+
+    refreshed_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "day", name="uq_daily_rollup_org_day"),
+        Index("ix_daily_rollup_day", "day"),
+        Index("ix_daily_rollup_org_day", "organization_id", "day"),
+    )
+
+
+class BillingAuditLogModel(Base):
+    """Who changed a rate or moved credit, when, and from what to what."""
+
+    __tablename__ = "billing_audit_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
+    actor_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # platform_rate_changed | credit_adjusted | provider_rate_changed
+    action = Column(String(48), nullable=False)
+    old_value = Column(JSON, nullable=False, default=dict)
+    new_value = Column(JSON, nullable=False, default=dict)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    organization = relationship("OrganizationModel")
+    actor = relationship("UserModel")
+
+    __table_args__ = (
+        Index("ix_billing_audit_org_created", "organization_id", "created_at"),
+        Index("ix_billing_audit_action", "action"),
     )

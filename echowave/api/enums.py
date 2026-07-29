@@ -202,3 +202,56 @@ class PostHogEvent(str, Enum):
     ORGANIZATION_USER_ASSOCIATED = "organization_user_associated"
     # usage_* events track orgs hitting capacity/limit boundaries
     USAGE_CONCURRENT_CALL_LIMIT_REACHED = "usage_concurrent_call_limit_reached"
+
+
+class CostComponent(str, Enum):
+    """Line-item components on a call receipt.
+
+    ``PLATFORM`` is Decibyl revenue; every other component is a provider cost
+    passed through at cost. They are never summed into a single stored number —
+    see ``api/services/billing`` and DASHBOARD.md.
+    """
+
+    STT = "stt"
+    LLM = "llm"
+    TTS = "tts"
+    TELEPHONY = "telephony"
+    PLATFORM = "platform"
+
+    @classmethod
+    def provider_components(cls) -> tuple["CostComponent", ...]:
+        """Components that represent money paid to a third party."""
+        return (cls.STT, cls.LLM, cls.TTS, cls.TELEPHONY)
+
+
+class RateUnit(str, Enum):
+    """Unit a provider rate is quoted in."""
+
+    MINUTE = "minute"
+    THOUSAND_CHARS = "1k_chars"
+    THOUSAND_TOKENS = "1k_tokens"
+
+
+class CreditLedgerKind(str, Enum):
+    """Why a credit ledger row exists."""
+
+    TOPUP = "topup"
+    USAGE = "usage"
+    ADJUSTMENT = "adjustment"
+    TRIAL = "trial"
+
+
+class BillingAuditAction(str, Enum):
+    """Auditable billing changes. Every one records who, when, old and new."""
+
+    PLATFORM_RATE_CHANGED = "platform_rate_changed"
+    CREDIT_ADJUSTED = "credit_adjusted"
+    PROVIDER_RATE_CHANGED = "provider_rate_changed"
+
+
+class AccountType(str, Enum):
+    """Commercial shape of an organization, used for dashboard segmentation."""
+
+    CLINIC = "clinic"
+    AGENCY = "agency"
+    ENTERPRISE = "enterprise"
