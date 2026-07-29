@@ -81,10 +81,10 @@ def _single_api_key(service: dict) -> str | None:
     return None
 
 
-def _first_dograh_api_key(configuration: dict) -> str | None:
+def _first_decibyl_api_key(configuration: dict) -> str | None:
     for name in ("llm", "tts", "stt", "embeddings", "realtime"):
         service = _section(configuration, name)
-        if service is None or service.get("provider") != "dograh":
+        if service is None or service.get("provider") != "decibyl":
             continue
         key = _single_api_key(service)
         if key:
@@ -92,9 +92,9 @@ def _first_dograh_api_key(configuration: dict) -> str | None:
     return None
 
 
-def _has_dograh_provider(*services: dict | None) -> bool:
+def _has_decibyl_provider(*services: dict | None) -> bool:
     return any(
-        service is not None and service.get("provider") == "dograh"
+        service is not None and service.get("provider") == "decibyl"
         for service in services
     )
 
@@ -122,13 +122,13 @@ def convert_legacy_configuration_to_v2(configuration: dict) -> dict | None:
     embeddings = _section(configuration, "embeddings")
     realtime = _section(configuration, "realtime")
 
-    dograh_key = _first_dograh_api_key(configuration)
-    if dograh_key:
+    decibyl_key = _first_decibyl_api_key(configuration)
+    if decibyl_key:
         return {
             "version": 2,
-            "mode": "dograh",
-            "dograh": {
-                "api_key": dograh_key,
+            "mode": "decibyl",
+            "decibyl": {
+                "api_key": decibyl_key,
                 "voice": (tts or {}).get("voice") or _DEFAULT_VOICE,
                 "speed": _sanitized_speed(tts),
                 "language": (stt or {}).get("language") or _DEFAULT_LANGUAGE,
@@ -136,9 +136,9 @@ def convert_legacy_configuration_to_v2(configuration: dict) -> dict | None:
         }
 
     if configuration.get("is_realtime"):
-        # BYOK schemas reject dograh providers; a dograh provider without a
+        # BYOK schemas reject decibyl providers; a decibyl provider without a
         # single resolvable key cannot be represented in v2.
-        if realtime is None or llm is None or _has_dograh_provider(llm, embeddings):
+        if realtime is None or llm is None or _has_decibyl_provider(llm, embeddings):
             return None
         section: dict = {"realtime": realtime, "llm": llm}
         if embeddings is not None:
@@ -151,7 +151,7 @@ def convert_legacy_configuration_to_v2(configuration: dict) -> dict | None:
 
     if llm is None or tts is None or stt is None:
         return None
-    if _has_dograh_provider(llm, tts, stt, embeddings):
+    if _has_decibyl_provider(llm, tts, stt, embeddings):
         return None
     section = {"llm": llm, "tts": tts, "stt": stt}
     if embeddings is not None:

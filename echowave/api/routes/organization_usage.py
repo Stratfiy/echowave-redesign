@@ -22,7 +22,7 @@ router = APIRouter(prefix="/organizations")
 class CurrentUsageResponse(BaseModel):
     period_start: str
     period_end: str
-    used_dograh_tokens: float
+    used_decibyl_tokens: float
     total_duration_seconds: int
     used_amount_usd: Optional[float] = None
     currency: Optional[str] = None
@@ -89,7 +89,7 @@ class WorkflowRunUsageResponse(BaseModel):
     workflow_name: Optional[str]
     name: str
     created_at: str
-    dograh_token_usage: float
+    decibyl_token_usage: float
     call_duration_seconds: int
     recording_url: Optional[str] = None
     transcript_url: Optional[str] = None
@@ -118,7 +118,7 @@ class WorkflowRunUsageResponse(BaseModel):
 
 class UsageHistoryResponse(BaseModel):
     runs: List[WorkflowRunUsageResponse]
-    total_dograh_tokens: float
+    total_decibyl_tokens: float
     total_duration_seconds: int
     total_count: int
     page: int
@@ -130,7 +130,7 @@ class DailyUsageItem(BaseModel):
     date: str
     minutes: float
     cost_usd: Optional[float] = None
-    dograh_tokens: float
+    decibyl_tokens: float
     call_count: int
 
 
@@ -138,7 +138,7 @@ class DailyUsageBreakdownResponse(BaseModel):
     breakdown: List[DailyUsageItem]
     total_minutes: float
     total_cost_usd: Optional[float] = None
-    total_dograh_tokens: float
+    total_decibyl_tokens: float
     currency: Optional[str] = None
 
 
@@ -301,9 +301,9 @@ async def create_mps_credit_purchase_url(
             created_by=str(user.provider_id),
             return_url=f"{UI_APP_URL.rstrip('/')}/billing",
             billing_details={
-                "source": "dograh_billing",
-                "dograh_user_id": str(user.id),
-                "dograh_provider_id": str(user.provider_id),
+                "source": "decibyl_billing",
+                "decibyl_user_id": str(user.id),
+                "decibyl_provider_id": str(user.provider_id),
             },
         )
     except Exception as exc:
@@ -428,7 +428,7 @@ async def get_usage_history(
 
         return {
             "runs": runs,
-            "total_dograh_tokens": total_tokens,
+            "total_decibyl_tokens": total_tokens,
             "total_duration_seconds": total_duration,
             "total_count": total_count,
             "page": page,

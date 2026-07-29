@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="/workspaces/dograh"
+ROOT_DIR="/workspaces/decibyl"
 UI_ENV_EXAMPLE="$ROOT_DIR/ui/.env.example"
 UI_ENV_FILE="$ROOT_DIR/ui/.env"
 VENV_PATH="$ROOT_DIR/venv"

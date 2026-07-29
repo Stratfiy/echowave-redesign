@@ -1,11 +1,11 @@
 ---
 title: "Inbound Calling"
-description: "Configure inbound calling for Twilio, Vonage, Plivo, Telnyx, Cloudonix, Vobiz, and Asterisk ARI providers in EchoWave AI"
+description: "Configure inbound calling for Twilio, Vonage, Plivo, Telnyx, Cloudonix, Vobiz, and Asterisk ARI providers in Decibyl AI"
 ---
 
 ## Overview
 
-EchoWave AI supports inbound calling across all supported telephony providers. When someone calls your configured phone number, your voice agent automatically answers and handles the interaction. Inbound and outbound calls share the same telephony configuration.
+Decibyl AI supports inbound calling across all supported telephony providers. When someone calls your configured phone number, your voice agent automatically answers and handles the interaction. Inbound and outbound calls share the same telephony configuration.
 
 ## Supported Providers for Inbound Calls
 
@@ -35,23 +35,23 @@ EchoWave AI supports inbound calling across all supported telephony providers. W
 
 ## How Inbound Calling Works
 
-EchoWave exposes a **single inbound webhook URL** for the whole org:
+Decibyl exposes a **single inbound webhook URL** for the whole org:
 
 ```
-https://api.echowave.com/api/v1/telephony/inbound/run
+https://api.decibyl.com/api/v1/telephony/inbound/run
 ```
 
 When a call arrives:
 
 1. **Call Received**: Your telephony provider receives the incoming call
 2. **Webhook Triggered**: The provider sends a webhook to `/inbound/run`
-3. **Org & Agent Resolved**: EchoWave identifies the org from the webhook's account credentials, then looks up which agent should answer based on the called number's **Inbound workflow** assignment in your telephony configuration
+3. **Org & Agent Resolved**: Decibyl identifies the org from the webhook's account credentials, then looks up which agent should answer based on the called number's **Inbound workflow** assignment in your telephony configuration
 4. **Audio Streaming**: Real-time audio streams between caller and agent via WebSocket
 5. **Conversation Handled**: Your voice agent manages the entire conversation
 
-You don't construct per-workflow URLs anymore — the routing is done by the called number's inbound workflow assignment in EchoWave.
+You don't construct per-workflow URLs anymore — the routing is done by the called number's inbound workflow assignment in Decibyl.
 
-## Configuration in EchoWave AI
+## Configuration in Decibyl AI
 
 Setting up inbound calling takes three steps:
 
@@ -65,7 +65,7 @@ The telephony configuration for inbound calling is **identical** to outbound cal
 - [Telnyx Configuration](/integrations/telephony/telnyx#configuration)
 - [Cloudonix Configuration](/integrations/telephony/cloudonix#configuration)
 - [Vobiz Configuration](/integrations/telephony/vobiz#configuration)
-- [Asterisk ARI Configuration](/integrations/telephony/asterisk-ari#configuration-in-echowave)
+- [Asterisk ARI Configuration](/integrations/telephony/asterisk-ari#configuration-in-decibyl)
 
 ### Step 2: Assign an Inbound Workflow to the Phone Number
 
@@ -74,18 +74,18 @@ The telephony configuration for inbound calling is **identical** to outbound cal
 3. Set its **Inbound workflow** to the agent that should answer
 4. Save
 
-This is what tells EchoWave which agent to run when a call comes in for that number.
+This is what tells Decibyl which agent to run when a call comes in for that number.
 
 ### Step 3: Point Your Provider at `/inbound/run`
 
-Each provider needs its inbound webhook (Twilio Voice URL / Vonage Answer URL / etc.) set to the global EchoWave endpoint:
+Each provider needs its inbound webhook (Twilio Voice URL / Vonage Answer URL / etc.) set to the global Decibyl endpoint:
 
 ```
-https://api.echowave.com/api/v1/telephony/inbound/run
+https://api.decibyl.com/api/v1/telephony/inbound/run
 ```
 
 <Note>
-If you're self-hosting EchoWave, replace `api.echowave.com` with your own domain.
+If you're self-hosting Decibyl, replace `api.decibyl.com` with your own domain.
 </Note>
 
 The exact place to set this varies by provider — follow the provider-specific instructions:
@@ -101,11 +101,11 @@ The exact place to set this varies by provider — follow the provider-specific 
 
 ## Testing Inbound Calls
 
-After completing both the EchoWave AI configuration and provider-specific setup:
+After completing both the Decibyl AI configuration and provider-specific setup:
 
 1. **Test Call**: Call your configured phone number from another phone
 2. **Verify Connection**: Ensure your voice agent answers and responds appropriately
-3. **Check Logs**: Monitor call logs in both EchoWave AI and your provider's dashboard
+3. **Check Logs**: Monitor call logs in both Decibyl AI and your provider's dashboard
 4. **Audio Quality**: Verify clear two-way audio communication
 
 ## Troubleshooting Common Issues
@@ -126,18 +126,18 @@ After completing both the EchoWave AI configuration and provider-specific setup:
   <Accordion title="Provider mismatch error">
     - **Error**: "Configuration error: This phone number is configured for a different telephony provider"
     - **Solution**: Check your dashboard settings and update your webhook URL configuration to match the correct provider
-    - Ensure the phone number is configured for the same provider in both EchoWave AI and your telephony console
+    - Ensure the phone number is configured for the same provider in both Decibyl AI and your telephony console
   </Accordion>
   
   <Accordion title="Workflow not found error">
     - **Error**: "Workflow not found"
-    - **Solution**: Open the called number in **/telephony-configurations** and confirm an **Inbound workflow** is assigned. Without an assignment, EchoWave has no agent to route the call to.
+    - **Solution**: Open the called number in **/telephony-configurations** and confirm an **Inbound workflow** is assigned. Without an assignment, Decibyl has no agent to route the call to.
     - Verify the assigned workflow still exists in your dashboard
   </Accordion>
   
   <Accordion title="Account validation failed">
     - **Error**: "Authentication error: Account credentials do not match"
-    - **Solution**: Verify your account SID/credentials configuration in EchoWave AI matches your telephony provider settings
+    - **Solution**: Verify your account SID/credentials configuration in Decibyl AI matches your telephony provider settings
     - Re-enter your provider credentials in the telephony configuration page
   </Accordion>
   
@@ -149,7 +149,7 @@ After completing both the EchoWave AI configuration and provider-specific setup:
   
   <Accordion title="Signature validation failed">
     - **Error**: "Security error: Webhook signature validation failed"
-    - **Solution**: Verify your auth token configuration in EchoWave AI matches your provider settings
+    - **Solution**: Verify your auth token configuration in Decibyl AI matches your provider settings
     - Ensure webhook requests are coming from your telephony provider's verified IP ranges
     - Check that your webhook URL is accessible and responding correctly
   </Accordion>
@@ -168,7 +168,7 @@ After completing both the EchoWave AI configuration and provider-specific setup:
   </Accordion>
   
   <Accordion title="Poor audio quality on inbound calls">
-    - Check network bandwidth and latency from provider to EchoWave AI
+    - Check network bandwidth and latency from provider to Decibyl AI
     - Verify audio pipeline configuration matches provider requirements
     - Review WebSocket connection stability
   </Accordion>
@@ -178,7 +178,7 @@ After completing both the EchoWave AI configuration and provider-specific setup:
 
 - **Single Configuration**: Use the same telephony configuration for both inbound and outbound calls
 - **Testing**: Always test inbound calling after configuration changes
-- **Monitoring**: Monitor both EchoWave AI logs and provider dashboards for call analytics
+- **Monitoring**: Monitor both Decibyl AI logs and provider dashboards for call analytics
 - **Security**: Ensure webhook signature verification is enabled for security
 
 ## Next Steps

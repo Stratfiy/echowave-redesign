@@ -72,7 +72,7 @@
   --border: oklch(0.92 0.01 235);
   --input: oklch(0.94 0.01 235);
   --ring: oklch(0.62 0.16 235);
-  /* EchoWave brand tokens — nAutomation Labs signature blue */
+  /* Decibyl brand tokens — nAutomation Labs signature blue */
   --brand-blue: #28B3F0;
   --brand-blue-hover: #0A6BC7;
   --brand-blue-soft: rgba(40, 179, 240, 0.18);
@@ -102,7 +102,7 @@
   /* Single restrained warm accent — used only on primary CTAs + focus rings. */
   --cta: oklch(0.72 0.15 65);
   --cta-foreground: oklch(0.16 0.02 60);
-  /* Giant faded "echowave" wordmark (authentic Proxima Nova letterforms traced
+  /* Giant faded "decibyl" wordmark (authentic Proxima Nova letterforms traced
      from the brand logo PNG — the font is commercial, so the lettering ships
      as static artwork in /public; fill + 0.9% opacity are baked into the
      files). Theme-switched here; consumed by .app-surface and .auth-imprint. */
@@ -128,7 +128,7 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.72 0.17 232);
-  /* EchoWave brand tokens — dark variant */
+  /* Decibyl brand tokens — dark variant */
   --brand-blue: #5CC8FF;
   --brand-blue-hover: #28B3F0;
   --brand-blue-soft: rgba(92, 200, 255, 0.22);
@@ -270,8 +270,8 @@
 
   /* Matte app background — flat charcoal (dark) / soft paper (light), NO
      gradients, with one subtle graphic in BOTH themes: the giant faded
-     "echowave" wordmark (--brand-imprint, defined in :root/.dark) pinned to
-     the bottom of the viewport, echoing the dograh.com footer. */
+     "decibyl" wordmark (--brand-imprint, defined in :root/.dark) pinned to
+     the bottom of the viewport, echoing the decibyl.com footer. */
   /* NOTE: background-attachment: fixed positions in VIEWPORT space but only
      paints inside .app-surface, which starts right of the ~270px sidebar —
      the +135px x-shift recentres the wordmark on the VISIBLE canvas. */
@@ -293,7 +293,7 @@
     background-color: oklch(0.165 0.002 80);
   }
 
-  /* Giant faded "echowave" imprint for the auth pages (applied to the AuthShell
+  /* Giant faded "decibyl" imprint for the auth pages (applied to the AuthShell
      form column, shared by Stack + OSS login/signup). Same --brand-imprint as
      .app-surface; element-relative here (no fixed attachment), so it centers
      and scales to whatever element carries the class. */

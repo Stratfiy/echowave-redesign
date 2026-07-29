@@ -1,6 +1,6 @@
 # Hostinger (managed-Traefik) deployment
 
-Deploy Dograh where a shared, managed Traefik with Let's Encrypt already
+Deploy Decibyl where a shared, managed Traefik with Let's Encrypt already
 terminates TLS and routes ingress — e.g. **Hostinger's VPS Docker Manager**.
 The same files work on any host that fronts containers with Traefik.
 
@@ -8,7 +8,7 @@ The same files work on any host that fronts containers with Traefik.
 
 | File | Role | Deploy on Hostinger? |
 |---|---|---|
-| `docker-compose.yaml` | The Dograh app stack. **Single self-contained file** — named volumes only, no host bind-mounts, no init/sidecar that reads files outside the compose. | ✅ Yes |
+| `docker-compose.yaml` | The Decibyl app stack. **Single self-contained file** — named volumes only, no host bind-mounts, no init/sidecar that reads files outside the compose. | ✅ Yes |
 | `.env.example` | Required + optional environment variables, with guidance. Copy to `.env` and fill in. | ✅ Yes (as the env template) |
 | `docker-compose.traefik.yaml` | A standalone Traefik + Let's Encrypt that **stands in for** the managed Traefik, so you can reproduce the environment on a plain VPS for testing. Also documents what the platform's Traefik must provide. | ❌ **No — reference only** |
 

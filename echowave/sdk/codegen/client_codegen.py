@@ -11,7 +11,7 @@ Request/response types come from sibling model files already produced by
 here; this script doesn't generate types itself.
 
 Output:
-    --py-out  sdk/python/src/dograh_sdk/_generated_client.py
+    --py-out  sdk/python/src/decibyl_sdk/_generated_client.py
     --ts-out  sdk/typescript/src/_generated_client.ts
 """
 
@@ -216,7 +216,7 @@ _PY_HEADER = '''\
 
 Regenerate with `./scripts/generate_sdk.sh`.
 
-`DograhClient` mixes in this class to get HTTP methods for every route
+`DecibylClient` mixes in this class to get HTTP methods for every route
 decorated with `sdk_expose(...)` on the backend. Request/response types
 come from `_generated_models` (datamodel-codegen output).
 """
@@ -225,13 +225,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from dograh_sdk._generated_models import (
+from decibyl_sdk._generated_models import (
 {imports}
 )
 
 
 class _GeneratedClient:
-    # `DograhClient.__init__` installs `self._request` (see client.py).
+    # `DecibylClient.__init__` installs `self._request` (see client.py).
 
 '''
 
@@ -305,7 +305,7 @@ _TS_HEADER = """\
 //
 // Regenerate with `./scripts/generate_sdk.sh`.
 //
-// `DograhClient` extends this base to get HTTP methods for every route
+// `DecibylClient` extends this base to get HTTP methods for every route
 // decorated with `sdk_expose(...)`. Request/response types come from
 // `_generated_models` (openapi-typescript output, --root-types).
 

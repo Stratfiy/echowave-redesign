@@ -5,7 +5,7 @@ from fastapi import Depends, Header, HTTPException, Query, WebSocket
 from loguru import logger
 from pydantic import ValidationError
 
-from api.constants import AUTH_PROVIDER, DOGRAH_MPS_SECRET_KEY, MPS_API_URL
+from api.constants import AUTH_PROVIDER, DECIBYL_MPS_SECRET_KEY, MPS_API_URL
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import PostHogEvent
@@ -366,7 +366,7 @@ async def create_user_configuration_with_mps_key(
             response = await client.post(
                 f"{MPS_API_URL}/api/v1/service-keys/",
                 json={
-                    "name": "Default Dograh Model Service Key",
+                    "name": "Default Decibyl Model Service Key",
                     "description": "Auto-generated key for OSS user",
                     "expires_in_days": 7,  # Short-lived for OSS
                     "created_by": user_provider_id,
@@ -375,22 +375,22 @@ async def create_user_configuration_with_mps_key(
             )
         else:
             # For authenticated mode, use the secret key and organization ID
-            if not DOGRAH_MPS_SECRET_KEY:
+            if not DECIBYL_MPS_SECRET_KEY:
                 logger.warning(
-                    "Warning: DOGRAH_MPS_SECRET_KEY not set for authenticated mode"
+                    "Warning: DECIBYL_MPS_SECRET_KEY not set for authenticated mode"
                 )
-                raise ValidationError("Missing DOGRAH_MPS_SECRET_KEY in non oss mode")
+                raise ValidationError("Missing DECIBYL_MPS_SECRET_KEY in non oss mode")
 
             response = await client.post(
                 f"{MPS_API_URL}/api/v1/service-keys/",
                 json={
-                    "name": "Default Dograh Model Service Key",
+                    "name": "Default Decibyl Model Service Key",
                     "description": f"Auto-generated key for organization {organization_id}",
                     "organization_id": organization_id,
                     "expires_in_days": 90,  # Longer-lived for authenticated users
                     "created_by": user_provider_id,
                 },
-                headers={"X-Secret-Key": DOGRAH_MPS_SECRET_KEY},
+                headers={"X-Secret-Key": DECIBYL_MPS_SECRET_KEY},
                 timeout=10.0,
             )
 
@@ -403,25 +403,25 @@ async def create_user_configuration_with_mps_key(
                 # The service_factory will use this to instantiate actual services
                 configuration = {
                     "llm": {
-                        "provider": ServiceProviders.DOGRAH.value,
+                        "provider": ServiceProviders.DECIBYL.value,
                         "api_key": [service_key],
                         "model": "default",
                     },
                     "tts": {
-                        "provider": ServiceProviders.DOGRAH.value,
+                        "provider": ServiceProviders.DECIBYL.value,
                         "api_key": [service_key],
                         "model": "default",
                         "voice": "default",
                     },
                     "stt": {
-                        "provider": ServiceProviders.DOGRAH.value,
+                        "provider": ServiceProviders.DECIBYL.value,
                         "api_key": [service_key],
                         "model": "default",
                     },
                     "embeddings": {
-                        "provider": ServiceProviders.DOGRAH.value,
+                        "provider": ServiceProviders.DECIBYL.value,
                         "api_key": [service_key],
-                        "model": "dograh_embedding_v1",
+                        "model": "decibyl_embedding_v1",
                     },
                 }
                 effective_config = EffectiveAIModelConfiguration(**configuration)

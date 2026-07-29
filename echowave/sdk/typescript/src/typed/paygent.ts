@@ -1,6 +1,6 @@
 // GENERATED — do not edit by hand.
 //
-// Regenerate with `npm run codegen` against the target Dograh backend.
+// Regenerate with `npm run codegen` against the target Decibyl backend.
 // Source of truth: the backend's model-backed node-spec catalog served
 // from `/api/v1/node-types`.
 
@@ -17,7 +17,7 @@ export interface Paygent {
      */
     name?: string;
     /**
-     * When false, Dograh skips all Paygent tracking for this call.
+     * When false, Decibyl skips all Paygent tracking for this call.
      */
     paygent_enabled?: boolean;
     /**

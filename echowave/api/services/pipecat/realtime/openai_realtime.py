@@ -1,6 +1,6 @@
-"""Dograh subclass of pipecat's OpenAI Realtime LLM service.
+"""Decibyl subclass of pipecat's OpenAI Realtime LLM service.
 
-Layers Dograh engine integration quirks onto upstream-pristine
+Layers Decibyl engine integration quirks onto upstream-pristine
 :class:`OpenAIRealtimeLLMService`. Substantially smaller than the Gemini
 subclass because OpenAI Realtime supports runtime ``session.update`` for
 both ``system_instruction`` and tools, so node changes do not require a
@@ -12,7 +12,7 @@ Adds:
 - **TTSSpeakFrame as initial-response trigger** so the engine's greeting
   flow kicks off the bot's first response.
 - **One-off LLMMessagesAppendFrame handling** for ephemeral realtime prompts
-  like user-idle checks, without mutating Dograh's local ``LLMContext``.
+  like user-idle checks, without mutating Decibyl's local ``LLMContext``.
 - **Workflow-control deferral** so node transitions, call termination, and
   transfers wait for any current bot audio to finish while ordinary tools run
   immediately.
@@ -46,13 +46,13 @@ from pipecat.transcriptions.language import Language
 from pipecat.utils.time import time_now_iso8601
 
 
-class DograhOpenAIRealtimeLLMService(OpenAIRealtimeLLMService):
-    """OpenAI Realtime with Dograh engine integration quirks. See module docstring."""
+class DecibylOpenAIRealtimeLLMService(OpenAIRealtimeLLMService):
+    """OpenAI Realtime with Decibyl engine integration quirks. See module docstring."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._user_is_muted: bool = False
-        # Dograh pre-populates self._context via the engine before the first
+        # Decibyl pre-populates self._context via the engine before the first
         # LLMContextFrame arrives, so upstream's "first arrival means
         # self._context is None" check no longer works.
         self._handled_initial_context: bool = False

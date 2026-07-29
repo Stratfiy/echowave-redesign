@@ -1,6 +1,6 @@
 ---
 title: "Prerequisites"
-description: "System requirements and setup needed to run EchoWave AI locally"
+description: "System requirements and setup needed to run Decibyl AI locally"
 ---
 
 ## System Requirements (Local Setup)
@@ -16,7 +16,7 @@ description: "System requirements and setup needed to run EchoWave AI locally"
 
 ## Software Requirements
 
-To run EchoWave AI locally, make sure you have the following installed:
+To run Decibyl AI locally, make sure you have the following installed:
 
 - [Docker](https://docs.docker.com/get-docker/) (version 20.10 or later)
 - [curl](https://curl.se/download.html) - usually preinstalled on macOS/Linux
@@ -69,26 +69,26 @@ netstat -ano | findstr :3010
 
 ## Docker Registry Options
 
-EchoWave images are available from two registries:
+Decibyl images are available from two registries:
 
-- **GitHub Container Registry (Default)**: `ghcr.io/echowave-hq` - Recommended for most users
-- **Docker Hub**: `echowaveai` - Alternative registry
+- **GitHub Container Registry (Default)**: `ghcr.io/decibyl-hq` - Recommended for most users
+- **Docker Hub**: `decibylai` - Alternative registry
 
 To use a specific registry, set the `REGISTRY` environment variable when running the startup script:
 
 <CodeGroup>
 ```bash
 # Using GitHub Container Registry (recommended)
-REGISTRY=ghcr.io/echowave-hq ./start_docker.sh
+REGISTRY=ghcr.io/decibyl-hq ./start_docker.sh
 
 # Using Docker Hub
-REGISTRY=echowaveai ./start_docker.sh
+REGISTRY=decibylai ./start_docker.sh
 ```
 ```powershell Windows
 # Using GitHub Container Registry (recommended)
-$env:REGISTRY = 'ghcr.io/echowave-hq'; .\start_docker.ps1
+$env:REGISTRY = 'ghcr.io/decibyl-hq'; .\start_docker.ps1
 
 # Using Docker Hub
-$env:REGISTRY = 'echowaveai'; .\start_docker.ps1
+$env:REGISTRY = 'decibylai'; .\start_docker.ps1
 ```
 </CodeGroup>

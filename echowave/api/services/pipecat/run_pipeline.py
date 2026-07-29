@@ -243,7 +243,7 @@ def _create_realtime_user_turn_config(provider: str):
         return external_provider_turn_config()
     if provider == ServiceProviders.ULTRAVOX_REALTIME.value:
         # Ultravox does not emit user-turn frames, so local VAD supplies
-        # lifecycle signals for Dograh observers/controllers.
+        # lifecycle signals for Decibyl observers/controllers.
         return local_vad_turn_config(enable_interruptions=True)
 
     return local_vad_turn_config(enable_interruptions=True)

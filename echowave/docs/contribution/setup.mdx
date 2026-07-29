@@ -1,23 +1,23 @@
 ---
 title: Setup
-description: Get a EchoWave dev environment running and learn the daily commands.
+description: Get a Decibyl dev environment running and learn the daily commands.
 ---
 
-EchoWave is a Next.js UI (`ui/`), a FastAPI backend (`api/`), and a [Pipecat](https://github.com/pipecat-ai/pipecat)-based voice pipeline (`pipecat/`, a git submodule), backed by Postgres, Redis, and MinIO.
+Decibyl is a Next.js UI (`ui/`), a FastAPI backend (`api/`), and a [Pipecat](https://github.com/pipecat-ai/pipecat)-based voice pipeline (`pipecat/`, a git submodule), backed by Postgres, Redis, and MinIO.
 
 <Tip>
-**Using Claude Code or Codex?** Install the [EchoWave setup skill](https://github.com/echowave-hq/echowave-plugins) (`/plugin marketplace add echowave-hq/echowave-plugins`, then `/plugin install echowave@echowave`) and ask your agent to *"set up EchoWave for development"* — it runs the steps below for you and verifies the stack is healthy.
+**Using Claude Code or Codex?** Install the [Decibyl setup skill](https://github.com/decibyl-hq/decibyl-plugins) (`/plugin marketplace add decibyl-hq/decibyl-plugins`, then `/plugin install decibyl@decibyl`) and ask your agent to *"set up Decibyl for development"* — it runs the steps below for you and verifies the stack is healthy.
 </Tip>
 
 ## Set up
 
 You need Git, a local Docker engine (such as Docker Desktop), and VS Code with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
 
-1. Fork [echowave-hq/echowave](https://github.com/echowave-hq/echowave) and clone **your fork**:
+1. Fork [decibyl-hq/decibyl](https://github.com/decibyl-hq/decibyl) and clone **your fork**:
 
 ```bash
-git clone https://github.com/<YOUR_HANDLE>/echowave
-cd echowave
+git clone https://github.com/<YOUR_HANDLE>/decibyl
+cd decibyl
 ```
 
 2. Open the folder in VS Code and run **Dev Containers: Reopen in Container**. The first build takes several minutes — it starts Postgres, Redis, and MinIO, seeds the Python venv, creates the `.env` files, and installs UI dependencies. Later opens are fast.
@@ -36,11 +36,11 @@ cd ui && npm run dev -- --hostname 0.0.0.0
 
 5. Open the app at `http://localhost:3000`.
 
-If these steps do not work for you, please open an issue on [GitHub](https://github.com/echowave-hq/echowave/issues).
+If these steps do not work for you, please open an issue on [GitHub](https://github.com/decibyl-hq/decibyl/issues).
 
 <AccordionGroup>
-<Accordion title="Cloned echowave-hq/echowave directly instead of your fork?">
-Run `bash scripts/setup_fork.sh` once. It prompts for your fork URL, points `origin` at it, and adds `upstream` as `echowave-hq/echowave`. See [Fork and upstream remotes](/contribution/reference#fork-and-upstream-remotes).
+<Accordion title="Cloned decibyl-hq/decibyl directly instead of your fork?">
+Run `bash scripts/setup_fork.sh` once. It prompts for your fork URL, points `origin` at it, and adds `upstream` as `decibyl-hq/decibyl`. See [Fork and upstream remotes](/contribution/reference#fork-and-upstream-remotes).
 </Accordion>
 <Accordion title="No VS Code? No devcontainer at all?">
 The devcontainer also runs headless via the [Dev Container CLI](/contribution/reference#dev-container-cli), or you can run everything [directly on your host](/contribution/reference#host-managed-setup).
@@ -87,16 +87,16 @@ All configurations load `api/.env` (test configs use `api/.env.test`) and set `j
 | `api/` | FastAPI backend — REST API, campaign orchestration, telephony, ARQ background workers |
 | `pipecat/` | Git submodule for the voice pipeline (STT → LLM → TTS) |
 | `docs/` | This documentation site, written in MDX, previewed with `mint dev` |
-| `sdk/` | Python/TypeScript SDKs for driving EchoWave programmatically |
+| `sdk/` | Python/TypeScript SDKs for driving Decibyl programmatically |
 | `scripts/` | Setup, deployment, and update scripts |
 | `deploy/` | nginx and coturn config templates used by remote deployment |
 
 ## Contributing a change
 
 1. Create a branch and make your change.
-2. Push to your fork (`origin`) and open a pull request against `echowave-hq/echowave:main`.
+2. Push to your fork (`origin`) and open a pull request against `decibyl-hq/decibyl:main`.
 3. A maintainer reviews and merges.
 
-Bug reports and feature ideas go through [GitHub Issues](https://github.com/echowave-hq/echowave/issues) and [Ideas](https://github.com/orgs/echowave-hq/discussions/categories/ideas). Issues tagged `good first issue` are a good place to start. For questions while you're working, use the [EchoWave Community Slack](https://join.slack.com/t/echowave-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g).
+Bug reports and feature ideas go through [GitHub Issues](https://github.com/decibyl-hq/decibyl/issues) and [Ideas](https://github.com/orgs/decibyl-hq/discussions/categories/ideas). Issues tagged `good first issue` are a good place to start. For questions while you're working, use the [Decibyl Community Slack](https://join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g).
 
 Deploying your own build instead of contributing upstream? See [Deployments](/deployment/introduction) instead.

@@ -32,21 +32,21 @@ def _parse_and_compile(value: dict) -> None:
     )
 
 
-def test_dograh_legacy_converts_to_managed_mode():
+def test_decibyl_legacy_converts_to_managed_mode():
     value = migration.convert_legacy_configuration_to_v2(
         {
-            "llm": {"provider": "dograh", "api_key": "mps-key", "model": "default"},
+            "llm": {"provider": "decibyl", "api_key": "mps-key", "model": "default"},
             "tts": {
-                "provider": "dograh",
+                "provider": "decibyl",
                 "api_key": "mps-key",
                 "voice": "aura",
                 "speed": 1.2,
             },
-            "stt": {"provider": "dograh", "api_key": "mps-key", "language": "en"},
+            "stt": {"provider": "decibyl", "api_key": "mps-key", "language": "en"},
         }
     )
-    assert value["mode"] == "dograh"
-    assert value["dograh"] == {
+    assert value["mode"] == "decibyl"
+    assert value["decibyl"] == {
         "api_key": "mps-key",
         "voice": "aura",
         "speed": 1.2,
@@ -55,17 +55,17 @@ def test_dograh_legacy_converts_to_managed_mode():
     _parse_and_compile(value)
 
 
-def test_dograh_mode_wins_over_byok_sections_and_sanitizes_speed():
+def test_decibyl_mode_wins_over_byok_sections_and_sanitizes_speed():
     value = migration.convert_legacy_configuration_to_v2(
         {
-            "llm": {"provider": "dograh", "api_key": ["mps-key"]},
+            "llm": {"provider": "decibyl", "api_key": ["mps-key"]},
             "tts": {"provider": "elevenlabs", "api_key": "el-key", "speed": 9.0},
             "stt": {"provider": "deepgram", "api_key": "dg-key"},
         }
     )
-    assert value["mode"] == "dograh"
-    assert value["dograh"]["api_key"] == "mps-key"
-    assert value["dograh"]["speed"] == 1.0
+    assert value["mode"] == "decibyl"
+    assert value["decibyl"]["api_key"] == "mps-key"
+    assert value["decibyl"]["speed"] == 1.0
     _parse_and_compile(value)
 
 
@@ -133,13 +133,13 @@ def test_incomplete_pipeline_legacy_is_skipped():
     assert migration.convert_legacy_configuration_to_v2({}) is None
 
 
-def test_dograh_provider_without_single_key_cannot_become_byok():
-    # Multiple dograh keys can't map to managed mode, and BYOK rejects the
-    # dograh provider — the org must be skipped rather than written broken.
+def test_decibyl_provider_without_single_key_cannot_become_byok():
+    # Multiple decibyl keys can't map to managed mode, and BYOK rejects the
+    # decibyl provider — the org must be skipped rather than written broken.
     assert (
         migration.convert_legacy_configuration_to_v2(
             {
-                "llm": {"provider": "dograh", "api_key": ["key-a", "key-b"]},
+                "llm": {"provider": "decibyl", "api_key": ["key-a", "key-b"]},
                 "tts": {"provider": "elevenlabs", "api_key": "el-key"},
                 "stt": {"provider": "deepgram", "api_key": "dg-key"},
             }

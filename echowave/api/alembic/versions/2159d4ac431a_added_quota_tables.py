@@ -38,12 +38,12 @@ def upgrade() -> None:
         sa.Column("period_start", sa.DateTime(), nullable=False),
         sa.Column("period_end", sa.DateTime(), nullable=False),
         sa.Column(
-            "quota_dograh_tokens",
+            "quota_decibyl_tokens",
             sa.Integer(),
             nullable=False,
             comment=DEPRECATED_QUOTA_COMMENT,
         ),
-        sa.Column("used_dograh_tokens", sa.Integer(), nullable=False),
+        sa.Column("used_decibyl_tokens", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
@@ -81,7 +81,7 @@ def upgrade() -> None:
     op.add_column(
         "organizations",
         sa.Column(
-            "quota_dograh_tokens",
+            "quota_decibyl_tokens",
             sa.Integer(),
             nullable=False,
             server_default=sa.text("0"),
@@ -125,7 +125,7 @@ def downgrade() -> None:
     op.drop_column("organizations", "quota_enabled")
     op.drop_column("organizations", "quota_start_date")
     op.drop_column("organizations", "quota_reset_day")
-    op.drop_column("organizations", "quota_dograh_tokens")
+    op.drop_column("organizations", "quota_decibyl_tokens")
     op.drop_column("organizations", "quota_type")
     op.drop_index(
         op.f("ix_organization_usage_cycles_id"), table_name="organization_usage_cycles"

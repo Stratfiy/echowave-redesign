@@ -21,7 +21,7 @@ from api.services.workflow.node_specs._base import (
     PropertyType,
 )
 
-_SPEC_FIELD_META_KEY = "__dograh_spec_field__"
+_SPEC_FIELD_META_KEY = "__decibyl_spec_field__"
 _UNSET = object()
 
 

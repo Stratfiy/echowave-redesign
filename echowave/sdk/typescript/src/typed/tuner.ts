@@ -1,6 +1,6 @@
 // GENERATED — do not edit by hand.
 //
-// Regenerate with `npm run codegen` against the target Dograh backend.
+// Regenerate with `npm run codegen` against the target Decibyl backend.
 // Source of truth: the backend's model-backed node-spec catalog served
 // from `/api/v1/node-types`.
 
@@ -17,7 +17,7 @@ export interface Tuner {
      */
     name?: string;
     /**
-     * When false, Dograh skips exporting this call to Tuner.
+     * When false, Decibyl skips exporting this call to Tuner.
      */
     tuner_enabled?: boolean;
     /**

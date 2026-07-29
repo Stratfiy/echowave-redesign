@@ -11,7 +11,7 @@ BASE_DIR="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
 RUN_DIR="$BASE_DIR/run"                 # Where we keep *.pid
 
 cd "$BASE_DIR"
-echo "Stopping Dograh Services at $(date) in BASE_DIR: ${BASE_DIR}"
+echo "Stopping Decibyl Services at $(date) in BASE_DIR: ${BASE_DIR}"
 
 ###############################################################################
 ### HELPER FUNCTIONS

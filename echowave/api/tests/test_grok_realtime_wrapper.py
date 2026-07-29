@@ -10,13 +10,13 @@ from pipecat.services.xai.realtime import events
 from api.schemas.ai_model_configuration import EffectiveAIModelConfiguration
 from api.services.configuration.registry import GrokRealtimeLLMConfiguration
 from api.services.pipecat.realtime.grok_realtime import (
-    DograhGrokRealtimeLLMService,
+    DecibylGrokRealtimeLLMService,
 )
 from api.services.pipecat.service_factory import create_realtime_llm_service
 
 
-def _make_service() -> DograhGrokRealtimeLLMService:
-    service = DograhGrokRealtimeLLMService(api_key="test-key")
+def _make_service() -> DecibylGrokRealtimeLLMService:
+    service = DecibylGrokRealtimeLLMService(api_key="test-key")
     service._create_response = AsyncMock()
     service._process_completed_function_calls = AsyncMock()
     return service
@@ -74,13 +74,13 @@ async def test_tts_greeting_waits_for_session_updated_before_sending_prompt():
     service._context = LLMContext([{"role": "user", "content": "Existing context"}])
 
     await service.process_frame(
-        TTSSpeakFrame("Hello from Dograh.", append_to_context=True),
+        TTSSpeakFrame("Hello from Decibyl.", append_to_context=True),
         FrameDirection.DOWNSTREAM,
     )
 
     assert service._handled_initial_context is True
     assert service._run_llm_when_api_session_ready is True
-    assert service._pending_initial_greeting_text == "Hello from Dograh."
+    assert service._pending_initial_greeting_text == "Hello from Decibyl."
 
     service.send_client_event = AsyncMock()
     service.push_frame = AsyncMock()
@@ -96,7 +96,7 @@ async def test_tts_greeting_waits_for_session_updated_before_sending_prompt():
     greeting_event = sent_events[2]
     assert isinstance(greeting_event, events.ConversationItemCreateEvent)
     prompt = greeting_event.item.content[0].text
-    assert prompt.endswith('"Hello from Dograh."')
+    assert prompt.endswith('"Hello from Decibyl."')
     assert isinstance(sent_events[-1], events.ResponseCreateEvent)
     assert service._run_llm_when_api_session_ready is False
     assert service._pending_initial_greeting_text is None
@@ -198,7 +198,7 @@ async def test_completed_input_transcription_is_broadcast_as_finalized():
     assert service.broadcast_frame.await_args.kwargs["finalized"] is True
 
 
-def test_factory_creates_dograh_grok_realtime_service():
+def test_factory_creates_decibyl_grok_realtime_service():
     effective_config = EffectiveAIModelConfiguration(
         is_realtime=True,
         realtime=GrokRealtimeLLMConfiguration(
@@ -214,7 +214,7 @@ def test_factory_creates_dograh_grok_realtime_service():
         audio_config=SimpleNamespace(),
     )
 
-    assert isinstance(service, DograhGrokRealtimeLLMService)
+    assert isinstance(service, DecibylGrokRealtimeLLMService)
     assert service._settings.session_properties.voice == "sal"
     assert service._settings.session_properties.audio.input.transcription.model == (
         "grok-transcribe"

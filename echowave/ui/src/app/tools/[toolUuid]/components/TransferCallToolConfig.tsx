@@ -252,7 +252,7 @@ export function TransferCallToolConfig({
                             <div>
                                 <Label>Dynamic Transfer Resolver</Label>
                                 <p className="text-xs text-muted-foreground">
-                                    EchoWave sends the resolved argument dictionary to this endpoint. The endpoint must return transfer_context.destination and may return transfer_context.custom_message.
+                                    Decibyl sends the resolved argument dictionary to this endpoint. The endpoint must return transfer_context.destination and may return transfer_context.custom_message.
                                 </p>
                             </div>
 
@@ -265,7 +265,7 @@ export function TransferCallToolConfig({
                                     showValidation
                                 />
                                 <Label className="text-xs text-muted-foreground">
-                                    EchoWave sends a POST request with the resolved argument dictionary.
+                                    Decibyl sends a POST request with the resolved argument dictionary.
                                 </Label>
                             </div>
 
@@ -303,7 +303,7 @@ export function TransferCallToolConfig({
                                     rows={2}
                                 />
                                 <Label className="text-xs text-muted-foreground">
-                                    Spoken while EchoWave waits for the resolver response.
+                                    Spoken while Decibyl waits for the resolver response.
                                 </Label>
                             </div>
 
@@ -321,7 +321,7 @@ export function TransferCallToolConfig({
                             <div className="grid gap-2 pt-4 border-t">
                                 <Label>Preset Parameters</Label>
                                 <Label className="text-xs text-muted-foreground">
-                                    Add values EchoWave injects at runtime. These are not exposed to the LLM and can use templates like {`{{initial_context.state}}`} or {`{{gathered_context.state}}`}.
+                                    Add values Decibyl injects at runtime. These are not exposed to the LLM and can use templates like {`{{initial_context.state}}`} or {`{{gathered_context.state}}`}.
                                 </Label>
                                 <PresetParameterEditor
                                     parameters={presetParameters}

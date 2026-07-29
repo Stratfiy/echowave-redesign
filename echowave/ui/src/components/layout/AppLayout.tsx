@@ -24,12 +24,12 @@ function AppHeader() {
         <Button variant="ghost" size="icon" onClick={toggleSidebar} aria-label="Open menu" className="md:hidden">
           <Menu className="h-5 w-5" />
         </Button>
-        <Link href="/" className="text-lg font-bold md:hidden">EchoWave</Link>
+        <Link href="/" className="text-lg font-bold md:hidden">Decibyl</Link>
       </div>
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" asChild>
           <a
-            href="https://join.slack.com/t/dograh-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g"
+            href="https://join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g"
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => posthog.capture(PostHogEvent.SLACK_COMMUNITY_CLICKED, { source: "app_header" })}

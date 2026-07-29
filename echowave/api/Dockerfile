@@ -112,9 +112,9 @@ FROM python:3.13-slim AS runner
 
 WORKDIR /app
 
-RUN groupadd --system dograh \
- && useradd --system --gid dograh --no-log-init --home-dir /app --shell /usr/sbin/nologin dograh \
- && chown dograh:dograh /app
+RUN groupadd --system decibyl \
+ && useradd --system --gid decibyl --no-log-init --home-dir /app --shell /usr/sbin/nologin decibyl \
+ && chown decibyl:decibyl /app
 
 # Static ffmpeg + ffprobe (used by audio_converter, audio_file_cache, etc.)
 COPY --from=ffmpeg-static /usr/local/bin/ffmpeg /usr/local/bin/ffmpeg
@@ -140,7 +140,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Copy application code (chown at copy-time avoids a duplicate /app layer
 # from a later `RUN chown -R`, which would double the on-disk size of /app).
-COPY --chown=dograh:dograh ./api ./api
+COPY --chown=decibyl:decibyl ./api ./api
 
 # Entrypoint scripts.
 #   start_services_docker.sh — single-container (docker-compose) entrypoint
@@ -148,8 +148,8 @@ COPY --chown=dograh:dograh ./api ./api
 #   run_*.sh                 — per-service entrypoints used by the Helm chart,
 #     which runs each workload (web, arq-worker, ari-manager,
 #     campaign-orchestrator, migrate) as its own pod. Keep this list in sync
-#     with the command:[] entries in deploy/helm/dograh/templates/*.yaml.
-COPY --chown=dograh:dograh \
+#     with the command:[] entries in deploy/helm/decibyl/templates/*.yaml.
+COPY --chown=decibyl:decibyl \
      ./scripts/start_services_docker.sh \
      ./scripts/run_migrate.sh \
      ./scripts/run_web.sh \
@@ -160,18 +160,18 @@ COPY --chown=dograh:dograh \
 
 # ts_validator Node deps (built in ts-deps stage with full node:22-slim image).
 # The validator runs as a short-lived subprocess from api/mcp_server/ts_bridge.py.
-COPY --from=ts-deps --chown=dograh:dograh /ts_validator/node_modules ./api/mcp_server/ts_validator/node_modules
+COPY --from=ts-deps --chown=decibyl:decibyl /ts_validator/node_modules ./api/mcp_server/ts_validator/node_modules
 
 # Product documentation — read at runtime by the MCP docs tools
-# (search_dograh_docs / fetch_dograh_doc) so agents can learn Dograh.
-COPY --chown=dograh:dograh ./docs ./docs
+# (search_decibyl_docs / fetch_decibyl_doc) so agents can learn Decibyl.
+COPY --chown=decibyl:decibyl ./docs ./docs
 
 ENV PYTHONPATH=/app
 
 # Disable file logging in Docker - logs go to stdout for docker logs
 ENV LOG_TO_FILE=false
 
-USER dograh
+USER decibyl
 
 # Expose the port FastAPI will run on
 EXPOSE 8000

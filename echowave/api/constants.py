@@ -53,9 +53,9 @@ ENABLE_SIGNUP = os.getenv("ENABLE_SIGNUP", "true").lower() == "true"
 # needs them baked into the bundle at build time.
 STACK_AUTH_PROJECT_ID = os.getenv("STACK_AUTH_PROJECT_ID")
 STACK_PUBLISHABLE_CLIENT_KEY = os.getenv("STACK_PUBLISHABLE_CLIENT_KEY")
-DOGRAH_MPS_SECRET_KEY = os.getenv("DOGRAH_MPS_SECRET_KEY", None)
-MPS_API_URL = os.getenv("MPS_API_URL", "https://services.dograh.com")
-DOGRAH_DEVOPS_SECRET = os.getenv("DOGRAH_DEVOPS_SECRET") or None
+DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)
+MPS_API_URL = os.getenv("MPS_API_URL", "https://services.decibyl.com")
+DECIBYL_DEVOPS_SECRET = os.getenv("DECIBYL_DEVOPS_SECRET") or None
 
 # Storage Configuration
 ENABLE_AWS_S3 = os.getenv("ENABLE_AWS_S3", "false").lower() == "true"

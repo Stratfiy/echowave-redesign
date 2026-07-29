@@ -65,13 +65,13 @@ def _format_errors(errors: list[dict[str, Any]]) -> str:
 async def save_workflow(workflow_id: int, code: str) -> dict[str, Any]:
     """Parse SDK TypeScript and save the resulting workflow as a draft.
 
-    `code` is TypeScript source using `@dograh/sdk`. Fetch the current
+    `code` is TypeScript source using `@decibyl/sdk`. Fetch the current
     code first via `get_workflow_code(workflow_id)`, edit it, then pass
     the full updated source here.
 
     Example code:
-        import { Workflow } from "@dograh/sdk";
-        import { startCall, endCall } from "@dograh/sdk/typed";
+        import { Workflow } from "@decibyl/sdk";
+        import { startCall, endCall } from "@decibyl/sdk/typed";
 
         const wf = new Workflow({ name: "lead_qualification" });
         const greeting = wf.addTyped(startCall({ name: "Greeting", prompt: "Hi!" }));

@@ -1,6 +1,6 @@
 ---
 title: Add to Website
-description: Add your EchoWave voice agent to any website so visitors can talk to it.
+description: Add your Decibyl voice agent to any website so visitors can talk to it.
 tag: "NEW"
 ---
 
@@ -29,8 +29,8 @@ Step 4: Copy the generated embed code and paste it into your web page to test yo
 | Mode                  | What it renders                                                                                    | When to use                                                                                          |
 | --------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | **Floating Widget**   | A pill-shaped CTA button anchored to a corner of the page.                                         | You want a turn-key chat-bubble experience that doesn't disturb your existing layout.                |
-| **Inline Component**  | A panel rendered inside a `<div id="echowave-inline-container">` that you place in your page.        | You want the agent embedded in a specific section (landing-page hero, support tab, etc.).            |
-| **Headless**          | No UI. Only the audio pipeline plus a JavaScript API on `window.EchoWaveWidget`.                     | You want full control over the UI — your own buttons, design system, framework state, animations.    |
+| **Inline Component**  | A panel rendered inside a `<div id="decibyl-inline-container">` that you place in your page.        | You want the agent embedded in a specific section (landing-page hero, support tab, etc.).            |
+| **Headless**          | No UI. Only the audio pipeline plus a JavaScript API on `window.DecibylWidget`.                     | You want full control over the UI — your own buttons, design system, framework state, animations.    |
 
 ## Prerequisites
 
@@ -38,7 +38,7 @@ These apply to all three modes:
 
 - Serve your page over **HTTPS** or from `http://localhost`. Browsers refuse microphone access on plain HTTP origins or `file://`.
 - If you set **Allowed Domains** in the dashboard, include your test origin (e.g. `localhost`) — otherwise the widget's config and signaling requests are rejected. Leave the list empty to allow all domains.
-- The embed snippet you copy from the dashboard is a single `<script>` tag that loads `echowave-widget.js` **asynchronously**. The widget auto-initializes once it loads and exposes `window.EchoWaveWidget`. Code that registers callbacks must wait for the widget to be available.
+- The embed snippet you copy from the dashboard is a single `<script>` tag that loads `decibyl-widget.js` **asynchronously**. The widget auto-initializes once it loads and exposes `window.DecibylWidget`. Code that registers callbacks must wait for the widget to be available.
 
 ## Floating Widget
 
@@ -63,20 +63,20 @@ Configure **Button Text**, **Button Color**, and **Call to Action Text** from th
 Place a container `<div>` where you want the widget to render. The widget auto-attaches to it.
 
 ```html
-<!-- Paste the echowave embed snippet from the dashboard somewhere on the page -->
-<div id="echowave-inline-container"></div>
+<!-- Paste the decibyl embed snippet from the dashboard somewhere on the page -->
+<div id="decibyl-inline-container"></div>
 ```
 
 ### React
 
-Because React mounts after the widget script may have already loaded, integrate via `initInline` on first mount and `refresh` on remount. Poll for `window.EchoWaveWidget` to handle the async script load.
+Because React mounts after the widget script may have already loaded, integrate via `initInline` on first mount and `refresh` on remount. Poll for `window.DecibylWidget` to handle the async script load.
 
 ```tsx
 import { useEffect } from 'react';
 
 declare global {
   interface Window {
-    EchoWaveWidget?: {
+    DecibylWidget?: {
       initInline: (options: { container: HTMLElement }) => void;
       refresh: () => void;
       getState: () => { isInitialized: boolean };
@@ -88,11 +88,11 @@ export function Assistant() {
   useEffect(() => {
     let retries = 0;
     const tryInit = () => {
-      const container = document.getElementById('echowave-inline-container');
-      if (window.EchoWaveWidget && container) {
-        const { isInitialized } = window.EchoWaveWidget.getState();
-        if (isInitialized) window.EchoWaveWidget.refresh();
-        else window.EchoWaveWidget.initInline({ container });
+      const container = document.getElementById('decibyl-inline-container');
+      if (window.DecibylWidget && container) {
+        const { isInitialized } = window.DecibylWidget.getState();
+        if (isInitialized) window.DecibylWidget.refresh();
+        else window.DecibylWidget.initInline({ container });
       } else if (retries++ < 50) {
         setTimeout(tryInit, 100);
       }
@@ -100,7 +100,7 @@ export function Assistant() {
     tryInit();
   }, []);
 
-  return <div id="echowave-inline-container" />;
+  return <div id="decibyl-inline-container" />;
 }
 ```
 
@@ -114,19 +114,19 @@ In Headless mode the widget injects no UI of its own. You render whatever button
 
 | Method / Callback                              | Description                                                                                                                                                  |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `window.EchoWaveWidget.start()`                  | Begin a voice call. Must be called from inside a user-gesture handler (e.g. `click`) so the browser grants microphone access.                                |
-| `window.EchoWaveWidget.end()`                    | End the active call.                                                                                                                                         |
-| `window.EchoWaveWidget.onCallStart(cb)`          | Fires when `start()` is invoked (status `connecting`). No payload.                                                                                           |
-| `window.EchoWaveWidget.onCallConnected(cb)`      | Fires when the WebRTC connection is established. Payload: `{ agentId, workflowRunId, token }`.                                                               |
-| `window.EchoWaveWidget.onCallDisconnected(cb)`   | Fires only if the call had connected, when teardown runs. Payload: `{ agentId, workflowRunId, token, durationSeconds }`.                                     |
-| `window.EchoWaveWidget.onCallEnd(cb)`            | Fires whenever the call session is torn down (including failed-to-connect attempts). No payload.                                                             |
-| `window.EchoWaveWidget.onStatusChange(cb)`       | Fires on every status change. Callback receives `(status, text, subtext)`. Status values: `idle`, `connecting`, `connected`, `failed`.                       |
-| `window.EchoWaveWidget.onError(cb)`              | Fires on errors (mic permission denied, server error, etc.). Callback receives an `Error` object.                                                            |
+| `window.DecibylWidget.start()`                  | Begin a voice call. Must be called from inside a user-gesture handler (e.g. `click`) so the browser grants microphone access.                                |
+| `window.DecibylWidget.end()`                    | End the active call.                                                                                                                                         |
+| `window.DecibylWidget.onCallStart(cb)`          | Fires when `start()` is invoked (status `connecting`). No payload.                                                                                           |
+| `window.DecibylWidget.onCallConnected(cb)`      | Fires when the WebRTC connection is established. Payload: `{ agentId, workflowRunId, token }`.                                                               |
+| `window.DecibylWidget.onCallDisconnected(cb)`   | Fires only if the call had connected, when teardown runs. Payload: `{ agentId, workflowRunId, token, durationSeconds }`.                                     |
+| `window.DecibylWidget.onCallEnd(cb)`            | Fires whenever the call session is torn down (including failed-to-connect attempts). No payload.                                                             |
+| `window.DecibylWidget.onStatusChange(cb)`       | Fires on every status change. Callback receives `(status, text, subtext)`. Status values: `idle`, `connecting`, `connected`, `failed`.                       |
+| `window.DecibylWidget.onError(cb)`              | Fires on errors (mic permission denied, server error, etc.). Callback receives an `Error` object.                                                            |
 
 All `on*` setters are single-listener — calling the same one again replaces the previous handler.
 
 <Note>
-**About timing.** The widget script loads asynchronously, so `window.EchoWaveWidget` may not exist at the moment your inline `<script>` first runs. The examples below assume `window.EchoWaveWidget` is already available when registration runs. To guarantee that:
+**About timing.** The widget script loads asynchronously, so `window.DecibylWidget` may not exist at the moment your inline `<script>` first runs. The examples below assume `window.DecibylWidget` is already available when registration runs. To guarantee that:
 
 - **Vanilla JS:** wrap your registration code in `window.addEventListener('load', () => { /* register here */ })`.
 - **React:** inside `useEffect`, register immediately if `document.readyState === 'complete'`, otherwise add a one-time `window.load` listener that registers on fire.
@@ -150,20 +150,20 @@ All `on*` setters are single-listener — calling the same one again replaces th
       : 'Talk to AI';
   }
 
-  window.EchoWaveWidget.onStatusChange((status) => {
+  window.DecibylWidget.onStatusChange((status) => {
     callStatus = status;
     render();
   });
 
-  window.EchoWaveWidget.onError((err) => {
-    console.error('EchoWave error:', err.message);
+  window.DecibylWidget.onError((err) => {
+    console.error('Decibyl error:', err.message);
   });
 
   btn.addEventListener('click', () => {
     if (callStatus === 'connected' || callStatus === 'connecting') {
-      window.EchoWaveWidget.end();
+      window.DecibylWidget.end();
     } else {
-      window.EchoWaveWidget.start();
+      window.DecibylWidget.start();
     }
   });
 </script>
@@ -178,7 +178,7 @@ type CallStatus = 'idle' | 'connecting' | 'connected' | 'failed';
 
 declare global {
   interface Window {
-    EchoWaveWidget: {
+    DecibylWidget: {
       start: () => void;
       end: () => void;
       onStatusChange: (cb: (status: CallStatus, text?: string, subtext?: string) => void) => void;
@@ -191,15 +191,15 @@ export function TalkButton() {
   const [status, setStatus] = useState<CallStatus>('idle');
 
   useEffect(() => {
-    window.EchoWaveWidget.onStatusChange((s) => setStatus(s));
-    window.EchoWaveWidget.onError((err) => console.error('EchoWave error:', err.message));
+    window.DecibylWidget.onStatusChange((s) => setStatus(s));
+    window.DecibylWidget.onError((err) => console.error('Decibyl error:', err.message));
   }, []);
 
   const isLive = status === 'connected' || status === 'connecting';
   const label = { idle: 'Talk to AI', connecting: 'Connecting…', connected: 'End Call', failed: 'Retry' }[status];
 
   return (
-    <button onClick={() => (isLive ? window.EchoWaveWidget.end() : window.EchoWaveWidget.start())}>
+    <button onClick={() => (isLive ? window.DecibylWidget.end() : window.DecibylWidget.start())}>
       {label}
     </button>
   );
@@ -215,11 +215,11 @@ export function TalkButton() {
 The `on*` callbacks in the [Headless JavaScript API](#javascript-api) work in **all three embed modes**, not just Headless. Use them for analytics or to trigger UI in the host page even when the widget is rendering its own UI (Floating or Inline).
 
 ```js
-window.EchoWaveWidget.onCallConnected(({ agentId, workflowRunId }) => {
+window.DecibylWidget.onCallConnected(({ agentId, workflowRunId }) => {
   analytics.track('voice_call_started', { agentId, workflowRunId });
 });
 
-window.EchoWaveWidget.onCallDisconnected(({ workflowRunId, durationSeconds }) => {
+window.DecibylWidget.onCallDisconnected(({ workflowRunId, durationSeconds }) => {
   analytics.track('voice_call_ended', { workflowRunId, durationSeconds });
 });
 ```

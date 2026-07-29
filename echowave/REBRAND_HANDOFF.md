@@ -1,27 +1,27 @@
-# EchoWave Rebrand & Redesign — Handoff Notes
+# Decibyl Rebrand & Redesign — Handoff Notes
 
-**From:** Dograh (open-source fork at `Stratfiy/echowave`)
-**To:** EchoWave by nAutomation Labs
-**Live target:** `echowave.nautomationlabs.com`
+**From:** Decibyl (open-source fork at `Stratfiy/decibyl`)
+**To:** Decibyl by nAutomation Labs
+**Live target:** `decibyl.nautomationlabs.com`
 
 ---
 
 ## What changed in this pass
 
 ### 1. Global rebrand
-Every user-visible `Dograh / dograh / DOGRAH` string across the UI (`/ui`), root docs (`README.md`, `README.zh-CN.md`, `README.ja-JP.md`, `CONTRIBUTING.md`, `SECURITY.md`, `AGENTS.md`, `CLAUDE.md`), all docs pages (`/docs/**/*.md,*.mdx`) and top-level `docker-compose.yaml`, `docker-compose-local.yaml` was replaced with the matching-case `EchoWave / echowave / ECHOWAVE`.
+Every user-visible `Decibyl / decibyl / DECIBYL` string across the UI (`/ui`), root docs (`README.md`, `README.zh-CN.md`, `README.ja-JP.md`, `CONTRIBUTING.md`, `SECURITY.md`, `AGENTS.md`, `CLAUDE.md`), all docs pages (`/docs/**/*.md,*.mdx`) and top-level `docker-compose.yaml`, `docker-compose-local.yaml` was replaced with the matching-case `Decibyl / decibyl / DECIBYL`.
 
 Kept intentionally as-is (would break the running deployment otherwise):
-- External URLs: `docs.dograh.com`, `services.dograh.com`, `app.dograh.com` — user does not own these hosts yet
-- Python SDK package identifier `dograh_sdk` inside `/sdk/python`
+- External URLs: `docs.decibyl.com`, `services.decibyl.com`, `app.decibyl.com` — user does not own these hosts yet
+- Python SDK package identifier `decibyl_sdk` inside `/sdk/python`
 - Anything under `/pipecat` (git submodule — external code)
-- Existing env-var names (e.g. `DOGRAH_*`) — swapping them would break the live EC2 config
+- Existing env-var names (e.g. `DECIBYL_*`) — swapping them would break the live EC2 config
 
 ### 2. New brand assets (`/ui/public`)
 Old PNG assets replaced with clean SVG:
-- `echowave-logo.svg` (light-surface wordmark)
-- `echowave-logo-inverse.svg` (dark-surface wordmark)
-- `echowave-mark.svg` (square app-icon mark, blue gradient + waveform)
+- `decibyl-logo.svg` (light-surface wordmark)
+- `decibyl-logo-inverse.svg` (dark-surface wordmark)
+- `decibyl-mark.svg` (square app-icon mark, blue gradient + waveform)
 
 `BrandLogo.tsx` was rewritten to reference the new SVGs.
 
@@ -58,14 +58,14 @@ Design language:
 
 ## How to ship this to your EC2
 
-The redesigned Next.js source lives at `/app/echowave/ui`. The rest of the monorepo (api, docker-compose, pipecat submodule, etc.) is unchanged in structure — only branding strings and a couple of image assets were touched.
+The redesigned Next.js source lives at `/app/decibyl/ui`. The rest of the monorepo (api, docker-compose, pipecat submodule, etc.) is unchanged in structure — only branding strings and a couple of image assets were touched.
 
 You have two clean paths:
 
-### Path A — copy the whole `/app/echowave` folder onto EC2
+### Path A — copy the whole `/app/decibyl` folder onto EC2
 ```bash
 # from your local machine
-scp -r /app/echowave  user@your-ec2-host:/home/user/echowave-rebrand
+scp -r /app/decibyl  user@your-ec2-host:/home/user/decibyl-rebrand
 
 # on EC2 (inside the folder)
 docker compose down
@@ -74,8 +74,8 @@ docker compose up -d --build
 
 ### Path B — cherry-pick only the changed files
 The high-signal changes are all inside:
-- `ui/public/echowave-*.svg`  (new brand assets)
-- `ui/public/echowave-*.png`  (renamed from `dograh-*.png`)
+- `ui/public/decibyl-*.svg`  (new brand assets)
+- `ui/public/decibyl-*.png`  (renamed from `decibyl-*.png`)
 - `ui/src/components/BrandLogo.tsx`
 - `ui/src/components/auth/AuthShell.tsx`
 - `ui/src/components/auth/AuthEnterpriseCTA.tsx`
@@ -93,8 +93,8 @@ docker compose up -d ui
 
 ## What's NOT done (intentional / future work)
 
-- **Custom docs site**: `docs.dograh.com` still points to the original org's docs. When you're ready, set up your own docs at `docs.echowave.nautomationlabs.com` and swap the URL constant in `ui/src/constants/documentation.ts`.
+- **Custom docs site**: `docs.decibyl.com` still points to the original org's docs. When you're ready, set up your own docs at `docs.decibyl.nautomationlabs.com` and swap the URL constant in `ui/src/constants/documentation.ts`.
 - **Marketing landing page**: this pass targets the app auth surface — not a marketing homepage. Bring the same brand system into a marketing site when needed.
 - **Revenue / billing**: subscription + credits flow (Stripe) was deferred at your request ("keep it waiting for now"). The codebase already has a `billing` module and `usage` pages — we can layer subscription tiers + credits on top when you're ready.
-- **Backend identifier rename**: Python package names like `dograh_sdk` and env vars `DOGRAH_*` are unchanged to avoid breaking the running EC2 stack. Rename these in a dedicated migration if you want a fully clean namespace.
-- **Emails / transactional templates**: not audited in this pass — search `/api/**/*.html` and `/api/**/*.py` for any embedded "Dograh" strings in email bodies before you flip the branded outbound emails on.
+- **Backend identifier rename**: Python package names like `decibyl_sdk` and env vars `DECIBYL_*` are unchanged to avoid breaking the running EC2 stack. Rename these in a dedicated migration if you want a fully clean namespace.
+- **Emails / transactional templates**: not audited in this pass — search `/api/**/*.html` and `/api/**/*.py` for any embedded "Decibyl" strings in email bodies before you flip the branded outbound emails on.

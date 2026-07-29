@@ -191,7 +191,7 @@ def _coerce_docs_root(candidate: Path) -> Path | None:
 
 def _resolve_docs_root() -> Path | None:
     """Return the path to the on-disk docs tree, or None if not found."""
-    override = os.environ.get("DOGRAH_DOCS_PATH")
+    override = os.environ.get("DECIBYL_DOCS_PATH")
     if override:
         resolved = _coerce_docs_root(Path(override))
         if resolved is not None:
@@ -618,7 +618,7 @@ def _expand_nav_entries(
 
 @traced_tool
 async def list_docs(path: str | None = None, depth: int = 1) -> list[dict]:
-    """Browse the Dograh docs hierarchy before reading a page in full.
+    """Browse the Decibyl docs hierarchy before reading a page in full.
 
     ``path`` addresses navigation sections exposed by this tool. Page paths
     returned by ``search_docs`` and ``read_doc`` are the published docs routes
@@ -667,7 +667,7 @@ async def read_doc(path: str, section: str | None = None) -> dict:
 
 @traced_tool
 async def search_docs(query: str, limit: int = 5) -> list[dict]:
-    """Search the Dograh documentation and return a lean ranked shortlist.
+    """Search the Decibyl documentation and return a lean ranked shortlist.
 
     Use this first for keyword or acronym lookup. Once the right page looks
     likely, call ``read_doc(path)`` instead of reasoning from summaries alone.

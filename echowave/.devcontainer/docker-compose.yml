@@ -25,14 +25,14 @@ services:
     networks:
       - app-network
     volumes:
-      - .:/workspaces/dograh:cached
-      - dograh-venv:/workspaces/dograh/venv
-      - dograh-ui-node_modules:/workspaces/dograh/ui/node_modules
-      - dograh-ts-validator-node_modules:/workspaces/dograh/api/mcp_server/ts_validator/node_modules
+      - .:/workspaces/decibyl:cached
+      - decibyl-venv:/workspaces/decibyl/venv
+      - decibyl-ui-node_modules:/workspaces/decibyl/ui/node_modules
+      - decibyl-ts-validator-node_modules:/workspaces/decibyl/api/mcp_server/ts_validator/node_modules
     ports:
       - "0.0.0.0:3000:3000"
       - "0.0.0.0:8000:8000"
 volumes:
-  dograh-venv:
-  dograh-ui-node_modules:
-  dograh-ts-validator-node_modules:
+  decibyl-venv:
+  decibyl-ui-node_modules:
+  decibyl-ts-validator-node_modules:

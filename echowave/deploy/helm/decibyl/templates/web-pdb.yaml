@@ -1,0 +1,16 @@
+{{- if .Values.web.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "decibyl.web.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "decibyl.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  minAvailable: {{ .Values.web.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "decibyl.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: web
+{{- end }}

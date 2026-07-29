@@ -3,17 +3,17 @@ title: "Scaling"
 description: "Run multiple FastAPI worker processes behind nginx for higher throughput"
 ---
 
-By default, the EchoWave API container runs a single uvicorn worker. For production traffic — especially with many concurrent voice calls (long-lived WebSockets) — you'll want multiple workers. EchoWave ships with built-in support for this: nginx load-balances across N independent uvicorn processes using a `least_conn` strategy.
+By default, the Decibyl API container runs a single uvicorn worker. For production traffic — especially with many concurrent voice calls (long-lived WebSockets) — you'll want multiple workers. Decibyl ships with built-in support for this: nginx load-balances across N independent uvicorn processes using a `least_conn` strategy.
 
 This page covers how the multi-worker setup works, how to choose a worker count at install time, and how to change it on a running stack.
 
 <Warning>
-Multi-worker support requires **EchoWave v1.29.0 or newer**. Earlier releases used `uvicorn --workers` and a different remote deployment layout. If your stack is older, [update first](/deployment/update) and then come back to this page.
+Multi-worker support requires **Decibyl v1.29.0 or newer**. Earlier releases used `uvicorn --workers` and a different remote deployment layout. If your stack is older, [update first](/deployment/update) and then come back to this page.
 </Warning>
 
 ## How it works
 
-The API container starts `FASTAPI_WORKERS` separate uvicorn processes, each bound to its own port (`8000`, `8001`, `8002`, …). nginx exposes a single upstream `echowave_api` that includes all worker ports and routes new requests to whichever worker currently has the **fewest active connections**.
+The API container starts `FASTAPI_WORKERS` separate uvicorn processes, each bound to its own port (`8000`, `8001`, `8002`, …). nginx exposes a single upstream `decibyl_api` that includes all worker ports and routes new requests to whichever worker currently has the **fewest active connections**.
 
 ```
                        ┌───────────────────────────────────┐
@@ -58,15 +58,15 @@ Press Enter for the default (`4`) or enter a different positive integer. Non-int
 sudo SERVER_IP=... TURN_SECRET=... FASTAPI_WORKERS=8 ./setup_remote.sh
 ```
 
-The script stores the value in **`.env`** (`FASTAPI_WORKERS=N`). The supported startup path (`./remote_up.sh`) preflights the `echowave-init` render from that value before every remote start, so nginx and the API worker count stay aligned.
+The script stores the value in **`.env`** (`FASTAPI_WORKERS=N`). The supported startup path (`./remote_up.sh`) preflights the `decibyl-init` render from that value before every remote start, so nginx and the API worker count stay aligned.
 
 ## Changing the worker count on a running stack
 
-Once EchoWave is running, increasing or decreasing the worker count is a one-file edit plus a restart. Change `.env`, then start through `./remote_up.sh` so `echowave-init` regenerates nginx runtime config before Docker starts the stack.
+Once Decibyl is running, increasing or decreasing the worker count is a one-file edit plus a restart. Change `.env`, then start through `./remote_up.sh` so `decibyl-init` regenerates nginx runtime config before Docker starts the stack.
 
 ### Steps
 
-All commands run from your `echowave/` directory (the one with `docker-compose.yaml`).
+All commands run from your `decibyl/` directory (the one with `docker-compose.yaml`).
 
 **1. Edit `.env`** and change the `FASTAPI_WORKERS` line:
 
@@ -90,7 +90,7 @@ If you want to avoid downtime and your stack is healthy, you can recreate only t
 ./remote_up.sh -- api nginx
 ```
 
-`remote_up.sh` validates `.env`, runs the same `echowave-init` render that Compose will use at startup, runs `docker compose config -q`, and then starts the requested services.
+`remote_up.sh` validates `.env`, runs the same `decibyl-init` render that Compose will use at startup, runs `docker compose config -q`, and then starts the requested services.
 
 **3. Verify.** Confirm the right number of uvicorn processes are running. The API image is slim and doesn't include `ps`, so use Docker's host-side view instead:
 
@@ -114,7 +114,7 @@ curl -k https://YOUR_SERVER_IP/api/v1/health
 
 `setup_remote.sh` refuses to overwrite an existing install by design — re-running it would regenerate `OSS_JWT_SECRET` (logging everyone out), reset the TURN shared secret (breaking WebRTC auth on connected clients), and regenerate SSL certificates. The two-file edit above is the supported way to change worker count after install.
 
-If you genuinely want a clean reinstall, see the `ECHOWAVE_FORCE_OVERWRITE=1` escape hatch documented in the script.
+If you genuinely want a clean reinstall, see the `DECIBYL_FORCE_OVERWRITE=1` escape hatch documented in the script.
 
 ## What this does not scale
 

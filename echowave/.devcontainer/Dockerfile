@@ -29,9 +29,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 # Build the venv at the path it will live at in the final image, so shebangs
 # and console-scripts inside the venv reference the correct runtime location
 # once the seed step rsyncs them into the named volume.
-ENV VIRTUAL_ENV=/workspaces/dograh/venv \
-    PATH=/workspaces/dograh/venv/bin:$PATH
-RUN mkdir -p /workspaces/dograh && python3.13 -m venv "$VIRTUAL_ENV"
+ENV VIRTUAL_ENV=/workspaces/decibyl/venv \
+    PATH=/workspaces/decibyl/venv/bin:$PATH
+RUN mkdir -p /workspaces/decibyl && python3.13 -m venv "$VIRTUAL_ENV"
 
 # Layer 1: API deps. Cache invalidates only when these two files change.
 RUN --mount=type=bind,source=api/requirements.txt,target=/tmp/req.txt \
@@ -53,7 +53,7 @@ RUN --mount=type=bind,source=pipecat,target=/tmp/pipecat,rw \
  && uv pip install --group /tmp/pipecat/pyproject.toml:dev \
  && uv pip uninstall opencv-python \
  && uv pip install opencv-python-headless \
- && python -c "import nltk; nltk.download('punkt_tab', download_dir='/workspaces/dograh/venv/nltk_data', quiet=True)"
+ && python -c "import nltk; nltk.download('punkt_tab', download_dir='/workspaces/decibyl/venv/nltk_data', quiet=True)"
 
 
 # =============================================================================
@@ -91,12 +91,12 @@ RUN apt-get update \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 # Bring the populated venv across. At runtime, the named volume in
-# docker-compose.yml shadows /workspaces/dograh/venv; post-create.sh
+# docker-compose.yml shadows /workspaces/decibyl/venv; post-create.sh
 # rsyncs from /opt/venv-template into the (initially empty) volume,
 # comparing build-stamps so an image rebuild that changed deps re-seeds.
-COPY --from=venv-builder --chown=vscode:vscode /workspaces/dograh/venv /opt/venv-template
+COPY --from=venv-builder --chown=vscode:vscode /workspaces/decibyl/venv /opt/venv-template
 RUN date -u +%s > /opt/venv-template/.build-stamp \
  && chown vscode:vscode /opt/venv-template/.build-stamp
 
-ENV VIRTUAL_ENV=/workspaces/dograh/venv \
-    PATH=/workspaces/dograh/venv/bin:$PATH
+ENV VIRTUAL_ENV=/workspaces/decibyl/venv \
+    PATH=/workspaces/decibyl/venv/bin:$PATH

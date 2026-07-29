@@ -1,4 +1,4 @@
-// EchoWave auth shell — rebranded from the legacy dark 2-col layout to a
+// Decibyl auth shell — rebranded from the legacy dark 2-col layout to a
 // premium light/blue nAutomation Labs aesthetic with an on-panel dark-mode
 // toggle. LEFT: brand + value panel with animated waveform, feature chips,
 // and enterprise CTA. RIGHT: the auth form card. Mobile collapses to a
@@ -60,7 +60,7 @@ export function AuthShell({
             without vendor lock-in.
           </h1>
           <p className="max-w-md text-[15px] leading-relaxed text-brand-body">
-            EchoWave is the open, self-hostable voice AI platform. Design workflows visually, connect any LLM / STT / TTS provider, and ship real conversations in minutes.
+            Decibyl is the open, self-hostable voice AI platform. Design workflows visually, connect any LLM / STT / TTS provider, and ship real conversations in minutes.
           </p>
           <ul className="flex flex-wrap gap-2">
             {HIGHLIGHTS.map((point) => (
@@ -80,7 +80,7 @@ export function AuthShell({
             Need on-prem, data residency &amp; a data perimeter?
           </h2>
           <p className="text-sm text-brand-body">
-            We deploy EchoWave inside your environment for regulated and
+            We deploy Decibyl inside your environment for regulated and
             high-scale teams.
           </p>
           {enterpriseSlot}
@@ -88,7 +88,7 @@ export function AuthShell({
       </aside>
 
       {/* Form column (RIGHT) — scrolls and stays centered so tall forms never
-          clip. Carries the giant faded "echowave" imprint along its bottom. */}
+          clip. Carries the giant faded "decibyl" imprint along its bottom. */}
       <main className="auth-imprint relative flex min-h-screen flex-col overflow-y-auto">
         <div className="absolute right-6 top-6 z-10">
           <ThemeToggle data-testid="auth-theme-toggle" />

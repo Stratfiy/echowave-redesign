@@ -1,21 +1,21 @@
-# Contributing to EchoWave AI
+# Contributing to Decibyl AI
 
-Welcome to EchoWave AI! ❤️ Thank you for your interest in contributing to the future of open-source voice AI. ❤️
+Welcome to Decibyl AI! ❤️ Thank you for your interest in contributing to the future of open-source voice AI. ❤️
 
-EchoWave AI is a comprehensive voice agent platform that helps developers build, test, and deploy conversational AI systems with minimal setup. This guide will help you understand the project structure, set up your development environment, and start contributing effectively.
+Decibyl AI is a comprehensive voice agent platform that helps developers build, test, and deploy conversational AI systems with minimal setup. This guide will help you understand the project structure, set up your development environment, and start contributing effectively.
 
-👉 Join our community → [EchoWave Community Slack](https://join.slack.com/t/echowave-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g)
+👉 Join our community → [Decibyl Community Slack](https://join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g)
 
 ## 🏗️ Project Overview
 
-### What is EchoWave AI?
+### What is Decibyl AI?
 
-EchoWave AI is a full-stack platform for building voice agents with a drag-and-drop workflow builder. It combines multiple technologies to provide a seamless experience from development to production deployment.
+Decibyl AI is a full-stack platform for building voice agents with a drag-and-drop workflow builder. It combines multiple technologies to provide a seamless experience from development to production deployment.
 
 ## 🙌 How You Can Contribute
 
-- 🐛 **Report bugs** via [GitHub Issues](https://github.com/echowave-hq/echowave/issues)
-- 💡 **Suggest features** via [Ideas](https://github.com/orgs/echowave-hq/discussions/categories/ideas)
+- 🐛 **Report bugs** via [GitHub Issues](https://github.com/decibyl-hq/decibyl/issues)
+- 💡 **Suggest features** via [Ideas](https://github.com/orgs/decibyl-hq/discussions/categories/ideas)
 - 🔧 **Submit pull requests**
 - 📖 **Improve documentation** The documentation is hosted via mintlify and the code is in `docs/` folder
 - 💬 **Join the Slack community**
@@ -27,20 +27,20 @@ EchoWave AI is a full-stack platform for building voice agents with a drag-and-d
 > - Star the project;
 > - Tweet about it;
 > - Refer to this project in your project's readme;
-> - Submit and vote on [Ideas](https://github.com/orgs/echowave-hq/discussions/categories/ideas);
-> - Create and comment on [Issues](https://github.com/echowave-hq/echowave/issues);
+> - Submit and vote on [Ideas](https://github.com/orgs/decibyl-hq/discussions/categories/ideas);
+> - Create and comment on [Issues](https://github.com/decibyl-hq/decibyl/issues);
 > - Mention the project at local meetups and tell your friends/colleagues.
 
 ## 🚀 Development Setup
 
-Please refer to our [Development Setup documentation](https://docs.echowave.com/contribution/setup).
+Please refer to our [Development Setup documentation](https://docs.decibyl.com/contribution/setup).
 
 ### Getting Help
 
 **Before You Start**
 
 - Check existing [GitHub Issues](../../issues) for similar work
-- Join our [Slack community](https://join.slack.com/t/echowave-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g) to discuss your plans
+- Join our [Slack community](https://join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g) to discuss your plans
 - Look for issues tagged `good first issue` for beginner-friendly tasks
 
 **During Development**
@@ -51,13 +51,13 @@ Please refer to our [Development Setup documentation](https://docs.echowave.com/
 
 ## 💬 Community & Support
 
-Our Slack community is the heart of EchoWave AI development:
+Our Slack community is the heart of Decibyl AI development:
 
 - **Get Help**: Setup assistance and debugging support
 - **Collaborate**: Discuss features and architectural decisions
 - **Connect**: Meet other contributors and maintainers
 - **Stay Updated**: Learn about contribution opportunities and releases
 
-👉 **Join us**: [EchoWave Community Slack](https://join.slack.com/t/echowave-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g)
+👉 **Join us**: [Decibyl Community Slack](https://join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g)
 
 Thank you for helping us keep voice AI open and accessible! 🎉

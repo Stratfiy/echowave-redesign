@@ -1,5 +1,5 @@
 // Client-side validation of node data against a fetched spec. Mirrors
-// `sdk/python/src/dograh_sdk/_validation.py` byte-for-byte where possible
+// `sdk/python/src/decibyl_sdk/_validation.py` byte-for-byte where possible
 // so the two SDKs raise identical error messages for identical bad input.
 //
 // Intentionally lightweight: catch typos / missing required / obvious

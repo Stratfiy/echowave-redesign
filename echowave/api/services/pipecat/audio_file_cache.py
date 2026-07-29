@@ -18,7 +18,7 @@ from api.constants import APP_ROOT_DIR
 # Filesystem cache directory (shared by all audio caches)
 # ---------------------------------------------------------------------------
 
-CACHE_DIR = os.path.join(os.path.dirname(APP_ROOT_DIR), "dograh_pcm_cache")
+CACHE_DIR = os.path.join(os.path.dirname(APP_ROOT_DIR), "decibyl_pcm_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 
@@ -38,7 +38,7 @@ async def download_storage_file(
     The caller is responsible for cleaning up the temp file.
     """
     ext = ext_from_key(storage_key)
-    fd, tmp_path = tempfile.mkstemp(suffix=ext, prefix="dograh_dl_")
+    fd, tmp_path = tempfile.mkstemp(suffix=ext, prefix="decibyl_dl_")
     os.close(fd)
 
     try:

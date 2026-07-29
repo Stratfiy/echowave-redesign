@@ -1,6 +1,6 @@
 ---
 title: "Tuner Integration"
-description: "Connect EchoWave to Tuner — the observability, simulation, and testing layer for voice"
+description: "Connect Decibyl to Tuner — the observability, simulation, and testing layer for voice"
 ---
 
 <iframe
@@ -20,17 +20,17 @@ The Tuner integration node automatically sends your completed call data (transcr
 ## Prerequisites
 
 - A [Tuner account](https://app.usetuner.ai) with an active workspace
-- A EchoWave voice agent workflow
+- A Decibyl voice agent workflow
 
 ## Setup
 
 ### 1. Create an agent in Tuner
 
-Log in to [Tuner](https://app.usetuner.ai) and create a new agent. When configuring the agent, set the **Provider** to **EchoWave**. Enter your **Agent Name** and choose the **Call Direction** (Inbound or Outbound) for your setup. The **Agent Remote ID** is auto-generated after you create the agent.
+Log in to [Tuner](https://app.usetuner.ai) and create a new agent. When configuring the agent, set the **Provider** to **Decibyl**. Enter your **Agent Name** and choose the **Call Direction** (Inbound or Outbound) for your setup. The **Agent Remote ID** is auto-generated after you create the agent.
 
 <img
   src="/images/tuner-create-agent.png"
-  alt="Create a New Agent modal in Tuner — set Provider to EchoWave"
+  alt="Create a New Agent modal in Tuner — set Provider to Decibyl"
 />
 
 
@@ -60,18 +60,18 @@ You'll need three values from your Tuner account:
 
 ### 3. Add the Tuner node to your workflow
 
-In your EchoWave workflow editor, click **Add node** and scroll to the **Integrations** section. Select **Tuner**.
+In your Decibyl workflow editor, click **Add node** and scroll to the **Integrations** section. Select **Tuner**.
 
 <img
-  src="/images/tuner-echowave-workflow-builder.png"
-  alt="EchoWave voice workflow builder — click Add node"
+  src="/images/tuner-decibyl-workflow-builder.png"
+  alt="Decibyl voice workflow builder — click Add node"
 />
 
 Scroll to **Integrations** and select **Tuner**:
 
 <img
   src="/images/tuner-integrations-panel.png"
-  alt="EchoWave Integrations panel showing QA Analysis, Tuner, and Webhook"
+  alt="Decibyl Integrations panel showing QA Analysis, Tuner, and Webhook"
 />
 
 The node appears on your canvas with a **Not configured** badge:
@@ -92,7 +92,7 @@ Click on the Tuner node and fill in the following fields:
 
 <img
   src="/images/tuner-edit-modal.png"
-  alt="EchoWave Edit Tuner modal with credential fields and Enabled toggle"
+  alt="Decibyl Edit Tuner modal with credential fields and Enabled toggle"
 />
 
 Click **Save**, then **Publish** your workflow.
@@ -117,7 +117,7 @@ To temporarily stop exporting calls to Tuner, open the Tuner node configuration 
 | Calls not appearing in Tuner | Verify all three credentials are correct with no extra whitespace |
 | Node shows "Not configured" | Open the node and fill in Agent ID, Workspace ID, and API Key |
 | Workflow not sending data | Make sure the workflow is published, not just saved as a draft |
-| Wrong agent in Tuner | Confirm the Tuner agent's Provider is set to **EchoWave** |
+| Wrong agent in Tuner | Confirm the Tuner agent's Provider is set to **Decibyl** |
 
 ## Learn more
 

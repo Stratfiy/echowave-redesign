@@ -49,7 +49,7 @@ async def _ensure_application_name(credentials: Dict[str, Any]) -> Dict[str, Any
     backend_endpoint, _ = await get_backend_endpoints()
     inbound_url = f"{backend_endpoint}/api/v1/telephony/inbound/run"
 
-    name = f"dograh-{uuid.uuid4().hex[:12]}"
+    name = f"decibyl-{uuid.uuid4().hex[:12]}"
     endpoint = (
         f"{CLOUDONIX_API_BASE_URL}/customers/self/domains/{domain_id}/applications"
     )
@@ -93,7 +93,7 @@ async def _ensure_application_name(credentials: Dict[str, Any]) -> Dict[str, Any
 
 _UI_METADATA = ProviderUIMetadata(
     display_name="Cloudonix",
-    docs_url="https://docs.dograh.com/integrations/telephony/cloudonix",
+    docs_url="https://docs.decibyl.com/integrations/telephony/cloudonix",
     fields=[
         ProviderUIField(
             name="bearer_token",

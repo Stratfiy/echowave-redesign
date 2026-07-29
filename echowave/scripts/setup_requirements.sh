@@ -28,9 +28,9 @@ done
 
 # Get the project root directory (parent of scripts)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-DOGRAH_DIR="$(dirname "$SCRIPT_DIR")"
+DECIBYL_DIR="$(dirname "$SCRIPT_DIR")"
 
-cd "$DOGRAH_DIR"
+cd "$DECIBYL_DIR"
 
 # Fail early if the active Python is not 3.12 or 3.13. uv pip installs into
 # whichever interpreter resolves here (the active venv, or PATH python3), so a
@@ -68,13 +68,13 @@ if ! command -v uv >/dev/null 2>&1; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
-# Install dograh API requirements first so pipecat's extras win on any
+# Install decibyl API requirements first so pipecat's extras win on any
 # shared transitive dependencies (matches api/Dockerfile and CI workflow).
-echo "Installing dograh API requirements..."
+echo "Installing decibyl API requirements..."
 uv pip install -r api/requirements.txt
 
 if [ "$DEV_MODE" -eq 1 ]; then
-    echo "Installing dograh API dev requirements..."
+    echo "Installing decibyl API dev requirements..."
     uv pip install -r api/requirements.dev.txt
 fi
 

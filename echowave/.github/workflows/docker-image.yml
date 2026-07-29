@@ -41,7 +41,7 @@ jobs:
 
           if [ "${{ github.event_name }}" = "release" ]; then
             VERSION="${{ github.event.release.tag_name }}"
-            VERSION="${VERSION#dograh-}"
+            VERSION="${VERSION#decibyl-}"
             VERSION="${VERSION#v}"
             PUSH_LATEST="true"
           else
@@ -62,10 +62,10 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - name: dograh-api
+          - name: decibyl-api
             dockerfile: api/Dockerfile
             context: .
-          - name: dograh-ui
+          - name: decibyl-ui
             dockerfile: ui/Dockerfile
             context: .
         platform:
@@ -141,16 +141,16 @@ jobs:
       - name: Download API digests
         uses: actions/download-artifact@v4
         with:
-          pattern: digest-dograh-api-*
+          pattern: digest-decibyl-api-*
           merge-multiple: true
-          path: /tmp/digests/dograh-api
+          path: /tmp/digests/decibyl-api
 
       - name: Download UI digests
         uses: actions/download-artifact@v4
         with:
-          pattern: digest-dograh-ui-*
+          pattern: digest-decibyl-ui-*
           merge-multiple: true
-          path: /tmp/digests/dograh-ui
+          path: /tmp/digests/decibyl-ui
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -210,10 +210,10 @@ jobs:
             docker buildx imagetools create "${gh_tags[@]}" $gh_refs
           }
 
-          inspect_digests dograh-api
-          inspect_digests dograh-ui
-          create_manifests dograh-api
-          create_manifests dograh-ui
+          inspect_digests decibyl-api
+          inspect_digests decibyl-ui
+          create_manifests decibyl-api
+          create_manifests decibyl-ui
 
   notify:
     needs:

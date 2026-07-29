@@ -75,7 +75,7 @@ class ServiceProviders(str, Enum):
     GOOGLE = "google"
     AZURE = "azure"
     AZURE_SPEECH = "azure_speech"
-    DOGRAH = "dograh"
+    DECIBYL = "decibyl"
     SARVAM = "sarvam"
     SPEECHMATICS = "speechmatics"
     CAMB = "camb"
@@ -108,7 +108,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.GOOGLE,
         ServiceProviders.AZURE,
         ServiceProviders.AZURE_SPEECH,
-        ServiceProviders.DOGRAH,
+        ServiceProviders.DECIBYL,
         ServiceProviders.AWS_BEDROCK,
         ServiceProviders.SPEACHES,
         ServiceProviders.HUGGINGFACE,
@@ -247,7 +247,7 @@ GOOGLE_PROVIDER_MODEL_CONFIG = provider_model_config("Google")
 GROQ_PROVIDER_MODEL_CONFIG = provider_model_config("Groq")
 OPENROUTER_PROVIDER_MODEL_CONFIG = provider_model_config("Open Router")
 AZURE_OPENAI_PROVIDER_MODEL_CONFIG = provider_model_config("Azure OpenAI")
-DOGRAH_PROVIDER_MODEL_CONFIG = provider_model_config("Dograh")
+DECIBYL_PROVIDER_MODEL_CONFIG = provider_model_config("Decibyl")
 AWS_BEDROCK_PROVIDER_MODEL_CONFIG = provider_model_config("AWS Bedrock")
 GOOGLE_VERTEX_PROVIDER_MODEL_CONFIG = provider_model_config("Google Vertex")
 OPENAI_REALTIME_PROVIDER_MODEL_CONFIG = provider_model_config("OpenAI Realtime")
@@ -328,7 +328,7 @@ OPENROUTER_MODELS = [
     "meta-llama/llama-3.3-70b-instruct",
     "deepseek/deepseek-chat-v3-0324",
 ]
-DOGRAH_LLM_MODELS = ["default", "accurate", "fast", "lite", "zen"]
+DECIBYL_LLM_MODELS = ["default", "accurate", "fast", "lite", "zen"]
 AWS_BEDROCK_MODELS = [
     "us.amazon.nova-pro-v1:0",
     "us.amazon.nova-lite-v1:0",
@@ -442,13 +442,13 @@ class AzureLLMService(BaseLLMConfiguration):
 
 
 @register_llm
-class DograhLLMService(BaseLLMConfiguration):
-    model_config = DOGRAH_PROVIDER_MODEL_CONFIG
-    provider: Literal[ServiceProviders.DOGRAH] = ServiceProviders.DOGRAH
+class DecibylLLMService(BaseLLMConfiguration):
+    model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
     model: str = Field(
         default="default",
-        description="Dograh-hosted model tier.",
-        json_schema_extra={"examples": DOGRAH_LLM_MODELS, "allow_custom_input": True},
+        description="Decibyl-hosted model tier.",
+        json_schema_extra={"examples": DECIBYL_LLM_MODELS, "allow_custom_input": True},
     )
 
 
@@ -804,7 +804,7 @@ LLMConfig = Annotated[
         OpenRouterLLMConfiguration,
         GoogleLLMService,
         AzureLLMService,
-        DograhLLMService,
+        DecibylLLMService,
         AWSBedrockLLMConfiguration,
         SpeachesLLMConfiguration,
         HuggingFaceLLMConfiguration,
@@ -889,7 +889,7 @@ class GoogleTTSConfiguration(BaseTTSConfiguration):
     model: str = Field(
         default="chirp_3_hd",
         description=(
-            "Google Cloud low-latency TTS engine. Dograh maps this to Pipecat's "
+            "Google Cloud low-latency TTS engine. Decibyl maps this to Pipecat's "
             "streaming Google TTS service for Chirp 3 HD and Journey voices."
         ),
         json_schema_extra={
@@ -962,17 +962,17 @@ class OpenAITTSService(BaseTTSConfiguration):
     )
 
 
-DOGRAH_TTS_MODELS = ["default"]
+DECIBYL_TTS_MODELS = ["default"]
 
 
 @register_tts
-class DograhTTSService(BaseTTSConfiguration):
-    model_config = DOGRAH_PROVIDER_MODEL_CONFIG
-    provider: Literal[ServiceProviders.DOGRAH] = ServiceProviders.DOGRAH
+class DecibylTTSService(BaseTTSConfiguration):
+    model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
     model: str = Field(
         default="default",
-        description="Dograh TTS tier.",
-        json_schema_extra={"examples": DOGRAH_TTS_MODELS},
+        description="Decibyl TTS tier.",
+        json_schema_extra={"examples": DECIBYL_TTS_MODELS},
     )
     voice: str = Field(
         default="default",
@@ -1324,7 +1324,7 @@ TTSConfig = Annotated[
         ElevenlabsTTSConfiguration,
         CartesiaTTSConfiguration,
         InworldTTSConfiguration,
-        DograhTTSService,
+        DecibylTTSService,
         SarvamTTSConfiguration,
         CambTTSConfiguration,
         RimeTTSConfiguration,
@@ -1445,28 +1445,28 @@ class GoogleSTTConfiguration(BaseSTTConfiguration):
     )
 
 
-# Dograh STT Service
-DOGRAH_STT_MODELS = ["default"]
-DOGRAH_STT_LANGUAGES = DEEPGRAM_LANGUAGES
-# Languages auto-detected when the Dograh STT language is "multi". Dograh STT runs
+# Decibyl STT Service
+DECIBYL_STT_MODELS = ["default"]
+DECIBYL_STT_LANGUAGES = DEEPGRAM_LANGUAGES
+# Languages auto-detected when the Decibyl STT language is "multi". Decibyl STT runs
 # Deepgram Flux multilingual under the hood, which only auto-detects this subset —
-# not the full DOGRAH_STT_LANGUAGES list offered for explicit single-language selection.
-DOGRAH_MULTILINGUAL_AUTODETECT_LANGUAGES = DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGES
+# not the full DECIBYL_STT_LANGUAGES list offered for explicit single-language selection.
+DECIBYL_MULTILINGUAL_AUTODETECT_LANGUAGES = DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGES
 
 
 @register_stt
-class DograhSTTService(BaseSTTConfiguration):
-    model_config = DOGRAH_PROVIDER_MODEL_CONFIG
-    provider: Literal[ServiceProviders.DOGRAH] = ServiceProviders.DOGRAH
+class DecibylSTTService(BaseSTTConfiguration):
+    model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
     model: str = Field(
         default="default",
-        description="Dograh STT tier.",
-        json_schema_extra={"examples": DOGRAH_STT_MODELS},
+        description="Decibyl STT tier.",
+        json_schema_extra={"examples": DECIBYL_STT_MODELS},
     )
     language: str = Field(
         default="multi",
         description="Language code; use 'multi' for auto-detect.",
-        json_schema_extra={"examples": DOGRAH_STT_LANGUAGES},
+        json_schema_extra={"examples": DECIBYL_STT_LANGUAGES},
     )
 
 
@@ -1738,7 +1738,7 @@ STTConfig = Annotated[
         CartesiaSTTConfiguration,
         OpenAISTTConfiguration,
         GoogleSTTConfiguration,
-        DograhSTTService,
+        DecibylSTTService,
         SpeechmaticsSTTConfiguration,
         SarvamSTTConfiguration,
         SpeachesSTTConfiguration,
@@ -1811,17 +1811,17 @@ class AzureOpenAIEmbeddingsConfiguration(BaseEmbeddingsConfiguration):
     )
 
 
-DOGRAH_EMBEDDING_MODELS = ["dograh_embedding_v1"]
+DECIBYL_EMBEDDING_MODELS = ["decibyl_embedding_v1"]
 
 
 @register_embeddings
-class DograhEmbeddingsConfiguration(BaseEmbeddingsConfiguration):
-    model_config = DOGRAH_PROVIDER_MODEL_CONFIG
-    provider: Literal[ServiceProviders.DOGRAH] = ServiceProviders.DOGRAH
+class DecibylEmbeddingsConfiguration(BaseEmbeddingsConfiguration):
+    model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
     model: str = Field(
-        default="dograh_embedding_v1",
-        description="Dograh-managed embedding model.",
-        json_schema_extra={"examples": DOGRAH_EMBEDDING_MODELS},
+        default="decibyl_embedding_v1",
+        description="Decibyl-managed embedding model.",
+        json_schema_extra={"examples": DECIBYL_EMBEDDING_MODELS},
     )
 
 
@@ -1830,7 +1830,7 @@ EmbeddingsConfig = Annotated[
         OpenAIEmbeddingsConfiguration,
         OpenRouterEmbeddingsConfiguration,
         AzureOpenAIEmbeddingsConfiguration,
-        DograhEmbeddingsConfiguration,
+        DecibylEmbeddingsConfiguration,
     ],
     Field(discriminator="provider"),
 ]

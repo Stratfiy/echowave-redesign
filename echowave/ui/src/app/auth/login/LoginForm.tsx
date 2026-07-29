@@ -51,7 +51,7 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
       <div className="space-y-1.5">
         <h1 className="text-2xl font-semibold tracking-tight" data-testid="login-title">Welcome back</h1>
         <p className="text-sm text-muted-foreground">
-          Sign in to your EchoWave workspace.
+          Sign in to your Decibyl workspace.
         </p>
       </div>
 

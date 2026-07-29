@@ -1,13 +1,13 @@
-# dograh-sdk
+# decibyl-sdk
 
-Typed builder for Dograh voice-AI workflows. Fetches the node-spec catalog from
-the Dograh backend at session start, validates every call against it at the
+Typed builder for Decibyl voice-AI workflows. Fetches the node-spec catalog from
+the Decibyl backend at session start, validates every call against it at the
 call site, and produces `ReactFlowDTO`-compatible JSON.
 
 ## Install
 
 ```bash
-pip install dograh-sdk
+pip install decibyl-sdk
 ```
 
 For local development against a checked-out monorepo:
@@ -19,9 +19,9 @@ pip install -e sdk/python/
 ## Usage
 
 ```python
-from dograh_sdk import DograhClient, Workflow
+from decibyl_sdk import DecibylClient, Workflow
 
-with DograhClient(base_url="http://localhost:8000", api_key="...") as client:
+with DecibylClient(base_url="http://localhost:8000", api_key="...") as client:
     wf = Workflow(client=client, name="loan_qualification")
 
     start = wf.add(
@@ -68,8 +68,8 @@ through (compound invariants, cross-field rules).
 ## Environment
 
 ```bash
-DOGRAH_API_URL=http://localhost:8000   # default
-DOGRAH_API_KEY=sk-...                  # sent as X-API-Key
+DECIBYL_API_URL=http://localhost:8000   # default
+DECIBYL_API_KEY=sk-...                  # sent as X-API-Key
 ```
 
 ## License

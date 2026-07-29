@@ -158,7 +158,7 @@ async def test_enqueue_webhook_delivery_drops_secret_custom_headers():
             {"key": "Authorization", "value": "Bearer secret-token"},
             {"key": "X-Custom-Auth-Token", "value": "abc"},  # variant -> dropped
             {"key": "X-Idempotency-Key", "value": "idem-1"},  # benign -> kept
-            {"key": "X-Source", "value": "dograh"},
+            {"key": "X-Source", "value": "decibyl"},
         ],
     )
 
@@ -489,7 +489,7 @@ async def test_deliver_webhook_no_op_when_claim_fails():
 async def test_deliver_webhook_delivered_but_record_failure_does_not_dead_letter():
     # If the HTTP POST is accepted (2xx) but recording success fails (DB blip),
     # the row must NOT be dead-lettered -- it stays pending for the sweeper to
-    # reconcile (the receiver dedups the re-send via X-Dograh-Delivery-Id).
+    # reconcile (the receiver dedups the re-send via X-Decibyl-Delivery-Id).
     delivery = _fake_delivery()
     db = _delivery_db(delivery)
     db.mark_webhook_delivery_succeeded = AsyncMock(

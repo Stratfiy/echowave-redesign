@@ -22,7 +22,7 @@ LOG_TO_FILE=${LOG_TO_FILE:-true}    # Set to false in Docker to use stdout
 
 # Log startup
 cd "$BASE_DIR"
-echo "Starting Dograh Services at $(date) in BASE_DIR: ${BASE_DIR}"
+echo "Starting Decibyl Services at $(date) in BASE_DIR: ${BASE_DIR}"
 
 ###############################################################################
 ### 1) Load environment variables
@@ -33,12 +33,12 @@ if [[ -f "$ENV_FILE" ]]; then
   set -a && . "$ENV_FILE" && set +a
 fi
 
-if [[ -z "${DOGRAH_DEVOPS_SECRET:-}" ]]; then
-  echo "ERROR: DOGRAH_DEVOPS_SECRET is not set. Add it to $ENV_FILE before starting production services."
+if [[ -z "${DECIBYL_DEVOPS_SECRET:-}" ]]; then
+  echo "ERROR: DECIBYL_DEVOPS_SECRET is not set. Add it to $ENV_FILE before starting production services."
   exit 1
 fi
-if [[ "$DOGRAH_DEVOPS_SECRET" == "change-me-dograh-devops-secret" ]]; then
-  echo "ERROR: DOGRAH_DEVOPS_SECRET still has the example placeholder value. Replace it in $ENV_FILE."
+if [[ "$DECIBYL_DEVOPS_SECRET" == "change-me-decibyl-devops-secret" ]]; then
+  echo "ERROR: DECIBYL_DEVOPS_SECRET still has the example placeholder value. Replace it in $ENV_FILE."
   exit 1
 fi
 
@@ -132,8 +132,8 @@ fi
 
 mkdir -p "$RUN_DIR"
 
-NGINX_UPSTREAM_TEMPLATE="$BASE_DIR/nginx/dograh_upstream.conf.template"
-NGINX_UPSTREAM_CONF="/etc/nginx/conf.d/dograh_upstream.conf"
+NGINX_UPSTREAM_TEMPLATE="$BASE_DIR/nginx/decibyl_upstream.conf.template"
+NGINX_UPSTREAM_CONF="/etc/nginx/conf.d/decibyl_upstream.conf"
 
 ###############################################################################
 ### 4) Install ts_validator npm dependencies

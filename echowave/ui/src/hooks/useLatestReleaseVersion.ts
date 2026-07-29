@@ -12,7 +12,7 @@ interface Result {
     isLatest: boolean;
 }
 
-const CACHE_KEY = "echowave-latest-release";
+const CACHE_KEY = "decibyl-latest-release";
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const SEMVER_RE = /^v?(\d+)\.(\d+)\.(\d+)$/;
 

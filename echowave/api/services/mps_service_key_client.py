@@ -10,7 +10,7 @@ from typing import List, Optional
 import httpx
 from loguru import logger
 
-from api.constants import DEPLOYMENT_MODE, DOGRAH_MPS_SECRET_KEY, MPS_API_URL
+from api.constants import DEPLOYMENT_MODE, DECIBYL_MPS_SECRET_KEY, MPS_API_URL
 
 
 class MPSServiceKeyClient:
@@ -39,8 +39,8 @@ class MPSServiceKeyClient:
 
         # Add authentication for non-OSS mode
         if DEPLOYMENT_MODE != "oss":
-            if DOGRAH_MPS_SECRET_KEY:
-                headers["X-Secret-Key"] = DOGRAH_MPS_SECRET_KEY
+            if DECIBYL_MPS_SECRET_KEY:
+                headers["X-Secret-Key"] = DECIBYL_MPS_SECRET_KEY
             if organization_id:
                 headers["X-Organization-Id"] = str(organization_id)
         else:
@@ -383,7 +383,7 @@ class MPSServiceKeyClient:
             )
 
     async def get_billing_pricing(self, organization_id: int) -> dict:
-        """Return MPS-owned effective platform and Dograh model prices for an org."""
+        """Return MPS-owned effective platform and Decibyl model prices for an org."""
         if DEPLOYMENT_MODE == "oss":
             raise ValueError("OSS deployments do not fetch hosted billing prices")
 
@@ -522,7 +522,7 @@ class MPSServiceKeyClient:
         metadata: Optional[dict] = None,
         max_attempts: int = 3,
     ) -> dict:
-        """Report hosted Dograh platform usage for a completed workflow run."""
+        """Report hosted Decibyl platform usage for a completed workflow run."""
         if DEPLOYMENT_MODE == "oss":
             raise ValueError("OSS deployments must not report platform usage to MPS")
         if not correlation_id and duration_seconds is None:
@@ -653,7 +653,7 @@ class MPSServiceKeyClient:
         created_by: Optional[str] = None,
     ) -> bool:
         """
-        Synchronously validate a Dograh service key by checking usage via MPS.
+        Synchronously validate a Decibyl service key by checking usage via MPS.
 
         Returns True if the key is valid, False otherwise.
         """
@@ -668,7 +668,7 @@ class MPSServiceKeyClient:
                 )
                 return response.status_code == 200
         except Exception:
-            logger.warning("Failed to validate Dograh service key via MPS")
+            logger.warning("Failed to validate Decibyl service key via MPS")
             return False
 
     async def get_voices(

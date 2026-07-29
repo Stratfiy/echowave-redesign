@@ -29,7 +29,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EchoWave — Voice AI Platform by nAutomation Labs",
+  title: "Decibyl — Voice AI Platform by nAutomation Labs",
   description: "Build production voice AI agents with a visual workflow builder. Self-hostable, BYOK, MCP-native.",
 };
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# Start Dograh services in development mode (Windows)
+# Start Decibyl services in development mode (Windows)
 # Usage: .\scripts\start_services_dev.ps1 [-NoMigrations] [-IncludeTelephonyWorkers]
 #
 # Note: Telephony workers (ari_manager, campaign_orchestrator) are disabled by
@@ -21,13 +21,13 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BaseDir   = Split-Path -Parent $ScriptDir
 Set-Location $BaseDir
 
-$EnvFile    = if ($env:DOGRAH_ENV_FILE) { $env:DOGRAH_ENV_FILE } else { Join-Path $BaseDir 'api/.env' }
+$EnvFile    = if ($env:DECIBYL_ENV_FILE) { $env:DECIBYL_ENV_FILE } else { Join-Path $BaseDir 'api/.env' }
 $RunDir     = Join-Path $BaseDir 'run'
 $LogsRoot   = Join-Path $BaseDir 'logs'
 $LatestDir  = Join-Path $LogsRoot 'latest'
 $VenvPath   = Join-Path $BaseDir 'venv'
 
-Write-Host "Starting Dograh Services (DEV MODE) in BASE_DIR: $BaseDir"
+Write-Host "Starting Decibyl Services (DEV MODE) in BASE_DIR: $BaseDir"
 Write-Host "Auto-reload enabled for api/ directory changes"
 Write-Host "Environment file: $EnvFile"
 

@@ -20,7 +20,7 @@ venv/
 .playwright-mcp
 coturn/
 *.wav
-dograh_pcm_cache/
+decibyl_pcm_cache/
 node_modules/
 
 # Superpowers brainstorm mockups (local only)

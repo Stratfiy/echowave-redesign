@@ -1,5 +1,5 @@
-// Tests for the typed SDK (`@dograh/sdk/typed`). Mirrors
-// api/tests/test_dograh_sdk_typed.py — checks that generated factories
+// Tests for the typed SDK (`@decibyl/sdk/typed`). Mirrors
+// api/tests/test_decibyl_sdk_typed.py — checks that generated factories
 // produce objects consumable by `workflow.addTyped()`.
 
 import { describe, it } from "node:test";

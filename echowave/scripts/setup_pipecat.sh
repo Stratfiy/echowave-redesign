@@ -4,9 +4,9 @@
 
 # Get the project root directory (parent of scripts)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-DOGRAH_DIR="$(dirname "$SCRIPT_DIR")"
+DECIBYL_DIR="$(dirname "$SCRIPT_DIR")"
 
-cd "$DOGRAH_DIR"
+cd "$DECIBYL_DIR"
 
 echo "Setting up pipecat as a git submodule..."
 
@@ -15,7 +15,7 @@ echo "Initializing git submodules..."
 git submodule update --init --recursive
 
 # Install other requirements first so pipecat submodule wins any version conflicts
-echo "Installing dograh API requirements..."
+echo "Installing decibyl API requirements..."
 pip install -r api/requirements.txt
 
 # Install pipecat from submodule last so it overrides any pipecat-ai pulled in by dependencies

@@ -9,7 +9,7 @@ Compare speech-to-text transcription across providers with focus on:
 Usage:
     python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize
     python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize --providers deepgram
-    python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize --keyterms "Dograh" "Pipecat"
+    python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize --keyterms "Decibyl" "Pipecat"
 """
 
 import argparse
@@ -142,7 +142,7 @@ async def main() -> int:
 Examples:
   python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize
   python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize --providers deepgram
-  python -m evals.stt.benchmark audio/multi_speaker.m4a --keyterms "Dograh" "API"
+  python -m evals.stt.benchmark audio/multi_speaker.m4a --keyterms "Decibyl" "API"
         """,
     )
     parser.add_argument(

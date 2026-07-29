@@ -1,6 +1,6 @@
 ---
 name: review-agents-md
-description: Audit Dograh `AGENTS.md` files for drift against the live repo and for bad scope boundaries between parent and child docs. Use when the user asks to review existing AGENTS files, identify stale guidance, decide whether a subtree needs its own `AGENTS.md`, or update the `AGENTS.md` hierarchy under the repo root, `api/`, or `ui/`.
+description: Audit Decibyl `AGENTS.md` files for drift against the live repo and for bad scope boundaries between parent and child docs. Use when the user asks to review existing AGENTS files, identify stale guidance, decide whether a subtree needs its own `AGENTS.md`, or update the `AGENTS.md` hierarchy under the repo root, `api/`, or `ui/`.
 ---
 
 # Review AGENTS.md
@@ -19,20 +19,20 @@ Treat the repo as source of truth.
 
 ### 0. Refresh the seam reference before using it
 
-If subagents are available, refresh `references/dograh-seams.md` before relying on it.
+If subagents are available, refresh `references/decibyl-seams.md` before relying on it.
 
 - Spawn exactly one subagent for this maintenance pass.
 - Tell the subagent to inspect the live repo.
-- Limit its patch set to `.agents/skills/review-agents-md/references/dograh-seams.md`.
+- Limit its patch set to `.agents/skills/review-agents-md/references/decibyl-seams.md`.
 - Also allow `.agents/skills/review-agents-md/scripts/inventory_agents_md.py`, but only if the helper itself needs a repo-specific fix.
 - Tell the subagent not to recurse into this same seam-refresh workflow. This is a one-level maintenance pass, not an infinite self-audit loop.
 - Tell the subagent not to review or patch any repo `AGENTS.md` files yet. Its job is only to refresh the seam reference and helper.
-- After the subagent returns, review its diff quickly before using `dograh-seams.md` in the main audit.
+- After the subagent returns, review its diff quickly before using `decibyl-seams.md` in the main audit.
 
 Use a prompt shaped like:
 
 ```text
-Review and refresh .agents/skills/review-agents-md/references/dograh-seams.md against the live Dograh repo. Patch only that file, and patch .agents/skills/review-agents-md/scripts/inventory_agents_md.py only if needed. Do not recurse into another seam-refresh pass. Do not review or edit any AGENTS.md files yet.
+Review and refresh .agents/skills/review-agents-md/references/decibyl-seams.md against the live Decibyl repo. Patch only that file, and patch .agents/skills/review-agents-md/scripts/inventory_agents_md.py only if needed. Do not recurse into another seam-refresh pass. Do not review or edit any AGENTS.md files yet.
 ```
 
 If subagents are not available, do the same seam refresh locally before continuing.
@@ -78,7 +78,7 @@ For each file, write a one-line ownership statement in your notes:
 
 Check directory trees, route aggregators, registration points, and extension seams instead of relying on filenames mentioned in prose.
 
-Dograh files worth checking early:
+Decibyl files worth checking early:
 
 - `api/routes/main.py`
 - `api/routes/telephony.py`
@@ -94,7 +94,7 @@ Dograh files worth checking early:
 - `ui/src/lib/auth/`
 - `ui/src/client/`
 
-Read [dograh-seams.md](references/dograh-seams.md) when you need a fast repo-specific starting map.
+Read [decibyl-seams.md](references/decibyl-seams.md) when you need a fast repo-specific starting map.
 
 ### 4. Apply the hierarchy tests
 
@@ -107,7 +107,7 @@ Use these tests for every scope:
 - `no-gaps`: If a large or extension-heavy subtree has rules the parent cannot explain cleanly in a few lines, flag a missing child `AGENTS.md`.
 - `no-drift`: File trees, commands, extension points, and architecture claims still match the code.
 
-### 5. Dograh-specific review heuristics
+### 5. Decibyl-specific review heuristics
 
 #### Root `AGENTS.md`
 
@@ -123,7 +123,7 @@ Expect root to stay high-level.
 Expect `api/AGENTS.md` to orient a contributor across backend domains, not to document every local contract in full.
 
 - It should point to where routes, services, DB access, schemas, tasks, tests, and security invariants live.
-- It should accurately describe where workflow execution lives. In current Dograh, that spans `api/services/workflow/`, `api/services/pipecat/`, and post-call work in `api/tasks/run_integrations.py`.
+- It should accurately describe where workflow execution lives. In current Decibyl, that spans `api/services/workflow/`, `api/services/pipecat/`, and post-call work in `api/tasks/run_integrations.py`.
 - It should accurately describe telephony as a substantial subsystem, not just as one route file.
 - It should mention integration extensibility and defer package-level rules to `api/services/integrations/AGENTS.md`.
 - If `api/services/telephony/` or `api/services/workflow/` are complex enough that the parent doc becomes vague or overloaded, report `missing-child-agents`.

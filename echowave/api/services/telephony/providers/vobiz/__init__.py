@@ -50,7 +50,7 @@ async def _ensure_application_id(credentials: Dict[str, Any]) -> Dict[str, Any]:
     backend_endpoint, _ = await get_backend_endpoints()
     inbound_url = f"{backend_endpoint}/api/v1/telephony/inbound/run"
 
-    app_name = f"dograh-{uuid.uuid4().hex[:12]}"
+    app_name = f"decibyl-{uuid.uuid4().hex[:12]}"
     endpoint = f"{VOBIZ_API_BASE_URL}/v1/Account/{auth_id}/Application/"
     body = {
         "app_name": app_name,
@@ -105,7 +105,7 @@ async def _ensure_application_id(credentials: Dict[str, Any]) -> Dict[str, Any]:
 
 _UI_METADATA = ProviderUIMetadata(
     display_name="Vobiz",
-    docs_url="https://docs.dograh.com/integrations/telephony/vobiz",
+    docs_url="https://docs.decibyl.com/integrations/telephony/vobiz",
     fields=[
         ProviderUIField(
             name="auth_id",

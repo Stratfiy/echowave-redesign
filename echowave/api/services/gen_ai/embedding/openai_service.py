@@ -88,7 +88,7 @@ class OpenAIEmbeddingService(BaseEmbeddingService):
     def _request_kwargs(self) -> Dict[str, Any]:
         """Extra kwargs merged into every embeddings.create() call.
 
-        Override hook for subclasses (e.g. DograhEmbeddingService injects the MPS
+        Override hook for subclasses (e.g. DecibylEmbeddingService injects the MPS
         billing protocol here). The base service adds nothing.
         """
         return {}

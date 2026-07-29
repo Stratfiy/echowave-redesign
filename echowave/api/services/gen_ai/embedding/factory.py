@@ -1,6 +1,6 @@
-"""Factory for embedding services, including the Dograh-managed (MPS) path.
+"""Factory for embedding services, including the Decibyl-managed (MPS) path.
 
-Centralizes the provider branching (Azure BYOK / Dograh-managed / OpenAI-compatible
+Centralizes the provider branching (Azure BYOK / Decibyl-managed / OpenAI-compatible
 BYOK) that was previously duplicated across document ingestion, the search route,
 and the RAG tool, and resolves the MPS correlation id the same way the voice
 path does.
@@ -14,7 +14,7 @@ from api.db.db_client import DBClient
 
 from .azure_openai_service import AzureOpenAIEmbeddingService
 from .base import BaseEmbeddingService
-from .dograh_service import DograhEmbeddingService
+from .decibyl_service import DecibylEmbeddingService
 from .openai_service import OpenAIEmbeddingService
 
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
@@ -69,9 +69,9 @@ async def build_embedding_service(
 
     Args:
         correlation_id: A correlation id already available in context (e.g. the
-            running workflow's MPS correlation id). Used for the Dograh provider.
+            running workflow's MPS correlation id). Used for the Decibyl provider.
         resolve_correlation: When True and no ``correlation_id`` is supplied, resolve
-            one for the Dograh provider via ``resolve_embedding_correlation_id``
+            one for the Decibyl provider via ``resolve_embedding_correlation_id``
             (for calls made outside a workflow run: ingestion, manual search).
     """
     from api.services.configuration.registry import ServiceProviders
@@ -87,11 +87,11 @@ async def build_embedding_service(
             api_version=api_version or DEFAULT_AZURE_API_VERSION,
         )
 
-    if provider == ServiceProviders.DOGRAH.value:
+    if provider == ServiceProviders.DECIBYL.value:
         cid = correlation_id
         if cid is None and resolve_correlation:
             cid = await resolve_embedding_correlation_id(service_key=api_key)
-        return DograhEmbeddingService(
+        return DecibylEmbeddingService(
             db_client=db_client,
             api_key=api_key,
             model_id=model_id,

@@ -219,7 +219,7 @@ async def initiate_call(
         await call_concurrency.release_slot(concurrency_slot)
         raise
 
-    # Check Dograh quota after the run exists so hosted v2 can mint and store
+    # Check Decibyl quota after the run exists so hosted v2 can mint and store
     # the MPS correlation id before initiating the call.
     quota_result = await authorize_workflow_run_start(
         workflow_id=workflow.id,

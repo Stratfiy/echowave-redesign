@@ -5,7 +5,7 @@ Self-registers on import via ``register_package``.  Auto-discovered by
 ``api.services.integrations`` except ``base``, ``loader``, and ``registry``).
 
 Provides:
-- ``PaygentNodeData`` – Pydantic config node shown in the Dograh UI under
+- ``PaygentNodeData`` – Pydantic config node shown in the Decibyl UI under
   INTEGRATIONS → "Paygent"
 - ``create_runtime_sessions`` – live-call observer that accumulates usage data
 - ``run_completion`` – post-call REST delivery to the Paygent API

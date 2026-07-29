@@ -1,11 +1,11 @@
 ---
 title: "Authentication"
-description: "Configure how self-hosted EchoWave authenticates users — the default local provider, or Stack Auth for social login"
+description: "Configure how self-hosted Decibyl authenticates users — the default local provider, or Stack Auth for social login"
 ---
 
-Self-hosted EchoWave ships with a built-in **local** authentication provider (email + password, backed by a signed JWT). This is the default and needs no external service.
+Self-hosted Decibyl ships with a built-in **local** authentication provider (email + password, backed by a signed JWT). This is the default and needs no external service.
 
-To offer social logins (Google, GitHub, and others), you can delegate sign-in to **[Stack Auth](https://stack-auth.com)**. Enabling it is a **runtime** configuration change — set a few environment variables and restart. The prebuilt `echowaveai/echowave-api` and `echowaveai/echowave-ui` images work as-is; you do **not** need to rebuild or build from source.
+To offer social logins (Google, GitHub, and others), you can delegate sign-in to **[Stack Auth](https://stack-auth.com)**. Enabling it is a **runtime** configuration change — set a few environment variables and restart. The prebuilt `decibylai/decibyl-api` and `decibylai/decibyl-ui` images work as-is; you do **not** need to rebuild or build from source.
 
 <Note>
 The active provider is controlled by the backend `AUTH_PROVIDER` variable (`local` by default). The frontend discovers the provider — and, for Stack, its public client config — at runtime from the backend's `/api/v1/health` response, so the browser bundle never needs Stack values baked in at build time.

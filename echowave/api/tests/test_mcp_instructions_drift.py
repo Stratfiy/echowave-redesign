@@ -81,7 +81,7 @@ def _returned_error_codes(module) -> set[str]:
 @pytest.mark.asyncio
 async def test_guide_only_references_registered_tools():
     registered = {tool.name for tool in await mcp.list_tools()}
-    referenced = _referenced_tool_names(instructions_module.DOGRAH_MCP_INSTRUCTIONS)
+    referenced = _referenced_tool_names(instructions_module.DECIBYL_MCP_INSTRUCTIONS)
 
     assert referenced, "no tool references extracted — the regex likely broke"
     unknown = sorted(referenced - registered)

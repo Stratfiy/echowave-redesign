@@ -266,7 +266,7 @@ async def _perform_retrieval(
                 )
 
             # Search runs inside a workflow run: reuse the run's MPS correlation
-            # id. The Dograh-managed path forwards it via request metadata.
+            # id. The Decibyl-managed path forwards it via request metadata.
             embedding_service = await build_embedding_service(
                 db_client=db_client,
                 provider=embeddings_provider,

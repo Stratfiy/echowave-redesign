@@ -192,7 +192,7 @@ def _sample_edge_data() -> dict[str, Any]:
 @pytest.mark.asyncio
 async def test_generate_emits_imports_and_factories():
     code = await generate_code(_minimal_workflow(), workflow_name="test")
-    assert 'import { Workflow } from "@dograh/sdk";' in code
+    assert 'import { Workflow } from "@decibyl/sdk";' in code
     assert "startCall" in code
     assert "endCall" in code
     assert "wf.addTyped(startCall(" in code
@@ -277,8 +277,8 @@ async def test_generate_preserves_all_edge_dto_fields():
 
 @pytest.mark.asyncio
 async def test_parse_accepts_minimal_code():
-    code = """import { Workflow } from "@dograh/sdk";
-import { startCall, endCall } from "@dograh/sdk/typed";
+    code = """import { Workflow } from "@decibyl/sdk";
+import { startCall, endCall } from "@decibyl/sdk/typed";
 
 const wf = new Workflow({ name: "min" });
 const a = wf.addTyped(startCall({ name: "g", prompt: "hi" }));
@@ -296,7 +296,7 @@ wf.edge(a, b, { label: "done", condition: "wrapped" });
 
 @pytest.mark.asyncio
 async def test_parse_rejects_function_declaration():
-    code = """import { Workflow } from "@dograh/sdk";
+    code = """import { Workflow } from "@decibyl/sdk";
 const wf = new Workflow({ name: "x" });
 function evil() { return 1; }
 """
@@ -308,8 +308,8 @@ function evil() { return 1; }
 
 @pytest.mark.asyncio
 async def test_parse_rejects_unknown_field():
-    code = """import { Workflow } from "@dograh/sdk";
-import { startCall } from "@dograh/sdk/typed";
+    code = """import { Workflow } from "@decibyl/sdk";
+import { startCall } from "@decibyl/sdk/typed";
 const wf = new Workflow({ name: "x" });
 const a = wf.addTyped(startCall({ name: "g", prompt: "hi", promt: "typo" }));
 """
@@ -321,8 +321,8 @@ const a = wf.addTyped(startCall({ name: "g", prompt: "hi", promt: "typo" }));
 
 @pytest.mark.asyncio
 async def test_parse_rejects_unknown_variable_in_edge():
-    code = """import { Workflow } from "@dograh/sdk";
-import { startCall, endCall } from "@dograh/sdk/typed";
+    code = """import { Workflow } from "@decibyl/sdk";
+import { startCall, endCall } from "@decibyl/sdk/typed";
 const wf = new Workflow({ name: "x" });
 const a = wf.addTyped(startCall({ name: "g", prompt: "hi" }));
 wf.edge(a, missing, { label: "done", condition: "c" });
@@ -335,8 +335,8 @@ wf.edge(a, missing, { label: "done", condition: "c" });
 
 @pytest.mark.asyncio
 async def test_parse_requires_label_and_condition_on_edge():
-    code = """import { Workflow } from "@dograh/sdk";
-import { startCall, endCall } from "@dograh/sdk/typed";
+    code = """import { Workflow } from "@decibyl/sdk";
+import { startCall, endCall } from "@decibyl/sdk/typed";
 const wf = new Workflow({ name: "x" });
 const a = wf.addTyped(startCall({ name: "g", prompt: "hi" }));
 const b = wf.addTyped(endCall({ name: "d", prompt: "bye" }));
@@ -349,8 +349,8 @@ wf.edge(a, b, { label: "", condition: "c" });
 
 @pytest.mark.asyncio
 async def test_parse_rejects_unknown_edge_field():
-    code = """import { Workflow } from "@dograh/sdk";
-import { startCall, endCall } from "@dograh/sdk/typed";
+    code = """import { Workflow } from "@decibyl/sdk";
+import { startCall, endCall } from "@decibyl/sdk/typed";
 const wf = new Workflow({ name: "x" });
 const a = wf.addTyped(startCall({ name: "g", prompt: "hi" }));
 const b = wf.addTyped(endCall({ name: "d", prompt: "bye" }));

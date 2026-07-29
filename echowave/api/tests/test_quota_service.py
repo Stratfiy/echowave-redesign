@@ -12,14 +12,14 @@ from api.services.quota_service import QuotaCheckResult
 _UNSET = object()
 
 
-def _dograh_config(
+def _decibyl_config(
     api_key: str = "mps_sk_12345678",
     *,
     managed_service_version: int = 1,
 ):
     return SimpleNamespace(
         managed_service_version=managed_service_version,
-        llm=SimpleNamespace(provider=ServiceProviders.DOGRAH, api_key=api_key),
+        llm=SimpleNamespace(provider=ServiceProviders.DECIBYL, api_key=api_key),
         stt=None,
         tts=None,
         embeddings=None,
@@ -100,7 +100,7 @@ def _patch_workflow_context(monkeypatch, *, workflow=_UNSET, owner=None):
 async def test_authorize_workflow_run_uses_workflow_org_for_hosted_v2(
     monkeypatch,
 ):
-    get_config = AsyncMock(return_value=_dograh_config())
+    get_config = AsyncMock(return_value=_decibyl_config())
     authorize = AsyncMock(
         return_value={
             "allowed": True,
@@ -144,9 +144,9 @@ async def test_authorize_workflow_run_uses_workflow_org_for_hosted_v2(
         workflow_run_id=None,
         service_key=None,
         require_correlation_id=False,
-        minimum_credits=quota_service.MINIMUM_DOGRAH_CREDITS_FOR_CALL,
+        minimum_credits=quota_service.MINIMUM_DECIBYL_CREDITS_FOR_CALL,
         created_by="provider-123",
-        metadata={"dograh_user_id": "123", "workflow_id": 7},
+        metadata={"decibyl_user_id": "123", "workflow_id": 7},
     )
     check_usage.assert_not_awaited()
 
@@ -192,7 +192,7 @@ async def test_authorize_workflow_run_v2_insufficient_credits_prompts_billing(
     assert result.has_quota is False
     assert result.error_code == "insufficient_credits"
     assert "/billing" in result.error_message
-    assert "founders@dograh.com" not in result.error_message
+    assert "founders@decibyl.com" not in result.error_message
     authorize.assert_awaited_once()
     check_usage.assert_not_awaited()
 
@@ -202,7 +202,7 @@ async def test_authorize_workflow_run_oss_exhausted_key_blocks_run(
     monkeypatch,
 ):
     api_key = "mps_sk_12345678"
-    get_config = AsyncMock(return_value=_dograh_config(api_key))
+    get_config = AsyncMock(return_value=_decibyl_config(api_key))
     check_usage = AsyncMock(
         return_value={"total_credits_used": 500.0, "remaining_credits": 0.0}
     )
@@ -227,7 +227,7 @@ async def test_authorize_workflow_run_oss_exhausted_key_blocks_run(
 
     assert result.has_quota is False
     assert result.error_code == "quota_exceeded"
-    assert "app.dograh.com" in result.error_message
+    assert "app.decibyl.com" in result.error_message
     assert "/billing" not in result.error_message
     check_usage.assert_awaited_once_with(api_key)
 
@@ -239,7 +239,7 @@ async def test_authorize_workflow_run_managed_v2_stores_hosted_correlation(
     api_key = "mps_sk_12345678"
     workflow_run = SimpleNamespace(initial_context={"existing": "value"})
     get_config = AsyncMock(
-        return_value=_dograh_config(api_key, managed_service_version=2)
+        return_value=_decibyl_config(api_key, managed_service_version=2)
     )
     authorize = AsyncMock(
         return_value={
@@ -299,9 +299,9 @@ async def test_authorize_workflow_run_managed_v2_stores_hosted_correlation(
         workflow_run_id=88,
         service_key=api_key,
         require_correlation_id=True,
-        minimum_credits=quota_service.MINIMUM_DOGRAH_CREDITS_FOR_CALL,
+        minimum_credits=quota_service.MINIMUM_DECIBYL_CREDITS_FOR_CALL,
         created_by="provider-123",
-        metadata={"dograh_user_id": "123", "workflow_id": 7},
+        metadata={"decibyl_user_id": "123", "workflow_id": 7},
     )
     update_workflow_run.assert_awaited_once_with(
         88,
@@ -318,7 +318,7 @@ async def test_authorize_workflow_run_service_token_from_wrong_org_prompts_new_t
 ):
     api_key = "mps_sk_12345678"
     get_config = AsyncMock(
-        return_value=_dograh_config(api_key, managed_service_version=2)
+        return_value=_decibyl_config(api_key, managed_service_version=2)
     )
     request = httpx.Request(
         "POST",
@@ -375,9 +375,9 @@ async def test_authorize_workflow_run_service_token_from_wrong_org_prompts_new_t
         workflow_run_id=88,
         service_key=api_key,
         require_correlation_id=True,
-        minimum_credits=quota_service.MINIMUM_DOGRAH_CREDITS_FOR_CALL,
+        minimum_credits=quota_service.MINIMUM_DECIBYL_CREDITS_FOR_CALL,
         created_by="provider-123",
-        metadata={"dograh_user_id": "123", "workflow_id": 7},
+        metadata={"decibyl_user_id": "123", "workflow_id": 7},
     )
 
 
@@ -388,7 +388,7 @@ async def test_authorize_workflow_run_oss_uses_key_paths_not_workflow_org(
     api_key = "mps_sk_12345678"
     workflow_run = SimpleNamespace(initial_context={})
     get_config = AsyncMock(
-        return_value=_dograh_config(api_key, managed_service_version=2)
+        return_value=_decibyl_config(api_key, managed_service_version=2)
     )
     hosted_authorize = AsyncMock()
     check_usage = AsyncMock(
@@ -593,7 +593,7 @@ async def test_authorize_workflow_run_resolves_config_from_pinned_definition(
 
     workflow.workflow_configurations is synced to the draft on save, while the
     run executes its pinned definition — if the draft carries a different
-    Dograh service key, minting from the workflow column binds the correlation
+    Decibyl service key, minting from the workflow column binds the correlation
     to a key the run never uses and MPS rejects every model service call.
     """
     draft_configs = {"model_configuration_v2_override": {"key": "draft"}}
@@ -813,7 +813,7 @@ async def test_authorize_workflow_run_opens_when_hosted_mps_is_unreachable(
 ):
     request = httpx.Request(
         "POST",
-        "https://services.dograh.com/api/v1/billing/accounts/42/run-authorization",
+        "https://services.decibyl.com/api/v1/billing/accounts/42/run-authorization",
     )
 
     monkeypatch.setattr(quota_service, "DEPLOYMENT_MODE", "saas")
@@ -845,7 +845,7 @@ async def test_authorize_workflow_run_fails_closed_on_hosted_mps_http_error(
 ):
     request = httpx.Request(
         "POST",
-        "https://services.dograh.com/api/v1/billing/accounts/42/run-authorization",
+        "https://services.decibyl.com/api/v1/billing/accounts/42/run-authorization",
     )
     response = httpx.Response(503, request=request)
 
@@ -879,7 +879,7 @@ async def test_authorize_workflow_run_fails_closed_on_hosted_mps_http_error(
 
 @pytest.mark.asyncio
 async def test_authorize_workflow_run_fails_closed_on_invalid_mps_url(monkeypatch):
-    request = httpx.Request("POST", "ftp://services.dograh.com/run-authorization")
+    request = httpx.Request("POST", "ftp://services.decibyl.com/run-authorization")
 
     monkeypatch.setattr(quota_service, "DEPLOYMENT_MODE", "saas")
     _patch_workflow_context(monkeypatch)
@@ -914,7 +914,7 @@ async def test_authorize_workflow_run_opens_when_oss_quota_mps_is_unreachable(
 ):
     request = httpx.Request(
         "GET",
-        "https://services.dograh.com/api/v1/service-keys/usage/self",
+        "https://services.decibyl.com/api/v1/service-keys/usage/self",
     )
 
     monkeypatch.setattr(quota_service, "DEPLOYMENT_MODE", "oss")
@@ -922,7 +922,7 @@ async def test_authorize_workflow_run_opens_when_oss_quota_mps_is_unreachable(
     monkeypatch.setattr(
         quota_service,
         "get_effective_ai_model_configuration_for_workflow",
-        AsyncMock(return_value=_dograh_config()),
+        AsyncMock(return_value=_decibyl_config()),
     )
     monkeypatch.setattr(
         quota_service.mps_service_key_client,
@@ -944,7 +944,7 @@ async def test_authorize_workflow_run_fails_closed_on_oss_quota_mps_http_error(
 ):
     request = httpx.Request(
         "GET",
-        "https://services.dograh.com/api/v1/service-keys/usage/self",
+        "https://services.decibyl.com/api/v1/service-keys/usage/self",
     )
     response = httpx.Response(503, request=request)
 
@@ -953,7 +953,7 @@ async def test_authorize_workflow_run_fails_closed_on_oss_quota_mps_http_error(
     monkeypatch.setattr(
         quota_service,
         "get_effective_ai_model_configuration_for_workflow",
-        AsyncMock(return_value=_dograh_config()),
+        AsyncMock(return_value=_decibyl_config()),
     )
     monkeypatch.setattr(
         quota_service.mps_service_key_client,
@@ -982,7 +982,7 @@ async def test_authorize_workflow_run_opens_when_oss_correlation_mps_is_unreacha
 ):
     request = httpx.Request(
         "POST",
-        "https://services.dograh.com/api/v1/service-keys/correlation-id/self",
+        "https://services.decibyl.com/api/v1/service-keys/correlation-id/self",
     )
 
     monkeypatch.setattr(quota_service, "DEPLOYMENT_MODE", "oss")
@@ -995,7 +995,7 @@ async def test_authorize_workflow_run_opens_when_oss_correlation_mps_is_unreacha
     monkeypatch.setattr(
         quota_service,
         "get_effective_ai_model_configuration_for_workflow",
-        AsyncMock(return_value=_dograh_config(managed_service_version=2)),
+        AsyncMock(return_value=_decibyl_config(managed_service_version=2)),
     )
     monkeypatch.setattr(
         quota_service.mps_service_key_client,
@@ -1038,7 +1038,7 @@ async def test_authorize_workflow_run_fails_closed_when_storing_oss_correlation(
     monkeypatch.setattr(
         quota_service,
         "get_effective_ai_model_configuration_for_workflow",
-        AsyncMock(return_value=_dograh_config(managed_service_version=2)),
+        AsyncMock(return_value=_decibyl_config(managed_service_version=2)),
     )
     monkeypatch.setattr(
         quota_service.mps_service_key_client,

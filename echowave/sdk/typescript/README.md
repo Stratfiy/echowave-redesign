@@ -1,16 +1,16 @@
-# @dograh/sdk
+# @decibyl/sdk
 
-Typed builder for Dograh voice-AI workflows. Fetches the node-spec catalog from
-the Dograh backend at session start, validates every call against it at the
+Typed builder for Decibyl voice-AI workflows. Fetches the node-spec catalog from
+the Decibyl backend at session start, validates every call against it at the
 call site, and produces wire-format JSON that round-trips through the Python
 `ReactFlowDTO`.
 
 ## Install
 
 ```bash
-npm install @dograh/sdk
+npm install @decibyl/sdk
 # or
-pnpm add @dograh/sdk
+pnpm add @decibyl/sdk
 ```
 
 For local development against a checked-out monorepo, add a tsconfig paths
@@ -19,7 +19,7 @@ entry:
 ```json
 {
   "paths": {
-    "@dograh/sdk": ["../sdk/typescript/src/index.ts"]
+    "@decibyl/sdk": ["../sdk/typescript/src/index.ts"]
   }
 }
 ```
@@ -27,11 +27,11 @@ entry:
 ## Usage
 
 ```ts
-import { DograhClient, Workflow } from "@dograh/sdk";
+import { DecibylClient, Workflow } from "@decibyl/sdk";
 
-const client = new DograhClient({
+const client = new DecibylClient({
   baseUrl: "http://localhost:8000",
-  apiKey: process.env.DOGRAH_API_KEY,
+  apiKey: process.env.DECIBYL_API_KEY,
 });
 
 const wf = new Workflow({ client, name: "loan_qualification" });
@@ -82,8 +82,8 @@ lets through.
 ## Environment
 
 ```bash
-DOGRAH_API_URL=http://localhost:8000   # default
-DOGRAH_API_KEY=sk-...                  # sent as X-API-Key
+DECIBYL_API_URL=http://localhost:8000   # default
+DECIBYL_API_KEY=sk-...                  # sent as X-API-Key
 ```
 
 ## License

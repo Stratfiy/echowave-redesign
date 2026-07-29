@@ -6,15 +6,15 @@ from pipecat.adapters.schemas.tools_schema import ToolsSchema
 
 from api.services.configuration.registry import ServiceProviders
 from api.services.pipecat.gemini_json_schema_adapter import (
-    DograhGeminiJSONSchemaAdapter,
+    DecibylGeminiJSONSchemaAdapter,
 )
-from api.services.pipecat.realtime.gemini_live import DograhGeminiLiveLLMService
+from api.services.pipecat.realtime.gemini_live import DecibylGeminiLiveLLMService
 from api.services.pipecat.realtime.gemini_live_vertex import (
-    DograhGeminiLiveVertexLLMService,
+    DecibylGeminiLiveVertexLLMService,
 )
 from api.services.pipecat.service_factory import (
-    DograhGoogleLLMService,
-    DograhGoogleVertexLLMService,
+    DecibylGoogleLLMService,
+    DecibylGoogleVertexLLMService,
     create_llm_service_from_provider,
 )
 
@@ -39,7 +39,7 @@ def test_gemini_tools_use_json_schema_parameters_for_external_schemas():
         required=["customerEmail"],
     )
 
-    tools = DograhGeminiJSONSchemaAdapter().to_provider_tools_format(
+    tools = DecibylGeminiJSONSchemaAdapter().to_provider_tools_format(
         ToolsSchema(standard_tools=[function_schema])
     )
 
@@ -72,7 +72,7 @@ def test_gemini_tools_use_json_schema_parameters_for_no_argument_tools():
         required=[],
     )
 
-    tools = DograhGeminiJSONSchemaAdapter().to_provider_tools_format(
+    tools = DecibylGeminiJSONSchemaAdapter().to_provider_tools_format(
         ToolsSchema(standard_tools=[function_schema])
     )
 
@@ -87,14 +87,14 @@ def test_gemini_tools_use_json_schema_parameters_for_no_argument_tools():
     GenerateContentConfig(tools=tools)
 
 
-def test_google_service_classes_use_dograh_gemini_adapter_class():
-    assert DograhGoogleLLMService.adapter_class is DograhGeminiJSONSchemaAdapter
-    assert DograhGoogleVertexLLMService.adapter_class is DograhGeminiJSONSchemaAdapter
+def test_google_service_classes_use_decibyl_gemini_adapter_class():
+    assert DecibylGoogleLLMService.adapter_class is DecibylGeminiJSONSchemaAdapter
+    assert DecibylGoogleVertexLLMService.adapter_class is DecibylGeminiJSONSchemaAdapter
 
 
-def test_google_llm_service_factory_uses_dograh_service_class():
+def test_google_llm_service_factory_uses_decibyl_service_class():
     with patch(
-        "api.services.pipecat.service_factory.DograhGoogleLLMService",
+        "api.services.pipecat.service_factory.DecibylGoogleLLMService",
     ) as mock_service:
         result = create_llm_service_from_provider(
             provider=ServiceProviders.GOOGLE.value,
@@ -107,9 +107,9 @@ def test_google_llm_service_factory_uses_dograh_service_class():
     assert mock_service.call_args.kwargs["settings"].model == "gemini-2.5-flash"
 
 
-def test_google_vertex_llm_service_factory_uses_dograh_service_class():
+def test_google_vertex_llm_service_factory_uses_decibyl_service_class():
     with patch(
-        "api.services.pipecat.service_factory.DograhGoogleVertexLLMService",
+        "api.services.pipecat.service_factory.DecibylGoogleVertexLLMService",
     ) as mock_service:
         result = create_llm_service_from_provider(
             provider=ServiceProviders.GOOGLE_VERTEX.value,
@@ -126,26 +126,26 @@ def test_google_vertex_llm_service_factory_uses_dograh_service_class():
     assert mock_service.call_args.kwargs["settings"].model == "gemini-2.5-pro"
 
 
-def test_gemini_live_service_classes_use_dograh_gemini_adapter_class():
-    assert DograhGeminiLiveLLMService.adapter_class is DograhGeminiJSONSchemaAdapter
-    # Vertex Live inherits adapter_class from DograhGeminiLiveLLMService via MRO.
+def test_gemini_live_service_classes_use_decibyl_gemini_adapter_class():
+    assert DecibylGeminiLiveLLMService.adapter_class is DecibylGeminiJSONSchemaAdapter
+    # Vertex Live inherits adapter_class from DecibylGeminiLiveLLMService via MRO.
     assert (
-        DograhGeminiLiveVertexLLMService.adapter_class is DograhGeminiJSONSchemaAdapter
+        DecibylGeminiLiveVertexLLMService.adapter_class is DecibylGeminiJSONSchemaAdapter
     )
 
 
-def test_vertex_live_inherits_dograh_node_transition_lifecycle():
+def test_vertex_live_inherits_decibyl_node_transition_lifecycle():
     assert (
-        DograhGeminiLiveVertexLLMService._requires_node_transition_context_aggregation
-        is DograhGeminiLiveLLMService._requires_node_transition_context_aggregation
+        DecibylGeminiLiveVertexLLMService._requires_node_transition_context_aggregation
+        is DecibylGeminiLiveLLMService._requires_node_transition_context_aggregation
     )
     assert (
-        DograhGeminiLiveVertexLLMService._run_or_defer_function_calls
-        is DograhGeminiLiveLLMService._run_or_defer_function_calls
+        DecibylGeminiLiveVertexLLMService._run_or_defer_function_calls
+        is DecibylGeminiLiveLLMService._run_or_defer_function_calls
     )
     assert (
-        DograhGeminiLiveVertexLLMService._reconnect_for_node_transition
-        is DograhGeminiLiveLLMService._reconnect_for_node_transition
+        DecibylGeminiLiveVertexLLMService._reconnect_for_node_transition
+        is DecibylGeminiLiveLLMService._reconnect_for_node_transition
     )
 
 
@@ -162,7 +162,7 @@ def test_gemini_live_config_accepts_json_schema_tools():
         required=["customerEmail"],
     )
 
-    tools = DograhGeminiJSONSchemaAdapter().to_provider_tools_format(
+    tools = DecibylGeminiJSONSchemaAdapter().to_provider_tools_format(
         ToolsSchema(standard_tools=[function_schema])
     )
 

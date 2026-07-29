@@ -15,7 +15,7 @@ def validate_user_configured_service_url(
     """Restrict user-configured service URLs in hosted deployments.
 
     OSS deployments commonly point model services at localhost or private LAN
-    hosts. SaaS deployments must not allow users to make Dograh infrastructure
+    hosts. SaaS deployments must not allow users to make Decibyl infrastructure
     connect to private/internal network locations.
     """
     if DEPLOYMENT_MODE == "oss":

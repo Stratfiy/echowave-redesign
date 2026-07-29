@@ -1,9 +1,9 @@
-"""Dograh subclass of pipecat's Ultravox realtime LLM service.
+"""Decibyl subclass of pipecat's Ultravox realtime LLM service.
 
 Ultravox is audio-native and realtime. Its native call stages allow a client
 tool result to atomically change the system prompt and tools while preserving
 the call's server-side conversation history. This wrapper adapts that model to
-the Dograh engine contract by:
+the Decibyl engine contract by:
 
 - deferring the first call creation until the engine queues the initial node
   opening via ``TTSSpeakFrame`` or ``LLMContextFrame``
@@ -12,7 +12,7 @@ the Dograh engine contract by:
 - updating the next stage's system prompt and selected tools without a
   disconnect/reconnect cycle
 - deferring workflow-control tools until any active Ultravox response ends
-- handling Dograh-only frames such as user mute and idle append prompts
+- handling Decibyl-only frames such as user mute and idle append prompts
 - tagging user transcripts with ``finalized=True`` for downstream parity
 """
 
@@ -44,8 +44,8 @@ from pipecat.services.ultravox.llm import (
 from pipecat.utils.time import time_now_iso8601
 
 
-class DograhUltravoxOneShotInputParams(OneShotInputParams):
-    """Dograh-friendly OneShot params with string voice support."""
+class DecibylUltravoxOneShotInputParams(OneShotInputParams):
+    """Decibyl-friendly OneShot params with string voice support."""
 
     voice: str | None = Field(default=None)
 
@@ -53,8 +53,8 @@ class DograhUltravoxOneShotInputParams(OneShotInputParams):
 _ULTRAVOX_MAX_TOOL_TIMEOUT_SECS = 40.0
 
 
-class DograhUltravoxRealtimeLLMService(UltravoxRealtimeLLMService):
-    """Ultravox realtime with Dograh engine integration quirks."""
+class DecibylUltravoxRealtimeLLMService(UltravoxRealtimeLLMService):
+    """Ultravox realtime with Decibyl engine integration quirks."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -77,7 +77,7 @@ class DograhUltravoxRealtimeLLMService(UltravoxRealtimeLLMService):
         self._pending_user_text_messages: list[str] = []
 
     async def start(self, frame):
-        # Dograh defers call creation until the engine queues the node opening.
+        # Decibyl defers call creation until the engine queues the node opening.
         await LLMService.start(self, frame)
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
@@ -204,7 +204,7 @@ class DograhUltravoxRealtimeLLMService(UltravoxRealtimeLLMService):
         """Commit any received final user transcript before changing stages.
 
         Ultravox preserves its own audio-native history across a stage change,
-        but Dograh's local context still needs the final transcript before the
+        but Decibyl's local context still needs the final transcript before the
         transition handler updates the workflow node.
         """
         return True
@@ -415,7 +415,7 @@ class DograhUltravoxRealtimeLLMService(UltravoxRealtimeLLMService):
         *,
         greeting_text: str | None,
         agent_speaks_first: bool,
-    ) -> DograhUltravoxOneShotInputParams:
+    ) -> DecibylUltravoxOneShotInputParams:
         current_params = self._params
         extra = {
             key: value
@@ -433,7 +433,7 @@ class DograhUltravoxRealtimeLLMService(UltravoxRealtimeLLMService):
         if isinstance(output_medium, _NotGiven):
             output_medium = current_params.output_medium
 
-        return DograhUltravoxOneShotInputParams(
+        return DecibylUltravoxOneShotInputParams(
             api_key=current_params.api_key,
             system_prompt=self._current_system_instruction(),
             temperature=current_params.temperature,

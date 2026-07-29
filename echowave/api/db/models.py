@@ -118,7 +118,7 @@ class OrganizationModel(Base):
         comment="Deprecated. MPS owns quota and credit ledger state.",
         info={"deprecated": True},
     )
-    quota_dograh_tokens = Column(
+    quota_decibyl_tokens = Column(
         Integer,
         nullable=False,
         default=0,
@@ -638,13 +638,13 @@ class OrganizationUsageCycleModel(Base):
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
     period_start = Column(DateTime(timezone=True), nullable=False)
     period_end = Column(DateTime(timezone=True), nullable=False)
-    quota_dograh_tokens = Column(
+    quota_decibyl_tokens = Column(
         Integer,
         nullable=False,
         comment="Deprecated. MPS owns quota and credit ledger state.",
         info={"deprecated": True},
     )
-    used_dograh_tokens = Column(Float, nullable=False, default=0)
+    used_decibyl_tokens = Column(Float, nullable=False, default=0)
     total_duration_seconds = Column(
         Integer, nullable=False, default=0, server_default=text("0")
     )

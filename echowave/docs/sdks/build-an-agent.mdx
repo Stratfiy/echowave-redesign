@@ -1,14 +1,14 @@
 ---
 title: "Build an agent"
-description: "Assemble a EchoWave voice agent programmatically with the SDK and save it as a draft"
+description: "Assemble a Decibyl voice agent programmatically with the SDK and save it as a draft"
 ---
 
 The SDK mirrors the node-and-edge model of the [Voice Agent Builder](/voice-agent/introduction). You create a `Workflow`, add nodes (`startCall`, `agentNode`, `endCall`, …) with `add()`, connect them with `edge()`, and persist the result via `save_workflow`.
 
 ## Prerequisites
 
-- A EchoWave [API key](/configurations/api-keys) exported as `ECHOWAVE_API_KEY`
-- An existing agent ID to save drafts against (create one in the EchoWave UI or via [`POST /api/v1/workflow/create`](/api-reference/agents/create-from-template))
+- A Decibyl [API key](/configurations/api-keys) exported as `DECIBYL_API_KEY`
+- An existing agent ID to save drafts against (create one in the Decibyl UI or via [`POST /api/v1/workflow/create`](/api-reference/agents/create-from-template))
 
 ## Build and save
 
@@ -16,9 +16,9 @@ The example below builds a three-node loan-qualification agent and saves it as a
 
 <CodeGroup>
 ```python Python
-from echowave_sdk import EchoWaveClient, Workflow
+from decibyl_sdk import DecibylClient, Workflow
 
-with EchoWaveClient(api_key="YOUR_API_KEY") as client:
+with DecibylClient(api_key="YOUR_API_KEY") as client:
     wf = Workflow(client=client, name="loan_qualification")
 
     greeting = wf.add(
@@ -43,9 +43,9 @@ with EchoWaveClient(api_key="YOUR_API_KEY") as client:
     client.save_workflow(workflow_id=123, workflow=wf)
 ```
 ```typescript TypeScript
-import { EchoWaveClient, Workflow } from "@echowave/sdk";
+import { DecibylClient, Workflow } from "@decibyl/sdk";
 
-const client = new EchoWaveClient({ apiKey: "YOUR_API_KEY" });
+const client = new DecibylClient({ apiKey: "YOUR_API_KEY" });
 const wf = new Workflow({ client, name: "loan_qualification" });
 
 const greeting = await wf.add({

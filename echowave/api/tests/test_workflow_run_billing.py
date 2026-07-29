@@ -89,7 +89,7 @@ async def test_report_workflow_run_platform_usage_reports_duration_without_corre
         metadata={
             "source": "workflow_run_completion",
             "workflow_id": workflow_run.workflow_id,
-            "duration_source": "dograh_usage_info",
+            "duration_source": "decibyl_usage_info",
         },
     )
 

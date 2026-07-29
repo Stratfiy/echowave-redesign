@@ -1,6 +1,6 @@
 """Per-call cost computation for the Tuner export.
 
-Dograh no longer rates calls locally, so when a user wants Tuner to show a
+Decibyl no longer rates calls locally, so when a user wants Tuner to show a
 cost they provide their own per-unit prices on the Tuner node (the "bring your
 own keys" model). This module turns those rates plus the call's measured usage
 (`workflow_run.usage_info`) into a single `call_cost` value in cents, which is

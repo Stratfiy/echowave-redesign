@@ -1,7 +1,7 @@
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from api.mcp_server.instructions import DOGRAH_MCP_INSTRUCTIONS
+from api.mcp_server.instructions import DECIBYL_MCP_INSTRUCTIONS
 from api.mcp_server.tools.catalog import (
     list_credentials,
     list_documents,
@@ -17,7 +17,7 @@ from api.mcp_server.tools.tool_creation import create_tool
 from api.mcp_server.tools.voice_prompting_guide import get_voice_prompting_guide
 from api.mcp_server.tools.workflows import get_workflow, list_workflows
 
-mcp = FastMCP("dograh", instructions=DOGRAH_MCP_INSTRUCTIONS)
+mcp = FastMCP("decibyl", instructions=DECIBYL_MCP_INSTRUCTIONS)
 
 for _tool in (
     create_workflow,

@@ -1,4 +1,4 @@
-// Workflow builder mirroring `sdk/python/src/dograh_sdk/workflow.py`.
+// Workflow builder mirroring `sdk/python/src/decibyl_sdk/workflow.py`.
 //
 // Users compose workflows via `workflow.add({ type: "agentNode", ... })`
 // and `workflow.edge(source, target, ...)`. Each `add()` call is
@@ -80,7 +80,7 @@ export class Workflow {
 
     /**
      * Typed variant of `add()` — takes a typed node object from
-     * `@dograh/sdk/typed` (or its discriminated-union form) instead of
+     * `@decibyl/sdk/typed` (or its discriminated-union form) instead of
      * raw kwargs.
      *
      * Equivalent to:

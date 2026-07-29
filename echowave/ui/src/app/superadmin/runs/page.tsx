@@ -501,7 +501,7 @@ export default function RunsPage() {
                                                                         }),
                                                                     );
                                                                     window.open(
-                                                                        `https://app.axiom.co/echowave-of6c/stream/${process.env.NEXT_PUBLIC_AXIOM_LOG_DATASET}?q=${query}`,
+                                                                        `https://app.axiom.co/decibyl-of6c/stream/${process.env.NEXT_PUBLIC_AXIOM_LOG_DATASET}?q=${query}`,
                                                                         '_blank',
                                                                     );
                                                                 }}

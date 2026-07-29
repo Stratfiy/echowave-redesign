@@ -130,7 +130,7 @@ export function EmbedDialog({
                             callToActionText,
                             size: "medium",
                             autoStart: false,
-                            containerId: embedMode === "inline" ? "echowave-inline-container" : undefined,
+                            containerId: embedMode === "inline" ? "decibyl-inline-container" : undefined,
                         },
                         usage_limit: null,
                         expires_in_days: null,
@@ -437,8 +437,8 @@ export function EmbedDialog({
                                                 <ul className="text-sm space-y-2 text-muted-foreground">
                                                     <li>• Add the embed script tag to your page (see below).</li>
                                                     <li>• The widget renders no UI - render your own buttons.</li>
-                                                    <li>• Call <code className="text-xs">window.EchoWaveWidget.start()</code> to begin a call.</li>
-                                                    <li>• Call <code className="text-xs">window.EchoWaveWidget.end()</code> to end it.</li>
+                                                    <li>• Call <code className="text-xs">window.DecibylWidget.start()</code> to begin a call.</li>
+                                                    <li>• Call <code className="text-xs">window.DecibylWidget.end()</code> to end it.</li>
                                                     <li>• Subscribe to <code className="text-xs">onCallStart</code>, <code className="text-xs">onCallEnd</code>, <code className="text-xs">onStatusChange</code>, <code className="text-xs">onError</code> to drive your UI.</li>
                                                     <li>• <code className="text-xs">start()</code> must run inside a user-gesture handler (click) so the browser grants microphone access.</li>
                                                 </ul>
@@ -453,16 +453,16 @@ export function EmbedDialog({
                                                     <code className="text-blue-800 dark:text-blue-200">{`// Vanilla JS - keep your own state, render however you want
 let callStatus = 'idle';
 
-window.EchoWaveWidget?.onStatusChange((status) => {
+window.DecibylWidget?.onStatusChange((status) => {
   callStatus = status;
   // ...trigger your render here (re-paint DOM, dispatch event, etc.)
 });
 
 document.getElementById('talk-btn').addEventListener('click', () => {
   if (callStatus === 'connected' || callStatus === 'connecting') {
-    window.EchoWaveWidget.end();
+    window.DecibylWidget.end();
   } else {
-    window.EchoWaveWidget.start();
+    window.DecibylWidget.start();
   }
 });`}</code>
                                                 </pre>
@@ -472,12 +472,12 @@ document.getElementById('talk-btn').addEventListener('click', () => {
   const [status, setStatus] = useState('idle');
 
   useEffect(() => {
-    window.EchoWaveWidget?.onStatusChange(setStatus);
+    window.DecibylWidget?.onStatusChange(setStatus);
   }, []);
 
   const isLive = status === 'connected' || status === 'connecting';
   return (
-    <button onClick={() => isLive ? window.EchoWaveWidget.end() : window.EchoWaveWidget.start()}>
+    <button onClick={() => isLive ? window.DecibylWidget.end() : window.DecibylWidget.start()}>
       {/* render anything you want from \`status\` */}
     </button>
   );
@@ -493,26 +493,26 @@ document.getElementById('talk-btn').addEventListener('click', () => {
                                             <div className="rounded-lg bg-muted/50 p-4">
                                                 <h4 className="font-medium mb-2">Integration Instructions</h4>
                                                 <ul className="text-sm space-y-2 text-muted-foreground">
-                                                    <li>• Add a div with id=&quot;echowave-inline-container&quot; where you want the widget</li>
+                                                    <li>• Add a div with id=&quot;decibyl-inline-container&quot; where you want the widget</li>
                                                     <li>• The widget will render inside this container</li>
                                                     <li>• You have full control over the container&apos;s styling</li>
-                                                    <li>• Call window.EchoWaveWidget.start() to begin the call</li>
-                                                    <li>• Call window.EchoWaveWidget.end() to end the call</li>
+                                                    <li>• Call window.DecibylWidget.start() to begin the call</li>
+                                                    <li>• Call window.DecibylWidget.end() to end the call</li>
                                                 </ul>
                                             </div>
 
                                             <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 p-4 border border-blue-200 dark:border-blue-800">
                                                 <h4 className="font-medium mb-2 text-blue-900 dark:text-blue-100">Example React Component</h4>
                                                 <pre className="text-xs overflow-x-auto">
-                                                    <code className="text-blue-800 dark:text-blue-200">{`export function EchoWaveAgent() {
+                                                    <code className="text-blue-800 dark:text-blue-200">{`export function DecibylAgent() {
   const [isCallActive, setIsCallActive] = useState(false);
 
   useEffect(() => {
     // Widget will auto-initialize when script loads
-    window.EchoWaveWidget?.onCallStart(() => {
+    window.DecibylWidget?.onCallStart(() => {
       setIsCallActive(true);
     });
-    window.EchoWaveWidget?.onCallEnd(() => {
+    window.DecibylWidget?.onCallEnd(() => {
       setIsCallActive(false);
     });
   }, []);
@@ -520,11 +520,11 @@ document.getElementById('talk-btn').addEventListener('click', () => {
   return (
     <div className="my-8">
       <h2>Talk to Our Agent</h2>
-      <div id="echowave-inline-container" className="min-h-[400px]">
+      <div id="decibyl-inline-container" className="min-h-[400px]">
         {/* Widget renders here */}
       </div>
       <button
-        onClick={() => window.EchoWaveWidget?.start()}
+        onClick={() => window.DecibylWidget?.start()}
         disabled={isCallActive}
       >
         Start Call

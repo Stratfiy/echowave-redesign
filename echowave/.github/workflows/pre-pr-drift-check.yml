@@ -96,5 +96,5 @@ jobs:
         with:
           payload: |
             {
-              "text": "❌ Dograh pre-PR drift check failed on ${{ github.ref_name }} by ${{ github.actor }} - <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>"
+              "text": "❌ Decibyl pre-PR drift check failed on ${{ github.ref_name }} by ${{ github.actor }} - <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>"
             }

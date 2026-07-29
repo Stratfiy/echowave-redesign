@@ -6,7 +6,7 @@ set -euo pipefail
 # then polls it, which produces ECONNREFUSED log spam every ~20s for ports
 # that aren't bound yet. The Ports panel auto-detects bound ports anyway.
 cat <<'EOF'
-Dograh devcontainer ready.
+Decibyl devcontainer ready.
 
 Start the backend:
   bash scripts/start_services_dev.sh

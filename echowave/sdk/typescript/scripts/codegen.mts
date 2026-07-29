@@ -3,7 +3,7 @@
 // Reads NodeSpecs from the live backend or a local JSON file and emits
 // one `<kebab-case>.ts` per node type into `src/typed/` — each with a
 // discriminated-union interface + a factory. The generated files are
-// committed so `npm install @dograh/sdk` ships typed classes without
+// committed so `npm install @decibyl/sdk` ships typed classes without
 // requiring a regen step.
 //
 // Run via `npm run codegen` or:
@@ -126,7 +126,7 @@ function renderSpecFile(spec: NodeSpec): string {
 
     const header = `// GENERATED — do not edit by hand.
 //
-// Regenerate with \`npm run codegen\` against the target Dograh backend.
+// Regenerate with \`npm run codegen\` against the target Decibyl backend.
 // Source of truth: the backend's model-backed node-spec catalog served
 // from \`/api/v1/node-types\`.
 `;

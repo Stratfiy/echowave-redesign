@@ -62,7 +62,7 @@
                 "y": 35
             },
             "data": {
-                "prompt": "Hello, I am Abhishek from Dograh. ",
+                "prompt": "Hello, I am Abhishek from Decibyl. ",
                 "name": "Start Call",
                 "is_start": true
             },
@@ -81,7 +81,7 @@
                 "y": 987.4345801025363
             },
             "data": {
-                "prompt": "Thank you for calling Dograh. Have a great day!",
+                "prompt": "Thank you for calling Decibyl. Have a great day!",
                 "name": "End Call"
             },
             "measured": {

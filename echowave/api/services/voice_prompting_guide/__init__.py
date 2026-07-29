@@ -1,5 +1,5 @@
 """Voice-prompting guide: atoms × stage lenses, surfaced to the LLM
-that authors Dograh voice workflows.
+that authors Decibyl voice workflows.
 
 The atom is the unit of guidance. Each atom is registered once; the
 resolver assembles stage briefings on demand. See `_base.py` for the

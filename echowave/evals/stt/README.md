@@ -36,7 +36,7 @@ python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize
 python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize --providers deepgram
 
 # Test with keyterm boosting (Deepgram)
-python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize --keyterms "Dograh" "Pipecat"
+python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize --keyterms "Decibyl" "Pipecat"
 
 # Use different sample rate (default: 8000 Hz)
 python -m evals.stt.benchmark audio/multi_speaker.m4a --diarize --sample-rate 16000

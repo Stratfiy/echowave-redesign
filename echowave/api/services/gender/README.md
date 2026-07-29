@@ -25,7 +25,7 @@ https://catalog.data.gov/dataset/baby-names-from-social-security-card-applicatio
 
 ```bash
 # Navigate to the gender service directory
-cd dograh/api/services/gender/
+cd decibyl/api/services/gender/
 
 # Run the model builder
 python build_model.py

@@ -1,13 +1,13 @@
 ---
 title: "Place an outbound call"
-description: "Trigger a EchoWave voice agent to call a phone number from the SDK"
+description: "Trigger a Decibyl voice agent to call a phone number from the SDK"
 ---
 
-Use the SDK to place a test outbound call from a specific agent to a phone number. This is the same endpoint used by the **Test Call** button in the EchoWave UI.
+Use the SDK to place a test outbound call from a specific agent to a phone number. This is the same endpoint used by the **Test Call** button in the Decibyl UI.
 
 ## Prerequisites
 
-- A EchoWave [API key](/configurations/api-keys) exported as `ECHOWAVE_API_KEY`
+- A Decibyl [API key](/configurations/api-keys) exported as `DECIBYL_API_KEY`
 - A published agent (you need the agent ID)
 - A configured telephony provider — see [Telephony](/integrations/telephony/overview) for Twilio, Vonage, and other setups
 
@@ -15,10 +15,10 @@ Use the SDK to place a test outbound call from a specific agent to a phone numbe
 
 <CodeGroup>
 ```python Python
-from echowave_sdk import EchoWaveClient
-from echowave_sdk._generated_models import InitiateCallRequest
+from decibyl_sdk import DecibylClient
+from decibyl_sdk._generated_models import InitiateCallRequest
 
-with EchoWaveClient(api_key="YOUR_API_KEY") as client:
+with DecibylClient(api_key="YOUR_API_KEY") as client:
     client.test_phone_call(
         body=InitiateCallRequest(
             workflow_id=123,
@@ -27,9 +27,9 @@ with EchoWaveClient(api_key="YOUR_API_KEY") as client:
     )
 ```
 ```typescript TypeScript
-import { EchoWaveClient } from "@echowave/sdk";
+import { DecibylClient } from "@decibyl/sdk";
 
-const client = new EchoWaveClient({ apiKey: "YOUR_API_KEY" });
+const client = new DecibylClient({ apiKey: "YOUR_API_KEY" });
 
 await client.testPhoneCall({
     body: {

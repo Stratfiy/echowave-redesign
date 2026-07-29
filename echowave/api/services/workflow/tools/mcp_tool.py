@@ -66,7 +66,7 @@ def namespace_function_name(
 ) -> str:
     """Build a collision-safe LLM function name: ``mcp__<slug>__<tool>``.
 
-    ``slug`` is derived from the Dograh ToolModel name; if it slugifies to
+    ``slug`` is derived from the Decibyl ToolModel name; if it slugifies to
     empty, ``fallback`` (e.g. first 8 chars of tool_uuid) is used instead.
     """
     slug = _slugify(tool_name) or _slugify(fallback) or "server"

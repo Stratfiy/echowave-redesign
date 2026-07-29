@@ -1,11 +1,11 @@
 ---
 name: review-pr
-description: Review a Dograh pull request, branch diff, or pasted patch for repo-specific security and correctness risks that are not obvious from generic FastAPI, Next.js, or Python conventions. Use when the user asks to review a PR, audit a diff, check whether changes are safe to merge, review their own changes, or asks what to look for in a Dograh PR. Focus on tenant isolation, route auth, webhook signing and org derivation, DB layering, worker-sync, migrations, generated SDK usage, and test hazards.
+description: Review a Decibyl pull request, branch diff, or pasted patch for repo-specific security and correctness risks that are not obvious from generic FastAPI, Next.js, or Python conventions. Use when the user asks to review a PR, audit a diff, check whether changes are safe to merge, review their own changes, or asks what to look for in a Decibyl PR. Focus on tenant isolation, route auth, webhook signing and org derivation, DB layering, worker-sync, migrations, generated SDK usage, and test hazards.
 ---
 
-# Reviewing PRs (dograh)
+# Reviewing PRs (decibyl)
 
-This skill is for reviewing any PR, including PRs written by maintainers. Focus on Dograh-specific regression risks. Skip generic lint, formatting, and type-check comments unless they connect to one of the repo-specific issues below.
+This skill is for reviewing any PR, including PRs written by maintainers. Focus on Decibyl-specific regression risks. Skip generic lint, formatting, and type-check comments unless they connect to one of the repo-specific issues below.
 
 The main failure modes in this repo are:
 
@@ -71,7 +71,7 @@ Checks:
 - `get_user` on an impersonation, cross-org, or global reporting endpoint should usually be `get_superuser`.
 - A route that reimplements bearer or API-key parsing instead of using the shared auth dependency is a finding.
 - A websocket handler without `Depends(get_user_ws)` and without a clear public token path is a finding.
-- A PR tightening `CORSMiddleware` to a fixed origin list needs strong justification. Dograh relies on cross-origin embedding; endpoint auth is the real control.
+- A PR tightening `CORSMiddleware` to a fixed origin list needs strong justification. Decibyl relies on cross-origin embedding; endpoint auth is the real control.
 
 Useful commands:
 

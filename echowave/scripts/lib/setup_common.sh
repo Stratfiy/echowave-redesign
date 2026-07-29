@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-DOGRAH_DEPLOY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOGRAH_DEPLOY_REPO_ROOT="$(cd "$DOGRAH_DEPLOY_LIB_DIR/../.." 2>/dev/null && pwd || true)"
+DECIBYL_DEPLOY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DECIBYL_DEPLOY_REPO_ROOT="$(cd "$DECIBYL_DEPLOY_LIB_DIR/../.." 2>/dev/null && pwd || true)"
 
 : "${RED:=\033[0;31m}"
 : "${GREEN:=\033[0;32m}"
@@ -9,41 +9,41 @@ DOGRAH_DEPLOY_REPO_ROOT="$(cd "$DOGRAH_DEPLOY_LIB_DIR/../.." 2>/dev/null && pwd 
 : "${BLUE:=\033[0;34m}"
 : "${NC:=\033[0m}"
 
-dograh_info() {
+decibyl_info() {
     echo -e "${BLUE}$*${NC}"
 }
 
-dograh_success() {
+decibyl_success() {
     echo -e "${GREEN}$*${NC}"
 }
 
-dograh_warn() {
+decibyl_warn() {
     echo -e "${YELLOW}$*${NC}"
 }
 
-dograh_fail() {
+decibyl_fail() {
     echo -e "${RED}Error: $*${NC}" >&2
     exit 1
 }
 
-dograh_project_dir() {
-    if [[ -n "${DOGRAH_DEPLOY_PROJECT_DIR:-}" ]]; then
-        printf '%s\n' "$DOGRAH_DEPLOY_PROJECT_DIR"
+decibyl_project_dir() {
+    if [[ -n "${DECIBYL_DEPLOY_PROJECT_DIR:-}" ]]; then
+        printf '%s\n' "$DECIBYL_DEPLOY_PROJECT_DIR"
     else
         pwd
     fi
 }
 
-dograh_template_path() {
+decibyl_template_path() {
     local template_name=$1
     local candidate=""
     local project_dir
 
-    project_dir="$(dograh_project_dir)"
+    project_dir="$(decibyl_project_dir)"
 
     for candidate in \
         "$project_dir/deploy/templates/$template_name" \
-        "$DOGRAH_DEPLOY_REPO_ROOT/deploy/templates/$template_name"
+        "$DECIBYL_DEPLOY_REPO_ROOT/deploy/templates/$template_name"
     do
         if [[ -f "$candidate" ]]; then
             printf '%s\n' "$candidate"
@@ -51,18 +51,18 @@ dograh_template_path() {
         fi
     done
 
-    dograh_fail "Template '$template_name' not found"
+    decibyl_fail "Template '$template_name' not found"
 }
 
-dograh_init_script_path() {
+decibyl_init_script_path() {
     local candidate=""
     local project_dir
 
-    project_dir="$(dograh_project_dir)"
+    project_dir="$(decibyl_project_dir)"
 
     for candidate in \
-        "$project_dir/scripts/run_dograh_init.sh" \
-        "$DOGRAH_DEPLOY_REPO_ROOT/scripts/run_dograh_init.sh"
+        "$project_dir/scripts/run_decibyl_init.sh" \
+        "$DECIBYL_DEPLOY_REPO_ROOT/scripts/run_decibyl_init.sh"
     do
         if [[ -f "$candidate" ]]; then
             printf '%s\n' "$candidate"
@@ -70,13 +70,13 @@ dograh_init_script_path() {
         fi
     done
 
-    dograh_fail "run_dograh_init.sh not found"
+    decibyl_fail "run_decibyl_init.sh not found"
 }
 
-dograh_load_env_file() {
+decibyl_load_env_file() {
     local env_file=${1:-.env}
 
-    [[ -f "$env_file" ]] || dograh_fail "$env_file not found"
+    [[ -f "$env_file" ]] || decibyl_fail "$env_file not found"
 
     set -a
     # shellcheck disable=SC1090
@@ -84,7 +84,7 @@ dograh_load_env_file() {
     set +a
 }
 
-dograh_host_from_url() {
+decibyl_host_from_url() {
     local url=$1
 
     url="${url#https://}"
@@ -94,15 +94,15 @@ dograh_host_from_url() {
     printf '%s\n' "$url"
 }
 
-dograh_is_ipv4() {
+decibyl_is_ipv4() {
     [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
 }
 
-dograh_is_local_ipv4() {
+decibyl_is_local_ipv4() {
     local ip=$1
     local o1 o2 o3 o4 octet
 
-    dograh_is_ipv4 "$ip" || return 1
+    decibyl_is_ipv4 "$ip" || return 1
     IFS=. read -r o1 o2 o3 o4 <<< "$ip"
 
     for octet in "$o1" "$o2" "$o3" "$o4"; do
@@ -120,8 +120,8 @@ dograh_is_local_ipv4() {
     return 1
 }
 
-dograh_infer_server_ip() {
-    local project_dir=${1:-$(dograh_project_dir)}
+decibyl_infer_server_ip() {
+    local project_dir=${1:-$(decibyl_project_dir)}
     local turn_conf="$project_dir/turnserver.conf"
     local ip=""
 
@@ -138,12 +138,12 @@ dograh_infer_server_ip() {
         fi
     fi
 
-    if [[ -n "${TURN_HOST:-}" ]] && dograh_is_ipv4 "$TURN_HOST"; then
+    if [[ -n "${TURN_HOST:-}" ]] && decibyl_is_ipv4 "$TURN_HOST"; then
         printf '%s\n' "$TURN_HOST"
         return 0
     fi
 
-    if [[ -n "${PUBLIC_HOST:-}" ]] && dograh_is_ipv4 "$PUBLIC_HOST"; then
+    if [[ -n "${PUBLIC_HOST:-}" ]] && decibyl_is_ipv4 "$PUBLIC_HOST"; then
         printf '%s\n' "$PUBLIC_HOST"
         return 0
     fi
@@ -151,7 +151,7 @@ dograh_infer_server_ip() {
     return 1
 }
 
-dograh_infer_public_base_url() {
+decibyl_infer_public_base_url() {
     if [[ -n "${PUBLIC_BASE_URL:-}" ]]; then
         printf '%s\n' "${PUBLIC_BASE_URL%/}"
         return 0
@@ -175,7 +175,7 @@ dograh_infer_public_base_url() {
     return 1
 }
 
-dograh_infer_public_host() {
+decibyl_infer_public_host() {
     local public_base_url=""
 
     if [[ -n "${PUBLIC_HOST:-}" ]]; then
@@ -183,9 +183,9 @@ dograh_infer_public_host() {
         return 0
     fi
 
-    public_base_url="$(dograh_infer_public_base_url 2>/dev/null || true)"
+    public_base_url="$(decibyl_infer_public_base_url 2>/dev/null || true)"
     if [[ -n "$public_base_url" ]]; then
-        dograh_host_from_url "$public_base_url"
+        decibyl_host_from_url "$public_base_url"
         return 0
     fi
 
@@ -197,7 +197,7 @@ dograh_infer_public_host() {
     return 1
 }
 
-dograh_set_env_key() {
+decibyl_set_env_key() {
     local env_file=$1
     local key=$2
     local value=$3
@@ -221,7 +221,7 @@ dograh_set_env_key() {
     mv "$tmp_file" "$env_file"
 }
 
-dograh_delete_env_key() {
+decibyl_delete_env_key() {
     local env_file=$1
     local key=$2
     local tmp_file="${env_file}.tmp.$$"
@@ -230,7 +230,7 @@ dograh_delete_env_key() {
     mv "$tmp_file" "$env_file"
 }
 
-dograh_sync_remote_env_file() {
+decibyl_sync_remote_env_file() {
     local env_file=${1:-.env}
     local project_dir
     local public_base_url=""
@@ -238,20 +238,20 @@ dograh_sync_remote_env_file() {
     local server_ip=""
 
     project_dir="$(cd "$(dirname "$env_file")" && pwd)"
-    dograh_load_env_file "$env_file"
+    decibyl_load_env_file "$env_file"
 
-    public_base_url="$(dograh_infer_public_base_url)" || dograh_fail "Could not determine PUBLIC_BASE_URL"
+    public_base_url="$(decibyl_infer_public_base_url)" || decibyl_fail "Could not determine PUBLIC_BASE_URL"
     public_base_url="${public_base_url%/}"
-    public_host="$(dograh_infer_public_host)" || dograh_fail "Could not determine PUBLIC_HOST"
-    server_ip="$(dograh_infer_server_ip "$project_dir")" || dograh_fail "Could not determine SERVER_IP"
+    public_host="$(decibyl_infer_public_host)" || decibyl_fail "Could not determine PUBLIC_HOST"
+    server_ip="$(decibyl_infer_server_ip "$project_dir")" || decibyl_fail "Could not determine SERVER_IP"
 
-    [[ "$public_base_url" =~ ^https?:// ]] || dograh_fail "PUBLIC_BASE_URL must include http:// or https://"
-    dograh_is_ipv4 "$server_ip" || dograh_fail "SERVER_IP must be an IPv4 address (got: $server_ip)"
+    [[ "$public_base_url" =~ ^https?:// ]] || decibyl_fail "PUBLIC_BASE_URL must include http:// or https://"
+    decibyl_is_ipv4 "$server_ip" || decibyl_fail "SERVER_IP must be an IPv4 address (got: $server_ip)"
 
-    dograh_set_env_key "$env_file" ENVIRONMENT "${ENVIRONMENT:-production}"
-    dograh_set_env_key "$env_file" SERVER_IP "$server_ip"
-    dograh_set_env_key "$env_file" PUBLIC_HOST "$public_host"
-    dograh_set_env_key "$env_file" PUBLIC_BASE_URL "$public_base_url"
+    decibyl_set_env_key "$env_file" ENVIRONMENT "${ENVIRONMENT:-production}"
+    decibyl_set_env_key "$env_file" SERVER_IP "$server_ip"
+    decibyl_set_env_key "$env_file" PUBLIC_HOST "$public_host"
+    decibyl_set_env_key "$env_file" PUBLIC_BASE_URL "$public_base_url"
 
     # BACKEND_API_ENDPOINT / MINIO_PUBLIC_ENDPOINT / TURN_HOST are derived in-app
     # from PUBLIC_BASE_URL / PUBLIC_HOST (see api/constants.py), so sync neither
@@ -259,50 +259,50 @@ dograh_sync_remote_env_file() {
     # operator set by hand is left untouched as an explicit override.
 }
 
-dograh_validate_remote_runtime_env() {
-    [[ "${FASTAPI_WORKERS:-}" =~ ^[1-9][0-9]*$ ]] || dograh_fail "FASTAPI_WORKERS must be a positive integer"
-    [[ -n "${TURN_SECRET:-}" ]] || dograh_fail "TURN_SECRET is missing"
-    [[ -n "${PUBLIC_HOST:-}" ]] || dograh_fail "PUBLIC_HOST is missing"
-    [[ -n "${PUBLIC_BASE_URL:-}" ]] || dograh_fail "PUBLIC_BASE_URL is missing"
-    dograh_is_ipv4 "${SERVER_IP:-}" || dograh_fail "SERVER_IP must be a valid IPv4 address"
-    [[ "${PUBLIC_BASE_URL}" =~ ^https?:// ]] || dograh_fail "PUBLIC_BASE_URL must include http:// or https://"
+decibyl_validate_remote_runtime_env() {
+    [[ "${FASTAPI_WORKERS:-}" =~ ^[1-9][0-9]*$ ]] || decibyl_fail "FASTAPI_WORKERS must be a positive integer"
+    [[ -n "${TURN_SECRET:-}" ]] || decibyl_fail "TURN_SECRET is missing"
+    [[ -n "${PUBLIC_HOST:-}" ]] || decibyl_fail "PUBLIC_HOST is missing"
+    [[ -n "${PUBLIC_BASE_URL:-}" ]] || decibyl_fail "PUBLIC_BASE_URL is missing"
+    decibyl_is_ipv4 "${SERVER_IP:-}" || decibyl_fail "SERVER_IP must be a valid IPv4 address"
+    [[ "${PUBLIC_BASE_URL}" =~ ^https?:// ]] || decibyl_fail "PUBLIC_BASE_URL must include http:// or https://"
     # BACKEND_API_ENDPOINT / MINIO_PUBLIC_ENDPOINT / TURN_HOST are derived in-app
     # from PUBLIC_BASE_URL / PUBLIC_HOST (see api/constants.py), so they are not
     # required here. When an operator sets them explicitly (split deployment),
     # their value is honored as-is — no equality check.
 }
 
-dograh_uses_init_compose_layout() {
-    local project_dir=${1:-$(dograh_project_dir)}
+decibyl_uses_init_compose_layout() {
+    local project_dir=${1:-$(decibyl_project_dir)}
     local compose_file="$project_dir/docker-compose.yaml"
 
     [[ -f "$compose_file" ]] || return 1
-    grep -q "dograh-init:" "$compose_file" \
+    grep -q "decibyl-init:" "$compose_file" \
         && grep -q "nginx-generated:/etc/nginx/conf.d:ro" "$compose_file" \
         && grep -q "coturn-generated:/etc/coturn:ro" "$compose_file"
 }
 
-dograh_require_init_compose_layout() {
-    local project_dir=${1:-$(dograh_project_dir)}
+decibyl_require_init_compose_layout() {
+    local project_dir=${1:-$(decibyl_project_dir)}
 
-    if ! dograh_uses_init_compose_layout "$project_dir"; then
-        dograh_fail "This install uses the legacy remote compose layout. Run ./update_remote.sh first so Docker uses dograh-init generated config."
+    if ! decibyl_uses_init_compose_layout "$project_dir"; then
+        decibyl_fail "This install uses the legacy remote compose layout. Run ./update_remote.sh first so Docker uses decibyl-init generated config."
     fi
 }
 
-dograh_render_remote_nginx_conf() {
-    local project_dir=${1:-$(dograh_project_dir)}
+decibyl_render_remote_nginx_conf() {
+    local project_dir=${1:-$(decibyl_project_dir)}
     local destination=${2:-"$project_dir/nginx.conf"}
     local template=""
     local tmp_upstream=""
 
-    template="$(dograh_template_path "nginx.remote.conf.template")"
+    template="$(decibyl_template_path "nginx.remote.conf.template")"
     tmp_upstream="$(mktemp)"
 
     {
         echo "# Backend API workers - one uvicorn process per port, balanced by least_conn."
-        echo "# Auto-generated by Dograh remote config renderer. Do not edit manually."
-        echo "upstream dograh_api {"
+        echo "# Auto-generated by Decibyl remote config renderer. Do not edit manually."
+        echo "upstream decibyl_api {"
         echo "    least_conn;"
         for ((i=0; i<FASTAPI_WORKERS; i++)); do
             printf '    server api:%d max_fails=3 fail_timeout=10s;\n' "$((8000 + i))"
@@ -319,8 +319,8 @@ dograh_render_remote_nginx_conf() {
             close(upstream_file)
         }
         {
-            gsub(/__DOGRAH_PUBLIC_HOST__/, public_host)
-            if ($0 == "__DOGRAH_UPSTREAM_BLOCK__") {
+            gsub(/__DECIBYL_PUBLIC_HOST__/, public_host)
+            if ($0 == "__DECIBYL_UPSTREAM_BLOCK__") {
                 printf "%s", upstream
             } else {
                 print
@@ -331,29 +331,29 @@ dograh_render_remote_nginx_conf() {
     rm -f "$tmp_upstream"
 }
 
-dograh_render_remote_turn_conf() {
-    local project_dir=${1:-$(dograh_project_dir)}
+decibyl_render_remote_turn_conf() {
+    local project_dir=${1:-$(decibyl_project_dir)}
     local destination=${2:-"$project_dir/turnserver.conf"}
     local template=""
     local external_ip="${TURN_EXTERNAL_IP:-${SERVER_IP:-}}"
 
-    template="$(dograh_template_path "turnserver.remote.conf.template")"
-    [[ -n "$external_ip" ]] || dograh_fail "TURN external IP/host is missing"
+    template="$(decibyl_template_path "turnserver.remote.conf.template")"
+    [[ -n "$external_ip" ]] || decibyl_fail "TURN external IP/host is missing"
 
     awk \
         -v external_ip="$external_ip" \
         -v turn_secret="$TURN_SECRET" \
         '
         {
-            gsub(/__DOGRAH_TURN_EXTERNAL_IP__/, external_ip)
-            gsub(/__DOGRAH_TURN_SECRET__/, turn_secret)
+            gsub(/__DECIBYL_TURN_EXTERNAL_IP__/, external_ip)
+            gsub(/__DECIBYL_TURN_SECRET__/, turn_secret)
             print
         }
     ' "$template" > "$destination"
 }
 
-dograh_preflight_remote_init_render() {
-    local project_dir=${1:-$(dograh_project_dir)}
+decibyl_preflight_remote_init_render() {
+    local project_dir=${1:-$(decibyl_project_dir)}
     local env_file="$project_dir/.env"
     local cert_dir="$project_dir/certs"
     local init_script=""
@@ -365,38 +365,38 @@ dograh_preflight_remote_init_render() {
     local rendered_ip=""
     local rendered_server_name=""
 
-    dograh_load_env_file "$env_file"
-    dograh_validate_remote_runtime_env
-    [[ -f "$cert_dir/local.crt" ]] || dograh_fail "certs/local.crt not found"
-    [[ -f "$cert_dir/local.key" ]] || dograh_fail "certs/local.key not found"
+    decibyl_load_env_file "$env_file"
+    decibyl_validate_remote_runtime_env
+    [[ -f "$cert_dir/local.crt" ]] || decibyl_fail "certs/local.crt not found"
+    [[ -f "$cert_dir/local.key" ]] || decibyl_fail "certs/local.key not found"
 
-    init_script="$(dograh_init_script_path)"
+    init_script="$(decibyl_init_script_path)"
     tmp_root="$(mktemp -d)"
     nginx_conf="$tmp_root/nginx/default.conf"
     turn_conf="$tmp_root/coturn/turnserver.conf"
 
     (
         export ENVIRONMENT SERVER_IP PUBLIC_HOST PUBLIC_BASE_URL BACKEND_API_ENDPOINT MINIO_PUBLIC_ENDPOINT TURN_HOST TURN_SECRET FASTAPI_WORKERS
-        export DOGRAH_INIT_WORKSPACE_DIR="$project_dir"
-        export DOGRAH_INIT_OUTPUT_ROOT="$tmp_root"
-        export DOGRAH_INIT_CERTS_DIR="$cert_dir"
+        export DECIBYL_INIT_WORKSPACE_DIR="$project_dir"
+        export DECIBYL_INIT_OUTPUT_ROOT="$tmp_root"
+        export DECIBYL_INIT_CERTS_DIR="$cert_dir"
         bash "$init_script" >/dev/null
     )
 
-    [[ -f "$nginx_conf" ]] || dograh_fail "dograh-init did not render nginx config"
-    [[ -f "$turn_conf" ]] || dograh_fail "dograh-init did not render coturn config"
+    [[ -f "$nginx_conf" ]] || decibyl_fail "decibyl-init did not render nginx config"
+    [[ -f "$turn_conf" ]] || decibyl_fail "decibyl-init did not render coturn config"
 
     nginx_workers=$(awk '/^[[:space:]]*server api:[0-9]+/ { count += 1 } END { print count + 0 }' "$nginx_conf")
-    [[ "$nginx_workers" -eq "$FASTAPI_WORKERS" ]] || dograh_fail "FASTAPI_WORKERS=$FASTAPI_WORKERS but nginx.conf has $nginx_workers upstream servers"
+    [[ "$nginx_workers" -eq "$FASTAPI_WORKERS" ]] || decibyl_fail "FASTAPI_WORKERS=$FASTAPI_WORKERS but nginx.conf has $nginx_workers upstream servers"
 
     rendered_server_name="$(awk '/^[[:space:]]*server_name / { print $2; exit }' "$nginx_conf" | sed 's/;$//')"
-    [[ "$rendered_server_name" == "$PUBLIC_HOST" ]] || dograh_fail "nginx.conf server_name ($rendered_server_name) does not match PUBLIC_HOST ($PUBLIC_HOST)"
+    [[ "$rendered_server_name" == "$PUBLIC_HOST" ]] || decibyl_fail "nginx.conf server_name ($rendered_server_name) does not match PUBLIC_HOST ($PUBLIC_HOST)"
 
     rendered_secret="$(sed -n 's/^static-auth-secret=//p' "$turn_conf" | head -1)"
-    [[ "$rendered_secret" == "$TURN_SECRET" ]] || dograh_fail "TURN_SECRET in .env does not match turnserver.conf"
+    [[ "$rendered_secret" == "$TURN_SECRET" ]] || decibyl_fail "TURN_SECRET in .env does not match turnserver.conf"
 
     rendered_ip="$(sed -n 's/^external-ip=//p' "$turn_conf" | head -1)"
-    [[ "$rendered_ip" == "$SERVER_IP" ]] || dograh_fail "SERVER_IP in .env does not match turnserver.conf"
+    [[ "$rendered_ip" == "$SERVER_IP" ]] || decibyl_fail "SERVER_IP in .env does not match turnserver.conf"
 
     rm -rf "$tmp_root"
 }
@@ -416,7 +416,7 @@ dograh_preflight_remote_init_render() {
 # currently mismatched). Idempotent: on a fresh volume it just re-sets the same
 # value. Survives the later `--force-recreate` because the password lives in the
 # data volume, not the container.
-dograh_sync_postgres_password() {
+decibyl_sync_postgres_password() {
     local project_dir=$1
     shift
     local compose=("$@")
@@ -435,7 +435,7 @@ dograh_sync_postgres_password() {
     # DB init and the API's DATABASE_URL, so the two already agree — nothing to do.
     [[ -n "$password" ]] || return 0
 
-    dograh_info "Syncing Postgres password from .env..."
+    decibyl_info "Syncing Postgres password from .env..."
     ( cd "$project_dir" && "${compose[@]}" up -d postgres ) >/dev/null
 
     for ((i = 0; i < 30; i++)); do
@@ -445,22 +445,22 @@ dograh_sync_postgres_password() {
         fi
         sleep 1
     done
-    [[ -n "$ready" ]] || dograh_fail "Postgres did not become ready while syncing POSTGRES_PASSWORD."
+    [[ -n "$ready" ]] || decibyl_fail "Postgres did not become ready while syncing POSTGRES_PASSWORD."
 
     printf '%s\n' "ALTER USER postgres WITH PASSWORD :'pw';" \
         | ( cd "$project_dir" && "${compose[@]}" exec -T postgres \
               psql -U postgres -d postgres -v ON_ERROR_STOP=1 -v "pw=$password" ) >/dev/null \
-        || dograh_fail "Failed to sync Postgres password from .env."
-    dograh_success "✓ Postgres password synced with .env"
+        || decibyl_fail "Failed to sync Postgres password from .env."
+    decibyl_success "✓ Postgres password synced with .env"
 }
 
-dograh_prepare_remote_install() {
-    local project_dir=${1:-$(dograh_project_dir)}
+decibyl_prepare_remote_install() {
+    local project_dir=${1:-$(decibyl_project_dir)}
     local env_file="$project_dir/.env"
 
-    dograh_sync_remote_env_file "$env_file"
-    dograh_require_init_compose_layout "$project_dir"
-    dograh_preflight_remote_init_render "$project_dir"
+    decibyl_sync_remote_env_file "$env_file"
+    decibyl_require_init_compose_layout "$project_dir"
+    decibyl_preflight_remote_init_render "$project_dir"
 }
 
 # ---------------------------------------------------------------------------
@@ -472,23 +472,23 @@ dograh_prepare_remote_install() {
 # embedded IP from any public resolver, so Let's Encrypt can validate it over
 # the HTTP-01 challenge without the operator owning a domain. Public IPs only:
 # Let's Encrypt refuses to validate private/reserved addresses.
-dograh_sslip_host_from_ip() {
+decibyl_sslip_host_from_ip() {
     local ip=$1
     local suffix=${2:-sslip.io}
 
-    dograh_is_ipv4 "$ip" || dograh_fail "dograh_sslip_host_from_ip: '$ip' is not an IPv4 address"
+    decibyl_is_ipv4 "$ip" || decibyl_fail "decibyl_sslip_host_from_ip: '$ip' is not an IPv4 address"
     printf '%s.%s\n' "${ip//./-}" "$suffix"
 }
 
 # Install certbot via the host package manager if it is not already present.
 # Returns non-zero (instead of exiting) when no supported package manager is
 # found or the install fails, so callers can fall back to a self-signed cert.
-dograh_install_certbot() {
+decibyl_install_certbot() {
     if command -v certbot >/dev/null 2>&1; then
         return 0
     fi
 
-    dograh_info "Installing Certbot..."
+    decibyl_info "Installing Certbot..."
     if command -v apt-get >/dev/null 2>&1; then
         apt-get update -qq && apt-get install -y -qq certbot
     elif command -v dnf >/dev/null 2>&1; then
@@ -496,7 +496,7 @@ dograh_install_certbot() {
     elif command -v yum >/dev/null 2>&1; then
         yum install -y -q certbot
     else
-        dograh_warn "Could not detect a package manager (apt/dnf/yum) to install certbot."
+        decibyl_warn "Could not detect a package manager (apt/dnf/yum) to install certbot."
         return 1
     fi
 }
@@ -506,7 +506,7 @@ dograh_install_certbot() {
 # copy the issued cert to certs/local.{crt,key} (the files nginx reads). This
 # needs nginx already running and serving /.well-known/acme-challenge/ on :80.
 # Returns non-zero on failure so callers can keep the self-signed cert.
-dograh_issue_letsencrypt_webroot() {
+decibyl_issue_letsencrypt_webroot() {
     local project_dir=$1
     local host=$2
     local email=${3:-}
@@ -538,11 +538,11 @@ dograh_issue_letsencrypt_webroot() {
 # <project>/certs and nginx is restarted to load them. Renewal itself is driven
 # by certbot's packaged systemd timer / cron; webroot renewals need no downtime
 # because the running nginx serves the challenge.
-dograh_install_cert_renewal_hook() {
+decibyl_install_cert_renewal_hook() {
     local project_dir=$1
     local host=$2
     local hook_dir="/etc/letsencrypt/renewal-hooks/deploy"
-    local hook_path="$hook_dir/dograh-reload.sh"
+    local hook_path="$hook_dir/decibyl-reload.sh"
 
     mkdir -p "$hook_dir"
 
@@ -558,38 +558,38 @@ HOOK_EOF
     chmod +x "$hook_path"
 }
 
-dograh_download_bundle_file_for_ref() {
+decibyl_download_bundle_file_for_ref() {
     local destination=$1
     local remote_path=$2
     local ref=${3:-main}
-    local raw_base="https://raw.githubusercontent.com/dograh-hq/dograh/$ref"
-    local fallback_base="https://raw.githubusercontent.com/dograh-hq/dograh/main"
+    local raw_base="https://raw.githubusercontent.com/decibyl-hq/decibyl/$ref"
+    local fallback_base="https://raw.githubusercontent.com/decibyl-hq/decibyl/main"
 
     if ! curl -fsSL -o "$destination" "$raw_base/$remote_path"; then
-        dograh_warn "Warning: '$remote_path' not found at '$ref' - falling back to main"
+        decibyl_warn "Warning: '$remote_path' not found at '$ref' - falling back to main"
         curl -fsSL -o "$destination" "$fallback_base/$remote_path"
     fi
 }
 
-dograh_download_init_support_bundle() {
+decibyl_download_init_support_bundle() {
     local project_dir=$1
     local ref=${2:-main}
 
     mkdir -p "$project_dir/scripts/lib" "$project_dir/deploy/templates"
 
     mkdir -p "$project_dir/scripts"
-    dograh_download_bundle_file_for_ref "$project_dir/scripts/lib/setup_common.sh" "scripts/lib/setup_common.sh" "$ref"
-    dograh_download_bundle_file_for_ref "$project_dir/scripts/run_dograh_init.sh" "scripts/run_dograh_init.sh" "$ref"
-    chmod +x "$project_dir/scripts/run_dograh_init.sh"
-    dograh_download_bundle_file_for_ref "$project_dir/deploy/templates/nginx.remote.conf.template" "deploy/templates/nginx.remote.conf.template" "$ref"
-    dograh_download_bundle_file_for_ref "$project_dir/deploy/templates/turnserver.remote.conf.template" "deploy/templates/turnserver.remote.conf.template" "$ref"
+    decibyl_download_bundle_file_for_ref "$project_dir/scripts/lib/setup_common.sh" "scripts/lib/setup_common.sh" "$ref"
+    decibyl_download_bundle_file_for_ref "$project_dir/scripts/run_decibyl_init.sh" "scripts/run_decibyl_init.sh" "$ref"
+    chmod +x "$project_dir/scripts/run_decibyl_init.sh"
+    decibyl_download_bundle_file_for_ref "$project_dir/deploy/templates/nginx.remote.conf.template" "deploy/templates/nginx.remote.conf.template" "$ref"
+    decibyl_download_bundle_file_for_ref "$project_dir/deploy/templates/turnserver.remote.conf.template" "deploy/templates/turnserver.remote.conf.template" "$ref"
 }
 
-dograh_download_remote_support_bundle() {
+decibyl_download_remote_support_bundle() {
     local project_dir=$1
     local ref=${2:-main}
 
-    dograh_download_bundle_file_for_ref "$project_dir/remote_up.sh" "remote_up.sh" "$ref"
+    decibyl_download_bundle_file_for_ref "$project_dir/remote_up.sh" "remote_up.sh" "$ref"
     chmod +x "$project_dir/remote_up.sh"
-    dograh_download_init_support_bundle "$project_dir" "$ref"
+    decibyl_download_init_support_bundle "$project_dir" "$ref"
 }

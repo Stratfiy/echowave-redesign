@@ -1,6 +1,6 @@
 """
 Gender prediction service with local model and GenderAPI fallback.
-Internal service for use within Dograh platform.
+Internal service for use within Decibyl platform.
 """
 
 import json

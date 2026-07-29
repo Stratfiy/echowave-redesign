@@ -45,7 +45,7 @@ class UserConfigurationValidator:
             ServiceProviders.AZURE.value: self._check_azure_api_key,
             ServiceProviders.AZURE_SPEECH.value: self._check_azure_speech_api_key,
             ServiceProviders.CARTESIA.value: self._check_cartesia_api_key,
-            ServiceProviders.DOGRAH.value: self._check_dograh_api_key,
+            ServiceProviders.DECIBYL.value: self._check_decibyl_api_key,
             ServiceProviders.SARVAM.value: self._check_sarvam_api_key,
             ServiceProviders.SPEECHMATICS.value: self._check_speechmatics_api_key,
             ServiceProviders.CAMB.value: self._check_camb_api_key,
@@ -329,10 +329,10 @@ class UserConfigurationValidator:
     def _check_cartesia_api_key(self, model: str, api_key: str) -> bool:
         return True
 
-    def _check_dograh_api_key(self, model: str, api_key: str) -> bool:
+    def _check_decibyl_api_key(self, model: str, api_key: str) -> bool:
         if api_key.startswith("dgr"):
             raise ValueError(
-                "You provided a Dograh API key (dgr...) instead of a service key. "
+                "You provided a Decibyl API key (dgr...) instead of a service key. "
                 "Please use a service key (mps...)."
             )
         auth = getattr(self, "_auth_context", {})

@@ -1,6 +1,6 @@
-# EchoWave - Project Overview
+# Decibyl - Project Overview
 
-EchoWave is a voice AI platform for building and deploying conversational AI agents with telephony and WebRTC support.
+Decibyl is a voice AI platform for building and deploying conversational AI agents with telephony and WebRTC support.
 
 ## Project Structure
 

@@ -1,7 +1,7 @@
 """Single unit that knows the MCP protocol + credentials.
 
 Wraps the vendored Pipecat ``MCPClient`` for connection/session, builds
-streamable-HTTP params from a Dograh credential, exposes namespaced
+streamable-HTTP params from a Decibyl credential, exposes namespaced
 ``FunctionSchema``s, and proxies tool calls. Connection failures degrade
 (``available = False``) instead of raising — the call must survive a
 dead MCP server.

@@ -13,7 +13,7 @@ FASTAPI_WORKERS=${FASTAPI_WORKERS:-1}
 UVICORN_BASE_PORT=${UVICORN_BASE_PORT:-8000}
 
 cd "$BASE_DIR"
-echo "Starting Dograh Services (DOCKER) at $(date) in BASE_DIR: ${BASE_DIR}"
+echo "Starting Decibyl Services (DOCKER) at $(date) in BASE_DIR: ${BASE_DIR}"
 
 ###############################################################################
 ### 1) Load env file if mounted (env normally comes from docker-compose)

@@ -1,4 +1,4 @@
-"""Tests for CAMB AI TTS integration into Dograh.
+"""Tests for CAMB AI TTS integration into Decibyl.
 
 Covers:
 - CambTTSConfiguration model (defaults, custom values, JSON schema)
@@ -71,15 +71,15 @@ class TestServiceFactoryCamb:
         import sys
 
         # Mock missing modules (custom pipecat fork, not in public pipecat-ai)
-        dograh_modules = [
-            "pipecat.services.dograh",
-            "pipecat.services.dograh.llm",
-            "pipecat.services.dograh.stt",
-            "pipecat.services.dograh.tts",
+        decibyl_modules = [
+            "pipecat.services.decibyl",
+            "pipecat.services.decibyl.llm",
+            "pipecat.services.decibyl.stt",
+            "pipecat.services.decibyl.tts",
             "pipecat.utils.text.xml_function_tag_filter",
         ]
         mocks = {}
-        for mod in dograh_modules:
+        for mod in decibyl_modules:
             if mod not in sys.modules:
                 mocks[mod] = MagicMock()
 

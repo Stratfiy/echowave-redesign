@@ -1,2 +1,2 @@
-dograh-sdk
+decibyl-sdk
 python-dotenv

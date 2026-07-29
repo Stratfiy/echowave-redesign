@@ -76,13 +76,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="EchoWave API",
-    description="API for the EchoWave app",
+    title="Decibyl API",
+    description="API for the Decibyl app",
     version="1.0.0",
     openapi_url=f"{API_PREFIX}/openapi.json",
     lifespan=lifespan,
     servers=[
-        {"url": "https://app.dograh.com", "description": "Production"},
+        {"url": "https://app.decibyl.com", "description": "Production"},
         {"url": "http://localhost:8000", "description": "Local development"},
     ],
 )

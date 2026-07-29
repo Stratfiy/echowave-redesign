@@ -99,5 +99,5 @@ jobs:
         with:
           payload: |
             {
-              "text": "❌ Dograh API tests failed on ${{ github.ref_name }} by ${{ github.actor }} - <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>"
+              "text": "❌ Decibyl API tests failed on ${{ github.ref_name }} by ${{ github.actor }} - <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>"
             }

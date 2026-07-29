@@ -1,6 +1,6 @@
-// Unit tests for @dograh/sdk. Uses Node's built-in `node:test` runner and
+// Unit tests for @decibyl/sdk. Uses Node's built-in `node:test` runner and
 // an in-memory spec stub — no HTTP, no backend dependency. Mirrors the
-// Python SDK tests in api/tests/test_dograh_sdk.py.
+// Python SDK tests in api/tests/test_decibyl_sdk.py.
 //
 // Run via `npm test` in sdk/typescript/.
 
@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 // `npm test` runs `tsc` first so dist/ is fresh.
 import {
     ApiError,
-    DograhClient,
+    DecibylClient,
     SpecMismatchError,
     ValidationError,
     Workflow,
@@ -346,9 +346,9 @@ describe("round-trip", () => {
     });
 });
 
-// ─── DograhClient HTTP plumbing (stubbed fetch) ───────────────────────────
+// ─── DecibylClient HTTP plumbing (stubbed fetch) ───────────────────────────
 
-describe("DograhClient", () => {
+describe("DecibylClient", () => {
     it("sends the API key as X-API-Key", async () => {
         let capturedHeaders: Headers | undefined;
         const stubFetch: typeof fetch = async (_input, init) => {
@@ -358,7 +358,7 @@ describe("DograhClient", () => {
                 { status: 200, headers: { "content-type": "application/json" } },
             );
         };
-        const c = new DograhClient({
+        const c = new DecibylClient({
             baseUrl: "http://api.example",
             apiKey: "sk-test",
             fetch: stubFetch,
@@ -373,7 +373,7 @@ describe("DograhClient", () => {
                 status: 404,
                 headers: { "content-type": "application/json" },
             });
-        const c = new DograhClient({
+        const c = new DecibylClient({
             baseUrl: "http://api.example",
             apiKey: "k",
             fetch: stubFetch,
@@ -405,7 +405,7 @@ describe("DograhClient", () => {
                 headers: { "content-type": "application/json" },
             });
         };
-        const c = new DograhClient({
+        const c = new DecibylClient({
             baseUrl: "http://api.example",
             apiKey: "k",
             fetch: stubFetch,

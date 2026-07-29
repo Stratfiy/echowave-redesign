@@ -1,31 +1,31 @@
 // Load an existing workflow, edit a node prompt, and save it as a draft.
 //
 // Requirements:
-//   npm install @dograh/sdk
+//   npm install @decibyl/sdk
 //
 // Environment variables:
-//   DOGRAH_API_ENDPOINT  - Dograh API base URL (e.g. http://localhost:8000)
-//   DOGRAH_API_TOKEN     - API token sent as X-API-Key
+//   DECIBYL_API_ENDPOINT  - Decibyl API base URL (e.g. http://localhost:8000)
+//   DECIBYL_API_TOKEN     - API token sent as X-API-Key
 //
 // Run:
 //   npx tsx load_and_edit_workflow.ts
 
-import { DograhClient } from "@dograh/sdk";
+import { DecibylClient } from "@decibyl/sdk";
 
-// Replace with the numeric ID of an existing agent in your Dograh account.
+// Replace with the numeric ID of an existing agent in your Decibyl account.
 const WORKFLOW_ID = 0;
 
 // Sentence appended to the startCall node's prompt when the script runs.
 const PROMPT_SUFFIX = " Please be concise — keep all responses under two sentences.";
 
 async function main(): Promise<void> {
-    const apiEndpoint = process.env.DOGRAH_API_ENDPOINT ?? "http://localhost:8000";
-    const apiToken = process.env.DOGRAH_API_TOKEN;
+    const apiEndpoint = process.env.DECIBYL_API_ENDPOINT ?? "http://localhost:8000";
+    const apiToken = process.env.DECIBYL_API_TOKEN;
 
-    if (!apiToken) throw new Error("DOGRAH_API_TOKEN is required");
+    if (!apiToken) throw new Error("DECIBYL_API_TOKEN is required");
     if (WORKFLOW_ID === 0) throw new Error("Set WORKFLOW_ID at the top of this file to an existing workflow ID");
 
-    const client = new DograhClient({
+    const client = new DecibylClient({
         baseUrl: apiEndpoint,
         apiKey: apiToken,
     });

@@ -1,6 +1,6 @@
 # UI - Frontend Application
 
-Next.js 15 frontend for the EchoWave voice AI platform.
+Next.js 15 frontend for the Decibyl voice AI platform.
 
 ## Project Structure
 

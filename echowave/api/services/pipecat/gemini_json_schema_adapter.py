@@ -1,4 +1,4 @@
-"""Dograh-specific Gemini adapter customizations."""
+"""Decibyl-specific Gemini adapter customizations."""
 
 from typing import Any
 
@@ -6,7 +6,7 @@ from pipecat.adapters.schemas.tools_schema import AdapterType, ToolsSchema
 from pipecat.adapters.services.gemini_adapter import GeminiLLMAdapter
 
 
-class DograhGeminiJSONSchemaAdapter(GeminiLLMAdapter):
+class DecibylGeminiJSONSchemaAdapter(GeminiLLMAdapter):
     """Use Gemini's full JSON Schema tool parameter field.
 
     Pipecat's default Gemini adapter maps ``FunctionSchema.parameters`` into

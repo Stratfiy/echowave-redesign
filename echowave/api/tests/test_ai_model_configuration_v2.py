@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from api.schemas.ai_model_configuration import (
-    DograhManagedAIModelConfiguration,
+    DecibylManagedAIModelConfiguration,
     EffectiveAIModelConfiguration,
     OrganizationAIModelConfigurationResponse,
     OrganizationAIModelConfigurationV2,
@@ -25,9 +25,9 @@ from api.services.configuration.check_validity import UserConfigurationValidator
 from api.services.configuration.masking import mask_key
 from api.services.configuration.registry import (
     DeepgramSTTConfiguration,
-    DograhLLMService,
-    DograhSTTService,
-    DograhTTSService,
+    DecibylLLMService,
+    DecibylSTTService,
+    DecibylTTSService,
     ElevenlabsTTSConfiguration,
     GoogleLLMService,
     GoogleRealtimeLLMConfiguration,
@@ -36,10 +36,10 @@ from api.services.configuration.registry import (
 )
 
 
-def test_dograh_v2_compiles_to_effective_managed_pipeline_with_embeddings():
+def test_decibyl_v2_compiles_to_effective_managed_pipeline_with_embeddings():
     config = OrganizationAIModelConfigurationV2(
-        mode="dograh",
-        dograh=DograhManagedAIModelConfiguration(
+        mode="decibyl",
+        decibyl=DecibylManagedAIModelConfiguration(
             api_key="mps-secret",
             voice="default",
             speed=1.2,
@@ -50,21 +50,21 @@ def test_dograh_v2_compiles_to_effective_managed_pipeline_with_embeddings():
     effective = compile_ai_model_configuration_v2(config)
 
     assert effective.is_realtime is False
-    assert effective.llm.provider == "dograh"
+    assert effective.llm.provider == "decibyl"
     assert effective.llm.model == "default"
-    assert effective.tts.provider == "dograh"
+    assert effective.tts.provider == "decibyl"
     assert effective.tts.speed == 1.2
-    assert effective.stt.provider == "dograh"
+    assert effective.stt.provider == "decibyl"
     assert effective.stt.language == "multi"
-    assert effective.embeddings.provider == "dograh"
-    assert effective.embeddings.model == "dograh_embedding_v1"
+    assert effective.embeddings.provider == "decibyl"
+    assert effective.embeddings.model == "decibyl_embedding_v1"
     assert effective.managed_service_version == 2
 
 
-def test_dograh_v2_accepts_numeric_speed_in_registry_range():
+def test_decibyl_v2_accepts_numeric_speed_in_registry_range():
     config = OrganizationAIModelConfigurationV2(
-        mode="dograh",
-        dograh=DograhManagedAIModelConfiguration(
+        mode="decibyl",
+        decibyl=DecibylManagedAIModelConfiguration(
             api_key="mps-secret",
             speed=1.5,
         ),
@@ -75,18 +75,18 @@ def test_dograh_v2_accepts_numeric_speed_in_registry_range():
     assert effective.tts.speed == 1.5
 
 
-def test_dograh_v2_rejects_out_of_range_speed():
+def test_decibyl_v2_rejects_out_of_range_speed():
     with pytest.raises(ValidationError):
         OrganizationAIModelConfigurationV2(
-            mode="dograh",
-            dograh=DograhManagedAIModelConfiguration(
+            mode="decibyl",
+            decibyl=DecibylManagedAIModelConfiguration(
                 api_key="mps-secret",
                 speed=2.5,
             ),
         )
 
 
-def test_byok_v2_rejects_dograh_provider():
+def test_byok_v2_rejects_decibyl_provider():
     with pytest.raises(ValidationError):
         OrganizationAIModelConfigurationV2.model_validate(
             {
@@ -95,18 +95,18 @@ def test_byok_v2_rejects_dograh_provider():
                     "mode": "pipeline",
                     "pipeline": {
                         "llm": {
-                            "provider": "dograh",
+                            "provider": "decibyl",
                             "api_key": "mps-secret",
                             "model": "default",
                         },
                         "tts": {
-                            "provider": "dograh",
+                            "provider": "decibyl",
                             "api_key": "mps-secret",
                             "model": "default",
                             "voice": "default",
                         },
                         "stt": {
-                            "provider": "dograh",
+                            "provider": "decibyl",
                             "api_key": "mps-secret",
                             "model": "default",
                         },
@@ -160,8 +160,8 @@ async def test_resolved_org_v2_uses_last_validated_at_as_validation_cache(
 
     last_validated_at = datetime.now(UTC)
     config = OrganizationAIModelConfigurationV2(
-        mode="dograh",
-        dograh=DograhManagedAIModelConfiguration(api_key="mps-secret"),
+        mode="decibyl",
+        decibyl=DecibylManagedAIModelConfiguration(api_key="mps-secret"),
     )
     row = SimpleNamespace(
         value=config.model_dump(mode="json", exclude_none=True),
@@ -184,8 +184,8 @@ async def test_upsert_org_v2_marks_configuration_validated(monkeypatch):
     from api.services.configuration import ai_model_configuration
 
     config = OrganizationAIModelConfigurationV2(
-        mode="dograh",
-        dograh=DograhManagedAIModelConfiguration(api_key="mps-secret"),
+        mode="decibyl",
+        decibyl=DecibylManagedAIModelConfiguration(api_key="mps-secret"),
     )
     upsert = AsyncMock()
     monkeypatch.setattr(
@@ -254,19 +254,19 @@ async def test_pipeline_validator_requires_stt_and_tts_when_not_realtime():
     ]
 
 
-def test_masked_dograh_key_is_preserved_when_saving_same_mode():
+def test_masked_decibyl_key_is_preserved_when_saving_same_mode():
     existing = OrganizationAIModelConfigurationV2(
-        mode="dograh",
-        dograh=DograhManagedAIModelConfiguration(api_key="mps-real-secret"),
+        mode="decibyl",
+        decibyl=DecibylManagedAIModelConfiguration(api_key="mps-real-secret"),
     )
     incoming = OrganizationAIModelConfigurationV2(
-        mode="dograh",
-        dograh=DograhManagedAIModelConfiguration(api_key=mask_key("mps-real-secret")),
+        mode="decibyl",
+        decibyl=DecibylManagedAIModelConfiguration(api_key=mask_key("mps-real-secret")),
     )
 
     merged = merge_ai_model_configuration_v2_secrets(incoming, existing)
 
-    assert merged.dograh.api_key == "mps-real-secret"
+    assert merged.decibyl.api_key == "mps-real-secret"
     check_for_masked_keys_in_ai_model_configuration_v2(merged)
 
 
@@ -303,22 +303,22 @@ def test_masked_v2_configuration_masks_nested_service_keys():
     assert masked["byok"]["pipeline"]["stt"]["api_key"] == mask_key("dg-real-secret")
 
 
-def test_legacy_all_dograh_pipeline_converts_to_dograh_v2():
+def test_legacy_all_decibyl_pipeline_converts_to_decibyl_v2():
     legacy = EffectiveAIModelConfiguration(
-        llm=DograhLLMService(
-            provider="dograh",
+        llm=DecibylLLMService(
+            provider="decibyl",
             api_key=["mps-secret"],
             model="default",
         ),
-        tts=DograhTTSService(
-            provider="dograh",
+        tts=DecibylTTSService(
+            provider="decibyl",
             api_key=["mps-secret"],
             model="default",
             voice="default",
             speed=1.0,
         ),
-        stt=DograhSTTService(
-            provider="dograh",
+        stt=DecibylSTTService(
+            provider="decibyl",
             api_key=["mps-secret"],
             model="default",
             language="multi",
@@ -327,26 +327,26 @@ def test_legacy_all_dograh_pipeline_converts_to_dograh_v2():
 
     config = convert_legacy_ai_model_configuration_to_v2(legacy)
 
-    assert config.mode == "dograh"
-    assert config.dograh.api_key == "mps-secret"
+    assert config.mode == "decibyl"
+    assert config.decibyl.api_key == "mps-secret"
 
 
-def test_legacy_dograh_pipeline_conversion_preserves_numeric_speed():
+def test_legacy_decibyl_pipeline_conversion_preserves_numeric_speed():
     legacy = EffectiveAIModelConfiguration(
-        llm=DograhLLMService(
-            provider="dograh",
+        llm=DecibylLLMService(
+            provider="decibyl",
             api_key=["mps-secret"],
             model="default",
         ),
-        tts=DograhTTSService(
-            provider="dograh",
+        tts=DecibylTTSService(
+            provider="decibyl",
             api_key=["mps-secret"],
             model="default",
             voice="default",
             speed=1.5,
         ),
-        stt=DograhSTTService(
-            provider="dograh",
+        stt=DecibylSTTService(
+            provider="decibyl",
             api_key=["mps-secret"],
             model="default",
         ),
@@ -354,25 +354,25 @@ def test_legacy_dograh_pipeline_conversion_preserves_numeric_speed():
 
     config = convert_legacy_ai_model_configuration_to_v2(legacy)
 
-    assert config.mode == "dograh"
-    assert config.dograh.speed == 1.5
+    assert config.mode == "decibyl"
+    assert config.decibyl.speed == 1.5
 
 
-def test_legacy_mixed_dograh_pipeline_converts_to_dograh_v2():
+def test_legacy_mixed_decibyl_pipeline_converts_to_decibyl_v2():
     legacy = EffectiveAIModelConfiguration(
         llm=OpenAILLMService(
             provider="openai",
             api_key="sk-llm",
             model="gpt-4.1",
         ),
-        tts=DograhTTSService(
-            provider="dograh",
+        tts=DecibylTTSService(
+            provider="decibyl",
             api_key="mps-tts",
             model="default",
             voice="default",
         ),
-        stt=DograhSTTService(
-            provider="dograh",
+        stt=DecibylSTTService(
+            provider="decibyl",
             api_key="mps-stt",
             model="default",
         ),
@@ -385,9 +385,9 @@ def test_legacy_mixed_dograh_pipeline_converts_to_dograh_v2():
 
     config = convert_legacy_ai_model_configuration_to_v2(legacy)
 
-    assert config.mode == "dograh"
-    assert config.dograh.api_key == "mps-tts"
-    assert config.dograh.voice == "default"
+    assert config.mode == "decibyl"
+    assert config.decibyl.api_key == "mps-tts"
+    assert config.decibyl.voice == "default"
 
 
 def test_legacy_byok_pipeline_converts_to_byok_v2():
@@ -446,7 +446,7 @@ def test_workflow_model_override_migration_removes_v1_override_and_sets_v2():
         "ambient_noise_configuration": {"enabled": False},
         "model_overrides": {
             "tts": {
-                "provider": "dograh",
+                "provider": "decibyl",
                 "api_key": "mps-workflow",
                 "model": "default",
                 "voice": "default",
@@ -463,8 +463,8 @@ def test_workflow_model_override_migration_removes_v1_override_and_sets_v2():
     assert "model_overrides" not in migrated
     assert migrated["ambient_noise_configuration"] == {"enabled": False}
     v2_override = migrated[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY]
-    assert v2_override["mode"] == "dograh"
-    assert v2_override["dograh"]["api_key"] == "mps-workflow"
+    assert v2_override["mode"] == "decibyl"
+    assert v2_override["decibyl"]["api_key"] == "mps-workflow"
 
 
 def test_workflow_model_override_migration_removes_invalid_v1_override_marker():
@@ -491,25 +491,25 @@ async def test_migrate_model_configuration_v2_initializes_hosted_mps_billing(
     from api.routes import organization as organization_routes
 
     legacy = EffectiveAIModelConfiguration(
-        llm=DograhLLMService(
-            provider="dograh",
+        llm=DecibylLLMService(
+            provider="decibyl",
             api_key=["mps-secret"],
             model="default",
         ),
-        tts=DograhTTSService(
-            provider="dograh",
+        tts=DecibylTTSService(
+            provider="decibyl",
             api_key=["mps-secret"],
             model="default",
             voice="default",
         ),
-        stt=DograhSTTService(
-            provider="dograh",
+        stt=DecibylSTTService(
+            provider="decibyl",
             api_key=["mps-secret"],
             model="default",
         ),
     )
     expected_response = OrganizationAIModelConfigurationResponse(
-        configuration={"version": 2, "mode": "dograh"},
+        configuration={"version": 2, "mode": "decibyl"},
         effective_configuration={},
         source="organization_v2",
     )

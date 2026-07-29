@@ -447,7 +447,7 @@ class SignalingManager:
         set_current_run_id(workflow_run_id)
         set_current_org_id(organization_id)
 
-        # Check Dograh quota before initiating the call (apply per-workflow
+        # Check Decibyl quota before initiating the call (apply per-workflow
         # model_overrides so we evaluate the keys this workflow will use).
         quota_result = await authorize_workflow_run_start(
             workflow_id=workflow_id,

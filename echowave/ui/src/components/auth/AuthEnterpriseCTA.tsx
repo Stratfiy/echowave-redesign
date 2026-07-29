@@ -1,7 +1,7 @@
 "use client";
 
 // Enterprise call-to-action rendered inside the auth brand panel. Opens the
-// SAME in-app Enterprise lead modal used post-login. Rebranded for EchoWave
+// SAME in-app Enterprise lead modal used post-login. Rebranded for Decibyl
 // with the nAutomation Labs blue CTA styling.
 
 import posthog from "posthog-js";

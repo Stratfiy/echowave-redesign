@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Dograh AI",
+  "name": "Decibyl AI",
   "colors": {
     "primary": "#16A34A",
     "light": "#07C983",
@@ -40,7 +40,7 @@
           {
             "group": "Core Concepts",
             "pages": [
-              "core-concepts/how-dograh-works",
+              "core-concepts/how-decibyl-works",
               "core-concepts/workflows-and-agents",
               "core-concepts/calls-and-runs",
               "core-concepts/context-and-variables",
@@ -282,23 +282,23 @@
   "logo": {
     "light": "/logo/light.svg",
     "dark": "/logo/dark.svg",
-    "href": "https://docs.dograh.com"
+    "href": "https://docs.decibyl.com"
   },
   "navbar": {
     "links": [
       {
         "label": "Support",
-        "href": "https://github.com/dograh-hq/dograh/issues/new/choose"
+        "href": "https://github.com/decibyl-hq/decibyl/issues/new/choose"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Dashboard",
-      "href": "https://app.dograh.com"
+      "href": "https://app.decibyl.com"
     }
   },
   "banner": {
-    "content": "🎉 **New: MCP Server & SDKs Released** — Drive Dograh from Claude, Cursor, or your own Python/TypeScript code. [MCP →](/integrations/mcp) · [SDKs →](/sdks/introduction)",
+    "content": "🎉 **New: MCP Server & SDKs Released** — Drive Decibyl from Claude, Cursor, or your own Python/TypeScript code. [MCP →](/integrations/mcp) · [SDKs →](/sdks/introduction)",
     "dismissible": true
   },
   "search": {
@@ -319,8 +319,8 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/dograh-hq",
-      "linkedin": "https://linkedin.com/company/dograh"
+      "github": "https://github.com/decibyl-hq",
+      "linkedin": "https://linkedin.com/company/decibyl"
     }
   },
   "api": {
