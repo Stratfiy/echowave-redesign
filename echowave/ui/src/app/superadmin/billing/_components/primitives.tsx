@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 import { CHROME, type Mode } from "./chartTheme";
@@ -246,4 +247,45 @@ export function axisProps(mode: Mode) {
 
 export function gridStroke(mode: Mode) {
     return CHROME[mode].grid;
+}
+
+/**
+ * Whether it is safe to make an authenticated request yet.
+ *
+ * The auth interceptor that attaches the Bearer token is only registered once
+ * auth has finished loading. Fetching before that sends an unauthenticated
+ * request, which on these staff-gated routes fails silently as a 403 — so
+ * every fetch on this dashboard waits for this to be true.
+ */
+export function useAuthReady(): boolean {
+    const { user, loading } = useAuth();
+    return !loading && Boolean(user);
+}
+
+/**
+ * A legend rendered in the order we declare, not the order recharts picks.
+ *
+ * recharts sorts a stacked-series legend alphabetically, which scrambles the
+ * one thing a pipeline chart is about — the order a turn actually flows
+ * through the stages. Pass this to `<Legend content={...} />`.
+ */
+export function OrderedLegend({
+    items,
+}: {
+    items: ReadonlyArray<{ key: string; label: string; color: string }>;
+}) {
+    return (
+        <ul className="flex flex-wrap justify-center gap-x-3 gap-y-1 pt-1 text-[11px]">
+            {items.map((item) => (
+                <li key={item.key} className="flex items-center gap-1.5">
+                    <span
+                        aria-hidden
+                        className="inline-block h-2 w-2 shrink-0 rounded-[1px]"
+                        style={{ backgroundColor: item.color }}
+                    />
+                    {item.label}
+                </li>
+            ))}
+        </ul>
+    );
 }

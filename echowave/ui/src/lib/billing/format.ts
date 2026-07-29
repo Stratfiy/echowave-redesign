@@ -22,12 +22,25 @@ const rupees = new Intl.NumberFormat("en-IN", {
     maximumFractionDigits: 2,
 });
 
-const rupeesCompact = new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    notation: "compact",
-    maximumFractionDigits: 1,
-});
+/**
+ * Explicit Indian abbreviations rather than `notation: "compact"`.
+ *
+ * Chrome's en-IN compact data renders a thousand as "1T", which reads as
+ * "trillion" to most people and is exactly the wrong thing on a revenue axis.
+ * Node's ICU renders the same value as "1K", so the ambiguity is also
+ * environment-dependent. Spelling the thresholds out keeps the axis honest
+ * everywhere.
+ */
+function abbreviateRupees(rupees: number): string {
+    const abs = Math.abs(rupees);
+    const sign = rupees < 0 ? "-" : "";
+    const trim = (n: number) => Number(n.toFixed(1)).toString();
+
+    if (abs >= 10_000_000) return `${sign}₹${trim(abs / 10_000_000)}Cr`;
+    if (abs >= 100_000) return `${sign}₹${trim(abs / 100_000)}L`;
+    if (abs >= 1_000) return `${sign}₹${trim(abs / 1_000)}k`;
+    return `${sign}₹${Math.round(abs)}`;
+}
 
 const integers = new Intl.NumberFormat("en-IN");
 
@@ -40,7 +53,7 @@ export function formatPaise(paise: number | null | undefined): string {
 /** Abbreviated, e.g. ₹1.2L. Use on stat tiles and axis ticks where space is tight. */
 export function formatPaiseCompact(paise: number | null | undefined): string {
     if (paise === null || paise === undefined) return "—";
-    return rupeesCompact.format(paise / PAISE_PER_RUPEE);
+    return abbreviateRupees(paise / PAISE_PER_RUPEE);
 }
 
 /** A per-minute unit rate held in millipaise, e.g. 200000 → "₹2.00". */
