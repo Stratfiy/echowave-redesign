@@ -7,6 +7,7 @@ it only exists in the overlap between calls — so it gets its own tests.
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import func, select
 
 from api.db.billing_dashboard_client import campaign_concurrency
 from api.db.models import (
@@ -222,3 +223,86 @@ class TestBucketing:
         )
         assert result["bucket"] == "day"
         assert result["series"][0]["bucket_start"].startswith(expected_ist_day)
+
+
+class TestRollupCronTask:
+    """The scheduled refresh — the thing whose absence made Overview read zero."""
+
+    async def test_the_task_writes_rollup_rows_for_costed_calls(
+        self, async_session, monkeypatch
+    ):
+        from contextlib import asynccontextmanager
+
+        from api.db.models import DailyOrganizationRollupModel
+        from api.tasks import billing_rollup
+
+        campaign, workflow = await _campaign(async_session, "rollup-cron")
+        run = await _call(
+            async_session, campaign, workflow, start=datetime.now(UTC), seconds=90
+        )
+        run.total_charged_paise = 300
+        run.total_provider_cost_paise = 100
+        run.costed_at = datetime.now(UTC)
+        await async_session.flush()
+
+        # The task owns its own session; hand it the test's so the work lands
+        # in the same transaction the assertions read from.
+        @asynccontextmanager
+        async def _session():
+            yield async_session
+
+        monkeypatch.setattr(
+            billing_rollup.db_client, "async_session", _session, raising=False
+        )
+        monkeypatch.setattr(async_session, "commit", async_session.flush)
+
+        await billing_rollup.refresh_billing_rollups(None)
+
+        org_id = workflow.organization_id
+        rows = (
+            await async_session.execute(
+                select(DailyOrganizationRollupModel).where(
+                    DailyOrganizationRollupModel.organization_id == org_id
+                )
+            )
+        ).scalars().all()
+
+        assert rows, "the cron task must actually write rollup rows"
+        assert sum(r.charged_paise for r in rows) == 300
+        assert sum(r.provider_cost_paise for r in rows) == 100
+
+    async def test_running_twice_converges_rather_than_doubling(
+        self, async_session, monkeypatch
+    ):
+        from contextlib import asynccontextmanager
+
+        from api.db.models import DailyOrganizationRollupModel
+        from api.tasks import billing_rollup
+
+        campaign, workflow = await _campaign(async_session, "rollup-idempotent")
+        run = await _call(
+            async_session, campaign, workflow, start=datetime.now(UTC), seconds=90
+        )
+        run.total_charged_paise = 300
+        run.costed_at = datetime.now(UTC)
+        await async_session.flush()
+
+        @asynccontextmanager
+        async def _session():
+            yield async_session
+
+        monkeypatch.setattr(
+            billing_rollup.db_client, "async_session", _session, raising=False
+        )
+        monkeypatch.setattr(async_session, "commit", async_session.flush)
+
+        await billing_rollup.refresh_billing_rollups(None)
+        await billing_rollup.refresh_billing_rollups(None)
+
+        total = await async_session.scalar(
+            select(func.sum(DailyOrganizationRollupModel.charged_paise)).where(
+                DailyOrganizationRollupModel.organization_id
+                == workflow.organization_id
+            )
+        )
+        assert total == 300

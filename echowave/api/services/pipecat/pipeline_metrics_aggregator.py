@@ -14,6 +14,7 @@ from pipecat.frames.frames import (
 from pipecat.metrics.metrics import (
     LLMTokenUsage,
     LLMUsageMetricsData,
+    TTFBMetricsData,
     TTSUsageMetricsData,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
@@ -36,6 +37,13 @@ class PipelineMetricsAggregator(FrameProcessor):
         # there is one. Set by run_pipeline; see register_stt_service.
         self._stt_key: Optional[str] = None
 
+        # Per-turn latency instrumentation. TTFB arrives continuously as
+        # MetricsFrames; the turn is only *closed* when the latency observer
+        # reports a measured user-to-bot latency, so these accumulate against
+        # the turn in progress and are flushed by record_turn_latency.
+        self._turn_stage_ttfb: Dict[str, float] = {}
+        self._turns: list[dict] = []
+
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
 
@@ -51,6 +59,8 @@ class PipelineMetricsAggregator(FrameProcessor):
                     await self._handle_llm_usage_metrics(data)
                 elif isinstance(data, TTSUsageMetricsData):
                     await self._handle_tts_usage_metrics(data)
+                elif isinstance(data, TTFBMetricsData):
+                    self._handle_ttfb_metrics(data)
 
         await self.push_frame(frame, direction)
 
@@ -103,6 +113,78 @@ class PipelineMetricsAggregator(FrameProcessor):
         key = f"{data.processor}|||{data.model}"
         self._tts_usage_metrics[key] += data.value
         # logger.debug(f"TTS usage metrics: {self._tts_usage_metrics}")
+
+    def _handle_ttfb_metrics(self, data: TTFBMetricsData) -> None:
+        """Bank a stage's time-to-first-byte against the turn in progress.
+
+        Which stage a processor is comes from its class name — the same
+        convention the usage keys rely on. An unrecognised processor is
+        ignored rather than guessed at, leaving that stage NULL, because a
+        wrong attribution is worse on a diagnostic chart than a gap.
+        """
+        name = (data.processor or "").lower()
+        if "sttservice" in name:
+            stage = "stt_ms"
+        elif "llmservice" in name:
+            stage = "llm_ms"
+        elif "ttsservice" in name:
+            stage = "tts_ms"
+        else:
+            return
+        # First byte of the turn is what counts; a later frame from the same
+        # stage belongs to the next response, not this one.
+        self._turn_stage_ttfb.setdefault(stage, data.value)
+
+    def record_turn_latency(self, latency_seconds: float) -> None:
+        """Close the current turn with its measured user-to-bot latency.
+
+        Called from the pipeline's ``on_latency_measured`` handler. This is the
+        perceived latency the dashboard reports percentiles over — the gap
+        between the caller finishing and audio going back out.
+
+        ``call_turn_metrics`` stores a cumulative timeline in milliseconds from
+        the moment the user stopped, and derives each stage as the difference
+        between consecutive marks, so the per-stage TTFBs banked during the turn
+        are laid end to end here.
+
+        Endpointing is not separately instrumented — pipecat reports no VAD
+        mark — so its window is zero-length and the stage reads as 0 rather
+        than being invented. Playback falls out as the honest residual between
+        the last mark and audio going out.
+        """
+        stages = self._turn_stage_ttfb
+        self._turn_stage_ttfb = {}
+
+        def ms(seconds: float) -> int:
+            return max(int(round(seconds * 1000)), 0)
+
+        latency_ms = ms(latency_seconds)
+
+        t_user_stopped = 0
+        t_endpoint_fired = 0  # not separately measured; see docstring
+        t_stt_final = t_endpoint_fired + ms(stages.get("stt_ms", 0.0))
+        t_llm_first_token = t_stt_final + ms(stages.get("llm_ms", 0.0))
+        t_tts_first_byte = t_llm_first_token + ms(stages.get("tts_ms", 0.0))
+        # A stage chain longer than the measured latency would make playback
+        # negative; clamp so the residual is never nonsense.
+        t_audio_out = max(latency_ms, t_tts_first_byte)
+
+        self._turns.append(
+            {
+                "turn_index": len(self._turns),
+                "latency_ms": latency_ms,
+                "t_user_stopped_ms": t_user_stopped,
+                "t_endpoint_fired_ms": t_endpoint_fired,
+                "t_stt_final_ms": t_stt_final,
+                "t_llm_first_token_ms": t_llm_first_token,
+                "t_tts_first_byte_ms": t_tts_first_byte,
+                "t_audio_out_ms": t_audio_out,
+            }
+        )
+
+    def get_turn_metrics(self) -> list[dict]:
+        """Per-turn rows for ``call_turn_metrics``, in turn order."""
+        return list(self._turns)
 
     def register_stt_service(self, stt) -> None:
         """Record which STT service this pipeline is using, for billing.
@@ -184,5 +266,7 @@ class PipelineMetricsAggregator(FrameProcessor):
         self._llm_usage_metrics.clear()
         self._tts_usage_metrics.clear()
         self._stt_usage_metrics.clear()
+        self._turn_stage_ttfb.clear()
+        self._turns.clear()
         self._start_time = None
         self._stop_time = None

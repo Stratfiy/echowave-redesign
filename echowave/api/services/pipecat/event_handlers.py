@@ -6,6 +6,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import PostHogEvent, WorkflowRunState
+from api.services.billing.turn_metrics import record_turn_metrics
 from api.services.campaign.circuit_breaker import circuit_breaker
 from api.services.integrations import IntegrationRuntimeSession
 from api.services.pipecat.audio_config import AudioConfig
@@ -329,6 +330,13 @@ def register_event_handlers(
             logger.warning(f"Failed to close Smart-Turn analyzer gracefully: {exc}")
 
         usage_info = pipeline_metrics_aggregator.get_all_usage_metrics_serialized()
+
+        # Per-turn latency, the raw rows the Latency screen computes its
+        # percentiles over. Best-effort: instrumentation must never cost the
+        # call its recording, transcript or usage.
+        await record_turn_metrics(
+            workflow_run_id, pipeline_metrics_aggregator.get_turn_metrics()
+        )
 
         logger.debug(
             f"Usage metrics: {usage_info}, Gathered context: {gathered_context}"

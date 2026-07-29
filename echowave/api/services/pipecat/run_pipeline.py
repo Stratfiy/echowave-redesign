@@ -1082,6 +1082,15 @@ async def _run_pipeline_impl(
 
         @task.user_bot_latency_observer.event_handler("on_latency_measured")
         async def on_latency_measured(observer, latency_seconds):
+            # Close the turn for billing/analytics. This is the only source of
+            # perceived latency in the pipeline, and without it call_turn_metrics
+            # was never written outside the seed script — leaving the whole
+            # Latency screen empty in production.
+            try:
+                pipeline_metrics_aggregator.record_turn_latency(latency_seconds)
+            except Exception as e:
+                logger.debug(f"Failed to record turn latency: {e}")
+
             message = {
                 "type": RealtimeFeedbackType.LATENCY_MEASURED.value,
                 "payload": {

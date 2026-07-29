@@ -46,6 +46,7 @@ from api.tasks.campaign_tasks import (
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
+from api.tasks.billing_rollup import refresh_billing_rollups
 from api.tasks.workflow_completion import process_workflow_completion
 
 
@@ -57,6 +58,7 @@ class WorkerSettings:
         process_campaign_batch,
         process_knowledge_base_document,
         deliver_webhook,
+        refresh_billing_rollups,
     ]
     cron_jobs = [
         # Safety net for webhook deliveries whose ARQ job was lost (worker
@@ -65,6 +67,17 @@ class WorkerSettings:
             sweep_webhook_deliveries,
             minute=set(range(0, 60, 5)),
             second=0,
+            run_at_startup=True,
+        ),
+        # The billing dashboard reads daily_organization_rollup, not
+        # workflow_runs. Without this the table is never written outside the
+        # seed script and every headline figure reads zero in production.
+        # Every 10 minutes so the numbers are close to live, and at startup so
+        # a fresh deployment is not blank until the next tick.
+        cron(
+            refresh_billing_rollups,
+            minute=set(range(0, 60, 10)),
+            second=30,
             run_at_startup=True,
         ),
     ]
