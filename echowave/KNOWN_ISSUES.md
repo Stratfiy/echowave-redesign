@@ -188,6 +188,22 @@ version is current and formatting will drift again on the next ruff release.
 before and after. (These files are not referenced anywhere in the app — only
 the SVGs are — so they are legacy assets and could simply be deleted instead.)
 
+### 6b. The login/app background watermark still said "dograh"
+
+**FIXED.** `ui/public/brand-imprint-{light,dark}.svg` — the giant faded wordmark
+behind the auth pages and the app surface (`--brand-imprint` in `globals.css`) —
+were a single traced `<path>` spelling "dograh". Because the letters are vector
+outlines and not `<text>`, neither `grep` nor a DOM text query found them; it
+only surfaced in a screenshot. Note the CSS comment already *claimed* the asset
+was the "decibyl" wordmark, so the file and its documentation disagreed.
+
+Regenerated from the app's own typeface: Geist (the `next/font` subset the UI
+already ships) instantiated at weight 700, glyph outlines for "decibyl" laid out
+by advance width and emitted as one path — so the asset still needs no font at
+render time. Same fills as before (`#000` @ 1.8% light, `#fff` @ 0.9% dark).
+Verified by screenshot, both inline and through the `background-image` path CSS
+actually uses.
+
 ### 9. `openapi.json` needed verification by the real generator
 
 **FIXED — verified.** The endpoint removals were originally applied to the spec
