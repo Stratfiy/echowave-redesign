@@ -1680,6 +1680,24 @@ export type CredentialResponse = {
 };
 
 /**
+ * CreditAdjustmentRequest
+ */
+export type CreditAdjustmentRequest = {
+    /**
+     * Delta Paise
+     *
+     * Positive credits, negative debits
+     */
+    delta_paise: number;
+    /**
+     * Note
+     *
+     * Required: why this was adjusted
+     */
+    note: string;
+};
+
+/**
  * CurrentUsageResponse
  */
 export type CurrentUsageResponse = {
@@ -1799,6 +1817,126 @@ export type DailyUsageItem = {
      * Call Count
      */
     call_count: number;
+};
+
+/**
+ * Decibyl
+ */
+export type DecibylEmbeddingsConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'decibyl';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Model
+     *
+     * Decibyl-managed embedding model.
+     */
+    model?: string;
+};
+
+/**
+ * Decibyl
+ */
+export type DecibylLlmService = {
+    /**
+     * Provider
+     */
+    provider?: 'decibyl';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Model
+     *
+     * Decibyl-hosted model tier.
+     */
+    model?: string;
+};
+
+/**
+ * DecibylManagedAIModelConfiguration
+ */
+export type DecibylManagedAiModelConfiguration = {
+    /**
+     * Api Key
+     */
+    api_key: string;
+    /**
+     * Voice
+     */
+    voice?: string;
+    /**
+     * Speed
+     */
+    speed?: number;
+    /**
+     * Language
+     */
+    language?: string;
+};
+
+/**
+ * Decibyl
+ */
+export type DecibylSttService = {
+    /**
+     * Provider
+     */
+    provider?: 'decibyl';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Model
+     *
+     * Decibyl STT tier.
+     */
+    model?: string;
+    /**
+     * Language
+     *
+     * Language code; use 'multi' for auto-detect.
+     */
+    language?: string;
+};
+
+/**
+ * Decibyl
+ */
+export type DecibylTtsService = {
+    /**
+     * Provider
+     */
+    provider?: 'decibyl';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Model
+     *
+     * Decibyl TTS tier.
+     */
+    model?: string;
+    /**
+     * Voice
+     *
+     * Voice preset.
+     */
+    voice?: string;
+    /**
+     * Speed
+     *
+     * Speed of the voice.
+     */
+    speed?: number;
 };
 
 /**
@@ -2090,126 +2228,6 @@ export type DocumentUploadResponseSchema = {
      * S3 key where file should be uploaded
      */
     s3_key: string;
-};
-
-/**
- * Decibyl
- */
-export type DecibylEmbeddingsConfiguration = {
-    /**
-     * Provider
-     */
-    provider?: 'decibyl';
-    /**
-     * Api Key
-     */
-    api_key: string | Array<string>;
-    /**
-     * Model
-     *
-     * Decibyl-managed embedding model.
-     */
-    model?: string;
-};
-
-/**
- * Decibyl
- */
-export type DecibylLlmService = {
-    /**
-     * Provider
-     */
-    provider?: 'decibyl';
-    /**
-     * Api Key
-     */
-    api_key: string | Array<string>;
-    /**
-     * Model
-     *
-     * Decibyl-hosted model tier.
-     */
-    model?: string;
-};
-
-/**
- * DecibylManagedAIModelConfiguration
- */
-export type DecibylManagedAiModelConfiguration = {
-    /**
-     * Api Key
-     */
-    api_key: string;
-    /**
-     * Voice
-     */
-    voice?: string;
-    /**
-     * Speed
-     */
-    speed?: number;
-    /**
-     * Language
-     */
-    language?: string;
-};
-
-/**
- * Decibyl
- */
-export type DecibylSttService = {
-    /**
-     * Provider
-     */
-    provider?: 'decibyl';
-    /**
-     * Api Key
-     */
-    api_key: string | Array<string>;
-    /**
-     * Model
-     *
-     * Decibyl STT tier.
-     */
-    model?: string;
-    /**
-     * Language
-     *
-     * Language code; use 'multi' for auto-detect.
-     */
-    language?: string;
-};
-
-/**
- * Decibyl
- */
-export type DecibylTtsService = {
-    /**
-     * Provider
-     */
-    provider?: 'decibyl';
-    /**
-     * Api Key
-     */
-    api_key: string | Array<string>;
-    /**
-     * Model
-     *
-     * Decibyl TTS tier.
-     */
-    model?: string;
-    /**
-     * Voice
-     *
-     * Voice preset.
-     */
-    voice?: string;
-    /**
-     * Speed
-     *
-     * Speed of the voice.
-     */
-    speed?: number;
 };
 
 /**
@@ -4966,6 +4984,28 @@ export type ServiceKeyResponse = {
      * Created By
      */
     created_by?: string | null;
+};
+
+/**
+ * SetPlatformRateRequest
+ */
+export type SetPlatformRateRequest = {
+    /**
+     * Platform Rate Mpaise
+     *
+     * Platform rate in millipaise per minute
+     */
+    platform_rate_mpaise: number;
+    /**
+     * Effective From
+     *
+     * Defaults to now. May be future-dated.
+     */
+    effective_from?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
 };
 
 /**
@@ -7792,6 +7832,566 @@ export type GetWorkflowRunsApiV1SuperuserWorkflowRunsGetResponses = {
 };
 
 export type GetWorkflowRunsApiV1SuperuserWorkflowRunsGetResponse = GetWorkflowRunsApiV1SuperuserWorkflowRunsGetResponses[keyof GetWorkflowRunsApiV1SuperuserWorkflowRunsGetResponses];
+
+export type GetOverviewApiV1AdminBillingOverviewGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Start
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        end?: string | null;
+    };
+    url: '/api/v1/admin/billing/overview';
+};
+
+export type GetOverviewApiV1AdminBillingOverviewGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetOverviewApiV1AdminBillingOverviewGetError = GetOverviewApiV1AdminBillingOverviewGetErrors[keyof GetOverviewApiV1AdminBillingOverviewGetErrors];
+
+export type GetOverviewApiV1AdminBillingOverviewGetResponses = {
+    /**
+     * Response Get Overview Api V1 Admin Billing Overview Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetOverviewApiV1AdminBillingOverviewGetResponse = GetOverviewApiV1AdminBillingOverviewGetResponses[keyof GetOverviewApiV1AdminBillingOverviewGetResponses];
+
+export type ListAccountsApiV1AdminBillingAccountsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Account Type
+         */
+        account_type?: string | null;
+        /**
+         * Status
+         */
+        status?: string | null;
+        /**
+         * Start
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        end?: string | null;
+    };
+    url: '/api/v1/admin/billing/accounts';
+};
+
+export type ListAccountsApiV1AdminBillingAccountsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAccountsApiV1AdminBillingAccountsGetError = ListAccountsApiV1AdminBillingAccountsGetErrors[keyof ListAccountsApiV1AdminBillingAccountsGetErrors];
+
+export type ListAccountsApiV1AdminBillingAccountsGetResponses = {
+    /**
+     * Response List Accounts Api V1 Admin Billing Accounts Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListAccountsApiV1AdminBillingAccountsGetResponse = ListAccountsApiV1AdminBillingAccountsGetResponses[keyof ListAccountsApiV1AdminBillingAccountsGetResponses];
+
+export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: {
+        /**
+         * Start
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        end?: string | null;
+    };
+    url: '/api/v1/admin/billing/accounts/{organization_id}';
+};
+
+export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetError = GetAccountApiV1AdminBillingAccountsOrganizationIdGetErrors[keyof GetAccountApiV1AdminBillingAccountsOrganizationIdGetErrors];
+
+export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses = {
+    /**
+     * Response Get Account Api V1 Admin Billing Accounts  Organization Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponse = GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses[keyof GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses];
+
+export type SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutData = {
+    body: SetPlatformRateRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/accounts/{organization_id}/platform-rate';
+};
+
+export type SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutError = SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutErrors[keyof SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutErrors];
+
+export type SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponses = {
+    /**
+     * Response Set Platform Rate Api V1 Admin Billing Accounts  Organization Id  Platform Rate Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponse = SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponses[keyof SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponses];
+
+export type AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostData = {
+    body: CreditAdjustmentRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/accounts/{organization_id}/credit';
+};
+
+export type AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostError = AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostErrors[keyof AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostErrors];
+
+export type AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostResponses = {
+    /**
+     * Response Adjust Credit Api V1 Admin Billing Accounts  Organization Id  Credit Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostResponse = AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostResponses[keyof AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostResponses];
+
+export type ListCallsApiV1AdminBillingCallsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+        /**
+         * Language
+         */
+        language?: string | null;
+        /**
+         * Direction
+         */
+        direction?: string | null;
+        /**
+         * Search
+         */
+        search?: string | null;
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Start
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        end?: string | null;
+    };
+    url: '/api/v1/admin/billing/calls';
+};
+
+export type ListCallsApiV1AdminBillingCallsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCallsApiV1AdminBillingCallsGetError = ListCallsApiV1AdminBillingCallsGetErrors[keyof ListCallsApiV1AdminBillingCallsGetErrors];
+
+export type ListCallsApiV1AdminBillingCallsGetResponses = {
+    /**
+     * Response List Calls Api V1 Admin Billing Calls Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListCallsApiV1AdminBillingCallsGetResponse = ListCallsApiV1AdminBillingCallsGetResponses[keyof ListCallsApiV1AdminBillingCallsGetResponses];
+
+export type GetCallApiV1AdminBillingCallsWorkflowRunIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Run Id
+         */
+        workflow_run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/calls/{workflow_run_id}';
+};
+
+export type GetCallApiV1AdminBillingCallsWorkflowRunIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCallApiV1AdminBillingCallsWorkflowRunIdGetError = GetCallApiV1AdminBillingCallsWorkflowRunIdGetErrors[keyof GetCallApiV1AdminBillingCallsWorkflowRunIdGetErrors];
+
+export type GetCallApiV1AdminBillingCallsWorkflowRunIdGetResponses = {
+    /**
+     * Response Get Call Api V1 Admin Billing Calls  Workflow Run Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCallApiV1AdminBillingCallsWorkflowRunIdGetResponse = GetCallApiV1AdminBillingCallsWorkflowRunIdGetResponses[keyof GetCallApiV1AdminBillingCallsWorkflowRunIdGetResponses];
+
+export type ListCampaignsApiV1AdminBillingCampaignsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/campaigns';
+};
+
+export type ListCampaignsApiV1AdminBillingCampaignsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCampaignsApiV1AdminBillingCampaignsGetError = ListCampaignsApiV1AdminBillingCampaignsGetErrors[keyof ListCampaignsApiV1AdminBillingCampaignsGetErrors];
+
+export type ListCampaignsApiV1AdminBillingCampaignsGetResponses = {
+    /**
+     * Response List Campaigns Api V1 Admin Billing Campaigns Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListCampaignsApiV1AdminBillingCampaignsGetResponse = ListCampaignsApiV1AdminBillingCampaignsGetResponses[keyof ListCampaignsApiV1AdminBillingCampaignsGetResponses];
+
+export type GetCampaignConcurrencyApiV1AdminBillingCampaignsCampaignIdConcurrencyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/campaigns/{campaign_id}/concurrency';
+};
+
+export type GetCampaignConcurrencyApiV1AdminBillingCampaignsCampaignIdConcurrencyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCampaignConcurrencyApiV1AdminBillingCampaignsCampaignIdConcurrencyGetError = GetCampaignConcurrencyApiV1AdminBillingCampaignsCampaignIdConcurrencyGetErrors[keyof GetCampaignConcurrencyApiV1AdminBillingCampaignsCampaignIdConcurrencyGetErrors];
+
+export type GetCampaignConcurrencyApiV1AdminBillingCampaignsCampaignIdConcurrencyGetResponses = {
+    /**
+     * Response Get Campaign Concurrency Api V1 Admin Billing Campaigns  Campaign Id  Concurrency Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCampaignConcurrencyApiV1AdminBillingCampaignsCampaignIdConcurrencyGetResponse = GetCampaignConcurrencyApiV1AdminBillingCampaignsCampaignIdConcurrencyGetResponses[keyof GetCampaignConcurrencyApiV1AdminBillingCampaignsCampaignIdConcurrencyGetResponses];
+
+export type GetLatencyApiV1AdminBillingLatencyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+        /**
+         * Language
+         */
+        language?: string | null;
+        /**
+         * Start
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        end?: string | null;
+    };
+    url: '/api/v1/admin/billing/latency';
+};
+
+export type GetLatencyApiV1AdminBillingLatencyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetLatencyApiV1AdminBillingLatencyGetError = GetLatencyApiV1AdminBillingLatencyGetErrors[keyof GetLatencyApiV1AdminBillingLatencyGetErrors];
+
+export type GetLatencyApiV1AdminBillingLatencyGetResponses = {
+    /**
+     * Response Get Latency Api V1 Admin Billing Latency Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetLatencyApiV1AdminBillingLatencyGetResponse = GetLatencyApiV1AdminBillingLatencyGetResponses[keyof GetLatencyApiV1AdminBillingLatencyGetResponses];
 
 export type ValidateWorkflowApiV1WorkflowWorkflowIdValidatePostData = {
     body?: never;
