@@ -1716,6 +1716,117 @@ class CallTurnMetricModel(Base):
     )
 
 
+class OrganizationKycModel(Base):
+    """Telephony KYC for one account.
+
+    Kept off ``organizations`` deliberately: this is a dozen fields that only
+    matter to accounts wanting phone numbers, and the table already carries the
+    billing columns.
+
+    The two ``status`` stages are not interchangeable. Ours is a pre-screen;
+    the carrier is the licensee and its verdict is the one that may unblock
+    calling. See :class:`~api.enums.KycStatus`.
+    """
+
+    __tablename__ = "organization_kyc"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+
+    # See KycStatus.
+    status = Column(
+        String(24), nullable=False, default="not_started", server_default="not_started"
+    )
+    # individual | company — see KycBusinessType. Decides required documents.
+    business_type = Column(String(16), nullable=True)
+    # Name as registered, which need not match the account's display name.
+    legal_name = Column(String(255), nullable=True)
+    gstin = Column(String(20), nullable=True)
+
+    submitted_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Our review. Who signed off matters for compliance, so it is recorded
+    # rather than inferred from a log line.
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    reviewed_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    rejection_reason = Column(Text, nullable=True)
+
+    # The carrier leg.
+    forwarded_at = Column(DateTime(timezone=True), nullable=True)
+    carrier = Column(String(32), nullable=True)
+    # The carrier's own application id, so a status poll has something to ask
+    # about and a dispute has something to quote.
+    carrier_reference = Column(String(128), nullable=True)
+    carrier_status = Column(String(64), nullable=True)
+    carrier_checked_at = Column(DateTime(timezone=True), nullable=True)
+    carrier_rejection_reason = Column(Text, nullable=True)
+    carrier_approved_at = Column(DateTime(timezone=True), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+    documents = relationship(
+        "KycDocumentModel",
+        back_populates="kyc",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        # The review queue is "everything waiting on us, oldest first".
+        Index("ix_organization_kyc_status_submitted", "status", "submitted_at"),
+    )
+
+
+class KycDocumentModel(Base):
+    """One uploaded KYC document.
+
+    Only the storage key lives here. The files are incorporation and tax
+    certificates and identity documents — sensitive under the DPDP Act — so
+    they go to their own bucket with staff-only access rather than sharing the
+    call-recording bucket's policy.
+    """
+
+    __tablename__ = "kyc_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_kyc_id = Column(
+        Integer,
+        ForeignKey("organization_kyc.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # See KycDocumentKind.
+    kind = Column(String(32), nullable=False)
+    storage_key = Column(String(512), nullable=False)
+    filename = Column(String(255), nullable=False)
+    content_type = Column(String(128), nullable=True)
+    size_bytes = Column(BigInteger, nullable=True)
+
+    uploaded_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    uploaded_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    kyc = relationship("OrganizationKycModel", back_populates="documents")
+
+    __table_args__ = (Index("ix_kyc_documents_kyc", "organization_kyc_id"),)
+
+
 class CreditLedgerModel(Base):
     """Append-only credit ledger. Balance is derived, never edited in place.
 

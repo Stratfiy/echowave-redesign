@@ -249,6 +249,49 @@ class BillingAuditAction(str, Enum):
     PROVIDER_RATE_CHANGED = "provider_rate_changed"
 
 
+class KycStatus(str, Enum):
+    """Where an account sits in telephony KYC.
+
+    Two stages, deliberately. Our review is a pre-screen — we check the
+    documents are complete and legible before spending a carrier round-trip on
+    them. The carrier is the telecom licensee, and under the DoT directive of
+    June 2025 it is the licensee that must verify the end user, so only
+    ``CARRIER_APPROVED`` may unblock calling. Gating on our own review instead
+    would let an account dial on a sub-account the carrier still has blocked.
+    """
+
+    NOT_STARTED = "not_started"
+    #: Customer has uploaded documents; waiting on us.
+    SUBMITTED = "submitted"
+    #: A staff member has picked it up.
+    UNDER_REVIEW = "under_review"
+    #: We rejected it — the customer resubmits.
+    REJECTED = "rejected"
+    #: Sent to the carrier; waiting on them.
+    FORWARDED = "forwarded"
+    #: The carrier rejected it. Terminal until the customer resubmits.
+    CARRIER_REJECTED = "carrier_rejected"
+    #: The licensee has verified the account. The only state that permits calls.
+    CARRIER_APPROVED = "carrier_approved"
+
+
+class KycBusinessType(str, Enum):
+    """Drives which documents are required."""
+
+    INDIVIDUAL = "individual"
+    COMPANY = "company"
+
+
+class KycDocumentKind(str, Enum):
+    """Document types the carriers ask for on Indian numbers."""
+
+    CERTIFICATE_OF_INCORPORATION = "certificate_of_incorporation"
+    GST_CERTIFICATE = "gst_certificate"
+    ADDRESS_PROOF = "address_proof"
+    AUTHORISED_SIGNATORY_ID = "authorised_signatory_id"
+    OTHER = "other"
+
+
 class AccountType(str, Enum):
     """Commercial shape of an organization, used for dashboard segmentation."""
 
