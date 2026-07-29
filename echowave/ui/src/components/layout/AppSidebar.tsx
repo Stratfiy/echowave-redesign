@@ -7,7 +7,6 @@ import {
   Brain,
   ChevronLeft,
   ChevronRight,
-  CircleDollarSign,
   Database,
   FileText,
   Home,
@@ -138,11 +137,6 @@ const NAV_SECTIONS: SidebarNavSection[] = [
         title: "Agent Runs",
         url: "/usage",
         icon: TrendingUp,
-      },
-      {
-        title: "Billing",
-        url: "/billing",
-        icon: CircleDollarSign,
       },
       {
         title: "Reports",

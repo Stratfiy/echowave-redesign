@@ -12,7 +12,6 @@ from api.enums import PostHogEvent
 from api.schemas.ai_model_configuration import EffectiveAIModelConfiguration
 from api.services.auth.stack_auth import stackauth
 from api.services.configuration.registry import ServiceProviders
-from api.services.mps_billing import ensure_hosted_mps_billing_account_v2
 from api.services.posthog_client import (
     POSTHOG_ORGANIZATION_GROUP_TYPE,
     capture_event,
@@ -140,19 +139,6 @@ async def get_user(
             # This prevents race conditions where multiple concurrent requests
             # might try to create configurations
             if org_was_created:
-                try:
-                    await ensure_hosted_mps_billing_account_v2(
-                        organization.id,
-                        created_by=str(stack_user["id"]),
-                    )
-                except Exception:
-                    logger.warning(
-                        "Failed to initialize hosted MPS billing account for "
-                        "organization {}",
-                        organization.id,
-                        exc_info=True,
-                    )
-
                 existing_cfg = await db_client.get_user_configurations(user_model.id)
                 if not (existing_cfg.llm or existing_cfg.tts or existing_cfg.stt):
                     mps_config = await create_user_configuration_with_mps_key(

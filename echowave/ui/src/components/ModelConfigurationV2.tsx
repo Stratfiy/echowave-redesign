@@ -9,7 +9,6 @@ import {
     saveModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2Put,
 } from "@/client/sdk.gen";
 import type {
-    ModelConfigurationPricingResponse,
     OrganizationAiModelConfigurationResponse,
     OrganizationAiModelConfigurationV2,
 } from "@/client/types.gen";
@@ -18,7 +17,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUserConfig } from "@/context/UserConfigContext";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
-import { fetchModelConfigurationPricing } from "@/lib/modelConfigurationPricing";
 
 export default function ModelConfigurationV2({ docsUrl }: { docsUrl?: string }) {
     const auth = useAuth();
@@ -27,7 +25,6 @@ export default function ModelConfigurationV2({ docsUrl }: { docsUrl?: string }) 
 
     const [defaults, setDefaults] = useState<ModelConfigurationDefaultsV2 | null>(null);
     const [response, setResponse] = useState<OrganizationAiModelConfigurationResponse | null>(null);
-    const [pricing, setPricing] = useState<ModelConfigurationPricingResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
@@ -39,10 +36,9 @@ export default function ModelConfigurationV2({ docsUrl }: { docsUrl?: string }) 
         const load = async () => {
             setLoading(true);
             setError(null);
-            const [defaultsResult, configResult, pricingResult] = await Promise.all([
+            const [defaultsResult, configResult] = await Promise.all([
                 getModelConfigurationV2DefaultsApiV1OrganizationsModelConfigurationsV2DefaultsGet(),
                 getModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2Get(),
-                fetchModelConfigurationPricing(),
             ]);
 
             if (defaultsResult.error) {
@@ -64,7 +60,6 @@ export default function ModelConfigurationV2({ docsUrl }: { docsUrl?: string }) 
             }
             setDefaults(nextDefaults);
             setResponse(configResult.data);
-            setPricing(pricingResult);
             setLoading(false);
         };
 
@@ -89,7 +84,6 @@ export default function ModelConfigurationV2({ docsUrl }: { docsUrl?: string }) 
         }
 
         setResponse(result.data);
-        void fetchModelConfigurationPricing().then(setPricing);
         await refreshConfig();
         setNotice("Model configuration saved");
     };
@@ -136,7 +130,6 @@ export default function ModelConfigurationV2({ docsUrl }: { docsUrl?: string }) 
                     defaults={defaults}
                     configuration={response.configuration}
                     effectiveConfiguration={response.effective_configuration}
-                    pricing={pricing}
                     onSave={saveConfiguration}
                 />
             )}

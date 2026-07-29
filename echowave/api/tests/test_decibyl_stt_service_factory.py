@@ -49,9 +49,9 @@ def test_create_decibyl_multi_uses_flux_service_without_language_hint():
 
     with (
         patch(
-            "api.services.pipecat.service_factory.DecibylFluxSTTService"
+            "api.services.pipecat.service_factory.DograhFluxSTTService"
         ) as flux_service,
-        patch("api.services.pipecat.service_factory.DecibylSTTService") as stt_service,
+        patch("api.services.pipecat.service_factory.DograhSTTService") as stt_service,
     ):
         create_stt_service(user_config, _audio_config(), correlation_id="corr-123")
 
@@ -68,9 +68,9 @@ def test_create_decibyl_supported_language_uses_flux_service_with_hint():
 
     with (
         patch(
-            "api.services.pipecat.service_factory.DecibylFluxSTTService"
+            "api.services.pipecat.service_factory.DograhFluxSTTService"
         ) as flux_service,
-        patch("api.services.pipecat.service_factory.DecibylSTTService") as stt_service,
+        patch("api.services.pipecat.service_factory.DograhSTTService") as stt_service,
     ):
         create_stt_service(user_config, _audio_config(), keyterms=["Decibyl"])
 
@@ -87,9 +87,9 @@ def test_create_decibyl_unsupported_language_falls_back_to_standard_stt_service(
 
     with (
         patch(
-            "api.services.pipecat.service_factory.DecibylFluxSTTService"
+            "api.services.pipecat.service_factory.DograhFluxSTTService"
         ) as flux_service,
-        patch("api.services.pipecat.service_factory.DecibylSTTService") as stt_service,
+        patch("api.services.pipecat.service_factory.DograhSTTService") as stt_service,
     ):
         create_stt_service(
             user_config,

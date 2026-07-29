@@ -24,10 +24,10 @@ from api.services.configuration.ai_model_configuration import (
 from api.services.configuration.check_validity import UserConfigurationValidator
 from api.services.configuration.masking import mask_key
 from api.services.configuration.registry import (
-    DeepgramSTTConfiguration,
     DecibylLLMService,
     DecibylSTTService,
     DecibylTTSService,
+    DeepgramSTTConfiguration,
     ElevenlabsTTSConfiguration,
     GoogleLLMService,
     GoogleRealtimeLLMConfiguration,
@@ -485,7 +485,7 @@ def test_workflow_model_override_migration_removes_invalid_v1_override_marker():
 
 
 @pytest.mark.asyncio
-async def test_migrate_model_configuration_v2_initializes_hosted_mps_billing(
+async def test_migrate_model_configuration_v2_upserts_and_migrates_workflows(
     monkeypatch,
 ):
     from api.routes import organization as organization_routes
@@ -518,11 +518,9 @@ async def test_migrate_model_configuration_v2_initializes_hosted_mps_billing(
         async def validate(self, *args, **kwargs):
             return {"status": [{"model": "all", "message": "ok"}]}
 
-    ensure_billing = AsyncMock(return_value={"billing_mode": "v2"})
     upsert = AsyncMock()
     migrate_workflows = AsyncMock()
 
-    monkeypatch.setattr(organization_routes, "DEPLOYMENT_MODE", "saas")
     monkeypatch.setattr(
         organization_routes,
         "get_organization_ai_model_configuration_v2",
@@ -537,11 +535,6 @@ async def test_migrate_model_configuration_v2_initializes_hosted_mps_billing(
         organization_routes,
         "UserConfigurationValidator",
         lambda: FakeValidator(),
-    )
-    monkeypatch.setattr(
-        organization_routes,
-        "ensure_hosted_mps_billing_account_v2",
-        ensure_billing,
     )
     monkeypatch.setattr(
         organization_routes,
@@ -570,7 +563,6 @@ async def test_migrate_model_configuration_v2_initializes_hosted_mps_billing(
         user=user,
     )
 
-    ensure_billing.assert_awaited_once_with(42, created_by="provider-123")
     upsert.assert_awaited_once()
     migrate_workflows.assert_awaited_once_with(
         organization_id=42,

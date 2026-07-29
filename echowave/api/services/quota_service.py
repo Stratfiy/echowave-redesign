@@ -1,7 +1,20 @@
-"""Quota checking service for Decibyl credits.
+"""Workflow run start authorization.
 
-This module provides reusable quota checking functionality that can be used
-across different endpoints (WebRTC signaling, telephony, public API triggers).
+This module authorizes a workflow run before any billable call/text runtime
+starts. It is the single seam every runtime entrypoint (WebRTC signaling,
+telephony, campaigns, public API triggers, text chat, agent stream) goes
+through, so it owns two responsibilities:
+
+1. **Tenant isolation.** The workflow must belong to the organization being
+   billed, the acting user must be a member of that organization, and a
+   supplied run must belong to that workflow. These are security checks, not
+   accounting ones.
+2. **Managed model services correlation.** When the resolved configuration
+   uses Decibyl-managed model services, a correlation ID is minted so the
+   model gateway can attribute STT/LLM/TTS usage to this run.
+
+Decibyl does not sell prepaid inference credits, so there is no balance check
+here. Local platform-fee accounting is applied after a run completes.
 """
 
 from dataclasses import dataclass
@@ -10,13 +23,11 @@ from typing import Any
 import httpx
 from loguru import logger
 
-from api.constants import DEPLOYMENT_MODE
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.configuration.ai_model_configuration import (
     get_effective_ai_model_configuration_for_workflow,
 )
-from api.services.configuration.registry import ServiceProviders
 from api.services.managed_model_services import (
     MPS_CORRELATION_ID_CONTEXT_KEY,
     get_decibyl_service_api_key,
@@ -24,125 +35,41 @@ from api.services.managed_model_services import (
 )
 from api.services.mps_service_key_client import mps_service_key_client
 
-MINIMUM_DECIBYL_CREDITS_FOR_CALL = 0.10
-
-_MPS_UNREACHABLE_ERRORS = (
+_MODEL_GATEWAY_UNREACHABLE_ERRORS = (
     httpx.TimeoutException,
     httpx.NetworkError,
     httpx.RemoteProtocolError,
     httpx.ProxyError,
 )
 
-OSS_QUOTA_EXCEEDED_MESSAGE = (
-    "You have exhausted your trial credits. "
-    "Please sign up on app.decibyl.com to create a "
-    "new service key and set up in your model configurations."
-)
-
-HOSTED_QUOTA_EXCEEDED_MESSAGE = (
-    "You have exhausted your Decibyl credits. "
-    "Please purchase more credits from /billing "
-    "or change providers in Models configurations."
-)
-
-SERVICE_TOKEN_ORG_MISMATCH_MESSAGE = (
-    "The Decibyl service token being used is created from another account. "
-    "Please create a new service token from the Developers tab and use it in "
-    "your model configuration."
+INVALID_SERVICE_KEY_MESSAGE = (
+    "You have invalid keys in your model configuration. "
+    "Please validate the service keys."
 )
 
 
 @dataclass
 class QuotaCheckResult:
-    """Result of a quota check."""
+    """Result of a workflow run start authorization."""
 
     has_quota: bool
     error_message: str = ""
     error_code: str = ""
 
 
-def _safe_float(value: Any, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
+def _gateway_unreachable_result(error: httpx.RequestError) -> QuotaCheckResult:
+    """Allow the run to proceed when the model gateway is unreachable.
 
-
-def _insufficient_hosted_quota_result() -> QuotaCheckResult:
-    return QuotaCheckResult(
-        has_quota=False,
-        error_code="insufficient_credits",
-        error_message=HOSTED_QUOTA_EXCEEDED_MESSAGE,
-    )
-
-
-def _insufficient_oss_quota_result() -> QuotaCheckResult:
-    return QuotaCheckResult(
-        has_quota=False,
-        error_code="quota_exceeded",
-        error_message=OSS_QUOTA_EXCEEDED_MESSAGE,
-    )
-
-
-def _mps_unreachable_result(
-    operation: str,
-    error: httpx.RequestError,
-) -> QuotaCheckResult:
+    A transport failure minting a correlation ID only costs usage attribution,
+    so it must not take down call handling. Every other failure mode below
+    fails closed.
+    """
     logger.warning(
-        "MPS unreachable during {}; allowing workflow run to proceed without "
-        "quota verification: {}",
-        operation,
+        "Model gateway unreachable while minting correlation id; allowing "
+        "workflow run to proceed without usage correlation: {}",
         error,
     )
     return QuotaCheckResult(has_quota=True)
-
-
-def _service_uses_decibyl(service: Any) -> bool:
-    provider = getattr(service, "provider", None)
-    return (
-        provider == ServiceProviders.DECIBYL or provider == ServiceProviders.DECIBYL.value
-    )
-
-
-def _decibyl_api_keys(user_config: Any) -> set[str]:
-    api_keys: set[str] = set()
-    for section_name in ("llm", "stt", "tts", "embeddings"):
-        service = getattr(user_config, section_name, None)
-        if not _service_uses_decibyl(service):
-            continue
-        if hasattr(service, "get_all_api_keys"):
-            all_api_keys = [
-                api_key
-                for api_key in service.get_all_api_keys()
-                if isinstance(api_key, str) and api_key
-            ]
-            if all_api_keys:
-                api_keys.update(all_api_keys)
-                continue
-        api_key = getattr(service, "api_key", None)
-        if api_key:
-            api_keys.add(api_key)
-    return api_keys
-
-
-def _is_service_key_org_mismatch_error(error: Exception) -> bool:
-    response = getattr(error, "response", None)
-    if getattr(response, "status_code", None) != 403:
-        return False
-
-    detail: Any = None
-    try:
-        payload = response.json()
-        if isinstance(payload, dict):
-            detail = payload.get("detail")
-    except Exception:
-        detail = None
-
-    if isinstance(detail, str):
-        return detail.lower() == "service key organization mismatch"
-
-    response_text = getattr(response, "text", "")
-    return "Service key organization mismatch" in response_text
 
 
 async def _store_run_correlation_id(
@@ -155,7 +82,7 @@ async def _store_run_correlation_id(
     workflow_run = await db_client.get_workflow_run_by_id(workflow_run_id)
     if not workflow_run:
         logger.warning(
-            "Could not store MPS correlation id for missing workflow run {}",
+            "Could not store model gateway correlation id for missing workflow run {}",
             workflow_run_id,
         )
         return
@@ -171,155 +98,13 @@ async def _store_run_correlation_id(
     )
 
 
-async def _authorize_hosted_workflow_run_start(
-    *,
-    workflow_owner: UserModel,
-    organization_id: int | None,
-    workflow_id: int | None,
-    workflow_run_id: int | None,
-    user_config: Any,
-) -> QuotaCheckResult:
-    """Authorize a hosted workflow run against the org's MPS billing account."""
-    if organization_id is None:
-        return QuotaCheckResult(has_quota=True)
-
-    requires_correlation = bool(
-        workflow_run_id and uses_managed_model_services_v2(user_config)
-    )
-    service_key = (
-        get_decibyl_service_api_key(user_config) if requires_correlation else None
-    )
-    if requires_correlation and not service_key:
-        return QuotaCheckResult(
-            has_quota=False,
-            error_code="invalid_service_key",
-            error_message=(
-                "You have invalid keys in your model configuration. "
-                "Please validate the service keys."
-            ),
-        )
-
-    try:
-        authorization = await mps_service_key_client.authorize_workflow_run_start(
-            organization_id=organization_id,
-            workflow_run_id=workflow_run_id,
-            service_key=service_key,
-            require_correlation_id=requires_correlation,
-            minimum_credits=MINIMUM_DECIBYL_CREDITS_FOR_CALL,
-            created_by=(
-                str(workflow_owner.provider_id)
-                if workflow_owner.provider_id is not None
-                else None
-            ),
-            metadata={
-                "decibyl_user_id": str(workflow_owner.id),
-                "workflow_id": workflow_id,
-            },
-        )
-    except _MPS_UNREACHABLE_ERRORS as e:
-        return _mps_unreachable_result("hosted run authorization", e)
-    except Exception as e:
-        logger.warning(
-            "Failed to authorize workflow start with MPS for org {}: {}",
-            organization_id,
-            e,
-        )
-        if _is_service_key_org_mismatch_error(e):
-            return QuotaCheckResult(
-                has_quota=False,
-                error_code="service_key_org_mismatch",
-                error_message=SERVICE_TOKEN_ORG_MISMATCH_MESSAGE,
-            )
-        return QuotaCheckResult(
-            has_quota=False,
-            error_code="quota_check_failed",
-            error_message="Could not verify Decibyl credits. Please try again.",
-        )
-
-    remaining = _safe_float(authorization.get("remaining_credits"))
-    if (
-        not authorization.get("allowed", False)
-        or remaining < MINIMUM_DECIBYL_CREDITS_FOR_CALL
-    ):
-        logger.warning(
-            "Insufficient Decibyl credits for org {}: {:.2f} credits remaining",
-            organization_id,
-            remaining,
-        )
-        return _insufficient_hosted_quota_result()
-
-    try:
-        await _store_run_correlation_id(
-            workflow_run_id,
-            authorization.get("correlation_id"),
-        )
-    except Exception as e:
-        logger.error(
-            "Failed to store MPS correlation id for workflow_run_id {}: {}",
-            workflow_run_id,
-            e,
-        )
-        return QuotaCheckResult(
-            has_quota=False,
-            error_code="quota_check_failed",
-            error_message="Could not verify Decibyl credits. Please try again.",
-        )
-    logger.info(
-        "Decibyl run authorization passed for org {}: {:.2f} credits remaining",
-        organization_id,
-        remaining,
-    )
-    return QuotaCheckResult(has_quota=True)
-
-
-async def _authorize_oss_decibyl_keys(
-    *,
-    decibyl_api_keys: set[str],
-) -> QuotaCheckResult:
-    """Check per-key MPS credits for OSS deployments before a run starts."""
-    for api_key in decibyl_api_keys:
-        try:
-            usage = await mps_service_key_client.check_service_key_usage(api_key)
-            remaining = usage.get("remaining_credits", 0.0)
-
-            # Require at least $0.10 for a short call
-            if remaining < MINIMUM_DECIBYL_CREDITS_FOR_CALL:
-                logger.warning(
-                    f"Insufficient Decibyl credits for key ...{api_key[-8:]}: "
-                    f"${remaining:.2f} remaining"
-                )
-                return _insufficient_oss_quota_result()
-
-            logger.info(
-                f"Decibyl quota check passed for key ...{api_key[-8:]}: "
-                f"{remaining:.2f} credits remaining"
-            )
-        except _MPS_UNREACHABLE_ERRORS as e:
-            return _mps_unreachable_result("OSS service-key quota check", e)
-        except Exception as e:
-            logger.error(f"Failed to check quota for Decibyl key: {str(e)}")
-            error_str = str(e)
-            if "404" in error_str or "not found" in error_str.lower():
-                return QuotaCheckResult(
-                    has_quota=False,
-                    error_code="invalid_service_key",
-                    error_message="You have invalid keys in your model configuration. Please validate the service keys.",
-                )
-            return QuotaCheckResult(
-                has_quota=False,
-                error_code="quota_check_failed",
-                error_message="Could not verify Decibyl credits. Please try again.",
-            )
-
-    return QuotaCheckResult(has_quota=True)
-
-
-async def _authorize_oss_managed_v2_correlation(
+async def _mint_managed_model_correlation(
     *,
     workflow_id: int,
     workflow_run_id: int | None,
     user_config: Any,
 ) -> QuotaCheckResult:
+    """Mint and persist a model gateway correlation ID for a managed-model run."""
     if not workflow_run_id or not uses_managed_model_services_v2(user_config):
         return QuotaCheckResult(has_quota=True)
 
@@ -328,10 +113,7 @@ async def _authorize_oss_managed_v2_correlation(
         return QuotaCheckResult(
             has_quota=False,
             error_code="invalid_service_key",
-            error_message=(
-                "You have invalid keys in your model configuration. "
-                "Please validate the service keys."
-            ),
+            error_message=INVALID_SERVICE_KEY_MESSAGE,
         )
 
     try:
@@ -343,11 +125,11 @@ async def _authorize_oss_managed_v2_correlation(
             workflow_run_id,
             response.get("correlation_id"),
         )
-    except _MPS_UNREACHABLE_ERRORS as e:
-        return _mps_unreachable_result("OSS correlation creation", e)
+    except _MODEL_GATEWAY_UNREACHABLE_ERRORS as e:
+        return _gateway_unreachable_result(e)
     except Exception as e:
         logger.error(
-            "Failed to authorize OSS managed v2 workflow start for workflow {} run {}: {}",
+            "Failed to mint model gateway correlation id for workflow {} run {}: {}",
             workflow_id,
             workflow_run_id,
             e,
@@ -355,7 +137,7 @@ async def _authorize_oss_managed_v2_correlation(
         return QuotaCheckResult(
             has_quota=False,
             error_code="quota_check_failed",
-            error_message="Could not verify Decibyl credits. Please try again.",
+            error_message="Could not start the run. Please try again.",
         )
 
     return QuotaCheckResult(has_quota=True)
@@ -370,9 +152,10 @@ async def authorize_workflow_run_start(
 ) -> QuotaCheckResult:
     """Authorize a workflow run before any billable call/text runtime starts.
 
-    The workflow organization is the billing subject for hosted deployments.
-    OSS deployments are billed per service key instead. The workflow owner is
-    used only as billing metadata.
+    Validates that the workflow belongs to ``organization_id``, that
+    ``actor_user`` (when supplied) is a member of that organization, and that
+    ``workflow_run_id`` (when supplied) belongs to that workflow. Then mints a
+    managed model services correlation ID when the run needs one.
     """
     if organization_id is None:
         logger.warning(
@@ -473,7 +256,7 @@ async def authorize_workflow_run_start(
                 error_message="User not found",
             )
 
-        # The run executes its pinned definition's configuration, so the MPS
+        # The run executes its pinned definition's configuration, so the
         # correlation must be minted for the service key in that snapshot.
         # workflow.workflow_configurations is a legacy column synced to the
         # draft on every save, which can carry a different service key than
@@ -508,37 +291,20 @@ async def authorize_workflow_run_start(
             workflow_configurations=workflow_configurations,
         )
 
-        if DEPLOYMENT_MODE != "oss":
-            return await _authorize_hosted_workflow_run_start(
-                workflow_owner=workflow_owner,
-                organization_id=organization_id,
-                workflow_id=workflow.id,
-                workflow_run_id=workflow_run_id,
-                user_config=user_config,
-            )
-
-        decibyl_api_keys = _decibyl_api_keys(user_config)
-        if decibyl_api_keys:
-            oss_result = await _authorize_oss_decibyl_keys(
-                decibyl_api_keys=decibyl_api_keys,
-            )
-            if not oss_result.has_quota:
-                return oss_result
-
-        return await _authorize_oss_managed_v2_correlation(
+        return await _mint_managed_model_correlation(
             workflow_id=workflow.id,
             workflow_run_id=workflow_run_id,
             user_config=user_config,
         )
 
     except Exception as e:
-        logger.error(f"Error during quota check: {str(e)}")
-        # Only an httpx transport failure raised while calling MPS is allowed to
-        # fail open, and those failures are handled at the MPS call sites above.
+        logger.error(f"Error during workflow run start authorization: {str(e)}")
+        # Only an httpx transport failure raised while calling the model gateway
+        # is allowed to fail open, and that is handled at the call site above.
         # Database, configuration, response-validation, and programming errors
         # all reach this handler and fail closed.
         return QuotaCheckResult(
             has_quota=False,
             error_code="quota_check_failed",
-            error_message="Could not verify Decibyl credits. Please try again.",
+            error_message="Could not start the run. Please try again.",
         )

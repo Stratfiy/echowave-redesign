@@ -1,9 +1,6 @@
 from loguru import logger
 from pipecat.utils.run_context import set_current_run_id
 
-from api.services.workflow_run_billing import (
-    report_completed_workflow_run_platform_usage,
-)
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 
 
@@ -11,7 +8,7 @@ async def process_workflow_completion(
     _ctx,
     workflow_run_id: int,
 ):
-    """Process workflow completion: run integrations and report billing.
+    """Process workflow completion: run post-call integrations.
 
     Recording/transcript uploads happen in the pipeline process itself
     (api/services/workflow_run_artifacts.py) before this job is enqueued,
@@ -31,13 +28,5 @@ async def process_workflow_completion(
         await run_integrations_post_workflow_run(_ctx, workflow_run_id)
     except Exception as e:
         logger.error(f"Error running integrations for workflow {workflow_run_id}: {e}")
-
-    # Notify MPS after completion. MPS owns credit accounting.
-    try:
-        await report_completed_workflow_run_platform_usage(workflow_run_id)
-    except Exception as e:
-        logger.error(
-            f"Error reporting platform usage for workflow {workflow_run_id}: {e}"
-        )
 
     logger.info(f"Completed workflow completion processing for run {workflow_run_id}")

@@ -34,10 +34,10 @@ from pipecat.services.deepgram.flux.stt import (
 )
 from pipecat.services.deepgram.stt import DeepgramSTTService, DeepgramSTTSettings
 from pipecat.services.deepgram.tts import DeepgramTTSService, DeepgramTTSSettings
-from pipecat.services.decibyl.flux.stt import DecibylFluxSTTService
-from pipecat.services.decibyl.llm import DecibylLLMService
-from pipecat.services.decibyl.stt import DecibylSTTService, DecibylSTTSettings
-from pipecat.services.decibyl.tts import DecibylTTSService, DecibylTTSSettings
+from pipecat.services.dograh.flux.stt import DograhFluxSTTService
+from pipecat.services.dograh.llm import DograhLLMService
+from pipecat.services.dograh.stt import DograhSTTService, DograhSTTSettings
+from pipecat.services.dograh.tts import DograhTTSService, DograhTTSSettings
 from pipecat.services.elevenlabs.stt import (
     CommitStrategy,
     ElevenLabsRealtimeSTTService,
@@ -163,7 +163,9 @@ def stt_uses_external_turns(user_config) -> bool:
     if user_config.stt.provider == ServiceProviders.DEEPGRAM.value:
         return user_config.stt.model in DEEPGRAM_FLUX_MODELS
     if user_config.stt.provider == ServiceProviders.DECIBYL.value:
-        return decibyl_stt_uses_flux_language(getattr(user_config.stt, "language", None))
+        return decibyl_stt_uses_flux_language(
+            getattr(user_config.stt, "language", None)
+        )
     if user_config.stt.provider == ServiceProviders.CARTESIA.value:
         return user_config.stt.model == "ink-2"
     return False
@@ -303,7 +305,7 @@ def create_stt_service(
             language_hint = DEEPGRAM_FLUX_LANGUAGE_HINTS.get(language)
             if language_hint:
                 settings_kwargs["language_hints"] = [language_hint]
-            return DecibylFluxSTTService(
+            return DograhFluxSTTService(
                 base_url=base_url,
                 api_key=user_config.stt.api_key,
                 correlation_id=correlation_id,
@@ -312,11 +314,11 @@ def create_stt_service(
                 sample_rate=audio_config.transport_in_sample_rate,
             )
 
-        return DecibylSTTService(
+        return DograhSTTService(
             base_url=base_url,
             api_key=user_config.stt.api_key,
             correlation_id=correlation_id,
-            settings=DecibylSTTSettings(
+            settings=DograhSTTSettings(
                 model=user_config.stt.model,
                 language=language,
             ),
@@ -627,11 +629,11 @@ def create_tts_service(
     elif user_config.tts.provider == ServiceProviders.DECIBYL.value:
         # Convert HTTP URL to WebSocket URL for TTS
         base_url = MPS_API_URL.replace("http://", "ws://").replace("https://", "wss://")
-        return DecibylTTSService(
+        return DograhTTSService(
             base_url=base_url,
             api_key=user_config.tts.api_key,
             correlation_id=correlation_id,
-            settings=DecibylTTSSettings(
+            settings=DograhTTSSettings(
                 model=user_config.tts.model,
                 voice=user_config.tts.voice,
                 speed=user_config.tts.speed,
@@ -927,7 +929,7 @@ def create_llm_service_from_provider(
             settings=AzureLLMSettings(model=model, temperature=0.1),
         )
     elif provider == ServiceProviders.DECIBYL.value:
-        return DecibylLLMService(
+        return DograhLLMService(
             base_url=f"{MPS_API_URL}/api/v1/llm",
             api_key=api_key,
             correlation_id=correlation_id,

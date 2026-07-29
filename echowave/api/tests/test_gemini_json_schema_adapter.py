@@ -130,7 +130,8 @@ def test_gemini_live_service_classes_use_decibyl_gemini_adapter_class():
     assert DecibylGeminiLiveLLMService.adapter_class is DecibylGeminiJSONSchemaAdapter
     # Vertex Live inherits adapter_class from DecibylGeminiLiveLLMService via MRO.
     assert (
-        DecibylGeminiLiveVertexLLMService.adapter_class is DecibylGeminiJSONSchemaAdapter
+        DecibylGeminiLiveVertexLLMService.adapter_class
+        is DecibylGeminiJSONSchemaAdapter
     )
 
 

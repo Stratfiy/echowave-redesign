@@ -72,10 +72,10 @@ class TestServiceFactoryCamb:
 
         # Mock missing modules (custom pipecat fork, not in public pipecat-ai)
         decibyl_modules = [
-            "pipecat.services.decibyl",
-            "pipecat.services.decibyl.llm",
-            "pipecat.services.decibyl.stt",
-            "pipecat.services.decibyl.tts",
+            "pipecat.services.dograh",
+            "pipecat.services.dograh.llm",
+            "pipecat.services.dograh.stt",
+            "pipecat.services.dograh.tts",
             "pipecat.utils.text.xml_function_tag_filter",
         ]
         mocks = {}

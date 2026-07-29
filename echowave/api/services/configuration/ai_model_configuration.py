@@ -260,7 +260,10 @@ def merge_ai_model_configuration_v2_secrets(
     incoming_dict = incoming.model_dump(mode="json", exclude_none=True)
     existing_dict = existing.model_dump(mode="json", exclude_none=True)
 
-    if incoming_dict.get("mode") == "decibyl" and existing_dict.get("mode") == "decibyl":
+    if (
+        incoming_dict.get("mode") == "decibyl"
+        and existing_dict.get("mode") == "decibyl"
+    ):
         incoming_decibyl = incoming_dict.get("decibyl") or {}
         existing_decibyl = existing_dict.get("decibyl") or {}
         incoming_key = incoming_decibyl.get("api_key")
@@ -346,7 +349,10 @@ def apply_managed_embeddings_base_url(
     provider: str | None,
     base_url: str | None,
 ) -> str | None:
-    if provider == ServiceProviders.DECIBYL.value or provider == ServiceProviders.DECIBYL:
+    if (
+        provider == ServiceProviders.DECIBYL.value
+        or provider == ServiceProviders.DECIBYL
+    ):
         return decibyl_embeddings_base_url()
     return base_url
 

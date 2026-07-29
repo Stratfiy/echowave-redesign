@@ -4,8 +4,6 @@ import { Info, KeyRound, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type {
-    ModelConfigurationMetricPrice,
-    ModelConfigurationPricingResponse,
     OrganizationAiModelConfigurationV2,
 } from "@/client/types.gen";
 import {
@@ -22,7 +20,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VoiceSelectorModal } from "@/components/VoiceSelectorModal";
 import { LANGUAGE_DISPLAY_NAMES } from "@/constants/languages";
-import { formatRoundingPolicy } from "@/lib/billingDisplay";
 
 type ModelMode = "realtime" | "decibyl" | "byok";
 
@@ -72,7 +69,6 @@ interface AIModelConfigurationV2EditorProps {
     defaults: ModelConfigurationDefaultsV2;
     configuration?: OrganizationAiModelConfigurationV2 | Record<string, unknown> | null;
     effectiveConfiguration?: Record<string, unknown> | null;
-    pricing?: ModelConfigurationPricingResponse | null;
     onSave: (configuration: OrganizationAiModelConfigurationV2) => Promise<void>;
     submitLabel?: string;
 }
@@ -288,72 +284,10 @@ function ThirdPartyProviderNotice() {
     );
 }
 
-function formatPricePerMinute(price: ModelConfigurationMetricPrice): string {
-    return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: price.currency,
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 4,
-    }).format(price.price_per_minute);
-}
-
-function MetricPrice({
-    label,
-    price,
-}: {
-    label: string;
-    price: ModelConfigurationMetricPrice;
-}) {
-    return (
-        <div className="space-y-0.5">
-            <p className="text-muted-foreground">
-                {label}: <span className="font-medium text-foreground">{formatPricePerMinute(price)}/{price.unit}</span>
-            </p>
-            <p className="text-xs text-muted-foreground">
-                {formatRoundingPolicy(price.rounding_policy)}
-            </p>
-        </div>
-    );
-}
-
-function PricingSummary({
-    pricing,
-    includeDecibylModel,
-    thirdPartyModels,
-}: {
-    pricing?: ModelConfigurationPricingResponse | null;
-    includeDecibylModel: boolean;
-    thirdPartyModels?: boolean;
-}) {
-    const platformPrice = pricing?.platform_usage;
-    const decibylModelPrice = includeDecibylModel ? pricing?.decibyl_model : null;
-    if (!platformPrice && !decibylModelPrice) return null;
-
-    return (
-        <Card className="mb-4 border-primary/20 bg-primary/[0.03]">
-            <CardContent className="space-y-2 pt-5 text-sm">
-                <p className="font-medium">Usage pricing</p>
-                {platformPrice && (
-                    <MetricPrice label="Platform usage" price={platformPrice} />
-                )}
-                {decibylModelPrice && (
-                    <MetricPrice label="Decibyl model usage" price={decibylModelPrice} />
-                )}
-                {thirdPartyModels && (
-                    <p className="text-muted-foreground">
-                        Your selected model provider may charge separately for its usage.
-                    </p>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-
 export function AIModelConfigurationV2Editor({
     defaults,
     configuration,
     effectiveConfiguration,
-    pricing,
     onSave,
     submitLabel = "Save Configuration",
 }: AIModelConfigurationV2EditorProps) {
@@ -468,7 +402,6 @@ export function AIModelConfigurationV2Editor({
                     <p className="mb-4 text-sm text-muted-foreground">
                         A single speech-to-speech model handles the conversation in realtime (no separate transcriber or voice). An LLM is still required for variable extraction and QA.
                     </p>
-                    <PricingSummary pricing={pricing} includeDecibylModel={false} thirdPartyModels />
                     <ServiceConfigurationForm
                         key={`realtime-${JSON.stringify(realtimeInitialConfig)}`}
                         mode="global"
@@ -495,7 +428,6 @@ export function AIModelConfigurationV2Editor({
                         </a>
                         .
                     </p>
-                    <PricingSummary pricing={pricing} includeDecibylModel />
                     <Card>
                         <CardContent className="pt-6">
                             <div className="grid gap-4 sm:grid-cols-2">
@@ -576,7 +508,6 @@ export function AIModelConfigurationV2Editor({
                     <p className="mb-4 text-sm text-muted-foreground">
                         Configure separate transcriber, LLM, and voice providers using your own API keys. An embeddings model can also be configured for knowledge retrieval.
                     </p>
-                    <PricingSummary pricing={pricing} includeDecibylModel={false} thirdPartyModels />
                     <ServiceConfigurationForm
                         key={`byok-${JSON.stringify(pipelineInitialConfig)}`}
                         mode="global"

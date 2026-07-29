@@ -3,9 +3,9 @@ import json
 import pytest
 from openai._types import NOT_GIVEN as OPENAI_NOT_GIVEN
 from pipecat.frames.frames import TTSStartedFrame
-from pipecat.services.decibyl.llm import DecibylLLMService
-from pipecat.services.decibyl.stt import DecibylSTTService
-from pipecat.services.decibyl.tts import DecibylTTSService
+from pipecat.services.dograh.llm import DograhLLMService
+from pipecat.services.dograh.stt import DograhSTTService
+from pipecat.services.dograh.tts import DograhTTSService
 from pipecat.services.openai.base_llm import OpenAILLMSettings
 from websockets.protocol import State
 
@@ -37,7 +37,7 @@ class _IterableFakeWebSocket(_FakeWebSocket):
 
 
 def test_decibyl_llm_uses_explicit_mps_correlation_id():
-    service = DecibylLLMService(
+    service = DograhLLMService(
         api_key="mps-secret",
         correlation_id="mps-corr-123",
         settings=OpenAILLMSettings(model="default"),
@@ -64,11 +64,11 @@ async def test_decibyl_stt_config_uses_explicit_mps_correlation_id(monkeypatch):
         return fake_ws
 
     monkeypatch.setattr(
-        "pipecat.services.decibyl.stt.websocket_connect",
+        "pipecat.services.dograh.stt.websocket_connect",
         fake_connect,
     )
 
-    service = DecibylSTTService(
+    service = DograhSTTService(
         api_key="mps-secret",
         correlation_id="mps-corr-123",
         sample_rate=16000,
@@ -90,11 +90,11 @@ async def test_decibyl_tts_messages_use_explicit_mps_correlation_id(monkeypatch)
         return fake_ws
 
     monkeypatch.setattr(
-        "pipecat.services.decibyl.tts.websocket_connect",
+        "pipecat.services.dograh.tts.websocket_connect",
         fake_connect,
     )
 
-    service = DecibylTTSService(
+    service = DograhTTSService(
         api_key="mps-secret",
         correlation_id="mps-corr-123",
         sample_rate=24000,
@@ -126,7 +126,7 @@ async def test_decibyl_tts_messages_use_explicit_mps_correlation_id(monkeypatch)
 
 @pytest.mark.asyncio
 async def test_decibyl_tts_final_for_missing_context_is_ignored():
-    service = DecibylTTSService(api_key="mps-secret")
+    service = DograhTTSService(api_key="mps-secret")
     service._websocket = _IterableFakeWebSocket(
         [{"type": "final", "context_id": "ctx-already-removed"}]
     )

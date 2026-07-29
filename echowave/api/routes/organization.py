@@ -8,7 +8,6 @@ from sqlalchemy.exc import IntegrityError
 from api.constants import (
     DEFAULT_CAMPAIGN_RETRY_CONFIG,
     DEFAULT_ORG_CONCURRENCY_LIMIT,
-    DEPLOYMENT_MODE,
 )
 from api.db import db_client
 from api.db.models import UserModel
@@ -67,8 +66,6 @@ from api.services.configuration.registry import (
     ServiceProviders,
     ServiceType,
 )
-from api.services.mps_billing import ensure_hosted_mps_billing_account_v2
-from api.services.mps_service_key_client import mps_service_key_client
 from api.services.organization_context import (
     OrganizationContextResponse,
     get_organization_context,
@@ -146,22 +143,6 @@ class TelephonyConfigWarningsResponse(BaseModel):
 
     telnyx_missing_webhook_public_key_count: int
     vonage_missing_signature_secret_count: int
-
-
-class ModelConfigurationMetricPrice(BaseModel):
-    metric_code: str
-    display_name: str
-    unit: str
-    price_per_minute: float
-    currency: str
-    rounding_policy: str
-
-
-class ModelConfigurationPricingResponse(BaseModel):
-    """MPS-owned effective prices relevant to model configuration choices."""
-
-    platform_usage: ModelConfigurationMetricPrice | None = None
-    decibyl_model: ModelConfigurationMetricPrice | None = None
 
 
 @router.get("/context", response_model=OrganizationContextResponse)
@@ -329,34 +310,6 @@ async def get_model_configuration_v2(
     return await _model_configuration_v2_response(user=user)
 
 
-@router.get(
-    "/model-configurations/v2/pricing",
-    response_model=ModelConfigurationPricingResponse,
-)
-async def get_model_configuration_pricing(
-    user: UserModel = Depends(get_user_with_selected_organization),
-) -> ModelConfigurationPricingResponse:
-    """Return the hosted organization prices shown in Model Configurations."""
-    if DEPLOYMENT_MODE == "oss":
-        return ModelConfigurationPricingResponse()
-
-    try:
-        pricing = await mps_service_key_client.get_billing_pricing(
-            user.selected_organization_id,
-        )
-        return ModelConfigurationPricingResponse.model_validate(pricing)
-    except Exception as exc:
-        logger.error(
-            "Failed to get MPS model-configuration pricing for organization {}: {}",
-            user.selected_organization_id,
-            exc,
-        )
-        raise HTTPException(
-            status_code=502,
-            detail="Failed to retrieve model configuration pricing",
-        ) from exc
-
-
 @router.put(
     "/model-configurations/v2",
     response_model=OrganizationAIModelConfigurationResponse,
@@ -433,23 +386,6 @@ async def migrate_model_configuration_v2(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=exc.args[0])
-
-    if DEPLOYMENT_MODE != "oss":
-        try:
-            await ensure_hosted_mps_billing_account_v2(
-                organization_id,
-                created_by=str(user.provider_id),
-            )
-        except Exception as exc:
-            logger.error(
-                "Failed to initialize MPS billing account for organization {}: {}",
-                organization_id,
-                exc,
-            )
-            raise HTTPException(
-                status_code=502,
-                detail="Failed to initialize MPS billing account",
-            )
 
     await upsert_organization_ai_model_configuration_v2(
         organization_id,

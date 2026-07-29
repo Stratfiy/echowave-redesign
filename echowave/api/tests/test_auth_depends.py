@@ -7,7 +7,7 @@ from api.services.auth import depends as auth_depends
 
 
 @pytest.mark.asyncio
-async def test_get_user_initializes_hosted_mps_billing_for_new_org(monkeypatch):
+async def test_get_user_syncs_new_org_to_posthog(monkeypatch):
     stack_user = {
         "id": "stack-user-1",
         "selected_team_id": "team-1",
@@ -22,7 +22,6 @@ async def test_get_user_initializes_hosted_mps_billing_for_new_org(monkeypatch):
     organization = SimpleNamespace(id=42, provider_id="team-1")
     existing_config = SimpleNamespace(llm=object(), tts=None, stt=None)
 
-    ensure_billing = AsyncMock(return_value={"billing_mode": "v2"})
     group_calls = []
     capture_calls = []
     person_calls = []
@@ -60,11 +59,6 @@ async def test_get_user_initializes_hosted_mps_billing_for_new_org(monkeypatch):
     )
     monkeypatch.setattr(
         auth_depends,
-        "ensure_hosted_mps_billing_account_v2",
-        ensure_billing,
-    )
-    monkeypatch.setattr(
-        auth_depends,
         "group_identify",
         lambda *args, **kwargs: group_calls.append((args, kwargs)),
     )
@@ -83,7 +77,6 @@ async def test_get_user_initializes_hosted_mps_billing_for_new_org(monkeypatch):
 
     assert result is user
     assert result.selected_organization_id == 42
-    ensure_billing.assert_awaited_once_with(42, created_by="stack-user-1")
 
     assert len(group_calls) == 1
     group_args, group_kwargs = group_calls[0]
