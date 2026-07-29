@@ -108,7 +108,7 @@ would understate provider cost and overstate margin.
 | Answer rate | `answered_calls / dialled_calls` |
 | Completion rate | `completed_calls / answered_calls` |
 | Cost per completed | `campaign_spend / completed_calls` |
-| Concurrency | max simultaneous active calls, sampled per minute |
+| Concurrency | max calls in flight at once, per bucket (see below) |
 
 Billable minutes are ceilinged **per call, then summed** — never summed as
 seconds and ceilinged once. A 30-second call bills one minute.
@@ -117,6 +117,18 @@ seconds and ceilinged once. A 30-second call bills one minute.
 averaged from pre-aggregated buckets: the average of two percentiles is not a
 percentile. `latency_ms` is stored denormalised on each turn so those queries
 stay cheap at scale.
+
+**Concurrency** is genuine overlap, not a calls-started rate. Each call
+contributes `+1` at its start and `−1` at its end; a running sum over that event
+stream gives the number in flight at every transition, and we report the maximum
+per bucket. Where a call ends at the same instant another starts, the `−1` is
+applied first, so a clean handoff reads as one call and not two. A call that is
+still up has no `ended_at`, so its billed duration stands in.
+
+The bucket adapts to the campaign's span — hourly up to three days, daily beyond
+— because hourly buckets over a month-long campaign produce hundreds of points
+that read as noise. Daily buckets are **IST** days, matching the rollups. The
+response carries the bucket it chose so the axis can label itself.
 
 ---
 

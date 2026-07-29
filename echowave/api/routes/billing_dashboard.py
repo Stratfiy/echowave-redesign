@@ -378,7 +378,7 @@ async def get_campaign_concurrency(campaign_id: int) -> dict[str, Any]:
     async with db_client.async_session() as session:
         return {
             "campaign_id": campaign_id,
-            "series": await dash.campaign_concurrency(session, campaign_id=campaign_id),
+            **await dash.campaign_concurrency(session, campaign_id=campaign_id),
         }
 
 

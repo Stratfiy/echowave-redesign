@@ -17,7 +17,17 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import and_, case, cast, desc, func, or_, select
+from sqlalchemy import (
+    and_,
+    case,
+    cast,
+    desc,
+    func,
+    literal,
+    or_,
+    select,
+    union_all,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import (
@@ -796,21 +806,83 @@ async def campaigns_summary(session: AsyncSession) -> list[dict]:
 
 async def campaign_concurrency(
     session: AsyncSession, *, campaign_id: int
-) -> list[dict]:
-    """Calls started per minute during a campaign, as a concurrency proxy."""
-    minute = func.date_trunc("minute", WorkflowRunModel.created_at)
+) -> dict:
+    """Peak concurrent calls over the life of a campaign.
+
+    Real concurrency, not a calls-started rate: every call contributes +1 at its
+    start and -1 at its end, and a running sum over that event stream gives the
+    number of calls in flight at each transition. We report the peak per bucket
+    because that is the number capacity planning needs.
+
+    The bucket adapts to how long the campaign has been running — hourly reads
+    well over a couple of days but degenerates into a comb of hundreds of points
+    over a month, where the daily peak is both readable and the number an
+    operator actually asks for.
+    """
+    start_ts = func.coalesce(
+        WorkflowRunModel.answered_at, WorkflowRunModel.created_at
+    )
+    # A still-running call has no ended_at; fall back to its billed duration so
+    # it still occupies the line rather than vanishing from the series.
+    end_ts = func.coalesce(
+        WorkflowRunModel.ended_at,
+        start_ts
+        + func.make_interval(
+            0, 0, 0, 0, 0, 0, func.coalesce(WorkflowRunModel.billable_seconds, 0)
+        ),
+    )
+    in_campaign = WorkflowRunModel.campaign_id == campaign_id
+
+    events = union_all(
+        select(start_ts.label("ts"), literal(1).label("delta")).where(in_campaign),
+        select(end_ts.label("ts"), literal(-1).label("delta")).where(in_campaign),
+    ).subquery()
+
+    # Ordering -1 before +1 within the same instant stops a call that ends
+    # exactly as another starts from reading as two concurrent calls.
+    running = select(
+        events.c.ts.label("ts"),
+        func.sum(events.c.delta)
+        .over(order_by=(events.c.ts, events.c.delta))
+        .label("concurrent"),
+    ).subquery()
+
+    span = (
+        await session.execute(
+            select(func.min(start_ts), func.max(end_ts)).where(in_campaign)
+        )
+    ).first()
+    first, last = (span or (None, None))[0], (span or (None, None))[1]
+    if first is None or last is None:
+        return {"bucket": "hour", "series": []}
+    bucket = "hour" if (last - first) <= timedelta(days=3) else "day"
+
+    # Bucket in IST so a "day" is the local day operators work in, matching the
+    # rollups; date_trunc otherwise cuts at UTC midnight (05:30 IST).
+    truncated = func.date_trunc(
+        bucket, func.timezone("Asia/Kolkata", running.c.ts)
+    )
     rows = (
         await session.execute(
-            select(minute.label("minute"), func.count().label("calls"))
-            .where(WorkflowRunModel.campaign_id == campaign_id)
-            .group_by(minute)
-            .order_by(minute)
+            select(
+                truncated.label("bucket_start"),
+                func.max(running.c.concurrent).label("peak"),
+            )
+            .where(running.c.ts.isnot(None))
+            .group_by(truncated)
+            .order_by(truncated)
         )
     ).all()
-    return [
-        {"minute": r.minute.astimezone(IST).isoformat(), "calls": int(r.calls)}
-        for r in rows
-    ]
+    return {
+        "bucket": bucket,
+        "series": [
+            {
+                "bucket_start": r.bucket_start.isoformat(),
+                "peak": int(r.peak or 0),
+            }
+            for r in rows
+        ],
+    }
 
 
 async def distinct_languages(session: AsyncSession) -> list[str]:
