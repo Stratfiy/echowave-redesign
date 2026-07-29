@@ -144,6 +144,22 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
             f"[run {workflow_run_id}] Call completed with duration: {status.duration}s"
         )
 
+        # Telephony minutes are billable provider cost and this callback is the
+        # only place they are known — the pipeline never sees them. Without
+        # this, telephony was missing from every receipt, understating provider
+        # cost and overstating margin on every phone call. usage_info merges,
+        # so this coexists with the pipeline's own llm/tts/stt write whichever
+        # order the two land in.
+        telephony_seconds = _duration_seconds(status.duration)
+        if telephony_seconds:
+            await db_client.update_workflow_run(
+                run_id=workflow_run_id,
+                ended_at=datetime.now(UTC),
+                usage_info={
+                    "telephony": {workflow_run.mode: telephony_seconds},
+                },
+            )
+
         await campaign_call_dispatcher.release_call_slot(workflow_run_id)
 
         if workflow_run.campaign_id:
@@ -214,6 +230,9 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
             "is_completed": True,
             "state": WorkflowRunState.COMPLETED.value,
             "gathered_context": gathered_context,
+            # A call that never connected still ends. Without this the run has
+            # no end stamp at all and falls out of any duration-based query.
+            "ended_at": datetime.now(UTC),
         }
         if should_run_post_call_integrations:
             update_kwargs["usage_info"] = {
@@ -227,8 +246,18 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
                 workflow_run_id, normalized_status.value
             )
     elif normalized_status in IN_FLIGHT_STATUSES:
-        # No-op while the call is in flight.
-        pass
+        # Nothing to settle while the call is in flight, but the moment it is
+        # answered is the one that makes it billable and is what answer rate
+        # counts. Recorded once — update_workflow_run will not move a stamp
+        # that is already set, so a repeated callback is harmless.
+        if normalized_status in (
+            TelephonyCallStatus.ANSWERED,
+            TelephonyCallStatus.IN_PROGRESS,
+        ):
+            await db_client.update_workflow_run(
+                run_id=workflow_run_id,
+                answered_at=datetime.now(UTC),
+            )
     else:
         logger.warning(
             f"[run {workflow_run_id}] Unexpected status update: {status.status}"

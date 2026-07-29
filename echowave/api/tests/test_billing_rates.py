@@ -294,3 +294,152 @@ class TestProviderRateResolution:
             at=JUN,
         )
         assert resolved is None
+
+    async def test_a_model_specific_rate_beats_the_provider_fallback(
+        self, async_session
+    ):
+        """The whole point of the model dimension.
+
+        gpt-4o and gpt-4o-mini are more than an order of magnitude apart. Before
+        the model column both priced at one rate, so anyone off the default
+        model was billed the wrong number.
+        """
+        async_session.add_all(
+            [
+                ProviderRateModel(
+                    provider="openai",
+                    model="",  # provider-wide fallback
+                    component=CostComponent.LLM.value,
+                    unit=RateUnit.THOUSAND_TOKENS.value,
+                    rate_mpaise=12_000,
+                    effective_from=JAN,
+                ),
+                ProviderRateModel(
+                    provider="openai",
+                    model="gpt-4o-mini",
+                    component=CostComponent.LLM.value,
+                    unit=RateUnit.THOUSAND_TOKENS.value,
+                    rate_mpaise=700,
+                    effective_from=JAN,
+                ),
+            ]
+        )
+        await async_session.flush()
+
+        mini = await resolve_provider_rate(
+            async_session,
+            provider="openai",
+            component=CostComponent.LLM,
+            at=JUN,
+            model="gpt-4o-mini",
+        )
+        assert mini.rate_mpaise == 700
+        assert mini.model == "gpt-4o-mini"
+
+    async def test_an_unpriced_model_falls_back_to_the_provider_rate(
+        self, async_session
+    ):
+        async_session.add_all(
+            [
+                ProviderRateModel(
+                    provider="openai",
+                    model="",
+                    component=CostComponent.LLM.value,
+                    unit=RateUnit.THOUSAND_TOKENS.value,
+                    rate_mpaise=12_000,
+                    effective_from=JAN,
+                ),
+                ProviderRateModel(
+                    provider="openai",
+                    model="gpt-4o-mini",
+                    component=CostComponent.LLM.value,
+                    unit=RateUnit.THOUSAND_TOKENS.value,
+                    rate_mpaise=700,
+                    effective_from=JAN,
+                ),
+            ]
+        )
+        await async_session.flush()
+
+        # A model we have never quoted still prices, at the provider rate,
+        # rather than dropping off the receipt as uncosted.
+        resolved = await resolve_provider_rate(
+            async_session,
+            provider="openai",
+            component=CostComponent.LLM,
+            at=JUN,
+            model="some-model-we-never-priced",
+        )
+        assert resolved.rate_mpaise == 12_000
+        assert resolved.model == ""
+
+    async def test_a_model_rate_is_effective_dated_like_any_other(
+        self, async_session
+    ):
+        async_session.add_all(
+            [
+                ProviderRateModel(
+                    provider="openai",
+                    model="gpt-4o",
+                    component=CostComponent.LLM.value,
+                    unit=RateUnit.THOUSAND_TOKENS.value,
+                    rate_mpaise=25_000,
+                    effective_from=JAN,
+                    effective_to=JUN,
+                ),
+                ProviderRateModel(
+                    provider="openai",
+                    model="gpt-4o",
+                    component=CostComponent.LLM.value,
+                    unit=RateUnit.THOUSAND_TOKENS.value,
+                    rate_mpaise=20_000,
+                    effective_from=JUN,
+                ),
+            ]
+        )
+        await async_session.flush()
+
+        old = await resolve_provider_rate(
+            async_session,
+            provider="openai",
+            component=CostComponent.LLM,
+            at=datetime(2026, 3, 1, tzinfo=UTC),
+            model="gpt-4o",
+        )
+        new = await resolve_provider_rate(
+            async_session,
+            provider="openai",
+            component=CostComponent.LLM,
+            at=DEC,
+            model="gpt-4o",
+        )
+        assert old.rate_mpaise == 25_000
+        assert new.rate_mpaise == 20_000
+
+    async def test_a_fallback_and_a_model_rate_can_both_be_open(self, async_session):
+        """Regression: the open-rate unique index must include the model.
+
+        Keyed on (provider, component) alone, inserting a model-specific rate
+        alongside the provider fallback would violate the index.
+        """
+        async_session.add_all(
+            [
+                ProviderRateModel(
+                    provider="elevenlabs",
+                    model="",
+                    component=CostComponent.TTS.value,
+                    unit=RateUnit.THOUSAND_CHARS.value,
+                    rate_mpaise=40_000,
+                    effective_from=JAN,
+                ),
+                ProviderRateModel(
+                    provider="elevenlabs",
+                    model="turbo-v2",
+                    component=CostComponent.TTS.value,
+                    unit=RateUnit.THOUSAND_CHARS.value,
+                    rate_mpaise=18_000,
+                    effective_from=JAN,
+                ),
+            ]
+        )
+        await async_session.flush()  # must not raise

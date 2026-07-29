@@ -98,13 +98,19 @@ async def cost_workflow_run(
         ),
     )
 
-    provider_rates: dict[tuple[str, str], RateSpec] = {}
+    # Keyed by (component, provider, model). The engine looks up the exact
+    # model first and falls back to the "" provider-wide entry.
+    provider_rates: dict[tuple[str, str, str], RateSpec] = {}
     for item in usage:
-        key = (item.component.value, item.provider)
+        key = (item.component.value, item.provider, item.model)
         if key in provider_rates:
             continue
         resolved = await resolve_provider_rate(
-            session, provider=item.provider, component=item.component, at=at
+            session,
+            provider=item.provider,
+            component=item.component,
+            at=at,
+            model=item.model,
         )
         if resolved is not None:
             provider_rates[key] = RateSpec(
@@ -125,7 +131,10 @@ async def cost_workflow_run(
             "Workflow run {} has {} usage item(s) with no rate on file: {}",
             workflow_run_id,
             len(cost.uncosted),
-            ", ".join(f"{u.component.value}:{u.provider}" for u in cost.uncosted),
+            ", ".join(
+                f"{u.component.value}:{u.provider}" + (f"/{u.model}" if u.model else "")
+                for u in cost.uncosted
+            ),
         )
 
     # Recosting replaces the old receipt rather than appending to it.
@@ -140,6 +149,7 @@ async def cost_workflow_run(
                 workflow_run_id=workflow_run_id,
                 component=line.component,
                 provider=line.provider,
+                model=line.model,
                 units=line.units,
                 unit_rate_mpaise=line.unit_rate_mpaise,
                 cost_paise=line.cost_paise,

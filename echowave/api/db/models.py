@@ -1598,6 +1598,11 @@ class ProviderRateModel(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     provider = Column(String(64), nullable=False)
+    # The specific model this rate is for, e.g. "gpt-4o-mini". Empty string
+    # means a provider-wide fallback that applies to any model without its own
+    # row. Not nullable, because a partial unique index over a nullable column
+    # would let duplicate open fallbacks through.
+    model = Column(String(128), nullable=False, server_default="", default="")
     # stt | llm | tts | telephony — see CostComponent.
     component = Column(String(16), nullable=False)
     # minute | 1k_chars | 1k_tokens — see RateUnit.
@@ -1613,12 +1618,17 @@ class ProviderRateModel(Base):
             "ix_provider_rates_lookup",
             "provider",
             "component",
+            "model",
             "effective_from",
         ),
+        # One open rate per (provider, model, component). Model is part of the
+        # key so a provider-wide fallback ("") and a model-specific override can
+        # both be open at once — which is the whole point of the fallback.
         Index(
             "uq_provider_rates_open",
             "provider",
             "component",
+            "model",
             unique=True,
             postgresql_where=text("effective_to IS NULL"),
         ),
@@ -1644,6 +1654,9 @@ class CallCostItemModel(Base):
     component = Column(String(16), nullable=False)
     # NULL for the platform fee, which has no third-party provider.
     provider = Column(String(64), nullable=True)
+    # The model this line was priced against, so the receipt names what was
+    # actually billed. NULL for telephony and the platform fee.
+    model = Column(String(128), nullable=True)
     units = Column(BigInteger, nullable=False, default=0)
     unit_rate_mpaise = Column(Integer, nullable=False, default=0)
     cost_paise = Column(BigInteger, nullable=False, default=0)

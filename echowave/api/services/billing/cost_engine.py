@@ -40,11 +40,18 @@ class UsageItem:
     ``quantity`` is the raw measurement in the unit the provider's rate is
     quoted against: seconds for per-minute rates, characters for per-1k-char
     rates, tokens for per-1k-token rates.
+
+    ``model`` is the specific model the usage was incurred on — "gpt-4o-mini"
+    rather than just "openai". Rates differ by more than an order of magnitude
+    between models from the same provider, so pricing without it would be
+    wrong for anyone not on the default. Empty when the pipeline did not record
+    one, which resolves to the provider-wide rate.
     """
 
     component: CostComponent
     provider: str
     quantity: int
+    model: str = ""
 
 
 @dataclass(frozen=True)
@@ -62,6 +69,9 @@ class CostLine:
     units: int
     unit_rate_mpaise: int
     cost_paise: int
+    # The model this line was priced against, so a receipt can say which one
+    # was actually billed rather than only naming the provider.
+    model: str | None = None
 
 
 @dataclass(frozen=True)
@@ -108,7 +118,11 @@ def compute_call_cost(
             if isinstance(item.component, CostComponent)
             else str(item.component)
         )
-        spec = provider_rates.get((component_value, item.provider))
+        # Most specific rate wins: a rate quoted for this exact model, else the
+        # provider-wide one. Callers key the map both ways.
+        spec = provider_rates.get((component_value, item.provider, item.model))
+        if spec is None:
+            spec = provider_rates.get((component_value, item.provider, ""))
         if spec is None:
             uncosted.append(item)
             continue
@@ -116,6 +130,7 @@ def compute_call_cost(
             CostLine(
                 component=component_value,
                 provider=item.provider,
+                model=item.model or None,
                 units=item.quantity,
                 unit_rate_mpaise=spec.rate_mpaise,
                 cost_paise=cost_paise(

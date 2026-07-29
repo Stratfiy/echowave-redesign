@@ -706,8 +706,16 @@ async def _run_pipeline_impl(
         **merged_call_context_vars,
         "runtime_configuration": runtime_configuration,
     }
+    # Denormalise the resolved language onto the run. It is a first-class
+    # filter and breakdown on the billing dashboard, and deriving it from
+    # initial_context JSON at query time would not index.
+    resolved_language = getattr(
+        user_config.realtime if is_realtime else user_config.stt, "language", None
+    )
     await db_client.update_workflow_run(
-        workflow_run_id, initial_context=merged_call_context_vars
+        workflow_run_id,
+        initial_context=merged_call_context_vars,
+        language=resolved_language if isinstance(resolved_language, str) else None,
     )
 
     workflow_graph = WorkflowGraph(
@@ -921,6 +929,11 @@ async def _run_pipeline_impl(
     )
 
     pipeline_metrics_aggregator = PipelineMetricsAggregator()
+    # Pipecat emits no STT usage metric, so the aggregator cannot discover the
+    # STT service by watching frames — tell it which one this pipeline built,
+    # or speech-to-text drops out of provider cost. `stt` is None on realtime
+    # speech-to-speech pipelines, which correctly have no separate STT charge.
+    pipeline_metrics_aggregator.register_stt_service(stt)
 
     user_context_aggregator = context_aggregator.user()
     assistant_context_aggregator = context_aggregator.assistant()

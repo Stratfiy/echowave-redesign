@@ -1,5 +1,7 @@
 import asyncio
 
+from datetime import UTC, datetime
+
 from loguru import logger
 
 from api.db import db_client
@@ -338,6 +340,10 @@ def register_event_handlers(
             gathered_context=gathered_context,
             is_completed=True,
             state=WorkflowRunState.COMPLETED.value,
+            # WebRTC and text-chat runs have no telephony callback, so this is
+            # the only place they get an end stamp. Set once — a run that
+            # already has one (from the telephony callback) keeps it.
+            ended_at=datetime.now(UTC),
         )
 
         asyncio.create_task(

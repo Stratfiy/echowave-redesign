@@ -49,6 +49,9 @@ class ResolvedProviderRate:
     component: str
     unit: RateUnit
     rate_mpaise: int
+    # The model the matched row was quoted for; "" when it is the
+    # provider-wide fallback rather than a model-specific rate.
+    model: str = ""
 
 
 def _effective_at(column_from, column_to, at: datetime):
@@ -126,8 +129,14 @@ async def resolve_provider_rate(
     provider: str,
     component: CostComponent | str,
     at: datetime,
+    model: str = "",
 ) -> ResolvedProviderRate | None:
     """Resolve a provider's unit rate as of ``at``, or None if none applies.
+
+    Most specific wins: a rate quoted for this exact model beats the
+    provider-wide fallback (``model = ""``). Models from one provider differ by
+    more than an order of magnitude — gpt-4o against gpt-4o-mini — so pricing
+    every OpenAI call at one rate would be wrong for anyone off the default.
 
     None means "we have no rate on file", which is different from a rate of
     zero. The cost engine treats it as an un-costable component and says so,
@@ -136,18 +145,28 @@ async def resolve_provider_rate(
     component_value = (
         component.value if isinstance(component, CostComponent) else str(component)
     )
+    normalized_model = (model or "").strip().lower()
+
     row = await session.scalar(
         select(ProviderRateModel)
         .where(
             ProviderRateModel.provider == provider,
             ProviderRateModel.component == component_value,
+            ProviderRateModel.model.in_(
+                [normalized_model, ""] if normalized_model else [""]
+            ),
             _effective_at(
                 ProviderRateModel.effective_from,
                 ProviderRateModel.effective_to,
                 at,
             ),
         )
-        .order_by(ProviderRateModel.effective_from.desc())
+        # An exact model match sorts ahead of the "" fallback; among equals the
+        # most recently effective row wins.
+        .order_by(
+            (ProviderRateModel.model == "").asc(),
+            ProviderRateModel.effective_from.desc(),
+        )
         .limit(1)
     )
     if row is None:
@@ -157,4 +176,5 @@ async def resolve_provider_rate(
         component=row.component,
         unit=RateUnit(row.unit),
         rate_mpaise=row.rate_mpaise,
+        model=row.model or "",
     )

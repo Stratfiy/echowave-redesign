@@ -32,6 +32,9 @@ class PipelineMetricsAggregator(FrameProcessor):
         self._llm_usage_metrics: Dict[str, LLMTokenUsage] = {}
         self._tts_usage_metrics: Dict[str, int] = defaultdict(int)
         self._stt_usage_metrics: Dict[str, float] = defaultdict(float)
+        # "{processor}|||{model}" of the STT service on this pipeline, when
+        # there is one. Set by run_pipeline; see register_stt_service.
+        self._stt_key: Optional[str] = None
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
@@ -101,6 +104,28 @@ class PipelineMetricsAggregator(FrameProcessor):
         self._tts_usage_metrics[key] += data.value
         # logger.debug(f"TTS usage metrics: {self._tts_usage_metrics}")
 
+    def register_stt_service(self, stt) -> None:
+        """Record which STT service this pipeline is using, for billing.
+
+        Pipecat emits no STT usage metric — there is no ``STTUsageMetricsData``
+        the way there is for LLM and TTS — so nothing ever populated the STT
+        bucket and speech-to-text fell out of provider cost entirely.
+
+        Streaming STT providers bill on audio streamed, and on a live call the
+        caller's audio streams for the call's whole duration, so the billable
+        quantity is the call duration. What we cannot infer is *which* service
+        was used, so the pipeline tells us here.
+
+        Passing None (a realtime speech-to-speech pipeline, which has no
+        separate STT stage) leaves the bucket empty, which is correct: there is
+        no separate STT charge on those calls.
+        """
+        if stt is None:
+            self._stt_key = None
+            return
+        model = getattr(getattr(stt, "_settings", None), "model", "") or ""
+        self._stt_key = f"{stt.name}|||{model if isinstance(model, str) else ''}"
+
     def get_llm_usage_metrics(self) -> Dict[str, LLMTokenUsage]:
         """Get the aggregated LLM usage metrics grouped by processor|||model."""
         return self._llm_usage_metrics
@@ -138,11 +163,20 @@ class PipelineMetricsAggregator(FrameProcessor):
                 "cache_creation_input_tokens": usage.cache_creation_input_tokens,
             }
 
+        call_duration = self.get_call_duration()
+
+        # Streaming STT bills on the audio streamed to it, which for a live
+        # call is the call itself. Reported here rather than accumulated
+        # frame-by-frame because pipecat emits no STT usage metric.
+        stt = dict(self._stt_usage_metrics)
+        if self._stt_key and call_duration > 0:
+            stt.setdefault(self._stt_key, call_duration)
+
         return {
             "llm": serialized_llm,
             "tts": dict(self._tts_usage_metrics),
-            "stt": dict(self._stt_usage_metrics),
-            "call_duration_seconds": self.get_call_duration(),
+            "stt": stt,
+            "call_duration_seconds": call_duration,
         }
 
     def reset_metrics(self):

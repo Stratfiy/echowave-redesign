@@ -86,6 +86,51 @@ class TestUsageExtraction:
     def test_provider_is_derived_from_the_processor_name(self, processor, expected):
         assert provider_from_processor(processor) == expected
 
+    @pytest.mark.parametrize(
+        "processor,expected",
+        [
+            ("OpenAILLMService#0", "openai"),
+            ("DeepgramSTTService#1", "deepgram"),
+            ("ElevenLabsTTSService#12", "elevenlabs"),
+            ("DograhFluxSTTService#0", "dograh"),
+        ],
+    )
+    def test_the_instance_suffix_pipecat_actually_emits_is_stripped(
+        self, processor, expected
+    ):
+        """Regression: this is the form that reaches us in production.
+
+        Pipecat names each processor "{ClassName}#{n}". Matching only the bare
+        class name meant nothing stripped, every provider came out as
+        "openaillmservice#0", no rate ever matched, and every receipt was
+        uncosted with margin at 100%.
+        """
+        assert provider_from_processor(processor) == expected
+
+    def test_a_realistic_usage_info_payload_costs(self):
+        """End-to-end on the exact key shape the pipeline writes."""
+        items = usage_items_from_usage_info(
+            {
+                "llm": {
+                    "OpenAILLMService#0|||gpt-4o-mini": {
+                        "prompt_tokens": 900,
+                        "completion_tokens": 100,
+                    }
+                },
+                "tts": {"ElevenLabsTTSService#0|||turbo-v2": 4000},
+                "stt": {"DeepgramSTTService#0|||nova-2": 300},
+                "telephony": {"twilio": 300},
+                "call_duration_seconds": 300,
+            }
+        )
+        by_component = {i.component.value: i for i in items}
+        assert set(by_component) == {"llm", "tts", "stt", "telephony"}
+        assert by_component["llm"].provider == "openai"
+        assert by_component["llm"].model == "gpt-4o-mini"
+        assert by_component["tts"].provider == "elevenlabs"
+        assert by_component["stt"].provider == "deepgram"
+        assert by_component["telephony"].provider == "twilio"
+
     def test_llm_quantity_is_prompt_plus_completion_tokens(self):
         items = usage_items_from_usage_info(
             {
@@ -166,6 +211,104 @@ class TestCostWorkflowRun:
         assert run.platform_rate_mpaise_applied == 200_000
         assert run.total_provider_cost_paise == 12
         assert run.costed_at is not None
+
+    async def test_the_model_in_usage_info_selects_the_rate(self, async_session):
+        """The same call costs less on a cheaper model.
+
+        Before rates carried a model, both of these runs priced at the single
+        openai rate, so a customer on gpt-4o-mini was billed as if they were on
+        gpt-4o — roughly 17x too much on the inference line.
+        """
+        _org, workflow = await _org_with_workflow(async_session, "model-rate")
+        async_session.add_all(
+            [
+                ProviderRateModel(
+                    provider="openai",
+                    model="",
+                    component=CostComponent.LLM.value,
+                    unit=RateUnit.THOUSAND_TOKENS.value,
+                    rate_mpaise=12_000,
+                    effective_from=datetime(2020, 1, 1, tzinfo=UTC),
+                ),
+                ProviderRateModel(
+                    provider="openai",
+                    model="gpt-4o-mini",
+                    component=CostComponent.LLM.value,
+                    unit=RateUnit.THOUSAND_TOKENS.value,
+                    rate_mpaise=700,
+                    effective_from=datetime(2020, 1, 1, tzinfo=UTC),
+                ),
+            ]
+        )
+
+        def usage(model: str):
+            return {
+                "llm": {
+                    f"OpenAILLMService|||{model}": {
+                        "prompt_tokens": 5_000,
+                        "completion_tokens": 5_000,
+                    }
+                },
+                "call_duration_seconds": 60,
+            }
+
+        cheap_run = await _run(async_session, workflow, usage_info=usage("gpt-4o-mini"))
+        dear_run = await _run(async_session, workflow, usage_info=usage("gpt-4o"))
+
+        cheap = await cost_workflow_run(async_session, cheap_run.id)
+        dear = await cost_workflow_run(async_session, dear_run.id)
+
+        cheap_llm = next(l for l in cheap.line_items if l.component == "llm")
+        dear_llm = next(l for l in dear.line_items if l.component == "llm")
+
+        # 10k tokens: mini at 700 mpaise/1k = 7 paise; gpt-4o falls back to the
+        # provider rate of 12000 mpaise/1k = 120 paise.
+        assert cheap_llm.unit_rate_mpaise == 700
+        assert cheap_llm.cost_paise == 7
+        assert cheap_llm.model == "gpt-4o-mini"
+
+        assert dear_llm.unit_rate_mpaise == 12_000
+        assert dear_llm.cost_paise == 120
+
+        # And the receipt records which model it billed.
+        rows = (
+            await async_session.execute(
+                select(CallCostItemModel.model).where(
+                    CallCostItemModel.workflow_run_id == cheap_run.id,
+                    CallCostItemModel.component == "llm",
+                )
+            )
+        ).scalars().all()
+        assert rows == ["gpt-4o-mini"]
+
+    async def test_telephony_seconds_are_costed(self, async_session):
+        """Telephony was not measured at all before, so provider cost was
+        understated and margin correspondingly overstated on every phone call."""
+        _org, workflow = await _org_with_workflow(async_session, "telephony-cost")
+        async_session.add(
+            ProviderRateModel(
+                provider="twilio",
+                model="",
+                component=CostComponent.TELEPHONY.value,
+                unit=RateUnit.MINUTE.value,
+                rate_mpaise=55_000,
+                effective_from=datetime(2020, 1, 1, tzinfo=UTC),
+            )
+        )
+        run = await _run(
+            async_session,
+            workflow,
+            usage_info={
+                "telephony": {"twilio": 120},
+                "call_duration_seconds": 120,
+            },
+        )
+
+        cost = await cost_workflow_run(async_session, run.id)
+        line = next(l for l in cost.line_items if l.component == "telephony")
+        # 120s at 55000 mpaise/min = 2 min x 55 paise = 110 paise.
+        assert line.cost_paise == 110
+        assert cost.total_provider_cost_paise == 110
 
     async def test_byok_run_has_only_a_platform_line(self, async_session):
         """No provider rates configured means no pass-through cost."""

@@ -1,3 +1,4 @@
+from datetime import datetime
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -359,6 +360,9 @@ class WorkflowRunClient(BaseDBClient):
         state: str | None = None,
         annotations: dict | None = None,
         extra: dict | None = None,
+        answered_at: datetime | None = None,
+        ended_at: datetime | None = None,
+        language: str | None = None,
     ) -> WorkflowRunModel:
         async with self.async_session() as session:
             # Use SELECT FOR UPDATE to lock the row during the update
@@ -376,8 +380,24 @@ class WorkflowRunClient(BaseDBClient):
                 run.transcript_url = transcript_url
             if storage_backend:
                 run.storage_backend = storage_backend
+            # Billing/analytics lifecycle stamps. Each is written once, by the
+            # first caller that observes the transition, so a repeated status
+            # callback cannot move an already-recorded time.
+            if answered_at and run.answered_at is None:
+                run.answered_at = answered_at
+            if ended_at and run.ended_at is None:
+                run.ended_at = ended_at
+            if language and run.language is None:
+                run.language = language
             if usage_info:
-                run.usage_info = usage_info
+                # Merge, don't replace. usage_info has two independent writers:
+                # the pipeline contributes llm/tts/stt at teardown, and the
+                # telephony status callback contributes connected minutes —
+                # and their ordering is not guaranteed. A straight assignment
+                # meant whichever landed second silently erased the other, so a
+                # call could lose either its inference cost or its telephony
+                # cost depending on the race.
+                run.usage_info = {**(run.usage_info or {}), **usage_info}
             if cost_info:
                 run.cost_info = cost_info
             if initial_context:

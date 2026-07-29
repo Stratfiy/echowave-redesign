@@ -20,10 +20,10 @@ from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
 # Deepgram STT, Sarvam TTS, an LLM and Twilio telephony — a realistic mix of
 # all three rate units.
 RATES = {
-    ("stt", "deepgram"): RateSpec(rate_mpaise=25_000, unit=RateUnit.MINUTE),
-    ("tts", "sarvam"): RateSpec(rate_mpaise=40_000, unit=RateUnit.THOUSAND_CHARS),
-    ("llm", "openai"): RateSpec(rate_mpaise=12_000, unit=RateUnit.THOUSAND_TOKENS),
-    ("telephony", "twilio"): RateSpec(rate_mpaise=55_000, unit=RateUnit.MINUTE),
+    ("stt", "deepgram", ""): RateSpec(rate_mpaise=25_000, unit=RateUnit.MINUTE),
+    ("tts", "sarvam", ""): RateSpec(rate_mpaise=40_000, unit=RateUnit.THOUSAND_CHARS),
+    ("llm", "openai", ""): RateSpec(rate_mpaise=12_000, unit=RateUnit.THOUSAND_TOKENS),
+    ("telephony", "twilio", ""): RateSpec(rate_mpaise=55_000, unit=RateUnit.MINUTE),
 }
 
 
@@ -212,18 +212,18 @@ class TestInvoiceReconciliation:
             seconds = rng.randint(1, 3600)
             # Rates chosen so most products land on a fraction of a paise.
             rates = {
-                ("stt", "deepgram"): RateSpec(
+                ("stt", "deepgram", ""): RateSpec(
                     rate_mpaise=rng.randint(1, 99_999), unit=RateUnit.MINUTE
                 ),
-                ("tts", "sarvam"): RateSpec(
+                ("tts", "sarvam", ""): RateSpec(
                     rate_mpaise=rng.randint(1, 99_999),
                     unit=RateUnit.THOUSAND_CHARS,
                 ),
-                ("llm", "openai"): RateSpec(
+                ("llm", "openai", ""): RateSpec(
                     rate_mpaise=rng.randint(1, 99_999),
                     unit=RateUnit.THOUSAND_TOKENS,
                 ),
-                ("telephony", "twilio"): RateSpec(
+                ("telephony", "twilio", ""): RateSpec(
                     rate_mpaise=rng.randint(1, 99_999), unit=RateUnit.MINUTE
                 ),
             }
