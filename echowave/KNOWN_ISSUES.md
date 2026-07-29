@@ -204,6 +204,36 @@ render time. Same fills as before (`#000` @ 1.8% light, `#fff` @ 0.9% dark).
 Verified by screenshot, both inline and through the `background-image` path CSS
 actually uses.
 
+### 11. The MinIO bucket policy is anonymous read/write/delete
+
+**OPEN — pre-existing, found 2026-07-29.** `MinioFileSystem.__init__`
+unconditionally applies this policy to whatever bucket it is constructed with,
+on every initialisation:
+
+```
+"Principal": {"AWS": "*"},
+"Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+```
+
+So the call-recording bucket is anonymously readable, writable **and
+deletable** by anyone who can reach the endpoint. The code carries its own
+warning — "Only use in local development, not production!" — but nothing
+enforces that, and `aget_signed_url` returns a plain unsigned bucket URL that
+only works *because* of this policy.
+
+Two consequences worth separating:
+
+* Call recordings and transcripts are exposed to anyone with the URL, and the
+  URLs are guessable in shape.
+* Anonymous `PutObject`/`DeleteObject` means a third party can overwrite or
+  destroy recordings.
+
+Not fixed here because it is pre-existing and changing it breaks every existing
+recording URL, which needs a migration to presigned reads. **KYC documents
+deliberately do not use this class** — `api/services/kyc/documents.py` talks to
+MinIO directly and never sets a bucket policy, precisely so identity documents
+are not published this way.
+
 ### 9. `openapi.json` needed verification by the real generator
 
 **FIXED — verified.** The endpoint removals were originally applied to the spec

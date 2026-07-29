@@ -73,6 +73,14 @@ MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "voice-audio")
 MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
 
+# KYC documents live in their own bucket, never alongside call recordings.
+# They are incorporation certificates, tax certificates and identity documents
+# — sensitive personal and business data under the DPDP Act — and need a
+# tighter access policy and retention rule than call audio. Keeping them in a
+# separate bucket makes that policy expressible at the bucket level rather
+# than hoping every code path remembers.
+KYC_BUCKET = os.getenv("KYC_BUCKET", "kyc-documents")
+
 # AWS S3 Configuration
 S3_BUCKET = os.environ.get("S3_BUCKET")
 S3_REGION = os.environ.get("S3_REGION", "us-east-1")
