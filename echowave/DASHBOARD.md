@@ -177,6 +177,42 @@ cannot meet it, add a rollup rather than an index hack.
 
 ---
 
+## Visual system
+
+The dashboard uses a **liquid-glass** surface treatment, defined once in
+`ui/src/app/globals.css` and consumed by every screen. There is one recipe, not
+a per-page collection of card styles:
+
+| Class | Used for |
+|---|---|
+| `.glass-canvas` | The page shell. Paints the tinted atmosphere the panes refract, via `::before`. |
+| `.glass-panel` | Chart and table panels — translucent fill, backdrop blur, hairline ring, inset top highlight. |
+| `.glass-tile` | The headline figures. Claymorphic: puffier radius, diffuse shadow, a second inset from below. |
+| `.glass-nav` / `.glass-nav-active` | The floating pill tab bar and its filled blue lozenge. |
+
+Two accents carry the whole surface: **Decibyl blue** (`--brand-blue`) and a
+warm **amber** (`--brand-amber`) — the same pairing the charts already lead with
+in categorical slots 1 and 2, so the chrome and the data agree rather than
+introducing a third palette.
+
+Both themes are first-class. On light the panes are white at ~62% over a blue
+and amber wash; on dark they invert to a *lighter* tint of the surface colour
+rather than to black, because glass is defined by what shows through it and a
+black tint over a near-black background reads as a hole. Dark's wash is
+deliberately weaker: at full strength the amber sat under the latency chart and
+competed with the orange p95 line, and **chrome must never compete with data**.
+
+Because the six screens use the shadcn `Card` primitive inline for their table
+panels, a scoped un-layered override restates the same recipe for
+`.glass-canvas .card-weave`, from the same tokens. That keeps one visual
+definition of "glass" instead of two that can drift.
+
+Motion is minimal and respects `prefers-reduced-motion`: the atmosphere drifts
+slowly, and tiles lift 2px on hover. Both are disabled when reduced motion is
+requested.
+
+---
+
 ## Not built yet
 
 * **Export**, **alerting** and **role management** — deliberately out of scope.

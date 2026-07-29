@@ -3,7 +3,6 @@
 import { AlertCircle, Inbox, Loader2, Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -73,38 +72,46 @@ export function StatTile({
     const good = up === changeGoodWhenUp;
 
     return (
-        <Card className={cn(tone === "critical" && "border-destructive/40")}>
-            <CardContent className="pt-5">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {label}
-                </p>
-                <p className="mt-1.5 text-2xl font-semibold tracking-tight">{value}</p>
-                <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                    {hasChange && (
-                        <span
-                            className={cn(
-                                "inline-flex items-center gap-0.5 font-medium",
-                                flat
-                                    ? "text-muted-foreground"
-                                    : good
-                                      ? "text-emerald-600 dark:text-emerald-400"
-                                      : "text-destructive",
-                            )}
-                        >
-                            {flat ? (
-                                <Minus className="h-3 w-3" />
-                            ) : up ? (
-                                <TrendingUp className="h-3 w-3" />
-                            ) : (
-                                <TrendingDown className="h-3 w-3" />
-                            )}
-                            {(Math.abs(change!) * 100).toFixed(1)}%
-                        </span>
-                    )}
-                    {sub && <span>{sub}</span>}
-                </div>
-            </CardContent>
-        </Card>
+        <div
+            className={cn(
+                "glass-tile px-5 py-4",
+                tone === "critical" && "ring-1 ring-destructive/35",
+                tone === "warning" && "ring-1 ring-[color:var(--glass-amber-edge)]",
+            )}
+        >
+            <p className="text-[0.6875rem] font-medium uppercase tracking-[0.07em] text-muted-foreground">
+                {label}
+            </p>
+            {/* The figure is the point of the tile, so it gets display
+                treatment: heavy weight and tight tracking, per the type scale. */}
+            <p className="mt-2 text-[1.75rem] font-semibold leading-[1.1] tracking-[-0.035em] text-foreground">
+                {value}
+            </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tracking-[-0.01em] text-muted-foreground">
+                {hasChange && (
+                    <span
+                        className={cn(
+                            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium",
+                            flat
+                                ? "bg-foreground/[0.06] text-muted-foreground"
+                                : good
+                                  ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
+                                  : "bg-destructive/12 text-destructive",
+                        )}
+                    >
+                        {flat ? (
+                            <Minus className="h-3 w-3" />
+                        ) : up ? (
+                            <TrendingUp className="h-3 w-3" />
+                        ) : (
+                            <TrendingDown className="h-3 w-3" />
+                        )}
+                        {(Math.abs(change!) * 100).toFixed(1)}%
+                    </span>
+                )}
+                {sub && <span>{sub}</span>}
+            </div>
+        </div>
     );
 }
 
@@ -137,32 +144,34 @@ export function ChartCard({
     height?: number;
 }) {
     return (
-        <Card className={className}>
-            <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
+        <section className={cn("glass-panel px-5 pb-5 pt-4", className)}>
+            <div className="mb-3 flex flex-row items-start justify-between gap-4">
                 <div>
-                    <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                    <h2 className="text-[0.9375rem] font-semibold tracking-[-0.018em] text-foreground">
+                        {title}
+                    </h2>
                     {description && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+                        <p className="mt-0.5 text-xs tracking-[-0.01em] text-muted-foreground">
+                            {description}
+                        </p>
                     )}
                 </div>
                 {action}
-            </CardHeader>
-            <CardContent>
-                {loading ? (
-                    <Skeleton style={{ height }} className="w-full" />
-                ) : error ? (
-                    <PanelMessage icon={<AlertCircle className="h-5 w-5" />} height={height}>
-                        {error}
-                    </PanelMessage>
-                ) : isEmpty ? (
-                    <PanelMessage icon={<Inbox className="h-5 w-5" />} height={height}>
-                        {emptyMessage}
-                    </PanelMessage>
-                ) : (
-                    children
-                )}
-            </CardContent>
-        </Card>
+            </div>
+            {loading ? (
+                <Skeleton style={{ height }} className="w-full rounded-xl" />
+            ) : error ? (
+                <PanelMessage icon={<AlertCircle className="h-5 w-5" />} height={height}>
+                    {error}
+                </PanelMessage>
+            ) : isEmpty ? (
+                <PanelMessage icon={<Inbox className="h-5 w-5" />} height={height}>
+                    {emptyMessage}
+                </PanelMessage>
+            ) : (
+                children
+            )}
+        </section>
     );
 }
 
@@ -211,8 +220,8 @@ export function ChartTooltip({
 }) {
     if (!active || !payload?.length) return null;
     return (
-        <div className="rounded-md border bg-popover px-3 py-2 text-xs shadow-md">
-            <p className="mb-1 font-medium text-popover-foreground">
+        <div className="glass-panel rounded-xl px-3 py-2 text-xs">
+            <p className="mb-1 font-medium tracking-[-0.012em] text-foreground">
                 {labelFormatter && label ? labelFormatter(label) : label}
             </p>
             <div className="space-y-0.5">
@@ -226,7 +235,7 @@ export function ChartTooltip({
                             />
                             {entry.name}
                         </span>
-                        <span className="font-medium tabular-nums text-popover-foreground">
+                        <span className="font-medium tabular-nums text-foreground">
                             {formatter(entry.value ?? 0, entry.dataKey ?? "")}
                         </span>
                     </div>

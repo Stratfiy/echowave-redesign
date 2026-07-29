@@ -287,7 +287,18 @@ export default function AccountDetailPage() {
                         {ledger.length === 0 ? (
                             <PanelMessage height={140}>No credit movements yet.</PanelMessage>
                         ) : (
-                            <div className="max-h-[340px] overflow-auto">
+                            <div
+                                className="max-h-[340px] overflow-auto"
+                                // The mask fades the last row instead of slicing
+                                // it, so a full ledger reads as "more below"
+                                // rather than as a rendering fault.
+                                style={{
+                                    maskImage:
+                                        "linear-gradient(to bottom, #000 calc(100% - 2rem), transparent)",
+                                    WebkitMaskImage:
+                                        "linear-gradient(to bottom, #000 calc(100% - 2rem), transparent)",
+                                }}
+                            >
                                 <Table>
                                     <TableHeader>
                                         <TableRow>

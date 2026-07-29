@@ -107,6 +107,38 @@
      as static artwork in /public; fill + 0.9% opacity are baked into the
      files). Theme-switched here; consumed by .app-surface and .auth-imprint. */
   --brand-imprint: url("/brand-imprint-light.svg");
+
+  /* Liquid-glass tokens (see @layer components). The warm accent that pairs
+     with --brand-blue; same hue family the charts use in categorical slot 2. */
+  --brand-amber: #FF801E;
+  --glass-glow-blue: rgba(40, 179, 240, 0.46);
+  --glass-glow-amber: rgba(255, 128, 30, 0.30);
+  --glass-glow-deep: rgba(10, 107, 199, 0.20);
+  --glass-fill: rgba(255, 255, 255, 0.62);
+  --glass-fill-strong: rgba(255, 255, 255, 0.74);
+  --glass-edge: rgba(255, 255, 255, 0.75);
+  /* Layered: lit top edge, contact shadow, ambient lift, then a hairline ring
+     that survives against a light backdrop where the blur alone would not. */
+  --glass-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.85),
+    0 1px 2px 0 rgba(11, 30, 51, 0.04),
+    0 10px 30px -12px rgba(11, 30, 51, 0.16),
+    0 0 0 1px rgba(11, 30, 51, 0.045);
+  --glass-shadow-clay:
+    inset 0 2px 3px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -2px 6px 0 rgba(11, 30, 51, 0.045),
+    0 14px 34px -14px rgba(11, 30, 51, 0.20),
+    0 0 0 1px rgba(11, 30, 51, 0.045);
+  --glass-shadow-clay-hover:
+    inset 0 2px 3px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -2px 6px 0 rgba(11, 30, 51, 0.05),
+    0 20px 44px -16px rgba(11, 30, 51, 0.24),
+    0 0 0 1px rgba(11, 30, 51, 0.06);
+  --glass-accent-fill: rgba(10, 107, 199, 0.92);
+  --glass-accent-fg: #ffffff;
+  --glass-amber-fill: rgba(255, 128, 30, 0.14);
+  --glass-amber-edge: rgba(255, 128, 30, 0.30);
+  --glass-amber-fg: #9A4A05;
 }
 
 .dark {
@@ -157,6 +189,36 @@
   --cta: oklch(0.78 0.16 67);
   --cta-foreground: oklch(0.16 0.02 60);
   --brand-imprint: url("/brand-imprint-dark.svg");
+
+  /* Glass, dark variant. The fill goes light-on-dark rather than inverting to
+     black: glass is defined by what shows through it, and a black tint over a
+     near-black surface reads as a hole, not a pane. */
+  --brand-amber: #FFA24D;
+  --glass-glow-blue: rgba(40, 179, 240, 0.24);
+  --glass-glow-amber: rgba(255, 128, 30, 0.12);
+  --glass-glow-deep: rgba(10, 107, 199, 0.22);
+  --glass-fill: rgba(14, 26, 35, 0.62);
+  --glass-fill-strong: rgba(14, 26, 35, 0.52);
+  --glass-edge: rgba(255, 255, 255, 0.11);
+  --glass-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.11),
+    0 1px 2px 0 rgba(0, 0, 0, 0.30),
+    0 12px 32px -12px rgba(0, 0, 0, 0.55);
+  --glass-shadow-clay:
+    inset 0 2px 3px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -2px 6px 0 rgba(0, 0, 0, 0.22),
+    0 16px 36px -14px rgba(0, 0, 0, 0.60);
+  --glass-shadow-clay-hover:
+    inset 0 2px 3px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -2px 6px 0 rgba(0, 0, 0, 0.26),
+    0 22px 46px -16px rgba(0, 0, 0, 0.68);
+  /* Bright blue on a dark surface takes dark text, mirroring how the app's
+     own --primary / --primary-foreground pair resolves in this theme. */
+  --glass-accent-fill: rgba(40, 179, 240, 0.88);
+  --glass-accent-fg: #06182B;
+  --glass-amber-fill: rgba(255, 162, 77, 0.16);
+  --glass-amber-edge: rgba(255, 162, 77, 0.32);
+  --glass-amber-fg: #FFC08A;
 }
 
 @layer base {
@@ -228,6 +290,119 @@
 }
 
 @layer components {
+  /* ---------------------------------------------------------------------
+     Liquid glass — the admin billing dashboard.
+
+     Scoped to `.glass-*` and used only under /superadmin/billing. Two accents
+     carry the whole surface: Decibyl blue (--brand-blue) and a warm amber
+     (--brand-amber), the same pairing the charts already lead with in slots
+     1 and 2, so the chrome and the data agree.
+
+     Every panel is one recipe: a translucent fill over a blurred backdrop, a
+     hairline ring for structure, and an inset top highlight that reads as the
+     lit edge of a pane of glass. The blur is what makes it glass rather than
+     a flat tint, so the atmospheric glow behind must stay visible through it.
+     --------------------------------------------------------------------- */
+
+  /* The tinted atmosphere the glass refracts. Painted behind the content via a
+     pseudo-element so no wrapper div is needed and nothing can overlap it. */
+  .glass-canvas {
+    position: relative;
+    isolation: isolate;
+  }
+
+  /* The glow has to reach under the panels, not just sit above them — a pane
+     over flat white reads as a plain card. Hence the full-height wash rather
+     than a banner confined to the masthead. */
+  .glass-canvas::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: -10rem -8rem 0 -8rem;
+    pointer-events: none;
+    background:
+      radial-gradient(46% 36% at 10% 4%, var(--glass-glow-blue), transparent 70%),
+      radial-gradient(42% 30% at 88% 0%, var(--glass-glow-amber), transparent 72%),
+      radial-gradient(50% 30% at 50% 34%, var(--glass-glow-deep), transparent 74%),
+      radial-gradient(40% 26% at 84% 62%, var(--glass-glow-amber), transparent 76%),
+      radial-gradient(46% 30% at 6% 82%, var(--glass-glow-blue), transparent 74%);
+    filter: blur(18px);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .glass-canvas::before {
+      animation: glass-drift 24s ease-in-out infinite alternate;
+    }
+  }
+
+  @keyframes glass-drift {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to   { transform: translate3d(-1.5rem, 1rem, 0) scale(1.06); }
+  }
+
+  /* The base pane. `saturate` on the backdrop is what keeps colour alive
+     underneath rather than washing to grey. */
+  .glass-panel {
+    background: var(--glass-fill);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid var(--glass-edge);
+    border-radius: 20px;
+    box-shadow: var(--glass-shadow);
+  }
+
+  /* Claymorphic variant for the headline figures: puffier radius, a softer and
+     more diffuse shadow, and a second inset from below so the tile reads as a
+     pressed solid rather than a flat sheet. */
+  .glass-tile {
+    background: var(--glass-fill-strong);
+    backdrop-filter: blur(20px) saturate(170%);
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid var(--glass-edge);
+    border-radius: 24px;
+    box-shadow: var(--glass-shadow-clay);
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .glass-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--glass-shadow-clay-hover);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .glass-tile { transition: none; }
+    .glass-tile:hover { transform: none; }
+  }
+
+  /* Floating pill nav — the signature of the reference, and it doubles as the
+     page's only sticky chrome now that the app header is mobile-only. */
+  .glass-nav {
+    background: var(--glass-fill-strong);
+    backdrop-filter: blur(50px) saturate(180%);
+    -webkit-backdrop-filter: blur(50px) saturate(180%);
+    border: 1px solid var(--glass-edge);
+    border-radius: 9999px;
+    box-shadow: var(--glass-shadow);
+  }
+
+  /* Selected tab: a filled blue lozenge, the one place the brand colour fills
+     a shape rather than tinting one. */
+  .glass-nav-active {
+    background: var(--glass-accent-fill);
+    color: var(--glass-accent-fg);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.35),
+      0 2px 8px -2px var(--brand-blue-glow);
+  }
+
+  /* Amber counterpart, for the warning/attention affordances. */
+  .glass-amber {
+    background: var(--glass-amber-fill);
+    border: 1px solid var(--glass-amber-edge);
+    color: var(--glass-amber-fg);
+  }
+
   /* CSS-only audio-waveform motif for the auth brand panel. A row of bars that
      breathe at staggered intervals, evoking live voice. Decorative only. */
   .auth-waveform {
@@ -343,6 +518,38 @@
 .dark .card-weave {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M0 0l12 12M12 0L0 12' stroke='%23ffffff' stroke-opacity='.01' fill='none'/%3E%3C/svg%3E");
   border-top-color: rgb(255 255 255 / 0.2);
+}
+
+/* Inside the billing dashboard a shadcn Card IS a glass pane. The six screens
+   use the Card primitive inline for their table panels, so rather than fork
+   them all we restate the .glass-panel recipe here, from the same tokens —
+   there is one visual definition of "glass", not two. Un-layered so it beats
+   the bg-card / border-border/60 / shadow-sm utilities Card ships with, and
+   the opaque .card-weave texture that would otherwise sit on top of the blur.
+
+   Padding is retuned to match: Card's stock p-6 is too generous once the panel
+   is translucent and the content is dense financial tables. */
+.glass-canvas .card-weave {
+  background-image: none;
+  background-color: var(--glass-fill);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--glass-edge);
+  border-radius: 20px;
+  box-shadow: var(--glass-shadow);
+}
+.dark .glass-canvas .card-weave {
+  background-image: none;
+  border-top-color: var(--glass-edge);
+}
+.glass-canvas .card-weave > :where(div:first-child) {
+  padding: 1rem 1.25rem 0.25rem;
+}
+.glass-canvas .card-weave > :where(div:last-child) {
+  padding: 0 1.25rem 1.25rem;
+}
+.glass-canvas .card-weave > :where(div:only-child) {
+  padding: 1.25rem;
 }
 
 /* Lead-form shell ("Ledger" treatment, user-approved 2026-06-11): neutral
