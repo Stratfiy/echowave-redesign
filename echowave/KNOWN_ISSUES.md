@@ -6,128 +6,18 @@ Each entry records what is wrong, why, and what fixing it involves.
 Status legend: **OPEN** · **FIXED** · **DECISION NEEDED** (needs a product/ops
 call, not a code change)
 
-Last updated after Phase 2 (commit `3b64acb`, "Remove MPS billing dependency").
+Last updated after the known-issues resolution pass.
+
+> **Current test status: `api/tests` is fully green — 1206 passed, 0 failed,
+> 0 collection errors** (Python 3.13, real Postgres 16 + pgvector, real Redis).
+> Every one of the 51 failures and 130 collection errors previously recorded
+> here was environmental. None was a code defect.
 
 ---
 
-## 1. Test suite cannot run from a fresh clone — `pipecat` is missing
+## Open
 
-**Status:** OPEN · **Severity: high** — blocks all local and CI testing
-
-`.gitmodules` does not exist anywhere in this repository (checked on `main`
-and on the feature branch), and no files are tracked under `pipecat/`. But:
-
-- `scripts/setup_requirements.sh` runs `git submodule update --init --recursive`
-  — a no-op with no `.gitmodules`, then `uv pip install -e ./pipecat[...]`,
-  which fails because `./pipecat` does not exist.
-- `.github/workflows/api-tests.yml` and `pre-pr-drift-check.yml` check out with
-  `submodules: recursive` and expect a `pipecat/` tree.
-- `scripts/format.sh` runs `ruff format pipecat`.
-
-This is **pre-existing** — not introduced by the rebrand or the billing removal.
-The likely cause is that this repo is a nested copy of the upstream project
-(`echowave-redesign/echowave/`) and `.gitmodules` was lost in the copy.
-
-**Consequence:** 107 of the 130 test-collection errors below, and 39 of the 51
-test failures, are just this one missing dependency.
-
-**To fix:** restore `.gitmodules` pointing at the pipecat fork, at the commit
-the app expects, and re-run `./scripts/setup_requirements.sh`.
-
----
-
-## 2. Test failures — all environmental, none are code defects
-
-**Status:** OPEN (environment) · **Severity: medium**
-
-Full run of `api/tests`: **51 failed, 328 passed, 130 collection errors.**
-
-Verified against a clean worktree at the previous commit: **the failing set is
-byte-for-byte identical before and after the billing removal.** No failure in
-this list is caused by our changes, and every one traces to a missing package
-or a missing service — not to a bug in application code.
-
-### 2a. Failures caused by missing `pipecat` (39)
-
-| Test file | Failures |
-|---|---|
-| `test_workflow_graph_constraints.py` | 24 |
-| `test_workflow_qa_masking.py` | 5 |
-| `telephony/test_call_transfer_manager.py` | 3 |
-| `test_sdk_sync.py` | 2 |
-| `test_decibyl_sdk.py` | 2 |
-| `test_agent_stream_route.py` | 2 |
-| `test_dto.py` | 1 |
-
-All fail with `ModuleNotFoundError: No module named 'pipecat'`. Fixed by issue #1.
-
-### 2b. Failures caused by no Redis server (10)
-
-| Test file | Failures |
-|---|---|
-| `test_circuit_breaker.py` | 4 |
-| `test_from_number_pool_isolation.py` | 3 |
-| `test_call_concurrency.py` | 3 |
-
-All fail with `redis.exceptions.ConnectionError: Error 111 connecting to
-localhost:6379`. Needs a running Redis (CI provides one as a service container).
-
-### 2c. Failures caused by missing `aiortc` (2)
-
-`test_public_signaling_origin.py` — `ModuleNotFoundError: No module named 'aiortc'`.
-
-### 2d. Collection errors (130) — missing packages
-
-| Missing module | Files affected |
-|---|---|
-| `pipecat` | 107 |
-| `groq` | 12 |
-| `fastmcp` | 7 |
-| `mcp` | 4 |
-| `aiortc` | 4 |
-| `aioboto3` | 3 |
-| `google` | 1 |
-
-These are the heavy optional extras installed by
-`uv pip install -e ./pipecat[cartesia,deepgram,openai,...]`, so they are also
-downstream of issue #1.
-
-### Reproducing a partial run without the full stack
-
-The pure-unit suites (no DB, no Redis, no pipecat) can be run with:
-
-```bash
-pip install pytest pytest-asyncio loguru fastapi httpx pydantic sqlalchemy \
-    python-dotenv pgvector asyncpg aiohttp openai posthog deepgram-sdk bcrypt
-export DATABASE_URL="postgresql+asyncpg://u:p@localhost:5432/decibyl_test"
-export REDIS_URL="redis://localhost:6379/0"
-python -m pytest api/tests/test_quota_service.py api/tests/test_auth_depends.py -q
-```
-
-`api/conftest.py` loads `api/.env.test`, which is gitignored and absent here —
-hence the manual `DATABASE_URL` / `REDIS_URL` exports.
-
----
-
-## 3. Pre-existing `ruff format` drift in `cloudonix/provider.py`
-
-**Status:** OPEN · **Severity: low**
-
-`ruff format api` reformats
-`api/services/telephony/providers/cloudonix/provider.py` on `main` as well as
-on this branch, so `pre-pr-drift-check.yml` ("Check for Python format/lint
-drift") will fail on any PR until it is committed.
-
-Ruff is not pinned anywhere in the repo (`api/requirements.dev.txt` has no ruff
-entry, and there is no `[tool.ruff]` config), so CI installs whichever version
-is current — the checked-in formatting was produced by an older ruff.
-
-**To fix:** run `./scripts/format.sh` and commit, and pin a ruff version in
-`requirements.dev.txt` so formatting stops drifting with upstream releases.
-
----
-
-## 4. Sentry organization slug still says `echowave`
+### 4. Sentry organization slug still says `echowave`
 
 **Status:** DECISION NEEDED · **Severity: medium**
 
@@ -141,58 +31,51 @@ together.
 
 ---
 
-## 5. Community URLs point at a GitHub org that does not exist
+### 5. Links point at upstream community infrastructure Decibyl does not own
 
 **Status:** DECISION NEEDED · **Severity: medium**
 
-The rebrand mechanically rewrote `github.com/dograh-hq/dograh` to
-`github.com/decibyl-hq/decibyl`. That org does not exist, so these links are
-now dead:
+The rebrand mechanically rewrote `dograh-hq/dograh` to `decibyl-hq/decibyl`.
+That org does not exist, so links that previously worked are now dead. Worse,
+several carry **upstream identifiers that were never ours**, so they cannot be
+fixed by renaming — only by removing or replacing them:
 
-- `SECURITY.md` — vulnerability disclosure link
-- `CONTRIBUTING.md` — issue links
-- `docs/contribution/setup.mdx` — issues, ideas, and a Slack invite
-- `docs/contribution/reference.mdx`, `docs/integrations/overview.mdx`,
-  `docs/integrations/telephony/agent-stream.mdx`
-- `README.md`, `README.zh-CN.md`, `README.ja-JP.md`,
-  `docs/getting-started/index.mdx`, `docs/deployment/*.mdx` — `curl`
-  install commands fetching `docker-compose.yaml` from `raw.githubusercontent.com`
-- `.github/ISSUE_TEMPLATE/config.yml`
+| Reference | Where | Problem |
+|---|---|---|
+| `raw.githubusercontent.com/decibyl-hq/decibyl/main/...` (22×) | `README*.md`, `docs/getting-started/`, `docs/deployment/` | `curl` install commands — **404 for anyone following the docs** |
+| `github.com/decibyl-hq/decibyl-plugins` (9×) | `README.md` | Separate upstream repo (Claude Code / Codex setup plugin) |
+| `github.com/decibyl-hq/decibyl/issues` (7×) | `CONTRIBUTING.md`, `docs/` | Issue tracker |
+| `github.com/decibyl-hq/decibyl/security/advisories/new` (2×) | `SECURITY.md` | Vulnerability disclosure |
+| `join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-...` | `README.md` | Workspace slug renamed, **invite token still upstream's** |
+| `trendshift.io/repositories/31007` | `README.md` | Badge for upstream's repo ID |
+| `github.com/orgs/decibyl-hq/discussions/291` | `README.md` | Upstream's pinned discussion |
+| `github.com/orgs/decibyl-hq/discussions/new?category=ideas` | `.github/ISSUE_TEMPLATE/config.yml` | Contributor-facing 404 |
 
-The install commands are the urgent ones: anyone following the docs gets a 404.
-
-Since Decibyl is no longer open source, the right fix is probably to **remove**
-the OSS-contribution sections rather than repoint them. Needs a decision on the
-real repo URL and support channels.
-
----
-
-## 6. Brand PNGs carry stale `dograh` metadata
-
-**Status:** OPEN · **Severity: low (cosmetic)**
-
-`ui/public/decibyl-logo.png`, `decibyl-logo-inverse.png` and `decibyl-mark.png`
-were renamed, but the binary files still contain "dograh" in embedded metadata.
-Not user-visible. The SVGs are clean. Fix by regenerating the PNGs from the SVGs.
+The install commands are the urgent ones. Since Decibyl is no longer open
+source, the right fix is probably to **remove** these OSS-community and
+self-host-install sections rather than repoint them — but that is a content
+decision. Not guessed at deliberately: a fabricated repo URL, Slack workspace
+or docs domain would be worse than a known-dead link.
 
 ---
 
-## 7. Top-level directory is still named `echowave/`
+### 7. Top-level directory is still named `echowave/`
 
 **Status:** DECISION NEEDED · **Severity: low**
 
 The project root is `echowave-redesign/echowave/`. Renaming it to `decibyl/`
 is cosmetic but high blast radius: it moves every path in git history, and CI
-workflow `working-directory` values, deploy scripts and devcontainer mounts all
-assume the current layout. Left as-is deliberately.
+workflow `working-directory` values, deploy scripts, devcontainer mounts and
+the `.gitmodules` submodule path all assume the current layout. Left as-is
+deliberately.
 
 ---
 
-## 8. Runs are not gated on any balance
+### 8. Runs are not gated on any balance
 
 **Status:** OPEN by design · **Severity: high once billing goes live**
 
-Phase 2 removed the MPS prepaid-credit check from
+Removing MPS billing took the prepaid-credit check out of
 `authorize_workflow_run_start`. Nothing currently stops a run on an unfunded
 account. This is the intended intermediate state — Decibyl is not selling
 prepaid inference credits — but it means **there is no spend ceiling today.**
@@ -205,44 +88,102 @@ failures fail closed) were all preserved; only the credit gate went away.
 guards against an external billing service being quietly reintroduced onto the
 critical path of every call.
 
-**Next:** Phase 3 puts the local paise-denominated ledger check back into this
-same function.
-
----
-
-## 9. `docs/api-reference/openapi.json` and the TS client need a real regeneration pass
-
-**Status:** OPEN (verification) · **Severity: low**
-
-Both were regenerated for the endpoint removals, but not by the normal route:
-`scripts/dump_docs_openapi.py` imports `api.app`, which needs `pipecat`
-(issue #1), so it could not run here. Instead the three removed paths and the
-six now-unreferenced component schemas were pruned from the spec
-programmatically (with transitive reachability, matching what FastAPI emits),
-written with the generator's exact `json.dumps(..., separators=(",", ":"))`
-formatting, and the TS client was then regenerated from that spec with the real
-`openapi-ts` toolchain.
-
-The result should be identical to a real run, but `pre-pr-drift-check.yml`
-regenerates the spec from the live app and will be the authoritative check.
-Worth confirming on the first CI run.
+**Next:** the local paise-denominated ledger check goes back into this same
+function when the cost engine lands.
 
 ---
 
 ## Fixed
 
+### 1. Test suite could not run from a fresh clone — `pipecat` missing
+
+**FIXED.** `.gitmodules` did not exist anywhere in the repository (verified on
+`main` too) and nothing was tracked under `pipecat/`, yet
+`scripts/setup_requirements.sh`, `scripts/format.sh` and both CI workflows all
+expected a pipecat submodule. This single missing declaration caused **107 of
+the 130 collection errors and 39 of the 51 failures.**
+
+Restored with the exact URL and pin upstream uses, rather than a guess:
+
+```
+[submodule "echowave/pipecat"]
+    path = echowave/pipecat
+    url = https://github.com/dograh-hq/pipecat.git
+```
+
+pinned at `aadd1d5dd606d2871b082e6f2ca1ad1eee53785b` — the `pipecat` gitlink
+recorded at upstream tag `dograh-v1.42.0`, the release matching this repo's own
+version (`1.42.0`, consistent across `.release-please-manifest.json`,
+`api/pyproject.toml` and `ui/package.json`). The path is `echowave/pipecat`
+because the project sits one level below the git root.
+
+This also independently confirmed the pipecat revert done during the billing
+removal: the pinned commit ships `src/pipecat/services/dograh/` exporting
+`DograhLLMService`, `DograhSTTService`/`DograhSTTSettings`,
+`DograhTTSService`/`DograhTTSSettings` and `DograhFluxSTTService` — exactly the
+six symbols reverted. Had the rebrand's `pipecat.services.decibyl` been left in
+place, every one would have failed to import at startup.
+
+### 2. Test failures — all environmental
+
+**FIXED.** Root causes, in order of impact: the missing pipecat submodule
+(issue #1); no Postgres/Redis running; missing `ts_validator` npm deps (CI
+installs these in a dedicated step); a locally-corrupted `alembic` install
+mixing files from two versions; and **Python 3.11 vs the `>=3.13` this project
+requires** (`api/pyproject.toml`), which produced every remaining
+`pydantic.errors.PydanticUserError: Please use typing_extensions.TypedDict`
+error.
+
+Progression while fixing these:
+
+| | failed | passed | collection errors |
+|---|---:|---:|---:|
+| starting point | 51 | 328 | 130 |
+| + pipecat submodule | 51 | 365 | 120 |
+| + full dependency set | 41 | 1061 | 63 |
+| + Postgres, Redis, ts_validator npm | 6 | 1096 | 61 |
+| + clean alembic reinstall | 6 | 1142 | 20 |
+| **+ Python 3.13 (correct version)** | **0** | **1206** | **0** |
+
+### 3. Pre-existing `ruff format` drift in `cloudonix/provider.py`
+
+**FIXED.** Committed the formatting so `pre-pr-drift-check` passes. Confirmed
+pre-existing by diffing formatter output at `main` versus the rebrand commit.
+
+Note: with pipecat installed, ruff correctly classifies its imports as
+first-party, so the spurious isort churn that previously appeared across ~20
+unrelated test files no longer happens.
+
+**Still worth doing:** ruff is not pinned (`api/requirements.dev.txt` has no
+ruff entry and there is no `[tool.ruff]` config), so CI installs whichever
+version is current and formatting will drift again on the next ruff release.
+
+### 6. Brand PNGs carried stale `dograh` metadata
+
+**FIXED.** Stripped the XMP metadata from `ui/public/decibyl-logo.png`,
+`decibyl-logo-inverse.png` and `decibyl-mark.png`, verified pixel-identical
+before and after. (These files are not referenced anywhere in the app — only
+the SVGs are — so they are legacy assets and could simply be deleted instead.)
+
+### 9. `openapi.json` needed verification by the real generator
+
+**FIXED — verified.** The endpoint removals were originally applied to the spec
+by pruning it programmatically, because `scripts/dump_docs_openapi.py` imports
+`api.app`, which needs pipecat. With the submodule restored and a Python 3.13
+venv, the real generator now runs, and its output is **semantically identical**
+to the hand-pruned spec: same 129 paths, same 243 schemas, equal when compared
+as parsed JSON. The only byte difference was key ordering inside a
+discriminator mapping; the generator's ordering is now committed, since
+`pre-pr-drift-check` compares bytes.
+
 ### F1. Rebrand broke `pipecat` imports — voice pipeline would not start
 
-**Fixed in `3b64acb`.** The rebrand commit rewrote `pipecat.services.dograh`
-to `pipecat.services.decibyl`, along with the class names imported from it
-(`DograhLLMService`, `DograhSTTService`, `DograhTTSService`,
-`DograhFluxSTTService`, `DograhSTTSettings`, `DograhTTSSettings`).
-
-Those modules live inside the **pipecat submodule** — external code this repo
-does not own — so the imports would have raised `ModuleNotFoundError` at
-startup and taken down the entire voice pipeline.
-
-Reverted in `api/services/pipecat/service_factory.py`,
+**FIXED.** The rebrand rewrote `pipecat.services.dograh` to
+`pipecat.services.decibyl` along with the class names imported from it. Those
+modules live in the pipecat submodule — external code this repo does not own —
+so the imports would have raised `ModuleNotFoundError` at startup and taken
+down the entire voice pipeline. Reverted in
+`api/services/pipecat/service_factory.py`,
 `api/tests/test_decibyl_managed_correlation.py`,
 `api/tests/test_camb_tts_integration.py` and
 `api/tests/test_decibyl_stt_service_factory.py`.
@@ -251,17 +192,50 @@ This needed care: `DecibylLLMService` / `DecibylSTTService` /
 `DecibylTTSService` exist **twice** — once in pipecat and once as our own
 config-registry classes with identical names. Only the pipecat ones were
 reverted; ours (`DecibylGoogleLLMService`, `DecibylGoogleVertexLLMService`,
-`DecibylGeminiJSONSchemaAdapter`) stay renamed.
+`DecibylGeminiJSONSchemaAdapter`) stay renamed. Confirmed correct against the
+actual pinned pipecat commit — see issue #1.
 
 ### F2. Rebrand left `ruff format` drift
 
-**Fixed in `3b64acb`.** The longer "Decibyl" identifiers pushed several lines
-past the formatter's width. Confirmed by diffing formatter output at `main` vs
-the rebrand commit; the newly-drifting files were
-`api/services/configuration/ai_model_configuration.py`,
-`api/services/managed_model_services.py`,
-`api/services/pipecat/service_factory.py`, `api/services/quota_service.py`,
-`api/services/mps_service_key_client.py`,
-`api/tests/test_ai_model_configuration_v2.py` and
-`api/tests/test_gemini_json_schema_adapter.py`. (Issue #3 is separate and
-pre-dates the rebrand.)
+**FIXED.** The longer "Decibyl" identifiers pushed several lines past the
+formatter's width. Confirmed by diffing formatter output at `main` versus the
+rebrand commit.
+
+---
+
+## Running the test suite
+
+The project requires **Python 3.13** (`api/pyproject.toml`:
+`requires-python = ">=3.13,<3.14"`). Running on an older interpreter produces
+a wave of pydantic `TypedDict` errors that look like code bugs but are not.
+
+```bash
+python3.13 -m venv .venv && source .venv/bin/activate
+
+# Order matters: api requirements first, pipecat (with extras) last, so
+# pipecat's pinned extras win. Installing pipecat first lets tuner-pipecat-sdk
+# pull pipecat-ai from PyPI, which shadows the submodule and reintroduces
+# "No module named 'pipecat.services.dograh'".
+pip install -r api/requirements.txt -r api/requirements.dev.txt pytest pytest-asyncio
+git submodule update --init --recursive
+pip install -e "./pipecat[cartesia,deepgram,openai,elevenlabs,groq,google,azure,\
+sarvam,soundfile,silero,webrtc,speechmatics,openrouter,camb,mcp,inworld,smallest]"
+
+# ts_validator needs its own npm deps or ~22 MCP tests fail
+(cd api/mcp_server/ts_validator && npm install)
+
+# Services. Postgres needs the pgvector extension: a migration runs
+# CREATE EXTENSION vector.
+export DATABASE_URL="postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/decibyl_test"
+export REDIS_URL="redis://127.0.0.1:6379/0"
+export ENABLE_AWS_S3=false MINIO_PUBLIC_ENDPOINT=http://localhost:9000 DEPLOYMENT_MODE=oss
+
+python -m pytest api/tests -q
+```
+
+`api/conftest.py` normally loads `api/.env.test`, which is gitignored and not
+present in a fresh clone — hence the manual exports above.
+
+A handful of `ERROR [asyncio] Task was destroyed but it is pending!` lines in
+the output are log noise from torn-down pipeline tasks, not test errors; pytest
+reports them separately from its pass/fail counts.
