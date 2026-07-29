@@ -166,6 +166,29 @@ cannot meet it, add a rollup rather than an index hack.
 
 ## Access and audit
 
+### Reaching the dashboard
+
+The dashboard lives at **`/superadmin/billing`** and every route behind it
+requires `is_superuser`. Nothing in the normal signup flow ever sets that flag,
+so on a fresh install one account has to be promoted by hand:
+
+```bash
+set -a && source api/.env && set +a
+
+python -m scripts.grant_superuser --list          # who has access today
+python -m scripts.grant_superuser you@example.com # grant
+python -m scripts.grant_superuser you@example.com --revoke
+```
+
+Sign up through the UI first — the script promotes an existing account, it does
+not create one. (The demo seed also inserts a staff row, but with no password,
+so it exists to own the seeded data rather than to be logged into.)
+
+Once promoted, sign out and back in, then open `/superadmin/billing`. A
+non-staff account gets a 403 from every route under it, and an unauthenticated
+one a 401.
+
+
 * Every dashboard route is behind a **staff role check** (`is_superuser`, via
   the existing `get_superuser` dependency). It shows cross-account financial
   data.
