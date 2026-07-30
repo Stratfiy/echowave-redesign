@@ -111,6 +111,17 @@ RESERVATION_MINUTES = int(os.getenv("RESERVATION_MINUTES", "5"))
 # call's hold puts the account back over its balance while it is still spending.
 RESERVATION_MAX_AGE_MINUTES = int(os.getenv("RESERVATION_MAX_AGE_MINUTES", "180"))
 
+# Free credit for a new account, in micro-dollars. $5 by default.
+#
+# Denominated in dollars like the list price, and converted at the FX rate in
+# force when the account signs up — a rupee figure would quietly get cheaper in
+# dollar terms every time the rupee weakened.
+#
+# It is a gift, not a sale: no GST, no receipt voucher, and it lands as a
+# `trial` ledger row so revenue reporting can always separate given credit from
+# bought credit. Set to 0 to switch it off.
+SIGNUP_BONUS_MICROS_USD = int(os.getenv("SIGNUP_BONUS_MICROS_USD", "5000000"))
+
 # --- GST ---------------------------------------------------------------------
 #
 # Who is supplying, for the top half of every invoice. These are facts about one

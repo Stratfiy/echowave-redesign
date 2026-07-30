@@ -1982,6 +1982,16 @@ class CreditLedgerModel(Base):
             unique=True,
             postgresql_where=text("kind = 'reservation' AND ref_id IS NOT NULL"),
         ),
+        # One signup bonus per organization, ever. Two requests racing during
+        # signup would both find no bonus and both grant one, so this is
+        # enforced here rather than by the check in application code that the
+        # race defeats.
+        Index(
+            "uq_credit_ledger_signup_bonus",
+            "organization_id",
+            unique=True,
+            postgresql_where=text("kind = 'trial' AND ref_type = 'signup_bonus'"),
+        ),
         # The sweeper scans open reservations by age; without this it reads
         # every ledger row on the platform every few minutes.
         Index(
