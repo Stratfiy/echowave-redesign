@@ -214,7 +214,13 @@ class APIKeyModel(Base):
     # Indexes for performance
     __table_args__ = (
         Index("ix_api_keys_organization_id", "organization_id"),
-        Index("ix_api_keys_key_hash", "key_hash"),
+        # No ix_api_keys_key_hash here: the column above already declares
+        # `unique=True, index=True`, which creates an index of exactly that
+        # name — unique. Declaring it a second time as non-unique made the
+        # model contradict itself, and autogenerate proposed dropping the
+        # unique index and recreating it without the constraint. On a table
+        # whose whole purpose is looking a key up by hash, losing that
+        # uniqueness would let two API keys collide.
         Index("ix_api_keys_active", "is_active"),
     )
 
@@ -2380,4 +2386,148 @@ class TaxDocumentModel(Base):
             ),
         ),
         Index("ix_tax_documents_org_issued", "organization_id", "issued_at"),
+    )
+
+
+class DataRetentionPolicyModel(Base):
+    """How long one organization's call data is kept.
+
+    Storage limitation is the one privacy obligation that cannot be satisfied by
+    a document: DPDP s8(7) and GDPR Art 5(1)(e) both require that personal data
+    stop existing once its purpose is served, and only a job that deletes things
+    can do that.
+
+    Per organization because the right answer differs by customer — a clinic
+    under a records-retention rule and a lead-generation campaign have opposite
+    needs, and a single platform-wide number would be wrong for both. Absent a
+    row, the platform default applies.
+
+    Note what is *not* covered here: billing figures. Those are retained for the
+    statutory period regardless, because GST records must survive long after the
+    conversation they describe should not. See services/privacy/retention.py.
+    """
+
+    __tablename__ = "data_retention_policies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+
+    # Days to keep call recordings (audio). Null means the platform default;
+    # 0 means never store them at all.
+    recording_retention_days = Column(Integer, nullable=True)
+    # Days to keep transcripts and the context gathered during a call. Usually
+    # longer than audio: text is far less sensitive and far more useful.
+    transcript_retention_days = Column(Integer, nullable=True)
+
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+
+
+class DataAccessLogModel(Base):
+    """Who opened a recording or transcript, and when.
+
+    Two questions this exists to answer, both of which arrive at the worst
+    possible moment. A data principal asks who has listened to their call. A
+    breach is suspected and somebody has to say what was reached.
+
+    Deliberately records the *act of access*, not the result: a row is written
+    when a signed URL is issued, because that is the moment access becomes
+    possible. Whether the browser then played the audio is not something the
+    server can know, and pretending otherwise would make the log a worse record
+    than an honest one.
+    """
+
+    __tablename__ = "data_access_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True
+    )
+    # Null for access through a public share link, which is exactly the case
+    # worth being able to see afterwards.
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # recording | transcript | kyc_document | export
+    resource_type = Column(String(32), nullable=False)
+    resource_id = Column(String(128), nullable=True)
+    workflow_run_id = Column(Integer, nullable=True)
+
+    # signed_url | download | export
+    action = Column(String(32), nullable=False)
+    # How the caller authenticated: session | api_key | public_token | staff
+    actor_kind = Column(String(24), nullable=True)
+    ip_address = Column(String(64), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    organization = relationship("OrganizationModel")
+    user = relationship("UserModel")
+
+    __table_args__ = (
+        Index("ix_data_access_org_created", "organization_id", "created_at"),
+        Index("ix_data_access_run", "workflow_run_id"),
+    )
+
+
+class ErasureRequestModel(Base):
+    """A request to delete somebody's data, and what came of it.
+
+    Both DPDP and GDPR give a deadline for responding, so a request that is
+    handled but not recorded is indistinguishable from one that was ignored.
+    This table is the evidence — what was asked, when, what was actually erased,
+    and by whom.
+
+    Kept after completion, and deliberately so: the record of an erasure is not
+    itself the erased data, and destroying it would remove the only proof the
+    obligation was met.
+    """
+
+    __tablename__ = "erasure_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # phone_number | organization
+    subject_type = Column(String(24), nullable=False)
+    # The phone number requested, stored hashed rather than in the clear: a
+    # register of numbers that asked to be forgotten would be its own personal
+    # data, and a rather sensitive one.
+    subject_hash = Column(String(64), nullable=True)
+
+    # pending | completed | failed
+    status = Column(
+        String(16), nullable=False, default="pending", server_default=text("'pending'")
+    )
+    requested_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    requested_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Counts only — never the data itself.
+    runs_affected = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    objects_deleted = Column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    note = Column(Text, nullable=True)
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index("ix_erasure_org_requested", "organization_id", "requested_at"),
+        Index("ix_erasure_status", "status"),
     )

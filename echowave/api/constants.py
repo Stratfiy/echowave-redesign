@@ -122,6 +122,27 @@ RESERVATION_MAX_AGE_MINUTES = int(os.getenv("RESERVATION_MAX_AGE_MINUTES", "180"
 # bought credit. Set to 0 to switch it off.
 SIGNUP_BONUS_MICROS_USD = int(os.getenv("SIGNUP_BONUS_MICROS_USD", "5000000"))
 
+# --- Data retention -----------------------------------------------------------
+#
+# How long call data is kept before it is deleted. Storage limitation is
+# required by DPDP s8(7) and GDPR Art 5(1)(e), and it is the one privacy
+# obligation no document can satisfy — only a job that deletes things does.
+#
+# Audio and text age separately on purpose. A recording is a person's voice,
+# among the most identifying data there is and rarely useful a month later. A
+# transcript is text: far less sensitive, and what reporting and quality review
+# actually read. A single window would be too short to run a business on or too
+# long to defend.
+#
+# Per-organization overrides live in `data_retention_policies`; these are the
+# defaults for an account that has set nothing.
+DEFAULT_RECORDING_RETENTION_DAYS = int(
+    os.getenv("DEFAULT_RECORDING_RETENTION_DAYS", "90")
+)
+DEFAULT_TRANSCRIPT_RETENTION_DAYS = int(
+    os.getenv("DEFAULT_TRANSCRIPT_RETENTION_DAYS", "365")
+)
+
 # --- GST ---------------------------------------------------------------------
 #
 # Who is supplying, for the top half of every invoice. These are facts about one

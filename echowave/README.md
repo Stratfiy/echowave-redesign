@@ -57,6 +57,9 @@ Each subtree has an `AGENTS.md` with the conventions that apply inside it.
 - **[`DEPLOY.md`](DEPLOY.md)** — going live: what to configure, in what order,
   and how to create the first admin account. Two steps have an ordering that
   only bites once.
+- **[`PRIVACY.md`](PRIVACY.md)** — retention, erasure, export and access
+  logging, what DPDP and GDPR each require, and which obligations code cannot
+  discharge for you.
 - **[`DASHBOARD.md`](DASHBOARD.md)** — how a call is priced, what every billing
   number means, and the invariants the money code holds. Read this before
   touching anything under `api/services/billing/`.

@@ -15,6 +15,7 @@ from api.routes.node_types import router as node_types_router
 from api.routes.organization import router as organization_router
 from api.routes.organization_usage import router as organization_usage_router
 from api.routes.payments import router as payments_router
+from api.routes.privacy import router as privacy_router
 from api.routes.public_agent import router as public_agent_router
 from api.routes.public_download import router as public_download_router
 from api.routes.public_embed import router as public_embed_router
@@ -51,6 +52,7 @@ router.include_router(kyc_router)
 router.include_router(kyc_admin_router)
 router.include_router(platform_credentials_router)
 router.include_router(payments_router)
+router.include_router(privacy_router)
 router.include_router(workflow_router)
 router.include_router(workflow_text_chat_router)
 router.include_router(user_router)

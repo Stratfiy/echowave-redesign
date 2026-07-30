@@ -48,6 +48,7 @@ from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
 from api.tasks.billing_rollup import refresh_billing_rollups
 from api.tasks.credit_reservations import sweep_credit_reservations
+from api.tasks.data_retention import purge_expired_call_data
 from api.tasks.kyc_carrier_poll import poll_kyc_carrier_status
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
 from api.tasks.workflow_completion import process_workflow_completion
@@ -65,6 +66,7 @@ class WorkerSettings:
         poll_kyc_carrier_status,
         sweep_credit_reservations,
         issue_monthly_tax_invoices,
+        purge_expired_call_data,
     ]
     cron_jobs = [
         # Safety net for webhook deliveries whose ARQ job was lost (worker
@@ -113,6 +115,16 @@ class WorkerSettings:
         # calls from the last hours of the 31st have been costed. Invoicing at
         # midnight would miss a customer's final evening, which is exactly the
         # invoice they query.
+        # Storage limitation is only real if something enforces it. Nightly at
+        # 19:00 UTC (00:30 IST) — quiet hours, and deleting objects is IO the
+        # call path should not be competing with.
+        cron(
+            purge_expired_call_data,
+            hour={19},
+            minute={0},
+            second=0,
+            run_at_startup=False,
+        ),
         cron(
             issue_monthly_tax_invoices,
             day={1},

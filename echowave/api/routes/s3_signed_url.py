@@ -226,6 +226,20 @@ async def get_signed_url(
         if not url:
             raise HTTPException(status_code=500, detail="Failed to generate signed URL")
 
+        # Issuing the URL is the moment access becomes possible, so that is what
+        # gets logged. Whether the browser then played the audio is not
+        # something the server can know, and recording "played" when it means
+        # "was allowed to play" would make this a worse record than an honest
+        # one. Never allowed to fail the request it observes.
+        await _record_signed_url_access(
+            key=key,
+            user=user,
+            workflow_run=workflow_run,
+            organization_id=org_id
+            if org_id is not None
+            else user.selected_organization_id,
+        )
+
         logger.info(f"Generated signed URL for key={key}, expires_in={expires_in}s")
         return {"url": url, "expires_in": expires_in}
     except ClientError as exc:
@@ -347,3 +361,44 @@ async def get_presigned_upload_url(
         raise HTTPException(
             status_code=500, detail="Failed to generate presigned upload URL"
         )
+
+
+async def _record_signed_url_access(
+    *,
+    key: str,
+    user,
+    workflow_run,
+    organization_id: Optional[int],
+) -> None:
+    """Note in the audit trail that somebody was handed access to an object.
+
+    Swallows its own failures. An audit trail that can take down the product it
+    audits is one that gets switched off the first time it does.
+    """
+    try:
+        from api.services.privacy import access_log
+
+        lowered = key.lower()
+        if "transcript" in lowered:
+            resource_type = access_log.TRANSCRIPT
+        elif "kyc" in lowered:
+            resource_type = access_log.KYC_DOCUMENT
+        else:
+            resource_type = access_log.RECORDING
+
+        async with db_client.async_session() as session:
+            await access_log.record_access(
+                session,
+                organization_id=organization_id,
+                user_id=getattr(user, "id", None),
+                resource_type=resource_type,
+                resource_id=key,
+                workflow_run_id=getattr(workflow_run, "id", None),
+                action="signed_url",
+                actor_kind="staff"
+                if getattr(user, "is_superuser", False)
+                else "session",
+            )
+            await session.commit()
+    except Exception as exc:  # noqa: BLE001 - auditing must not break access
+        logger.error(f"Could not record access to {key}: {exc}")

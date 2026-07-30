@@ -190,3 +190,16 @@ class S3FileSystem(BaseFileSystem):
             return True
         except ClientError:
             return False
+
+    async def adelete_file(self, file_path: str) -> bool:
+        """Delete one object from S3.
+
+        S3's DeleteObject is idempotent — deleting a key that is not there
+        succeeds — which matches what the caller is asking: is this data gone.
+        """
+        try:
+            async with self.session.client("s3", **self._client_kwargs()) as s3_client:
+                await s3_client.delete_object(Bucket=self.bucket_name, Key=file_path)
+            return True
+        except ClientError:
+            return False

@@ -139,3 +139,23 @@ class BaseFileSystem(ABC):
             bool: True if file was copied successfully, False otherwise
         """
         pass
+
+    @abstractmethod
+    async def adelete_file(self, file_path: str) -> bool:
+        """Delete one object.
+
+        Required by data retention and erasure: a deletion that removes the
+        database row and leaves the object behind looks exactly like success
+        while the audio is still sitting in a bucket.
+
+        Returns True when the object is gone, **including when it was already
+        absent** — the caller's question is "is this data still here", and for
+        an object that never existed the honest answer is no.
+
+        Args:
+            file_path: Storage key of the object to delete
+
+        Returns:
+            bool: True if the object is no longer stored, False on failure
+        """
+        pass
