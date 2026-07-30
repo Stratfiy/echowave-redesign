@@ -67,6 +67,39 @@ export function formatNumber(value: number | null | undefined): string {
     return integers.format(value);
 }
 
+const MICROS_PER_USD = 1_000_000;
+
+/**
+ * Micro-dollars, e.g. 20000 → "$0.020".
+ *
+ * Three decimals by default because the numbers this renders are per-minute
+ * platform rates around two cents, where "$0.02" and "$0.025" are a 25%
+ * difference that two decimals would hide.
+ */
+export function formatMicrosUsd(
+    micros: number | null | undefined,
+    fractionDigits = 3,
+): string {
+    if (micros === null || micros === undefined) return "—";
+    const sign = micros < 0 ? "-" : "";
+    return `${sign}$${(Math.abs(micros) / MICROS_PER_USD).toFixed(fractionDigits)}`;
+}
+
+/** An exchange rate held as paise per dollar, e.g. 9600 → "₹96.00". */
+export function formatPaisePerUsd(paise: number | null | undefined): string {
+    if (paise === null || paise === undefined) return "—";
+    return rupees.format(paise / PAISE_PER_RUPEE);
+}
+
+/** Seconds as a compact duration for KPI copy, e.g. 7.5 → "7.5s", 3600 → "1h". */
+export function formatSecondsCompact(seconds: number | null | undefined): string {
+    if (seconds === null || seconds === undefined) return "—";
+    const abs = Math.abs(seconds);
+    if (abs < 60) return `${Number(seconds.toFixed(1))}s`;
+    if (abs < 3600) return `${Math.round(seconds / 60)}m`;
+    return `${Number((seconds / 3600).toFixed(1))}h`;
+}
+
 /**
  * A ratio as a percentage. `null` renders as an em dash rather than "0%":
  * margin on zero revenue is undefined, and "0%" would read as "no margin".

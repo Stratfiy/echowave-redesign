@@ -15,10 +15,19 @@ from api.db.models import (
     OrganizationRateHistoryModel,
     PlatformVolumeTierModel,
     ProviderRateModel,
+    UsdInrRateHistoryModel,
 )
 from api.enums import CostComponent, RateUnit
-from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
-from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
+from api.services.billing.money import (
+    DEFAULT_PLATFORM_RATE_MICROS_USD,
+    DEFAULT_PULSE_SECONDS,
+    DEFAULT_USD_INR_PAISE,
+)
+from api.services.billing.rates import (
+    resolve_platform_rate,
+    resolve_provider_rate,
+    resolve_usd_inr,
+)
 
 JAN = datetime(2026, 1, 1, tzinfo=UTC)
 JUN = datetime(2026, 6, 1, tzinfo=UTC)
@@ -41,8 +50,13 @@ class TestPlatformRateResolution:
             async_session, organization_id=org.id, at=JUN
         )
 
-        assert resolved.rate_mpaise == DEFAULT_PLATFORM_RATE_MPAISE  # ₹2.00/min
+        # $0.02/min converted at the seeded ₹96 — the receipt carries both, so
+        # a customer quoted in dollars can check the rupee figure.
         assert resolved.source == "global_default"
+        assert resolved.rate_micros_usd == DEFAULT_PLATFORM_RATE_MICROS_USD
+        assert resolved.usd_inr_paise == DEFAULT_USD_INR_PAISE
+        assert resolved.rate_mpaise == 192_000
+        assert resolved.pulse_seconds == DEFAULT_PULSE_SECONDS
 
     async def test_account_override_wins_over_default(self, async_session):
         org = await _make_org(async_session, "org-override")
@@ -221,7 +235,7 @@ class TestEffectiveDating:
         )
 
         assert resolved.source == "global_default"
-        assert resolved.rate_mpaise == DEFAULT_PLATFORM_RATE_MPAISE
+        assert resolved.rate_mpaise == 192_000
 
     async def test_rates_are_scoped_to_their_own_account(self, async_session):
         """One account's enterprise deal must never leak onto another."""
@@ -373,9 +387,7 @@ class TestProviderRateResolution:
         assert resolved.rate_mpaise == 12_000
         assert resolved.model == ""
 
-    async def test_a_model_rate_is_effective_dated_like_any_other(
-        self, async_session
-    ):
+    async def test_a_model_rate_is_effective_dated_like_any_other(self, async_session):
         async_session.add_all(
             [
                 ProviderRateModel(
@@ -443,3 +455,188 @@ class TestProviderRateResolution:
             ]
         )
         await async_session.flush()  # must not raise
+
+
+@pytest.mark.asyncio
+class TestExchangeRateResolution:
+    """The rupee figure on a receipt is a function of the day it was billed.
+
+    Pricing in dollars only holds up if the conversion is effective-dated like
+    everything else — otherwise a rupee that moved after the fact would rewrite
+    invoices that were already sent.
+    """
+
+    async def _fx(self, async_session, paise_per_usd: int, effective_from, **kw):
+        row = UsdInrRateHistoryModel(
+            paise_per_usd=paise_per_usd, effective_from=effective_from, **kw
+        )
+        async_session.add(row)
+        await async_session.flush()
+        return row
+
+    async def test_the_migration_seeded_an_opening_rate(self, async_session):
+        """So that no call is ever billed off the hard-coded fallback."""
+        fx = await resolve_usd_inr(async_session, at=JUN)
+        assert fx.paise_per_usd == DEFAULT_USD_INR_PAISE
+        assert fx.is_fallback is False
+
+    async def test_a_later_rate_does_not_rewrite_an_earlier_call(self, async_session):
+        """The property the whole effective-dating scheme exists for."""
+        # Close the seeded open row and open a weaker rupee from December.
+        from sqlalchemy import update
+
+        await async_session.execute(
+            update(UsdInrRateHistoryModel)
+            .where(UsdInrRateHistoryModel.effective_to.is_(None))
+            .values(effective_to=DEC)
+        )
+        await self._fx(async_session, 11_000, DEC, source="test")
+
+        june = await resolve_platform_rate(
+            async_session,
+            organization_id=(await _make_org(async_session, "org-fx-june")).id,
+            at=JUN,
+        )
+        december = await resolve_platform_rate(
+            async_session,
+            organization_id=(await _make_org(async_session, "org-fx-dec")).id,
+            at=DEC,
+        )
+
+        # Same $0.02 both times; different rupee amounts.
+        assert june.rate_micros_usd == december.rate_micros_usd == 20_000
+        assert june.rate_mpaise == 192_000  # at ₹96
+        assert december.rate_mpaise == 220_000  # at ₹110
+
+    async def test_a_gap_in_the_history_is_flagged_not_hidden(self, async_session):
+        """Billing at a stale rate quietly erodes margin, and the only symptom
+        is a number that looks fine. So the fallback announces itself."""
+        await async_session.execute(UsdInrRateHistoryModel.__table__.delete())
+
+        fx = await resolve_usd_inr(async_session, at=JUN)
+
+        assert fx.is_fallback is True
+        assert fx.paise_per_usd == DEFAULT_USD_INR_PAISE
+        assert fx.source is None
+
+
+@pytest.mark.asyncio
+class TestRupeeNativeOverrides:
+    """A contract written in rupees must not float with the dollar.
+
+    Both currencies are supported on purpose: the list price is in USD, but a
+    deal agreed at "₹1.20 a minute" means ₹1.20 a minute whatever the rupee
+    does, and converting it would change what was signed.
+    """
+
+    async def test_a_rupee_override_ignores_the_exchange_rate(self, async_session):
+        org = await _make_org(async_session, "org-inr-native")
+        async_session.add(
+            OrganizationRateHistoryModel(
+                organization_id=org.id,
+                platform_rate_mpaise=120_000,  # ₹1.20/min, agreed in rupees
+                effective_from=JAN,
+            )
+        )
+        await async_session.flush()
+
+        resolved = await resolve_platform_rate(
+            async_session, organization_id=org.id, at=JUN
+        )
+
+        assert resolved.rate_mpaise == 120_000
+        assert resolved.source == "account_override"
+        # No dollar price is reported, because there is not one to report.
+        assert resolved.rate_micros_usd is None
+        assert resolved.usd_inr_paise is None
+
+    async def test_a_dollar_override_is_converted(self, async_session):
+        org = await _make_org(async_session, "org-usd-override")
+        async_session.add(
+            OrganizationRateHistoryModel(
+                organization_id=org.id,
+                platform_rate_micros_usd=15_000,  # $0.015/min volume deal
+                effective_from=JAN,
+            )
+        )
+        await async_session.flush()
+
+        resolved = await resolve_platform_rate(
+            async_session, organization_id=org.id, at=JUN
+        )
+
+        assert resolved.rate_micros_usd == 15_000
+        assert resolved.rate_mpaise == 144_000  # $0.015 * ₹96 = ₹1.44
+
+    async def test_a_row_cannot_carry_both_currencies(self, async_session):
+        """Two populated columns would leave two answers to what the account
+        pays, so the database refuses it rather than the code guessing."""
+        from sqlalchemy.exc import IntegrityError
+
+        org = await _make_org(async_session, "org-both")
+        # In a savepoint: the constraint violation aborts the transaction, and
+        # the surrounding test transaction has to survive it.
+        with pytest.raises(IntegrityError):
+            async with async_session.begin_nested():
+                async_session.add(
+                    OrganizationRateHistoryModel(
+                        organization_id=org.id,
+                        platform_rate_micros_usd=20_000,
+                        platform_rate_mpaise=200_000,
+                        effective_from=JAN,
+                    )
+                )
+
+    async def test_a_row_must_carry_one(self, async_session):
+        from sqlalchemy.exc import IntegrityError
+
+        org = await _make_org(async_session, "org-neither")
+        with pytest.raises(IntegrityError):
+            async with async_session.begin_nested():
+                async_session.add(
+                    OrganizationRateHistoryModel(
+                        organization_id=org.id, effective_from=JAN
+                    )
+                )
+
+
+@pytest.mark.asyncio
+class TestNegotiatedPulse:
+    async def test_an_account_can_be_pinned_to_whole_minute_billing(
+        self, async_session
+    ):
+        """Some enterprise contracts specify it, and the pulse is a term of the
+        deal rather than a platform-wide constant."""
+        org = await _make_org(async_session, "org-minute-pulse")
+        async_session.add(
+            OrganizationRateHistoryModel(
+                organization_id=org.id,
+                platform_rate_micros_usd=20_000,
+                pulse_seconds=60,
+                effective_from=JAN,
+            )
+        )
+        await async_session.flush()
+
+        resolved = await resolve_platform_rate(
+            async_session, organization_id=org.id, at=JUN
+        )
+        assert resolved.pulse_seconds == 60
+
+    async def test_an_unset_pulse_falls_back_to_the_platform_default(
+        self, async_session
+    ):
+        org = await _make_org(async_session, "org-default-pulse")
+        async_session.add(
+            OrganizationRateHistoryModel(
+                organization_id=org.id,
+                platform_rate_micros_usd=20_000,
+                effective_from=JAN,
+            )
+        )
+        await async_session.flush()
+
+        resolved = await resolve_platform_rate(
+            async_session, organization_id=org.id, at=JUN
+        )
+        assert resolved.pulse_seconds == DEFAULT_PULSE_SECONDS

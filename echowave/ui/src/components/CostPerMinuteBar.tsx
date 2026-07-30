@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { formatMicrosUsd } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
 /** The stack being priced. Any part may be unset while still being chosen. */
@@ -43,6 +44,11 @@ interface Estimate {
     platform_paise_per_minute: number;
     lines: EstimateLine[];
     unpriced: string[];
+    // The same total in dollars, which is the unit every competitor quotes.
+    // Null only when this account is on a rupee-denominated contract, where
+    // there is no dollar price to show.
+    total_micros_usd_per_minute: number | null;
+    pulse_seconds: number;
 }
 
 /**
@@ -140,6 +146,17 @@ export function CostPerMinuteBar({
                     <span className="text-sm text-muted-foreground">Cost per min</span>
                     <span className="text-xl font-semibold tabular-nums tracking-tight">
                         {rupees(total)}
+                    </span>
+                    {estimate.total_micros_usd_per_minute !== null && (
+                        <span className="text-sm tabular-nums text-muted-foreground">
+                            {formatMicrosUsd(estimate.total_micros_usd_per_minute)}
+                        </span>
+                    )}
+
+                    {/* The differentiator, stated where the price is. A minute is
+                        the unit everyone quotes; it is not the unit we charge. */}
+                    <span className="rounded-full bg-[color:var(--brand-amber)]/12 px-2 py-0.5 text-[11px] font-medium text-[color:var(--brand-amber)]">
+                        billed in {estimate.pulse_seconds}s pulses
                     </span>
 
                     <Tooltip>

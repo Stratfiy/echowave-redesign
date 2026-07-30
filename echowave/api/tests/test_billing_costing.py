@@ -191,10 +191,13 @@ class TestCostWorkflowRun:
         cost = await cost_workflow_run(async_session, run.id)
 
         assert cost is not None
-        assert cost.billable_minutes == 2  # ceil(90/60)
-        assert cost.platform_fee_paise == 400  # default ₹2.00/min
+        # 90s is six whole 15s pulses, so we bill 1.5 minutes where a
+        # whole-minute competitor bills two.
+        assert cost.billed_seconds == 90
+        assert cost.pulse_seconds == 15
+        assert cost.platform_fee_paise == 288  # 1.5 min @ ₹1.92 ($0.02 at ₹96)
         assert cost.total_provider_cost_paise == 12  # 1k tokens @ 12_000 mpaise
-        assert cost.total_charged_paise == 412
+        assert cost.total_charged_paise == 300
 
         items = (
             await async_session.scalars(
@@ -208,9 +211,15 @@ class TestCostWorkflowRun:
         assert sum(i.cost_paise for i in items) == run.total_charged_paise
 
         assert run.billable_seconds == 90
-        assert run.platform_rate_mpaise_applied == 200_000
+        assert run.billed_seconds == 90
+        assert run.platform_rate_mpaise_applied == 192_000
         assert run.total_provider_cost_paise == 12
         assert run.costed_at is not None
+        # The working behind the rupee figure, so the receipt can show a
+        # customer quoted in dollars how it was arrived at.
+        assert run.platform_rate_micros_usd_applied == 20_000
+        assert run.usd_inr_paise_applied == 9_600
+        assert run.pulse_seconds_applied == 15
 
     async def test_the_model_in_usage_info_selects_the_rate(self, async_session):
         """The same call costs less on a cheaper model.
@@ -272,13 +281,17 @@ class TestCostWorkflowRun:
 
         # And the receipt records which model it billed.
         rows = (
-            await async_session.execute(
-                select(CallCostItemModel.model).where(
-                    CallCostItemModel.workflow_run_id == cheap_run.id,
-                    CallCostItemModel.component == "llm",
+            (
+                await async_session.execute(
+                    select(CallCostItemModel.model).where(
+                        CallCostItemModel.workflow_run_id == cheap_run.id,
+                        CallCostItemModel.component == "llm",
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert rows == ["gpt-4o-mini"]
 
     async def test_telephony_seconds_are_costed(self, async_session):
@@ -320,7 +333,7 @@ class TestCostWorkflowRun:
         cost = await cost_workflow_run(async_session, run.id)
 
         assert cost.total_provider_cost_paise == 0
-        assert cost.total_charged_paise == 200
+        assert cost.total_charged_paise == 192  # 1 min @ ₹1.92
         items = (
             await async_session.scalars(
                 select(CallCostItemModel).where(
@@ -388,7 +401,7 @@ class TestCostWorkflowRun:
         )
         assert ledger_count == 1
         assert (
-            await current_balance_paise(async_session, organization_id=org.id) == -200
+            await current_balance_paise(async_session, organization_id=org.id) == -192
         )
 
     async def test_recosting_replaces_rather_than_appends(self, async_session):
@@ -409,11 +422,11 @@ class TestCostWorkflowRun:
             )
         ).all()
         assert len(items) == 1
-        assert run.total_charged_paise == 600  # 3 min @ ₹2.00
+        assert run.total_charged_paise == 576  # 3 min @ ₹1.92
 
         # The ledger reflects the corrected figure, not both attempts.
         assert (
-            await current_balance_paise(async_session, organization_id=org.id) == -600
+            await current_balance_paise(async_session, organization_id=org.id) == -576
         )
 
     async def test_usage_without_a_rate_is_reported_not_costed_at_zero(
@@ -447,7 +460,7 @@ class TestCostWorkflowRun:
             select(CreditLedgerModel).where(CreditLedgerModel.ref_id == str(run.id))
         )
         assert entry.kind == CreditLedgerKind.USAGE.value
-        assert entry.delta_paise == -400
+        assert entry.delta_paise == -384  # 2 min @ ₹1.92
         assert entry.ref_type == "workflow_run"
 
 
@@ -491,7 +504,8 @@ class TestDailyRollup:
         assert row.completed_calls == 3
         assert row.billable_seconds == 270
         assert row.billable_minutes == 6  # ceil(90/60) per call, then summed
-        assert row.charged_paise == 1200  # 3 * 2 min * ₹2.00
+        # Billed on pulses, not on those reported minutes: 3 * 90s * ₹1.92/min.
+        assert row.charged_paise == 864
         assert row.margin_paise == row.charged_paise - row.provider_cost_paise
 
     async def test_a_late_evening_ist_call_lands_on_the_right_day(self, async_session):

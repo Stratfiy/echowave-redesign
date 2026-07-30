@@ -1,6 +1,6 @@
 """Integer money arithmetic for Decibyl billing.
 
-Two rules govern every number in this package:
+Three rules govern every number in this package:
 
 1. **Money is stored as integer paise.** Never floats. Column names end in
    ``_paise``. Rounding happens once, here, and never at display time.
@@ -9,6 +9,11 @@ Two rules govern every number in this package:
    audio-minute or a thousand Sarvam characters — so quoting rates in paise
    would force a rounding error into the rate itself, which then compounds
    across every call that uses it.
+3. **The list price is quoted in USD, and settled in INR.** Voice-AI platforms
+   compete on a dollar figure, so ours is fixed in dollars — $0.02 a minute —
+   and converted to rupees at the FX rate in force when the call happened. If
+   the rate card were fixed in rupees instead, our price against Bolna or Vapi
+   would drift every time the rupee moved.
 
 The compounding problem is avoided by never rounding an intermediate: a line
 item's cost is computed as one exact integer ratio and rounded exactly once.
@@ -27,8 +32,35 @@ from api.enums import RateUnit
 PAISE_PER_RUPEE = 100
 MPAISE_PER_PAISE = 1000
 
-# Global default platform rate: ₹2.00 per billable minute.
-# ₹2.00 = 200 paise = 200_000 millipaise.
+# $1 = 1,000,000 micro-dollars. Micro-dollars rather than cents because
+# $0.02/min divided into a 15-second pulse is $0.005, and per-second internal
+# figures go smaller still — cents would round the rate itself to zero.
+MICROS_PER_USD = 1_000_000
+
+# Global default platform rate: $0.02 per billable minute.
+# Matches the cheapest platform fee in the market; the differentiator is the
+# pulse below, not the headline number.
+DEFAULT_PLATFORM_RATE_MICROS_USD = 20_000
+
+#: Fallback USD→INR rate, in paise per dollar (₹96.00), used only when the
+#: history table has no row covering the call. It is a floor against total
+#: failure, not a rate we intend to bill at — a stale fallback silently
+#: under-bills as the rupee weakens, so :func:`resolve_usd_inr` logs when it is
+#: used and the KPI screen shows how old the newest real rate is.
+DEFAULT_USD_INR_PAISE = 9_600
+
+#: The billing granularity. Time is rounded up to a whole number of these.
+#:
+#: This is the commercial differentiator. Competitors bill whole minutes, so a
+#: 65-second call bills two. At 15 seconds it bills five pulses — 75 seconds.
+#: The saving is roughly half a pulse per call on average: ~7.5 seconds, which
+#: is ~17% of a 45-second call and ~3% of a four-minute one. Short, high-volume
+#: traffic is where it shows up, which is exactly the traffic Indian voice
+#: agents run.
+DEFAULT_PULSE_SECONDS = 15
+
+# Retained for the legacy INR-native path: an account whose contract is written
+# in rupees keeps an mpaise rate rather than tracking the dollar. ₹2.00/min.
 DEFAULT_PLATFORM_RATE_MPAISE = 200_000
 
 # How many raw units make up one unit of the quoted rate.
@@ -92,13 +124,67 @@ def platform_fee_paise(*, billable_minutes: int, rate_mpaise: int) -> int:
 
 
 def billable_minutes(billable_seconds: int) -> int:
-    """``ceil(billable_seconds / 60)`` — the metric definition in DASHBOARD.md.
+    """``ceil(billable_seconds / 60)``.
 
-    A zero-second call bills zero minutes; any started second bills a minute.
+    Kept as a reporting figure — "minutes used" is what a customer asks about —
+    and as the input to volume-tier matching. It is **not** what the platform
+    fee is computed from any more; see :func:`billed_seconds`.
     """
     if billable_seconds < 0:
         raise ValueError("billable_seconds must not be negative")
     return -(-billable_seconds // 60)
+
+
+def billed_seconds(actual_seconds: int, pulse_seconds: int) -> int:
+    """Connected time rounded up to a whole pulse — what we actually charge for.
+
+    A 62-second call on a 15-second pulse bills 75 seconds, not 120. This is
+    the whole point of the pulse: the customer pays for the granularity they
+    used rather than for the rounding convention of whoever billed them.
+
+    A zero-second call bills nothing. Any started second bills one pulse.
+    """
+    if actual_seconds < 0:
+        raise ValueError("actual_seconds must not be negative")
+    if pulse_seconds <= 0:
+        raise ValueError("pulse_seconds must be positive")
+    return -(-actual_seconds // pulse_seconds) * pulse_seconds
+
+
+def usd_to_mpaise(*, micros_usd: int, usd_inr_paise: int) -> int:
+    """Convert a USD rate to the INR rate we will actually bill, in millipaise.
+
+    ``usd_inr_paise`` is the exchange rate in paise per dollar — ₹96.00 is
+    9600 — so it is itself an integer and the whole conversion stays exact
+    until the single rounding at the end.
+    """
+    if micros_usd < 0:
+        raise ValueError("micros_usd must not be negative")
+    if usd_inr_paise <= 0:
+        raise ValueError("usd_inr_paise must be positive")
+    return round_half_up_div(
+        micros_usd * usd_inr_paise * MPAISE_PER_PAISE, MICROS_PER_USD
+    )
+
+
+def mpaise_to_micros_usd(*, mpaise: int, usd_inr_paise: int) -> int:
+    """The inverse, for reporting an INR-native figure in dollars.
+
+    Reporting only. Never bill from a round-trip through this — converting
+    back and forth loses the exactness that billing from the original side
+    guarantees.
+    """
+    if mpaise < 0:
+        raise ValueError("mpaise must not be negative")
+    if usd_inr_paise <= 0:
+        raise ValueError("usd_inr_paise must be positive")
+    return round_half_up_div(mpaise * MICROS_PER_USD, usd_inr_paise * MPAISE_PER_PAISE)
+
+
+def format_micros_usd(micros_usd: int) -> str:
+    """Render micro-dollars for display only. Never persist this."""
+    sign = "-" if micros_usd < 0 else ""
+    return f"{sign}${abs(micros_usd) / MICROS_PER_USD:,.4f}".rstrip("0").rstrip(".")
 
 
 def format_paise(paise: int) -> str:

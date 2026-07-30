@@ -10,12 +10,51 @@ Implementation lives in `api/services/billing/`.
 ## Pricing model
 
 ```
-total_charged_per_minute = platform_rate + Σ(provider costs at cost)
+total_charged = platform_rate x billed_seconds + Σ(provider costs at cost)
+billed_seconds = ceil(connected_seconds / pulse) x pulse
 ```
 
-* **Platform rate** is ours. Default **₹2.00/min**, configurable per account.
+* **Platform rate** is ours. List price **$0.02/min**, configurable per account.
+* **Billing granularity is a 15-second pulse**, not a whole minute.
 * **Provider costs** — STT, LLM, TTS, telephony — are passed through **at cost,
   with no markup**.
+
+### Priced in dollars, settled in rupees
+
+The list price is fixed in **USD** and converted to INR at the rate in force
+when the call happened. Voice-AI platforms compete on a dollar figure; if ours
+were fixed in rupees, our price against Bolna or Vapi would drift every time the
+rupee moved.
+
+`usd_inr_rate_history` holds that rate, effective-dated like every other rate
+here, so an old invoice recomputes to the number that was actually charged
+rather than to whatever the rupee is worth today. Each call snapshots all three
+inputs — `platform_rate_micros_usd_applied`, `usd_inr_paise_applied`,
+`pulse_seconds_applied` — so a receipt can show its working rather than
+asserting a rupee figure.
+
+A rate row carries **either** a dollar price or a rupee one, never both, enforced
+by a check constraint. A contract agreed at "₹1.20 a minute" means ₹1.20 a
+minute whatever the rupee does, and two populated columns would leave two
+answers to what an account pays.
+
+The fallback constant in `money.py` (₹96.00) exists so a missing FX row cannot
+stop costing outright. It is not a rate we intend to bill at — using it logs a
+warning, and the KPI screen shows how old the newest real rate is.
+
+### The 15-second pulse
+
+The commercial differentiator, and a single parameter rather than a second code
+path: at `pulse_seconds = 60` the engine reproduces whole-minute billing
+exactly, which is what makes the comparison against competitors honest.
+
+A 62-second call bills **75 seconds** with us and **120** with a whole-minute
+platform. The saving is roughly half a pulse per call — about 7.5 seconds — so
+it is worth ~17% on a 45-second call and ~3% on a four-minute one. **Short,
+high-volume traffic is where it shows up**, which is the traffic Indian voice
+agents run. The claim belongs there and nowhere else.
+
+What it costs us is measured, not estimated: see *Unit economics* below.
 
 Not every call has provider costs. An account that brings its own model keys
 pays those providers directly, so Decibyl incurs no inference cost and the
@@ -67,7 +106,12 @@ Resolved in this order; the first match wins.
 2. **Volume tier** — optional. Applies when the account's billable minutes in
    the current billing period reach a tier's `min_period_minutes`. The **highest
    matching threshold** wins.
-3. **Global default** — ₹2.00/min (`DEFAULT_PLATFORM_RATE_MPAISE = 200_000`).
+3. **Global default** — $0.02/min (`DEFAULT_PLATFORM_RATE_MICROS_USD = 20_000`),
+   converted at the USD→INR rate in force at `at`.
+
+The **pulse** resolves alongside the rate, from the same row, falling back to
+`DEFAULT_PULSE_SECONDS = 15`. An account that negotiated whole-minute billing
+carries `pulse_seconds = 60` on its override.
 
 ### Effective dating
 
@@ -98,7 +142,8 @@ would understate provider cost and overstate margin.
 
 | Metric | Definition |
 |---|---|
-| Billable minutes | `ceil(billable_seconds / 60)`, summed. Connected calls only. |
+| Billable minutes | `ceil(billable_seconds / 60)`, summed. Connected calls only. **Reporting only** — not what the fee is computed from. |
+| Billed seconds | `ceil(billable_seconds / pulse) x pulse`. What the platform fee is actually charged on. |
 | Revenue | `sum(total_charged_paise)` |
 | Provider cost | `sum(cost_paise)` where `component != 'platform'` |
 | Gross margin | `revenue − provider_cost` |
@@ -111,7 +156,15 @@ would understate provider cost and overstate margin.
 | Concurrency | max calls in flight at once, per bucket (see below) |
 
 Billable minutes are ceilinged **per call, then summed** — never summed as
-seconds and ceilinged once. A 30-second call bills one minute.
+seconds and ceilinged once. They are a reporting figure: "minutes used" is what
+a customer asks about. The platform fee is computed from `billed_seconds`, so a
+30-second call reports one minute and is charged for 30 seconds.
+
+Every **per-minute** figure on the unit-economics screen divides by *connected*
+seconds, never by billed seconds or whole minutes. A per-minute cost is a
+statement about service delivered, and connected time is the only one of the
+three that measures it — the other two carry our own rounding convention and
+would flatter the number.
 
 **Percentiles must be computed in SQL over raw `call_turn_metrics` rows**, never
 averaged from pre-aggregated buckets: the average of two percentiles is not a
@@ -261,6 +314,43 @@ zero, which would silently understate the estimate.
 
 `CostPerMinuteBar` renders it live on the model-configuration screen, so
 switching model moves the number immediately.
+
+---
+
+## Unit economics
+
+`GET /admin/billing/unit-economics` and the screen at
+`/superadmin/billing/unit-economics`. Where every other page answers "how much
+did we bill", this one answers the question behind the pricing decision: does a
+minute make money, and where does it go when it does not.
+
+| Figure | What it decides |
+|---|---|
+| Revenue, provider cost and margin **per connected minute**, in ₹ and $ | Whether $0.02 holds up |
+| Cost split by component (STT / LLM / TTS / telephony) | Which component to attack |
+| Cost intensity **per model** | Which model to switch off — "our LLM cost" is not actionable, "gpt-4o costs 3x mini a minute" is |
+| Pulse give-away, in rupees | Whether the differentiator is still affordable |
+| Thinnest margins by account | Which customer is underwater; it is rarely the biggest |
+| Unpriced usage | How much of the book is knowingly incomplete |
+| FX rate and its age | When to reprice |
+
+**The pulse has a price and the screen states it.** For every costed call it
+computes what a 60-second-pulse platform would have billed, prices the gap at
+the rate *that call* was actually billed at, and reports the total. Calls whose
+duration already landed on a whole minute are counted separately, so the
+headline is not read as applying to every customer.
+
+**Unpriced usage is reported, not hidden.** `workflow_runs.uncosted_usage`
+records, per call, which measured usage we held no rate for. This was previously
+only a log line, which made it the one thing capable of making every margin
+figure quietly optimistic — unpriced usage is provider cost we paid and did not
+record. SQL `NULL` means "costed before we tracked this" and is deliberately
+distinguishable from the empty list a freshly costed call writes; "we do not
+know" is not "nothing was missing".
+
+The model league table attributes a call's minutes to every model that appeared
+on it, so a mixed call counts twice. That is why those figures are labelled cost
+*intensities* for comparison rather than shares of the invoice.
 
 ---
 

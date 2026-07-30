@@ -60,9 +60,7 @@ async def persist_turn_metrics(
                 # percentile queries already filter on latency_ms, and a
                 # missing mark is honest where a zero would read as instant.
                 **{
-                    c: turn.get(c)
-                    for c in _TIMELINE_COLUMNS
-                    if turn.get(c) is not None
+                    c: turn.get(c) for c in _TIMELINE_COLUMNS if turn.get(c) is not None
                 },
             )
         )

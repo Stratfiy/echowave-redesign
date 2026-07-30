@@ -167,6 +167,14 @@ async def reset(session: AsyncSession) -> None:
             await session.execute(
                 delete(model).where(model.organization_id.in_(org_ids))
             )
+        # The membership rows first: the association table's FK has no cascade,
+        # so deleting the organizations while a staff user is still attached
+        # fails the whole reset.
+        await session.execute(
+            organization_users_association.delete().where(
+                organization_users_association.c.organization_id.in_(org_ids)
+            )
+        )
         await session.execute(
             delete(OrganizationModel).where(OrganizationModel.id.in_(org_ids))
         )

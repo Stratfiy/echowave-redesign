@@ -247,6 +247,9 @@ class BillingAuditAction(str, Enum):
     PLATFORM_RATE_CHANGED = "platform_rate_changed"
     CREDIT_ADJUSTED = "credit_adjusted"
     PROVIDER_RATE_CHANGED = "provider_rate_changed"
+    # The USD→INR rate. Audited like any other rate because the list price is
+    # quoted in dollars, so changing this changes what every account pays.
+    EXCHANGE_RATE_CHANGED = "exchange_rate_changed"
 
 
 class KycStatus(str, Enum):

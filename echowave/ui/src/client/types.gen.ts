@@ -2583,6 +2583,26 @@ export type EndCallToolDefinition = {
 };
 
 /**
+ * ExchangeRateRequest
+ */
+export type ExchangeRateRequest = {
+    /**
+     * Paise Per Usd
+     *
+     * Rupees per dollar in paise: ₹96.00 is 9600
+     */
+    paise_per_usd: number;
+    /**
+     * Source
+     */
+    source?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
  * FileDescriptor
  *
  * Descriptor for a single file in a batch upload request.
@@ -8504,6 +8524,105 @@ export type GetLatencyApiV1AdminBillingLatencyGetResponses = {
 };
 
 export type GetLatencyApiV1AdminBillingLatencyGetResponse = GetLatencyApiV1AdminBillingLatencyGetResponses[keyof GetLatencyApiV1AdminBillingLatencyGetResponses];
+
+export type GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Start
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        end?: string | null;
+    };
+    url: '/api/v1/admin/billing/unit-economics';
+};
+
+export type GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetError = GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetErrors[keyof GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetErrors];
+
+export type GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetResponses = {
+    /**
+     * Response Get Unit Economics Api V1 Admin Billing Unit Economics Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetResponse = GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetResponses[keyof GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetResponses];
+
+export type SetExchangeRateApiV1AdminBillingExchangeRatePutData = {
+    body: ExchangeRateRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/exchange-rate';
+};
+
+export type SetExchangeRateApiV1AdminBillingExchangeRatePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetExchangeRateApiV1AdminBillingExchangeRatePutError = SetExchangeRateApiV1AdminBillingExchangeRatePutErrors[keyof SetExchangeRateApiV1AdminBillingExchangeRatePutErrors];
+
+export type SetExchangeRateApiV1AdminBillingExchangeRatePutResponses = {
+    /**
+     * Response Set Exchange Rate Api V1 Admin Billing Exchange Rate Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetExchangeRateApiV1AdminBillingExchangeRatePutResponse = SetExchangeRateApiV1AdminBillingExchangeRatePutResponses[keyof SetExchangeRateApiV1AdminBillingExchangeRatePutResponses];
 
 export type GetCostPerMinuteApiV1CostEstimatePerMinutePostData = {
     body: CostEstimateRequest;

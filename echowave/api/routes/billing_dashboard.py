@@ -17,6 +17,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import select, update
 
 from api.db import billing_dashboard_client as dash
 from api.db import db_client
@@ -25,10 +26,12 @@ from api.db.models import (
     CreditLedgerModel,
     OrganizationModel,
     OrganizationRateHistoryModel,
+    UsdInrRateHistoryModel,
     UserModel,
 )
 from api.enums import BillingAuditAction, CreditLedgerKind
 from api.services.auth.depends import get_superuser
+from api.services.billing import kpis
 from api.services.billing.costing import current_balance_paise
 from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
 from api.services.billing.rollup import IST
@@ -414,3 +417,85 @@ async def get_latency(
             ),
             "languages": await dash.distinct_languages(session),
         }
+
+
+# ---------------------------------------------------------------------------
+# 3.7 Unit economics
+#
+# The screen behind the pricing decision rather than behind an invoice: what a
+# minute costs, what it earns, and what the 15-second pulse gives away.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/unit-economics")
+async def get_unit_economics(rng: RangeParams = Depends()) -> dict[str, Any]:
+    async with db_client.async_session() as session:
+        report = await kpis.unit_economics_report(session, start=rng.start, end=rng.end)
+    return {
+        "range": {"start": rng.start.isoformat(), "end": rng.end.isoformat()},
+        **report,
+    }
+
+
+class ExchangeRateRequest(BaseModel):
+    paise_per_usd: int = Field(
+        ..., gt=0, description="Rupees per dollar in paise: ₹96.00 is 9600"
+    )
+    source: str | None = Field(None, max_length=64)
+    note: str | None = None
+
+
+@router.put("/exchange-rate")
+async def set_exchange_rate(
+    payload: ExchangeRateRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Open a new USD→INR rate, closing the current one.
+
+    Effective-dated like every other rate here: the old row is closed rather
+    than overwritten, so calls already billed keep the conversion they were
+    billed at. Takes effect from now, never retroactively — repricing calls
+    that have already been invoiced is not something an endpoint should be
+    able to do by accident.
+    """
+    async with db_client.async_session() as session:
+        now = datetime.now(UTC)
+
+        previous = await session.scalar(
+            select(UsdInrRateHistoryModel)
+            .where(UsdInrRateHistoryModel.effective_to.is_(None))
+            .order_by(UsdInrRateHistoryModel.effective_from.desc())
+            .limit(1)
+        )
+
+        await session.execute(
+            update(UsdInrRateHistoryModel)
+            .where(UsdInrRateHistoryModel.effective_to.is_(None))
+            .values(effective_to=now)
+        )
+        session.add(
+            UsdInrRateHistoryModel(
+                paise_per_usd=payload.paise_per_usd,
+                effective_from=now,
+                source=payload.source,
+                set_by=user.id,
+                note=payload.note,
+            )
+        )
+        session.add(
+            BillingAuditLogModel(
+                actor_user_id=user.id,
+                action=BillingAuditAction.EXCHANGE_RATE_CHANGED.value,
+                organization_id=None,
+                old_value=(
+                    {"paise_per_usd": previous.paise_per_usd} if previous else {}
+                ),
+                new_value={
+                    "paise_per_usd": payload.paise_per_usd,
+                    "source": payload.source,
+                },
+                note=payload.note,
+            )
+        )
+        await session.commit()
+
+    return {"paise_per_usd": payload.paise_per_usd, "effective_from": now.isoformat()}

@@ -15,7 +15,10 @@ from api.services.billing.cost_engine import (
     UsageItem,
     compute_call_cost,
 )
-from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
+from api.services.billing.money import (
+    DEFAULT_PLATFORM_RATE_MPAISE,
+    DEFAULT_PULSE_SECONDS,
+)
 
 # Deepgram STT, Sarvam TTS, an LLM and Twilio telephony — a realistic mix of
 # all three rate units.
@@ -47,10 +50,12 @@ class TestDefaultRate:
             billable_seconds=90,
             platform_rate_mpaise=DEFAULT_PLATFORM_RATE_MPAISE,
         )
-        assert cost.billable_minutes == 2  # ceil(90/60)
         assert cost.total_provider_cost_paise == 0
-        assert cost.platform_fee_paise == 400  # 2 min * ₹2.00
-        assert cost.total_charged_paise == 400
+        # 90s is already a whole number of 15s pulses, so the fee is exactly
+        # 1.5 minutes of rate rather than the two minutes a competitor bills.
+        assert cost.billed_seconds == 90
+        assert cost.platform_fee_paise == 300  # 1.5 min * ₹2.00
+        assert cost.total_charged_paise == 300
         assert [line.component for line in cost.line_items] == ["platform"]
 
     def test_managed_call_itemises_every_component(self):
@@ -276,3 +281,79 @@ class TestValidation:
         assert cost.billable_minutes == 0
         assert cost.total_charged_paise == 0
         assert sum(li.cost_paise for li in cost.line_items) == 0
+
+
+class TestPulseBilling:
+    """The pulse is the commercial differentiator, so its effect on a receipt
+    is asserted rather than left to the arithmetic in money.py."""
+
+    def test_a_short_call_is_not_rounded_up_to_a_whole_minute(self):
+        """The case the pitch is built on. A 20-second call bills 30 seconds
+        with us and a full minute everywhere else."""
+        ours = compute_call_cost(
+            billable_seconds=20, platform_rate_mpaise=DEFAULT_PLATFORM_RATE_MPAISE
+        )
+        theirs = compute_call_cost(
+            billable_seconds=20,
+            platform_rate_mpaise=DEFAULT_PLATFORM_RATE_MPAISE,
+            pulse_seconds=60,
+        )
+
+        assert ours.billed_seconds == 30
+        assert theirs.billed_seconds == 60
+        assert ours.total_charged_paise == 100  # 0.5 min @ ₹2.00
+        assert theirs.total_charged_paise == 200
+
+    def test_a_sixty_second_pulse_reproduces_the_old_whole_minute_billing(self):
+        """One parameter separates us from the competition, not two code
+        paths — which is what makes the comparison honest."""
+        for seconds in (1, 45, 60, 61, 90, 222):
+            cost = compute_call_cost(
+                billable_seconds=seconds,
+                platform_rate_mpaise=DEFAULT_PLATFORM_RATE_MPAISE,
+                pulse_seconds=60,
+            )
+            assert cost.billed_seconds == cost.billable_minutes * 60
+
+    def test_the_platform_line_reports_the_seconds_it_charged_for(self):
+        """A receipt that said "2 minutes" for a 62-second call would be the
+        thing the pulse exists to stop."""
+        cost = compute_call_cost(
+            billable_seconds=62, platform_rate_mpaise=DEFAULT_PLATFORM_RATE_MPAISE
+        )
+        platform = next(
+            line for line in cost.line_items if line.component == "platform"
+        )
+        assert platform.units == 75
+        assert cost.billed_seconds == 75
+
+    def test_the_pulse_never_charges_for_less_time_than_the_call_took(self):
+        """Rounding up is the invariant. Down would be giving away revenue on
+        every single call, silently."""
+        for seconds in range(0, 400, 7):
+            cost = compute_call_cost(
+                billable_seconds=seconds,
+                platform_rate_mpaise=DEFAULT_PLATFORM_RATE_MPAISE,
+            )
+            assert cost.billed_seconds >= seconds
+            assert cost.billed_seconds % DEFAULT_PULSE_SECONDS == 0
+
+    def test_totals_still_reconcile_against_line_items_under_a_pulse(self):
+        """The rounding invariant must survive the change to how the platform
+        quantity is derived."""
+        random.seed(20260730)
+        for _ in range(2000):
+            cost = compute_call_cost(
+                billable_seconds=random.randint(0, 3600),
+                platform_rate_mpaise=random.choice([192_000, 200_000, 144_000]),
+                pulse_seconds=random.choice([1, 15, 30, 60]),
+                usage=_usage(
+                    seconds=random.randint(0, 3600),
+                    chars=random.randint(0, 9000),
+                    tokens=random.randint(0, 9000),
+                ),
+                provider_rates=RATES,
+            )
+            assert cost.total_charged_paise == sum(
+                line.cost_paise for line in cost.line_items
+            )

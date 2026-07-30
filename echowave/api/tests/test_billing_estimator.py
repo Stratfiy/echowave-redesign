@@ -23,7 +23,7 @@ from api.services.billing.estimator import (
     MIN_CALLS_FOR_MEASURED_ASSUMPTION,
     estimate_cost_per_minute,
 )
-from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
+from api.services.billing.money import mpaise_to_micros_usd
 
 LONG_AGO = datetime(2020, 1, 1, tzinfo=UTC)
 
@@ -155,9 +155,24 @@ class TestEstimate:
             async_session, organization_id=negotiated_org.id
         )
 
-        assert listed.platform_paise_per_minute == DEFAULT_PLATFORM_RATE_MPAISE // 1000
+        # The list price is $0.02/min, converted at the seeded ₹96.
+        assert listed.platform_paise_per_minute == 192
         assert negotiated.platform_paise_per_minute == 50
         assert negotiated.total_paise_per_minute < listed.total_paise_per_minute
+
+    async def test_the_estimate_is_reported_in_dollars_too(self, async_session):
+        """The unit every competitor quotes, and the unit our own list price is
+        fixed in — so the comparison can be made without a calculator."""
+        org = await _org(async_session, "usd-estimate")
+
+        estimate = await estimate_cost_per_minute(async_session, organization_id=org.id)
+
+        assert estimate.usd_inr_paise == 9_600
+        assert estimate.pulse_seconds == 15
+        # Derived from the rupee total, so the two can never disagree.
+        assert estimate.total_micros_usd_per_minute == mpaise_to_micros_usd(
+            mpaise=estimate.total_paise_per_minute * 1000, usd_inr_paise=9_600
+        )
 
     async def test_an_unpriced_component_is_reported_not_zeroed(self, async_session):
         """Same rule as a real call: silence about a missing rate would

@@ -28,8 +28,11 @@ from api.services.billing.money import (
     billable_minutes as to_billable_minutes,
 )
 from api.services.billing.money import (
+    billed_seconds as to_billed_seconds,
+)
+from api.services.billing.money import (
+    DEFAULT_PULSE_SECONDS,
     cost_paise,
-    platform_fee_paise,
 )
 
 
@@ -82,6 +85,11 @@ class CallCost:
     platform_fee_paise: int
     total_provider_cost_paise: int
     total_charged_paise: int
+    # The pulse this call was billed at, and the time it was billed for after
+    # rounding up to a whole pulse. Reported so a receipt can show that a
+    # 62-second call was charged for 75 seconds and not 120.
+    pulse_seconds: int = DEFAULT_PULSE_SECONDS
+    billed_seconds: int = 0
     # Usage we could not price because no rate was on file. Surfaced rather
     # than silently costed at zero, which would understate provider cost and
     # overstate margin.
@@ -92,6 +100,7 @@ def compute_call_cost(
     *,
     billable_seconds: int,
     platform_rate_mpaise: int,
+    pulse_seconds: int = DEFAULT_PULSE_SECONDS,
     usage: tuple[UsageItem, ...] | list[UsageItem] = (),
     provider_rates: Mapping[tuple[str, str], RateSpec] | None = None,
 ) -> CallCost:
@@ -101,12 +110,18 @@ def compute_call_cost(
     means no rate is on file; that usage is reported in ``uncosted`` instead of
     being priced at zero.
 
+    The platform fee is charged on time rounded up to a whole ``pulse_seconds``,
+    not to a whole minute. At ``pulse_seconds=60`` this reproduces whole-minute
+    billing exactly, which is what makes the comparison against competitors a
+    matter of one parameter rather than of two different code paths.
+
     The returned ``total_charged_paise`` is exactly ``sum(line.cost_paise for
     line in line_items)``. It is never computed as a separately-rounded figure,
     so an invoice always reconciles against its own line items.
     """
     provider_rates = provider_rates or {}
     minutes = to_billable_minutes(billable_seconds)
+    billed = to_billed_seconds(billable_seconds, pulse_seconds)
 
     lines: list[CostLine] = []
     uncosted: list[UsageItem] = []
@@ -143,12 +158,20 @@ def compute_call_cost(
 
     provider_total = sum(line.cost_paise for line in lines)
 
-    fee = platform_fee_paise(billable_minutes=minutes, rate_mpaise=platform_rate_mpaise)
+    # The rate is quoted per minute and the quantity is in seconds, which is
+    # exactly the contract cost_paise already implements for a per-minute rate.
+    # So the platform line is structurally identical to a provider one: measured
+    # units times a rate, rounded once.
+    fee = cost_paise(
+        quantity=billed,
+        rate_mpaise=platform_rate_mpaise,
+        unit=RateUnit.MINUTE,
+    )
     lines.append(
         CostLine(
             component=CostComponent.PLATFORM.value,
             provider=None,
-            units=minutes,
+            units=billed,
             unit_rate_mpaise=platform_rate_mpaise,
             cost_paise=fee,
         )
@@ -164,5 +187,7 @@ def compute_call_cost(
         platform_fee_paise=fee,
         total_provider_cost_paise=provider_total,
         total_charged_paise=total,
+        pulse_seconds=pulse_seconds,
+        billed_seconds=billed,
         uncosted=tuple(uncosted),
     )

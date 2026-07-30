@@ -4,12 +4,19 @@ import pytest
 
 from api.enums import RateUnit
 from api.services.billing.money import (
+    DEFAULT_PLATFORM_RATE_MICROS_USD,
     DEFAULT_PLATFORM_RATE_MPAISE,
+    DEFAULT_PULSE_SECONDS,
+    DEFAULT_USD_INR_PAISE,
     billable_minutes,
+    billed_seconds,
     cost_paise,
+    format_micros_usd,
     format_paise,
+    mpaise_to_micros_usd,
     platform_fee_paise,
     round_half_up_div,
+    usd_to_mpaise,
 )
 
 
@@ -24,6 +31,114 @@ def test_global_default_is_two_rupees_per_minute():
         == 200
     )
     assert format_paise(200) == "₹2.00"
+
+
+def test_the_list_price_is_two_cents_a_minute():
+    """$0.02/min in micro-dollars.
+
+    Guards the units the same way the rupee test above does: a factor-of-1000
+    slip here misprices every call on the platform.
+    """
+    assert DEFAULT_PLATFORM_RATE_MICROS_USD == 20_000
+    assert format_micros_usd(DEFAULT_PLATFORM_RATE_MICROS_USD) == "$0.02"
+
+
+class TestUsdToInr:
+    def test_the_list_price_converts_to_the_expected_rupee_rate(self):
+        """$0.02 at ₹96 is ₹1.92 a minute — 192 paise, 192_000 millipaise."""
+        rate = usd_to_mpaise(
+            micros_usd=DEFAULT_PLATFORM_RATE_MICROS_USD,
+            usd_inr_paise=DEFAULT_USD_INR_PAISE,
+        )
+        assert rate == 192_000
+        assert platform_fee_paise(billable_minutes=1, rate_mpaise=rate) == 192
+        assert format_paise(192) == "₹1.92"
+
+    def test_the_rupee_price_moves_with_the_dollar(self):
+        """The point of pricing in USD: the dollar figure holds while the rupee
+        amount tracks the market."""
+        weak = usd_to_mpaise(micros_usd=20_000, usd_inr_paise=11_000)  # ₹110
+        strong = usd_to_mpaise(micros_usd=20_000, usd_inr_paise=8_000)  # ₹80
+        assert weak == 220_000
+        assert strong == 160_000
+
+    def test_a_fractional_rate_is_not_lost_to_rounding(self):
+        """₹83.37 is not a round number, and neither is the result. Millipaise
+        exist precisely so this survives."""
+        assert usd_to_mpaise(micros_usd=20_000, usd_inr_paise=8_337) == 166_740
+
+    def test_the_reverse_conversion_is_for_reporting_only(self):
+        """Round-tripping is close but not guaranteed exact, which is why
+        billing never goes through it."""
+        assert (
+            mpaise_to_micros_usd(mpaise=192_000, usd_inr_paise=DEFAULT_USD_INR_PAISE)
+            == 20_000
+        )
+
+    @pytest.mark.parametrize("bad_rate", [0, -1])
+    def test_a_non_positive_exchange_rate_is_refused(self, bad_rate):
+        """Zero would make every call free and a negative would pay customers
+        to call. Both are better as an exception than as an invoice."""
+        with pytest.raises(ValueError):
+            usd_to_mpaise(micros_usd=20_000, usd_inr_paise=bad_rate)
+
+
+class TestPulseBilling:
+    def test_the_default_pulse_is_fifteen_seconds(self):
+        assert DEFAULT_PULSE_SECONDS == 15
+
+    @pytest.mark.parametrize(
+        "actual, expected",
+        [
+            (0, 0),
+            (1, 15),
+            (15, 15),
+            (16, 30),
+            (62, 75),
+            (180, 180),
+            (181, 195),
+        ],
+    )
+    def test_time_rounds_up_to_a_whole_pulse(self, actual, expected):
+        assert billed_seconds(actual, DEFAULT_PULSE_SECONDS) == expected
+
+    def test_a_sixty_second_pulse_reproduces_whole_minute_billing(self):
+        """The pulse is a setting, not a rewrite: at 60 it is exactly what
+        every competitor does, which is what makes the comparison fair."""
+        for seconds in (1, 59, 60, 61, 119, 120):
+            assert billed_seconds(seconds, 60) == billable_minutes(seconds) * 60
+
+    def test_the_pulse_never_bills_less_than_the_call_took(self):
+        """Rounding is up, always. Rounding down would give away time."""
+        for seconds in range(0, 300):
+            assert billed_seconds(seconds, DEFAULT_PULSE_SECONDS) >= seconds
+
+    def test_what_the_pulse_is_worth_on_a_short_call(self):
+        """The claim the pricing rests on, as arithmetic rather than a slogan.
+
+        A 45-second call: competitors bill a whole minute, we bill 45 seconds.
+        """
+        ours = billed_seconds(45, 15)
+        theirs = billed_seconds(45, 60)
+        assert ours == 45 and theirs == 60
+        assert (theirs - ours) / theirs == 0.25
+
+    def test_what_the_pulse_is_worth_on_a_long_call(self):
+        """And the honest other half: on a four-minute call it is almost
+        nothing, so the pitch belongs on short, high-volume traffic."""
+        ours = billed_seconds(222, 15)
+        theirs = billed_seconds(222, 60)
+        assert ours == 225 and theirs == 240
+        assert round((theirs - ours) / theirs, 3) == 0.062
+
+    @pytest.mark.parametrize("bad_pulse", [0, -15])
+    def test_a_non_positive_pulse_is_refused(self, bad_pulse):
+        with pytest.raises(ValueError):
+            billed_seconds(60, bad_pulse)
+
+    def test_rejects_negative_duration(self):
+        with pytest.raises(ValueError):
+            billed_seconds(-1, 15)
 
 
 class TestRoundHalfUpDiv:

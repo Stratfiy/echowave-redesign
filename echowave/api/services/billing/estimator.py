@@ -27,7 +27,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import CallCostItemModel, WorkflowRunModel
 from api.enums import CostComponent
-from api.services.billing.money import cost_paise, platform_fee_paise
+from api.services.billing.money import (
+    DEFAULT_PULSE_SECONDS,
+    cost_paise,
+    mpaise_to_micros_usd,
+    platform_fee_paise,
+)
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
 
 # Consumption per connected minute, used only when we have no measured history
@@ -75,6 +80,16 @@ class CostEstimate:
     # Components we were asked about but hold no rate for. Reported rather than
     # priced at zero, exactly as the cost engine does for a real call.
     unpriced: tuple[str, ...]
+    # The same total in dollars, because that is the unit every competitor
+    # quotes and the unit our own list price is fixed in. Derived from the
+    # rupee figure rather than computed separately, so the two can never
+    # disagree — billing still happens on the rupee side.
+    total_micros_usd_per_minute: int | None = None
+    usd_inr_paise: int | None = None
+    # The pulse this account bills at. A per-minute estimate does not depend on
+    # it, but the number beside it is the reason a minute is not what gets
+    # charged, so the UI can say so.
+    pulse_seconds: int = DEFAULT_PULSE_SECONDS
 
 
 async def _measured_units_per_minute(
@@ -103,8 +118,10 @@ async def _measured_units_per_minute(
     if model:
         conditions.append(CallCostItemModel.model == model)
 
-    per_minute = cast(CallCostItemModel.units, Float) * 60.0 / cast(
-        WorkflowRunModel.billable_seconds, Float
+    per_minute = (
+        cast(CallCostItemModel.units, Float)
+        * 60.0
+        / cast(WorkflowRunModel.billable_seconds, Float)
     )
 
     row = (
@@ -284,13 +301,24 @@ async def estimate_cost_per_minute(
         line.paise_per_minute for line in lines if line.component == "telephony"
     )
 
+    # Defined as the sum of its own lines, the same rule the receipt uses, so
+    # an estimate can always be reconciled against its breakdown.
+    total_paise = sum(line.paise_per_minute for line in lines)
+
     return CostEstimate(
         lines=tuple(lines),
-        # Defined as the sum of its own lines, the same rule the receipt uses,
-        # so an estimate can always be reconciled against its breakdown.
-        total_paise_per_minute=sum(line.paise_per_minute for line in lines),
+        total_paise_per_minute=total_paise,
         agent_paise_per_minute=agent,
         telephony_paise_per_minute=telephony,
         platform_paise_per_minute=platform_line.paise_per_minute,
         unpriced=tuple(unpriced),
+        total_micros_usd_per_minute=(
+            mpaise_to_micros_usd(
+                mpaise=total_paise * 1000, usd_inr_paise=platform.usd_inr_paise
+            )
+            if platform.usd_inr_paise
+            else None
+        ),
+        usd_inr_paise=platform.usd_inr_paise,
+        pulse_seconds=platform.pulse_seconds,
     )

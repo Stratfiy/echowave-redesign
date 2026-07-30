@@ -11,6 +11,7 @@ const TABS = [
     { href: "/superadmin/billing/calls", label: "Calls" },
     { href: "/superadmin/billing/campaigns", label: "Campaigns" },
     { href: "/superadmin/billing/latency", label: "Latency" },
+    { href: "/superadmin/billing/unit-economics", label: "Unit economics" },
 ];
 
 export default function BillingDashboardLayout({
@@ -36,11 +37,13 @@ export default function BillingDashboardLayout({
                     {/* Where the money actually comes from, stated once. Every
                         figure on every screen below is a consequence of it. */}
                     <p className="glass-panel rounded-full px-4 py-2 text-xs tracking-[-0.01em] text-muted-foreground">
-                        <span className="font-medium text-foreground">Platform fee</span>
+                        <span className="font-medium text-foreground">$0.02/min</span>
                         {" + provider cost "}
                         <span className="font-medium text-[color:var(--brand-amber)]">
                             at cost
                         </span>
+                        {", billed in "}
+                        <span className="font-medium text-foreground">15s pulses</span>
                     </p>
                 </header>
 

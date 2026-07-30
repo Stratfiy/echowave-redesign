@@ -120,21 +120,23 @@ async def cost_workflow_run(
     cost = compute_call_cost(
         billable_seconds=billable_seconds,
         platform_rate_mpaise=platform.rate_mpaise,
+        pulse_seconds=platform.pulse_seconds,
         usage=usage,
         provider_rates=provider_rates,
     )
 
-    if cost.uncosted:
+    uncosted_labels = [
+        f"{u.component.value}:{u.provider}" + (f"/{u.model}" if u.model else "")
+        for u in cost.uncosted
+    ]
+    if uncosted_labels:
         # Loud, because it means reported provider cost is understated and
         # margin correspondingly overstated for this call.
         logger.warning(
             "Workflow run {} has {} usage item(s) with no rate on file: {}",
             workflow_run_id,
-            len(cost.uncosted),
-            ", ".join(
-                f"{u.component.value}:{u.provider}" + (f"/{u.model}" if u.model else "")
-                for u in cost.uncosted
-            ),
+            len(uncosted_labels),
+            ", ".join(uncosted_labels),
         )
 
     # Recosting replaces the old receipt rather than appending to it.
@@ -157,9 +159,20 @@ async def cost_workflow_run(
         )
 
     run.billable_seconds = billable_seconds
+    run.billed_seconds = cost.billed_seconds
     run.platform_rate_mpaise_applied = cost.platform_rate_mpaise
+    # The inputs behind that rate, so the receipt can show the working: the
+    # dollar price quoted, the rate it was converted at, the pulse time was
+    # rounded to. All three are null-safe — a rupee-native contract has no
+    # dollar price and no FX.
+    run.platform_rate_micros_usd_applied = platform.rate_micros_usd
+    run.usd_inr_paise_applied = platform.usd_inr_paise
+    run.pulse_seconds_applied = cost.pulse_seconds
     run.total_provider_cost_paise = cost.total_provider_cost_paise
     run.total_charged_paise = cost.total_charged_paise
+    # Always written, including the empty case: a NULL would be ambiguous
+    # between "nothing unpriced" and "costed before we started tracking this".
+    run.uncosted_usage = uncosted_labels
     run.costed_at = datetime.now(UTC)
 
     await _debit_ledger(

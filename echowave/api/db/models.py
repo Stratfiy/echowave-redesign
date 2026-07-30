@@ -6,6 +6,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     Column,
     Date,
     DateTime,
@@ -616,6 +617,30 @@ class WorkflowRunModel(Base):
     # this call later reproduces the original number even if the account's rate
     # has since changed.
     platform_rate_mpaise_applied = Column(Integer, nullable=True)
+    # The three inputs that produced the rate above. Together they make a
+    # receipt self-explaining: the dollar price we quoted, the exchange rate we
+    # converted it at, and the granularity we rounded time to. Without them a
+    # customer disputing an invoice can only be told the rupee figure, not how
+    # it was arrived at.
+    platform_rate_micros_usd_applied = Column(Integer, nullable=True)
+    usd_inr_paise_applied = Column(Integer, nullable=True)
+    pulse_seconds_applied = Column(Integer, nullable=True)
+    # billable_seconds rounded up to a whole pulse — the quantity the platform
+    # fee is actually computed from.
+    billed_seconds = Column(Integer, nullable=True)
+    # Usage this call incurred that we hold no rate for, as
+    # ["llm:openai/gpt-5", ...]. Empty list means fully costed.
+    #
+    # Persisted rather than only logged because it is the one thing that makes
+    # every margin figure on the dashboard optimistic: unpriced usage is real
+    # money we paid and did not record. A number that is quietly wrong is worse
+    # than one that is visibly incomplete, so the KPI screen reports it.
+    #
+    # ``none_as_null`` so SQL NULL means "costed before we tracked this" and is
+    # distinguishable from the empty list a freshly costed call writes. Without
+    # it SQLAlchemy stores Python None as the JSON value `null`, and the two
+    # cases collapse into one that reads as "nothing was missing".
+    uncosted_usage = Column(JSON(none_as_null=True), nullable=True)
     # Denormalised from call_cost_items for fast dashboard scans. Provider cost
     # and the platform fee are kept in separate columns and are never summed
     # into a single stored number — that is what makes a hidden markup
@@ -1545,7 +1570,15 @@ class OrganizationRateHistoryModel(Base):
     organization_id = Column(
         Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    platform_rate_mpaise = Column(Integer, nullable=False)
+    # Exactly one of these is set. The list price is in dollars, so most rows
+    # are; an override exists in rupees only when the contract was written that
+    # way and the customer must not be exposed to FX. Storing both would leave
+    # two answers to "what does this account pay".
+    platform_rate_micros_usd = Column(Integer, nullable=True)
+    platform_rate_mpaise = Column(Integer, nullable=True)
+    # NULL falls back to the global default. An account that negotiated
+    # whole-minute billing — or finer than 15s — carries it here.
+    pulse_seconds = Column(Integer, nullable=True)
     effective_from = Column(DateTime(timezone=True), nullable=False)
     # NULL means "still in effect". At most one open row per organization.
     effective_to = Column(DateTime(timezone=True), nullable=True)
@@ -1569,6 +1602,11 @@ class OrganizationRateHistoryModel(Base):
             unique=True,
             postgresql_where=text("effective_to IS NULL"),
         ),
+        CheckConstraint(
+            "(platform_rate_micros_usd IS NOT NULL)::int "
+            "+ (platform_rate_mpaise IS NOT NULL)::int = 1",
+            name="ck_org_rate_history_one_currency",
+        ),
     )
 
 
@@ -1584,13 +1622,64 @@ class PlatformVolumeTierModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(64), nullable=False)
     min_period_minutes = Column(Integer, nullable=False)
-    platform_rate_mpaise = Column(Integer, nullable=False)
+    # Same either-or rule as an account override: quoted in dollars by default,
+    # in rupees only for a contract written that way.
+    platform_rate_micros_usd = Column(Integer, nullable=True)
+    platform_rate_mpaise = Column(Integer, nullable=True)
+    pulse_seconds = Column(Integer, nullable=True)
     effective_from = Column(DateTime(timezone=True), nullable=False)
     effective_to = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     __table_args__ = (
         Index("ix_platform_volume_tiers_effective", "effective_from", "effective_to"),
+        CheckConstraint(
+            "(platform_rate_micros_usd IS NOT NULL)::int "
+            "+ (platform_rate_mpaise IS NOT NULL)::int = 1",
+            name="ck_platform_volume_tiers_one_currency",
+        ),
+    )
+
+
+class UsdInrRateHistoryModel(Base):
+    """Effective-dated USD→INR exchange rate.
+
+    The platform fee is quoted in dollars and settled in rupees, so the rate in
+    force when a call happened is part of that call's price. Storing it
+    effective-dated — the same rule every other rate here follows — is what
+    lets an old invoice be recomputed to the number that was actually charged,
+    rather than to whatever the rupee is worth today.
+
+    ``paise_per_usd`` is an integer: ₹96.00 is 9600. Whole paise is finer than
+    any published rate needs, and keeping it integral keeps the conversion
+    exact until the single rounding in ``usd_to_mpaise``.
+    """
+
+    __tablename__ = "usd_inr_rate_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paise_per_usd = Column(Integer, nullable=False)
+    effective_from = Column(DateTime(timezone=True), nullable=False)
+    # NULL means "still in effect". At most one open row.
+    effective_to = Column(DateTime(timezone=True), nullable=True)
+    # Where the number came from — a bank, an API, or a person typing it in.
+    # Without this, a rate nobody can source is indistinguishable from a typo.
+    source = Column(String(64), nullable=True)
+    set_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    set_by_user = relationship("UserModel")
+
+    __table_args__ = (
+        Index("ix_usd_inr_rate_history_effective", "effective_from", "effective_to"),
+        Index(
+            "uq_usd_inr_rate_history_open",
+            "effective_to",
+            unique=True,
+            postgresql_where=text("effective_to IS NULL"),
+        ),
+        CheckConstraint("paise_per_usd > 0", name="ck_usd_inr_rate_positive"),
     )
 
 
