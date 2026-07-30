@@ -48,6 +48,7 @@ import { detailFromError } from "@/lib/apiError";
 import {
     formatDateIST,
     formatDateTimeIST,
+    formatMicrosUsd,
     formatMs,
     formatPaise,
     formatPaiseCompact,
@@ -165,7 +166,11 @@ export default function AccountDetailPage() {
                 />
                 <StatTile
                     label="Platform rate"
-                    value={`${formatRateMpaise(Number(account?.platform_rate_mpaise ?? 0))}/min`}
+                    value={
+                        account?.platform_rate_micros_usd != null
+                            ? `${formatMicrosUsd(Number(account.platform_rate_micros_usd))}/min`
+                            : `${formatRateMpaise(Number(account?.platform_rate_mpaise ?? 0))}/min`
+                    }
                     sub={account?.platform_rate_is_override ? "Account override" : "Global default"}
                 />
             </section>
@@ -517,7 +522,16 @@ function RateSettingsPanel({
                                 {rateHistory.map((row) => (
                                     <TableRow key={String(row.id)}>
                                         <TableCell className="text-right tabular-nums">
-                                            {formatRateMpaise(Number(row.platform_rate_mpaise))}
+                                            {/* A dollar-quoted row has no fixed
+                                                rupee value; showing one would
+                                                invent a number nobody agreed. */}
+                                            {row.platform_rate_micros_usd != null
+                                                ? formatMicrosUsd(
+                                                      Number(row.platform_rate_micros_usd),
+                                                  )
+                                                : formatRateMpaise(
+                                                      Number(row.platform_rate_mpaise),
+                                                  )}
                                         </TableCell>
                                         {/* Dates, not timestamps: rate periods read
                                             as days, and the two full timestamps

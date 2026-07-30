@@ -27,6 +27,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { detailFromError } from "@/lib/apiError";
 import {
     formatDateIST,
+    formatMicrosUsd,
     formatNumber,
     formatPaise,
     formatPercent,
@@ -53,6 +54,9 @@ type Account = {
     margin_pct: number | null;
     balance_paise: number;
     platform_rate_mpaise: number;
+    platform_rate_micros_usd: number | null;
+    pulse_seconds: number;
+    platform_rate_source: string;
     platform_rate_is_override: boolean;
     last_active_day: string | null;
 };
@@ -70,6 +74,26 @@ function daysSince(iso: string | null): number | null {
     const then = new Date(`${iso}T00:00:00Z`).getTime();
     return Math.floor((Date.now() - then) / 86_400_000);
 }
+
+/**
+ * A price quoted in dollars is shown in dollars.
+ *
+ * Rendering its rupee equivalent as though it were the price would be wrong in
+ * a way that matters: the rupee figure moves with the exchange rate, so it is a
+ * conversion of the price rather than the price itself. The converted amount
+ * goes on the tooltip.
+ */
+function formatPlatformRate(account: Account): string {
+    return account.platform_rate_micros_usd != null
+        ? formatMicrosUsd(account.platform_rate_micros_usd)
+        : formatRateMpaise(account.platform_rate_mpaise);
+}
+
+const RATE_SOURCE_LABELS: Record<string, string> = {
+    account_override: "Account override",
+    volume_tier: "Volume tier",
+    global_default: "Global default",
+};
 
 function AccountFlags({ account }: { account: Account }) {
     const stale = daysSince(account.last_active_day);
@@ -321,13 +345,16 @@ export default function AccountsPage() {
                                                                 "underline decoration-dotted underline-offset-2",
                                                         )}
                                                     >
-                                                        {formatRateMpaise(account.platform_rate_mpaise)}
+                                                        {formatPlatformRate(account)}
                                                     </span>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
-                                                    {account.platform_rate_is_override
-                                                        ? "Account override"
-                                                        : "Global default"}
+                                                    {RATE_SOURCE_LABELS[
+                                                        account.platform_rate_source
+                                                    ] ?? account.platform_rate_source}
+                                                    {account.platform_rate_micros_usd != null &&
+                                                        ` · ${formatRateMpaise(account.platform_rate_mpaise)} at today's rate`}
+                                                    {` · ${account.pulse_seconds}s pulse`}
                                                 </TooltipContent>
                                             </Tooltip>
                                         </TableCell>

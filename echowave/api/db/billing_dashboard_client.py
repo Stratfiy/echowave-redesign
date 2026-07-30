@@ -15,7 +15,7 @@ staff-gated routes.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import (
     and_,
@@ -41,7 +41,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
-from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
+from api.services.billing.rates import resolve_platform_rate
 from api.services.billing.rollup import IST, ist_day_bounds_utc
 
 R = DailyOrganizationRollupModel
@@ -427,6 +427,37 @@ async def slowest_turns(
     ]
 
 
+async def _effective_rates(
+    session: AsyncSession, organization_ids: list[int]
+) -> dict[int, dict]:
+    """What each of these accounts actually pays per minute, right now.
+
+    Goes through the same resolver the cost engine uses, so the dashboard and
+    an invoice cannot disagree. Returns the rupee figure that would be billed,
+    the dollar price when there is one, the pulse, and where the price came
+    from — an operator reading a list of accounts needs to know which of them
+    are on a negotiated deal, and "is this column non-null" stopped answering
+    that once prices could be quoted in dollars.
+
+    One resolver call per account. These lists are bounded by the account count
+    rather than by traffic, and each call is two indexed lookups.
+    """
+    now = datetime.now(UTC)
+    resolved: dict[int, dict] = {}
+    for organization_id in organization_ids:
+        rate = await resolve_platform_rate(
+            session, organization_id=organization_id, at=now
+        )
+        resolved[organization_id] = {
+            "platform_rate_mpaise": rate.rate_mpaise,
+            "platform_rate_micros_usd": rate.rate_micros_usd,
+            "pulse_seconds": rate.pulse_seconds,
+            "platform_rate_source": rate.source,
+            "platform_rate_is_override": rate.source == "account_override",
+        }
+    return resolved
+
+
 async def accounts_summary(
     session: AsyncSession,
     *,
@@ -490,6 +521,13 @@ async def accounts_summary(
         )
     ).all()
 
+    # Resolved rather than read off organizations.platform_rate_mpaise. That
+    # column is a convenience mirror that only ever held a rupee figure, so a
+    # dollar-denominated price left it null and the list silently showed the
+    # fallback constant instead — a wrong number reported as if it were the
+    # account's own.
+    rates = await _effective_rates(session, [r.id for r in rows])
+
     return [
         {
             "organization_id": r.id,
@@ -506,9 +544,7 @@ async def accounts_summary(
                 else None
             ),
             "balance_paise": int(r.balance_paise or 0),
-            "platform_rate_mpaise": r.platform_rate_mpaise
-            or DEFAULT_PLATFORM_RATE_MPAISE,
-            "platform_rate_is_override": r.platform_rate_mpaise is not None,
+            **rates[r.id],
             "last_active_day": (
                 r.last_active_day.isoformat() if r.last_active_day else None
             ),
@@ -534,9 +570,7 @@ async def account_detail(session: AsyncSession, *, organization_id: int) -> dict
         "account_type": org.account_type,
         "status": org.billing_status,
         "currency": org.billing_currency,
-        "platform_rate_mpaise": org.platform_rate_mpaise
-        or DEFAULT_PLATFORM_RATE_MPAISE,
-        "platform_rate_is_override": org.platform_rate_mpaise is not None,
+        **(await _effective_rates(session, [organization_id]))[organization_id],
         "balance_paise": int(balance or 0),
         "created_at": org.created_at.isoformat() if org.created_at else None,
     }
@@ -556,6 +590,10 @@ async def account_rate_history(
         {
             "id": r.id,
             "platform_rate_mpaise": r.platform_rate_mpaise,
+            # A row quoted in dollars has no fixed rupee value, so the history
+            # has to show the dollar price rather than a blank.
+            "platform_rate_micros_usd": r.platform_rate_micros_usd,
+            "pulse_seconds": r.pulse_seconds,
             "effective_from": r.effective_from.isoformat()
             if r.effective_from
             else None,
@@ -804,9 +842,7 @@ async def campaigns_summary(session: AsyncSession) -> list[dict]:
     return result
 
 
-async def campaign_concurrency(
-    session: AsyncSession, *, campaign_id: int
-) -> dict:
+async def campaign_concurrency(session: AsyncSession, *, campaign_id: int) -> dict:
     """Peak concurrent calls over the life of a campaign.
 
     Real concurrency, not a calls-started rate: every call contributes +1 at its
@@ -819,9 +855,7 @@ async def campaign_concurrency(
     over a month, where the daily peak is both readable and the number an
     operator actually asks for.
     """
-    start_ts = func.coalesce(
-        WorkflowRunModel.answered_at, WorkflowRunModel.created_at
-    )
+    start_ts = func.coalesce(WorkflowRunModel.answered_at, WorkflowRunModel.created_at)
     # A still-running call has no ended_at; fall back to its billed duration so
     # it still occupies the line rather than vanishing from the series.
     end_ts = func.coalesce(
@@ -859,9 +893,7 @@ async def campaign_concurrency(
 
     # Bucket in IST so a "day" is the local day operators work in, matching the
     # rollups; date_trunc otherwise cuts at UTC midnight (05:30 IST).
-    truncated = func.date_trunc(
-        bucket, func.timezone("Asia/Kolkata", running.c.ts)
-    )
+    truncated = func.date_trunc(bucket, func.timezone("Asia/Kolkata", running.c.ts))
     rows = (
         await session.execute(
             select(

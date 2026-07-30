@@ -538,3 +538,104 @@ class TestReadingTheCard:
             await set_exchange_rate(
                 async_session, actor_user_id=staff.id, paise_per_usd=bad
             )
+
+
+@pytest.mark.asyncio
+class TestTheDashboardReportsTheRealPrice:
+    """The account screens must show what an account actually pays.
+
+    They used to read ``organizations.platform_rate_mpaise``, a convenience
+    mirror that only ever held a rupee figure. Once a price could be quoted in
+    dollars that column went null, and the screens fell back to a constant —
+    showing ₹2.00 for an account on $0.02, and reporting a real negotiated
+    override as though the account were on the list price.
+    """
+
+    async def test_an_account_on_the_list_price_shows_it(self, async_session):
+        from api.db.billing_dashboard_client import account_detail
+
+        staff = await _staff(async_session)
+        org = await _org(async_session, "dash-default")
+        await set_volume_tier(
+            async_session,
+            actor_user_id=staff.id,
+            min_period_minutes=GLOBAL_TIER_MIN_MINUTES,
+            name="Global default",
+            platform_rate_micros_usd=20_000,
+            effective_from=JAN,
+        )
+        await async_session.flush()
+
+        detail = await account_detail(async_session, organization_id=org.id)
+
+        # $0.02 at ₹96, not the ₹2.00 legacy constant.
+        assert detail["platform_rate_mpaise"] == 192_000
+        assert detail["platform_rate_micros_usd"] == 20_000
+        assert detail["platform_rate_is_override"] is False
+
+    async def test_a_dollar_override_is_reported_as_an_override(self, async_session):
+        """The bug that mattered most: a negotiated dollar price read as "no
+        override", so nobody could tell which accounts were on a deal."""
+        from api.db.billing_dashboard_client import account_detail
+
+        staff = await _staff(async_session)
+        org = await _org(async_session, "dash-usd-override")
+        await set_account_rate(
+            async_session,
+            actor_user_id=staff.id,
+            organization_id=org.id,
+            platform_rate_micros_usd=12_000,
+            pulse_seconds=30,
+            effective_from=JAN,
+        )
+        await async_session.flush()
+
+        detail = await account_detail(async_session, organization_id=org.id)
+
+        assert detail["platform_rate_micros_usd"] == 12_000
+        assert detail["platform_rate_mpaise"] == 115_200  # $0.012 at ₹96
+        assert detail["pulse_seconds"] == 30
+        assert detail["platform_rate_is_override"] is True
+
+    async def test_the_accounts_list_agrees_with_the_detail_screen(self, async_session):
+        from api.db.billing_dashboard_client import accounts_summary
+
+        staff = await _staff(async_session)
+        org = await _org(async_session, "dash-list")
+        await set_account_rate(
+            async_session,
+            actor_user_id=staff.id,
+            organization_id=org.id,
+            platform_rate_mpaise=120_000,
+            effective_from=JAN,
+        )
+        await async_session.flush()
+
+        rows = await accounts_summary(async_session, start=JUN.date(), end=JUN.date())
+        mine = next(r for r in rows if r["organization_id"] == org.id)
+
+        assert mine["platform_rate_mpaise"] == 120_000
+        # A rupee contract has no dollar price to report.
+        assert mine["platform_rate_micros_usd"] is None
+        assert mine["platform_rate_source"] == "account_override"
+
+    async def test_rate_history_shows_a_dollar_row_rather_than_a_blank(
+        self, async_session
+    ):
+        from api.db.billing_dashboard_client import account_rate_history
+
+        staff = await _staff(async_session)
+        org = await _org(async_session, "dash-history")
+        await set_account_rate(
+            async_session,
+            actor_user_id=staff.id,
+            organization_id=org.id,
+            platform_rate_micros_usd=18_000,
+            effective_from=JAN,
+        )
+        await async_session.flush()
+
+        history = await account_rate_history(async_session, organization_id=org.id)
+
+        assert history[0]["platform_rate_micros_usd"] == 18_000
+        assert history[0]["platform_rate_mpaise"] is None
