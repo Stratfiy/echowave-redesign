@@ -116,6 +116,47 @@ It also **never blocks what it observes**. A failed audit write is logged and
 the request proceeds. An audit trail that can take down the product it audits is
 one that gets switched off the first time it does.
 
+### Recording disclosure — DPDP s5–6, two-party consent states
+
+`api/services/workflow/pipecat_engine.py`, `RECORDING_DISCLOSURE_TEXT`.
+
+The agent says the call is recorded in its first turn, before the greeting.
+
+**On by default, and omission cannot switch it off.** Only an explicit `False`
+on the start node opts out — a workflow built before the setting existed, or by
+someone who never scrolled to it, still discloses. The failure of omission is
+the one that ends up in front of a regulator, so it is the one made impossible.
+
+**No separate consent record, deliberately.** The disclosure is spoken into the
+call, so it is in the recording and the transcript. The artefact is the evidence
+it happened, which is stronger than a flag beside it claiming so.
+
+### Sub-processors — GDPR Art 28(2), DPDP s11(1)(c)
+
+`api/services/privacy/subprocessors.py`. `GET /api/v1/privacy/subprocessors`.
+
+**Derived, not maintained.** The usual answer is a hand-written page that goes
+stale the first time somebody adds a provider and forgets — and a stale
+sub-processor list is worse than none, because it is a specific written claim
+that is now false.
+
+Two sources answering different questions: providers this deployment holds keys
+for, and providers that actually priced a call. The second is what makes the
+per-account answer honest — a customer who only ever used one vendor is not told
+their data went to five, and a vendor reached through the customer's *own* key
+still appears, because the question is about the data, not about whose account
+paid for it. Hosting and payments are declared rather than derived, because
+nothing in the application code enumerates its own hosting.
+
+### Breach scoping — GDPR Art 33
+
+`GET /api/v1/privacy/breach-report`. What was reached between two timestamps, by
+whom, across how many calls, with the affected call ids so the people to notify
+under Art 34 can be worked out.
+
+**Counts and identifiers, never content.** A breach report that itself contains
+the compromised data is a second incident.
+
 ### Security controls that support both regimes
 
 * Recordings and transcripts are reachable only by **expiring presigned URL**;
@@ -131,17 +172,22 @@ one that gets switched off the first time it does.
 
 Code cannot supply these. They are the other half.
 
-| Needed | Which regime |
-|---|---|
-| **Privacy notice** in clear language, itemising purposes | DPDP s5, GDPR Arts 13–14 |
-| **Data Processing Agreement** with every customer — they are the Fiduciary, you are the Processor | DPDP s8(2), GDPR Art 28 |
-| **Consent for recording**, captured by your customer from the person called | DPDP s6; Indian telecom rules |
-| **Grievance officer**, contactable, published | DPDP s13 |
-| **Breach notification process** — the log tells you what was reached; notifying is yours | DPDP s8(6), GDPR Art 33 (72h) |
-| **Records of processing** (ROPA) | GDPR Art 30 |
-| **DPIA** — voice plus AI is high-risk processing | GDPR Art 35 |
-| **Standard Contractual Clauses** if EU data reaches a US region | GDPR Ch. V |
-| **Sub-processor list**, published, with notice of changes | GDPR Art 28(2) |
+| Needed | Which regime | State |
+|---|---|---|
+| **Privacy notice** in clear language, itemising purposes | DPDP s5, GDPR Arts 13–14 | Factual sections drafted: `compliance/PRIVACY-NOTICE-FACTS.md`. Lawful bases and the children's-data position are decisions, not facts. |
+| **Data Processing Agreement** with every customer — they are the Fiduciary, you are the Processor | DPDP s8(2), GDPR Art 28 | Annex II (technical measures) drafted: `compliance/DPA-ANNEX-II.md`. The body is a contract. |
+| **Records of processing** (ROPA) | GDPR Art 30 | Drafted: `compliance/ROPA.md`. Retention periods for your own business data still need deciding. |
+| **Grievance officer**, contactable, published | DPDP s13 | Wired: `GRIEVANCE_OFFICER_*`, served at `GET /privacy/subprocessors`. **Set the values** — the name and address are empty by default. |
+| **Sub-processor list**, published, with notice of changes | GDPR Art 28(2) | Derived and served. The *notice period* on changes is a contractual term. |
+| **Consent for recording**, captured by your customer from the person called | DPDP s6; Indian telecom rules | Disclosure is spoken on every call. Consent to *what happens next* is still your customer's to obtain. |
+| **Breach notification process** — the log tells you what was reached; notifying is yours | DPDP s8(6), GDPR Art 33 (72h) | Scoping report built. Who decides, who signs, and within what hours is a runbook. |
+| **DPIA** — voice plus AI is high-risk processing | GDPR Art 35 | Not started. |
+| **Standard Contractual Clauses** if EU data reaches a US region | GDPR Ch. V | Not started. |
+
+The drafts in `compliance/` carry the facts that are derivable from the code, so
+a lawyer is not guessing at retention windows or inventing a sub-processor list.
+Every decision is marked `[TO CONFIRM]` rather than filled with something
+plausible.
 
 Two that are easy to miss:
 

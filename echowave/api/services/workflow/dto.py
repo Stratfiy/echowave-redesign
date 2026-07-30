@@ -207,6 +207,8 @@ class _ToolDocumentRefsMixin(BaseModel):
         "greeting_type",
         "greeting",
         "greeting_recording_id",
+        "recording_disclosure_enabled",
+        "recording_disclosure",
         "prompt",
         "allow_interrupt",
         "add_global_prompt",
@@ -232,6 +234,24 @@ class _ToolDocumentRefsMixin(BaseModel):
                 "{{template_variables}} from pre-call fetch and the initial context."
             ),
             "placeholder": "Greet the caller warmly and ask how you can help today.",
+        },
+        "recording_disclosure_enabled": {
+            "display_name": "Announce that the call is recorded",
+            "description": (
+                "Speak a short disclosure before the greeting. Required for "
+                "two-party-consent jurisdictions and expected under DPDP. "
+                "Leave unset to follow the platform default (on)."
+            ),
+        },
+        "recording_disclosure": {
+            "display_name": "Disclosure wording",
+            "description": (
+                "What the agent says. Leave blank to use the platform default."
+            ),
+            "placeholder": "This call is recorded for quality and training purposes.",
+            "display_options": DisplayOptions(
+                show={"recording_disclosure_enabled": [True]}
+            ),
         },
         "greeting_type": {
             "display_name": "Greeting Type",
@@ -329,6 +349,23 @@ class StartCallNodeData(
     )
     greeting_recording_id: Optional[str] = spec_field(
         default=None, ui_type=PropertyType.recording_ref
+    )
+    # Recording disclosure. Twelve US states require two-party consent to record
+    # a call, Indian telecom rules expect disclosure, and DPDP treats a call
+    # recording as personal data collected from the person who answered. The
+    # industry answer is the same everywhere: say so in the agent's first turn.
+    #
+    # None means "use the platform default", which is on. A per-workflow opt-out
+    # has to be a deliberate act rather than the consequence of never setting it.
+    #
+    # Lives on the node rather than in organization settings so it travels with
+    # the workflow definition — versioned with everything else, and available at
+    # call start without a database round-trip on the critical path.
+    recording_disclosure_enabled: Optional[bool] = spec_field(
+        default=None, ui_type=PropertyType.boolean
+    )
+    recording_disclosure: Optional[str] = spec_field(
+        default=None, ui_type=PropertyType.string
     )
     delayed_start: bool = spec_field(default=False, ui_type=PropertyType.boolean)
     delayed_start_duration: Optional[float] = spec_field(

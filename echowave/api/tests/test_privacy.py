@@ -21,11 +21,18 @@ from api.db.models import (
     DataAccessLogModel,
     ErasureRequestModel,
     OrganizationModel,
+    PlatformProviderCredentialModel,
     UserModel,
     WorkflowModel,
     WorkflowRunModel,
 )
-from api.services.privacy import access_log, erasure, export, retention
+from api.services.privacy import (
+    access_log,
+    erasure,
+    export,
+    retention,
+    subprocessors,
+)
 from api.services.privacy.retention import PURGED_MARKER
 
 
@@ -434,3 +441,332 @@ class TestAccessLog:
             select(func.count()).select_from(DataAccessLogModel)
         )
         assert total >= 1
+
+
+async def _cost_item(
+    async_session, run, *, provider: str, component: str, age_days: int = 0
+):
+    item = CallCostItemModel(
+        workflow_run_id=run.id,
+        component=component,
+        provider=provider,
+        units=1,
+        unit_rate_mpaise=1,
+        cost_paise=1,
+        created_at=datetime.now(UTC) - timedelta(days=age_days),
+    )
+    async_session.add(item)
+    await async_session.flush()
+    return item
+
+
+async def _platform_key(async_session, *, provider: str, component: str, active=True):
+    credential = PlatformProviderCredentialModel(
+        component=component,
+        provider=provider,
+        encrypted_key="ciphertext",
+        key_last_four="abcd",
+        is_active=active,
+    )
+    async_session.add(credential)
+    await async_session.flush()
+    return credential
+
+
+@pytest.mark.asyncio
+class TestSubprocessorsAreDerived:
+    """The list exists because a hand-maintained one goes stale the first time
+    somebody adds a provider and forgets, and a stale sub-processor list is
+    worse than none — it is a specific written claim that is now false."""
+
+    async def test_a_configured_provider_is_listed(self, async_session):
+        await _platform_key(async_session, provider="deepgram", component="stt")
+
+        listed = await subprocessors.in_use(async_session)
+
+        entry = next(s for s in listed if s.name == "deepgram")
+        assert entry.basis == "configured"
+        assert entry.purpose == "Speech recognition"
+
+    async def test_a_deactivated_provider_drops_off(self, async_session):
+        """Deactivating is how a provider is taken out of service. If it stayed
+        on the list, taking a vendor out would never be visible to anyone."""
+        await _platform_key(
+            async_session, provider="retired-vendor", component="tts", active=False
+        )
+
+        listed = await subprocessors.in_use(async_session)
+
+        assert not any(s.name == "retired-vendor" for s in listed)
+
+    async def test_a_provider_nobody_configured_but_calls_went_to_is_listed(
+        self, async_session
+    ):
+        """The case a config-only implementation misses: a customer's own key
+        routes their audio to a vendor we never configured. Their data still
+        went there, and the question is about the data."""
+        _, workflow, _ = await _org(async_session, "byokey")
+        run = await _run(async_session, workflow)
+        await _cost_item(async_session, run, provider="elevenlabs", component="tts")
+
+        listed = await subprocessors.in_use(async_session)
+
+        entry = next(s for s in listed if s.name == "elevenlabs")
+        assert entry.basis == "observed"
+
+    async def test_a_provider_not_touched_in_the_window_is_not_in_use(
+        self, async_session
+    ):
+        _, workflow, _ = await _org(async_session, "staleprovider")
+        run = await _run(async_session, workflow)
+        await _cost_item(
+            async_session,
+            run,
+            provider="ancient-vendor",
+            component="llm",
+            age_days=subprocessors.IN_USE_WINDOW_DAYS + 1,
+        )
+
+        listed = await subprocessors.in_use(async_session)
+
+        assert not any(s.name == "ancient-vendor" for s in listed)
+
+    async def test_one_vendor_serving_two_components_is_one_entry(self, async_session):
+        """Sarvam does both STT and TTS. Listed twice it reads as two separate
+        companies holding the data."""
+        await _platform_key(async_session, provider="sarvam", component="stt")
+        await _platform_key(async_session, provider="sarvam", component="tts")
+
+        listed = await subprocessors.in_use(async_session)
+
+        entries = [s for s in listed if s.name == "sarvam"]
+        assert len(entries) == 1
+        assert "Speech recognition" in entries[0].purpose
+        assert "speech synthesis" in entries[0].purpose
+
+    async def test_configured_outranks_observed_for_the_same_vendor(
+        self, async_session
+    ):
+        await _platform_key(async_session, provider="openai", component="llm")
+        _, workflow, _ = await _org(async_session, "bothbases")
+        run = await _run(async_session, workflow)
+        await _cost_item(async_session, run, provider="openai", component="llm")
+
+        listed = await subprocessors.in_use(async_session)
+
+        entries = [s for s in listed if s.name == "openai"]
+        assert len(entries) == 1
+        assert entries[0].basis == "configured"
+
+    async def test_hosting_and_payments_are_always_named(self, async_session):
+        """Nothing in the application code enumerates its own hosting, so this
+        half has to be declared — but it must never be missing."""
+        listed = await subprocessors.in_use(async_session)
+
+        names = {s.name for s in listed}
+        assert "Amazon Web Services" in names
+        assert "Razorpay" in names
+        assert all(s.basis == "infrastructure" for s in listed if s.name == "Razorpay")
+
+
+@pytest.mark.asyncio
+class TestSubprocessorsPerAccount:
+    async def test_an_account_is_only_told_about_its_own_vendors(self, async_session):
+        """The specific answer to "who was my data shared with". A customer who
+        only ever used one vendor should not be told their data went to five."""
+        mine, my_workflow, _ = await _org(async_session, "subpmine")
+        theirs, their_workflow, _ = await _org(async_session, "subptheirs")
+
+        my_run = await _run(async_session, my_workflow)
+        their_run = await _run(async_session, their_workflow)
+        await _cost_item(async_session, my_run, provider="deepgram", component="stt")
+        await _cost_item(async_session, their_run, provider="cartesia", component="tts")
+
+        listed = await subprocessors.for_organization(
+            async_session, organization_id=mine.id
+        )
+
+        names = {s.name for s in listed}
+        assert "deepgram" in names
+        assert "cartesia" not in names
+
+    async def test_a_platform_key_this_account_never_used_is_not_claimed(
+        self, async_session
+    ):
+        """A provider configured platform-wide but never routed to for this
+        account has processed none of its data, and saying otherwise is a
+        disclosure of a sharing that never happened."""
+        org, _, _ = await _org(async_session, "subpunused")
+        await _platform_key(async_session, provider="unused-vendor", component="llm")
+
+        listed = await subprocessors.for_organization(
+            async_session, organization_id=org.id
+        )
+
+        assert not any(s.name == "unused-vendor" for s in listed)
+
+    async def test_an_account_with_no_calls_still_gets_the_infrastructure(
+        self, async_session
+    ):
+        org, _, _ = await _org(async_session, "subpnocalls")
+
+        listed = await subprocessors.for_organization(
+            async_session, organization_id=org.id
+        )
+
+        assert {s.name for s in listed} == {"Amazon Web Services", "Razorpay"}
+
+
+@pytest.mark.asyncio
+class TestBreachWindowReport:
+    """GDPR Art 33 allows 72 hours from becoming aware of a breach to describe
+    its scope. The report is only answerable because the log was being written
+    before anyone suspected anything."""
+
+    async def _access(
+        self, async_session, org, *, user_id=None, run_id=None, hours_ago=0, **kwargs
+    ):
+        row = DataAccessLogModel(
+            organization_id=org.id,
+            user_id=user_id,
+            resource_type=kwargs.pop("resource_type", access_log.RECORDING),
+            resource_id=kwargs.pop("resource_id", "recordings/1.wav"),
+            workflow_run_id=run_id,
+            action="signed_url",
+            created_at=datetime.now(UTC) - timedelta(hours=hours_ago),
+            **kwargs,
+        )
+        async_session.add(row)
+        await async_session.flush()
+        return row
+
+    async def test_it_counts_what_was_reached_in_the_window(self, async_session):
+        org, workflow, user = await _org(async_session, "breachcount")
+        run = await _run(async_session, workflow)
+        await self._access(
+            async_session, org, user_id=user.id, run_id=run.id, hours_ago=2
+        )
+        await self._access(
+            async_session,
+            org,
+            user_id=user.id,
+            run_id=run.id,
+            hours_ago=1,
+            resource_type=access_log.TRANSCRIPT,
+        )
+
+        report = await access_log.window_report(
+            async_session,
+            organization_id=org.id,
+            start=datetime.now(UTC) - timedelta(hours=3),
+            end=datetime.now(UTC),
+        )
+
+        assert report["total_accesses"] == 2
+        assert report["by_resource_type"] == {"recording": 1, "transcript": 1}
+        assert report["distinct_calls_touched"] == 1
+
+    async def test_access_outside_the_window_is_excluded(self, async_session):
+        """The window is the whole point: the report scopes an incident to when
+        it happened, and a report that swept in a year of legitimate access
+        would overstate every breach."""
+        org, workflow, user = await _org(async_session, "breachwindow")
+        run = await _run(async_session, workflow)
+        await self._access(
+            async_session, org, user_id=user.id, run_id=run.id, hours_ago=48
+        )
+        await self._access(
+            async_session, org, user_id=user.id, run_id=run.id, hours_ago=1
+        )
+
+        report = await access_log.window_report(
+            async_session,
+            organization_id=org.id,
+            start=datetime.now(UTC) - timedelta(hours=3),
+            end=datetime.now(UTC),
+        )
+
+        assert report["total_accesses"] == 1
+
+    async def test_it_names_the_calls_that_were_touched(self, async_session):
+        """Art 34 notification is to the affected people. Without the specific
+        call ids there is no way to work out who those are."""
+        org, workflow, user = await _org(async_session, "breachwho")
+        first = await _run(async_session, workflow)
+        second = await _run(async_session, workflow)
+        await self._access(async_session, org, user_id=user.id, run_id=first.id)
+        await self._access(async_session, org, user_id=user.id, run_id=second.id)
+
+        report = await access_log.window_report(
+            async_session,
+            organization_id=org.id,
+            start=datetime.now(UTC) - timedelta(hours=1),
+            end=datetime.now(UTC) + timedelta(minutes=1),
+        )
+
+        assert report["affected_call_ids"] == sorted([first.id, second.id])
+
+    async def test_unauthenticated_access_is_attributed_not_dropped(
+        self, async_session
+    ):
+        """Access through a public share link is exactly the case worth seeing
+        afterwards. A null user id must not make the row invisible."""
+        org, workflow, _ = await _org(async_session, "breachanon")
+        run = await _run(async_session, workflow)
+        await self._access(
+            async_session, org, user_id=None, run_id=run.id, actor_kind="public_token"
+        )
+
+        report = await access_log.window_report(
+            async_session,
+            organization_id=org.id,
+            start=datetime.now(UTC) - timedelta(hours=1),
+            end=datetime.now(UTC) + timedelta(minutes=1),
+        )
+
+        assert report["total_accesses"] == 1
+        assert report["by_actor"] == {"unauthenticated:public_token": 1}
+
+    async def test_it_reports_no_content(self, async_session):
+        """A breach report that itself contains the compromised data is a
+        second incident."""
+        org, workflow, user = await _org(async_session, "breachcontent")
+        run = await _run(async_session, workflow)
+        await self._access(async_session, org, user_id=user.id, run_id=run.id)
+
+        report = await access_log.window_report(
+            async_session,
+            organization_id=org.id,
+            start=datetime.now(UTC) - timedelta(hours=1),
+            end=datetime.now(UTC) + timedelta(minutes=1),
+        )
+
+        flat = str(report)
+        assert "recordings/1.wav" not in flat
+        assert set(report) == {
+            "window_start",
+            "window_end",
+            "total_accesses",
+            "by_resource_type",
+            "by_actor",
+            "distinct_calls_touched",
+            "distinct_objects_touched",
+            "affected_call_ids",
+            "first_access",
+            "last_access",
+        }
+
+    async def test_another_account_is_not_in_the_report(self, async_session):
+        mine, my_workflow, my_user = await _org(async_session, "breachmine")
+        theirs, their_workflow, their_user = await _org(async_session, "breachtheirs")
+        await self._access(async_session, theirs, user_id=their_user.id)
+
+        report = await access_log.window_report(
+            async_session,
+            organization_id=mine.id,
+            start=datetime.now(UTC) - timedelta(hours=1),
+            end=datetime.now(UTC) + timedelta(minutes=1),
+        )
+
+        assert report["total_accesses"] == 0
+        assert report["first_access"] is None

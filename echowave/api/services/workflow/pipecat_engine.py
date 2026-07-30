@@ -16,6 +16,10 @@ from pipecat.services.llm_service import FunctionCallParams
 from pipecat.services.settings import LLMSettings
 from pipecat.utils.enums import EndTaskReason
 
+from api.constants import (
+    RECORDING_DISCLOSURE_ENABLED,
+    RECORDING_DISCLOSURE_TEXT,
+)
 from api.db import db_client
 from api.enums import ToolCategory
 from api.services.pipecat.audio_playback import play_audio
@@ -642,6 +646,57 @@ class PipecatEngine:
         """Return the greeting info for the start node, or None if not configured."""
         return self.get_node_greeting(self.workflow.start_node_id)
 
+    def resolve_recording_disclosure(self, node_id: str) -> Optional[str]:
+        """What to say about recording before this node opens, if anything.
+
+        A workflow that has never touched the setting gets the platform default,
+        which is on. Opting out has to be a deliberate act — the failure of
+        omission is the one that ends up in front of a regulator.
+        """
+        node = self.workflow.nodes.get(node_id)
+        if not node:
+            return None
+
+        enabled = getattr(node, "recording_disclosure_enabled", None)
+        if enabled is None:
+            enabled = RECORDING_DISCLOSURE_ENABLED
+        if not enabled:
+            return None
+
+        # Stripped *before* the fallback, not after. Whitespace-only wording is
+        # someone clearing the box, not someone choosing silence — falling
+        # through to the default keeps a text field from becoming a second,
+        # undocumented off switch.
+        text = (getattr(node, "recording_disclosure", None) or "").strip()
+        if not text:
+            text = (RECORDING_DISCLOSURE_TEXT or "").strip()
+        if not text:
+            return None
+
+        # Rendered like any other spoken copy, so a customer can address the
+        # person by name or say which company is calling.
+        return self._format_prompt(text)
+
+    async def _speak_recording_disclosure(self, node_id: str) -> bool:
+        """Speak the disclosure. Returns whether anything was said.
+
+        ``append_to_context=True`` so the assistant aggregator commits it to the
+        LLM context: without it the model does not know the disclosure was made
+        and can contradict it, or repeat it.
+
+        No separate consent record is written, deliberately. The disclosure is
+        spoken into the call, so it lands in the recording and the transcript —
+        the artefact is the evidence, and it is far stronger than a flag we
+        could set beside it.
+        """
+        text = self.resolve_recording_disclosure(node_id)
+        if not text or self.task is None:
+            return False
+
+        logger.debug("Speaking recording disclosure before the opening")
+        await self.task.queue_frame(TTSSpeakFrame(text, append_to_context=True))
+        return True
+
     async def queue_node_opening(
         self,
         *,
@@ -659,6 +714,14 @@ class PipecatEngine:
             "llm" when an initial LLM generation was queued,
             "none" when nothing was queued.
         """
+        # Before anything else on the opening node: say the call is recorded.
+        # Placed here rather than folded into the greeting because it has to
+        # happen in all three cases below — text greeting, pre-recorded audio
+        # greeting, and no greeting at all — and only one of those is text we
+        # could have prepended to.
+        if previous_node_id is None and node_id == self.workflow.start_node_id:
+            await self._speak_recording_disclosure(node_id)
+
         if previous_node_id != node_id:
             greeting_info = self.get_node_greeting(node_id)
             if greeting_info:

@@ -85,6 +85,13 @@ class Node:
         self.greeting = getattr(data, "greeting", None)
         self.greeting_type = getattr(data, "greeting_type", None)
         self.greeting_recording_id = getattr(data, "greeting_recording_id", None)
+        # None rather than a boolean default: the engine distinguishes "this
+        # workflow chose to switch the disclosure off" from "this workflow has
+        # never been told about it", and only the first is an opt-out.
+        self.recording_disclosure_enabled = getattr(
+            data, "recording_disclosure_enabled", None
+        )
+        self.recording_disclosure = getattr(data, "recording_disclosure", None)
         self.delayed_start = getattr(data, "delayed_start", False)
         self.delayed_start_duration = getattr(data, "delayed_start_duration", None)
         self.tool_uuids = getattr(data, "tool_uuids", None)

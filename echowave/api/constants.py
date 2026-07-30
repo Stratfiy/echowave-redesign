@@ -143,6 +143,36 @@ DEFAULT_TRANSCRIPT_RETENTION_DAYS = int(
     os.getenv("DEFAULT_TRANSCRIPT_RETENTION_DAYS", "365")
 )
 
+# Spoken before the greeting on every call, unless a workflow opts out.
+#
+# Twelve US states require two-party consent to record a call, Indian telecom
+# rules expect disclosure, and DPDP treats the recording as personal data
+# collected from the person who answered. The industry answer is the same
+# everywhere: say so in the agent's first turn.
+#
+# On by default. A customer who wants it off has to turn it off deliberately,
+# rather than never discovering the setting existed — the failure of omission
+# is the one that ends up in front of a regulator.
+#
+# The disclosure needs no separate consent record: it is spoken into the call,
+# so it appears in the recording and the transcript. The evidence that it
+# happened is the artefact itself, which is stronger than any flag we could set
+# beside it.
+RECORDING_DISCLOSURE_ENABLED = (
+    os.getenv("RECORDING_DISCLOSURE_ENABLED", "true").lower() == "true"
+)
+RECORDING_DISCLOSURE_TEXT = os.getenv(
+    "RECORDING_DISCLOSURE_TEXT",
+    "Just so you know, this call is recorded for quality and training purposes.",
+)
+
+# DPDP s13 requires a named, contactable person for data protection grievances,
+# published where a Data Principal can find it. Surfaced through the API so the
+# app and the marketing site cannot drift apart on who it is.
+GRIEVANCE_OFFICER_NAME = os.getenv("GRIEVANCE_OFFICER_NAME", "")
+GRIEVANCE_OFFICER_EMAIL = os.getenv("GRIEVANCE_OFFICER_EMAIL", "privacy@decibyl.ai")
+GRIEVANCE_OFFICER_ADDRESS = os.getenv("GRIEVANCE_OFFICER_ADDRESS", "")
+
 # --- GST ---------------------------------------------------------------------
 #
 # Who is supplying, for the top half of every invoice. These are facts about one

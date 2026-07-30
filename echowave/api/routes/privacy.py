@@ -10,15 +10,27 @@ in that account" for an unauthenticated asker would itself be a disclosure.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from api.constants import (
+    GRIEVANCE_OFFICER_ADDRESS,
+    GRIEVANCE_OFFICER_EMAIL,
+    GRIEVANCE_OFFICER_NAME,
+)
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
-from api.services.privacy import access_log, erasure, export, retention
+from api.services.privacy import (
+    access_log,
+    erasure,
+    export,
+    retention,
+    subprocessors,
+)
 
 router = APIRouter(prefix="/privacy", tags=["privacy"])
 
@@ -188,3 +200,70 @@ async def get_access_log(
                 session, organization_id=organization_id
             )
     return {"entries": entries}
+
+
+@router.get("/subprocessors")
+async def list_subprocessors(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+    """Who else has processed this account's data.
+
+    Derived from the priced line items of this account's own calls, not from a
+    platform-wide list: a customer who only ever used one model vendor should
+    not be told their data went to five. GDPR Art 28(2), DPDP s11(1)(c).
+    """
+    organization_id = _organization_id(user)
+    async with db_client.async_session() as session:
+        listed = await subprocessors.for_organization(
+            session, organization_id=organization_id
+        )
+    return {
+        "subprocessors": [
+            {
+                "name": s.name,
+                "purpose": s.purpose,
+                "data": s.data,
+                "basis": s.basis,
+            }
+            for s in listed
+        ],
+        "grievance_officer": {
+            "name": GRIEVANCE_OFFICER_NAME or None,
+            "email": GRIEVANCE_OFFICER_EMAIL or None,
+            "address": GRIEVANCE_OFFICER_ADDRESS or None,
+        },
+    }
+
+
+@router.get("/breach-report")
+async def breach_report(
+    since: str = Query(..., description="ISO timestamp — start of the window"),
+    until: str | None = Query(None, description="ISO timestamp — defaults to now"),
+    user: UserModel = Depends(get_user),
+) -> dict[str, Any]:
+    """What was reached between two times.
+
+    GDPR Art 33 gives 72 hours from becoming aware of a breach to describe its
+    scope. That question cannot be answered retrospectively — either the access
+    log was being written or it was not — so this is the report that turns the
+    log into an answer.
+    """
+    organization_id = _organization_id(user)
+    try:
+        start = datetime.fromisoformat(since)
+        end = datetime.fromisoformat(until) if until else datetime.now(UTC)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400, detail="Timestamps must be ISO 8601."
+        ) from exc
+
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=UTC)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=UTC)
+    if start >= end:
+        raise HTTPException(status_code=400, detail="'since' must precede 'until'.")
+
+    async with db_client.async_session() as session:
+        report = await access_log.window_report(
+            session, organization_id=organization_id, start=start, end=end
+        )
+    return report
