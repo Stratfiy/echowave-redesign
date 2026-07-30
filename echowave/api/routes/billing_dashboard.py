@@ -271,6 +271,11 @@ async def get_call(workflow_run_id: int) -> dict[str, Any]:
         detail = await dash.call_detail(session, workflow_run_id=workflow_run_id)
         if detail is None:
             raise HTTPException(status_code=404, detail="Call not found")
+        # The turns were already being returned raw. Nothing summarised them,
+        # so answering "was this call slow" meant reading a table by eye.
+        detail["latency_summary"] = await dash.call_latency_summary(
+            session, workflow_run_id=workflow_run_id
+        )
         return detail
 
 
@@ -325,6 +330,71 @@ async def get_latency(
                 session, start=rng.start, end=rng.end
             ),
             "languages": await dash.distinct_languages(session),
+            # TTFT and TTFB as their own series rather than folded into the
+            # stage bar, because "is it the model or the voice" is the first
+            # question anyone asks and a median-of-stages cannot answer it.
+            "percentiles": {
+                measure: await dash.latency_percentile_series(
+                    session,
+                    start=rng.start,
+                    end=rng.end,
+                    measure=measure,
+                    organization_id=organization_id,
+                    language=language,
+                )
+                for measure in dash.LATENCY_MEASURES
+            },
+            # Computed over the whole window, not summarised from the series:
+            # the p95 of a month is not the mean of its daily p95s.
+            "headline": await dash.latency_headline(
+                session,
+                start=rng.start,
+                end=rng.end,
+                organization_id=organization_id,
+            ),
+            "tools": await dash.tool_call_stats(
+                session,
+                start=rng.start,
+                end=rng.end,
+                organization_id=organization_id,
+            ),
+        }
+
+
+# ---------------------------------------------------------------------------
+# 3.6b Tokens
+#
+# Token counts have always been stored — `call_cost_items.units` for the LLM
+# component is the raw count — and only ever rendered as money. Tokens per
+# minute of conversation is the number that predicts what a prompt change will
+# cost, and it is comparable across accounts, models and months in a way that
+# rupees are not.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/tokens")
+async def get_tokens(
+    rng: RangeParams = Depends(),
+    granularity: str = Query("day", pattern="^(day|week|month)$"),
+    organization_id: int | None = Query(None),
+) -> dict[str, Any]:
+    async with db_client.async_session() as session:
+        return {
+            "range": {"start": rng.start.isoformat(), "end": rng.end.isoformat()},
+            "granularity": granularity,
+            "series": await dash.token_usage_series(
+                session,
+                start=rng.start,
+                end=rng.end,
+                granularity=granularity,
+                organization_id=organization_id,
+            ),
+            "by_model": await dash.token_usage_by_model(
+                session,
+                start=rng.start,
+                end=rng.end,
+                organization_id=organization_id,
+            ),
         }
 
 

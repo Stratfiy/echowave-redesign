@@ -28,6 +28,7 @@ from api.services.privacy import (
     access_log,
     erasure,
     export,
+    metrics,
     retention,
     subprocessors,
 )
@@ -267,3 +268,18 @@ async def breach_report(
             session, organization_id=organization_id, start=start, end=end
         )
     return report
+
+
+@router.get("/metrics")
+async def privacy_metrics(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+    """Whether the privacy controls are actually working.
+
+    Every control on this router reports success by not raising, which is the
+    wrong kind of quiet: a retention sweep that silently stopped running looks
+    exactly like one with nothing to do. The headline here is designed to be
+    zero — recordings past their window that still exist — and any other value
+    is an incident rather than a statistic.
+    """
+    organization_id = _organization_id(user)
+    async with db_client.async_session() as session:
+        return await metrics.snapshot(session, organization_id=organization_id)

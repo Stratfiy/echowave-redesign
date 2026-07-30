@@ -15,6 +15,7 @@ const TABS = [
     { href: "/superadmin/billing/calls", label: "Calls" },
     { href: "/superadmin/billing/campaigns", label: "Campaigns" },
     { href: "/superadmin/billing/latency", label: "Latency" },
+    { href: "/superadmin/billing/tokens", label: "Tokens" },
     { href: "/superadmin/billing/unit-economics", label: "Unit economics" },
     { href: "/superadmin/billing/rate-card", label: "Rate card" },
 ];

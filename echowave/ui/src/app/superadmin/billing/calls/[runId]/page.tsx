@@ -45,6 +45,7 @@ import {
     LoadingBlock,
     OrderedLegend,
     PanelMessage,
+    StatTile,
     useAuthReady,
     useChartMode,
 } from "../../_components/primitives";
@@ -119,6 +120,16 @@ export default function CallDetailPage() {
     const total = Number(call.charged_paise ?? 0);
 
     const toolCalls = turns.filter((t) => t.tool_called);
+    const latency = (call.latency_summary ?? null) as {
+        turns: number;
+        perceived: Record<string, number | null>;
+        ttft: Record<string, number | null>;
+        ttfb: Record<string, number | null>;
+        first_turn_ms: number | null;
+        steady_state_p50_ms: number | null;
+        worst_turn_ms: number | null;
+        worst_turn_index: number | null;
+    } | null;
 
     return (
         <div className="space-y-6">
@@ -241,6 +252,52 @@ export default function CallDetailPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* The turns were already listed; nothing summarised them, so
+                answering "was this call slow" meant reading a table by eye.
+                The first turn is shown apart from the rest deliberately — no
+                context, a cold connection, often a pre-recorded greeting, so
+                averaging it in makes a healthy call look slow and hides a
+                genuinely slow opening. */}
+            {latency && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Latency summary</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <StatTile
+                            label="Perceived p50"
+                            value={formatMs(latency.perceived.p50_ms)}
+                            sub={`p95 ${formatMs(latency.perceived.p95_ms)} over ${
+                                latency.turns
+                            } turn${latency.turns === 1 ? "" : "s"}`}
+                        />
+                        <StatTile
+                            label="TTFT p50"
+                            value={formatMs(latency.ttft.p50_ms)}
+                            sub="Transcript → first token. The model's share."
+                        />
+                        <StatTile
+                            label="TTFB p50"
+                            value={formatMs(latency.ttfb.p50_ms)}
+                            sub="First token → first audio. The voice's share."
+                        />
+                        <StatTile
+                            label="Opening turn"
+                            value={formatMs(latency.first_turn_ms)}
+                            sub={`Steady state ${formatMs(
+                                latency.steady_state_p50_ms,
+                            )}${
+                                latency.worst_turn_index !== null
+                                    ? ` · worst was turn ${
+                                          latency.worst_turn_index + 1
+                                      } at ${formatMs(latency.worst_turn_ms)}`
+                                    : ""
+                            }`}
+                        />
+                    </CardContent>
+                </Card>
+            )}
 
             <ChartCard
                 title="Latency breakdown per turn"

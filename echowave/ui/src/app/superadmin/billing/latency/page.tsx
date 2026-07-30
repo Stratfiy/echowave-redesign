@@ -48,6 +48,7 @@ import {
     LoadingBlock,
     OrderedLegend,
     PanelMessage,
+    StatTile,
     useAuthReady,
     useChartMode,
 } from "../_components/primitives";
@@ -61,12 +62,45 @@ const STAGES = [
     { key: "playback_ms", label: "Playback", slot: 4 },
 ] as const;
 
+/**
+ * The three numbers that all get called "latency".
+ *
+ * Keeping them apart is the point. TTFT is the model's thinking time and TTFB
+ * the voice's; perceived is what the caller actually waits through and is
+ * neither. A single "latency" figure cannot answer the only question worth
+ * asking when it regresses — which of the two to go and fix.
+ */
+const MEASURES = [
+    {
+        key: "perceived",
+        label: "Perceived",
+        hint: "Caller stops speaking → audio leaves. What a complaint is about.",
+    },
+    {
+        key: "ttft",
+        label: "TTFT",
+        hint: "Final transcript → first LLM token. The model's thinking time.",
+    },
+    {
+        key: "ttfb",
+        label: "TTFB",
+        hint: "First token → first audio byte. The voice's.",
+    },
+] as const;
+
+type MeasureKey = (typeof MEASURES)[number]["key"];
+
+/** p99 earns its place: at twenty turns a call, a p95 breach lands roughly
+ *  once per call, so p95 alone describes a call nobody enjoyed. */
+const PERCENTILE_KEYS = ["p50_ms", "p90_ms", "p95_ms", "p99_ms"] as const;
+
 export default function LatencyPage() {
     const mode = useChartMode();
     const [data, setData] = useState<Record<string, unknown> | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [language, setLanguage] = useState("all");
+    const [measure, setMeasure] = useState<MeasureKey>("perceived");
 
     const authReady = useAuthReady();
 
@@ -102,6 +136,15 @@ export default function LatencyPage() {
     }
 
     const series = (data?.series ?? []) as Array<Record<string, never>>;
+    const percentiles = (data?.percentiles ?? {}) as Record<
+        string,
+        Array<Record<string, number | string>>
+    >;
+    const headline = (data?.headline ?? {}) as Record<
+        string,
+        Record<string, number | null>
+    >;
+    const tools = (data?.tools ?? []) as Array<Record<string, never>>;
     const byLanguage = (data?.by_language ?? []) as Array<Record<string, never>>;
     const stageMedians = (data?.stage_medians ?? {}) as Record<string, number>;
     const slowest = (data?.slowest_turns ?? []) as Array<Record<string, never>>;
@@ -139,6 +182,156 @@ export default function LatencyPage() {
                     leaving — target {LATENCY_TARGET_MS}ms.
                 </span>
             </div>
+
+            {/* The two numbers every comparable platform headlines, which were
+                only ever visible here folded into the stage bar — a median of
+                stages averages away the tail and cannot separate the model
+                from the voice. */}
+            <div className="grid gap-3 sm:grid-cols-3">
+                {MEASURES.map((m) => {
+                    const stats = headline[m.key] ?? {};
+                    return (
+                        <StatTile
+                            key={m.key}
+                            label={`${m.label} p50`}
+                            value={formatMs(stats.p50_ms ?? null)}
+                            sub={`p95 ${formatMs(stats.p95_ms ?? null)} · p99 ${formatMs(
+                                stats.p99_ms ?? null,
+                            )} · ${m.hint}`}
+                            tone={
+                                m.key === "perceived" &&
+                                (stats.p95_ms ?? 0) > LATENCY_TARGET_MS
+                                    ? "warning"
+                                    : undefined
+                            }
+                        />
+                    );
+                })}
+            </div>
+
+            <ChartCard
+                title="Percentiles over time"
+                description="p50, p90, p95 and p99 — computed over the whole window, not averaged from daily figures"
+                isEmpty={(percentiles[measure] ?? []).length === 0}
+                height={300}
+                action={
+                    <Select
+                        value={measure}
+                        onValueChange={(v) => setMeasure(v as MeasureKey)}
+                    >
+                        <SelectTrigger className="w-[150px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {MEASURES.map((m) => (
+                                <SelectItem key={m.key} value={m.key}>
+                                    {m.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                }
+            >
+                <ResponsiveContainer width="100%" height={300}>
+                    <LineChart
+                        data={percentiles[measure] ?? []}
+                        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                    >
+                        <CartesianGrid stroke={gridStroke(mode)} vertical={false} />
+                        <XAxis dataKey="day" tickFormatter={formatDateIST} {...axisProps(mode)} />
+                        <YAxis width={62} tickFormatter={(v: number) => formatMs(v)} {...axisProps(mode)} />
+                        <RTooltip
+                            content={
+                                <ChartTooltip
+                                    formatter={(v) => formatMs(v)}
+                                    labelFormatter={formatDateIST}
+                                />
+                            }
+                        />
+                        <Legend iconType="plainline" iconSize={12} wrapperStyle={{ fontSize: 11 }} />
+                        {measure === "perceived" && (
+                            <ReferenceLine
+                                y={LATENCY_TARGET_MS}
+                                stroke={axisProps(mode).stroke}
+                                strokeDasharray="4 4"
+                            />
+                        )}
+                        {PERCENTILE_KEYS.map((key, index) => (
+                            <Line
+                                key={key}
+                                type="monotone"
+                                dataKey={key}
+                                name={key.replace("_ms", "")}
+                                stroke={seriesColor(index, mode)}
+                                strokeWidth={key === "p50_ms" ? 2 : 1.5}
+                                dot={false}
+                            />
+                        ))}
+                    </LineChart>
+                </ResponsiveContainer>
+            </ChartCard>
+
+            {/* tool_called and tool_ms have been recorded on every turn since
+                the latency observer landed and were never read. A tool taking
+                two seconds makes a call feel broken while every provider
+                metric stays green. */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Tool calls</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {tools.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                            No tool was called in this period.
+                        </p>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Tool</TableHead>
+                                    <TableHead className="text-right">Calls</TableHead>
+                                    <TableHead className="text-right">p50</TableHead>
+                                    <TableHead className="text-right">p95</TableHead>
+                                    <TableHead className="text-right">Worst</TableHead>
+                                    <TableHead className="text-right">
+                                        Never returned
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {tools.map((t: Record<string, never>) => (
+                                    <TableRow key={String(t.tool)}>
+                                        <TableCell className="font-medium">
+                                            {String(t.tool)}
+                                        </TableCell>
+                                        <TableCell className="text-right tabular-nums">
+                                            {formatNumber(t.calls)}
+                                        </TableCell>
+                                        <TableCell className="text-right tabular-nums">
+                                            {formatMs(t.p50_ms)}
+                                        </TableCell>
+                                        <TableCell className="text-right tabular-nums">
+                                            {formatMs(t.p95_ms)}
+                                        </TableCell>
+                                        <TableCell className="text-right tabular-nums">
+                                            {formatMs(t.worst_ms)}
+                                        </TableCell>
+                                        <TableCell
+                                            className={cn(
+                                                "text-right tabular-nums",
+                                                Number(t.incomplete) > 0 &&
+                                                    "text-destructive",
+                                            )}
+                                        >
+                                            {formatNumber(t.incomplete)}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
 
             <ChartCard
                 title="p50 and p95 over time"

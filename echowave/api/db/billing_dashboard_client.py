@@ -955,3 +955,508 @@ async def calls_today(session: AsyncSession) -> int:
         )
         or 0
     )
+
+
+# --- Latency percentiles -----------------------------------------------------
+#
+# Three different numbers get called "latency" and conflating them hides the
+# thing you would actually fix:
+#
+#   TTFT       the model's thinking time — final transcript in, first token out
+#   TTFB       the voice's — first token in, first audio byte out
+#   perceived  what the caller experiences, which is neither of the above and is
+#              the only one a customer complains about
+#
+# Every comparable platform headlines TTFT and TTFB separately. Here they were
+# only ever visible folded into a stage-median bar, which averages away the tail
+# and cannot answer "is it the model or the voice".
+
+
+def _ttft_expr():
+    return CallTurnMetricModel.t_llm_first_token_ms - CallTurnMetricModel.t_stt_final_ms
+
+
+def _ttfb_expr():
+    return (
+        CallTurnMetricModel.t_tts_first_byte_ms
+        - CallTurnMetricModel.t_llm_first_token_ms
+    )
+
+
+#: Selectable measures, each with the expression and the columns that must be
+#: present for a turn to count. A turn missing one endpoint is excluded rather
+#: than treated as zero — a zero would drag a percentile down and read as an
+#: improvement.
+LATENCY_MEASURES: dict[str, tuple] = {
+    "perceived": (
+        lambda: CallTurnMetricModel.latency_ms,
+        (CallTurnMetricModel.latency_ms,),
+    ),
+    "ttft": (
+        _ttft_expr,
+        (CallTurnMetricModel.t_llm_first_token_ms, CallTurnMetricModel.t_stt_final_ms),
+    ),
+    "ttfb": (
+        _ttfb_expr,
+        (
+            CallTurnMetricModel.t_tts_first_byte_ms,
+            CallTurnMetricModel.t_llm_first_token_ms,
+        ),
+    ),
+}
+
+#: p95 is the usual headline, but p99 is where the calls that get escalated
+#: live: at 20 turns a call, a p95 breach happens roughly once per call.
+PERCENTILES = (0.5, 0.9, 0.95, 0.99)
+
+
+def _percentile_columns(expr):
+    return [
+        func.percentile_cont(p).within_group(expr).label(f"p{int(p * 100)}")
+        for p in PERCENTILES
+    ]
+
+
+def _percentile_dict(row) -> dict:
+    return {
+        f"p{int(p * 100)}_ms": (
+            int(getattr(row, f"p{int(p * 100)}"))
+            if getattr(row, f"p{int(p * 100)}") is not None
+            else None
+        )
+        for p in PERCENTILES
+    }
+
+
+def _measure_or_raise(measure: str):
+    try:
+        return LATENCY_MEASURES[measure]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown latency measure {measure!r}; "
+            f"expected one of {sorted(LATENCY_MEASURES)}"
+        ) from exc
+
+
+async def latency_percentile_series(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    measure: str = "perceived",
+    organization_id: int | None = None,
+    language: str | None = None,
+) -> list[dict]:
+    """Daily p50/p90/p95/p99 for one measure, computed in SQL over raw turns."""
+    expr_factory, required = _measure_or_raise(measure)
+    expr = expr_factory()
+
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+    day_expr = func.date(func.timezone("Asia/Kolkata", CallTurnMetricModel.created_at))
+
+    conditions = [
+        CallTurnMetricModel.created_at >= start_utc,
+        CallTurnMetricModel.created_at < end_utc,
+        *[column.isnot(None) for column in required],
+    ]
+    if organization_id is not None:
+        conditions.append(WorkflowModel.organization_id == organization_id)
+    if language:
+        conditions.append(WorkflowRunModel.language == language)
+
+    rows = (
+        await session.execute(
+            select(
+                day_expr.label("day"),
+                *_percentile_columns(expr),
+                func.count().label("turns"),
+            )
+            .select_from(CallTurnMetricModel)
+            .join(
+                WorkflowRunModel,
+                CallTurnMetricModel.workflow_run_id == WorkflowRunModel.id,
+            )
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(*conditions)
+            .group_by(day_expr)
+            .order_by(day_expr)
+        )
+    ).all()
+
+    return [
+        {"day": r.day.isoformat(), **_percentile_dict(r), "turns": int(r.turns or 0)}
+        for r in rows
+    ]
+
+
+async def latency_headline(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    organization_id: int | None = None,
+) -> dict:
+    """One set of percentiles per measure over the whole window.
+
+    Separate from the series because the percentile of a period is not the
+    average of its daily percentiles — a fact that is easy to get wrong by
+    summarising the chart instead of the data.
+    """
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+
+    out: dict[str, dict] = {}
+    for measure, (expr_factory, required) in LATENCY_MEASURES.items():
+        conditions = [
+            CallTurnMetricModel.created_at >= start_utc,
+            CallTurnMetricModel.created_at < end_utc,
+            *[column.isnot(None) for column in required],
+        ]
+        if organization_id is not None:
+            conditions.append(WorkflowModel.organization_id == organization_id)
+
+        row = (
+            await session.execute(
+                select(
+                    *_percentile_columns(expr_factory()), func.count().label("turns")
+                )
+                .select_from(CallTurnMetricModel)
+                .join(
+                    WorkflowRunModel,
+                    CallTurnMetricModel.workflow_run_id == WorkflowRunModel.id,
+                )
+                .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+                .where(*conditions)
+            )
+        ).one()
+        out[measure] = {**_percentile_dict(row), "turns": int(row.turns or 0)}
+    return out
+
+
+async def call_latency_summary(
+    session: AsyncSession, *, workflow_run_id: int
+) -> dict | None:
+    """Percentiles for one call, and the first turn separated from the rest.
+
+    The opening turn is not comparable to the others — no conversation context,
+    a cold connection, and often a pre-recorded greeting — so averaging it in
+    makes a healthy call look slow and hides a genuinely slow opening.
+    """
+    rows = (
+        await session.scalars(
+            select(CallTurnMetricModel)
+            .where(CallTurnMetricModel.workflow_run_id == workflow_run_id)
+            .order_by(CallTurnMetricModel.turn_index)
+        )
+    ).all()
+    if not rows:
+        return None
+
+    def percentiles(values: list[int]) -> dict:
+        if not values:
+            return {f"p{int(p * 100)}_ms": None for p in PERCENTILES}
+        ordered = sorted(values)
+        out = {}
+        for p in PERCENTILES:
+            # Nearest-rank, matching what a reader expects from a handful of
+            # turns. Interpolating across four samples invents precision.
+            index = max(0, min(len(ordered) - 1, round(p * len(ordered)) - 1))
+            out[f"p{int(p * 100)}_ms"] = ordered[index]
+        return out
+
+    def series(turns, expr) -> list[int]:
+        return [value for value in (expr(t) for t in turns) if value is not None]
+
+    perceived = series(rows, lambda t: t.latency_ms)
+    ttft = series(
+        rows,
+        lambda t: (
+            t.t_llm_first_token_ms - t.t_stt_final_ms
+            if t.t_llm_first_token_ms is not None and t.t_stt_final_ms is not None
+            else None
+        ),
+    )
+    ttfb = series(
+        rows,
+        lambda t: (
+            t.t_tts_first_byte_ms - t.t_llm_first_token_ms
+            if t.t_tts_first_byte_ms is not None and t.t_llm_first_token_ms is not None
+            else None
+        ),
+    )
+    steady = series(rows[1:], lambda t: t.latency_ms)
+    worst = max(perceived) if perceived else None
+
+    return {
+        "turns": len(rows),
+        "perceived": percentiles(perceived),
+        "ttft": percentiles(ttft),
+        "ttfb": percentiles(ttfb),
+        "first_turn_ms": rows[0].latency_ms,
+        "steady_state_p50_ms": percentiles(steady)["p50_ms"],
+        "worst_turn_ms": worst,
+        "worst_turn_index": (
+            rows[perceived.index(worst)].turn_index
+            if worst is not None and worst in perceived
+            else None
+        ),
+    }
+
+
+# --- Tokens and conversational efficiency ------------------------------------
+#
+# Token counts are already stored: ``call_cost_items.units`` for the LLM
+# component is the raw token count (see money.cost_paise — callers never
+# pre-divide). They have only ever been rendered as money, which hides the one
+# number that predicts what a change to the prompt will cost.
+#
+# Tokens *per minute of conversation* is the figure worth watching. Raw token
+# totals track how busy the platform was; tokens per minute tracks how
+# expensive the agent design is, and it is comparable across accounts, models
+# and months.
+
+#: Truncation granularities the trend supports, in the timezone billing uses.
+_TREND_TRUNC = {"day": "day", "week": "week", "month": "month"}
+
+
+def _ist_period(column, granularity: str):
+    try:
+        unit = _TREND_TRUNC[granularity]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown granularity {granularity!r}; expected one of {sorted(_TREND_TRUNC)}"
+        ) from exc
+    return func.date_trunc(unit, func.timezone("Asia/Kolkata", column))
+
+
+async def token_usage_series(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    granularity: str = "day",
+    organization_id: int | None = None,
+) -> list[dict]:
+    """Tokens, LLM spend and tokens per minute, by day, week or month."""
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+
+    # Bucketed by when the *call* happened, not when costing ran. A cost item's
+    # created_at is the moment the post-call job wrote it — so a call recosted
+    # after a rate change would move its tokens to the day of the recost, and
+    # the tokens-per-minute ratio would divide one period's tokens by another
+    # period's conversation. Both series therefore key off the run.
+    token_period = _ist_period(WorkflowRunModel.created_at, granularity)
+    conditions = [
+        WorkflowRunModel.created_at >= start_utc,
+        WorkflowRunModel.created_at < end_utc,
+        CallCostItemModel.component == "llm",
+    ]
+    if organization_id is not None:
+        conditions.append(WorkflowModel.organization_id == organization_id)
+
+    token_rows = (
+        await session.execute(
+            select(
+                token_period.label("period"),
+                func.sum(CallCostItemModel.units).label("tokens"),
+                func.sum(CallCostItemModel.cost_paise).label("cost_paise"),
+                func.count(func.distinct(CallCostItemModel.workflow_run_id)).label(
+                    "calls"
+                ),
+            )
+            .select_from(CallCostItemModel)
+            .join(
+                WorkflowRunModel,
+                CallCostItemModel.workflow_run_id == WorkflowRunModel.id,
+            )
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(*conditions)
+            .group_by(token_period)
+            .order_by(token_period)
+        )
+    ).all()
+
+    # Conversation seconds come from the runs, not the cost items: summing
+    # seconds across components would multiply every call by however many
+    # providers priced it.
+    run_period = _ist_period(WorkflowRunModel.created_at, granularity)
+    run_conditions = [
+        WorkflowRunModel.created_at >= start_utc,
+        WorkflowRunModel.created_at < end_utc,
+    ]
+    if organization_id is not None:
+        run_conditions.append(WorkflowModel.organization_id == organization_id)
+
+    second_rows = (
+        await session.execute(
+            select(
+                run_period.label("period"),
+                func.sum(WorkflowRunModel.billable_seconds).label("seconds"),
+            )
+            .select_from(WorkflowRunModel)
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(*run_conditions)
+            .group_by(run_period)
+            .order_by(run_period)
+        )
+    ).all()
+    seconds_by_period = {r.period: int(r.seconds or 0) for r in second_rows}
+
+    out = []
+    for row in token_rows:
+        tokens = int(row.tokens or 0)
+        seconds = seconds_by_period.get(row.period, 0)
+        out.append(
+            {
+                "period": row.period.date().isoformat(),
+                "tokens": tokens,
+                "cost_paise": int(row.cost_paise or 0),
+                "calls": int(row.calls or 0),
+                "minutes": round(seconds / 60, 1),
+                # None rather than zero when there is no conversation to divide
+                # by: a rate over no time is undefined, not free.
+                "tokens_per_minute": (
+                    round(tokens / (seconds / 60)) if seconds else None
+                ),
+            }
+        )
+    return out
+
+
+async def token_usage_by_model(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    organization_id: int | None = None,
+) -> list[dict]:
+    """Which models consumed the tokens, and what each cost per 1k.
+
+    The effective per-1k cost is derived from what was actually spent rather
+    than read from the rate card, so a model priced at one rate and billed at
+    another shows up here as the discrepancy it is.
+    """
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+
+    conditions = [
+        # As in token_usage_series: the call's date, not the costing job's.
+        WorkflowRunModel.created_at >= start_utc,
+        WorkflowRunModel.created_at < end_utc,
+        CallCostItemModel.component == "llm",
+    ]
+    if organization_id is not None:
+        conditions.append(WorkflowModel.organization_id == organization_id)
+
+    rows = (
+        await session.execute(
+            select(
+                CallCostItemModel.provider,
+                CallCostItemModel.model,
+                func.sum(CallCostItemModel.units).label("tokens"),
+                func.sum(CallCostItemModel.cost_paise).label("cost_paise"),
+                func.count(func.distinct(CallCostItemModel.workflow_run_id)).label(
+                    "calls"
+                ),
+            )
+            .select_from(CallCostItemModel)
+            .join(
+                WorkflowRunModel,
+                CallCostItemModel.workflow_run_id == WorkflowRunModel.id,
+            )
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(*conditions)
+            .group_by(CallCostItemModel.provider, CallCostItemModel.model)
+            .order_by(desc(func.sum(CallCostItemModel.units)))
+        )
+    ).all()
+
+    return [
+        {
+            "provider": r.provider,
+            "model": r.model or "(unspecified)",
+            "tokens": int(r.tokens or 0),
+            "cost_paise": int(r.cost_paise or 0),
+            "calls": int(r.calls or 0),
+            "tokens_per_call": (
+                round(int(r.tokens or 0) / int(r.calls)) if r.calls else None
+            ),
+            "paise_per_1k_tokens": (
+                round(int(r.cost_paise or 0) / (int(r.tokens) / 1000), 2)
+                if r.tokens
+                else None
+            ),
+        }
+        for r in rows
+    ]
+
+
+async def tool_call_stats(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    organization_id: int | None = None,
+) -> list[dict]:
+    """How often each tool was called and how long it took.
+
+    ``tool_called`` and ``tool_ms`` have been recorded on every turn since the
+    latency observer landed and never read. A tool that takes two seconds makes
+    a call feel broken while every provider metric stays green, and there was no
+    way to see it.
+    """
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+
+    conditions = [
+        CallTurnMetricModel.created_at >= start_utc,
+        CallTurnMetricModel.created_at < end_utc,
+        CallTurnMetricModel.tool_called.isnot(None),
+    ]
+    if organization_id is not None:
+        conditions.append(WorkflowModel.organization_id == organization_id)
+
+    rows = (
+        await session.execute(
+            select(
+                CallTurnMetricModel.tool_called.label("tool"),
+                func.count().label("calls"),
+                func.percentile_cont(0.5)
+                .within_group(CallTurnMetricModel.tool_ms)
+                .label("p50"),
+                func.percentile_cont(0.95)
+                .within_group(CallTurnMetricModel.tool_ms)
+                .label("p95"),
+                func.max(CallTurnMetricModel.tool_ms).label("worst"),
+                # A turn that named a tool but recorded no duration never
+                # returned. Counting it as a failure is the honest reading, and
+                # it is the only failure signal available without new columns.
+                func.count()
+                .filter(CallTurnMetricModel.tool_ms.is_(None))
+                .label("no_duration"),
+            )
+            .select_from(CallTurnMetricModel)
+            .join(
+                WorkflowRunModel,
+                CallTurnMetricModel.workflow_run_id == WorkflowRunModel.id,
+            )
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(*conditions)
+            .group_by(CallTurnMetricModel.tool_called)
+            .order_by(desc(func.count()))
+        )
+    ).all()
+
+    return [
+        {
+            "tool": r.tool,
+            "calls": int(r.calls or 0),
+            "p50_ms": int(r.p50) if r.p50 is not None else None,
+            "p95_ms": int(r.p95) if r.p95 is not None else None,
+            "worst_ms": int(r.worst) if r.worst is not None else None,
+            "incomplete": int(r.no_duration or 0),
+        }
+        for r in rows
+    ]

@@ -8709,6 +8709,70 @@ export type GetLatencyApiV1AdminBillingLatencyGetResponses = {
 
 export type GetLatencyApiV1AdminBillingLatencyGetResponse = GetLatencyApiV1AdminBillingLatencyGetResponses[keyof GetLatencyApiV1AdminBillingLatencyGetResponses];
 
+export type GetTokensApiV1AdminBillingTokensGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Granularity
+         */
+        granularity?: string;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+        /**
+         * Start
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        end?: string | null;
+    };
+    url: '/api/v1/admin/billing/tokens';
+};
+
+export type GetTokensApiV1AdminBillingTokensGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTokensApiV1AdminBillingTokensGetError = GetTokensApiV1AdminBillingTokensGetErrors[keyof GetTokensApiV1AdminBillingTokensGetErrors];
+
+export type GetTokensApiV1AdminBillingTokensGetResponses = {
+    /**
+     * Response Get Tokens Api V1 Admin Billing Tokens Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetTokensApiV1AdminBillingTokensGetResponse = GetTokensApiV1AdminBillingTokensGetResponses[keyof GetTokensApiV1AdminBillingTokensGetResponses];
+
 export type GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetData = {
     body?: never;
     headers?: {
@@ -10532,6 +10596,49 @@ export type BreachReportApiV1PrivacyBreachReportGetResponses = {
 };
 
 export type BreachReportApiV1PrivacyBreachReportGetResponse = BreachReportApiV1PrivacyBreachReportGetResponses[keyof BreachReportApiV1PrivacyBreachReportGetResponses];
+
+export type PrivacyMetricsApiV1PrivacyMetricsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/privacy/metrics';
+};
+
+export type PrivacyMetricsApiV1PrivacyMetricsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PrivacyMetricsApiV1PrivacyMetricsGetError = PrivacyMetricsApiV1PrivacyMetricsGetErrors[keyof PrivacyMetricsApiV1PrivacyMetricsGetErrors];
+
+export type PrivacyMetricsApiV1PrivacyMetricsGetResponses = {
+    /**
+     * Response Privacy Metrics Api V1 Privacy Metrics Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PrivacyMetricsApiV1PrivacyMetricsGetResponse = PrivacyMetricsApiV1PrivacyMetricsGetResponses[keyof PrivacyMetricsApiV1PrivacyMetricsGetResponses];
 
 export type ValidateWorkflowApiV1WorkflowWorkflowIdValidatePostData = {
     body?: never;
