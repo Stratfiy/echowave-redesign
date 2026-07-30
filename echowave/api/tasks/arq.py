@@ -47,6 +47,7 @@ from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
 from api.tasks.billing_rollup import refresh_billing_rollups
+from api.tasks.credit_reservations import sweep_credit_reservations
 from api.tasks.kyc_carrier_poll import poll_kyc_carrier_status
 from api.tasks.workflow_completion import process_workflow_completion
 
@@ -61,6 +62,7 @@ class WorkerSettings:
         deliver_webhook,
         refresh_billing_rollups,
         poll_kyc_carrier_status,
+        sweep_credit_reservations,
     ]
     cron_jobs = [
         # Safety net for webhook deliveries whose ARQ job was lost (worker
@@ -92,6 +94,17 @@ class WorkerSettings:
             minute={0, 15, 30, 45},
             second=15,
             run_at_startup=False,
+        ),
+        # A call that dies with a worker leaves its funds held forever, and the
+        # customer sees a balance lower than what they bought with nothing able
+        # to explain it. Every five minutes so the leak stays small; at startup
+        # because a worker restart is itself the most likely way holds were
+        # stranded in the first place.
+        cron(
+            sweep_credit_reservations,
+            minute=set(range(0, 60, 5)),
+            second=45,
+            run_at_startup=True,
         ),
     ]
     redis_settings = REDIS_SETTINGS

@@ -12,9 +12,16 @@ through, so it owns two responsibilities:
 2. **Managed model services correlation.** When the resolved configuration
    uses Decibyl-managed model services, a correlation ID is minted so the
    model gateway can attribute STT/LLM/TTS usage to this run.
+3. **Prepaid credit.** Decibyl sells prepaid credit, so a run on an unfunded
+   account is refused here, and a funded one holds an estimate for the duration
+   of the call. The check reads the local paise ledger — there is no external
+   billing service on the critical path of a call, and reintroducing one is
+   guarded against by ``test_quota_service.py``.
 
-Decibyl does not sell prepaid inference credits, so there is no balance check
-here. Local platform-fee accounting is applied after a run completes.
+   A balance check alone would not be enough: a call's cost is unknown until it
+   ends, so two calls starting together would both read the same balance and
+   both proceed. ``api/services/billing/reservations.py`` explains what holding
+   funds fixes and why it takes a lock to do it.
 """
 
 from dataclasses import dataclass
@@ -25,6 +32,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.db.models import UserModel
+from api.services.billing import reservations
 from api.services.configuration.ai_model_configuration import (
     get_effective_ai_model_configuration_for_workflow,
 )
@@ -46,6 +54,10 @@ INVALID_SERVICE_KEY_MESSAGE = (
     "You have invalid keys in your model configuration. "
     "Please validate the service keys."
 )
+
+#: Shown to the customer, so it names the fix rather than the mechanism. The
+#: caller never sees "reservation" — that is our accounting, not their problem.
+NO_CREDIT_MESSAGE = "Your account is out of credit. Add credit to keep calling."
 
 
 @dataclass
@@ -141,6 +153,82 @@ async def _mint_managed_model_correlation(
         )
 
     return QuotaCheckResult(has_quota=True)
+
+
+def _no_credit_result() -> QuotaCheckResult:
+    return QuotaCheckResult(
+        has_quota=False,
+        error_code="insufficient_credit",
+        error_message=NO_CREDIT_MESSAGE,
+    )
+
+
+async def _has_credit(organization_id: int, workflow_run_id: int | None = None) -> bool:
+    """Cheap pre-check so an unfunded account is refused before we do work.
+
+    Not the authority — :func:`_hold_funds` re-checks under a per-organization
+    lock. This exists so the common refusal does not first spend an external
+    round-trip minting a correlation ID for a call that will not happen.
+
+    ``workflow_run_id`` matters: a re-authorization of a run that already holds
+    funds must pass. The hold has usually taken the balance to exactly the point
+    where a bare check refuses, and dropping a call the customer has already
+    paid for is the worst answer available.
+
+    Fails **open**. A database error here is "we could not read the balance",
+    and refusing every call on the platform because one query failed is a worse
+    outcome than briefly allowing a call we might not be paid for. The
+    authoritative check below fails closed.
+    """
+    try:
+        async with db_client.async_session() as session:
+            return await reservations.has_credit(
+                session,
+                organization_id=organization_id,
+                workflow_run_id=workflow_run_id,
+            )
+    except Exception as e:
+        logger.error(
+            "Could not read credit balance for org {}; allowing the run: {}",
+            organization_id,
+            e,
+        )
+        return True
+
+
+async def _hold_funds(*, organization_id: int, workflow_run_id: int | None) -> bool:
+    """Hold an estimate for this call. False means the account cannot pay.
+
+    Without a ``workflow_run_id`` there is nothing to key a hold to and nothing
+    to release it against later, so the run proceeds on the balance check alone.
+    That is the weaker guarantee, and it is the reason every runtime entrypoint
+    should create its run row before authorizing.
+
+    Fails **closed**: if the hold cannot be written we do not know whether the
+    account can pay, and a call is money.
+    """
+    if workflow_run_id is None:
+        return True
+
+    try:
+        async with db_client.async_session() as session:
+            held = await reservations.reserve(
+                session,
+                organization_id=organization_id,
+                workflow_run_id=workflow_run_id,
+            )
+            if held is None and reservations.BALANCE_ENFORCEMENT_ENABLED:
+                return False
+            await session.commit()
+            return True
+    except Exception as e:
+        logger.error(
+            "Could not hold funds for run {} on org {}: {}",
+            workflow_run_id,
+            organization_id,
+            e,
+        )
+        return False
 
 
 async def authorize_workflow_run_start(
@@ -286,16 +374,39 @@ async def authorize_workflow_run_start(
                     workflow_run.definition.workflow_configurations
                 )
 
+        # Before the gateway round-trip: there is no point minting a
+        # correlation ID for a call we are about to refuse.
+        if not await _has_credit(organization_id, workflow_run_id):
+            logger.info(
+                "Workflow start authorization denied: org {} is out of credit "
+                "(workflow {})",
+                organization_id,
+                workflow_id,
+            )
+            return _no_credit_result()
+
         user_config = await get_effective_ai_model_configuration_for_workflow(
             organization_id=organization_id,
             workflow_configurations=workflow_configurations,
         )
 
-        return await _mint_managed_model_correlation(
+        result = await _mint_managed_model_correlation(
             workflow_id=workflow.id,
             workflow_run_id=workflow_run_id,
             user_config=user_config,
         )
+        if not result.has_quota:
+            return result
+
+        # Last, so nothing after this can refuse a run whose funds are already
+        # held. A hold left behind by a later failure would take spending power
+        # away until the sweeper returned it.
+        if not await _hold_funds(
+            organization_id=organization_id, workflow_run_id=workflow_run_id
+        ):
+            return _no_credit_result()
+
+        return result
 
     except Exception as e:
         logger.error(f"Error during workflow run start authorization: {str(e)}")

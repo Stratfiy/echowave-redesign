@@ -326,7 +326,13 @@ export default function BillingPage() {
     }
 
     const topupsEnabled = balance?.topups_enabled ?? false;
-    const lowBalance = (balance?.balance_paise ?? 0) <= 0;
+    const balancePaise = balance?.balance_paise ?? 0;
+    const outOfCredit = balancePaise <= 0;
+    // Warn before calls stop, not only after. Someone whose campaign dies
+    // mid-run finds out by the campaign dying, which is the worst way to learn
+    // it. One minimum top-up's worth of runway is enough notice to act on.
+    const runningLow =
+        !outOfCredit && balancePaise < (balance?.min_topup_paise ?? 0);
 
     return (
         <div className="mx-auto max-w-4xl space-y-8 p-6">
@@ -364,15 +370,21 @@ export default function BillingPage() {
                 <div
                     className={cn(
                         "mt-2 text-4xl font-semibold tabular-nums",
-                        lowBalance && "text-red-600 dark:text-red-400",
+                        outOfCredit && "text-red-600 dark:text-red-400",
+                        runningLow && "text-amber-600 dark:text-amber-400",
                     )}
                 >
-                    {formatPaise(balance?.balance_paise ?? 0)}
+                    {formatPaise(balancePaise)}
                 </div>
-                {lowBalance && (
+                {outOfCredit && (
                     <p className="mt-2 text-sm text-red-600 dark:text-red-400">
                         Calls will not start without credit. Add some to keep your
                         agents running.
+                    </p>
+                )}
+                {runningLow && (
+                    <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+                        Running low. Calls stop as soon as this reaches zero.
                     </p>
                 )}
             </section>

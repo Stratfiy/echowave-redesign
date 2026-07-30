@@ -175,6 +175,18 @@ async def cost_workflow_run(
     run.uncosted_usage = uncosted_labels
     run.costed_at = datetime.now(UTC)
 
+    # Release before debiting, and in the same transaction. The account is
+    # billed for what it used, never for what we guessed when the call started —
+    # and doing both in one transaction means the balance never briefly reflects
+    # the hold and the charge at once.
+    from api.services.billing.reservations import release as release_reservation
+
+    await release_reservation(
+        session,
+        organization_id=organization_id,
+        workflow_run_id=workflow_run_id,
+    )
+
     await _debit_ledger(
         session,
         organization_id=organization_id,

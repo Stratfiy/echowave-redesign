@@ -445,6 +445,59 @@ to probe.
 
 ---
 
+## Not letting anyone spend what they don't have
+
+The other half of prepaid. `api/services/billing/reservations.py`.
+
+A balance check on its own does not work, and the reason is the entire
+justification for that module: **a call's cost is not known until it ends.**
+Two calls starting in the same instant both read the same balance, both find it
+sufficient, and both proceed — so an account with ₹10 on it can start fifty
+concurrent calls, each of which passed the check. Concurrency is what a voice
+platform sells, so that is the normal case rather than the edge.
+
+So a call **holds** an estimate before it starts:
+
+| Property | Why |
+|---|---|
+| A hold is an ordinary negative `credit_ledger` row, kind `reservation` | It counts against the balance from the moment it is written. A separate "held" column is one the balance query can forget to subtract. |
+| Holds are taken under `SELECT … FOR UPDATE` on the organization row | Without it two concurrent starts still interleave their read and write. The lock is load-bearing, not defensive — `test_billing_reservations.py` fails with 8 of 8 concurrent starts allowed on a balance covering 2 when it is removed. |
+| A hold is **never** the charge | It is released in full at costing and the real cost debited separately, in the same transaction. An account is billed for what it used, never for what we guessed. |
+| Released by deletion, not by a compensating credit | A hold and its reversal on a statement reads as being charged twice for something that never charged them once. |
+| Holds are swept on a schedule | A worker that dies mid-call holds funds against a call that will never be costed. Unswept, that is a slow leak ending with a paying customer unable to call and nothing able to explain why. |
+
+**A thin balance holds what is left rather than refusing.** An account with ₹5
+gets one more call and ends slightly overdrawn; the next call is refused.
+Refusing anything short of a full estimate would strand credit the customer has
+already paid for.
+
+**The estimate is measured, not guessed.** `RESERVATION_MINUTES` (default 5) of
+the account's own recent cost per connected minute, read from
+`daily_organization_rollup` — pre-aggregated, because this sits on the critical
+path of every call start. With no history it falls back to the account's own
+platform rate times `NO_HISTORY_MULTIPLIER`, so an enterprise on a negotiated
+rate is not measured against someone else's.
+
+Where the gate lives: `authorize_workflow_run_start`, the single seam every
+runtime entrypoint goes through. Ordering there is deliberate — tenant
+isolation first (a security check must not be reachable around), then the cheap
+balance pre-check (so we do not mint a correlation ID for a call we are about
+to refuse), then the hold **last**, so nothing after it can refuse a run whose
+funds are already held.
+
+Failure directions differ on purpose: the pre-check fails **open** (one failed
+query must not stop all calling on the platform) and the hold fails **closed**
+(if we cannot write it, we do not know whether the account can pay, and a call
+is money).
+
+| Variable | Default | Effect |
+|---|---|---|
+| `BALANCE_ENFORCEMENT_ENABLED` | `true` | Off means no spend ceiling — prepaid with the gate off is postpaid with extra steps. |
+| `RESERVATION_MINUTES` | `5` | How much of a typical call to hold. Not a call-length limit. |
+| `RESERVATION_MAX_AGE_MINUTES` | `180` | When a hold is assumed to belong to a dead call. Must exceed the longest call anyone plausibly makes — sweeping a live call's hold puts the account back over its balance while it is still spending. |
+
+---
+
 ## Not built yet
 
 * **Export**, **alerting** and **role management** — deliberately out of scope.
@@ -457,11 +510,10 @@ to probe.
   Every provider implements `get_call_cost()`, which returns what the carrier
   actually charged, and nothing calls it. Telephony cost is therefore our rate
   row times measured seconds, which is close but is not the real number.
-* **Balance enforcement.** Credit can now be bought (see *Taking money in*),
-  but nothing stops an account spending past zero. A reservation per in-flight
-  call is what makes that safe under concurrency — without one, two calls
-  starting at the same moment each see the same balance and both proceed.
-  See `KNOWN_ISSUES.md` #8.
+* **Spend alerts.** Nothing warns an account that it is running low; it simply
+  stops being able to call. The balance is on the Billing screen and a run is
+  refused with a message naming the fix, but a customer mid-campaign finds out
+  by the campaign stopping.
 * **Number provisioning.** `telephony_configurations.is_platform_managed` is
   the flag the KYC gate keys on, and nothing sets it yet — buying and assigning
   numbers under our own carrier account does not exist, so the gate is correct

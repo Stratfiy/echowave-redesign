@@ -5,8 +5,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pipecat.processors.aggregators.llm_context import LLMSpecificMessage
 
-from api.db.models import OrganizationModel, UserModel, organization_users_association
-from api.enums import OrganizationConfigurationKey
+from api.db.models import (
+    CreditLedgerModel,
+    OrganizationModel,
+    UserModel,
+    organization_users_association,
+)
+from api.enums import CreditLedgerKind, OrganizationConfigurationKey
 from api.schemas.ai_model_configuration import EffectiveAIModelConfiguration
 from api.services.configuration.ai_model_configuration import (
     convert_legacy_ai_model_configuration_to_v2,
@@ -80,6 +85,19 @@ async def _create_user_and_workflow(
 ):
     org = OrganizationModel(provider_id=f"textchat-org-{suffix}")
     async_session.add(org)
+    await async_session.flush()
+
+    # Text chat burns LLM tokens, so it goes through the same prepaid gate as a
+    # call and an unfunded org is refused with 402. These tests are about the
+    # chat runtime, so the account is funded like a real customer's would be.
+    async_session.add(
+        CreditLedgerModel(
+            organization_id=org.id,
+            delta_paise=100_000,
+            kind=CreditLedgerKind.TOPUP.value,
+            balance_after_paise=100_000,
+        )
+    )
     await async_session.flush()
 
     user = UserModel(

@@ -69,38 +69,45 @@ deliberately.
 
 ---
 
+## Fixed
+
 ### 8. Runs are not gated on any balance
 
-**Status:** OPEN by design · **Severity: high once billing goes live**
+**FIXED.** Removing MPS billing had taken the prepaid-credit check out of
+`authorize_workflow_run_start`, so there was no spend ceiling at all. Both
+halves of prepaid now exist: credit is bought through
+`api/services/billing/payments.py`, and `api/services/billing/reservations.py`
+refuses a run on an unfunded account.
 
-Removing MPS billing took the prepaid-credit check out of
-`authorize_workflow_run_start`. Nothing currently stops a run on an unfunded
-account, so **there is no spend ceiling today.**
+A balance check alone would not have been enough, and that is worth recording
+because it is the non-obvious part. A call's cost is unknown until it ends, so
+two calls starting in the same instant both read the same balance, both find it
+sufficient, and both proceed — an account with 10 rupees could start fifty
+concurrent calls, each of which passed the check. Concurrency is what the
+product sells, so that was the normal case rather than an edge one.
 
-This is now the *only* missing half of prepaid: customers can buy credit
-(`api/services/billing/payments.py`) and usage debits the ledger
-(`api/services/billing/costing.py`), but nothing refuses a call when the
-balance is gone.
+So a call holds an estimate before it starts, as an ordinary negative ledger
+row taken under a per-organization `SELECT ... FOR UPDATE`. The lock is
+load-bearing: with it removed, the concurrency test in
+`api/tests/test_billing_reservations.py` allows 8 of 8 simultaneous starts on a
+balance covering 2. The hold is released at costing and replaced by the real
+charge, so an account is billed for what it used and never for the estimate,
+and a cron sweeps holds stranded by a worker that died mid-call.
 
-The tenant-isolation checks in that function (workflow belongs to the org,
-actor is a member of the org, a supplied run belongs to the workflow, DB read
-failures fail closed) were all preserved; only the credit gate went away.
+The tenant-isolation checks in that function were preserved throughout, and the
+credit check deliberately runs *after* them — a security check must not be
+reachable around, and consulting a balance before proving the caller owns the
+workflow would leak whether an unrelated account has credit.
 
-`api/tests/test_quota_service.py::test_authorization_module_exposes_no_credit_gating`
-guards against an external billing service being quietly reintroduced onto the
-critical path of every call.
+`test_quota_service.py::test_authorization_module_exposes_no_external_credit_gating`
+still guards the thing that actually mattered: the check reads our own paise
+ledger, and the external billing service that used to sit on the critical path
+of every call does not come back.
 
-**Next:** the local paise-denominated ledger check goes back into this same
-function, plus a **reservation** per in-flight call. A balance check alone is
-not enough — a call's cost is not known until it ends, so between two calls
-starting at the same instant both read the same balance and both proceed.
-`CreditLedgerKind.RESERVATION` exists for this: hold an estimate while the call
-is live so it counts against the balance immediately, release it when the call
-is costed, and sweep reservations left behind by a crashed worker.
+Enforcement is on by default and can be disabled with
+`BALANCE_ENFORCEMENT_ENABLED=false`. See DASHBOARD.md.
 
 ---
-
-## Fixed
 
 ### 5. Links pointed at upstream community infrastructure Decibyl does not own
 

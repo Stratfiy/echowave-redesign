@@ -90,6 +90,27 @@ RAZORPAY_API_BASE = os.getenv("RAZORPAY_API_BASE", "https://api.razorpay.com/v1"
 MIN_TOPUP_PAISE = int(os.getenv("MIN_TOPUP_PAISE", "10000"))  # Rs 100
 MAX_TOPUP_PAISE = int(os.getenv("MAX_TOPUP_PAISE", "50000000"))  # Rs 5,00,000
 
+# Refuse a run when the account has no credit, and hold an estimate while each
+# call is live. On by default: prepaid with the gate switched off is postpaid
+# with extra steps, and the failure it prevents — an account running up a bill
+# it never intended to pay — is only ever discovered after the money is gone.
+# Set false for a deployment that settles some other way.
+BALANCE_ENFORCEMENT_ENABLED = (
+    os.getenv("BALANCE_ENFORCEMENT_ENABLED", "true").lower() == "true"
+)
+
+# How many minutes of a typical call to hold while it runs. Not a call-length
+# limit and not a worst case — a hold sized for the longest call anyone might
+# make would stop a funded account running the calls it is paying for, and the
+# ledger ends up exact either way because the hold is released and the true
+# cost debited.
+RESERVATION_MINUTES = int(os.getenv("RESERVATION_MINUTES", "5"))
+
+# When to assume a hold belongs to a call that died rather than one still
+# running. Must exceed the longest call anyone plausibly makes: sweeping a live
+# call's hold puts the account back over its balance while it is still spending.
+RESERVATION_MAX_AGE_MINUTES = int(os.getenv("RESERVATION_MAX_AGE_MINUTES", "180"))
+
 # Fernet key encrypting the platform's own provider API keys at rest. Generate
 # with: python -c "from cryptography.fernet import Fernet;
 # print(Fernet.generate_key().decode())"

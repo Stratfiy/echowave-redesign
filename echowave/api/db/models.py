@@ -1964,6 +1964,24 @@ class CreditLedgerModel(Base):
             unique=True,
             postgresql_where=text("kind = 'usage' AND ref_id IS NOT NULL"),
         ),
+        # And a run may hold funds at most once. A retried start that stacked a
+        # second hold would take an account's spending power away twice for one
+        # call, and only the first would ever be released.
+        Index(
+            "uq_credit_ledger_reservation_ref",
+            "organization_id",
+            "ref_type",
+            "ref_id",
+            unique=True,
+            postgresql_where=text("kind = 'reservation' AND ref_id IS NOT NULL"),
+        ),
+        # The sweeper scans open reservations by age; without this it reads
+        # every ledger row on the platform every few minutes.
+        Index(
+            "ix_credit_ledger_reservation_open",
+            "created_at",
+            postgresql_where=text("kind = 'reservation'"),
+        ),
     )
 
 

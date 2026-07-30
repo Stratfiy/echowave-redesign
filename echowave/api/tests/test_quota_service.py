@@ -68,6 +68,19 @@ def _pinned_run(
     )
 
 
+@pytest.fixture(autouse=True)
+def funded_account(monkeypatch):
+    """Most tests here are about tenant isolation and correlation, not money.
+
+    These run against a mocked ``db_client`` with no real organization behind
+    it, so without this every one of them would be refused for having no
+    credit and would stop testing what it is named for. The credit gate has its
+    own tests below, which patch these back.
+    """
+    monkeypatch.setattr(quota_service, "_has_credit", AsyncMock(return_value=True))
+    monkeypatch.setattr(quota_service, "_hold_funds", AsyncMock(return_value=True))
+
+
 def _patch_workflow_context(monkeypatch, *, workflow=_UNSET, owner=None):
     workflow_value = _workflow() if workflow is _UNSET else workflow
     monkeypatch.setattr(
@@ -90,16 +103,17 @@ def _patch_workflow_context(monkeypatch, *, workflow=_UNSET, owner=None):
 
 
 # ---------------------------------------------------------------------------
-# No prepaid-credit gating
+# Credit is checked locally, never through an external service
 # ---------------------------------------------------------------------------
 
 
-def test_authorization_module_exposes_no_credit_gating():
-    """Decibyl does not sell prepaid inference credits.
+def test_authorization_module_exposes_no_external_credit_gating():
+    """Decibyl does gate on prepaid credit — against its own paise ledger.
 
-    Guards against a credit balance check being reintroduced into the run-start
-    path, which would put an external billing service back on the critical path
-    of every call.
+    What must never come back is the *external* billing service that used to do
+    it. It sat on the critical path of every call, so an outage there stopped
+    all calling on the platform. The local check reads one indexed sum from a
+    database we already have open.
     """
     for removed in (
         "MINIMUM_DECIBYL_CREDITS_FOR_CALL",
@@ -698,3 +712,150 @@ async def test_authorize_workflow_run_denies_when_owner_missing(monkeypatch):
 
     assert result.has_quota is False
     assert result.error_code == "user_not_found"
+
+
+# ---------------------------------------------------------------------------
+# The prepaid credit gate
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_on_an_unfunded_account_is_denied(monkeypatch):
+    """Prepaid means a call that cannot be paid for does not start."""
+    _patch_workflow_context(monkeypatch)
+    monkeypatch.setattr(
+        quota_service.db_client,
+        "get_workflow_run",
+        AsyncMock(return_value=_pinned_run()),
+    )
+    monkeypatch.setattr(quota_service, "_has_credit", AsyncMock(return_value=False))
+
+    result = await quota_service.authorize_workflow_run_start(
+        workflow_id=7,
+        organization_id=42,
+        workflow_run_id=88,
+    )
+
+    assert result.has_quota is False
+    assert result.error_code == "insufficient_credit"
+    # Names the fix, not the mechanism. The customer has no idea what a
+    # reservation is and should not need to.
+    assert "credit" in result.error_message.lower()
+
+
+@pytest.mark.asyncio
+async def test_an_unfunded_account_is_refused_before_the_gateway_round_trip(
+    monkeypatch,
+):
+    """No point minting a correlation id for a call we are about to refuse."""
+    get_config = AsyncMock(return_value=_decibyl_config(managed_service_version=2))
+    create_correlation_id = AsyncMock()
+
+    _patch_workflow_context(monkeypatch)
+    monkeypatch.setattr(
+        quota_service.db_client,
+        "get_workflow_run",
+        AsyncMock(return_value=_pinned_run()),
+    )
+    monkeypatch.setattr(quota_service, "_has_credit", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        quota_service,
+        "get_effective_ai_model_configuration_for_workflow",
+        get_config,
+    )
+    monkeypatch.setattr(
+        quota_service.mps_service_key_client,
+        "create_correlation_id",
+        create_correlation_id,
+    )
+
+    result = await quota_service.authorize_workflow_run_start(
+        workflow_id=7,
+        organization_id=42,
+        workflow_run_id=88,
+    )
+
+    assert result.has_quota is False
+    get_config.assert_not_awaited()
+    create_correlation_id.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_run_that_cannot_hold_funds_is_denied(monkeypatch):
+    """The balance passed the cheap pre-check but the account lost the race to
+    a concurrent call, or the hold could not be written at all."""
+    _patch_workflow_context(monkeypatch)
+    monkeypatch.setattr(
+        quota_service.db_client,
+        "get_workflow_run",
+        AsyncMock(return_value=_pinned_run()),
+    )
+    monkeypatch.setattr(quota_service, "_has_credit", AsyncMock(return_value=True))
+    monkeypatch.setattr(quota_service, "_hold_funds", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        quota_service,
+        "get_effective_ai_model_configuration_for_workflow",
+        AsyncMock(return_value=_byok_config()),
+    )
+
+    result = await quota_service.authorize_workflow_run_start(
+        workflow_id=7,
+        organization_id=42,
+        workflow_run_id=88,
+    )
+
+    assert result.has_quota is False
+    assert result.error_code == "insufficient_credit"
+
+
+@pytest.mark.asyncio
+async def test_funds_are_held_only_after_every_other_check_passes(monkeypatch):
+    """A hold written before a later refusal would take an account's spending
+    power away for a call that never happens, until the sweeper returned it."""
+    hold = AsyncMock(return_value=True)
+    _patch_workflow_context(monkeypatch)
+    monkeypatch.setattr(
+        quota_service.db_client,
+        "get_workflow_run",
+        AsyncMock(return_value=_pinned_run()),
+    )
+    monkeypatch.setattr(quota_service, "_has_credit", AsyncMock(return_value=True))
+    monkeypatch.setattr(quota_service, "_hold_funds", hold)
+    monkeypatch.setattr(
+        quota_service,
+        "get_effective_ai_model_configuration_for_workflow",
+        AsyncMock(return_value=_decibyl_config(api_key="", managed_service_version=2)),
+    )
+
+    result = await quota_service.authorize_workflow_run_start(
+        workflow_id=7,
+        organization_id=42,
+        workflow_run_id=88,
+    )
+
+    # Refused for a missing service key, so nothing should have been held.
+    assert result.has_quota is False
+    assert result.error_code == "invalid_service_key"
+    hold.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_the_credit_check_does_not_run_before_tenant_isolation(monkeypatch):
+    """Isolation is a security check and must not be reachable around.
+
+    A workflow belonging to another organization is refused as not found,
+    without the balance of the *caller's* organization being consulted — which
+    would otherwise leak whether an unrelated account has credit.
+    """
+    has_credit = AsyncMock(return_value=True)
+    _patch_workflow_context(monkeypatch, workflow=None)
+    monkeypatch.setattr(quota_service, "_has_credit", has_credit)
+
+    result = await quota_service.authorize_workflow_run_start(
+        workflow_id=7,
+        organization_id=42,
+    )
+
+    assert result.has_quota is False
+    assert result.error_code == "workflow_not_found"
+    has_credit.assert_not_awaited()
