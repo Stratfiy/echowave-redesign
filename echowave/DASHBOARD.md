@@ -106,8 +106,15 @@ Resolved in this order; the first match wins.
 2. **Volume tier** — optional. Applies when the account's billable minutes in
    the current billing period reach a tier's `min_period_minutes`. The **highest
    matching threshold** wins.
-3. **Global default** — $0.02/min (`DEFAULT_PLATFORM_RATE_MICROS_USD = 20_000`),
-   converted at the USD→INR rate in force at `at`.
+3. **Global default** — a volume tier at threshold **zero**, set from the Rate
+   card screen. Every account has reached zero minutes, so a zero-threshold
+   tier is exactly "the price everyone pays unless something more specific
+   applies". It needs no extra table and no extra branch in the resolver.
+
+If no such tier exists, resolution falls back to
+`DEFAULT_PLATFORM_RATE_MICROS_USD = 20_000` ($0.02/min) — a constant in
+`money.py`, for a fresh install or a test. The Rate card screen says so plainly
+rather than presenting it as a configured price.
 
 The **pulse** resolves alongside the rate, from the same row, falling back to
 `DEFAULT_PULSE_SECONDS = 15`. An account that negotiated whole-minute billing
@@ -314,6 +321,41 @@ zero, which would silently understate the estimate.
 
 `CostPerMinuteBar` renders it live on the model-configuration screen, so
 switching model moves the number immediately.
+
+---
+
+## Setting prices
+
+`GET/PUT /admin/billing/rate-card/*` and the screen at
+`/superadmin/billing/rate-card`. The only place prices are decided; everything
+else in this document describes what they produce.
+
+| Settable | Where it lands |
+|---|---|
+| Global platform price and pulse | `platform_volume_tiers` at threshold 0 |
+| Volume tiers | `platform_volume_tiers` |
+| Per-account override, either currency, own pulse | `organization_rate_history` |
+| Provider unit costs, per provider and per model | `provider_rates` |
+| USD→INR rate | `usd_inr_rate_history` |
+
+Every write goes through `services/billing/rate_card.py`, which **closes the
+outgoing row and opens a new one** rather than updating in place. That is what
+keeps "what did this account pay in June" answerable after the price has moved.
+A new row must start strictly after the one it replaces — two rows opening at
+the same instant would leave the resolver choosing between them arbitrarily.
+
+Three rules the service enforces so a form cannot produce an inconsistent card:
+
+* **Exactly one currency per row.** Enforced in the service for a readable
+  error and by a database check constraint for the guarantee.
+* **The exchange rate cannot be backdated.** Repricing calls that have already
+  been invoiced is not something an endpoint should be able to do.
+* **The global tier cannot be retired** — only repriced. Removing it would drop
+  every account silently back onto the constant.
+
+Retiring a provider rate leaves that usage **uncosted, not free**. The cost
+engine reports it and the unit-economics screen counts it; pricing it at zero
+would understate provider cost and overstate margin.
 
 ---
 

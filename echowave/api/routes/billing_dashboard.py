@@ -12,12 +12,11 @@ anything that changes state.
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
 
 from api.db import billing_dashboard_client as dash
 from api.db import db_client
@@ -25,15 +24,14 @@ from api.db.models import (
     BillingAuditLogModel,
     CreditLedgerModel,
     OrganizationModel,
-    OrganizationRateHistoryModel,
-    UsdInrRateHistoryModel,
     UserModel,
 )
 from api.enums import BillingAuditAction, CreditLedgerKind
 from api.services.auth.depends import get_superuser
 from api.services.billing import kpis
+from api.services.billing import rate_card
 from api.services.billing.costing import current_balance_paise
-from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
+from api.services.billing.rate_card import RateCardError
 from api.services.billing.rollup import IST
 
 router = APIRouter(
@@ -173,94 +171,6 @@ async def get_account(
             "credit_ledger": await dash.credit_ledger(
                 session, organization_id=organization_id
             ),
-        }
-
-
-class SetPlatformRateRequest(BaseModel):
-    platform_rate_mpaise: int = Field(
-        ..., ge=0, le=10_000_000, description="Platform rate in millipaise per minute"
-    )
-    effective_from: datetime | None = Field(
-        None, description="Defaults to now. May be future-dated."
-    )
-    note: str | None = None
-
-
-@router.put("/accounts/{organization_id}/platform-rate")
-async def set_platform_rate(
-    organization_id: int,
-    request: SetPlatformRateRequest,
-    user: UserModel = Depends(get_superuser),
-) -> dict[str, Any]:
-    """Set an account's platform rate, effective-dated and audited.
-
-    Never updates a rate in place: the currently-open row is closed and a new
-    one inserted, so recomputing an old invoice still reproduces the original
-    number.
-    """
-    async with db_client.async_session() as session:
-        org = await session.get(OrganizationModel, organization_id)
-        if org is None:
-            raise HTTPException(status_code=404, detail="Account not found")
-
-        effective_from = request.effective_from or datetime.now(UTC)
-        if effective_from.tzinfo is None:
-            effective_from = effective_from.replace(tzinfo=UTC)
-
-        history = await dash.account_rate_history(
-            session, organization_id=organization_id
-        )
-        open_row = next((h for h in history if h["effective_to"] is None), None)
-        old_rate = (
-            open_row["platform_rate_mpaise"]
-            if open_row
-            else (org.platform_rate_mpaise or DEFAULT_PLATFORM_RATE_MPAISE)
-        )
-
-        if open_row is not None:
-            existing = await session.get(OrganizationRateHistoryModel, open_row["id"])
-            if existing is not None:
-                if existing.effective_from >= effective_from:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=(
-                            "effective_from must be after the current rate's "
-                            "effective_from"
-                        ),
-                    )
-                existing.effective_to = effective_from
-
-        session.add(
-            OrganizationRateHistoryModel(
-                organization_id=organization_id,
-                platform_rate_mpaise=request.platform_rate_mpaise,
-                effective_from=effective_from,
-                set_by=user.id,
-                note=request.note,
-            )
-        )
-        # Convenience mirror of the current rate; history stays the source of truth.
-        org.platform_rate_mpaise = request.platform_rate_mpaise
-
-        session.add(
-            BillingAuditLogModel(
-                organization_id=organization_id,
-                actor_user_id=user.id,
-                action=BillingAuditAction.PLATFORM_RATE_CHANGED.value,
-                old_value={"platform_rate_mpaise": old_rate},
-                new_value={
-                    "platform_rate_mpaise": request.platform_rate_mpaise,
-                    "effective_from": effective_from.isoformat(),
-                },
-                note=request.note,
-            )
-        )
-        await session.commit()
-
-        return {
-            "organization_id": organization_id,
-            "platform_rate_mpaise": request.platform_rate_mpaise,
-            "effective_from": effective_from.isoformat(),
         }
 
 
@@ -437,65 +347,252 @@ async def get_unit_economics(rng: RangeParams = Depends()) -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# 3.8 Rate card
+#
+# Setting prices, rather than reading what they produced. Every write here goes
+# through services/billing/rate_card.py, which closes the outgoing row instead
+# of overwriting it — so changing a price never rewrites an invoice already
+# sent.
+# ---------------------------------------------------------------------------
+
+
+def _rate_card_error(exc: RateCardError) -> HTTPException:
+    return HTTPException(status_code=400, detail=str(exc))
+
+
+class PlatformPriceRequest(BaseModel):
+    """A platform price in exactly one currency, with an optional pulse."""
+
+    platform_rate_micros_usd: int | None = Field(
+        None,
+        ge=0,
+        le=10_000_000,
+        description="Micro-dollars per minute: $0.02 is 20000",
+    )
+    platform_rate_mpaise: int | None = Field(
+        None,
+        ge=0,
+        le=10_000_000,
+        description="Millipaise per minute, for a contract written in rupees",
+    )
+    pulse_seconds: int | None = Field(
+        None, ge=1, le=60, description="Billing granularity. Omit for the default."
+    )
+    effective_from: datetime | None = Field(
+        None, description="Defaults to now. May be future-dated."
+    )
+    note: str | None = None
+
+
+class VolumeTierRequest(PlatformPriceRequest):
+    name: str = Field(..., min_length=1, max_length=64)
+    min_period_minutes: int = Field(
+        ..., ge=1, description="Minutes in the period at which this price starts"
+    )
+
+
+class ProviderRateRequest(BaseModel):
+    provider: str = Field(..., min_length=1, max_length=64)
+    component: str = Field(..., description="stt | llm | tts | telephony")
+    unit: str = Field(..., description="minute | 1k_chars | 1k_tokens")
+    rate_mpaise: int = Field(..., ge=0, le=100_000_000)
+    model: str = Field("", max_length=128, description="Empty = provider-wide fallback")
+    effective_from: datetime | None = None
+    note: str | None = None
+
+
 class ExchangeRateRequest(BaseModel):
     paise_per_usd: int = Field(
-        ..., gt=0, description="Rupees per dollar in paise: ₹96.00 is 9600"
+        ..., gt=0, le=100_000, description="Rupees per dollar in paise: ₹96.00 is 9600"
     )
     source: str | None = Field(None, max_length=64)
     note: str | None = None
 
 
-@router.put("/exchange-rate")
-async def set_exchange_rate(
-    payload: ExchangeRateRequest, user: UserModel = Depends(get_superuser)
-) -> dict[str, Any]:
-    """Open a new USD→INR rate, closing the current one.
+@router.get("/rate-card")
+async def get_rate_card() -> dict[str, Any]:
+    """Every price currently in force, and whether any is still a fallback."""
+    async with db_client.async_session() as session:
+        card = await rate_card.get_rate_card(session)
+    return {
+        "global_tier": card.global_tier,
+        "volume_tiers": card.volume_tiers,
+        "provider_rates": card.provider_rates,
+        "exchange_rate": card.exchange_rate,
+        "using_fallback_platform_rate": card.using_fallback_platform_rate,
+        "fallback": card.fallback,
+    }
 
-    Effective-dated like every other rate here: the old row is closed rather
-    than overwritten, so calls already billed keep the conversion they were
-    billed at. Takes effect from now, never retroactively — repricing calls
-    that have already been invoiced is not something an endpoint should be
-    able to do by accident.
+
+@router.put("/rate-card/platform")
+async def set_global_platform_rate(
+    request: PlatformPriceRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Set the price every account pays without an override.
+
+    Stored as a volume tier with a threshold of zero — a tier every account has
+    already reached. See services/billing/rate_card.py.
     """
     async with db_client.async_session() as session:
-        now = datetime.now(UTC)
-
-        previous = await session.scalar(
-            select(UsdInrRateHistoryModel)
-            .where(UsdInrRateHistoryModel.effective_to.is_(None))
-            .order_by(UsdInrRateHistoryModel.effective_from.desc())
-            .limit(1)
-        )
-
-        await session.execute(
-            update(UsdInrRateHistoryModel)
-            .where(UsdInrRateHistoryModel.effective_to.is_(None))
-            .values(effective_to=now)
-        )
-        session.add(
-            UsdInrRateHistoryModel(
-                paise_per_usd=payload.paise_per_usd,
-                effective_from=now,
-                source=payload.source,
-                set_by=user.id,
-                note=payload.note,
-            )
-        )
-        session.add(
-            BillingAuditLogModel(
+        try:
+            await rate_card.set_volume_tier(
+                session,
                 actor_user_id=user.id,
-                action=BillingAuditAction.EXCHANGE_RATE_CHANGED.value,
-                organization_id=None,
-                old_value=(
-                    {"paise_per_usd": previous.paise_per_usd} if previous else {}
-                ),
-                new_value={
-                    "paise_per_usd": payload.paise_per_usd,
-                    "source": payload.source,
-                },
-                note=payload.note,
+                min_period_minutes=rate_card.GLOBAL_TIER_MIN_MINUTES,
+                name=rate_card.GLOBAL_TIER_NAME,
+                platform_rate_micros_usd=request.platform_rate_micros_usd,
+                platform_rate_mpaise=request.platform_rate_mpaise,
+                pulse_seconds=request.pulse_seconds,
+                effective_from=request.effective_from,
+                note=request.note,
             )
-        )
+        except RateCardError as exc:
+            raise _rate_card_error(exc) from exc
         await session.commit()
+        card = await rate_card.get_rate_card(session)
+    return {"global_tier": card.global_tier}
 
-    return {"paise_per_usd": payload.paise_per_usd, "effective_from": now.isoformat()}
+
+@router.put("/rate-card/tiers")
+async def set_volume_tier(
+    request: VolumeTierRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    async with db_client.async_session() as session:
+        try:
+            await rate_card.set_volume_tier(
+                session,
+                actor_user_id=user.id,
+                min_period_minutes=request.min_period_minutes,
+                name=request.name,
+                platform_rate_micros_usd=request.platform_rate_micros_usd,
+                platform_rate_mpaise=request.platform_rate_mpaise,
+                pulse_seconds=request.pulse_seconds,
+                effective_from=request.effective_from,
+                note=request.note,
+            )
+        except RateCardError as exc:
+            raise _rate_card_error(exc) from exc
+        await session.commit()
+        card = await rate_card.get_rate_card(session)
+    return {"volume_tiers": card.volume_tiers}
+
+
+@router.delete("/rate-card/tiers/{min_period_minutes}")
+async def retire_volume_tier(
+    min_period_minutes: int, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    async with db_client.async_session() as session:
+        try:
+            await rate_card.retire_volume_tier(
+                session,
+                actor_user_id=user.id,
+                min_period_minutes=min_period_minutes,
+            )
+        except RateCardError as exc:
+            raise _rate_card_error(exc) from exc
+        await session.commit()
+        card = await rate_card.get_rate_card(session)
+    return {"volume_tiers": card.volume_tiers}
+
+
+@router.put("/rate-card/providers")
+async def set_provider_rate(
+    request: ProviderRateRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Set what a provider costs us. Passed through to customers at cost."""
+    async with db_client.async_session() as session:
+        try:
+            await rate_card.set_provider_rate(
+                session,
+                actor_user_id=user.id,
+                provider=request.provider,
+                component=request.component,
+                unit=request.unit,
+                rate_mpaise=request.rate_mpaise,
+                model=request.model,
+                effective_from=request.effective_from,
+                note=request.note,
+            )
+        except RateCardError as exc:
+            raise _rate_card_error(exc) from exc
+        await session.commit()
+        card = await rate_card.get_rate_card(session)
+    return {"provider_rates": card.provider_rates}
+
+
+@router.delete("/rate-card/providers")
+async def retire_provider_rate(
+    provider: str = Query(...),
+    component: str = Query(...),
+    model: str = Query(""),
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Stop pricing a provider or model.
+
+    The usage becomes **uncosted**, not free — it is reported on the
+    unit-economics screen rather than silently priced at zero.
+    """
+    async with db_client.async_session() as session:
+        try:
+            await rate_card.retire_provider_rate(
+                session,
+                actor_user_id=user.id,
+                provider=provider,
+                component=component,
+                model=model,
+            )
+        except RateCardError as exc:
+            raise _rate_card_error(exc) from exc
+        await session.commit()
+        card = await rate_card.get_rate_card(session)
+    return {"provider_rates": card.provider_rates}
+
+
+@router.put("/rate-card/exchange-rate")
+async def set_exchange_rate(
+    request: ExchangeRateRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Set the USD→INR rate. Takes effect now, never retroactively."""
+    async with db_client.async_session() as session:
+        try:
+            await rate_card.set_exchange_rate(
+                session,
+                actor_user_id=user.id,
+                paise_per_usd=request.paise_per_usd,
+                source=request.source,
+                note=request.note,
+            )
+        except RateCardError as exc:
+            raise _rate_card_error(exc) from exc
+        await session.commit()
+        card = await rate_card.get_rate_card(session)
+    return {"exchange_rate": card.exchange_rate}
+
+
+@router.put("/accounts/{organization_id}/platform-rate")
+async def set_account_platform_rate(
+    organization_id: int,
+    request: PlatformPriceRequest,
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Override one account's price, in either currency, with its own pulse."""
+    async with db_client.async_session() as session:
+        try:
+            await rate_card.set_account_rate(
+                session,
+                actor_user_id=user.id,
+                organization_id=organization_id,
+                platform_rate_micros_usd=request.platform_rate_micros_usd,
+                platform_rate_mpaise=request.platform_rate_mpaise,
+                pulse_seconds=request.pulse_seconds,
+                effective_from=request.effective_from,
+                note=request.note,
+            )
+        except RateCardError as exc:
+            raise _rate_card_error(exc) from exc
+        await session.commit()
+        history = await dash.account_rate_history(
+            session, organization_id=organization_id
+        )
+    return {"organization_id": organization_id, "rate_history": history}

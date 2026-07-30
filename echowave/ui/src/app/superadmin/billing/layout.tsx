@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
+import { getRateCardApiV1AdminBillingRateCardGet } from "@/client/sdk.gen";
+import { useAuth } from "@/lib/auth";
+import { formatMicrosUsd, formatRateMpaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -12,7 +16,58 @@ const TABS = [
     { href: "/superadmin/billing/campaigns", label: "Campaigns" },
     { href: "/superadmin/billing/latency", label: "Latency" },
     { href: "/superadmin/billing/unit-economics", label: "Unit economics" },
+    { href: "/superadmin/billing/rate-card", label: "Rate card" },
 ];
+
+/**
+ * The current price, read from the rate card rather than hard-coded.
+ *
+ * It used to be a literal, which was fine while the price lived in a constant.
+ * Now that it is editable, a literal would go stale the first time someone
+ * changed it — and a header asserting the wrong price is worse than no header.
+ *
+ * Fetched in the layout, which persists across the tabs below, so this is one
+ * request for the whole section rather than one per screen.
+ */
+function usePriceSummary(): { price: string; pulse: number } | null {
+    const { user, loading } = useAuth();
+    const [summary, setSummary] = useState<{ price: string; pulse: number } | null>(
+        null,
+    );
+
+    useEffect(() => {
+        if (loading || !user) return;
+        let cancelled = false;
+        (async () => {
+            const result = await getRateCardApiV1AdminBillingRateCardGet({});
+            if (cancelled || result.error || !result.data) return;
+            const card = result.data as unknown as {
+                global_tier: {
+                    platform_rate_micros_usd: number | null;
+                    platform_rate_mpaise: number | null;
+                    pulse_seconds: number;
+                } | null;
+                fallback: { platform_rate_micros_usd: number; pulse_seconds: number };
+            };
+            const tier = card.global_tier;
+            setSummary({
+                price:
+                    tier?.platform_rate_mpaise != null
+                        ? `${formatRateMpaise(tier.platform_rate_mpaise)}/min`
+                        : `${formatMicrosUsd(
+                              tier?.platform_rate_micros_usd ??
+                                  card.fallback.platform_rate_micros_usd,
+                          )}/min`,
+                pulse: tier?.pulse_seconds ?? card.fallback.pulse_seconds,
+            });
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [loading, user]);
+
+    return summary;
+}
 
 export default function BillingDashboardLayout({
     children,
@@ -20,6 +75,7 @@ export default function BillingDashboardLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
+    const summary = usePriceSummary();
 
     return (
         <div className="glass-canvas min-h-full">
@@ -35,16 +91,27 @@ export default function BillingDashboardLayout({
                     </div>
 
                     {/* Where the money actually comes from, stated once. Every
-                        figure on every screen below is a consequence of it. */}
-                    <p className="glass-panel rounded-full px-4 py-2 text-xs tracking-[-0.01em] text-muted-foreground">
-                        <span className="font-medium text-foreground">$0.02/min</span>
-                        {" + provider cost "}
-                        <span className="font-medium text-[color:var(--brand-amber)]">
-                            at cost
-                        </span>
-                        {", billed in "}
-                        <span className="font-medium text-foreground">15s pulses</span>
-                    </p>
+                        figure on every screen below is a consequence of it.
+                        Rendered only once the real price has loaded — a
+                        placeholder here would be a claim about pricing. */}
+                    {summary && (
+                        <Link
+                            href="/superadmin/billing/rate-card"
+                            className="glass-panel rounded-full px-4 py-2 text-xs tracking-[-0.01em] text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                            <span className="font-medium text-foreground">
+                                {summary.price}
+                            </span>
+                            {" + provider cost "}
+                            <span className="font-medium text-[color:var(--brand-amber)]">
+                                at cost
+                            </span>
+                            {", billed in "}
+                            <span className="font-medium text-foreground">
+                                {summary.pulse}s pulses
+                            </span>
+                        </Link>
+                    )}
                 </header>
 
                 <nav

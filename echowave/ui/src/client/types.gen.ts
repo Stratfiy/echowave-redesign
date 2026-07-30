@@ -4292,6 +4292,42 @@ export type PhoneNumberUpdateRequest = {
 };
 
 /**
+ * PlatformPriceRequest
+ *
+ * A platform price in exactly one currency, with an optional pulse.
+ */
+export type PlatformPriceRequest = {
+    /**
+     * Platform Rate Micros Usd
+     *
+     * Micro-dollars per minute: $0.02 is 20000
+     */
+    platform_rate_micros_usd?: number | null;
+    /**
+     * Platform Rate Mpaise
+     *
+     * Millipaise per minute, for a contract written in rupees
+     */
+    platform_rate_mpaise?: number | null;
+    /**
+     * Pulse Seconds
+     *
+     * Billing granularity. Omit for the default.
+     */
+    pulse_seconds?: number | null;
+    /**
+     * Effective From
+     *
+     * Defaults to now. May be future-dated.
+     */
+    effective_from?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
  * PlivoConfigurationRequest
  *
  * Request schema for Plivo configuration.
@@ -4594,6 +4630,46 @@ export type PropertySpec = {
  * `<PropertyInput>` switch and (where relevant) the SDK codegen template.
  */
 export type PropertyType = 'string' | 'number' | 'boolean' | 'options' | 'multi_options' | 'fixed_collection' | 'json' | 'tool_refs' | 'document_refs' | 'recording_ref' | 'credential_ref' | 'mention_textarea' | 'url';
+
+/**
+ * ProviderRateRequest
+ */
+export type ProviderRateRequest = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Component
+     *
+     * stt | llm | tts | telephony
+     */
+    component: string;
+    /**
+     * Unit
+     *
+     * minute | 1k_chars | 1k_tokens
+     */
+    unit: string;
+    /**
+     * Rate Mpaise
+     */
+    rate_mpaise: number;
+    /**
+     * Model
+     *
+     * Empty = provider-wide fallback
+     */
+    model?: string;
+    /**
+     * Effective From
+     */
+    effective_from?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
 
 /**
  * ProviderSyncStatus
@@ -5116,28 +5192,6 @@ export type ServiceKeyResponse = {
      * Created By
      */
     created_by?: string | null;
-};
-
-/**
- * SetPlatformRateRequest
- */
-export type SetPlatformRateRequest = {
-    /**
-     * Platform Rate Mpaise
-     *
-     * Platform rate in millipaise per minute
-     */
-    platform_rate_mpaise: number;
-    /**
-     * Effective From
-     *
-     * Defaults to now. May be future-dated.
-     */
-    effective_from?: string | null;
-    /**
-     * Note
-     */
-    note?: string | null;
 };
 
 /**
@@ -6561,6 +6615,50 @@ export type VoicesResponse = {
      */
     voices: Array<VoiceInfo>;
     facets?: VoiceFacets | null;
+};
+
+/**
+ * VolumeTierRequest
+ */
+export type VolumeTierRequest = {
+    /**
+     * Platform Rate Micros Usd
+     *
+     * Micro-dollars per minute: $0.02 is 20000
+     */
+    platform_rate_micros_usd?: number | null;
+    /**
+     * Platform Rate Mpaise
+     *
+     * Millipaise per minute, for a contract written in rupees
+     */
+    platform_rate_mpaise?: number | null;
+    /**
+     * Pulse Seconds
+     *
+     * Billing granularity. Omit for the default.
+     */
+    pulse_seconds?: number | null;
+    /**
+     * Effective From
+     *
+     * Defaults to now. May be future-dated.
+     */
+    effective_from?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Min Period Minutes
+     *
+     * Minutes in the period at which this price starts
+     */
+    min_period_minutes: number;
 };
 
 /**
@@ -8146,54 +8244,6 @@ export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses = {
 
 export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponse = GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses[keyof GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses];
 
-export type SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutData = {
-    body: SetPlatformRateRequest;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path: {
-        /**
-         * Organization Id
-         */
-        organization_id: number;
-    };
-    query?: never;
-    url: '/api/v1/admin/billing/accounts/{organization_id}/platform-rate';
-};
-
-export type SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutError = SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutErrors[keyof SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutErrors];
-
-export type SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponses = {
-    /**
-     * Response Set Platform Rate Api V1 Admin Billing Accounts  Organization Id  Platform Rate Put
-     *
-     * Successful Response
-     */
-    200: {
-        [key: string]: unknown;
-    };
-};
-
-export type SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponse = SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponses[keyof SetPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponses];
-
 export type AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostData = {
     body: CreditAdjustmentRequest;
     headers?: {
@@ -8581,7 +8631,283 @@ export type GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetResponses = {
 
 export type GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetResponse = GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetResponses[keyof GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetResponses];
 
-export type SetExchangeRateApiV1AdminBillingExchangeRatePutData = {
+export type GetRateCardApiV1AdminBillingRateCardGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/rate-card';
+};
+
+export type GetRateCardApiV1AdminBillingRateCardGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetRateCardApiV1AdminBillingRateCardGetError = GetRateCardApiV1AdminBillingRateCardGetErrors[keyof GetRateCardApiV1AdminBillingRateCardGetErrors];
+
+export type GetRateCardApiV1AdminBillingRateCardGetResponses = {
+    /**
+     * Response Get Rate Card Api V1 Admin Billing Rate Card Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetRateCardApiV1AdminBillingRateCardGetResponse = GetRateCardApiV1AdminBillingRateCardGetResponses[keyof GetRateCardApiV1AdminBillingRateCardGetResponses];
+
+export type SetGlobalPlatformRateApiV1AdminBillingRateCardPlatformPutData = {
+    body: PlatformPriceRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/rate-card/platform';
+};
+
+export type SetGlobalPlatformRateApiV1AdminBillingRateCardPlatformPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetGlobalPlatformRateApiV1AdminBillingRateCardPlatformPutError = SetGlobalPlatformRateApiV1AdminBillingRateCardPlatformPutErrors[keyof SetGlobalPlatformRateApiV1AdminBillingRateCardPlatformPutErrors];
+
+export type SetGlobalPlatformRateApiV1AdminBillingRateCardPlatformPutResponses = {
+    /**
+     * Response Set Global Platform Rate Api V1 Admin Billing Rate Card Platform Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetGlobalPlatformRateApiV1AdminBillingRateCardPlatformPutResponse = SetGlobalPlatformRateApiV1AdminBillingRateCardPlatformPutResponses[keyof SetGlobalPlatformRateApiV1AdminBillingRateCardPlatformPutResponses];
+
+export type SetVolumeTierApiV1AdminBillingRateCardTiersPutData = {
+    body: VolumeTierRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/rate-card/tiers';
+};
+
+export type SetVolumeTierApiV1AdminBillingRateCardTiersPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetVolumeTierApiV1AdminBillingRateCardTiersPutError = SetVolumeTierApiV1AdminBillingRateCardTiersPutErrors[keyof SetVolumeTierApiV1AdminBillingRateCardTiersPutErrors];
+
+export type SetVolumeTierApiV1AdminBillingRateCardTiersPutResponses = {
+    /**
+     * Response Set Volume Tier Api V1 Admin Billing Rate Card Tiers Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetVolumeTierApiV1AdminBillingRateCardTiersPutResponse = SetVolumeTierApiV1AdminBillingRateCardTiersPutResponses[keyof SetVolumeTierApiV1AdminBillingRateCardTiersPutResponses];
+
+export type RetireVolumeTierApiV1AdminBillingRateCardTiersMinPeriodMinutesDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Min Period Minutes
+         */
+        min_period_minutes: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/rate-card/tiers/{min_period_minutes}';
+};
+
+export type RetireVolumeTierApiV1AdminBillingRateCardTiersMinPeriodMinutesDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RetireVolumeTierApiV1AdminBillingRateCardTiersMinPeriodMinutesDeleteError = RetireVolumeTierApiV1AdminBillingRateCardTiersMinPeriodMinutesDeleteErrors[keyof RetireVolumeTierApiV1AdminBillingRateCardTiersMinPeriodMinutesDeleteErrors];
+
+export type RetireVolumeTierApiV1AdminBillingRateCardTiersMinPeriodMinutesDeleteResponses = {
+    /**
+     * Response Retire Volume Tier Api V1 Admin Billing Rate Card Tiers  Min Period Minutes  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RetireVolumeTierApiV1AdminBillingRateCardTiersMinPeriodMinutesDeleteResponse = RetireVolumeTierApiV1AdminBillingRateCardTiersMinPeriodMinutesDeleteResponses[keyof RetireVolumeTierApiV1AdminBillingRateCardTiersMinPeriodMinutesDeleteResponses];
+
+export type RetireProviderRateApiV1AdminBillingRateCardProvidersDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Provider
+         */
+        provider: string;
+        /**
+         * Component
+         */
+        component: string;
+        /**
+         * Model
+         */
+        model?: string;
+    };
+    url: '/api/v1/admin/billing/rate-card/providers';
+};
+
+export type RetireProviderRateApiV1AdminBillingRateCardProvidersDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RetireProviderRateApiV1AdminBillingRateCardProvidersDeleteError = RetireProviderRateApiV1AdminBillingRateCardProvidersDeleteErrors[keyof RetireProviderRateApiV1AdminBillingRateCardProvidersDeleteErrors];
+
+export type RetireProviderRateApiV1AdminBillingRateCardProvidersDeleteResponses = {
+    /**
+     * Response Retire Provider Rate Api V1 Admin Billing Rate Card Providers Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RetireProviderRateApiV1AdminBillingRateCardProvidersDeleteResponse = RetireProviderRateApiV1AdminBillingRateCardProvidersDeleteResponses[keyof RetireProviderRateApiV1AdminBillingRateCardProvidersDeleteResponses];
+
+export type SetProviderRateApiV1AdminBillingRateCardProvidersPutData = {
+    body: ProviderRateRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/rate-card/providers';
+};
+
+export type SetProviderRateApiV1AdminBillingRateCardProvidersPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetProviderRateApiV1AdminBillingRateCardProvidersPutError = SetProviderRateApiV1AdminBillingRateCardProvidersPutErrors[keyof SetProviderRateApiV1AdminBillingRateCardProvidersPutErrors];
+
+export type SetProviderRateApiV1AdminBillingRateCardProvidersPutResponses = {
+    /**
+     * Response Set Provider Rate Api V1 Admin Billing Rate Card Providers Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetProviderRateApiV1AdminBillingRateCardProvidersPutResponse = SetProviderRateApiV1AdminBillingRateCardProvidersPutResponses[keyof SetProviderRateApiV1AdminBillingRateCardProvidersPutResponses];
+
+export type SetExchangeRateApiV1AdminBillingRateCardExchangeRatePutData = {
     body: ExchangeRateRequest;
     headers?: {
         /**
@@ -8595,10 +8921,10 @@ export type SetExchangeRateApiV1AdminBillingExchangeRatePutData = {
     };
     path?: never;
     query?: never;
-    url: '/api/v1/admin/billing/exchange-rate';
+    url: '/api/v1/admin/billing/rate-card/exchange-rate';
 };
 
-export type SetExchangeRateApiV1AdminBillingExchangeRatePutErrors = {
+export type SetExchangeRateApiV1AdminBillingRateCardExchangeRatePutErrors = {
     /**
      * Not found
      */
@@ -8609,11 +8935,11 @@ export type SetExchangeRateApiV1AdminBillingExchangeRatePutErrors = {
     422: HttpValidationError;
 };
 
-export type SetExchangeRateApiV1AdminBillingExchangeRatePutError = SetExchangeRateApiV1AdminBillingExchangeRatePutErrors[keyof SetExchangeRateApiV1AdminBillingExchangeRatePutErrors];
+export type SetExchangeRateApiV1AdminBillingRateCardExchangeRatePutError = SetExchangeRateApiV1AdminBillingRateCardExchangeRatePutErrors[keyof SetExchangeRateApiV1AdminBillingRateCardExchangeRatePutErrors];
 
-export type SetExchangeRateApiV1AdminBillingExchangeRatePutResponses = {
+export type SetExchangeRateApiV1AdminBillingRateCardExchangeRatePutResponses = {
     /**
-     * Response Set Exchange Rate Api V1 Admin Billing Exchange Rate Put
+     * Response Set Exchange Rate Api V1 Admin Billing Rate Card Exchange Rate Put
      *
      * Successful Response
      */
@@ -8622,7 +8948,55 @@ export type SetExchangeRateApiV1AdminBillingExchangeRatePutResponses = {
     };
 };
 
-export type SetExchangeRateApiV1AdminBillingExchangeRatePutResponse = SetExchangeRateApiV1AdminBillingExchangeRatePutResponses[keyof SetExchangeRateApiV1AdminBillingExchangeRatePutResponses];
+export type SetExchangeRateApiV1AdminBillingRateCardExchangeRatePutResponse = SetExchangeRateApiV1AdminBillingRateCardExchangeRatePutResponses[keyof SetExchangeRateApiV1AdminBillingRateCardExchangeRatePutResponses];
+
+export type SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutData = {
+    body: PlatformPriceRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/accounts/{organization_id}/platform-rate';
+};
+
+export type SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutError = SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutErrors[keyof SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutErrors];
+
+export type SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponses = {
+    /**
+     * Response Set Account Platform Rate Api V1 Admin Billing Accounts  Organization Id  Platform Rate Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponse = SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponses[keyof SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponses];
 
 export type GetCostPerMinuteApiV1CostEstimatePerMinutePostData = {
     body: CostEstimateRequest;

@@ -22,13 +22,20 @@ import {
 import {
     adjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPost,
     getAccountApiV1AdminBillingAccountsOrganizationIdGet,
-    setPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePut,
+    setAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePut,
 } from "@/client/sdk.gen";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import {
     Table,
     TableBody,
@@ -354,7 +361,9 @@ function RateSettingsPanel({
     rateHistory: Array<Record<string, never>>;
     onChanged: () => Promise<void>;
 }) {
+    const [currency, setCurrency] = useState<"usd" | "inr">("inr");
     const [rupees, setRupees] = useState((currentRateMpaise / 100_000).toFixed(2));
+    const [pulse, setPulse] = useState("");
     const [effectiveFrom, setEffectiveFrom] = useState("");
     const [note, setNote] = useState("");
     const [saving, setSaving] = useState(false);
@@ -365,12 +374,20 @@ function RateSettingsPanel({
         setSaving(true);
         setMessage(null);
         setFailure(null);
-        // ₹ per minute → millipaise: ×100 paise ×1000 millipaise.
-        const mpaise = Math.round(Number(rupees) * 100 * 1000);
-        const result = await setPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePut({
+        const value = Number(rupees);
+        // Exactly one currency reaches the API. A dollar price follows the
+        // exchange rate; a rupee one deliberately does not, which is the whole
+        // reason both are offered.
+        const price =
+            currency === "usd"
+                ? { platform_rate_micros_usd: Math.round(value * 1_000_000) }
+                : // ₹ per minute → millipaise: ×100 paise ×1000 millipaise.
+                  { platform_rate_mpaise: Math.round(value * 100 * 1000) };
+        const result = await setAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePut({
             path: { organization_id: organizationId },
             body: {
-                platform_rate_mpaise: mpaise,
+                ...price,
+                pulse_seconds: pulse ? Number(pulse) : null,
                 effective_from: effectiveFrom ? new Date(effectiveFrom).toISOString() : null,
                 note: note || null,
             },
@@ -395,18 +412,49 @@ function RateSettingsPanel({
                 </p>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    <div>
+                        <Label htmlFor="rate-currency" className="text-xs">
+                            Quoted in
+                        </Label>
+                        <Select
+                            value={currency}
+                            onValueChange={(v) => setCurrency(v as "usd" | "inr")}
+                        >
+                            <SelectTrigger id="rate-currency">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="inr">Rupees</SelectItem>
+                                <SelectItem value="usd">US dollars</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                     <div>
                         <Label htmlFor="rate" className="text-xs">
-                            Platform rate (₹/min)
+                            Platform rate ({currency === "usd" ? "$" : "₹"}/min)
                         </Label>
                         <Input
                             id="rate"
                             type="number"
-                            step="0.01"
+                            step={currency === "usd" ? "0.001" : "0.01"}
                             min="0"
                             value={rupees}
                             onChange={(e) => setRupees(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <Label htmlFor="rate-pulse" className="text-xs">
+                            Pulse (s)
+                        </Label>
+                        <Input
+                            id="rate-pulse"
+                            type="number"
+                            min="1"
+                            max="60"
+                            value={pulse}
+                            placeholder="default"
+                            onChange={(e) => setPulse(e.target.value)}
                         />
                     </div>
                     <div>
