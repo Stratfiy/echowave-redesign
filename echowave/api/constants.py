@@ -111,6 +111,46 @@ RESERVATION_MINUTES = int(os.getenv("RESERVATION_MINUTES", "5"))
 # call's hold puts the account back over its balance while it is still spending.
 RESERVATION_MAX_AGE_MINUTES = int(os.getenv("RESERVATION_MAX_AGE_MINUTES", "180"))
 
+# --- GST ---------------------------------------------------------------------
+#
+# Who is supplying, for the top half of every invoice. These are facts about one
+# legal entity rather than settings, but they are configuration because a
+# self-hosted or second-entity deployment supplies as somebody else, and a
+# GSTIN compiled into source is one nobody can correct without a release.
+#
+# SUPPLIER_STATE_CODE decides intra-state (CGST+SGST) versus inter-state (IGST)
+# for every domestic customer, so it is the single most consequential value
+# here. It is the first two digits of the GSTIN.
+SUPPLIER_LEGAL_NAME = os.getenv("SUPPLIER_LEGAL_NAME", "")
+SUPPLIER_GSTIN = os.getenv("SUPPLIER_GSTIN", "")
+SUPPLIER_STATE_CODE = os.getenv("SUPPLIER_STATE_CODE", "") or (
+    SUPPLIER_GSTIN[:2] if len(SUPPLIER_GSTIN) >= 2 else ""
+)
+SUPPLIER_ADDRESS = os.getenv("SUPPLIER_ADDRESS", "")
+SUPPLIER_PAN = os.getenv("SUPPLIER_PAN", "")
+
+# 18% on services, held in basis points so the rate is an exact integer and a
+# future 18.5% needs no code change. Two-slab structure since the 2025 reform;
+# software, SaaS and telecom all sit at 18%.
+GST_RATE_BASIS_POINTS = int(os.getenv("GST_RATE_BASIS_POINTS", "1800"))
+
+# SAC printed on the invoice. Defaulted rather than fixed because the right code
+# for a voice-AI platform is a judgement between IT services and
+# telecommunications — confirm it with your accountant before the first filing.
+SUPPLIER_SAC_CODE = os.getenv("SUPPLIER_SAC_CODE", "998314")
+
+# Whether a Letter of Undertaking is on file. Without one an export is not
+# zero-rated — IGST is payable and reclaimed by refund — so this defaults to
+# false and exports are refused rather than silently invoiced at zero.
+SUPPLIER_HAS_LUT = os.getenv("SUPPLIER_HAS_LUT", "false").lower() == "true"
+SUPPLIER_LUT_NUMBER = os.getenv("SUPPLIER_LUT_NUMBER", "")
+
+# Document number prefixes. GST requires a consecutive serial unique within a
+# financial year, at most 16 characters, so these are short by necessity:
+# "INV/26-27/000001" is exactly 16.
+INVOICE_NUMBER_PREFIX = os.getenv("INVOICE_NUMBER_PREFIX", "INV")
+RECEIPT_NUMBER_PREFIX = os.getenv("RECEIPT_NUMBER_PREFIX", "RV")
+
 # Fernet key encrypting the platform's own provider API keys at rest. Generate
 # with: python -c "from cryptography.fernet import Fernet;
 # print(Fernet.generate_key().decode())"

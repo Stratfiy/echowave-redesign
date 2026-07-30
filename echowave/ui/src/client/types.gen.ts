@@ -747,6 +747,56 @@ export type BatchRecordingUploadResponseSchema = {
 };
 
 /**
+ * BillingProfileRequest
+ *
+ * Who the invoice is made out to.
+ *
+ * Replaces the profile wholesale rather than patching field by field: a
+ * partial update leaving a stale state code beside a new GSTIN is exactly the
+ * inconsistency that changes which tax the customer is charged.
+ */
+export type BillingProfileRequest = {
+    /**
+     * Legal Name
+     */
+    legal_name?: string | null;
+    /**
+     * Gstin
+     */
+    gstin?: string | null;
+    /**
+     * Address Line1
+     */
+    address_line1?: string | null;
+    /**
+     * Address Line2
+     */
+    address_line2?: string | null;
+    /**
+     * City
+     */
+    city?: string | null;
+    /**
+     * State Code
+     *
+     * Two-digit GST state code, e.g. 29
+     */
+    state_code?: string | null;
+    /**
+     * Postal Code
+     */
+    postal_code?: string | null;
+    /**
+     * Country Code
+     */
+    country_code?: string;
+    /**
+     * Billing Email
+     */
+    billing_email?: string | null;
+};
+
+/**
  * Body_transcribe_audio_api_v1_workflow_recordings_transcribe_post
  */
 export type BodyTranscribeAudioApiV1WorkflowRecordingsTranscribePost = {
@@ -6018,7 +6068,7 @@ export type TopupRequest = {
     /**
      * Amount Paise
      *
-     * Amount to add, in paise. ₹500 is 50000.
+     * Credit to buy, in paise, net of GST. ₹500 is 50000. Tax is added on top of this at checkout.
      */
     amount_paise: number;
 };
@@ -9863,6 +9913,183 @@ export type CreateTopupApiV1BillingTopupPostResponses = {
 };
 
 export type CreateTopupApiV1BillingTopupPostResponse = CreateTopupApiV1BillingTopupPostResponses[keyof CreateTopupApiV1BillingTopupPostResponses];
+
+export type GetBillingProfileApiV1BillingProfileGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/profile';
+};
+
+export type GetBillingProfileApiV1BillingProfileGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetBillingProfileApiV1BillingProfileGetError = GetBillingProfileApiV1BillingProfileGetErrors[keyof GetBillingProfileApiV1BillingProfileGetErrors];
+
+export type GetBillingProfileApiV1BillingProfileGetResponses = {
+    /**
+     * Response Get Billing Profile Api V1 Billing Profile Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetBillingProfileApiV1BillingProfileGetResponse = GetBillingProfileApiV1BillingProfileGetResponses[keyof GetBillingProfileApiV1BillingProfileGetResponses];
+
+export type SaveBillingProfileApiV1BillingProfilePutData = {
+    body: BillingProfileRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/profile';
+};
+
+export type SaveBillingProfileApiV1BillingProfilePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveBillingProfileApiV1BillingProfilePutError = SaveBillingProfileApiV1BillingProfilePutErrors[keyof SaveBillingProfileApiV1BillingProfilePutErrors];
+
+export type SaveBillingProfileApiV1BillingProfilePutResponses = {
+    /**
+     * Response Save Billing Profile Api V1 Billing Profile Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SaveBillingProfileApiV1BillingProfilePutResponse = SaveBillingProfileApiV1BillingProfilePutResponses[keyof SaveBillingProfileApiV1BillingProfilePutResponses];
+
+export type ListTaxDocumentsApiV1BillingDocumentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/documents';
+};
+
+export type ListTaxDocumentsApiV1BillingDocumentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTaxDocumentsApiV1BillingDocumentsGetError = ListTaxDocumentsApiV1BillingDocumentsGetErrors[keyof ListTaxDocumentsApiV1BillingDocumentsGetErrors];
+
+export type ListTaxDocumentsApiV1BillingDocumentsGetResponses = {
+    /**
+     * Response List Tax Documents Api V1 Billing Documents Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListTaxDocumentsApiV1BillingDocumentsGetResponse = ListTaxDocumentsApiV1BillingDocumentsGetResponses[keyof ListTaxDocumentsApiV1BillingDocumentsGetResponses];
+
+export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: number;
+    };
+    query?: never;
+    url: '/api/v1/billing/documents/{document_id}';
+};
+
+export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetError = GetTaxDocumentApiV1BillingDocumentsDocumentIdGetErrors[keyof GetTaxDocumentApiV1BillingDocumentsDocumentIdGetErrors];
+
+export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses = {
+    /**
+     * Response Get Tax Document Api V1 Billing Documents  Document Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponse = GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses[keyof GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses];
 
 export type ListPaymentsApiV1BillingPaymentsGetData = {
     body?: never;

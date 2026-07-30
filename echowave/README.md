@@ -75,7 +75,13 @@ dashboard under **Billing → Rate card**.
 
 Accounts are **prepaid**: credit is bought up front from **Billing**, and usage
 draws it down. Only a signature-verified Razorpay webhook credits an account —
-never the browser reporting success.
+never the browser reporting success. A run on an account with no credit is
+refused, and each live call holds an estimate so concurrent calls cannot spend
+the same rupee twice.
+
+GST is added on top of the credit price and never enters the ledger, which stays
+tax-exclusive end to end. Each payment produces a receipt voucher and each month
+a tax invoice for actual usage; supply outside India is zero-rated under LUT.
 
 ## Support
 

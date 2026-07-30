@@ -2112,9 +2112,19 @@ class PaymentModel(Base):
     # Set when the payment succeeds. Unique when present, which is what makes a
     # duplicate webhook a no-op rather than a second credit.
     payment_id = Column(String(64), nullable=True)
-    # What we asked for. The webhook's amount is checked against this rather
-    # than trusted, so a tampered payload cannot credit more than was paid.
+    # Credit bought, net of GST. This is what reaches the ledger, and the ledger
+    # is GST-exclusive throughout — see services/billing/tax.py.
     amount_paise = Column(BigInteger, nullable=False)
+    # What the customer is actually charged: amount_paise plus tax. The webhook
+    # checks the payload against *this*, because this is what Razorpay collected.
+    # Equal to amount_paise for a zero-rated export.
+    gross_paise = Column(BigInteger, nullable=True)
+    # Tax within gross_paise, split for the receipt voucher. Nullable because
+    # payments taken before GST existed have no split to record, which is not
+    # the same as a split of zero.
+    cgst_paise = Column(BigInteger, nullable=True)
+    sgst_paise = Column(BigInteger, nullable=True)
+    igst_paise = Column(BigInteger, nullable=True)
     # created | paid | failed
     status = Column(String(16), nullable=False, default="created")
     # The ledger row this produced, so a payment and its credit can be walked
@@ -2172,4 +2182,176 @@ class BillingAuditLogModel(Base):
     __table_args__ = (
         Index("ix_billing_audit_org_created", "organization_id", "created_at"),
         Index("ix_billing_audit_action", "action"),
+    )
+
+
+class BillingProfileModel(Base):
+    """Who an account is, for tax purposes.
+
+    Separate from the organization because it answers a different question. The
+    organization is who logs in; this is who the invoice is made out to, and the
+    two are routinely different — an agency logs in, its holding company is
+    billed.
+
+    ``state_code`` is the consequential field: for a domestic customer it
+    decides CGST+SGST versus IGST, so a wrong value means the right total split
+    the wrong way, which is a filing correction rather than a display bug.
+    """
+
+    __tablename__ = "billing_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+
+    # Name on the invoice. Not the organization's display name — that is a
+    # workspace label people rename freely, and an invoice cannot be.
+    legal_name = Column(String(256), nullable=True)
+    # Null for an unregistered customer, who is still billed and still invoiced.
+    gstin = Column(String(15), nullable=True)
+
+    address_line1 = Column(String(256), nullable=True)
+    address_line2 = Column(String(256), nullable=True)
+    city = Column(String(128), nullable=True)
+    # Two-digit GST state code, not a name. "29", never "Karnataka" — a name
+    # cannot be compared against the supplier's state without a lookup table
+    # that would then be a second place to get it wrong.
+    state_code = Column(String(2), nullable=True)
+    postal_code = Column(String(16), nullable=True)
+    # ISO 3166-1 alpha-2. Anything other than IN is an export.
+    country_code = Column(String(2), nullable=False, default="IN")
+
+    # Where documents are sent, when that is not the account owner's address.
+    billing_email = Column(String(320), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+
+
+class DocumentSequenceModel(Base):
+    """The last number issued in a document series.
+
+    GST requires a consecutive serial, unique within a financial year, with no
+    gaps. A gap has to be explained; two documents sharing a number is worse.
+    So numbers come from here under a row lock rather than from a count of
+    existing documents, which races, or from a database sequence, which is
+    explicitly allowed to skip.
+    """
+
+    __tablename__ = "document_sequences"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # tax_invoice | receipt_voucher
+    kind = Column(String(24), nullable=False)
+    # Indian financial year, April to March, as "26-27".
+    financial_year = Column(String(5), nullable=False)
+    last_number = Column(Integer, nullable=False, default=0)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("kind", "financial_year", name="uq_document_sequence"),
+    )
+
+
+class TaxDocumentModel(Base):
+    """A receipt voucher or a tax invoice, as issued.
+
+    Two documents because GST requires two. A prepaid top-up is an advance, and
+    for services the time of supply is the earlier of invoice or payment — so
+    tax falls due when the money arrives, evidenced by a **receipt voucher**.
+    The **tax invoice** follows when the service is actually supplied, monthly,
+    against measured usage, and adjusts the advance already taxed.
+
+    Every figure is stored, never derived at render time. An issued document is
+    a statement about a moment: the customer's address, our address, the rate
+    and the split were all what they were on the day. Recomputing any of it
+    from current data would silently rewrite history the first time a customer
+    moves office or a rate changes.
+    """
+
+    __tablename__ = "tax_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # tax_invoice | receipt_voucher
+    kind = Column(String(24), nullable=False)
+    # The serial as printed, e.g. "INV/26-27/000001".
+    number = Column(String(32), nullable=False)
+    financial_year = Column(String(5), nullable=False)
+    issued_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    # Billing period, for an invoice. Null on a receipt voucher, which covers a
+    # payment rather than a stretch of time.
+    period_start = Column(Date, nullable=True)
+    period_end = Column(Date, nullable=True)
+
+    taxable_paise = Column(BigInteger, nullable=False)
+    cgst_paise = Column(BigInteger, nullable=False, default=0)
+    sgst_paise = Column(BigInteger, nullable=False, default=0)
+    igst_paise = Column(BigInteger, nullable=False, default=0)
+    total_paise = Column(BigInteger, nullable=False)
+    # intra_state | inter_state | export
+    supply_type = Column(String(16), nullable=False)
+    place_of_supply = Column(String(8), nullable=True)
+    rate_basis_points = Column(Integer, nullable=False)
+
+    # Frozen copies of both parties and the line items, as of issue.
+    supplier_snapshot = Column(JSON, nullable=False, default=dict)
+    customer_snapshot = Column(JSON, nullable=False, default=dict)
+    line_items = Column(JSON, nullable=False, default=list)
+
+    # The payment a receipt voucher acknowledges.
+    payment_id = Column(
+        Integer, ForeignKey("payments.id", ondelete="SET NULL"), nullable=True
+    )
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    organization = relationship("OrganizationModel")
+    payment = relationship("PaymentModel")
+
+    __table_args__ = (
+        # A number identifies exactly one document. The series is per financial
+        # year, so the year is part of the key.
+        UniqueConstraint(
+            "kind", "financial_year", "number", name="uq_tax_document_number"
+        ),
+        # One invoice per account per period. Without this a retried monthly run
+        # issues a second invoice for a month already invoiced, and a duplicate
+        # invoice is a filing correction rather than a deletion.
+        Index(
+            "uq_tax_invoice_period",
+            "organization_id",
+            "kind",
+            "period_start",
+            unique=True,
+            postgresql_where=text("kind = 'tax_invoice' AND period_start IS NOT NULL"),
+        ),
+        # One receipt voucher per payment.
+        Index(
+            "uq_receipt_voucher_payment",
+            "payment_id",
+            unique=True,
+            postgresql_where=text(
+                "kind = 'receipt_voucher' AND payment_id IS NOT NULL"
+            ),
+        ),
+        Index("ix_tax_documents_org_issued", "organization_id", "issued_at"),
     )

@@ -49,6 +49,7 @@ from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
 from api.tasks.billing_rollup import refresh_billing_rollups
 from api.tasks.credit_reservations import sweep_credit_reservations
 from api.tasks.kyc_carrier_poll import poll_kyc_carrier_status
+from api.tasks.tax_invoices import issue_monthly_tax_invoices
 from api.tasks.workflow_completion import process_workflow_completion
 
 
@@ -63,6 +64,7 @@ class WorkerSettings:
         refresh_billing_rollups,
         poll_kyc_carrier_status,
         sweep_credit_reservations,
+        issue_monthly_tax_invoices,
     ]
     cron_jobs = [
         # Safety net for webhook deliveries whose ARQ job was lost (worker
@@ -105,6 +107,19 @@ class WorkerSettings:
             minute=set(range(0, 60, 5)),
             second=45,
             run_at_startup=True,
+        ),
+        # Tax invoices for the month just ended. 20:30 UTC on the 1st is 02:00
+        # IST on the 2nd — a day and a half after the month closes in IST, so
+        # calls from the last hours of the 31st have been costed. Invoicing at
+        # midnight would miss a customer's final evening, which is exactly the
+        # invoice they query.
+        cron(
+            issue_monthly_tax_invoices,
+            day={1},
+            hour={20},
+            minute={30},
+            second=0,
+            run_at_startup=False,
         ),
     ]
     redis_settings = REDIS_SETTINGS

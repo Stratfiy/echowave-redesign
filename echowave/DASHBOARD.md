@@ -445,6 +445,93 @@ to probe.
 
 ---
 
+## GST
+
+`api/services/billing/tax.py` and `api/services/billing/documents.py`. The rule
+that keeps tax from contaminating everything else:
+
+> **The credit ledger is entirely GST-exclusive.**
+
+Credit is bought net of tax, usage debits net of tax, the rate card is quoted
+net of tax. GST touches exactly two things — the amount charged at the payment
+gateway, and the documents issued. Nothing in `cost_engine`, `rates`,
+`reservations` or `costing` knows this exists.
+
+That is also what makes the arithmetic survivable. A customer paying ₹1,180 is
+credited ₹1,000; consuming ₹500 of that produces a tax invoice for ₹500 + ₹90,
+and the ₹90 was already collected inside the ₹180. **Nothing is taxed twice
+because only one of those numbers is ever money in the ledger.**
+
+### Place of supply
+
+| Customer | Tax | Why it differs |
+|---|---|---|
+| Our own state | CGST 9% + SGST 9% | Two taxes to two governments, not one by another name |
+| Another Indian state | IGST 18% | One tax |
+| Outside India | Zero-rated export | Not exempt — supplied under an LUT, still reported, input credit still claimed |
+
+A missing country is treated as **domestic**, deliberately: charging GST where
+none was due is a refund, while failing to charge it where it was due is our
+liability plus interest. An export with no LUT on file is **refused** rather
+than silently zero-rated — that understates a liability that is ours, and it is
+fixed by filing the LUT, not in code.
+
+The total tax is rounded **once** and then split between CGST and SGST, with the
+remainder going to the second half. Computing each half from the taxable value
+rounds twice and can leave an invoice a paise away from 18% of itself — parts
+that don't sum to the total is what a tax officer asks about.
+
+### Two documents
+
+GST requires both, because for services the time of supply is the earlier of
+invoice or payment:
+
+| Document | When | What it says |
+|---|---|---|
+| **Receipt voucher** | Each captured payment, in the same transaction as the credit | An advance was received and tax fell due on it |
+| **Tax invoice** | Monthly, for the month just ended | What the advance was actually consumed against |
+
+The monthly run is a cron on the 1st at 20:30 UTC — 02:00 IST on the 2nd, a day
+and a half after the IST month closes so calls from the last hours of the 31st
+have been costed. It commits **per account**: one session for the whole platform
+would let a single unbillable profile roll back everyone else's invoices, and
+the serial numbers with them.
+
+**Numbering** is allocated from a locked row in `document_sequences`, not from a
+count of existing documents (races) or a database sequence (allowed to skip on
+rollback). GST wants a consecutive serial, unique per financial year, at most 16
+characters — `INV/26-27/000001` is exactly 16. The Indian financial year runs
+April to March, so a January invoice belongs to the year that started the
+previous April.
+
+**Every figure is frozen at issue.** Supplier details, customer details, the
+rate and the split are all stored on the document. Rendering from live data
+would rewrite every past invoice the first time a customer moves office.
+
+### What an operator must set
+
+| Variable | Without it |
+|---|---|
+| `SUPPLIER_LEGAL_NAME`, `SUPPLIER_GSTIN` | No document is issued. A captured payment still credits and is logged loudly — a real payment must not be rolled back over a missing environment variable. |
+| `SUPPLIER_STATE_CODE` | Defaults to the first two digits of the GSTIN. Decides CGST+SGST vs IGST for every domestic customer, so it is the most consequential value here. |
+| `SUPPLIER_HAS_LUT`, `SUPPLIER_LUT_NUMBER` | Exports are refused rather than zero-rated. |
+| `SUPPLIER_SAC_CODE` | Defaults to `998314`. The right code for a voice-AI platform is a judgement between IT services and telecommunications — confirm it with your accountant. |
+| `GST_RATE_BASIS_POINTS` | Defaults to `1800` (18%). |
+
+Values containing spaces **must be quoted** in `.env` — `source` splits on
+whitespace and silently leaves the variable empty otherwise.
+
+**Your own provider bills are not a cost item here.** OpenAI, Deepgram and Plivo
+are imports of services: 18% IGST is self-assessed under reverse charge and
+reclaimed as input credit the same month. Cash-flow timing only, so the
+unit-economics figures above are already the right margin.
+
+**Not built:** e-invoicing (IRN generation via the IRP), mandatory above ₹5
+crore aggregate turnover. Credit notes are also absent — a refund is issued from
+the Razorpay dashboard and reflected with a staff credit adjustment.
+
+---
+
 ## Not letting anyone spend what they don't have
 
 The other half of prepaid. `api/services/billing/reservations.py`.
@@ -510,10 +597,15 @@ is money).
   Every provider implements `get_call_cost()`, which returns what the carrier
   actually charged, and nothing calls it. Telephony cost is therefore our rate
   row times measured seconds, which is close but is not the real number.
-* **Spend alerts.** Nothing warns an account that it is running low; it simply
-  stops being able to call. The balance is on the Billing screen and a run is
-  refused with a message naming the fix, but a customer mid-campaign finds out
-  by the campaign stopping.
+* **Spend alerts by email.** The Billing screen turns amber below one minimum
+  top-up and a refused run says what the fix is, but nothing reaches a customer
+  who is not looking at the screen — someone mid-campaign still finds out by the
+  campaign stopping.
+* **Document PDFs and e-invoicing.** Tax documents are issued and readable
+  through the API, but there is no rendered PDF and no IRN generation via the
+  IRP. E-invoicing becomes mandatory above ₹5 crore aggregate turnover.
+* **Credit notes.** A refund is issued from the Razorpay dashboard and reflected
+  with a staff credit adjustment; no credit note document is produced.
 * **Number provisioning.** `telephony_configurations.is_platform_managed` is
   the flag the KYC gate keys on, and nothing sets it yet — buying and assigning
   numbers under our own carrier account does not exist, so the gate is correct

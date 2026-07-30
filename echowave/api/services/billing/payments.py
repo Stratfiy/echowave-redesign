@@ -45,6 +45,8 @@ from api.constants import (
 )
 from api.db.models import CreditLedgerModel, PaymentModel
 from api.enums import CreditLedgerKind
+from api.services.billing.billing_profile import get_profile
+from api.services.billing.tax import TaxError, compute_tax
 
 PROVIDER = "razorpay"
 
@@ -75,10 +77,16 @@ class TopupOrder:
 
     ``key_id`` is the publishable key and is safe to send. The API secret and
     the webhook secret never leave the server.
+
+    Two amounts, and confusing them is a factor-of-1.18 error in either
+    direction. ``amount_paise`` is the credit bought; ``gross_paise`` is what
+    the card is charged, and it is the one that goes to Razorpay.
     """
 
     order_id: str
     amount_paise: int
+    gross_paise: int
+    tax_paise: int
     currency: str
     key_id: str
 
@@ -101,6 +109,12 @@ async def create_topup_order(
 ) -> TopupOrder:
     """Ask Razorpay for an order and record our side of it.
 
+    ``amount_paise`` is the **credit** the customer is buying, net of GST. The
+    card is charged that plus tax. Keeping the argument net rather than gross is
+    deliberate: every other amount in this codebase is net, and a single
+    function taking a gross one would be the place someone eventually credits a
+    tax-inclusive figure to the ledger.
+
     The row is written before the customer pays, so the webhook that arrives
     later has something to reconcile against and cannot be the first thing that
     tells us an order existed.
@@ -115,17 +129,37 @@ async def create_topup_order(
             "Contact us for a larger amount."
         )
 
+    profile = await get_profile(session, organization_id=organization_id)
+    try:
+        tax = compute_tax(
+            taxable_paise=amount_paise,
+            country_code=profile.country_code,
+            state_code=profile.state_code,
+        )
+    except TaxError as exc:
+        # An export with no LUT on file lands here. Surfaced rather than
+        # swallowed: it is fixed by filing the LUT, not by charging the customer
+        # something we cannot invoice.
+        raise PaymentError(str(exc)) from exc
+
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             response = await client.post(
                 f"{RAZORPAY_API_BASE}/orders",
                 auth=(key_id, key_secret),
                 json={
-                    "amount": amount_paise,
+                    # Gross. Razorpay collects what the customer owes, tax
+                    # included; the ledger gets the net figure separately.
+                    "amount": tax.total_paise,
                     "currency": "INR",
-                    # Lets Razorpay's own dashboard show which account paid,
-                    # which is the first thing anyone reconciling looks for.
-                    "notes": {"organization_id": str(organization_id)},
+                    # Lets Razorpay's own dashboard show which account paid and
+                    # what the split was, which is the first thing anyone
+                    # reconciling a settlement against a return looks for.
+                    "notes": {
+                        "organization_id": str(organization_id),
+                        "credit_paise": str(amount_paise),
+                        "tax_paise": str(tax.tax_paise),
+                    },
                 },
             )
     except httpx.HTTPError as exc:
@@ -151,6 +185,10 @@ async def create_topup_order(
             provider=PROVIDER,
             order_id=order_id,
             amount_paise=amount_paise,
+            gross_paise=tax.total_paise,
+            cgst_paise=tax.cgst_paise,
+            sgst_paise=tax.sgst_paise,
+            igst_paise=tax.igst_paise,
             status="created",
             created_by=created_by,
         )
@@ -158,14 +196,17 @@ async def create_topup_order(
     await session.flush()
 
     logger.info(
-        "Top-up order {} created for org {} ({} paise)",
+        "Top-up order {} created for org {}: {} paise credit, {} paise charged",
         order_id,
         organization_id,
         amount_paise,
+        tax.total_paise,
     )
     return TopupOrder(
         order_id=order_id,
         amount_paise=amount_paise,
+        gross_paise=tax.total_paise,
+        tax_paise=tax.tax_paise,
         currency="INR",
         key_id=key_id,
     )
@@ -269,20 +310,47 @@ async def handle_webhook(
         return {"status": "already_credited", "order_id": order_id}
 
     paid_paise = int(entity.get("amount") or 0)
-    # Credit the lesser of the two, which is safe in both directions: a payload
-    # claiming more than the order is capped at the order (an inflated amount
-    # would otherwise be free credit), and a partial capture is capped at what
-    # was actually paid.
-    credited = min(paid_paise, payment.amount_paise) if paid_paise else 0
-    if paid_paise != payment.amount_paise:
+
+    # Two amounts, and the comparison must use the right one. Razorpay collected
+    # the **gross** figure — credit plus tax — so that is what the payload is
+    # checked against. What reaches the ledger is the **net** credit, because
+    # the tax within the payment is the government's, not the customer's to
+    # spend on calls. Comparing the payload against the net amount would reject
+    # every correctly-taxed payment as an 18% overpayment.
+    #
+    # Falls back to the net amount for rows written before GST existed, where
+    # gross and net were the same number.
+    expected_gross = int(payment.gross_paise or payment.amount_paise)
+    tax_paise = expected_gross - int(payment.amount_paise)
+
+    if paid_paise <= 0:
+        raise PaymentError("Refusing to credit a non-positive amount")
+
+    if paid_paise > expected_gross:
+        # A payload claiming more than the order. Capped, and loud: this is
+        # either a tampered webhook or a genuine mismatch worth a human.
         logger.error(
-            "Razorpay webhook amount {} does not match order {} amount {}; "
-            "crediting {}",
+            "Razorpay webhook amount {} exceeds order {} gross {}; crediting the "
+            "order amount",
             paid_paise,
             order_id,
-            payment.amount_paise,
-            credited,
+            expected_gross,
         )
+        credited = int(payment.amount_paise)
+    elif paid_paise < expected_gross:
+        # A partial capture. Credit what was actually paid, net of the tax
+        # proportion already accounted for, so an underpayment cannot buy full
+        # credit.
+        logger.error(
+            "Razorpay webhook amount {} is short of order {} gross {}; crediting "
+            "the shortfall net of tax",
+            paid_paise,
+            order_id,
+            expected_gross,
+        )
+        credited = max(0, paid_paise - tax_paise)
+    else:
+        credited = int(payment.amount_paise)
 
     if credited <= 0:
         raise PaymentError("Refusing to credit a non-positive amount")
@@ -309,11 +377,21 @@ async def handle_webhook(
     payment.credit_ledger_id = entry.id
     await session.flush()
 
+    # The advance is taxable on receipt, so the voucher belongs to this
+    # transaction rather than to a later job. It returns None rather than
+    # raising when the supplier identity is unconfigured: a payment that
+    # succeeded must not be rolled back over a missing environment variable, and
+    # the document can be issued afterwards.
+    from api.services.billing.documents import issue_receipt_voucher
+
+    voucher = await issue_receipt_voucher(session, payment=payment)
+
     logger.info(
-        "Credited org {} with {} paise from Razorpay payment {}",
+        "Credited org {} with {} paise from Razorpay payment {}{}",
         payment.organization_id,
         credited,
         payment_id,
+        f" (voucher {voucher.number})" if voucher else "",
     )
     return {
         "status": "credited",
@@ -350,7 +428,18 @@ async def list_payments(
             "id": r.id,
             "order_id": r.order_id,
             "payment_id": r.payment_id,
+            # Credit bought and total charged. Both shown, because a customer
+            # reconciling a card statement is looking for the gross figure while
+            # one reconciling their balance is looking for the net one.
             "amount_paise": r.amount_paise,
+            "gross_paise": r.gross_paise
+            if r.gross_paise is not None
+            else r.amount_paise,
+            "tax_paise": (
+                int(r.gross_paise) - int(r.amount_paise)
+                if r.gross_paise is not None
+                else 0
+            ),
             "status": r.status,
             "created_at": r.created_at.isoformat() if r.created_at else None,
             "paid_at": r.paid_at.isoformat() if r.paid_at else None,

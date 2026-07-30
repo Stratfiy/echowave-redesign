@@ -30,7 +30,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
     createTopupApiV1BillingTopupPost,
     getBalanceApiV1BillingBalanceGet,
+    getBillingProfileApiV1BillingProfileGet,
     listPaymentsApiV1BillingPaymentsGet,
+    listTaxDocumentsApiV1BillingDocumentsGet,
+    saveBillingProfileApiV1BillingProfilePut,
 } from "@/client/sdk.gen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,16 +69,62 @@ type Balance = {
     topups_enabled: boolean;
     min_topup_paise: number;
     max_topup_paise: number;
+    gst_rate_basis_points: number;
+    is_export: boolean;
+    billing_profile_complete: boolean;
 };
 
 type Payment = {
     id: number;
     order_id: string;
     payment_id: string | null;
+    /** Credit bought, net of GST. */
     amount_paise: number;
+    /** What the card was charged. */
+    gross_paise: number;
+    tax_paise: number;
     status: string;
     created_at: string | null;
     paid_at: string | null;
+};
+
+type BillingProfileFields = {
+    legal_name: string | null;
+    gstin: string | null;
+    address_line1: string | null;
+    address_line2: string | null;
+    city: string | null;
+    state_code: string | null;
+    postal_code: string | null;
+    country_code: string;
+    billing_email: string | null;
+};
+
+type TaxDocument = {
+    id: number;
+    kind: string;
+    number: string;
+    issued_at: string | null;
+    period_start: string | null;
+    period_end: string | null;
+    taxable_paise: number;
+    cgst_paise: number;
+    sgst_paise: number;
+    igst_paise: number;
+    total_paise: number;
+    supply_type: string;
+};
+
+const EMPTY_PROFILE: BillingProfileFields = {
+    legal_name: "",
+    gstin: "",
+    address_line1: "",
+    address_line2: "",
+    city: "",
+    state_code: "",
+    postal_code: "",
+    country_code: "IN",
+    billing_email: "",
 };
 
 type RazorpayOptions = {
@@ -166,12 +215,19 @@ export default function BillingPage() {
     const [amountRupees, setAmountRupees] = useState("2000");
     const [starting, setStarting] = useState(false);
     const [awaitingCredit, setAwaitingCredit] = useState(false);
+    const [profile, setProfile] = useState<BillingProfileFields>(EMPTY_PROFILE);
+    const [profileComplete, setProfileComplete] = useState(true);
+    const [savingProfile, setSavingProfile] = useState(false);
+    const [documents, setDocuments] = useState<TaxDocument[]>([]);
 
     const refresh = useCallback(async () => {
-        const [balanceResponse, paymentsResponse] = await Promise.all([
-            getBalanceApiV1BillingBalanceGet(),
-            listPaymentsApiV1BillingPaymentsGet(),
-        ]);
+        const [balanceResponse, paymentsResponse, profileResponse, documentsResponse] =
+            await Promise.all([
+                getBalanceApiV1BillingBalanceGet(),
+                listPaymentsApiV1BillingPaymentsGet(),
+                getBillingProfileApiV1BillingProfileGet(),
+                listTaxDocumentsApiV1BillingDocumentsGet(),
+            ]);
 
         if (balanceResponse.error) {
             setError(
@@ -192,9 +248,64 @@ export default function BillingPage() {
             ((paymentsResponse.data as unknown as { payments: Payment[] }).payments) ??
                 [],
         );
+
+        if (!profileResponse.error) {
+            const loaded = profileResponse.data as unknown as {
+                profile: BillingProfileFields;
+                is_complete: boolean;
+            };
+            // Nulls become empty strings: a controlled input handed null flips
+            // to uncontrolled and React drops the value on the next render.
+            setProfile({
+                ...EMPTY_PROFILE,
+                ...Object.fromEntries(
+                    Object.entries(loaded.profile).map(([k, v]) => [k, v ?? ""]),
+                ),
+                country_code: loaded.profile.country_code || "IN",
+            });
+            setProfileComplete(loaded.is_complete);
+        }
+        if (!documentsResponse.error) {
+            setDocuments(
+                (documentsResponse.data as unknown as { documents: TaxDocument[] })
+                    .documents ?? [],
+            );
+        }
+
         setError(null);
         return next;
     }, []);
+
+    const saveProfile = useCallback(async () => {
+        setError(null);
+        setNotice(null);
+        setSavingProfile(true);
+        try {
+            const response = await saveBillingProfileApiV1BillingProfilePut({
+                body: {
+                    legal_name: profile.legal_name || null,
+                    gstin: profile.gstin || null,
+                    address_line1: profile.address_line1 || null,
+                    address_line2: profile.address_line2 || null,
+                    city: profile.city || null,
+                    state_code: profile.state_code || null,
+                    postal_code: profile.postal_code || null,
+                    country_code: profile.country_code || "IN",
+                    billing_email: profile.billing_email || null,
+                },
+            });
+            if (response.error) {
+                setError(
+                    detailFromError(response.error, "Could not save your billing details"),
+                );
+                return;
+            }
+            setNotice("Billing details saved.");
+            await refresh();
+        } finally {
+            setSavingProfile(false);
+        }
+    }, [profile, refresh]);
 
     useEffect(() => {
         if (authLoading || !user || hasFetched.current) return;
@@ -271,6 +382,8 @@ export default function BillingPage() {
             const order = response.data as unknown as {
                 order_id: string;
                 amount_paise: number;
+                gross_paise: number;
+                tax_paise: number;
                 currency: string;
                 key_id: string;
             };
@@ -284,7 +397,10 @@ export default function BillingPage() {
 
             new Checkout({
                 key: order.key_id,
-                amount: order.amount_paise,
+                // Gross, not the credit amount. Passing amount_paise here would
+                // show the customer a figure 18% below what the order was
+                // created for, and Razorpay would reject the mismatch.
+                amount: order.gross_paise,
                 currency: order.currency,
                 order_id: order.order_id,
                 name: "Decibyl",
@@ -333,6 +449,16 @@ export default function BillingPage() {
     // it. One minimum top-up's worth of runway is enough notice to act on.
     const runningLow =
         !outOfCredit && balancePaise < (balance?.min_topup_paise ?? 0);
+
+    // What the card will actually be charged, shown before the customer clicks
+    // pay. Discovering the tax at the card form reads as a surprise fee.
+    const gstRate = (balance?.gst_rate_basis_points ?? 0) / 100;
+    const enteredPaise = Math.round((Number(amountRupees) || 0) * 100);
+    const taxPaise = Math.round((enteredPaise * (balance?.gst_rate_basis_points ?? 0)) / 10_000);
+    const payablePaise = enteredPaise + taxPaise;
+
+    const setProfileField = (field: keyof BillingProfileFields, value: string) =>
+        setProfile((current) => ({ ...current, [field]: value }));
 
     return (
         <div className="mx-auto max-w-4xl space-y-8 p-6">
@@ -460,13 +586,264 @@ export default function BillingPage() {
                             </Button>
                         </div>
 
+                        {/* The whole point of showing this: the customer sees
+                            what the card will be charged before they click,
+                            rather than discovering the tax at the card form. */}
+                        {enteredPaise > 0 && (
+                            <dl className="mt-4 max-w-xs space-y-1.5 border-t pt-3 text-sm">
+                                <div className="flex justify-between">
+                                    <dt className="text-muted-foreground">Credit</dt>
+                                    <dd className="tabular-nums">
+                                        {formatPaise(enteredPaise)}
+                                    </dd>
+                                </div>
+                                <div className="flex justify-between">
+                                    <dt className="text-muted-foreground">
+                                        {balance?.is_export
+                                            ? "GST (zero-rated export)"
+                                            : `GST @ ${gstRate}%`}
+                                    </dt>
+                                    <dd className="tabular-nums">
+                                        {formatPaise(taxPaise)}
+                                    </dd>
+                                </div>
+                                <div className="flex justify-between border-t pt-1.5 font-medium">
+                                    <dt>You pay</dt>
+                                    <dd className="tabular-nums">
+                                        {formatPaise(payablePaise)}
+                                    </dd>
+                                </div>
+                            </dl>
+                        )}
+
                         <p className="mt-3 text-xs text-muted-foreground">
                             Between {formatPaise(balance?.min_topup_paise ?? 0)} and{" "}
-                            {formatPaise(balance?.max_topup_paise ?? 0)} per payment.
-                            Credit appears once your bank confirms the payment, which
-                            is usually within seconds. GST is charged as applicable.
+                            {formatPaise(balance?.max_topup_paise ?? 0)} of credit per
+                            payment. Credit appears once your bank confirms the
+                            payment, which is usually within seconds.
                         </p>
+
+                        {!profileComplete && (
+                            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                                Add your billing details below so we can issue a
+                                proper tax invoice for this payment.
+                            </p>
+                        )}
                     </>
+                )}
+            </section>
+
+            <section className="rounded-xl border bg-card p-6">
+                <h2 className="text-lg font-medium">Billing details</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                    Who your invoices are made out to. Your state decides whether
+                    GST is charged as CGST + SGST or as IGST, so it has to match
+                    your GSTIN.
+                </p>
+
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                        <Label htmlFor="legal-name">Registered business name</Label>
+                        <Input
+                            id="legal-name"
+                            value={profile.legal_name ?? ""}
+                            onChange={(e) =>
+                                setProfileField("legal_name", e.target.value)
+                            }
+                            placeholder="Acme Technologies Private Limited"
+                            className="mt-1.5"
+                        />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="gstin">GSTIN</Label>
+                        <Input
+                            id="gstin"
+                            value={profile.gstin ?? ""}
+                            onChange={(e) =>
+                                setProfileField("gstin", e.target.value.toUpperCase())
+                            }
+                            placeholder="29ABCDE1234F1Z5"
+                            maxLength={15}
+                            className="mt-1.5 font-mono"
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            Leave blank if you are not registered.
+                        </p>
+                    </div>
+
+                    <div>
+                        <Label htmlFor="billing-email">Billing email</Label>
+                        <Input
+                            id="billing-email"
+                            type="email"
+                            value={profile.billing_email ?? ""}
+                            onChange={(e) =>
+                                setProfileField("billing_email", e.target.value)
+                            }
+                            placeholder="accounts@acme.com"
+                            className="mt-1.5"
+                        />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                        <Label htmlFor="address1">Address</Label>
+                        <Input
+                            id="address1"
+                            value={profile.address_line1 ?? ""}
+                            onChange={(e) =>
+                                setProfileField("address_line1", e.target.value)
+                            }
+                            placeholder="Street address"
+                            className="mt-1.5"
+                        />
+                        <Input
+                            aria-label="Address line 2"
+                            value={profile.address_line2 ?? ""}
+                            onChange={(e) =>
+                                setProfileField("address_line2", e.target.value)
+                            }
+                            placeholder="Building, floor (optional)"
+                            className="mt-2"
+                        />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="city">City</Label>
+                        <Input
+                            id="city"
+                            value={profile.city ?? ""}
+                            onChange={(e) => setProfileField("city", e.target.value)}
+                            className="mt-1.5"
+                        />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="postal">PIN / postal code</Label>
+                        <Input
+                            id="postal"
+                            value={profile.postal_code ?? ""}
+                            onChange={(e) =>
+                                setProfileField("postal_code", e.target.value)
+                            }
+                            className="mt-1.5"
+                        />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="state-code">GST state code</Label>
+                        <Input
+                            id="state-code"
+                            value={profile.state_code ?? ""}
+                            onChange={(e) =>
+                                setProfileField("state_code", e.target.value)
+                            }
+                            placeholder="29"
+                            maxLength={2}
+                            className="mt-1.5 font-mono"
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            The first two digits of your GSTIN.
+                        </p>
+                    </div>
+
+                    <div>
+                        <Label htmlFor="country">Country</Label>
+                        <Input
+                            id="country"
+                            value={profile.country_code ?? "IN"}
+                            onChange={(e) =>
+                                setProfileField(
+                                    "country_code",
+                                    e.target.value.toUpperCase(),
+                                )
+                            }
+                            placeholder="IN"
+                            maxLength={2}
+                            className="mt-1.5 font-mono"
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            Outside India is a zero-rated export.
+                        </p>
+                    </div>
+                </div>
+
+                <Button
+                    type="button"
+                    onClick={() => void saveProfile()}
+                    disabled={savingProfile}
+                    className="mt-5"
+                >
+                    {savingProfile ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving…
+                        </>
+                    ) : (
+                        "Save billing details"
+                    )}
+                </Button>
+            </section>
+
+            <section className="rounded-xl border bg-card p-6">
+                <h2 className="text-lg font-medium">Tax documents</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                    A receipt voucher for each payment, and a tax invoice each
+                    month for what you actually used.
+                </p>
+                {documents.length === 0 ? (
+                    <p className="mt-4 text-sm text-muted-foreground">
+                        Nothing issued yet.
+                    </p>
+                ) : (
+                    <div className="mt-4 overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Number</TableHead>
+                                    <TableHead>Type</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead className="text-right">Taxable</TableHead>
+                                    <TableHead className="text-right">GST</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {documents.map((doc) => {
+                                    const gst =
+                                        doc.cgst_paise +
+                                        doc.sgst_paise +
+                                        doc.igst_paise;
+                                    return (
+                                        <TableRow key={doc.id}>
+                                            <TableCell className="whitespace-nowrap font-mono text-xs">
+                                                {doc.number}
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap text-sm">
+                                                {doc.kind === "tax_invoice"
+                                                    ? "Tax invoice"
+                                                    : "Receipt voucher"}
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap">
+                                                {formatDateTimeIST(doc.issued_at)}
+                                            </TableCell>
+                                            <TableCell className="text-right tabular-nums">
+                                                {formatPaise(doc.taxable_paise)}
+                                            </TableCell>
+                                            <TableCell className="text-right tabular-nums">
+                                                {doc.supply_type === "export"
+                                                    ? "Zero-rated"
+                                                    : formatPaise(gst)}
+                                            </TableCell>
+                                            <TableCell className="text-right tabular-nums">
+                                                {formatPaise(doc.total_paise)}
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </div>
                 )}
             </section>
 
@@ -482,7 +859,8 @@ export default function BillingPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Date</TableHead>
-                                    <TableHead>Amount</TableHead>
+                                    <TableHead className="text-right">Credit</TableHead>
+                                    <TableHead className="text-right">Charged</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Reference</TableHead>
                                 </TableRow>
@@ -495,8 +873,18 @@ export default function BillingPage() {
                                                 payment.paid_at ?? payment.created_at,
                                             )}
                                         </TableCell>
-                                        <TableCell className="tabular-nums">
+                                        {/* Both, because someone reconciling a
+                                            card statement wants the gross while
+                                            someone reconciling their balance
+                                            wants the net. */}
+                                        <TableCell className="text-right tabular-nums">
                                             {formatPaise(payment.amount_paise)}
+                                        </TableCell>
+                                        <TableCell className="text-right tabular-nums">
+                                            {formatPaise(
+                                                payment.gross_paise ??
+                                                    payment.amount_paise,
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             <StatusBadge status={payment.status} />
