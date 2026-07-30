@@ -6012,6 +6012,18 @@ export type ToolResponse = {
 };
 
 /**
+ * TopupRequest
+ */
+export type TopupRequest = {
+    /**
+     * Amount Paise
+     *
+     * Amount to add, in paise. ₹500 is 50000.
+     */
+    amount_paise: number;
+};
+
+/**
  * TransferCallConfig
  *
  * Configuration for Transfer Call tools.
@@ -9765,6 +9777,135 @@ export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses = {
 };
 
 export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponse = SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses[keyof SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses];
+
+export type GetBalanceApiV1BillingBalanceGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/balance';
+};
+
+export type GetBalanceApiV1BillingBalanceGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetBalanceApiV1BillingBalanceGetError = GetBalanceApiV1BillingBalanceGetErrors[keyof GetBalanceApiV1BillingBalanceGetErrors];
+
+export type GetBalanceApiV1BillingBalanceGetResponses = {
+    /**
+     * Response Get Balance Api V1 Billing Balance Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetBalanceApiV1BillingBalanceGetResponse = GetBalanceApiV1BillingBalanceGetResponses[keyof GetBalanceApiV1BillingBalanceGetResponses];
+
+export type CreateTopupApiV1BillingTopupPostData = {
+    body: TopupRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/topup';
+};
+
+export type CreateTopupApiV1BillingTopupPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateTopupApiV1BillingTopupPostError = CreateTopupApiV1BillingTopupPostErrors[keyof CreateTopupApiV1BillingTopupPostErrors];
+
+export type CreateTopupApiV1BillingTopupPostResponses = {
+    /**
+     * Response Create Topup Api V1 Billing Topup Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateTopupApiV1BillingTopupPostResponse = CreateTopupApiV1BillingTopupPostResponses[keyof CreateTopupApiV1BillingTopupPostResponses];
+
+export type ListPaymentsApiV1BillingPaymentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/payments';
+};
+
+export type ListPaymentsApiV1BillingPaymentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPaymentsApiV1BillingPaymentsGetError = ListPaymentsApiV1BillingPaymentsGetErrors[keyof ListPaymentsApiV1BillingPaymentsGetErrors];
+
+export type ListPaymentsApiV1BillingPaymentsGetResponses = {
+    /**
+     * Response List Payments Api V1 Billing Payments Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListPaymentsApiV1BillingPaymentsGetResponse = ListPaymentsApiV1BillingPaymentsGetResponses[keyof ListPaymentsApiV1BillingPaymentsGetResponses];
 
 export type ValidateWorkflowApiV1WorkflowWorkflowIdValidatePostData = {
     body?: never;

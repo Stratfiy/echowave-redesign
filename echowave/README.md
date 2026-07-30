@@ -73,6 +73,10 @@ Time is billed in **15-second pulses** rather than whole minutes, so a
 62-second call bills 75 seconds and not 120. Every price is set in the admin
 dashboard under **Billing → Rate card**.
 
+Accounts are **prepaid**: credit is bought up front from **Billing**, and usage
+draws it down. Only a signature-verified Razorpay webhook credits an account —
+never the browser reporting success.
+
 ## Support
 
 - Security vulnerabilities: <security@decibyl.com> — privately, please.

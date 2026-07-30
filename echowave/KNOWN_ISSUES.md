@@ -75,8 +75,12 @@ deliberately.
 
 Removing MPS billing took the prepaid-credit check out of
 `authorize_workflow_run_start`. Nothing currently stops a run on an unfunded
-account. This is the intended intermediate state — Decibyl is not selling
-prepaid inference credits — but it means **there is no spend ceiling today.**
+account, so **there is no spend ceiling today.**
+
+This is now the *only* missing half of prepaid: customers can buy credit
+(`api/services/billing/payments.py`) and usage debits the ledger
+(`api/services/billing/costing.py`), but nothing refuses a call when the
+balance is gone.
 
 The tenant-isolation checks in that function (workflow belongs to the org,
 actor is a member of the org, a supplied run belongs to the workflow, DB read
@@ -87,7 +91,12 @@ guards against an external billing service being quietly reintroduced onto the
 critical path of every call.
 
 **Next:** the local paise-denominated ledger check goes back into this same
-function when the cost engine lands.
+function, plus a **reservation** per in-flight call. A balance check alone is
+not enough — a call's cost is not known until it ends, so between two calls
+starting at the same instant both read the same balance and both proceed.
+`CreditLedgerKind.RESERVATION` exists for this: hold an estimate while the call
+is live so it counts against the balance immediately, release it when the call
+is costed, and sweep reservations left behind by a crashed worker.
 
 ---
 

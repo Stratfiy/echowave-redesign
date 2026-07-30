@@ -71,6 +71,25 @@ MANAGED_TELEPHONY_ENABLED = (
     os.getenv("MANAGED_TELEPHONY_ENABLED", "false").lower() == "true"
 )
 
+# Razorpay. Decibyl sells prepaid credit, so these take money in; nothing here
+# ever moves money out.
+#
+# The webhook secret is separate from the API secret on purpose: it is the only
+# thing authenticating an inbound webhook, since Razorpay cannot present a
+# bearer token. Without it the webhook route refuses every request rather than
+# accepting unverified ones — an unauthenticated credit endpoint would let
+# anyone top up any account for free.
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID") or None
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET") or None
+RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET") or None
+RAZORPAY_API_BASE = os.getenv("RAZORPAY_API_BASE", "https://api.razorpay.com/v1")
+
+# Bounds on a single top-up. The floor keeps card fees from exceeding the
+# credit bought; the ceiling is a guard against a mistyped amount, not a
+# business limit — raise it deliberately for an enterprise invoice.
+MIN_TOPUP_PAISE = int(os.getenv("MIN_TOPUP_PAISE", "10000"))  # Rs 100
+MAX_TOPUP_PAISE = int(os.getenv("MAX_TOPUP_PAISE", "50000000"))  # Rs 5,00,000
+
 # Fernet key encrypting the platform's own provider API keys at rest. Generate
 # with: python -c "from cryptography.fernet import Fernet;
 # print(Fernet.generate_key().decode())"

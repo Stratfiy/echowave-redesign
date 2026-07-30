@@ -239,6 +239,10 @@ class CreditLedgerKind(str, Enum):
     USAGE = "usage"
     ADJUSTMENT = "adjustment"
     TRIAL = "trial"
+    # Funds held while a call is in flight, released when it is costed. Counts
+    # against the balance immediately so concurrent calls cannot each spend the
+    # same rupee.
+    RESERVATION = "reservation"
 
 
 class BillingAuditAction(str, Enum):

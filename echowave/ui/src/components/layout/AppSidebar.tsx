@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   TrendingUp,
   UserRound,
+  Wallet,
   Workflow,
   Wrench,
 } from "lucide-react";
@@ -150,7 +151,15 @@ const NAV_SECTIONS: SidebarNavSection[] = [
         title: "Reports",
         url: "/reports",
         icon: FileText,
-      }
+      },
+      // Under MANAGE rather than its own section: on a prepaid account this is
+      // where someone looks when calls stop, so it belongs next to the usage
+      // that drained the balance.
+      {
+        title: "Billing",
+        url: "/billing",
+        icon: Wallet,
+      },
     ],
   },
 ];

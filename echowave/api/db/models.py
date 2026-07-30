@@ -2012,7 +2012,6 @@ class DailyOrganizationRollupModel(Base):
     )
 
 
-
 class PlatformProviderCredentialModel(Base):
     """Decibyl's own API key for a model provider.
 
@@ -2066,6 +2065,69 @@ class PlatformProviderCredentialModel(Base):
             "component", "provider", name="uq_platform_provider_credential"
         ),
         Index("ix_platform_provider_credentials_lookup", "component", "provider"),
+    )
+
+
+class PaymentModel(Base):
+    """One attempt by an account to buy credit.
+
+    Exists so a webhook can be made idempotent and a payment reconciled against
+    what it actually credited. Razorpay retries webhooks — at least once, not
+    exactly once — so without a row to check against, a retry would credit the
+    account twice.
+
+    The row is created when the order is, before the customer has paid, and
+    moves to ``paid`` only when a **signature-verified** webhook says so. A
+    client reporting success is never enough: the browser is not a trusted
+    party in a payment flow.
+    """
+
+    __tablename__ = "payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    provider = Column(String(32), nullable=False, default="razorpay")
+    # The order we asked the provider to create. Unique: one row per order.
+    order_id = Column(String(64), nullable=False)
+    # Set when the payment succeeds. Unique when present, which is what makes a
+    # duplicate webhook a no-op rather than a second credit.
+    payment_id = Column(String(64), nullable=True)
+    # What we asked for. The webhook's amount is checked against this rather
+    # than trusted, so a tampered payload cannot credit more than was paid.
+    amount_paise = Column(BigInteger, nullable=False)
+    # created | paid | failed
+    status = Column(String(16), nullable=False, default="created")
+    # The ledger row this produced, so a payment and its credit can be walked
+    # in either direction during a reconciliation.
+    credit_ledger_id = Column(
+        Integer, ForeignKey("credit_ledger.id", ondelete="SET NULL"), nullable=True
+    )
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+    # The verified webhook payload, for disputes. Kept because a customer
+    # querying a charge six months on is answered by what the provider sent,
+    # not by our summary of it.
+    provider_payload = Column(JSON, nullable=True)
+
+    organization = relationship("OrganizationModel")
+    created_by_user = relationship("UserModel")
+
+    __table_args__ = (
+        UniqueConstraint("provider", "order_id", name="uq_payments_provider_order"),
+        # Partial unique index: at most one row per settled payment id, which is
+        # the database-level guard behind webhook idempotency. NULLs are exempt
+        # so unpaid orders do not collide.
+        Index(
+            "uq_payments_provider_payment",
+            "provider",
+            "payment_id",
+            unique=True,
+            postgresql_where=text("payment_id IS NOT NULL"),
+        ),
+        Index("ix_payments_org_created", "organization_id", "created_at"),
     )
 
 

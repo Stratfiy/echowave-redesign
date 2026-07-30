@@ -396,6 +396,55 @@ on it, so a mixed call counts twice. That is why those figures are labelled cost
 
 ---
 
+## Taking money in
+
+Decibyl is **prepaid**. Credit is bought up front, spent by usage, and there is
+no invoicing cycle. `api/services/billing/payments.py` is the only code that
+moves money in, and `payments` is the only table that records having asked for
+it.
+
+Money only ever moves *in* through this path. A refund is issued from the
+Razorpay dashboard and reflected with a staff credit adjustment — deliberately,
+so a second money-moving code path does not exist to get wrong.
+
+Four rules, each of which exists because breaking it is how payment
+integrations lose money:
+
+| Rule | What it prevents |
+|---|---|
+| **Only a signature-verified webhook credits an account.** HMAC-SHA256 over the raw request body, compared with `hmac.compare_digest`. | The browser reporting "payment succeeded" is an unauthenticated client asserting it should be given credit. |
+| **The webhook is idempotent.** Razorpay delivers at least once, not exactly once. A partial unique index on `(provider, payment_id) WHERE payment_id IS NOT NULL` enforces it in the database. | A retry crediting the account a second time. A check-then-write in application code loses this race. |
+| **The amount comes from the order we created**, capped both ways: `min(payload amount, order amount)`. | A signed payload claiming ₹50,000 against an order for ₹100. Signing proves the message came from Razorpay, not that our order agrees with it. |
+| **No webhook secret means no webhook.** The route refuses every request rather than accepting unverified ones. | An unauthenticated credit endpoint that tops up any account for free. |
+
+The webhook route reads `await request.body()` rather than a parsed model:
+verification is over the exact bytes Razorpay signed, and FastAPI re-serialising
+the JSON changes them.
+
+It returns 2xx for events it deliberately ignores. Razorpay retries anything
+that is not a 2xx, so erroring on an event we will never act on retries it
+forever.
+
+**Razorpay quotes INR in paise, which is the ledger's own unit**, so no
+conversion happens anywhere in this module. Asserted by a test, because a
+factor-of-100 slip would be entirely plausible in review and expensive in
+production.
+
+### What an operator must set
+
+| Variable | Without it |
+|---|---|
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | No order can be created; the billing screen says top-ups are unavailable and points at support. |
+| `RAZORPAY_WEBHOOK_SECRET` | **Top-ups are refused outright.** Checkout would otherwise succeed, the customer would be charged, and nothing would credit them — a failure invisible until someone complains. |
+| `MIN_TOPUP_PAISE` / `MAX_TOPUP_PAISE` | Defaults of ₹100 and ₹5,00,000. |
+
+The webhook endpoint is `POST /api/v1/billing/razorpay/webhook`, subscribed to
+`payment.captured` and `payment.failed`. It is excluded from the OpenAPI schema:
+it is not part of the customer API, and publishing it only advertises something
+to probe.
+
+---
+
 ## Not built yet
 
 * **Export**, **alerting** and **role management** — deliberately out of scope.
@@ -408,8 +457,10 @@ on it, so a mixed call counts twice. That is why those figures are labelled cost
   Every provider implements `get_call_cost()`, which returns what the carrier
   actually charged, and nothing calls it. Telephony cost is therefore our rate
   row times measured seconds, which is close but is not the real number.
-* **Payments and balance enforcement.** Nothing writes a `topup` ledger entry
-  except a staff credit adjustment, and no run is refused for lack of balance.
+* **Balance enforcement.** Credit can now be bought (see *Taking money in*),
+  but nothing stops an account spending past zero. A reservation per in-flight
+  call is what makes that safe under concurrency — without one, two calls
+  starting at the same moment each see the same balance and both proceed.
   See `KNOWN_ISSUES.md` #8.
 * **Number provisioning.** `telephony_configurations.is_platform_managed` is
   the flag the KYC gate keys on, and nothing sets it yet — buying and assigning
