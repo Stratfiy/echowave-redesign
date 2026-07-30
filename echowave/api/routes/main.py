@@ -7,14 +7,19 @@ from pydantic import BaseModel
 
 from api.routes.agent_stream import router as agent_stream_router
 from api.routes.auth import router as auth_router
+from api.routes.billing_dashboard import router as billing_dashboard_router
 from api.routes.campaign import router as campaign_router
+from api.routes.cost_estimate import router as cost_estimate_router
 from api.routes.credentials import router as credentials_router
 from api.routes.folder import router as folder_router
 from api.routes.knowledge_base import router as knowledge_base_router
+from api.routes.kyc import router as kyc_router
+from api.routes.kyc_admin import router as kyc_admin_router
 from api.routes.node_types import router as node_types_router
 from api.routes.organization import router as organization_router
 from api.routes.organization_usage import router as organization_usage_router
 from api.routes.payments import router as payments_router
+from api.routes.platform_credentials import router as platform_credentials_router
 from api.routes.privacy import router as privacy_router
 from api.routes.public_agent import router as public_agent_router
 from api.routes.public_download import router as public_download_router
@@ -22,11 +27,6 @@ from api.routes.public_embed import router as public_embed_router
 from api.routes.reports import router as reports_router
 from api.routes.s3_signed_url import router as s3_router
 from api.routes.service_keys import router as service_keys_router
-from api.routes.billing_dashboard import router as billing_dashboard_router
-from api.routes.cost_estimate import router as cost_estimate_router
-from api.routes.kyc import router as kyc_router
-from api.routes.kyc_admin import router as kyc_admin_router
-from api.routes.platform_credentials import router as platform_credentials_router
 from api.routes.superuser import router as superuser_router
 from api.routes.telephony import router as telephony_router
 from api.routes.tool import router as tool_router

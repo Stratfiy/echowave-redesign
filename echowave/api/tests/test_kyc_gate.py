@@ -15,7 +15,6 @@ from api.db import db_client
 from api.db.models import (
     OrganizationModel,
     TelephonyConfigurationModel,
-    UserModel,
 )
 from api.enums import KycStatus
 from api.services.kyc import service as kyc_service

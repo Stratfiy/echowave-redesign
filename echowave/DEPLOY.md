@@ -37,22 +37,11 @@ cd <your-repo>/echowave
 sudo DEPLOY_MODE=build REPO_SOURCE=existing SERVER_IP=<your.elastic.ip> \
     ./scripts/setup_remote.sh
 
-# 3. Your own configuration — none of it is prompted for.
-sudo tee -a .env >/dev/null <<'ENVEOF'
-PLATFORM_CREDENTIAL_SECRET=<generate one, see §1>
-RAZORPAY_KEY_ID=<test key>
-RAZORPAY_KEY_SECRET=<test secret>
-RAZORPAY_WEBHOOK_SECRET=<you choose it, then paste it into Razorpay>
-SUPPLIER_LEGAL_NAME="YOUR COMPANY PRIVATE LIMITED"
-SUPPLIER_GSTIN=<your GSTIN>
-SUPPLIER_ADDRESS="<registered address>"
-SUPPLIER_HAS_LUT=true
-SUPPLIER_LUT_NUMBER=<LUT ARN>
-GRIEVANCE_OFFICER_NAME="<a real person>"
-GRIEVANCE_OFFICER_EMAIL=privacy@yourdomain
-GRIEVANCE_OFFICER_ADDRESS="<postal address>"
-BALANCE_ENFORCEMENT_ENABLED=false
-ENVEOF
+# 3. Your own configuration — none of it is prompted for. The template is
+#    already filled in with the supplier identity and carries the three
+#    CHANGE ME values (credential secret, Razorpay, grievance officer name).
+cat deploy/decibyl.env.template | sudo tee -a .env >/dev/null
+sudo nano .env          # replace every CHANGE ME
 
 sudo ./remote_up.sh --build
 ```

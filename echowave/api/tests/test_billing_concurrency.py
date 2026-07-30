@@ -87,9 +87,7 @@ class TestPeakConcurrency:
                 seconds=300,
             )
 
-        result = await campaign_concurrency(
-            async_session, campaign_id=campaign.id
-        )
+        result = await campaign_concurrency(async_session, campaign_id=campaign.id)
         assert max(row["peak"] for row in result["series"]) == 3
 
     async def test_sequential_calls_never_overlap(self, async_session):
@@ -104,9 +102,7 @@ class TestPeakConcurrency:
                 seconds=60,
             )
 
-        result = await campaign_concurrency(
-            async_session, campaign_id=campaign.id
-        )
+        result = await campaign_concurrency(async_session, campaign_id=campaign.id)
         assert max(row["peak"] for row in result["series"]) == 1
 
     async def test_a_call_ending_as_another_starts_is_not_concurrent(
@@ -114,9 +110,7 @@ class TestPeakConcurrency:
     ):
         """The tie-break at a shared instant: the end is applied before the start."""
         campaign, workflow = await _campaign(async_session, "handoff")
-        await _call(
-            async_session, campaign, workflow, start=ANCHOR, seconds=60
-        )
+        await _call(async_session, campaign, workflow, start=ANCHOR, seconds=60)
         await _call(
             async_session,
             campaign,
@@ -125,34 +119,24 @@ class TestPeakConcurrency:
             seconds=60,
         )
 
-        result = await campaign_concurrency(
-            async_session, campaign_id=campaign.id
-        )
+        result = await campaign_concurrency(async_session, campaign_id=campaign.id)
         assert max(row["peak"] for row in result["series"]) == 1
 
     async def test_a_still_running_call_falls_back_to_its_billed_duration(
         self, async_session
     ):
         campaign, workflow = await _campaign(async_session, "inflight")
-        run = await _call(
-            async_session, campaign, workflow, start=ANCHOR, seconds=120
-        )
+        run = await _call(async_session, campaign, workflow, start=ANCHOR, seconds=120)
         run.ended_at = None  # still up; only billable_seconds is known
         await async_session.flush()
 
-        result = await campaign_concurrency(
-            async_session, campaign_id=campaign.id
-        )
+        result = await campaign_concurrency(async_session, campaign_id=campaign.id)
         # It still occupies the line rather than vanishing from the series.
         assert max(row["peak"] for row in result["series"]) == 1
 
-    async def test_a_campaign_with_no_calls_is_empty_not_an_error(
-        self, async_session
-    ):
+    async def test_a_campaign_with_no_calls_is_empty_not_an_error(self, async_session):
         campaign, _ = await _campaign(async_session, "empty")
-        result = await campaign_concurrency(
-            async_session, campaign_id=campaign.id
-        )
+        result = await campaign_concurrency(async_session, campaign_id=campaign.id)
         assert result == {"bucket": "hour", "series": []}
 
 
@@ -168,9 +152,7 @@ class TestBucketing:
             seconds=60,
         )
 
-        result = await campaign_concurrency(
-            async_session, campaign_id=campaign.id
-        )
+        result = await campaign_concurrency(async_session, campaign_id=campaign.id)
         assert result["bucket"] == "hour"
         assert len(result["series"]) == 2
 
@@ -185,9 +167,7 @@ class TestBucketing:
                 seconds=60,
             )
 
-        result = await campaign_concurrency(
-            async_session, campaign_id=campaign.id
-        )
+        result = await campaign_concurrency(async_session, campaign_id=campaign.id)
         assert result["bucket"] == "day"
         assert len(result["series"]) == 6
 
@@ -205,9 +185,7 @@ class TestBucketing:
     async def test_daily_buckets_are_ist_days_not_utc_days(
         self, async_session, start_utc, expected_ist_day
     ):
-        campaign, workflow = await _campaign(
-            async_session, f"ist-{expected_ist_day}"
-        )
+        campaign, workflow = await _campaign(async_session, f"ist-{expected_ist_day}")
         await _call(async_session, campaign, workflow, start=start_utc, seconds=60)
         # A second call two weeks out forces the daily bucket.
         await _call(
@@ -218,9 +196,7 @@ class TestBucketing:
             seconds=60,
         )
 
-        result = await campaign_concurrency(
-            async_session, campaign_id=campaign.id
-        )
+        result = await campaign_concurrency(async_session, campaign_id=campaign.id)
         assert result["bucket"] == "day"
         assert result["series"][0]["bucket_start"].startswith(expected_ist_day)
 
@@ -260,12 +236,16 @@ class TestRollupCronTask:
 
         org_id = workflow.organization_id
         rows = (
-            await async_session.execute(
-                select(DailyOrganizationRollupModel).where(
-                    DailyOrganizationRollupModel.organization_id == org_id
+            (
+                await async_session.execute(
+                    select(DailyOrganizationRollupModel).where(
+                        DailyOrganizationRollupModel.organization_id == org_id
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         assert rows, "the cron task must actually write rollup rows"
         assert sum(r.charged_paise for r in rows) == 300
@@ -301,8 +281,7 @@ class TestRollupCronTask:
 
         total = await async_session.scalar(
             select(func.sum(DailyOrganizationRollupModel.charged_paise)).where(
-                DailyOrganizationRollupModel.organization_id
-                == workflow.organization_id
+                DailyOrganizationRollupModel.organization_id == workflow.organization_id
             )
         )
         assert total == 300

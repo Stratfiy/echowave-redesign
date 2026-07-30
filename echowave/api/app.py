@@ -86,7 +86,10 @@ app = FastAPI(
         # Ends up as the generated client's default base URL, so it must be a
         # host that exists. Derived from PUBLIC_BASE_URL where one is set, since
         # that is already the deployment's own address.
-        {"url": PUBLIC_BASE_URL or "https://app.decibyl.ai", "description": "Production"},
+        {
+            "url": PUBLIC_BASE_URL or "https://app.decibyl.ai",
+            "description": "Production",
+        },
         {"url": "http://localhost:8000", "description": "Local development"},
     ],
 )

@@ -114,9 +114,7 @@ class TestTransitions:
 
 
 class TestQueuePredicates:
-    @pytest.mark.parametrize(
-        "status", [KycStatus.SUBMITTED, KycStatus.UNDER_REVIEW]
-    )
+    @pytest.mark.parametrize("status", [KycStatus.SUBMITTED, KycStatus.UNDER_REVIEW])
     def test_awaiting_our_review(self, status):
         assert is_awaiting_our_review(status) is True
         assert is_awaiting_carrier(status) is False

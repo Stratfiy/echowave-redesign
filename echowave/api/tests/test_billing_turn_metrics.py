@@ -6,6 +6,7 @@ and the per-turn chart on the call receipt were empty in production.
 
 from datetime import UTC, datetime
 
+from pipecat.metrics.metrics import TTFBMetricsData
 from sqlalchemy import select
 
 from api.db.models import (
@@ -17,7 +18,6 @@ from api.db.models import (
 )
 from api.services.billing.turn_metrics import persist_turn_metrics
 from api.services.pipecat.pipeline_metrics_aggregator import PipelineMetricsAggregator
-from pipecat.metrics.metrics import TTFBMetricsData
 
 
 class TestTurnCollection:
@@ -144,12 +144,16 @@ class TestPersistence:
 
         assert written == 2
         rows = (
-            await async_session.execute(
-                select(CallTurnMetricModel)
-                .where(CallTurnMetricModel.workflow_run_id == run.id)
-                .order_by(CallTurnMetricModel.turn_index)
+            (
+                await async_session.execute(
+                    select(CallTurnMetricModel)
+                    .where(CallTurnMetricModel.workflow_run_id == run.id)
+                    .order_by(CallTurnMetricModel.turn_index)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert [r.latency_ms for r in rows] == [700, 900]
         assert [r.t_llm_first_token_ms for r in rows] == [200, 260]
 
@@ -160,22 +164,22 @@ class TestPersistence:
         run = await _run(async_session, "retry")
         turns = [{"turn_index": 0, "latency_ms": 700}]
 
-        await persist_turn_metrics(
-            async_session, workflow_run_id=run.id, turns=turns
-        )
+        await persist_turn_metrics(async_session, workflow_run_id=run.id, turns=turns)
         await async_session.flush()
-        await persist_turn_metrics(
-            async_session, workflow_run_id=run.id, turns=turns
-        )
+        await persist_turn_metrics(async_session, workflow_run_id=run.id, turns=turns)
         await async_session.flush()
 
         rows = (
-            await async_session.execute(
-                select(CallTurnMetricModel).where(
-                    CallTurnMetricModel.workflow_run_id == run.id
+            (
+                await async_session.execute(
+                    select(CallTurnMetricModel).where(
+                        CallTurnMetricModel.workflow_run_id == run.id
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert len(rows) == 1
 
     async def test_a_missing_stage_stays_null_rather_than_zero(self, async_session):
@@ -203,8 +207,6 @@ class TestPersistence:
     async def test_no_turns_writes_nothing(self, async_session):
         run = await _run(async_session, "empty")
         assert (
-            await persist_turn_metrics(
-                async_session, workflow_run_id=run.id, turns=[]
-            )
+            await persist_turn_metrics(async_session, workflow_run_id=run.id, turns=[])
             == 0
         )

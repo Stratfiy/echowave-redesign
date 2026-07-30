@@ -52,9 +52,7 @@ class TestUploadValidation:
             )
 
     def test_accepts_a_file_exactly_at_the_limit(self):
-        validate_upload(
-            content_type="application/pdf", size_bytes=MAX_DOCUMENT_BYTES
-        )
+        validate_upload(content_type="application/pdf", size_bytes=MAX_DOCUMENT_BYTES)
 
 
 class TestStorageKey:
@@ -99,7 +97,5 @@ class TestStorageKey:
         assert a != b
 
     def test_a_suspicious_extension_is_dropped_rather_than_kept(self):
-        key = storage_key(
-            organization_id=1, kind="other", filename="doc.p<df"
-        )
+        key = storage_key(organization_id=1, kind="other", filename="doc.p<df")
         assert "<" not in key

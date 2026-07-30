@@ -17,14 +17,15 @@ Revises: c73e1b5a94d2
 Create Date: 2026-07-30 04:12:31.907714
 
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'd18f4c60ba73'
-down_revision: Union[str, None] = 'c73e1b5a94d2'
+revision: str = "d18f4c60ba73"
+down_revision: Union[str, None] = "c73e1b5a94d2"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

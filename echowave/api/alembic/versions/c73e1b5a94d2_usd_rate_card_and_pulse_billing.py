@@ -26,14 +26,15 @@ Revises: b41c7d9e2f08
 Create Date: 2026-07-30 03:41:55.208310
 
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'c73e1b5a94d2'
-down_revision: Union[str, None] = 'b41c7d9e2f08'
+revision: str = "c73e1b5a94d2"
+down_revision: Union[str, None] = "b41c7d9e2f08"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -57,9 +58,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["set_by"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_usd_inr_rate_history_id"), "usd_inr_rate_history", ["id"]
-    )
+    op.create_index(op.f("ix_usd_inr_rate_history_id"), "usd_inr_rate_history", ["id"])
     op.create_index(
         "ix_usd_inr_rate_history_effective",
         "usd_inr_rate_history",
@@ -99,9 +98,7 @@ def upgrade() -> None:
         "UPDATE organization_rate_history SET pulse_seconds = 60 "
         "WHERE pulse_seconds IS NULL"
     )
-    op.alter_column(
-        "organization_rate_history", "platform_rate_mpaise", nullable=True
-    )
+    op.alter_column("organization_rate_history", "platform_rate_mpaise", nullable=True)
     op.create_check_constraint(
         "ck_org_rate_history_one_currency",
         "organization_rate_history",
@@ -169,9 +166,7 @@ def downgrade() -> None:
     # Anything priced in dollars has no rupee figure to fall back to, so it
     # cannot survive the downgrade. Converting at today's rate would invent a
     # price nobody agreed to; dropping the rows is the honest failure.
-    op.execute(
-        "DELETE FROM platform_volume_tiers WHERE platform_rate_mpaise IS NULL"
-    )
+    op.execute("DELETE FROM platform_volume_tiers WHERE platform_rate_mpaise IS NULL")
     op.alter_column("platform_volume_tiers", "platform_rate_mpaise", nullable=False)
     op.drop_column("platform_volume_tiers", "pulse_seconds")
     op.drop_column("platform_volume_tiers", "platform_rate_micros_usd")
@@ -184,9 +179,7 @@ def downgrade() -> None:
     op.execute(
         "DELETE FROM organization_rate_history WHERE platform_rate_mpaise IS NULL"
     )
-    op.alter_column(
-        "organization_rate_history", "platform_rate_mpaise", nullable=False
-    )
+    op.alter_column("organization_rate_history", "platform_rate_mpaise", nullable=False)
     op.drop_column("organization_rate_history", "pulse_seconds")
     op.drop_column("organization_rate_history", "platform_rate_micros_usd")
 

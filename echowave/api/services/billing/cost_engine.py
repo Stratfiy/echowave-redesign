@@ -25,14 +25,14 @@ from dataclasses import dataclass, field
 
 from api.enums import CostComponent, RateUnit
 from api.services.billing.money import (
+    DEFAULT_PULSE_SECONDS,
+    cost_paise,
+)
+from api.services.billing.money import (
     billable_minutes as to_billable_minutes,
 )
 from api.services.billing.money import (
     billed_seconds as to_billed_seconds,
-)
-from api.services.billing.money import (
-    DEFAULT_PULSE_SECONDS,
-    cost_paise,
 )
 
 

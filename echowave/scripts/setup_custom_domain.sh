@@ -49,11 +49,20 @@ if [[ $EUID -ne 0 ]]; then
     decibyl_fail "This script must be run as root or with sudo"
 fi
 
-if [[ ! -d "decibyl" ]]; then
-    echo -e "${RED}Error: 'decibyl' directory not found.${NC}"
-    echo -e "${YELLOW}Please run this script from the directory containing your Decibyl installation.${NC}"
-    echo -e "${YELLOW}If you haven't set up Decibyl yet, run the remote setup first:${NC}"
-    echo -e "${BLUE}  curl -o setup_remote.sh https://raw.githubusercontent.com/decibyl-hq/decibyl/main/scripts/setup_remote.sh && chmod +x setup_remote.sh && sudo ./setup_remote.sh${NC}"
+# Where the install actually is. A prebuilt install puts it in a `decibyl/`
+# subdirectory; a build-mode install *is* the repository checkout you are
+# standing in, and requiring the subdirectory locked that case out of custom
+# domains entirely.
+if [[ -f "docker-compose.yaml" && -f ".env" ]]; then
+    INSTALL_DIR="."
+elif [[ -d "decibyl" ]]; then
+    INSTALL_DIR="decibyl"
+else
+    echo -e "${RED}Error: no Decibyl installation found here.${NC}"
+    echo -e "${YELLOW}Run this from your install directory — either the repository${NC}"
+    echo -e "${YELLOW}checkout itself (build mode) or the directory holding 'decibyl/'.${NC}"
+    echo -e "${YELLOW}If you have not deployed yet, run the remote setup first:${NC}"
+    echo -e "${BLUE}  sudo DEPLOY_MODE=build REPO_SOURCE=existing ./scripts/setup_remote.sh${NC}"
     exit 1
 fi
 
@@ -99,9 +108,18 @@ decibyl_install_certbot || decibyl_fail "Could not install certbot. Please insta
 echo -e "${GREEN}✓ Certbot installed${NC}"
 
 echo -e "${BLUE}[3/6] Pointing .env at $DOMAIN_NAME and starting services...${NC}"
-cd decibyl
+cd "$INSTALL_DIR"
 DECIBYL_DEPLOY_PROJECT_DIR="$(pwd)"
 DECIBYL_PATH="$(pwd)"
+
+# A build-mode install runs images built from this checkout, declared in the
+# override file setup_remote.sh wrote. Restarting without --build would go back
+# to the registry for images that either do not exist or are not yours.
+REMOTE_UP_ARGS=()
+if [[ -f "docker-compose.override.yaml" ]] && grep -q "build:" docker-compose.override.yaml; then
+    REMOTE_UP_ARGS+=(--build)
+    echo -e "${BLUE}Build-mode install detected — restarting with --build${NC}"
+fi
 
 if [[ ! -f remote_up.sh || ! -f scripts/lib/setup_common.sh ]]; then
     decibyl_download_remote_support_bundle "$(pwd)" "main"
@@ -133,7 +151,7 @@ decibyl_prepare_remote_install "$(pwd)"
 # certificate. certbot --webroot then validates against the running nginx:
 # no downtime, and (unlike --standalone) renewal keeps working later while
 # nginx holds port 80.
-./remote_up.sh
+./remote_up.sh "${REMOTE_UP_ARGS[@]+"${REMOTE_UP_ARGS[@]}"}"
 
 echo -e "${BLUE}Waiting for nginx to answer on port 80...${NC}"
 nginx_ready=0
@@ -155,8 +173,8 @@ if ! decibyl_issue_letsencrypt_webroot "$(pwd)" "$DOMAIN_NAME" "$EMAIL_ADDRESS";
     echo "  - Port 80 not reachable from the internet (open it in your firewall)"
     echo "  - DNS A record for $DOMAIN_NAME does not point to this server yet"
     echo "  - Let's Encrypt rate limit reached (wait, then retry)"
-    echo "  - Upgrading an older install: run ./update_remote.sh first to refresh the"
-    echo "    nginx template so it serves the ACME challenge, then re-run this script"
+    echo "  - An older install whose nginx template does not serve the ACME"
+    echo "    challenge: pull the current deploy/templates/ and re-run this script"
     echo ""
     echo -e "The stack is still running with the previous certificate."
     echo -e "After fixing the issue, re-run: ${BLUE}sudo ./setup_custom_domain.sh${NC}"
@@ -192,9 +210,9 @@ echo -e "  Private Key: $DECIBYL_PATH/certs/local.key"
 echo -e "  Auto-renewal: Enabled (certificates renew automatically)"
 echo ""
 echo -e "${YELLOW}Files modified:${NC}"
-echo "  - decibyl/.env (canonical public host/base URL updated)"
-echo "  - decibyl/certs/local.crt (SSL certificate)"
-echo "  - decibyl/certs/local.key (SSL private key)"
+echo "  - $DECIBYL_PATH/.env (canonical public host/base URL updated)"
+echo "  - $DECIBYL_PATH/certs/local.crt (SSL certificate)"
+echo "  - $DECIBYL_PATH/certs/local.key (SSL private key)"
 echo "  - /etc/letsencrypt/renewal-hooks/deploy/decibyl-reload.sh (renewal hook)"
 echo ""
 echo -e "${GREEN}Your SSL certificate will automatically renew before expiration.${NC}"

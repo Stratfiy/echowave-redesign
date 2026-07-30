@@ -9,7 +9,7 @@ The same files work on any host that fronts containers with Traefik.
 | File | Role | Deploy on Hostinger? |
 |---|---|---|
 | `docker-compose.yaml` | The Decibyl app stack. **Single self-contained file** — named volumes only, no host bind-mounts, no init/sidecar that reads files outside the compose. | ✅ Yes |
-| `.env.example` | Required + optional environment variables, with guidance. Copy to `.env` and fill in. | ✅ Yes (as the env template) |
+| `../decibyl.env.template` | Required + optional environment variables, with guidance. Copy to `.env` and fill in. | ✅ Yes (as the env template) |
 | `docker-compose.traefik.yaml` | A standalone Traefik + Let's Encrypt that **stands in for** the managed Traefik, so you can reproduce the environment on a plain VPS for testing. Also documents what the platform's Traefik must provide. | ❌ **No — reference only** |
 
 ## What the app stack needs from Traefik
@@ -38,7 +38,7 @@ connect (signaling succeeds) but have **no audio**.
 
 The platform provides Traefik, so you only deploy the app stack:
 
-1. Copy `.env.example` → `.env` and fill in `PUBLIC_HOST`, `TURN_HOST`, the
+1. Copy `../decibyl.env.template` → `.env` and fill in `PUBLIC_HOST`, `TURN_HOST`, the
    secrets, and the three `TRAEFIK_*` values (matched to Hostinger's Traefik).
 2. Import / deploy `docker-compose.yaml`.
 3. Ensure the coturn UDP/TCP ports above are open in the firewall.
@@ -48,7 +48,7 @@ The platform provides Traefik, so you only deploy the app stack:
 On a box that does **not** already run Traefik:
 
 ```bash
-cp .env.example .env     # fill in PUBLIC_HOST, TURN_HOST, secrets, ACME_EMAIL
+cp ../decibyl.env.template .env     # fill in PUBLIC_HOST, TURN_HOST, secrets, ACME_EMAIL
 docker network create traefik-proxy
 docker compose -f docker-compose.traefik.yaml --env-file .env up -d   # stand-in Traefik
 docker compose --env-file .env up -d                                  # app stack

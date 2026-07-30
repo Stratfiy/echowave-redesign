@@ -17,14 +17,15 @@ Revises: d18f4c60ba73
 Create Date: 2026-07-30 06:02:44.318207
 
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'e2a7c418d5b6'
-down_revision: Union[str, None] = 'd18f4c60ba73'
+revision: str = "e2a7c418d5b6"
+down_revision: Union[str, None] = "d18f4c60ba73"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

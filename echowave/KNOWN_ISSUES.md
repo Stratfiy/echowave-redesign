@@ -6,9 +6,9 @@ Each entry records what is wrong, why, and what fixing it involves.
 Status legend: **OPEN** · **FIXED** · **DECISION NEEDED** (needs a product/ops
 call, not a code change)
 
-Last updated after the known-issues resolution pass.
+Last updated after the compliance and deployment pass.
 
-> **Current test status: `api/tests` is fully green — 1206 passed, 0 failed,
+> **Current test status: `api/tests` is fully green — 1727 passed, 0 failed,
 > 0 collection errors** (Python 3.13, real Postgres 16 + pgvector, real Redis).
 > Every one of the 51 failures and 130 collection errors previously recorded
 > here was environmental. None was a code defect.
@@ -30,6 +30,29 @@ deliberately.
 ---
 
 ## Fixed
+
+### 12. `scripts/format.sh` reformatted the documentation, and its result depended on where you ran it
+
+**Status:** FIXED
+
+Two problems in the same place, both of which made the CI format-drift check
+fail on a clean checkout.
+
+Ruff formats Python code blocks inside Markdown as of 0.14, and `format.sh`
+passes it the whole `api` tree. Every run reflowed the annotated snippets in
+`AGENTS.md` and the service READMEs, where comment columns are aligned to be
+read rather than executed — so the docs were a moving target and the drift
+check failed on files nobody had touched. `extend-exclude = ["*.md"]` in
+`api/pyproject.toml` stops it; Python is still formatted.
+
+Adding that section made `api/pyproject.toml` ruff's configuration root, which
+exposed the second problem: with no config file anywhere, ruff had been
+resolving isort's first-party packages against the *current directory*, so
+`ruff check api` from the repo root and `ruff check .` from `api/` disagreed
+about whether `from api.x import y` was first-party. `src = [".."]` settles it
+for both. `.` is deliberately not on that path — with it, the `api/alembic/`
+package makes the third-party `alembic` distribution look first-party and every
+migration's import block gets reordered instead.
 
 ### 11. The recordings bucket was published to the world
 

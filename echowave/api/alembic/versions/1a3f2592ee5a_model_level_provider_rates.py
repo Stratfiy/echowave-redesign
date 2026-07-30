@@ -18,49 +18,48 @@ Revises: 810aaefd657d
 Create Date: 2026-07-29 17:23:54.075169
 
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '1a3f2592ee5a'
-down_revision: Union[str, None] = '810aaefd657d'
+revision: str = "1a3f2592ee5a"
+down_revision: Union[str, None] = "810aaefd657d"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
     op.add_column(
-        'call_cost_items',
-        sa.Column('model', sa.String(length=128), nullable=True),
+        "call_cost_items",
+        sa.Column("model", sa.String(length=128), nullable=True),
     )
     op.add_column(
-        'provider_rates',
-        sa.Column(
-            'model', sa.String(length=128), server_default='', nullable=False
-        ),
+        "provider_rates",
+        sa.Column("model", sa.String(length=128), server_default="", nullable=False),
     )
 
-    op.drop_index(op.f('ix_provider_rates_lookup'), table_name='provider_rates')
+    op.drop_index(op.f("ix_provider_rates_lookup"), table_name="provider_rates")
     op.create_index(
-        'ix_provider_rates_lookup',
-        'provider_rates',
-        ['provider', 'component', 'model', 'effective_from'],
+        "ix_provider_rates_lookup",
+        "provider_rates",
+        ["provider", "component", "model", "effective_from"],
         unique=False,
     )
 
     op.drop_index(
-        op.f('uq_provider_rates_open'),
-        table_name='provider_rates',
-        postgresql_where='(effective_to IS NULL)',
+        op.f("uq_provider_rates_open"),
+        table_name="provider_rates",
+        postgresql_where="(effective_to IS NULL)",
     )
     op.create_index(
-        'uq_provider_rates_open',
-        'provider_rates',
-        ['provider', 'component', 'model'],
+        "uq_provider_rates_open",
+        "provider_rates",
+        ["provider", "component", "model"],
         unique=True,
-        postgresql_where=sa.text('effective_to IS NULL'),
+        postgresql_where=sa.text("effective_to IS NULL"),
     )
 
 
@@ -72,25 +71,25 @@ def downgrade() -> None:
     op.execute("DELETE FROM provider_rates WHERE model <> ''")
 
     op.drop_index(
-        'uq_provider_rates_open',
-        table_name='provider_rates',
-        postgresql_where=sa.text('effective_to IS NULL'),
+        "uq_provider_rates_open",
+        table_name="provider_rates",
+        postgresql_where=sa.text("effective_to IS NULL"),
     )
     op.create_index(
-        op.f('uq_provider_rates_open'),
-        'provider_rates',
-        ['provider', 'component'],
+        op.f("uq_provider_rates_open"),
+        "provider_rates",
+        ["provider", "component"],
         unique=True,
-        postgresql_where='(effective_to IS NULL)',
+        postgresql_where="(effective_to IS NULL)",
     )
 
-    op.drop_index('ix_provider_rates_lookup', table_name='provider_rates')
+    op.drop_index("ix_provider_rates_lookup", table_name="provider_rates")
     op.create_index(
-        op.f('ix_provider_rates_lookup'),
-        'provider_rates',
-        ['provider', 'component', 'effective_from'],
+        op.f("ix_provider_rates_lookup"),
+        "provider_rates",
+        ["provider", "component", "effective_from"],
         unique=False,
     )
 
-    op.drop_column('provider_rates', 'model')
-    op.drop_column('call_cost_items', 'model')
+    op.drop_column("provider_rates", "model")
+    op.drop_column("call_cost_items", "model")

@@ -1,3 +1,22 @@
+[tool.ruff]
+# Ruff formats Python code blocks inside Markdown as of 0.14, which reflows the
+# annotated snippets in AGENTS.md and the service READMEs — comment columns are
+# aligned there on purpose, to be read rather than executed. `scripts/format.sh`
+# runs `ruff format api`, so without this exclusion every contributor's run
+# rewrites prose, and CI's format-drift check turns the docs into a moving
+# target. Python files are still formatted; only the documentation is left alone.
+extend-exclude = ["*.md"]
+
+# Adding a [tool.ruff] section makes this file ruff's configuration root, and
+# isort resolves first-party packages relative to that root. Without `..` on the
+# search path the `api` package sits one level above it, every `from api.x
+# import y` is reclassified as third-party, and the whole tree wants re-sorting.
+#
+# `.` is deliberately absent: with this directory on the path the `api/alembic/`
+# package makes the third-party `alembic` distribution look first-party, and
+# every migration's import block gets reordered instead.
+src = [".."]
+
 [project]
 name = "decibyl-api"
 version = "1.42.0"

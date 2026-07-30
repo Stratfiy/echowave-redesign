@@ -372,7 +372,7 @@ class TestTheFlowIsClosedUntilTheCarrierIsReady:
     async def test_the_refusal_says_what_is_happening(
         self, db_session, async_session, monkeypatch
     ):
-        """"Not open yet, we will tell you" is actionable. A generic failure
+        """ "Not open yet, we will tell you" is actionable. A generic failure
         would send the customer to support to hear the same thing."""
         monkeypatch.setattr(kyc_service, "MANAGED_TELEPHONY_ENABLED", False)
         org_id = await _company_with_docs(async_session, "closed-message")

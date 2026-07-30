@@ -13,14 +13,15 @@ Revises: 762afdada0cd
 Create Date: 2026-07-30 09:14:02.117841
 
 """
+
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'b41c7d9e2f08'
-down_revision: Union[str, None] = '762afdada0cd'
+revision: str = "b41c7d9e2f08"
+down_revision: Union[str, None] = "762afdada0cd"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
