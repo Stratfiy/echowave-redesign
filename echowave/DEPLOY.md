@@ -178,11 +178,21 @@ produces without reading it. It has proposed destructive column drops before.
 Signup must still be open for this step.
 
 1. Sign up through the UI at `https://<your-host>/auth/signup`.
-2. Grant staff access:
+2. Grant staff access — on a Docker install, inside the api container:
+   ```bash
+   docker compose exec api python -m scripts.grant_superuser you@yourdomain.com
+   docker compose exec api python -m scripts.grant_superuser --list   # confirm
+   ```
+   From a repository checkout with a venv instead:
    ```bash
    set -a && source api/.env && set +a
    python -m scripts.grant_superuser you@yourdomain.com
-   python -m scripts.grant_superuser --list      # confirm
+   ```
+   If the container says `No module named scripts.grant_superuser`, the image
+   predates the fix that ships it — grant the flag directly and rebuild later:
+   ```bash
+   docker compose exec postgres psql -U postgres \
+     -c "UPDATE users SET is_superuser = true WHERE email = 'you@yourdomain.com';"
    ```
 3. Open `/superadmin`. It is deliberately absent from the sidebar — the whole
    area is gated at router level, so a customer who guesses the URL gets

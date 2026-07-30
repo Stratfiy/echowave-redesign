@@ -149,6 +149,12 @@ COPY --chown=decibyl:decibyl ./api ./api
 #     which runs each workload (web, arq-worker, ari-manager,
 #     campaign-orchestrator, migrate) as its own pod. Keep this list in sync
 #     with the command:[] entries in deploy/helm/decibyl/templates/*.yaml.
+#
+# grant_superuser.py is not an entrypoint but must ship anyway: the admin
+# dashboard sits behind `is_superuser`, nothing in the signup flow ever sets
+# that flag, and on a Docker install there is no other copy of the repository to
+# run it from. Without it in the image, a fresh deployment has no route to its
+# own admin panel except hand-editing the database.
 COPY --chown=decibyl:decibyl \
      ./scripts/start_services_docker.sh \
      ./scripts/run_migrate.sh \
@@ -156,6 +162,7 @@ COPY --chown=decibyl:decibyl \
      ./scripts/run_arq_worker.sh \
      ./scripts/run_ari_manager.sh \
      ./scripts/run_campaign_orchestrator.sh \
+     ./scripts/grant_superuser.py \
      ./scripts/
 
 # ts_validator Node deps (built in ts-deps stage with full node:22-slim image).
