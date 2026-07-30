@@ -142,6 +142,21 @@ services:
 
   api:
     image: ${REGISTRY:-decibylai}/decibyl-api:latest
+    # Compose reads .env for *interpolation* only — values there do not reach a
+    # container unless something puts them there. Every variable this file does
+    # not name explicitly was therefore silently absent inside the API: Razorpay
+    # keys, the supplier GST identity, PLATFORM_CREDENTIAL_SECRET, retention
+    # windows, the grievance officer. The failures that produces are quiet ones
+    # — top-ups refused, provider keys unsavable, invoices issued with a blank
+    # supplier — and they look like application bugs rather than missing config.
+    #
+    # So the whole file is injected, and `environment:` below still wins for
+    # anything it names. That keeps the split right: infrastructure values are
+    # computed here from container hostnames, business configuration comes from
+    # .env, and adding a new setting no longer needs an edit in two places.
+    env_file:
+      - path: .env
+        required: false
     environment:
       # Core application config
       ENVIRONMENT: "${ENVIRONMENT:-local}"

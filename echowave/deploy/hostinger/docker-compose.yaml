@@ -138,6 +138,13 @@ services:
   api:
     image: ${REGISTRY:-decibylai}/decibyl-api:${DECIBYL_VERSION:-latest}
     restart: unless-stopped
+    # See the note in the root docker-compose.yaml: Compose reads .env for
+    # interpolation only, so anything not named below would be absent inside the
+    # container — Razorpay keys, the supplier GST identity, retention windows.
+    # `environment:` still wins for everything it names.
+    env_file:
+      - path: .env
+        required: false
     environment:
       # production => drop private-IP host ICE candidates on a public VPS and
       # order TURN URIs UDP-first. Required for correct remote WebRTC.

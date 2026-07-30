@@ -21,20 +21,80 @@ and the balance gate can be switched off entirely.
 | `BALANCE_ENFORCEMENT_ENABLED=false` | **Otherwise your test account cannot make a single call.** Prepaid is on by default and a fresh account has zero credit. Turn it off for testing, or top yourself up with a staff credit adjustment from the admin dashboard |
 | `MINIO_PUBLIC_BUCKET` left unset | Recordings are served by presigned URL |
 
-### Build your own images
+### Putting it on an EC2 box, start to finish
 
-`docker-compose.yaml` **pulls** `${REGISTRY:-decibylai}/decibyl-api:latest`, and
-`scripts/start_docker.sh` defaults `REGISTRY` to `ghcr.io/decibyl-hq`. Neither
-registry is under your control, and whatever sits in them is upstream's build —
-not this repository. Deploying without overriding that either fails to pull or,
-worse, succeeds and runs somebody else's image with none of your work in it.
-
-So bring the stack up with the build override:
+Run this **on the server**, as root. Everything below is one path that works;
+the traps it avoids are named underneath.
 
 ```bash
-git submodule update --init --recursive   # the API build needs pipecat
-docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
+# 1. The code. Clone your own repo — not upstream's.
+git clone --recurse-submodules -b <your-branch> \
+    https://github.com/<you>/<your-repo>.git
+cd <your-repo>/echowave
+
+# 2. Setup: writes .env, a bootstrap certificate, the build override, and
+#    brings the stack up. Both variables matter — see below.
+sudo DEPLOY_MODE=build REPO_SOURCE=existing SERVER_IP=<your.elastic.ip> \
+    ./scripts/setup_remote.sh
+
+# 3. Your own configuration — none of it is prompted for.
+sudo tee -a .env >/dev/null <<'ENVEOF'
+PLATFORM_CREDENTIAL_SECRET=<generate one, see §1>
+RAZORPAY_KEY_ID=<test key>
+RAZORPAY_KEY_SECRET=<test secret>
+RAZORPAY_WEBHOOK_SECRET=<you choose it, then paste it into Razorpay>
+SUPPLIER_LEGAL_NAME="YOUR COMPANY PRIVATE LIMITED"
+SUPPLIER_GSTIN=<your GSTIN>
+SUPPLIER_ADDRESS="<registered address>"
+SUPPLIER_HAS_LUT=true
+SUPPLIER_LUT_NUMBER=<LUT ARN>
+GRIEVANCE_OFFICER_NAME="<a real person>"
+GRIEVANCE_OFFICER_EMAIL=privacy@yourdomain
+GRIEVANCE_OFFICER_ADDRESS="<postal address>"
+BALANCE_ENFORCEMENT_ENABLED=false
+ENVEOF
+
+sudo ./remote_up.sh --build
 ```
+
+**`REPO_SOURCE=existing` is not optional here.** The script decides whether to
+build from the current directory by testing for `.git` beside
+`docker-compose.yaml` — and in this repository `.git` sits one level up, at
+`echowave-redesign/`, while the compose file is in `echowave/`. Left to guess it
+would clone a *different* repository over the top of yours. Passing it
+explicitly settles the question.
+
+**`DEPLOY_MODE=build` is what makes it your code.** Without it the stack pulls
+`${REGISTRY:-decibylai}/decibyl-api:latest` — a registry nobody here controls,
+holding upstream's build with none of the billing, prepaid, GST or privacy work
+in it. That failure is silent: containers start, the app loads, and nothing
+looks wrong. In build mode `setup_remote.sh` writes a
+`docker-compose.override.yaml` that builds both images from the checkout, and
+Compose picks it up automatically from then on. (`docker-compose.build.yaml` in
+the repo root does the same job for a manual `docker compose -f … -f …` run —
+use one or the other, never both.)
+
+**Step 3 is not optional either, and nothing warns you.** Compose reads `.env`
+for interpolation; it does not put those values inside containers. Every
+variable the compose file does not name explicitly used to be simply absent in
+the API — which is why the api service now injects `.env` wholesale, with the
+computed infrastructure values still winning. Anything you add to `.env` reaches
+the app after a `remote_up.sh` re-run. Without `PLATFORM_CREDENTIAL_SECRET` in
+particular, saving a provider key raises, so **there is no way to make a single
+call**.
+
+**TLS.** With a public IP and Docker present, `setup_remote.sh` issues a real
+Let's Encrypt certificate for `<your-ip>.sslip.io` and serves the app there —
+no DNS work, and a trusted certificate, which the browser requires before it
+will hand over a microphone. Your own domain is a separate step:
+`scripts/setup_custom_domain.sh` expects upstream's `decibyl/` subdirectory
+layout and will not run against a repo checkout, so point the CNAME at the box
+and issue the certificate with certbot yourself, then set `PUBLIC_HOST` and
+`PUBLIC_BASE_URL` in `.env` and re-run `remote_up.sh`.
+
+**Open the security group** for 80, 443, UDP+TCP 3478 and 5349, and UDP
+49152–49200. Miss the UDP range and calls connect with no audio at all —
+signaling succeeds, so it looks like a bug in the agent.
 
 The first build is slow — a Next.js production bundle and a full Python
 dependency tree. On a small EC2 instance give it a good twenty minutes and make
@@ -187,6 +247,28 @@ overstated until you fill it in.
   you are on S3 (`ENABLE_AWS_S3=true`).
 * Take a backup, and check you can restore it. The credit ledger is the only
   record of what every customer has paid.
+
+---
+
+## Updating a running box
+
+Pull and rebuild in place:
+
+```bash
+cd <your-repo>/echowave
+git pull --recurse-submodules
+sudo ./remote_up.sh --build
+```
+
+**Do not use `scripts/update_remote.sh`.** It hardcodes `decibyl-hq/decibyl` and
+fetches a compose file and tagged images from there — an upstream that is not
+yours. Its whole purpose is upgrading an install that tracks upstream releases,
+which this is not.
+
+The same applies to `setup_local.sh` and the bootstrap `curl` at the top of each
+setup script: they fall back to raw.githubusercontent.com if
+`scripts/lib/setup_common.sh` is missing. Deploying from a full clone means it
+never is, and the fallback never fires.
 
 ---
 
