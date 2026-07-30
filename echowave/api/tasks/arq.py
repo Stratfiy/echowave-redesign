@@ -47,6 +47,7 @@ from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
 from api.tasks.billing_rollup import refresh_billing_rollups
+from api.tasks.kyc_carrier_poll import poll_kyc_carrier_status
 from api.tasks.workflow_completion import process_workflow_completion
 
 
@@ -59,6 +60,7 @@ class WorkerSettings:
         process_knowledge_base_document,
         deliver_webhook,
         refresh_billing_rollups,
+        poll_kyc_carrier_status,
     ]
     cron_jobs = [
         # Safety net for webhook deliveries whose ARQ job was lost (worker
@@ -79,6 +81,17 @@ class WorkerSettings:
             minute=set(range(0, 60, 10)),
             second=30,
             run_at_startup=True,
+        ),
+        # Carriers do not call back when a compliance application is decided,
+        # so an approved account would sit blocked until someone happened to
+        # open the admin queue. Fifteen minutes is well inside the hours-to-days
+        # these decisions actually take, and the poll is read-only on our side
+        # unless the verdict changed.
+        cron(
+            poll_kyc_carrier_status,
+            minute={0, 15, 30, 45},
+            second=15,
+            run_at_startup=False,
         ),
     ]
     redis_settings = REDIS_SETTINGS

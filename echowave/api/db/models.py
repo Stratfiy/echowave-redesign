@@ -254,6 +254,14 @@ class TelephonyConfigurationModel(Base):
     is_default_outbound = Column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    # True when the numbers behind this config sit under Decibyl's carrier
+    # account rather than credentials the customer supplied. Only these are
+    # gated on our KYC flow: a bring-your-own configuration is already verified
+    # in the customer's own name with their own carrier, and blocking it on a
+    # verification we run would be wrong. See services/kyc/service.py.
+    is_platform_managed = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at = Column(
         DateTime(timezone=True),

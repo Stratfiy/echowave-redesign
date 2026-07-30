@@ -18,6 +18,7 @@ from api.services.auth.depends import get_user
 from api.services.campaign.runner import campaign_runner_service
 from api.services.campaign.source_sync import CampaignSourceSyncService
 from api.services.campaign.source_sync_factory import get_sync_service
+from api.services.kyc import service as kyc_service
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.reports import generate_campaign_report_csv
 from api.services.storage import storage_fs
@@ -559,6 +560,18 @@ async def start_campaign(
     )
     if not quota_result.has_quota:
         raise HTTPException(status_code=402, detail=quota_result.error_message)
+
+    # Verification is checked here rather than per call: a campaign on a
+    # platform-managed number would otherwise fail once for every row in the
+    # list, which reads as a broken campaign instead of an unverified account.
+    if campaign.telephony_configuration_id is not None:
+        configuration = await db_client.get_telephony_configuration_for_org(
+            campaign.telephony_configuration_id, user.selected_organization_id
+        )
+        try:
+            await kyc_service.assert_configuration_may_place_calls(configuration)
+        except kyc_service.TelephonyNotVerified as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     # Start the campaign using the runner service
     try:

@@ -743,6 +743,38 @@ export type BodyTranscribeAudioApiV1WorkflowRecordingsTranscribePost = {
 };
 
 /**
+ * Body_upload_document_api_v1_kyc_documents_post
+ */
+export type BodyUploadDocumentApiV1KycDocumentsPost = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
+ * BusinessDetailsRequest
+ */
+export type BusinessDetailsRequest = {
+    /**
+     * Business Type
+     */
+    business_type: string;
+    /**
+     * Legal Name
+     */
+    legal_name: string;
+    /**
+     * Gstin
+     */
+    gstin?: string | null;
+};
+
+/**
  * CalculatorToolDefinition
  *
  * Tool definition for Calculator tools.
@@ -1051,6 +1083,29 @@ export type CampaignsResponse = {
      * Campaigns
      */
     campaigns: Array<CampaignResponse>;
+};
+
+/**
+ * CarrierVerdictRequest
+ *
+ * Records what the carrier decided.
+ *
+ * Used both by the status poll and by staff entering a verdict that arrived
+ * by email while the carrier's API is not wired up.
+ */
+export type CarrierVerdictRequest = {
+    /**
+     * Verdict
+     */
+    verdict: string;
+    /**
+     * Raw Status
+     */
+    raw_status?: string | null;
+    /**
+     * Rejection Reason
+     */
+    rejection_reason?: string | null;
 };
 
 /**
@@ -2585,6 +2640,16 @@ export type FolderResponse = {
      * Created At
      */
     created_at: string;
+};
+
+/**
+ * ForwardRequest
+ */
+export type ForwardRequest = {
+    /**
+     * Carrier
+     */
+    carrier?: string | null;
 };
 
 /**
@@ -4727,6 +4792,16 @@ export type RedialCampaignRequest = {
      */
     retry_on_busy?: boolean;
     retry_config?: RetryConfigRequest | null;
+};
+
+/**
+ * RejectRequest
+ */
+export type RejectRequest = {
+    /**
+     * Reason
+     */
+    reason: string;
 };
 
 /**
@@ -8472,6 +8547,508 @@ export type GetCostPerMinuteApiV1CostEstimatePerMinutePostResponses = {
 };
 
 export type GetCostPerMinuteApiV1CostEstimatePerMinutePostResponse = GetCostPerMinuteApiV1CostEstimatePerMinutePostResponses[keyof GetCostPerMinuteApiV1CostEstimatePerMinutePostResponses];
+
+export type GetKycApiV1KycGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/kyc';
+};
+
+export type GetKycApiV1KycGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetKycApiV1KycGetError = GetKycApiV1KycGetErrors[keyof GetKycApiV1KycGetErrors];
+
+export type GetKycApiV1KycGetResponses = {
+    /**
+     * Response Get Kyc Api V1 Kyc Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetKycApiV1KycGetResponse = GetKycApiV1KycGetResponses[keyof GetKycApiV1KycGetResponses];
+
+export type SetBusinessDetailsApiV1KycBusinessDetailsPutData = {
+    body: BusinessDetailsRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/kyc/business-details';
+};
+
+export type SetBusinessDetailsApiV1KycBusinessDetailsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetBusinessDetailsApiV1KycBusinessDetailsPutError = SetBusinessDetailsApiV1KycBusinessDetailsPutErrors[keyof SetBusinessDetailsApiV1KycBusinessDetailsPutErrors];
+
+export type SetBusinessDetailsApiV1KycBusinessDetailsPutResponses = {
+    /**
+     * Response Set Business Details Api V1 Kyc Business Details Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetBusinessDetailsApiV1KycBusinessDetailsPutResponse = SetBusinessDetailsApiV1KycBusinessDetailsPutResponses[keyof SetBusinessDetailsApiV1KycBusinessDetailsPutResponses];
+
+export type UploadDocumentApiV1KycDocumentsPostData = {
+    body: BodyUploadDocumentApiV1KycDocumentsPost;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/kyc/documents';
+};
+
+export type UploadDocumentApiV1KycDocumentsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadDocumentApiV1KycDocumentsPostError = UploadDocumentApiV1KycDocumentsPostErrors[keyof UploadDocumentApiV1KycDocumentsPostErrors];
+
+export type UploadDocumentApiV1KycDocumentsPostResponses = {
+    /**
+     * Response Upload Document Api V1 Kyc Documents Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UploadDocumentApiV1KycDocumentsPostResponse = UploadDocumentApiV1KycDocumentsPostResponses[keyof UploadDocumentApiV1KycDocumentsPostResponses];
+
+export type DeleteDocumentApiV1KycDocumentsDocumentIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: number;
+    };
+    query?: never;
+    url: '/api/v1/kyc/documents/{document_id}';
+};
+
+export type DeleteDocumentApiV1KycDocumentsDocumentIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteDocumentApiV1KycDocumentsDocumentIdDeleteError = DeleteDocumentApiV1KycDocumentsDocumentIdDeleteErrors[keyof DeleteDocumentApiV1KycDocumentsDocumentIdDeleteErrors];
+
+export type DeleteDocumentApiV1KycDocumentsDocumentIdDeleteResponses = {
+    /**
+     * Response Delete Document Api V1 Kyc Documents  Document Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DeleteDocumentApiV1KycDocumentsDocumentIdDeleteResponse = DeleteDocumentApiV1KycDocumentsDocumentIdDeleteResponses[keyof DeleteDocumentApiV1KycDocumentsDocumentIdDeleteResponses];
+
+export type SubmitKycApiV1KycSubmitPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/kyc/submit';
+};
+
+export type SubmitKycApiV1KycSubmitPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SubmitKycApiV1KycSubmitPostError = SubmitKycApiV1KycSubmitPostErrors[keyof SubmitKycApiV1KycSubmitPostErrors];
+
+export type SubmitKycApiV1KycSubmitPostResponses = {
+    /**
+     * Response Submit Kyc Api V1 Kyc Submit Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SubmitKycApiV1KycSubmitPostResponse = SubmitKycApiV1KycSubmitPostResponses[keyof SubmitKycApiV1KycSubmitPostResponses];
+
+export type ReviewQueueApiV1AdminKycQueueGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: string | null;
+    };
+    url: '/api/v1/admin/kyc/queue';
+};
+
+export type ReviewQueueApiV1AdminKycQueueGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReviewQueueApiV1AdminKycQueueGetError = ReviewQueueApiV1AdminKycQueueGetErrors[keyof ReviewQueueApiV1AdminKycQueueGetErrors];
+
+export type ReviewQueueApiV1AdminKycQueueGetResponses = {
+    /**
+     * Response Review Queue Api V1 Admin Kyc Queue Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReviewQueueApiV1AdminKycQueueGetResponse = ReviewQueueApiV1AdminKycQueueGetResponses[keyof ReviewQueueApiV1AdminKycQueueGetResponses];
+
+export type GetDocumentApiV1AdminKycDocumentsDocumentIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/kyc/documents/{document_id}';
+};
+
+export type GetDocumentApiV1AdminKycDocumentsDocumentIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDocumentApiV1AdminKycDocumentsDocumentIdGetError = GetDocumentApiV1AdminKycDocumentsDocumentIdGetErrors[keyof GetDocumentApiV1AdminKycDocumentsDocumentIdGetErrors];
+
+export type GetDocumentApiV1AdminKycDocumentsDocumentIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ClaimApiV1AdminKycOrganizationIdClaimPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/kyc/{organization_id}/claim';
+};
+
+export type ClaimApiV1AdminKycOrganizationIdClaimPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClaimApiV1AdminKycOrganizationIdClaimPostError = ClaimApiV1AdminKycOrganizationIdClaimPostErrors[keyof ClaimApiV1AdminKycOrganizationIdClaimPostErrors];
+
+export type ClaimApiV1AdminKycOrganizationIdClaimPostResponses = {
+    /**
+     * Response Claim Api V1 Admin Kyc  Organization Id  Claim Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ClaimApiV1AdminKycOrganizationIdClaimPostResponse = ClaimApiV1AdminKycOrganizationIdClaimPostResponses[keyof ClaimApiV1AdminKycOrganizationIdClaimPostResponses];
+
+export type RejectApiV1AdminKycOrganizationIdRejectPostData = {
+    body: RejectRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/kyc/{organization_id}/reject';
+};
+
+export type RejectApiV1AdminKycOrganizationIdRejectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RejectApiV1AdminKycOrganizationIdRejectPostError = RejectApiV1AdminKycOrganizationIdRejectPostErrors[keyof RejectApiV1AdminKycOrganizationIdRejectPostErrors];
+
+export type RejectApiV1AdminKycOrganizationIdRejectPostResponses = {
+    /**
+     * Response Reject Api V1 Admin Kyc  Organization Id  Reject Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RejectApiV1AdminKycOrganizationIdRejectPostResponse = RejectApiV1AdminKycOrganizationIdRejectPostResponses[keyof RejectApiV1AdminKycOrganizationIdRejectPostResponses];
+
+export type ApproveApiV1AdminKycOrganizationIdApprovePostData = {
+    body: ForwardRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/kyc/{organization_id}/approve';
+};
+
+export type ApproveApiV1AdminKycOrganizationIdApprovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApproveApiV1AdminKycOrganizationIdApprovePostError = ApproveApiV1AdminKycOrganizationIdApprovePostErrors[keyof ApproveApiV1AdminKycOrganizationIdApprovePostErrors];
+
+export type ApproveApiV1AdminKycOrganizationIdApprovePostResponses = {
+    /**
+     * Response Approve Api V1 Admin Kyc  Organization Id  Approve Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApproveApiV1AdminKycOrganizationIdApprovePostResponse = ApproveApiV1AdminKycOrganizationIdApprovePostResponses[keyof ApproveApiV1AdminKycOrganizationIdApprovePostResponses];
+
+export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostData = {
+    body: CarrierVerdictRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/kyc/{organization_id}/carrier-verdict';
+};
+
+export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostError = CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostErrors[keyof CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostErrors];
+
+export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses = {
+    /**
+     * Response Carrier Verdict Api V1 Admin Kyc  Organization Id  Carrier Verdict Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponse = CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses[keyof CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses];
 
 export type ValidateWorkflowApiV1WorkflowWorkflowIdValidatePostData = {
     body?: never;

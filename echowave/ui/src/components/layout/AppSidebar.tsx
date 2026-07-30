@@ -16,6 +16,7 @@ import {
   Megaphone,
   Phone,
   Settings,
+  ShieldCheck,
   TrendingUp,
   UserRound,
   Workflow,
@@ -107,6 +108,13 @@ const NAV_SECTIONS: SidebarNavSection[] = [
         url: "/telephony-configurations",
         icon: Phone,
         showsTelephonyWarning: true,
+      },
+      // Sits beside Telephony because that is where someone discovers they
+      // need it — a phone number is the only thing verification gates.
+      {
+        title: "Verification",
+        url: "/verification",
+        icon: ShieldCheck,
       },
       {
         title: "Tools",

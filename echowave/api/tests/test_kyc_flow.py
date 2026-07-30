@@ -93,7 +93,9 @@ class TestSubmissionFlow:
         # Nothing is required until they say what kind of business they are.
         assert view.required_documents == ()
 
-    async def test_business_type_determines_what_is_required(self, db_session, async_session):
+    async def test_business_type_determines_what_is_required(
+        self, db_session, async_session
+    ):
         org_id, _ = await _org(async_session, "company")
         view = await kyc_service.set_business_details(
             organization_id=org_id,
@@ -130,7 +132,9 @@ class TestSubmissionFlow:
         with pytest.raises(ValueError, match="Still needed"):
             await kyc_service.submit(org_id)
 
-    async def test_a_complete_submission_moves_to_review(self, db_session, async_session):
+    async def test_a_complete_submission_moves_to_review(
+        self, db_session, async_session
+    ):
         org_id = await _company_with_docs(async_session, "complete")
         view = await kyc_service.submit(org_id)
 
@@ -141,7 +145,9 @@ class TestSubmissionFlow:
         # seen it.
         assert view.telephony_enabled is False
 
-    async def test_reuploading_a_kind_replaces_it(self, db_session, async_session, stub_storage):
+    async def test_reuploading_a_kind_replaces_it(
+        self, db_session, async_session, stub_storage
+    ):
         """The common case is fixing a rejected scan. Two copies would leave a
         reviewer guessing which one counts."""
         org_id = await _company_with_docs(async_session, "replace")
@@ -199,6 +205,56 @@ class TestSubmissionFlow:
 
 
 @pytest.mark.usefixtures("stub_storage")
+class TestRecordsSurviveTheirSession:
+    """Every KYC client method hands its record back to a caller that reads it
+    after the session has closed.
+
+    The ``db_session`` fixture keeps one session open for the whole test, which
+    hides detachment entirely — in production ``commit()`` expires every
+    attribute, and a record that was not fully reloaded afterwards raises
+    ``DetachedInstanceError`` on the first column read. So rather than trusting
+    the fixture, these assert directly that nothing is left unloaded.
+    """
+
+    #: What a caller actually touches on a returned record: every column, plus
+    #: the documents collection. `organization` is deliberately excluded — it is
+    #: never read off these, and requiring it would force a pointless join.
+    @staticmethod
+    def _assert_complete(record):
+        from sqlalchemy import inspect
+
+        state = inspect(record)
+        needed = {c.key for c in state.mapper.column_attrs} | {"documents"}
+        missing = needed & state.unloaded
+        assert not missing, f"would lazy-load after the session closes: {missing}"
+
+    async def test_a_created_record_is_fully_loaded(self, db_session, async_session):
+        org_id, _ = await _org(async_session, "detach-create")
+        self._assert_complete(await db_client.get_or_create_kyc(org_id))
+
+    async def test_an_updated_record_is_fully_loaded(self, db_session, async_session):
+        """The one that actually broke: refreshing only ``documents`` after a
+        commit leaves every column expired."""
+        org_id = await _company_with_docs(async_session, "detach-update")
+        updated = await db_client.update_kyc(org_id, status=KycStatus.SUBMITTED.value)
+        self._assert_complete(updated)
+        # And the values are really there, not just marked loaded.
+        assert updated.status == KycStatus.SUBMITTED.value
+        assert len(updated.documents) == 2
+
+    async def test_deleting_returns_a_key_not_a_dead_row(
+        self, db_session, async_session
+    ):
+        """The caller needs the storage key to remove the object, and reading
+        it off the deleted instance would raise."""
+        org_id = await _company_with_docs(async_session, "detach-delete")
+        document_id = (await kyc_service.get_view(org_id)).documents[0]["id"]
+
+        key = await db_client.delete_document(document_id, organization_id=org_id)
+        assert isinstance(key, str) and key
+
+
+@pytest.mark.usefixtures("stub_storage")
 class TestTenantIsolation:
     async def test_one_account_cannot_delete_another_accounts_document(
         self, db_session, async_session
@@ -240,9 +296,7 @@ class TestApprovedRecordsAreFrozen:
         customer quietly changing a certificate afterwards."""
         org_id = await _company_with_docs(async_session, "frozen")
         await kyc_service.submit(org_id)
-        await db_client.update_kyc(
-            org_id, status=KycStatus.CARRIER_APPROVED.value
-        )
+        await db_client.update_kyc(org_id, status=KycStatus.CARRIER_APPROVED.value)
 
         with pytest.raises(KycTransitionError, match="locked"):
             await kyc_service.upload_document(
@@ -259,9 +313,7 @@ class TestApprovedRecordsAreFrozen:
     ):
         org_id = await _company_with_docs(async_session, "frozen2")
         await kyc_service.submit(org_id)
-        await db_client.update_kyc(
-            org_id, status=KycStatus.CARRIER_APPROVED.value
-        )
+        await db_client.update_kyc(org_id, status=KycStatus.CARRIER_APPROVED.value)
         document_id = (await kyc_service.get_view(org_id)).documents[0]["id"]
 
         with pytest.raises(KycTransitionError, match="locked"):
@@ -269,7 +321,9 @@ class TestApprovedRecordsAreFrozen:
                 organization_id=org_id, document_id=document_id
             )
 
-    async def test_telephony_turns_on_only_at_carrier_approval(self, db_session, async_session):
+    async def test_telephony_turns_on_only_at_carrier_approval(
+        self, db_session, async_session
+    ):
         org_id = await _company_with_docs(async_session, "gate")
         await kyc_service.submit(org_id)
 
@@ -277,7 +331,5 @@ class TestApprovedRecordsAreFrozen:
         await db_client.update_kyc(org_id, status=KycStatus.FORWARDED.value)
         assert (await kyc_service.get_view(org_id)).telephony_enabled is False
 
-        await db_client.update_kyc(
-            org_id, status=KycStatus.CARRIER_APPROVED.value
-        )
+        await db_client.update_kyc(org_id, status=KycStatus.CARRIER_APPROVED.value)
         assert (await kyc_service.get_view(org_id)).telephony_enabled is True

@@ -18,6 +18,25 @@ from api.db.models import KycDocumentModel, OrganizationKycModel, OrganizationMo
 from api.enums import KycStatus
 
 
+def _loaded(organization_id: int):
+    """A select that leaves nothing for the caller to lazy-load.
+
+    Every method here returns a record that outlives its session, and callers
+    read both columns and ``documents`` off it. ``commit()`` expires *all*
+    attributes, so a post-commit ``refresh(attribute_names=["documents"])``
+    loads the relationship but leaves the columns expired — the instance then
+    detaches on session exit and the first column read raises
+    ``DetachedInstanceError``. Re-selecting through this is what makes the
+    returned record complete.
+    """
+    return (
+        select(OrganizationKycModel)
+        .options(selectinload(OrganizationKycModel.documents))
+        .where(OrganizationKycModel.organization_id == organization_id)
+        .execution_options(populate_existing=True)
+    )
+
+
 class KycClient(BaseDBClient):
     async def get_kyc(self, organization_id: int) -> OrganizationKycModel | None:
         """This account's KYC record with its documents, or None.
@@ -28,12 +47,7 @@ class KycClient(BaseDBClient):
         session would be handed the pre-mutation document list.
         """
         async with self.async_session() as session:
-            return await session.scalar(
-                select(OrganizationKycModel)
-                .options(selectinload(OrganizationKycModel.documents))
-                .where(OrganizationKycModel.organization_id == organization_id)
-                .execution_options(populate_existing=True)
-            )
+            return await session.scalar(_loaded(organization_id))
 
     async def get_or_create_kyc(self, organization_id: int) -> OrganizationKycModel:
         """The record for this account, created in ``not_started`` if absent.
@@ -43,23 +57,18 @@ class KycClient(BaseDBClient):
         is noise in the review queue's index.
         """
         async with self.async_session() as session:
-            existing = await session.scalar(
-                select(OrganizationKycModel)
-                .options(selectinload(OrganizationKycModel.documents))
-                .where(OrganizationKycModel.organization_id == organization_id)
-                .execution_options(populate_existing=True)
-            )
+            existing = await session.scalar(_loaded(organization_id))
             if existing is not None:
                 return existing
 
-            record = OrganizationKycModel(
-                organization_id=organization_id,
-                status=KycStatus.NOT_STARTED.value,
+            session.add(
+                OrganizationKycModel(
+                    organization_id=organization_id,
+                    status=KycStatus.NOT_STARTED.value,
+                )
             )
-            session.add(record)
             await session.commit()
-            await session.refresh(record, attribute_names=["documents"])
-            return record
+            return await session.scalar(_loaded(organization_id))
 
     async def update_kyc(
         self, organization_id: int, **fields
@@ -84,8 +93,7 @@ class KycClient(BaseDBClient):
             record.updated_at = datetime.now(UTC)
 
             await session.commit()
-            await session.refresh(record, attribute_names=["documents"])
-            return record
+            return await session.scalar(_loaded(organization_id))
 
     async def add_document(
         self,
@@ -132,16 +140,18 @@ class KycClient(BaseDBClient):
         async with self.async_session() as session:
             query = select(KycDocumentModel).where(KycDocumentModel.id == document_id)
             if organization_id is not None:
-                query = query.where(
-                    KycDocumentModel.organization_id == organization_id
-                )
+                query = query.where(KycDocumentModel.organization_id == organization_id)
             return await session.scalar(query)
 
     async def delete_document(
         self, document_id: int, *, organization_id: int
-    ) -> KycDocumentModel | None:
-        """Remove a document row, scoped to its owner. Returns it so the caller
-        can delete the stored object too."""
+    ) -> str | None:
+        """Remove a document row, scoped to its owner.
+
+        Returns the storage key so the caller can delete the stored object too.
+        A key rather than the model, because the row is gone by the time the
+        caller sees it — reading any attribute off a deleted instance raises.
+        """
         async with self.async_session() as session:
             document = await session.scalar(
                 select(KycDocumentModel).where(
@@ -151,9 +161,10 @@ class KycClient(BaseDBClient):
             )
             if document is None:
                 return None
+            storage_key = document.storage_key
             await session.delete(document)
             await session.commit()
-            return document
+            return storage_key
 
     async def list_kyc_for_review(
         self, *, statuses: list[str] | None = None, limit: int = 100

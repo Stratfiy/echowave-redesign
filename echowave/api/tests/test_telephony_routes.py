@@ -83,6 +83,11 @@ def test_initiate_call_executes_as_workflow_owner_for_shared_org_workflow():
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
+        # Bring-your-own telephony, so the KYC gate does not apply. These tests
+        # are about call setup; the gate has its own suite.
+        mock_db.get_telephony_configuration_for_org = AsyncMock(
+            return_value=SimpleNamespace(id=55, is_platform_managed=False)
+        )
         mock_db.get_workflow = AsyncMock(return_value=workflow)
         mock_db.create_workflow_run = AsyncMock(
             return_value=SimpleNamespace(
@@ -172,6 +177,11 @@ def test_initiate_call_uses_organization_preference_phone_number():
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
+        # Bring-your-own telephony, so the KYC gate does not apply. These tests
+        # are about call setup; the gate has its own suite.
+        mock_db.get_telephony_configuration_for_org = AsyncMock(
+            return_value=SimpleNamespace(id=55, is_platform_managed=False)
+        )
         mock_db.get_workflow = AsyncMock(return_value=workflow)
         mock_db.create_workflow_run = AsyncMock(
             return_value=SimpleNamespace(
@@ -225,6 +235,11 @@ def test_initiate_call_rejects_existing_run_for_different_workflow():
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
+        # Bring-your-own telephony, so the KYC gate does not apply. These tests
+        # are about call setup; the gate has its own suite.
+        mock_db.get_telephony_configuration_for_org = AsyncMock(
+            return_value=SimpleNamespace(id=55, is_platform_managed=False)
+        )
         mock_db.get_workflow = AsyncMock(return_value=workflow)
         mock_db.get_workflow_run = AsyncMock(
             return_value=SimpleNamespace(
@@ -277,6 +292,11 @@ def test_initiate_call_rejects_when_concurrency_limit_reached():
         )
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
+        )
+        # Bring-your-own telephony, so the KYC gate does not apply. These tests
+        # are about call setup; the gate has its own suite.
+        mock_db.get_telephony_configuration_for_org = AsyncMock(
+            return_value=SimpleNamespace(id=55, is_platform_managed=False)
         )
         mock_db.get_workflow = AsyncMock(return_value=workflow)
         mock_db.create_workflow_run = AsyncMock()

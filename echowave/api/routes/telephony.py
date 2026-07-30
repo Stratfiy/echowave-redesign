@@ -30,6 +30,7 @@ from api.services.call_concurrency import (
     WorkflowRunSlotAlreadyBoundError,
     call_concurrency,
 )
+from api.services.kyc import service as kyc_service
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.factory import (
@@ -125,6 +126,19 @@ async def initiate_call(
             status_code=400,
             detail="telephony_not_configured",
         )
+
+    # A number on our own carrier account may only be used once the licensee
+    # has verified this customer. Checked before a concurrency slot is taken,
+    # so a blocked account gets a sentence it can act on rather than a call
+    # that dies at the trunk. Bring-your-own configurations pass through.
+    if telephony_configuration_id is not None:
+        configuration = await db_client.get_telephony_configuration_for_org(
+            telephony_configuration_id, user.selected_organization_id
+        )
+        try:
+            await kyc_service.assert_configuration_may_place_calls(configuration)
+        except kyc_service.TelephonyNotVerified as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     phone_number = request.phone_number or preferences.test_phone_number
 
