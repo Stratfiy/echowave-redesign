@@ -362,7 +362,14 @@ on it, so a mixed call counts twice. That is why those figures are labelled cost
   tenant-isolation checks in that function were all preserved. There is
   currently no spend ceiling. The local ledger check goes back into that same
   function when balance enforcement is turned on. See `KNOWN_ISSUES.md` #8.
-* **Per-call STT and telephony metering.** LLM token and TTS character usage are
-  measured per call by the pipeline today. STT seconds and telephony minutes are
-  not yet instrumented, so those components can only be costed from call
-  duration until the pipeline records them.
+* **Telephony is billed from the rate card, not from the carrier invoice.**
+  Every provider implements `get_call_cost()`, which returns what the carrier
+  actually charged, and nothing calls it. Telephony cost is therefore our rate
+  row times measured seconds, which is close but is not the real number.
+* **Payments and balance enforcement.** Nothing writes a `topup` ledger entry
+  except a staff credit adjustment, and no run is refused for lack of balance.
+  See `KNOWN_ISSUES.md` #8.
+* **Number provisioning.** `telephony_configurations.is_platform_managed` is
+  the flag the KYC gate keys on, and nothing sets it yet — buying and assigning
+  numbers under our own carrier account does not exist, so the gate is correct
+  but dormant.
