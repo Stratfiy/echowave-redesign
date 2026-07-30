@@ -33,9 +33,7 @@ from api.db.models import UserModel  # noqa: E402
 
 
 async def list_users(session: AsyncSession) -> None:
-    users = (
-        await session.scalars(select(UserModel).order_by(UserModel.id))
-    ).all()
+    users = (await session.scalars(select(UserModel).order_by(UserModel.id))).all()
     if not users:
         print("No users yet. Sign up through the UI first.")
         return
@@ -57,9 +55,7 @@ async def set_superuser(session: AsyncSession, email: str, *, grant: bool) -> in
         return 1
 
     if user.is_superuser == grant:
-        print(
-            f"{email} is already {'staff' if grant else 'not staff'}; nothing to do."
-        )
+        print(f"{email} is already {'staff' if grant else 'not staff'}; nothing to do.")
         return 0
 
     user.is_superuser = grant
