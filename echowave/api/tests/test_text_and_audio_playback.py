@@ -470,7 +470,11 @@ class TestStartGreeting:
         )
 
         assert result == "llm"
-        task.queue_frame.assert_not_awaited()
+        # The one frame queued on the task is the recording disclosure, which a
+        # voice run makes whether or not a greeting was configured. Nothing else
+        # is spoken — the opening line comes from the LLM.
+        assert task.queue_frame.await_count == 1
+        assert "recorded" in task.queue_frame.await_args.args[0].text
         queued_frame = llm.queue_frame.await_args.args[0]
         assert isinstance(queued_frame, LLMContextFrame)
         assert queued_frame.context is context

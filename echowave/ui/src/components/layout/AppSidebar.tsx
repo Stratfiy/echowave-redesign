@@ -16,6 +16,7 @@ import {
   Megaphone,
   Phone,
   Settings,
+  Shield,
   ShieldCheck,
   TrendingUp,
   UserRound,
@@ -159,6 +160,14 @@ const NAV_SECTIONS: SidebarNavSection[] = [
         title: "Billing",
         url: "/billing",
         icon: Wallet,
+      },
+      // Retention, erasure and export are obligations the account holder owes
+      // the people they called, so they belong where an account is managed
+      // rather than buried in Settings beside integration toggles.
+      {
+        title: "Privacy",
+        url: "/privacy",
+        icon: Shield,
       },
     ],
   },

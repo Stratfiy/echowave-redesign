@@ -73,6 +73,18 @@ class StartCall(TypedNode):
     Pre-recorded audio file played at the start of the call.
     """
 
+    recording_disclosure_enabled: Optional[bool] = None
+    """
+    Speak a short disclosure before the greeting. Required for two-party-
+    consent jurisdictions and expected under DPDP. Leave unset to follow the
+    platform default (on).
+    """
+
+    recording_disclosure: Optional[str] = None
+    """
+    What the agent says. Leave blank to use the platform default.
+    """
+
     allow_interrupt: bool = False
     """
     When true, the user can interrupt the agent mid-utterance.

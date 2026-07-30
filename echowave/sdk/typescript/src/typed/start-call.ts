@@ -48,6 +48,14 @@ export interface StartCall {
      */
     greeting_recording_id?: string;
     /**
+     * Speak a short disclosure before the greeting. Required for two-party-consent jurisdictions and expected under DPDP. Leave unset to follow the platform default (on).
+     */
+    recording_disclosure_enabled?: boolean;
+    /**
+     * What the agent says. Leave blank to use the platform default.
+     */
+    recording_disclosure?: string;
+    /**
      * Agent system prompt for the opening turn. Supports {{template_variables}} from pre-call fetch and the initial context.
      */
     prompt: string;

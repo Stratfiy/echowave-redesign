@@ -220,6 +220,8 @@ def test_all_registered_node_models_inherit_base_node_data():
                 "greeting_type",
                 "greeting",
                 "greeting_recording_id",
+                "recording_disclosure_enabled",
+                "recording_disclosure",
                 "prompt",
                 "allow_interrupt",
                 "add_global_prompt",

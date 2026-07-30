@@ -82,6 +82,7 @@ class PipecatEngine:
         embeddings_api_version: Optional[str] = None,
         has_recordings: bool = False,
         context_compaction_enabled: bool = False,
+        is_voice: bool = True,
     ):
         self.task = task
         self.llm = llm
@@ -96,6 +97,13 @@ class PipecatEngine:
         self._call_context_vars = call_context_vars
         self._workflow_run_id = workflow_run_id
         self._node_transition_callback = node_transition_callback
+        # Whether this run is a phone or WebRTC call rather than a text chat.
+        # Only calls announce that they are recorded: saying "this call is
+        # recorded" into a chat window is both untrue and the kind of copied
+        # boilerplate that teaches people to ignore disclosures. A text chat
+        # discloses in the interface it is embedded in, where there is a page to
+        # put it on. Defaults to True so a caller that forgets still discloses.
+        self._is_voice = is_voice
         self._initialized = False
         self._call_disposed = False
         self._current_node: Optional[Node] = None
@@ -653,6 +661,12 @@ class PipecatEngine:
         which is on. Opting out has to be a deliberate act — the failure of
         omission is the one that ends up in front of a regulator.
         """
+        # A text chat is not a call and is not recorded as audio. It discloses
+        # in the page it is embedded in, which is where a written interface can
+        # say it properly.
+        if not self._is_voice:
+            return None
+
         node = self.workflow.nodes.get(node_id)
         if not node:
             return None

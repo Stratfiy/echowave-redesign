@@ -2651,6 +2651,18 @@ export type EndCallToolDefinition = {
 };
 
 /**
+ * ErasureRequest
+ */
+export type ErasureRequest = {
+    /**
+     * Phone Number
+     *
+     * The number to erase from this account's calls.
+     */
+    phone_number: string;
+};
+
+/**
  * ExchangeRateRequest
  */
 export type ExchangeRateRequest = {
@@ -4966,6 +4978,24 @@ export type RejectRequest = {
      * Reason
      */
     reason: string;
+};
+
+/**
+ * RetentionRequest
+ */
+export type RetentionRequest = {
+    /**
+     * Recording Retention Days
+     *
+     * Days to keep audio. Null uses the platform default.
+     */
+    recording_retention_days?: number | null;
+    /**
+     * Transcript Retention Days
+     *
+     * Days to keep transcripts and context.
+     */
+    transcript_retention_days?: number | null;
 };
 
 /**
@@ -10133,6 +10163,375 @@ export type ListPaymentsApiV1BillingPaymentsGetResponses = {
 };
 
 export type ListPaymentsApiV1BillingPaymentsGetResponse = ListPaymentsApiV1BillingPaymentsGetResponses[keyof ListPaymentsApiV1BillingPaymentsGetResponses];
+
+export type GetRetentionApiV1PrivacyRetentionGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/privacy/retention';
+};
+
+export type GetRetentionApiV1PrivacyRetentionGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetRetentionApiV1PrivacyRetentionGetError = GetRetentionApiV1PrivacyRetentionGetErrors[keyof GetRetentionApiV1PrivacyRetentionGetErrors];
+
+export type GetRetentionApiV1PrivacyRetentionGetResponses = {
+    /**
+     * Response Get Retention Api V1 Privacy Retention Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetRetentionApiV1PrivacyRetentionGetResponse = GetRetentionApiV1PrivacyRetentionGetResponses[keyof GetRetentionApiV1PrivacyRetentionGetResponses];
+
+export type SetRetentionApiV1PrivacyRetentionPutData = {
+    body: RetentionRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/privacy/retention';
+};
+
+export type SetRetentionApiV1PrivacyRetentionPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetRetentionApiV1PrivacyRetentionPutError = SetRetentionApiV1PrivacyRetentionPutErrors[keyof SetRetentionApiV1PrivacyRetentionPutErrors];
+
+export type SetRetentionApiV1PrivacyRetentionPutResponses = {
+    /**
+     * Response Set Retention Api V1 Privacy Retention Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetRetentionApiV1PrivacyRetentionPutResponse = SetRetentionApiV1PrivacyRetentionPutResponses[keyof SetRetentionApiV1PrivacyRetentionPutResponses];
+
+export type ListErasureRequestsApiV1PrivacyErasureGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/privacy/erasure';
+};
+
+export type ListErasureRequestsApiV1PrivacyErasureGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListErasureRequestsApiV1PrivacyErasureGetError = ListErasureRequestsApiV1PrivacyErasureGetErrors[keyof ListErasureRequestsApiV1PrivacyErasureGetErrors];
+
+export type ListErasureRequestsApiV1PrivacyErasureGetResponses = {
+    /**
+     * Response List Erasure Requests Api V1 Privacy Erasure Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListErasureRequestsApiV1PrivacyErasureGetResponse = ListErasureRequestsApiV1PrivacyErasureGetResponses[keyof ListErasureRequestsApiV1PrivacyErasureGetResponses];
+
+export type RequestErasureApiV1PrivacyErasurePostData = {
+    body: ErasureRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/privacy/erasure';
+};
+
+export type RequestErasureApiV1PrivacyErasurePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestErasureApiV1PrivacyErasurePostError = RequestErasureApiV1PrivacyErasurePostErrors[keyof RequestErasureApiV1PrivacyErasurePostErrors];
+
+export type RequestErasureApiV1PrivacyErasurePostResponses = {
+    /**
+     * Response Request Erasure Api V1 Privacy Erasure Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RequestErasureApiV1PrivacyErasurePostResponse = RequestErasureApiV1PrivacyErasurePostResponses[keyof RequestErasureApiV1PrivacyErasurePostResponses];
+
+export type ExportDataApiV1PrivacyExportGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Phone Number
+         *
+         * Export one person's data. Omit for the whole account.
+         */
+        phone_number?: string | null;
+    };
+    url: '/api/v1/privacy/export';
+};
+
+export type ExportDataApiV1PrivacyExportGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportDataApiV1PrivacyExportGetError = ExportDataApiV1PrivacyExportGetErrors[keyof ExportDataApiV1PrivacyExportGetErrors];
+
+export type ExportDataApiV1PrivacyExportGetResponses = {
+    /**
+     * Response Export Data Api V1 Privacy Export Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ExportDataApiV1PrivacyExportGetResponse = ExportDataApiV1PrivacyExportGetResponses[keyof ExportDataApiV1PrivacyExportGetResponses];
+
+export type GetAccessLogApiV1PrivacyAccessLogGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Workflow Run Id
+         */
+        workflow_run_id?: number | null;
+    };
+    url: '/api/v1/privacy/access-log';
+};
+
+export type GetAccessLogApiV1PrivacyAccessLogGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAccessLogApiV1PrivacyAccessLogGetError = GetAccessLogApiV1PrivacyAccessLogGetErrors[keyof GetAccessLogApiV1PrivacyAccessLogGetErrors];
+
+export type GetAccessLogApiV1PrivacyAccessLogGetResponses = {
+    /**
+     * Response Get Access Log Api V1 Privacy Access Log Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetAccessLogApiV1PrivacyAccessLogGetResponse = GetAccessLogApiV1PrivacyAccessLogGetResponses[keyof GetAccessLogApiV1PrivacyAccessLogGetResponses];
+
+export type ListSubprocessorsApiV1PrivacySubprocessorsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/privacy/subprocessors';
+};
+
+export type ListSubprocessorsApiV1PrivacySubprocessorsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListSubprocessorsApiV1PrivacySubprocessorsGetError = ListSubprocessorsApiV1PrivacySubprocessorsGetErrors[keyof ListSubprocessorsApiV1PrivacySubprocessorsGetErrors];
+
+export type ListSubprocessorsApiV1PrivacySubprocessorsGetResponses = {
+    /**
+     * Response List Subprocessors Api V1 Privacy Subprocessors Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListSubprocessorsApiV1PrivacySubprocessorsGetResponse = ListSubprocessorsApiV1PrivacySubprocessorsGetResponses[keyof ListSubprocessorsApiV1PrivacySubprocessorsGetResponses];
+
+export type BreachReportApiV1PrivacyBreachReportGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Since
+         *
+         * ISO timestamp — start of the window
+         */
+        since: string;
+        /**
+         * Until
+         *
+         * ISO timestamp — defaults to now
+         */
+        until?: string | null;
+    };
+    url: '/api/v1/privacy/breach-report';
+};
+
+export type BreachReportApiV1PrivacyBreachReportGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BreachReportApiV1PrivacyBreachReportGetError = BreachReportApiV1PrivacyBreachReportGetErrors[keyof BreachReportApiV1PrivacyBreachReportGetErrors];
+
+export type BreachReportApiV1PrivacyBreachReportGetResponses = {
+    /**
+     * Response Breach Report Api V1 Privacy Breach Report Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type BreachReportApiV1PrivacyBreachReportGetResponse = BreachReportApiV1PrivacyBreachReportGetResponses[keyof BreachReportApiV1PrivacyBreachReportGetResponses];
 
 export type ValidateWorkflowApiV1WorkflowWorkflowIdValidatePostData = {
     body?: never;

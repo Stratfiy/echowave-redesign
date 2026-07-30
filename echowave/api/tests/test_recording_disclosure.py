@@ -24,6 +24,7 @@ def _engine(
     disclosure_text=None,
     greeting=None,
     greeting_type=None,
+    is_voice=True,
 ):
     """An engine with one start node, and everything else stubbed."""
     node = MagicMock()
@@ -41,6 +42,7 @@ def _engine(
         workflow=workflow,
         call_context_vars={},
         task=MagicMock(queue_frame=AsyncMock()),
+        is_voice=is_voice,
     )
     return built, node
 
@@ -80,6 +82,34 @@ class TestOmissionDoesNotDisableIt:
         """A workflow that asked for it gets it, whatever the platform does."""
         monkeypatch.setattr(engine_module, "RECORDING_DISCLOSURE_ENABLED", False)
         built, _ = _engine(disclosure_enabled=True)
+
+        assert built.resolve_recording_disclosure("start") is not None
+
+
+class TestOnlyCallsDisclose:
+    """A text chat is not a call. "This call is recorded" is untrue there, and
+    boilerplate that is visibly wrong is how people learn to ignore
+    disclosures — a written interface has a page to say it on properly."""
+
+    def test_a_text_chat_says_nothing(self):
+        built, _ = _engine(disclosure_enabled=True, is_voice=False)
+
+        assert built.resolve_recording_disclosure("start") is None
+
+    def test_even_an_explicit_opt_in_does_not_make_a_chat_announce_a_call(self):
+        built, _ = _engine(
+            disclosure_enabled=True,
+            disclosure_text="This call is recorded.",
+            is_voice=False,
+        )
+
+        assert built.resolve_recording_disclosure("start") is None
+
+    def test_voice_is_the_default_so_forgetting_still_discloses(self):
+        """The flag is set by the text-chat runner. Everything else — phone,
+        WebRTC, anything added later — gets the disclosure without having to
+        remember to ask for it."""
+        built, _ = _engine(disclosure_enabled=None)
 
         assert built.resolve_recording_disclosure("start") is not None
 

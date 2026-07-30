@@ -560,6 +560,7 @@ async def execute_text_chat_pending_turn(
         workflow=workflow_graph,
         call_context_vars=initial_context,
         workflow_run_id=workflow_run_id,
+        is_voice=False,
         node_transition_callback=send_node_transition,
         embeddings_api_key=embeddings_api_key,
         embeddings_model=embeddings_model,
