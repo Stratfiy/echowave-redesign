@@ -144,9 +144,21 @@ export function CostPerMinuteBar({
             >
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="text-sm text-muted-foreground">Cost per min</span>
+                    {/* "from" when some component has no rate on file. The number
+                        is then a floor, not a total, and printing it plain reads
+                        as a quote — someone picks the stack believing it costs
+                        the platform fee alone and finds out on the invoice. */}
+                    {estimate.unpriced.length > 0 && (
+                        <span className="text-sm text-muted-foreground">from</span>
+                    )}
                     <span className="text-xl font-semibold tabular-nums tracking-tight">
                         {rupees(total)}
                     </span>
+                    {estimate.unpriced.length > 0 && (
+                        <span className="rounded-full bg-amber-500/12 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                            incomplete — {estimate.unpriced.length} unpriced
+                        </span>
+                    )}
                     {estimate.total_micros_usd_per_minute !== null && (
                         <span className="text-sm tabular-nums text-muted-foreground">
                             {formatMicrosUsd(estimate.total_micros_usd_per_minute)}

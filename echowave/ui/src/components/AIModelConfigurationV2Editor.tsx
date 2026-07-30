@@ -23,6 +23,12 @@ import { LANGUAGE_DISPLAY_NAMES } from "@/constants/languages";
 
 type ModelMode = "realtime" | "decibyl" | "byok";
 
+const MODE_LABELS: Record<ModelMode, string> = {
+    realtime: "Speech to Speech",
+    decibyl: "Decibyl",
+    byok: "BYOK",
+};
+
 // Sentinel language value for "Multilingual (Auto-detect)".
 const MULTILINGUAL_LANGUAGE_CODE = "multi";
 
@@ -293,6 +299,11 @@ export function AIModelConfigurationV2Editor({
 }: AIModelConfigurationV2EditorProps) {
     const defaultsForByok = useMemo(() => byokDefaults(defaults), [defaults]);
     const [mode, setMode] = useState<ModelMode>("decibyl");
+    // Which mode this organization is actually running on, as distinct from the
+    // tab being looked at. Without the distinction, switching tabs reads as
+    // switching the account over — and the two only converge when Save is
+    // pressed, which is precisely the moment a mistake becomes live.
+    const [savedMode, setSavedMode] = useState<ModelMode | null>(null);
     const [decibyl, setDecibyl] = useState<DecibylFormState>(() => ({
         api_key: "",
         voice: defaults.decibyl.defaults.voice,
@@ -315,7 +326,9 @@ export function AIModelConfigurationV2Editor({
     useEffect(() => {
         const rawConfiguration = asRecord(configuration);
         const rawEffectiveConfiguration = asRecord(effectiveConfiguration);
-        setMode(preferredMode(rawConfiguration, rawEffectiveConfiguration));
+        const resolved = preferredMode(rawConfiguration, rawEffectiveConfiguration);
+        setMode(resolved);
+        setSavedMode(resolved);
         const nextDecibyl = buildDecibylState(defaults, rawConfiguration, rawEffectiveConfiguration);
         setDecibyl(nextDecibyl);
         setRealtimeInitialConfig(getByokInitialConfig(rawConfiguration, rawEffectiveConfiguration, true));
@@ -392,11 +405,42 @@ export function AIModelConfigurationV2Editor({
             )}
 
             <Tabs value={mode} onValueChange={(value) => setMode(value as ModelMode)} className="space-y-6">
-                <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="realtime">Speech to Speech</TabsTrigger>
-                    <TabsTrigger value="decibyl">Decibyl</TabsTrigger>
-                    <TabsTrigger value="byok">BYOK</TabsTrigger>
-                </TabsList>
+                <div className="space-y-2">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                        <span className="text-sm font-medium">
+                            Pick one — how models are provided for every agent in this
+                            organization
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                            {savedMode
+                                ? `Currently running: ${MODE_LABELS[savedMode]}`
+                                : "Nothing saved yet"}
+                        </span>
+                    </div>
+                    <TabsList className="grid w-full grid-cols-3">
+                        {(["realtime", "decibyl", "byok"] as const).map((value) => (
+                            <TabsTrigger
+                                key={value}
+                                value={value}
+                                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                            >
+                                {MODE_LABELS[value]}
+                                {savedMode === value && (
+                                    <span className="ml-1.5 text-[10px] opacity-70">
+                                        active
+                                    </span>
+                                )}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                    {savedMode && mode !== savedMode && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                            You are looking at {MODE_LABELS[mode]}. Nothing changes until
+                            you save — this organization is still running{" "}
+                            {MODE_LABELS[savedMode]}.
+                        </p>
+                    )}
+                </div>
 
                 <TabsContent value="realtime" className="mt-0">
                     <p className="mb-4 text-sm text-muted-foreground">

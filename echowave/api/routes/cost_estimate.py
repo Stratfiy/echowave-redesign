@@ -79,4 +79,10 @@ async def get_cost_per_minute(
         # Components asked about that we hold no rate for. Surfaced rather than
         # silently priced at zero, which would understate the estimate.
         "unpriced": list(estimate.unpriced),
+        # The two fields the estimate is *about*, and both were being computed
+        # and then dropped here. Without pulse_seconds the UI rendered "billed
+        # in s pulses" — the differentiator stated as a typo — and without the
+        # USD figure the dual-currency line silently disappeared.
+        "pulse_seconds": estimate.pulse_seconds,
+        "total_micros_usd_per_minute": estimate.total_micros_usd_per_minute,
     }

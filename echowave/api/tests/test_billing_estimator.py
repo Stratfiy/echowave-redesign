@@ -308,3 +308,35 @@ class TestConsumptionAssumption:
         )
         llm = next(l for l in est.lines if l.component == "llm")
         assert llm.rate_is_provider_fallback is True
+
+
+class TestTheRouteReturnsWhatTheEstimateIsAbout:
+    """The estimate exists to say two things a per-minute figure cannot: what
+    it is in dollars, and that we do not bill by the minute at all.
+
+    Both were computed and then dropped on the way out of the route, so the
+    price badge rendered "billed in s pulses" — the differentiator printed as a
+    typo — and the dollar line vanished. A test on the service alone could not
+    see it: the estimate was right, the serialisation was lossy.
+    """
+
+    def test_every_field_the_price_badge_reads_is_serialised(self):
+        import inspect
+
+        from api.routes import cost_estimate
+
+        source = inspect.getsource(cost_estimate.get_cost_per_minute)
+        for field in (
+            "total_paise_per_minute",
+            "pulse_seconds",
+            "total_micros_usd_per_minute",
+            "unpriced",
+        ):
+            assert f'"{field}"' in source, f"route drops {field}"
+
+    def test_the_estimate_carries_them_in_the_first_place(self):
+        from api.services.billing.estimator import CostEstimate
+
+        fields = CostEstimate.__dataclass_fields__
+        assert "pulse_seconds" in fields
+        assert "total_micros_usd_per_minute" in fields
