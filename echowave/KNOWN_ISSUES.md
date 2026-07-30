@@ -17,46 +17,6 @@ Last updated after the known-issues resolution pass.
 
 ## Open
 
-### 4. Sentry organization slug still says `echowave`
-
-**Status:** DECISION NEEDED · **Severity: medium**
-
-`ui/next.config.ts` sets `org: "echowave"` for `withSentryConfig`. This is a
-live external Sentry organization identifier, not a brand string, so the
-rebrand deliberately left it alone — renaming it without a matching Sentry org
-silently breaks error reporting for the UI.
-
-**Needs:** confirmation of the real Sentry org slug, changed here and in Sentry
-together.
-
----
-
-
----
-
-### 10. Pre-existing schema drift between models and the database
-
-**Status:** OPEN · **Severity: medium** — `alembic check` fails
-
-Two differences between `db/models.py` and a migrated database predate this
-work and are identical on `main`:
-
-| Drift | Direction |
-|---|---|
-| `idx_queued_runs_campaign_state_optimized` on `queued_runs(campaign_id, state)` | in the model, missing from the database |
-| `workflow_definitions.call_disposition_codes` | in the database, missing from the model |
-
-Because of these, `alembic check` fails and **every `--autogenerate` run sweeps
-them into the new migration**. They were removed by hand from the billing
-migration (`810aaefd657d`); the column drop in particular would have destroyed
-data. Anyone generating a migration must do the same until this is resolved.
-
-**To fix:** decide each direction deliberately — add the missing index via a
-migration, and either restore `call_disposition_codes` to the model or write an
-explicit, reviewed migration to drop it. Do not let autogenerate decide.
-
----
-
 ### 7. Top-level directory is still named `echowave/`
 
 **Status:** DECISION NEEDED · **Severity: low**
@@ -70,6 +30,68 @@ deliberately.
 ---
 
 ## Fixed
+
+### 11. The recordings bucket was published to the world
+
+**FIXED.** `MinioFileSystem.__init__` applied a `Principal: {"AWS": "*"}` policy
+granting `GetObject`, `PutObject` **and** `DeleteObject` on every
+initialisation, and `aget_signed_url` returned a bare bucket path that only
+worked *because* of it. So call recordings and transcripts — recordings of real
+conversations with real customers — were readable by anyone who could reach the
+endpoint and could guess a URL, and writable and deletable by them too.
+
+Access is now by presigned URL, which carries its own expiring signature and
+needs no bucket policy at all. Reads and uploads are both signed. Because a
+presigned URL is signed for a specific host, and the internal endpoint
+(`minio:9000`) differs from the public one, there are two SDK clients — one
+bound to each, each signing for its own audience. That mismatch is the reason
+the original code gave for not signing in the first place.
+
+The anonymous policy survives behind `MINIO_PUBLIC_BUCKET=true` for a local
+stack, off by default and logging a warning when on.
+
+KYC documents were never exposed this way — `api/services/kyc/documents.py`
+talks to MinIO directly and sets no policy, deliberately.
+
+---
+
+### 10. Schema drift between models and the database
+
+**FIXED.** `alembic check` failed, and the real cost was worse than a failing
+check: every `--autogenerate` run proposed **dropping
+`workflow_definitions.call_disposition_codes`**, a NOT NULL column holding data
+on every published version of every workflow. Anyone generating a migration had
+to know to delete that line by hand, and the billing migration
+(`810aaefd657d`) records having done exactly that.
+
+Resolved in both directions deliberately rather than by accepting whatever
+autogenerate suggested:
+
+* `call_disposition_codes` existed in the database but not on the model, so it
+  is now declared on the model. The data is the reason.
+* `idx_queued_runs_campaign_state_optimized` was declared on the model but never
+  created — a partial index on the campaign dispatcher's hot query. Created in
+  `c8f31a604be7`.
+* Several `server_default`s were set by migrations but not declared on the
+  models, which was drift introduced by this billing work. Now declared on both
+  sides. No DDL: the database was already correct.
+
+`alembic check` now reports no operations, and a database built from an empty
+schema by replaying every migration matches the models exactly — verified.
+
+---
+
+### 4. Sentry organization slug still said `echowave`
+
+**FIXED.** `ui/next.config.ts` hardcoded `org: "echowave"`, a live external
+identifier the rebrand deliberately left alone because renaming it without a
+matching Sentry org breaks stack traces rather than fixing anything.
+
+Now `SENTRY_ORG` and `SENTRY_PROJECT`, so a deployment sets its own and one
+that sets neither uploads no source maps. Errors are reported either way; only
+the readability of the trace depends on it.
+
+---
 
 ### 8. Runs are not gated on any balance
 
@@ -126,7 +148,7 @@ and most of these were OSS-community artifacts with no equivalent to point at:
 * **Slack invite, Trendshift badge, GitHub Discussions, the plugins repo** —
   deleted outright.
 * **Issue tracker and security advisory form** — a private repo has neither.
-  Now `support@decibyl.com` and `security@decibyl.com`.
+  Now `support@decibyl.ai` and `security@decibyl.ai`.
 * **The fork-and-PR contributor flow** described working against a public
   upstream. Replaced with direct clone and branch.
 * **`README.md` claimed "100% open source" and BSD 2-Clause** throughout, which
@@ -135,9 +157,12 @@ and most of these were OSS-community artifacts with no equivalent to point at:
   positioning. Removed rather than left contradicting the English one — they
   need a translator, not a find-and-replace, if they come back.
 
-**Two placeholders need confirming:** `security@decibyl.com` and
-`support@decibyl.com` are assumed from the `decibyl.com` domain already used in
-`api/constants.py`. Point them at real inboxes.
+Now `security@decibyl.ai` and `support@decibyl.ai`, confirmed as the owned
+domain. The remaining `decibyl.com` references are inherited docs and marketing
+URLs (`docs.decibyl.com`, `www.decibyl.com/privacy-policy`,
+`api-leads.decibyl.com`) pointing at hosts nobody here owns — a separate
+decision, since repointing them at `.ai` would produce the same number of broken
+links.
 
 ### 1. Test suite could not run from a fresh clone — `pipecat` missing
 
@@ -224,36 +249,6 @@ by advance width and emitted as one path — so the asset still needs no font at
 render time. Same fills as before (`#000` @ 1.8% light, `#fff` @ 0.9% dark).
 Verified by screenshot, both inline and through the `background-image` path CSS
 actually uses.
-
-### 11. The MinIO bucket policy is anonymous read/write/delete
-
-**OPEN — pre-existing, found 2026-07-29.** `MinioFileSystem.__init__`
-unconditionally applies this policy to whatever bucket it is constructed with,
-on every initialisation:
-
-```
-"Principal": {"AWS": "*"},
-"Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-```
-
-So the call-recording bucket is anonymously readable, writable **and
-deletable** by anyone who can reach the endpoint. The code carries its own
-warning — "Only use in local development, not production!" — but nothing
-enforces that, and `aget_signed_url` returns a plain unsigned bucket URL that
-only works *because* of this policy.
-
-Two consequences worth separating:
-
-* Call recordings and transcripts are exposed to anyone with the URL, and the
-  URLs are guessable in shape.
-* Anonymous `PutObject`/`DeleteObject` means a third party can overwrite or
-  destroy recordings.
-
-Not fixed here because it is pre-existing and changing it breaks every existing
-recording URL, which needs a migration to presigned reads. **KYC documents
-deliberately do not use this class** — `api/services/kyc/documents.py` talks to
-MinIO directly and never sets a bucket policy, precisely so identity documents
-are not published this way.
 
 ### 9. `openapi.json` needed verification by the real generator
 

@@ -53,9 +53,9 @@ is the intent.
 
 ## Reporting problems
 
-- **Security vulnerabilities**: email <security@decibyl.com> privately. Please
+- **Security vulnerabilities**: email <security@decibyl.ai> privately. Please
   do not open an issue.
-- **Everything else**: email <support@decibyl.com>.
+- **Everything else**: email <support@decibyl.ai>.
 
 Open problems are tracked in [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) with what is
 wrong, why, and what fixing it involves.

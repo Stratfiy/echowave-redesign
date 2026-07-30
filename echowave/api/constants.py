@@ -177,6 +177,17 @@ MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "voice-audio")
 MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
 
+# Whether to grant the recordings bucket an anonymous read/write/delete policy.
+#
+# Off by default, and it must stay off anywhere the MinIO endpoint is reachable
+# from outside the machine. This bucket holds recordings and transcripts of real
+# conversations; the policy it enables lets anyone who can reach the endpoint
+# read any object whose URL they guess, and overwrite or delete it.
+#
+# Access is by presigned URL instead, which needs no bucket policy at all. This
+# exists only for a local stack where signing across two hostnames is a nuisance.
+MINIO_PUBLIC_BUCKET = os.getenv("MINIO_PUBLIC_BUCKET", "false").lower() == "true"
+
 # KYC documents live in their own bucket, never alongside call recordings.
 # They are incorporation certificates, tax certificates and identity documents
 # — sensitive personal and business data under the DPDP Act — and need a

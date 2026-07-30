@@ -1,4 +1,4 @@
 contact_links:
   - name: "🔒 Report a Security Vulnerability"
-    url: mailto:security@decibyl.com
+    url: mailto:security@decibyl.ai
     about: "Report security issues privately by email, never in a public issue."

@@ -410,6 +410,13 @@ class WorkflowDefinitionModel(Base):
     template_context_variables = Column(
         JSON, nullable=False, default=dict, server_default=text("'{}'::json")
     )
+    # Part of the same behavioural snapshot as the two above. It existed in the
+    # database but not here, so every `alembic --autogenerate` proposed dropping
+    # it — a column holding real data on every published version of every
+    # workflow. Declared rather than dropped: the data is the reason.
+    call_disposition_codes = Column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::json")
+    )
 
     # Table constraints and indexes — unique hash constraint removed (no more dedup)
     __table_args__ = (
@@ -2106,7 +2113,12 @@ class PaymentModel(Base):
     organization_id = Column(
         Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    provider = Column(String(32), nullable=False, default="razorpay")
+    provider = Column(
+        String(32),
+        nullable=False,
+        default="razorpay",
+        server_default=text("'razorpay'"),
+    )
     # The order we asked the provider to create. Unique: one row per order.
     order_id = Column(String(64), nullable=False)
     # Set when the payment succeeds. Unique when present, which is what makes a
@@ -2126,7 +2138,9 @@ class PaymentModel(Base):
     sgst_paise = Column(BigInteger, nullable=True)
     igst_paise = Column(BigInteger, nullable=True)
     # created | paid | failed
-    status = Column(String(16), nullable=False, default="created")
+    status = Column(
+        String(16), nullable=False, default="created", server_default=text("'created'")
+    )
     # The ledger row this produced, so a payment and its credit can be walked
     # in either direction during a reconciliation.
     credit_ledger_id = Column(
@@ -2223,7 +2237,9 @@ class BillingProfileModel(Base):
     state_code = Column(String(2), nullable=True)
     postal_code = Column(String(16), nullable=True)
     # ISO 3166-1 alpha-2. Anything other than IN is an export.
-    country_code = Column(String(2), nullable=False, default="IN")
+    country_code = Column(
+        String(2), nullable=False, default="IN", server_default=text("'IN'")
+    )
 
     # Where documents are sent, when that is not the account owner's address.
     billing_email = Column(String(320), nullable=True)
@@ -2255,7 +2271,7 @@ class DocumentSequenceModel(Base):
     kind = Column(String(24), nullable=False)
     # Indian financial year, April to March, as "26-27".
     financial_year = Column(String(5), nullable=False)
-    last_number = Column(Integer, nullable=False, default=0)
+    last_number = Column(Integer, nullable=False, default=0, server_default=text("0"))
     updated_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -2303,9 +2319,9 @@ class TaxDocumentModel(Base):
     period_end = Column(Date, nullable=True)
 
     taxable_paise = Column(BigInteger, nullable=False)
-    cgst_paise = Column(BigInteger, nullable=False, default=0)
-    sgst_paise = Column(BigInteger, nullable=False, default=0)
-    igst_paise = Column(BigInteger, nullable=False, default=0)
+    cgst_paise = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
+    sgst_paise = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
+    igst_paise = Column(BigInteger, nullable=False, default=0, server_default=text("0"))
     total_paise = Column(BigInteger, nullable=False)
     # intra_state | inter_state | export
     supply_type = Column(String(16), nullable=False)

@@ -54,6 +54,9 @@ Each subtree has an `AGENTS.md` with the conventions that apply inside it.
 
 ## Reference documents
 
+- **[`DEPLOY.md`](DEPLOY.md)** — going live: what to configure, in what order,
+  and how to create the first admin account. Two steps have an ordering that
+  only bites once.
 - **[`DASHBOARD.md`](DASHBOARD.md)** — how a call is priced, what every billing
   number means, and the invariants the money code holds. Read this before
   touching anything under `api/services/billing/`.
@@ -85,5 +88,5 @@ a tax invoice for actual usage; supply outside India is zero-rated under LUT.
 
 ## Support
 
-- Security vulnerabilities: <security@decibyl.com> — privately, please.
-- Everything else: <support@decibyl.com>.
+- Security vulnerabilities: <security@decibyl.ai> — privately, please.
+- Everything else: <support@decibyl.ai>.

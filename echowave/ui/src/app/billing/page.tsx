@@ -525,9 +525,9 @@ export default function BillingPage() {
                             Online top-ups are unavailable right now. Email{" "}
                             <a
                                 className="underline"
-                                href="mailto:support@decibyl.com"
+                                href="mailto:support@decibyl.ai"
                             >
-                                support@decibyl.com
+                                support@decibyl.ai
                             </a>{" "}
                             and we will add credit directly.
                         </span>

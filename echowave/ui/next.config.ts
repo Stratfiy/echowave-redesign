@@ -31,8 +31,16 @@ export default withSentryConfig(nextConfig, {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
-  org: "echowave",
-  project: "javascript-nextjs",
+  // Sentry organisation and project slugs, used at build time to upload source
+  // maps. These are live external identifiers rather than brand strings, which
+  // is why the rebrand left "echowave" here — renaming it without a matching
+  // Sentry org silently breaks stack traces instead of fixing anything.
+  //
+  // Now configuration: a deployment sets its own, and one that sets neither
+  // simply uploads no source maps. Errors are still reported either way; only
+  // the readability of the stack trace depends on this.
+  org: process.env.SENTRY_ORG || "",
+  project: process.env.SENTRY_PROJECT || "",
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
