@@ -21,6 +21,32 @@ and the balance gate can be switched off entirely.
 | `BALANCE_ENFORCEMENT_ENABLED=false` | **Otherwise your test account cannot make a single call.** Prepaid is on by default and a fresh account has zero credit. Turn it off for testing, or top yourself up with a staff credit adjustment from the admin dashboard |
 | `MINIO_PUBLIC_BUCKET` left unset | Recordings are served by presigned URL |
 
+### Build your own images
+
+`docker-compose.yaml` **pulls** `${REGISTRY:-decibylai}/decibyl-api:latest`, and
+`scripts/start_docker.sh` defaults `REGISTRY` to `ghcr.io/decibyl-hq`. Neither
+registry is under your control, and whatever sits in them is upstream's build —
+not this repository. Deploying without overriding that either fails to pull or,
+worse, succeeds and runs somebody else's image with none of your work in it.
+
+So bring the stack up with the build override:
+
+```bash
+git submodule update --init --recursive   # the API build needs pipecat
+docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
+```
+
+The first build is slow — a Next.js production bundle and a full Python
+dependency tree. On a small EC2 instance give it a good twenty minutes and make
+sure there is swap; the UI build is the memory-hungry one and an under-resourced
+box kills it with an unhelpful error.
+
+One container runs everything on the API side: `start_services_docker.sh` starts
+uvicorn, the ARQ workers, the ARI manager and the campaign orchestrator
+together. There is no separate worker to deploy — but it also means **if the
+ARQ worker dies, calls silently stop being costed and invoices stop being
+issued** while the API keeps answering.
+
 **Check first, because it is new and unproven:** play back a recording. Object
 storage moved from a public bucket to presigned URLs, and the signature covers
 the hostname — if `MINIO_PUBLIC_ENDPOINT` does not match the host the browser

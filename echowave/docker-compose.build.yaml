@@ -1,0 +1,38 @@
+# Build the API and UI images from this checkout instead of pulling them.
+#
+# `docker-compose.yaml` pulls `${REGISTRY:-decibylai}/decibyl-api:latest`, and
+# `scripts/start_docker.sh` defaults REGISTRY to `ghcr.io/decibyl-hq`. Both are
+# registries nobody here controls, and whatever is in them is *upstream's*
+# build — not this fork. Running the stack without this override therefore
+# either fails to pull or, worse, succeeds and quietly runs somebody else's
+# image with none of the billing, prepaid or GST work in it.
+#
+# Use it whenever you are deploying your own code:
+#
+#     docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
+#
+# The build context is the repository root for both images: the API Dockerfile
+# needs the pipecat submodule alongside `api/`, and the UI Dockerfile copies
+# from `ui/` by path. Run `git submodule update --init --recursive` first or the
+# API build fails on a missing pipecat.
+#
+# Expect the first build to take a while — the UI compiles a Next.js production
+# bundle and the API resolves a full Python dependency tree. Subsequent builds
+# reuse layers.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    # Local tag, so `docker compose up` finds the image just built rather than
+    # going back to the registry for one that does not exist.
+    image: decibyl-api:local
+    pull_policy: never
+
+  ui:
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    image: decibyl-ui:local
+    pull_policy: never
