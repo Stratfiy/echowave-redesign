@@ -25,7 +25,7 @@ from api.services.workflow.node_specs.model_spec import (
         "Paygent is a post-call usage-tracking and billing integration. "
         "It does not participate in the conversation graph and should not be connected to other nodes."
     ),
-    docs_url="https://docs.decibyl.com/integrations/paygent",
+    docs_url="https://docs.decibyl.ai/integrations/paygent",
     category=NodeCategory.integration,
     icon="CreditCard",
     examples=[

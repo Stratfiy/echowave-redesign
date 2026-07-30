@@ -9,9 +9,9 @@ Decibyl exposes an [MCP (Model Context Protocol)](https://modelcontextprotocol.i
 
 ## Prerequisites
 
-- A Decibyl API key. Generate one at [`/api-keys`](https://app.decibyl.com/api-keys) (or `http://localhost:3010/api-keys` for self-hosted). See [API Keys](/configurations/api-keys).
+- A Decibyl API key. Generate one at [`/api-keys`](https://app.decibyl.ai/api-keys) (or `http://localhost:3010/api-keys` for self-hosted). See [API Keys](/configurations/api-keys).
 - Your Decibyl MCP endpoint:
-  - Hosted: `https://app.decibyl.com/api/v1/mcp/`
+  - Hosted: `https://app.decibyl.ai/api/v1/mcp/`
   - Self-hosted: `<YOUR_BACKEND_URL>/api/v1/mcp/`
 
 The endpoint is also shown in **Platform Settings → MCP Server** inside the Decibyl UI.
@@ -31,7 +31,7 @@ This is only required for self-signed certificates. If you have set up a [custom
 Register Decibyl as an MCP server with the Claude Code CLI:
 
 ```bash
-claude mcp add --transport http decibyl https://app.decibyl.com/api/v1/mcp/ \
+claude mcp add --transport http decibyl https://app.decibyl.ai/api/v1/mcp/ \
   --header "X-API-Key: YOUR_API_KEY"
 ```
 
@@ -49,7 +49,7 @@ Open Codex's config file (`~/.codex/config.toml`) and add a `decibyl` MCP server
 
 ```toml
 [mcp_servers.decibyl]
-url = "https://app.decibyl.com/api/v1/mcp/"
+url = "https://app.decibyl.ai/api/v1/mcp/"
 http_headers = { "X-API-Key" = "YOUR_API_KEY" }
 ```
 
@@ -59,7 +59,7 @@ If you prefer to keep the API key out of `config.toml`, store it in an environme
 
 ```toml
 [mcp_servers.decibyl]
-url = "https://app.decibyl.com/api/v1/mcp/"
+url = "https://app.decibyl.ai/api/v1/mcp/"
 env_http_headers = { "X-API-Key" = "DECIBYL_API_KEY" }
 ```
 
@@ -85,7 +85,7 @@ Open Claude Desktop's config file (`claude_desktop_config.json`) and add the `de
 {
   "mcpServers": {
     "decibyl": {
-      "url": "https://app.decibyl.com/api/v1/mcp/",
+      "url": "https://app.decibyl.ai/api/v1/mcp/",
       "headers": {
         "X-API-Key": "YOUR_API_KEY"
       }

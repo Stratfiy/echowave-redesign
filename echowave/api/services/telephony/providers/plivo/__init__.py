@@ -101,7 +101,7 @@ async def _ensure_application_id(credentials: Dict[str, Any]) -> Dict[str, Any]:
 
 _UI_METADATA = ProviderUIMetadata(
     display_name="Plivo",
-    docs_url="https://docs.decibyl.com/integrations/telephony/plivo",
+    docs_url="https://docs.decibyl.ai/integrations/telephony/plivo",
     fields=[
         ProviderUIField(name="auth_id", label="Auth ID", type="text", sensitive=True),
         ProviderUIField(

@@ -105,7 +105,7 @@ async def _ensure_application_id(credentials: Dict[str, Any]) -> Dict[str, Any]:
 
 _UI_METADATA = ProviderUIMetadata(
     display_name="Vobiz",
-    docs_url="https://docs.decibyl.com/integrations/telephony/vobiz",
+    docs_url="https://docs.decibyl.ai/integrations/telephony/vobiz",
     fields=[
         ProviderUIField(
             name="auth_id",

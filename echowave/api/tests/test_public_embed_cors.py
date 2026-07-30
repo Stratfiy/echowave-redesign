@@ -10,7 +10,7 @@ from api.routes.public_embed import PublicEmbedCORSMiddleware, router
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://app.decibyl.com"],
+    allow_origins=["https://app.decibyl.ai"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

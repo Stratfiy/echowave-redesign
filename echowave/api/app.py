@@ -6,6 +6,7 @@ from api.constants import (
     CORS_ALLOWED_ORIGINS,
     DEPLOYMENT_MODE,
     ENABLE_TELEMETRY,
+    PUBLIC_BASE_URL,
     SENTRY_DSN,
 )
 from api.logging_config import ENVIRONMENT, setup_logging
@@ -82,7 +83,10 @@ app = FastAPI(
     openapi_url=f"{API_PREFIX}/openapi.json",
     lifespan=lifespan,
     servers=[
-        {"url": "https://app.decibyl.com", "description": "Production"},
+        # Ends up as the generated client's default base URL, so it must be a
+        # host that exists. Derived from PUBLIC_BASE_URL where one is set, since
+        # that is already the deployment's own address.
+        {"url": PUBLIC_BASE_URL or "https://app.decibyl.ai", "description": "Production"},
         {"url": "http://localhost:8000", "description": "Local development"},
     ],
 )

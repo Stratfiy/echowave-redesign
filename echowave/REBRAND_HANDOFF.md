@@ -12,7 +12,7 @@
 Every user-visible `Decibyl / decibyl / DECIBYL` string across the UI (`/ui`), root docs (`README.md`, `README.zh-CN.md`, `README.ja-JP.md`, `CONTRIBUTING.md`, `SECURITY.md`, `AGENTS.md`, `CLAUDE.md`), all docs pages (`/docs/**/*.md,*.mdx`) and top-level `docker-compose.yaml`, `docker-compose-local.yaml` was replaced with the matching-case `Decibyl / decibyl / DECIBYL`.
 
 Kept intentionally as-is (would break the running deployment otherwise):
-- External URLs: `docs.decibyl.com`, `services.decibyl.com`, `app.decibyl.com` — user does not own these hosts yet
+- External URLs: `docs.decibyl.ai`, `services.decibyl.ai`, `app.decibyl.ai` — user does not own these hosts yet
 - Python SDK package identifier `decibyl_sdk` inside `/sdk/python`
 - Anything under `/pipecat` (git submodule — external code)
 - Existing env-var names (e.g. `DECIBYL_*`) — swapping them would break the live EC2 config
@@ -93,7 +93,7 @@ docker compose up -d ui
 
 ## What's NOT done (intentional / future work)
 
-- **Custom docs site**: `docs.decibyl.com` still points to the original org's docs. When you're ready, set up your own docs at `docs.decibyl.nautomationlabs.com` and swap the URL constant in `ui/src/constants/documentation.ts`.
+- **Custom docs site**: `docs.decibyl.ai` still points to the original org's docs. When you're ready, set up your own docs at `docs.decibyl.nautomationlabs.com` and swap the URL constant in `ui/src/constants/documentation.ts`.
 - **Marketing landing page**: this pass targets the app auth surface — not a marketing homepage. Bring the same brand system into a marketing site when needed.
 - **Revenue / billing**: subscription + credits flow (Stripe) was deferred at your request ("keep it waiting for now"). The codebase already has a `billing` module and `usage` pages — we can layer subscription tiers + credits on top when you're ready.
 - **Backend identifier rename**: Python package names like `decibyl_sdk` and env vars `DECIBYL_*` are unchanged to avoid breaking the running EC2 stack. Rename these in a dedicated migration if you want a fully clean namespace.

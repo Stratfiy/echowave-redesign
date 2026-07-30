@@ -1,6 +1,39 @@
 # Going live
 
-The order matters in two places, and both are easy to get wrong once:
+## Deploying to test it yourself first
+
+Most of this document is about serving customers. If you are pushing to a box
+purely to try the thing out, the list is much shorter — and several things that
+look mandatory are not:
+
+**You do not need**, for a private test: Razorpay merchant activation, live
+payment keys, published policy pages, a filed LUT, real provider rate cards, or
+backups. Test-mode Razorpay keys are enough to exercise the whole payment path,
+and the balance gate can be switched off entirely.
+
+**You do need**:
+
+| | |
+|---|---|
+| `DATABASE_URL`, `REDIS_URL`, `PUBLIC_BASE_URL` | Nothing runs without them |
+| TLS on your domain | The browser needs it for microphone access, and carriers will not post webhooks to plain HTTP |
+| At least one working LLM/STT/TTS key | Either yours under **Provider keys**, or the customer's own under Models |
+| `BALANCE_ENFORCEMENT_ENABLED=false` | **Otherwise your test account cannot make a single call.** Prepaid is on by default and a fresh account has zero credit. Turn it off for testing, or top yourself up with a staff credit adjustment from the admin dashboard |
+| `MINIO_PUBLIC_BUCKET` left unset | Recordings are served by presigned URL |
+
+**Check first, because it is new and unproven:** play back a recording. Object
+storage moved from a public bucket to presigned URLs, and the signature covers
+the hostname — if `MINIO_PUBLIC_ENDPOINT` does not match the host the browser
+actually fetches from, every recording returns 403 while everything else looks
+fine.
+
+Then: sign up, grant yourself staff (below), make one real call, open the
+recording, and look at Agent Runs to confirm it was costed.
+
+---
+
+The rest of this document is about serving customers. The order matters in two
+places, and both are easy to get wrong once:
 
 * **Create the admin account before disabling signup.** Nothing in the signup
   flow sets the staff flag, and with `ENABLE_SIGNUP=false` there is no way to

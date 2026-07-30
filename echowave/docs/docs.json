@@ -282,7 +282,7 @@
   "logo": {
     "light": "/logo/light.svg",
     "dark": "/logo/dark.svg",
-    "href": "https://docs.decibyl.com"
+    "href": "https://docs.decibyl.ai"
   },
   "navbar": {
     "links": [
@@ -294,7 +294,7 @@
     "primary": {
       "type": "button",
       "label": "Dashboard",
-      "href": "https://app.decibyl.com"
+      "href": "https://app.decibyl.ai"
     }
   },
   "banner": {

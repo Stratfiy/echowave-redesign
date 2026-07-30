@@ -44,7 +44,7 @@ function parseSetCookie(header: string) {
 describe("GET /impersonate", () => {
     it("returns 400 when refresh_token is missing", async () => {
         const response = await GET(
-            makeRequest("https://app.decibyl.com/impersonate"),
+            makeRequest("https://app.decibyl.ai/impersonate"),
         );
         expect(response.status).toBe(400);
     });
@@ -52,35 +52,35 @@ describe("GET /impersonate", () => {
     it("redirects to redirect_path on the same origin", async () => {
         const response = await GET(
             makeRequest(
-                "https://app.decibyl.com/impersonate?refresh_token=rt-new&redirect_path=/workflow/42",
+                "https://app.decibyl.ai/impersonate?refresh_token=rt-new&redirect_path=/workflow/42",
             ),
         );
         expect(response.status).toBe(307);
         expect(response.headers.get("location")).toBe(
-            "https://app.decibyl.com/workflow/42",
+            "https://app.decibyl.ai/workflow/42",
         );
     });
 
     it("falls back to /workflow/create for a cross-origin redirect_path", async () => {
         const response = await GET(
             makeRequest(
-                "https://app.decibyl.com/impersonate?refresh_token=rt-new&redirect_path=https://evil.com/phish",
+                "https://app.decibyl.ai/impersonate?refresh_token=rt-new&redirect_path=https://evil.com/phish",
             ),
         );
         expect(response.headers.get("location")).toBe(
-            "https://app.decibyl.com/workflow/create",
+            "https://app.decibyl.ai/workflow/create",
         );
     });
 
     it("falls back to /workflow/create for a malformed redirect_path", async () => {
         const response = await GET(
             makeRequest(
-                "https://app.decibyl.com/impersonate?refresh_token=rt-new&redirect_path=https%3A%2F%2F",
+                "https://app.decibyl.ai/impersonate?refresh_token=rt-new&redirect_path=https%3A%2F%2F",
             ),
         );
         expect(response.status).toBe(307);
         expect(response.headers.get("location")).toBe(
-            "https://app.decibyl.com/workflow/create",
+            "https://app.decibyl.ai/workflow/create",
         );
     });
 
@@ -88,7 +88,7 @@ describe("GET /impersonate", () => {
         const hostRefresh = `__Host-hexclave-refresh-${PROJECT_ID}--default`;
         const response = await GET(
             makeRequest(
-                "https://app.decibyl.com/impersonate?refresh_token=rt-new",
+                "https://app.decibyl.ai/impersonate?refresh_token=rt-new",
                 {
                     cookie: [
                         `${hostRefresh}=old-session`,
@@ -113,7 +113,7 @@ describe("GET /impersonate", () => {
         // ...and for the host-only plus each parent-domain scope.
         const accessDomains = new Set(accessDeletions.map((c) => c.domain));
         expect(accessDomains).toEqual(
-            new Set([undefined, "app.decibyl.com", "decibyl.com"]),
+            new Set([undefined, "app.decibyl.ai", "decibyl.ai"]),
         );
 
         // Enumerated --custom-* cookies are cleared too.
@@ -158,7 +158,7 @@ describe("GET /impersonate", () => {
         const hostRefresh = `__Host-hexclave-refresh-${PROJECT_ID}--default`;
         const response = await GET(
             makeRequest(
-                "https://app.decibyl.com/impersonate?refresh_token=rt-new",
+                "https://app.decibyl.ai/impersonate?refresh_token=rt-new",
                 { cookie: `${hostRefresh}=old-session` },
             ),
         );
@@ -191,7 +191,7 @@ describe("GET /impersonate", () => {
 
     it("honors x-forwarded-proto case-insensitively when the request is http", async () => {
         const response = await GET(
-            makeRequest("http://app.decibyl.com/impersonate?refresh_token=rt", {
+            makeRequest("http://app.decibyl.ai/impersonate?refresh_token=rt", {
                 forwardedProto: "HTTPS",
             }),
         );

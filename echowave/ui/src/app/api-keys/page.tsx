@@ -472,7 +472,7 @@ export default function APIKeysPage() {
                                         </Button>
                                     ) : (
                                         <span className="text">
-                                            To generate additional service keys, <a href="https://app.decibyl.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Sign up on app.decibyl.com</a>
+                                            To generate additional service keys, <a href="https://app.decibyl.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Sign up on app.decibyl.ai</a>
                                         </span>
                                     )}
                                 </div>

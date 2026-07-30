@@ -93,7 +93,7 @@ async def _ensure_application_name(credentials: Dict[str, Any]) -> Dict[str, Any
 
 _UI_METADATA = ProviderUIMetadata(
     display_name="Cloudonix",
-    docs_url="https://docs.decibyl.com/integrations/telephony/cloudonix",
+    docs_url="https://docs.decibyl.ai/integrations/telephony/cloudonix",
     fields=[
         ProviderUIField(
             name="bearer_token",

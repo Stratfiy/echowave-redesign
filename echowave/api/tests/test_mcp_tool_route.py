@@ -90,7 +90,7 @@ def test_update_tool_request_accepts_http_api_complex_parameter_types():
             "type": "http_api",
             "config": {
                 "method": "POST",
-                "url": "https://automation.decibyl.com/webhook/example",
+                "url": "https://automation.decibyl.ai/webhook/example",
                 "parameters": [
                     {
                         "name": "params",

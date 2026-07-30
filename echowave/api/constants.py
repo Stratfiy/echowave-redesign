@@ -54,7 +54,7 @@ ENABLE_SIGNUP = os.getenv("ENABLE_SIGNUP", "true").lower() == "true"
 STACK_AUTH_PROJECT_ID = os.getenv("STACK_AUTH_PROJECT_ID")
 STACK_PUBLISHABLE_CLIENT_KEY = os.getenv("STACK_PUBLISHABLE_CLIENT_KEY")
 DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)
-MPS_API_URL = os.getenv("MPS_API_URL", "https://services.decibyl.com")
+MPS_API_URL = os.getenv("MPS_API_URL", "https://services.decibyl.ai")
 DECIBYL_DEVOPS_SECRET = os.getenv("DECIBYL_DEVOPS_SECRET") or None
 
 # Whether customers can start telephony verification at all.

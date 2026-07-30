@@ -419,7 +419,7 @@ export function AIModelConfigurationV2Editor({
                         Decibyl provides a managed transcriber, LLM, and voice pipeline. Select a voice and language while Decibyl manages the underlying model providers.{" "}
                         We offer custom pricing and a 15-second pulse with a monthly commitment.{" "}
                         <a
-                            href="https://www.decibyl.com/contact"
+                            href="https://decibyl.ai/contact"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="underline"

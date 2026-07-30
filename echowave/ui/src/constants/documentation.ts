@@ -1,4 +1,4 @@
-const DOCS_BASE = "https://docs.decibyl.com";
+const DOCS_BASE = "https://docs.decibyl.ai";
 
 export const NODE_DOCUMENTATION_URLS: Record<string, string> = {
     startCall: `${DOCS_BASE}/voice-agent/start-call`,

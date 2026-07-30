@@ -38,7 +38,7 @@ Decibyl AI supports inbound calling across all supported telephony providers. Wh
 Decibyl exposes a **single inbound webhook URL** for the whole org:
 
 ```
-https://api.decibyl.com/api/v1/telephony/inbound/run
+https://api.decibyl.ai/api/v1/telephony/inbound/run
 ```
 
 When a call arrives:
@@ -81,11 +81,11 @@ This is what tells Decibyl which agent to run when a call comes in for that numb
 Each provider needs its inbound webhook (Twilio Voice URL / Vonage Answer URL / etc.) set to the global Decibyl endpoint:
 
 ```
-https://api.decibyl.com/api/v1/telephony/inbound/run
+https://api.decibyl.ai/api/v1/telephony/inbound/run
 ```
 
 <Note>
-If you're self-hosting Decibyl, replace `api.decibyl.com` with your own domain.
+If you're self-hosting Decibyl, replace `api.decibyl.ai` with your own domain.
 </Note>
 
 The exact place to set this varies by provider — follow the provider-specific instructions:

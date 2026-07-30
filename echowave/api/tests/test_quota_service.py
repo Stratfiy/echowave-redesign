@@ -262,7 +262,7 @@ async def test_run_proceeds_when_model_gateway_is_unreachable(monkeypatch):
     """A transport failure minting a correlation id must not block the call."""
     request = httpx.Request(
         "POST",
-        "https://services.decibyl.com/api/v1/service-keys/correlation-id/self",
+        "https://services.decibyl.ai/api/v1/service-keys/correlation-id/self",
     )
 
     _patch_workflow_context(monkeypatch)
@@ -297,7 +297,7 @@ async def test_run_proceeds_when_model_gateway_is_unreachable(monkeypatch):
 async def test_run_fails_closed_on_model_gateway_http_error(monkeypatch):
     request = httpx.Request(
         "POST",
-        "https://services.decibyl.com/api/v1/service-keys/correlation-id/self",
+        "https://services.decibyl.ai/api/v1/service-keys/correlation-id/self",
     )
     response = httpx.Response(500, request=request)
 
