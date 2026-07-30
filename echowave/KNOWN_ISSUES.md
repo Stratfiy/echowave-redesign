@@ -31,31 +31,6 @@ together.
 
 ---
 
-### 5. Links point at upstream community infrastructure Decibyl does not own
-
-**Status:** DECISION NEEDED · **Severity: medium**
-
-The rebrand mechanically rewrote `dograh-hq/dograh` to `decibyl-hq/decibyl`.
-That org does not exist, so links that previously worked are now dead. Worse,
-several carry **upstream identifiers that were never ours**, so they cannot be
-fixed by renaming — only by removing or replacing them:
-
-| Reference | Where | Problem |
-|---|---|---|
-| `raw.githubusercontent.com/decibyl-hq/decibyl/main/...` (22×) | `README*.md`, `docs/getting-started/`, `docs/deployment/` | `curl` install commands — **404 for anyone following the docs** |
-| `github.com/decibyl-hq/decibyl-plugins` (9×) | `README.md` | Separate upstream repo (Claude Code / Codex setup plugin) |
-| `github.com/decibyl-hq/decibyl/issues` (7×) | `CONTRIBUTING.md`, `docs/` | Issue tracker |
-| `github.com/decibyl-hq/decibyl/security/advisories/new` (2×) | `SECURITY.md` | Vulnerability disclosure |
-| `join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-...` | `README.md` | Workspace slug renamed, **invite token still upstream's** |
-| `trendshift.io/repositories/31007` | `README.md` | Badge for upstream's repo ID |
-| `github.com/orgs/decibyl-hq/discussions/291` | `README.md` | Upstream's pinned discussion |
-| `github.com/orgs/decibyl-hq/discussions/new?category=ideas` | `.github/ISSUE_TEMPLATE/config.yml` | Contributor-facing 404 |
-
-The install commands are the urgent ones. Since Decibyl is no longer open
-source, the right fix is probably to **remove** these OSS-community and
-self-host-install sections rather than repoint them — but that is a content
-decision. Not guessed at deliberately: a fabricated repo URL, Slack workspace
-or docs domain would be worse than a known-dead link.
 
 ---
 
@@ -117,6 +92,36 @@ function when the cost engine lands.
 ---
 
 ## Fixed
+
+### 5. Links pointed at upstream community infrastructure Decibyl does not own
+
+**FIXED.** ~40 references across READMEs, docs, `CONTRIBUTING.md`, `SECURITY.md`,
+the issue template and the Helm chart pointed at a `decibyl-hq` org, a Slack
+invite whose token was upstream's, a Trendshift badge for upstream's repo id,
+and a `decibyl-plugins` repo that does not exist.
+
+Resolved by removal rather than repointing, because Decibyl is not open source
+and most of these were OSS-community artifacts with no equivalent to point at:
+
+* **`curl | bash` installers** (22×) fetched `raw.githubusercontent.com/decibyl-hq/...`
+  and 404'd for anyone following the docs. Anyone deploying has a clone, so they
+  now run the script that is already there. The `ghcr.io/decibyl-hq` registry
+  option went with them.
+* **Slack invite, Trendshift badge, GitHub Discussions, the plugins repo** —
+  deleted outright.
+* **Issue tracker and security advisory form** — a private repo has neither.
+  Now `support@decibyl.com` and `security@decibyl.com`.
+* **The fork-and-PR contributor flow** described working against a public
+  upstream. Replaced with direct clone and branch.
+* **`README.md` claimed "100% open source" and BSD 2-Clause** throughout, which
+  contradicts the product. Rewritten as a private-repo README.
+* **`README.zh-CN.md` and `README.ja-JP.md`** were translations of that
+  positioning. Removed rather than left contradicting the English one — they
+  need a translator, not a find-and-replace, if they come back.
+
+**Two placeholders need confirming:** `security@decibyl.com` and
+`support@decibyl.com` are assumed from the `decibyl.com` domain already used in
+`api/constants.py`. Point them at real inboxes.
 
 ### 1. Test suite could not run from a fresh clone — `pipecat` missing
 

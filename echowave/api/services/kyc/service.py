@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 
 from loguru import logger
 
+from api.constants import MANAGED_TELEPHONY_ENABLED
 from api.db import db_client
 from api.db.models import KycDocumentModel, OrganizationKycModel
 from api.enums import KycBusinessType, KycDocumentKind, KycStatus
@@ -200,6 +201,15 @@ async def remove_document(*, organization_id: int, document_id: int) -> KycView:
 
 async def submit(organization_id: int) -> KycView:
     """Hand the account to us for review."""
+    if not MANAGED_TELEPHONY_ENABLED:
+        # Enforced here and not only in the UI: accepting documents we cannot
+        # forward would take on DPDP custody of identity records in exchange
+        # for nothing.
+        raise ValueError(
+            "Telephony verification is not open yet. We are completing the "
+            "carrier arrangement and will let you know the moment it is."
+        )
+
     record = await db_client.get_or_create_kyc(organization_id)
 
     supplied = {d.kind for d in (record.documents or [])}

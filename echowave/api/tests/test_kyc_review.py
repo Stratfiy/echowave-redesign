@@ -26,6 +26,16 @@ from api.services.kyc.state import KycTransitionError
 PDF = b"%PDF-1.4 fake"
 
 
+@pytest.fixture(autouse=True)
+def verification_open(monkeypatch):
+    """These tests exercise the flow, so they need the door open.
+
+    The launch gate is a deployment switch, not behaviour under test — except
+    in the one test below that asserts it holds.
+    """
+    monkeypatch.setattr(kyc_service, "MANAGED_TELEPHONY_ENABLED", True)
+
+
 @pytest.fixture
 def stub_storage(monkeypatch):
     """Record what would have been stored, without needing MinIO."""

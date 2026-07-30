@@ -2012,6 +2012,63 @@ class DailyOrganizationRollupModel(Base):
     )
 
 
+
+class PlatformProviderCredentialModel(Base):
+    """Decibyl's own API key for a model provider.
+
+    These are the keys that make an account "managed": a customer who does not
+    bring their own OpenAI or Deepgram key runs on ours, and the usage is
+    metered and passed through at cost on their receipt.
+
+    The key is stored **encrypted** (Fernet, keyed by PLATFORM_CREDENTIAL_SECRET)
+    rather than as plaintext JSON like the per-organization configuration store.
+    A leak of this table is a leak of every customer's inference capacity billed
+    to us, which is a materially different blast radius from one tenant's own
+    key, so it does not share that storage.
+
+    Scoped by (provider, component) rather than provider alone: the same vendor
+    can serve two components on separate keys and separate billing accounts —
+    Sarvam does STT and TTS, and an operator may well want those split.
+    """
+
+    __tablename__ = "platform_provider_credentials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # stt | llm | tts — see CostComponent. Telephony credentials are not here;
+    # they live on telephony_configurations, which already models per-account
+    # carrier accounts.
+    component = Column(String(16), nullable=False)
+    provider = Column(String(64), nullable=False)
+    # Ciphertext. Never returned by any endpoint — see `masked_key`.
+    encrypted_key = Column(Text, nullable=False)
+    # Last four characters of the plaintext, kept so an operator can tell which
+    # key is installed without the key being readable.
+    key_last_four = Column(String(8), nullable=False)
+    label = Column(String(128), nullable=True)
+    # Off by default is wrong here — a key that has been entered is meant to be
+    # used. Deactivating is how you take a provider out of service without
+    # deleting the audit trail.
+    is_active = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    set_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    set_by_user = relationship("UserModel")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "component", "provider", name="uq_platform_provider_credential"
+        ),
+        Index("ix_platform_provider_credentials_lookup", "component", "provider"),
+    )
+
+
 class BillingAuditLogModel(Base):
     """Who changed a rate or moved credit, when, and from what to what."""
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, List, Loader2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, KeyRound, List, Loader2, ShieldCheck } from 'lucide-react';
 import Link from "next/link";
 import { useState } from "react";
 
@@ -188,6 +188,25 @@ export default function SuperadminPage() {
                                     <Button className="w-full md:w-auto">
                                         <ShieldCheck className="mr-2 h-4 w-4" />
                                         Open Review Queue
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </Link>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Provider Keys</CardTitle>
+                                <CardDescription>
+                                    Our own LLM, STT and TTS keys — what makes an
+                                    account managed rather than bring-your-own
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Link href="/superadmin/provider-keys">
+                                    <Button className="w-full md:w-auto">
+                                        <KeyRound className="mr-2 h-4 w-4" />
+                                        Manage Keys
                                         <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 </Link>

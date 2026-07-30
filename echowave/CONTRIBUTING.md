@@ -1,63 +1,61 @@
-# Contributing to Decibyl AI
+# Contributing to Decibyl
 
-Welcome to Decibyl AI! ❤️ Thank you for your interest in contributing to the future of open-source voice AI. ❤️
+Decibyl is a voice agent platform: a drag-and-drop workflow builder on top of a
+real-time speech pipeline, with telephony and WebRTC.
 
-Decibyl AI is a comprehensive voice agent platform that helps developers build, test, and deploy conversational AI systems with minimal setup. This guide will help you understand the project structure, set up your development environment, and start contributing effectively.
+Decibyl is **not open source**. This repository is private, so there is no fork
+step and no public issue tracker — clone it directly and branch.
 
-👉 Join our community → [Decibyl Community Slack](https://join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g)
+## Getting set up
 
-## 🏗️ Project Overview
+Setup lives in [`docs/contribution/setup.mdx`](docs/contribution/setup.mdx): the
+pipecat submodule, the Python virtualenv, the `.env` templates and the local
+service stack.
 
-### What is Decibyl AI?
+Two things catch people out:
 
-Decibyl AI is a full-stack platform for building voice agents with a drag-and-drop workflow builder. It combines multiple technologies to provide a seamless experience from development to production deployment.
+- **The project requires Python 3.13** (`api/pyproject.toml`). An older
+  interpreter produces a wave of pydantic `TypedDict` errors that look like code
+  bugs and are not.
+- **`pipecat` is a git submodule.** Without `git submodule update --init
+  --recursive`, most of the test suite fails to collect.
 
-## 🙌 How You Can Contribute
+## Where things live
 
-- 🐛 **Report bugs** via [GitHub Issues](https://github.com/decibyl-hq/decibyl/issues)
-- 💡 **Suggest features** via [Ideas](https://github.com/orgs/decibyl-hq/discussions/categories/ideas)
-- 🔧 **Submit pull requests**
-- 📖 **Improve documentation** The documentation is hosted via mintlify and the code is in `docs/` folder
-- 💬 **Join the Slack community**
+| Area | Path | Notes |
+|---|---|---|
+| Backend | `api/` | FastAPI. See `api/AGENTS.md`. |
+| Frontend | `ui/` | Next.js 15. See `ui/AGENTS.md`. |
+| Docs | `docs/` | Mintlify. |
+| Pricing and billing | `api/services/billing/` | Read `DASHBOARD.md` first. |
 
-👉 A great place to start is with issues tagged **`good first issue`**.
+The `AGENTS.md` file in each subtree carries the conventions that matter there.
+Two are worth reading before a first change, because both guard against mistakes
+that are easy to make and hard to catch in review: the organization-scoping
+rules in `api/AGENTS.md` (skipping one is a tenant-isolation bug, not a style
+issue) and the API error handling rules in `ui/AGENTS.md` (the generated client
+does not throw on HTTP errors).
 
-> And if you like the project, but just don't have time to contribute code, that's fine. There are other easy ways to support the project:
->
-> - Star the project;
-> - Tweet about it;
-> - Refer to this project in your project's readme;
-> - Submit and vote on [Ideas](https://github.com/orgs/decibyl-hq/discussions/categories/ideas);
-> - Create and comment on [Issues](https://github.com/decibyl-hq/decibyl/issues);
-> - Mention the project at local meetups and tell your friends/colleagues.
+## Making a change
 
-## 🚀 Development Setup
+1. Branch from `main`.
+2. Run the tests:
+   ```bash
+   set -a && source api/.env.test && set +a && python -m pytest api/tests -q
+   ```
+3. Push to `origin` and open a pull request against `main`.
 
-Please refer to our [Development Setup documentation](https://docs.decibyl.com/contribution/setup).
+For anything touching money, read [`DASHBOARD.md`](DASHBOARD.md) first. The
+billing code holds invariants — integer paise, round once at the line item, the
+invoice total defined as the sum of its own line items — that are asserted by
+tests rather than left to review. A change that breaks one fails loudly, which
+is the intent.
 
-### Getting Help
+## Reporting problems
 
-**Before You Start**
+- **Security vulnerabilities**: email <security@decibyl.com> privately. Please
+  do not open an issue.
+- **Everything else**: email <support@decibyl.com>.
 
-- Check existing [GitHub Issues](../../issues) for similar work
-- Join our [Slack community](https://join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g) to discuss your plans
-- Look for issues tagged `good first issue` for beginner-friendly tasks
-
-**During Development**
-
-- Ask questions in our Slack community
-- Reference related issues and PRs in your discussions
-- Share early drafts for feedback on complex features
-
-## 💬 Community & Support
-
-Our Slack community is the heart of Decibyl AI development:
-
-- **Get Help**: Setup assistance and debugging support
-- **Collaborate**: Discuss features and architectural decisions
-- **Connect**: Meet other contributors and maintainers
-- **Stay Updated**: Learn about contribution opportunities and releases
-
-👉 **Join us**: [Decibyl Community Slack](https://join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g)
-
-Thank you for helping us keep voice AI open and accessible! 🎉
+Open problems are tracked in [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) with what is
+wrong, why, and what fixing it involves.

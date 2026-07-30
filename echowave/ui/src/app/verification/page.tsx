@@ -66,6 +66,7 @@ type KycView = {
     documents: KycDocument[];
     can_submit: boolean;
     telephony_enabled: boolean;
+    verification_open: boolean;
 };
 
 const DOCUMENT_LABELS: Record<string, string> = {
@@ -255,6 +256,32 @@ export default function VerificationPage() {
 
                 {loading ? (
                     <Skeleton className="h-[420px] w-full rounded-2xl" />
+                ) : view && !view.verification_open ? (
+                    /* The flow depends on a reseller arrangement with the
+                       carrier. Until that exists there is nowhere to send
+                       documents, so we say so rather than collecting identity
+                       records we cannot act on. */
+                    <section className="glass-panel px-6 pb-6 pt-5">
+                        <h2 className="flex items-center gap-2 text-[0.9375rem] font-semibold tracking-[-0.018em] text-foreground">
+                            <Clock className="h-4 w-4 text-[color:var(--brand-amber)]" />
+                            Coming soon
+                        </h2>
+                        <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
+                            We are completing the arrangement with our telecom
+                            operator that lets us verify customers for Indian
+                            phone numbers. Once it is in place this page will
+                            ask for your business documents and we will handle
+                            the rest.
+                        </p>
+                        <p className="mt-3 max-w-prose text-sm leading-relaxed text-muted-foreground">
+                            Nothing is blocked in the meantime:{" "}
+                            <span className="font-medium text-foreground">
+                                browser calls work today
+                            </span>
+                            , and so does telephony on your own carrier account
+                            if you already have one — add it under Telephony.
+                        </p>
+                    </section>
                 ) : (
                     <>
                         {stage && (

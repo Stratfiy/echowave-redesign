@@ -785,7 +785,11 @@ function ProviderRatePanel({
                                 onChange={(e) => setRate(e.target.value)}
                                 placeholder="0.700"
                             />
-                            <Button disabled={saving !== null} onClick={submit}>
+                            <Button
+                                aria-label="Save provider rate"
+                                disabled={saving !== null}
+                                onClick={submit}
+                            >
                                 {saving === "provider" ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (

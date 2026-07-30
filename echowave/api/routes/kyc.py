@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from api.constants import MANAGED_TELEPHONY_ENABLED
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.kyc import service as kyc_service
@@ -51,6 +52,10 @@ def _view_response(view: kyc_service.KycView) -> dict[str, Any]:
         # The one the UI gates phone calling on. It reflects the carrier's
         # decision, never our own review.
         "telephony_enabled": view.telephony_enabled,
+        # Whether the flow is open at all. False while the carrier reseller
+        # arrangement is still being set up — the screen says "coming soon"
+        # rather than inviting uploads that go nowhere.
+        "verification_open": MANAGED_TELEPHONY_ENABLED,
     }
 
 

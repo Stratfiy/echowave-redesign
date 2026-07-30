@@ -21,8 +21,6 @@ keywords:
   - fastapi
 
 home: https://decibyl.com
-sources:
-  - https://github.com/decibyl-hq/decibyl
 
 maintainers:
   - name: Decibyl

@@ -20,6 +20,16 @@ from api.services.kyc.state import KycTransitionError
 PDF = b"%PDF-1.4 fake"
 
 
+@pytest.fixture(autouse=True)
+def verification_open(monkeypatch):
+    """These tests exercise the flow, so they need the door open.
+
+    The launch gate is a deployment switch, not behaviour under test — except
+    in the one test below that asserts it holds.
+    """
+    monkeypatch.setattr(kyc_service, "MANAGED_TELEPHONY_ENABLED", True)
+
+
 @pytest.fixture
 def stub_storage(monkeypatch):
     """Record what would have been stored, without needing MinIO."""
@@ -333,3 +343,41 @@ class TestApprovedRecordsAreFrozen:
 
         await db_client.update_kyc(org_id, status=KycStatus.CARRIER_APPROVED.value)
         assert (await kyc_service.get_view(org_id)).telephony_enabled is True
+
+
+@pytest.mark.usefixtures("stub_storage")
+class TestTheFlowIsClosedUntilTheCarrierIsReady:
+    """Managed telephony depends on a reseller arrangement with the carrier.
+
+    Until that exists there is nowhere to forward documents to, and accepting
+    incorporation certificates and identity records anyway would take on DPDP
+    custody of them in exchange for nothing. So the door is shut in the
+    service, not only in the UI.
+    """
+
+    async def test_submitting_is_refused_while_the_flow_is_closed(
+        self, db_session, async_session, monkeypatch
+    ):
+        monkeypatch.setattr(kyc_service, "MANAGED_TELEPHONY_ENABLED", False)
+        org_id = await _company_with_docs(async_session, "closed")
+
+        with pytest.raises(ValueError, match="not open yet"):
+            await kyc_service.submit(org_id)
+
+        # And nothing moved: the account is still where it was.
+        assert (
+            await kyc_service.get_view(org_id)
+        ).status == KycStatus.NOT_STARTED.value
+
+    async def test_the_refusal_says_what_is_happening(
+        self, db_session, async_session, monkeypatch
+    ):
+        """"Not open yet, we will tell you" is actionable. A generic failure
+        would send the customer to support to hear the same thing."""
+        monkeypatch.setattr(kyc_service, "MANAGED_TELEPHONY_ENABLED", False)
+        org_id = await _company_with_docs(async_session, "closed-message")
+
+        with pytest.raises(ValueError) as raised:
+            await kyc_service.submit(org_id)
+
+        assert "carrier" in str(raised.value)

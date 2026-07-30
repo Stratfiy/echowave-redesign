@@ -187,6 +187,24 @@ export type ActiveCallsResponse = {
 };
 
 /**
+ * ActiveRequest
+ */
+export type ActiveRequest = {
+    /**
+     * Component
+     */
+    component: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+};
+
+/**
  * AmbientNoiseConfigurationDefaults
  */
 export type AmbientNoiseConfigurationDefaults = {
@@ -5195,6 +5213,30 @@ export type ServiceKeyResponse = {
 };
 
 /**
+ * SetCredentialRequest
+ */
+export type SetCredentialRequest = {
+    /**
+     * Component
+     *
+     * stt | llm | tts
+     */
+    component: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Api Key
+     */
+    api_key: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+};
+
+/**
  * SignupRequest
  */
 export type SignupRequest = {
@@ -9542,6 +9584,187 @@ export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses
 };
 
 export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponse = CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses[keyof CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses];
+
+export type DeleteProviderKeyApiV1AdminProviderKeysDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Component
+         */
+        component: string;
+        /**
+         * Provider
+         */
+        provider: string;
+    };
+    url: '/api/v1/admin/provider-keys';
+};
+
+export type DeleteProviderKeyApiV1AdminProviderKeysDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteProviderKeyApiV1AdminProviderKeysDeleteError = DeleteProviderKeyApiV1AdminProviderKeysDeleteErrors[keyof DeleteProviderKeyApiV1AdminProviderKeysDeleteErrors];
+
+export type DeleteProviderKeyApiV1AdminProviderKeysDeleteResponses = {
+    /**
+     * Response Delete Provider Key Api V1 Admin Provider Keys Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DeleteProviderKeyApiV1AdminProviderKeysDeleteResponse = DeleteProviderKeyApiV1AdminProviderKeysDeleteResponses[keyof DeleteProviderKeyApiV1AdminProviderKeysDeleteResponses];
+
+export type ListProviderKeysApiV1AdminProviderKeysGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/provider-keys';
+};
+
+export type ListProviderKeysApiV1AdminProviderKeysGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListProviderKeysApiV1AdminProviderKeysGetError = ListProviderKeysApiV1AdminProviderKeysGetErrors[keyof ListProviderKeysApiV1AdminProviderKeysGetErrors];
+
+export type ListProviderKeysApiV1AdminProviderKeysGetResponses = {
+    /**
+     * Response List Provider Keys Api V1 Admin Provider Keys Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListProviderKeysApiV1AdminProviderKeysGetResponse = ListProviderKeysApiV1AdminProviderKeysGetResponses[keyof ListProviderKeysApiV1AdminProviderKeysGetResponses];
+
+export type SetProviderKeyApiV1AdminProviderKeysPutData = {
+    body: SetCredentialRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/provider-keys';
+};
+
+export type SetProviderKeyApiV1AdminProviderKeysPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetProviderKeyApiV1AdminProviderKeysPutError = SetProviderKeyApiV1AdminProviderKeysPutErrors[keyof SetProviderKeyApiV1AdminProviderKeysPutErrors];
+
+export type SetProviderKeyApiV1AdminProviderKeysPutResponses = {
+    /**
+     * Response Set Provider Key Api V1 Admin Provider Keys Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetProviderKeyApiV1AdminProviderKeysPutResponse = SetProviderKeyApiV1AdminProviderKeysPutResponses[keyof SetProviderKeyApiV1AdminProviderKeysPutResponses];
+
+export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostData = {
+    body: ActiveRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/provider-keys/active';
+};
+
+export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostError = SetProviderKeyActiveApiV1AdminProviderKeysActivePostErrors[keyof SetProviderKeyActiveApiV1AdminProviderKeysActivePostErrors];
+
+export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses = {
+    /**
+     * Response Set Provider Key Active Api V1 Admin Provider Keys Active Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponse = SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses[keyof SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses];
 
 export type ValidateWorkflowApiV1WorkflowWorkflowIdValidatePostData = {
     body?: never;

@@ -5,15 +5,11 @@ description: Get a Decibyl dev environment running and learn the daily commands.
 
 Decibyl is a Next.js UI (`ui/`), a FastAPI backend (`api/`), and a [Pipecat](https://github.com/pipecat-ai/pipecat)-based voice pipeline (`pipecat/`, a git submodule), backed by Postgres, Redis, and MinIO.
 
-<Tip>
-**Using Claude Code or Codex?** Install the [Decibyl setup skill](https://github.com/decibyl-hq/decibyl-plugins) (`/plugin marketplace add decibyl-hq/decibyl-plugins`, then `/plugin install decibyl@decibyl`) and ask your agent to *"set up Decibyl for development"* — it runs the steps below for you and verifies the stack is healthy.
-</Tip>
-
 ## Set up
 
 You need Git, a local Docker engine (such as Docker Desktop), and VS Code with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
 
-1. Fork [decibyl-hq/decibyl](https://github.com/decibyl-hq/decibyl) and clone **your fork**:
+1. Clone the repository:
 
 ```bash
 git clone https://github.com/<YOUR_HANDLE>/decibyl
@@ -36,12 +32,9 @@ cd ui && npm run dev -- --hostname 0.0.0.0
 
 5. Open the app at `http://localhost:3000`.
 
-If these steps do not work for you, please open an issue on [GitHub](https://github.com/decibyl-hq/decibyl/issues).
+If these steps do not work for you, please open an issue on [GitHub](mailto:support@decibyl.com).
 
 <AccordionGroup>
-<Accordion title="Cloned decibyl-hq/decibyl directly instead of your fork?">
-Run `bash scripts/setup_fork.sh` once. It prompts for your fork URL, points `origin` at it, and adds `upstream` as `decibyl-hq/decibyl`. See [Fork and upstream remotes](/contribution/reference#fork-and-upstream-remotes).
-</Accordion>
 <Accordion title="No VS Code? No devcontainer at all?">
 The devcontainer also runs headless via the [Dev Container CLI](/contribution/reference#dev-container-cli), or you can run everything [directly on your host](/contribution/reference#host-managed-setup).
 </Accordion>
@@ -94,9 +87,9 @@ All configurations load `api/.env` (test configs use `api/.env.test`) and set `j
 ## Contributing a change
 
 1. Create a branch and make your change.
-2. Push to your fork (`origin`) and open a pull request against `decibyl-hq/decibyl:main`.
+2. Push your branch to `origin` and open a pull request against `main`.
 3. A maintainer reviews and merges.
 
-Bug reports and feature ideas go through [GitHub Issues](https://github.com/decibyl-hq/decibyl/issues) and [Ideas](https://github.com/orgs/decibyl-hq/discussions/categories/ideas). Issues tagged `good first issue` are a good place to start. For questions while you're working, use the [Decibyl Community Slack](https://join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g).
+Bug reports and feature ideas go through [GitHub Issues](mailto:support@decibyl.com). Issues tagged `good first issue` are a good place to start.
 
 Deploying your own build instead of contributing upstream? See [Deployments](/deployment/introduction) instead.

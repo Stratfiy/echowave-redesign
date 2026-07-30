@@ -15,7 +15,6 @@ There are three update flows depending on how you deployed:
 
 Decibyl publishes two images — `decibyl-api` and `decibyl-ui` — to both container registries:
 
-- **GitHub Container Registry** — [github.com/orgs/decibyl-hq/packages](https://github.com/orgs/decibyl-hq/packages)
 - **Docker Hub** — [hub.docker.com/u/decibylai](https://hub.docker.com/u/decibylai)
 
 Each release is published under release tags. Note the formats differ between GitHub releases and Docker image tags — `update_remote.sh` understands both and normalizes for you.
@@ -44,7 +43,7 @@ From your install directory:
 
 ```bash
 cd decibyl
-curl -o update_remote.sh https://raw.githubusercontent.com/decibyl-hq/decibyl/main/scripts/update_remote.sh
+chmod +x scripts/update_remote.sh
 bash update_remote.sh
 ```
 
@@ -70,13 +69,12 @@ For local Docker installs (the [Quick Start](/deployment/docker#quick-start) flo
 
 <CodeGroup>
 ```bash macOS/Linux
-curl -o docker-compose.yaml https://raw.githubusercontent.com/decibyl-hq/decibyl/main/docker-compose.yaml
-curl -o start_docker.sh https://raw.githubusercontent.com/decibyl-hq/decibyl/main/scripts/start_docker.sh && chmod +x start_docker.sh
+chmod +x scripts/start_docker.sh
 docker compose down
 ./start_docker.sh
 ```
 ```powershell Windows
-Invoke-WebRequest -OutFile docker-compose.yaml https://raw.githubusercontent.com/decibyl-hq/decibyl/main/docker-compose.yaml; Invoke-WebRequest -OutFile start_docker.ps1 https://raw.githubusercontent.com/decibyl-hq/decibyl/main/scripts/start_docker.ps1; docker compose down; .\start_docker.ps1
+docker compose down; .\scripts\start_docker.ps1
 ```
 </CodeGroup>
 
@@ -114,7 +112,7 @@ done
 Your Postgres data volume persists across `down`/`up` cycles, so agents and call history are preserved.
 
 <Warning>
-Rolling back across a database migration is not always safe — if the newer release ran a schema migration, downgrading may leave the DB in a state the older API doesn't understand. If in doubt, [open an issue](https://github.com/decibyl-hq/decibyl/issues) before rolling back.
+Rolling back across a database migration is not always safe — if the newer release ran a schema migration, downgrading may leave the DB in a state the older API doesn't understand. If in doubt, [open an issue](mailto:support@decibyl.com) before rolling back.
 </Warning>
 
 ## Updating a source build

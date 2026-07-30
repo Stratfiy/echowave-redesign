@@ -57,6 +57,30 @@ DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)
 MPS_API_URL = os.getenv("MPS_API_URL", "https://services.decibyl.com")
 DECIBYL_DEVOPS_SECRET = os.getenv("DECIBYL_DEVOPS_SECRET") or None
 
+# Whether customers can start telephony verification at all.
+#
+# The flow depends on an ISV/reseller arrangement with the carrier — subaccounts
+# created per end customer, each verified in its own name. Until that account
+# exists, collecting incorporation documents we cannot forward is worse than
+# saying "not yet": it asks for identity records, stores them under DPDP
+# obligations, and delivers nothing.
+#
+# Flip to true once the carrier has approved the reseller account. Everything
+# behind it is built and tested; this only controls whether the door is open.
+MANAGED_TELEPHONY_ENABLED = (
+    os.getenv("MANAGED_TELEPHONY_ENABLED", "false").lower() == "true"
+)
+
+# Fernet key encrypting the platform's own provider API keys at rest. Generate
+# with: python -c "from cryptography.fernet import Fernet;
+# print(Fernet.generate_key().decode())"
+#
+# Deliberately has no default. A fallback would mean a deployment that forgot to
+# set it still "worked", with every OpenAI and Deepgram key on the platform
+# encrypted under a value published in this file. Storing a key without it
+# raises instead — see services/configuration/platform_credentials.py.
+PLATFORM_CREDENTIAL_SECRET = os.getenv("PLATFORM_CREDENTIAL_SECRET") or None
+
 # Storage Configuration
 ENABLE_AWS_S3 = os.getenv("ENABLE_AWS_S3", "false").lower() == "true"
 

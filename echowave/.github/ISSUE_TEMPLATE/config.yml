@@ -1,7 +1,4 @@
 contact_links:
-  - name: 💡 Feature Request
-    url: https://github.com/orgs/decibyl-hq/discussions/new?category=ideas
-    about: Suggest any ideas you have using our discussion forums.
   - name: "🔒 Report a Security Vulnerability"
-    url: https://github.com/decibyl-hq/decibyl/security/advisories/new
-    about: "Privately report security vulnerabilities to maintainers (not via public issues)."
+    url: mailto:security@decibyl.com
+    about: "Report security issues privately by email, never in a public issue."

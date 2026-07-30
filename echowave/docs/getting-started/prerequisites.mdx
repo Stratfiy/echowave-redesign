@@ -69,26 +69,17 @@ netstat -ano | findstr :3010
 
 ## Docker Registry Options
 
-Decibyl images are available from two registries:
+Decibyl images are published to Docker Hub:
 
-- **GitHub Container Registry (Default)**: `ghcr.io/decibyl-hq` - Recommended for most users
-- **Docker Hub**: `decibylai` - Alternative registry
+- **Docker Hub**: `decibylai`
 
-To use a specific registry, set the `REGISTRY` environment variable when running the startup script:
+Override it with the `REGISTRY` environment variable if you mirror the images elsewhere:
 
 <CodeGroup>
 ```bash
-# Using GitHub Container Registry (recommended)
-REGISTRY=ghcr.io/decibyl-hq ./start_docker.sh
-
-# Using Docker Hub
-REGISTRY=decibylai ./start_docker.sh
+REGISTRY=decibylai ./scripts/start_docker.sh
 ```
 ```powershell Windows
-# Using GitHub Container Registry (recommended)
-$env:REGISTRY = 'ghcr.io/decibyl-hq'; .\start_docker.ps1
-
-# Using Docker Hub
-$env:REGISTRY = 'decibylai'; .\start_docker.ps1
+$env:REGISTRY = 'decibylai'; .\scripts\start_docker.ps1
 ```
 </CodeGroup>

@@ -9,7 +9,7 @@ We always recommend using the latest versions of services to ensure you get all 
 
 If you believe you have found a security vulnerability within Decibyl, please let us know right away. We'll try and fix the problem as soon as possible.
 
-**Do not report vulnerabilities using public GitHub issues**. Instead, report the issue [here](https://github.com/decibyl-hq/decibyl/security/advisories/new)
+**Do not report vulnerabilities using public GitHub issues**. Instead, report the issue [here](mailto:security@decibyl.com)
 
 Once we've received your email we'll keep you updated as we fix the vulnerability.
 

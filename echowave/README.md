@@ -1,209 +1,79 @@
-# Decibyl AI
+# Decibyl
 
-**The open-source, self-hostable alternative to Vapi & Retell** — build production voice agents with a visual workflow builder, test them in minutes, and let AI coding assistants help design and edit them through MCP.
+Build production voice agents with a visual workflow builder — a real-time
+speech pipeline with telephony and WebRTC, a drag-and-drop builder, and an MCP
+surface so coding assistants can design and edit agents directly.
 
-<p align="center">
-  <a href="https://app.decibyl.com">
-    <img src="https://img.shields.io/badge/▶_Try_the_Cloud-app.decibyl.com-2563eb?style=for-the-badge" alt="Try the Cloud">
-  </a>
-  &nbsp;
-  <a href="#-get-started">
-    <img src="https://img.shields.io/badge/⚡_Self--host_in_60s-One_command-111827?style=for-the-badge" alt="Self-host in 60s">
-  </a>
-  &nbsp;
-  <a href="https://join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g">
-    <img src="https://img.shields.io/badge/💬_Join_Slack-Community-4A154B?style=for-the-badge&logo=slack" alt="Join Slack">
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://docs.decibyl.com">📖 Docs</a> &nbsp;·&nbsp;
-  <a href="LICENSE">📜 BSD 2-Clause</a> &nbsp;·&nbsp;
-  <a href="README.zh-CN.md">🌐 中文</a> &nbsp;·&nbsp;
-  <a href="README.ja-JP.md">🌐 日本語</a>
-</p>
+**This repository is private. Decibyl is a commercial product, not open source.**
 
 <p align="center">
   <img src="docs/images/hero.gif" alt="Decibyl in action — build a workflow, launch a voice agent, talk to it" width="80%">
 </p>
 
-- **100% open source**, self-hostable — no vendor lock-in, unlike Vapi or Retell
-- **Full control & transparency** — every line of code is open, with flexible LLM / TTS / STT integration
-- **Maintained by YC alumni and exit founders**, committed to keeping voice AI open
+## Running it locally
 
-<p align="center">
-  <a href="https://trendshift.io/repositories/31007" target="_blank"><img src="https://trendshift.io/api/badge/repositories/31007" alt="decibyl-hq%2Fdecibyl | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
-## 🎥 Featured
-
-<div align="center">
-  <a href="https://www.youtube.com/watch?v=xD9JEvfCH9k">
-    <img src="https://img.youtube.com/vi/xD9JEvfCH9k/maxresdefault.jpg" alt="Decibyl featured by Better Stack" width="80%" style="border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-  </a>
-  <br>
-  <em>Featured by <strong>Better Stack</strong> — a hands-on look at Decibyl</em>
-</div>
-
-<details>
-<summary>📺 Prefer a 2-minute product walkthrough? Click here.</summary>
-
-<div align="center">
-  <a href="https://youtu.be/9gPneyf9M9w">
-    <img src="docs/images/video_thumbnail_1.png" alt="Watch Decibyl AI Demo Video" width="70%" style="border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-  </a>
-</div>
-
-</details>
-
-## ⚖️ Decibyl vs Vapi vs Retell
-
-An honest comparison on the axes that matter most to teams evaluating voice AI platforms.
-
-|  | **Decibyl** | **Vapi** | **Retell** |
-|---|---|---|---|
-| **License** | BSD 2-Clause (open source) | Proprietary | Proprietary |
-| **Self-hostable** | ✅ Yes — one Docker command | ❌ SaaS only | ❌ SaaS only |
-| **Pricing** | Free (self-host) · usage-based (cloud) | Per-minute SaaS | Per-minute SaaS |
-| **Bring your own LLM / STT / TTS** | ✅ Any provider, or use Decibyl's stack | Configurable within their integrations | Configurable within their integrations |
-| **Source-level customization** | ✅ Every line is yours to modify | ❌ Closed source | ❌ Closed source |
-| **Data residency** | Your infra, your rules | Their cloud | Their cloud |
-| **Vendor lock-in** | None | Full | Full |
-
-
-## 🚀 Get Started
-
-##### Download and setup Decibyl on your Local Machine
-
-> **Note**
-> We collect anonymous usage data to improve the product. You can opt out by setting `ENABLE_TELEMETRY=false` before running the startup script.
-
-> **Note**
-> If you wish to run the platform on a remote server instead, checkout our [Documentation](https://docs.decibyl.com/deployment/docker#option-2:-remote-server-deployment)
+Requires Docker, and Python 3.13 if you are working on the backend.
 
 ```bash
-curl -o docker-compose.yaml https://raw.githubusercontent.com/decibyl-hq/decibyl/main/docker-compose.yaml && curl -o start_docker.sh https://raw.githubusercontent.com/decibyl-hq/decibyl/main/scripts/start_docker.sh && chmod +x start_docker.sh && ./start_docker.sh
+git submodule update --init --recursive
+chmod +x scripts/start_docker.sh && ./scripts/start_docker.sh
 ```
 
-> **⚡ Prefer an AI agent to set it up for you?**
-> If you use **Claude Code** or **Codex**, install the official [Decibyl setup skill](https://github.com/decibyl-hq/decibyl-plugins) and let your agent handle installation, configuration, and troubleshooting — it detects your OS, picks the right deploy path, runs Decibyl's own setup scripts, and verifies the result.
->
-> ```text
-> # In Claude Code
-> /plugin marketplace add decibyl-hq/decibyl-plugins
-> /plugin install decibyl@decibyl
-> ```
->
-> Then start a new session and ask it to _"set up Decibyl"_ (or run `/decibyl-setup`). Codex is supported too — see the [plugin repo](https://github.com/decibyl-hq/decibyl-plugins#install).
+First startup takes two to three minutes while images download. Then open
+<http://localhost:3010>.
 
-> **Note**
-> First startup may take 2-3 minutes to download all images. Once running, open http://localhost:3010 to create your first AI voice assistant!
-> For common issues and solutions, see 🔧 **[Troubleshooting](docs/getting-started/troubleshooting.mdx)**.
+Contributor setup — virtualenv, `.env` templates, running the test suite — is in
+[`docs/contribution/setup.mdx`](docs/contribution/setup.mdx). Common problems
+are in [`docs/getting-started/troubleshooting.mdx`](docs/getting-started/troubleshooting.mdx).
 
-### 🎙️ Your First Voice Bot
+## Your first agent
 
-1. Open [http://localhost:3010](http://localhost:3010) in your browser.
-2. Pick **Inbound** or **Outbound**, name your bot (e.g. _Lead Qualification_), and describe the use case in 5–10 words (e.g. _Screen insurance form submissions for purchase intent_).
+1. Open <http://localhost:3010>.
+2. Pick **Inbound** or **Outbound**, name the agent, and describe the use case
+   in a few words — *"screen insurance form submissions for purchase intent"*.
 3. Click **Test Agent**.
-4. Use **Test Audio** to talk to your agent in the browser, or **Test Chat** to iterate faster in text. In Test Chat, you can edit or replay user turns and Decibyl will regenerate the agent's replies and node transitions from that point.
+4. **Test Audio** talks to it in the browser; **Test Chat** iterates faster in
+   text, and lets you edit or replay a user turn and regenerate everything
+   after it.
 
-> 🔑 **No API keys needed.** Decibyl ships with auto-generated keys and its own LLM / TTS / STT stack. Connect your own keys for LLM, TTS, STT, or Telephony (e.g. Twilio, Vonage, Telnyx) anytime.
+Browser testing needs no telephony and no verification. Phone numbers do — see
+Verification in the app.
 
-## Build Agents with MCP
+## Layout
 
-Decibyl ships with an MCP server, so coding agents can work directly inside your Decibyl workspace.
+| Path | What |
+|---|---|
+| `api/` | FastAPI backend — routes, services, pipeline, billing |
+| `ui/` | Next.js 15 frontend |
+| `docs/` | Mintlify documentation |
+| `pipecat/` | Speech pipeline framework (git submodule) |
+| `sdk/` | Python and TypeScript client SDKs |
+| `deploy/` | Helm chart and deployment assets |
 
-Connect Codex, Claude Code, Cursor, or any MCP client to inspect existing agents, search Decibyl docs, fetch node schemas, create new workflows, and save draft edits from natural language.
+Each subtree has an `AGENTS.md` with the conventions that apply inside it.
 
-When asking your coding agent to build a voice agent, share a short script for
-the use case instead of only a one-line prompt. Include the agent persona, call
-flow, rules, objection handling, success criteria, and a sample conversation if
-you have one.
+## Reference documents
 
-See the [MCP guide](https://docs.decibyl.com/integrations/mcp) to connect your assistant.
+- **[`DASHBOARD.md`](DASHBOARD.md)** — how a call is priced, what every billing
+  number means, and the invariants the money code holds. Read this before
+  touching anything under `api/services/billing/`.
+- **[`KNOWN_ISSUES.md`](KNOWN_ISSUES.md)** — open problems, each with what is
+  wrong, why, and what fixing it involves.
+- **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — branching, tests, and where to
+  report things.
 
-## Features
+## Pricing model
 
-### Voice Agent Builder
+A platform fee plus provider costs passed through **at cost, with no markup** —
+enforced by the schema rather than by convention: provider cost and platform fee
+are separate rows and separate columns, and nothing anywhere stores a blended
+number.
 
-- Visual workflow builder with start nodes, agent nodes, global instructions, tools, transitions, and end-call outcomes
-- Test Agent panel with **Test Audio** for browser voice testing and **Test Chat** for fast prompt iteration
-- QA node, knowledge bases, webhooks, embeds, and tool calling for production workflows
+Time is billed in **15-second pulses** rather than whole minutes, so a
+62-second call bills 75 seconds and not 120. Every price is set in the admin
+dashboard under **Billing → Rate card**.
 
-### Voice & Telephony
+## Support
 
-- Built-in telephony integrations including Twilio, Vonage, Telnyx, Plivo, Vobiz, Cloudonix, and Asterisk ARI
-- Human handoff with call transfer on supported telephony providers
-- Bring your own LLM, TTS, STT, and telephony providers; store artifacts in bundled MinIO or AWS/S3-compatible storage
-
-### Developer Experience
-
-- One-command Docker setup for self-hosting
-- Python backend and modular provider architecture for customization
-- Python and Node SDKs for programmatic agent creation and outbound calls
-
-## Deployment Options
-
-### Local Development
-
-Refer [Local Setup](https://docs.decibyl.com/contribution/setup)
-
-### Self-Hosted Deployment
-
-For detailed deployment instructions including remote server setup with HTTPS, see our [Docker Deployment Guide](https://docs.decibyl.com/deployment/docker#option-2-remote-server-deployment).
-
-### Cloud Version
-
-Visit [https://www.decibyl.com](https://www.decibyl.com/) for our managed cloud offering.
-
-## 📚Documentation
-
-You can go to [https://docs.decibyl.com](https://docs.decibyl.com/) for our documentation.
-
-## 📦 SDKs
-
-- **Python SDK** — [pypi.org/project/decibyl-sdk](https://pypi.org/project/decibyl-sdk/)
-- **Node SDK** — [npmjs.com/package/@decibyl/sdk](https://www.npmjs.com/package/@decibyl/sdk)
-
-## 🤝Community & Support
-
-> 👋 **Coming from the Better Stack video?** Drop your use case in our [pinned GitHub Discussion](https://github.com/orgs/decibyl-hq/discussions/291) — we read every reply and the founders personally onboard early adopters.
-
-- **Slack** — the cornerstone of Decibyl AI contributions. Connect with maintainers, discuss features before coding, get help with setup, and stay current on contribution sprints.
-- **GitHub Discussions** — share use cases, ask questions, swap workflow recipes.
-- **GitHub Issues** — report bugs or request features.
-
-👉 Join us → [Decibyl Community Slack](https://join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g)
-
-## 🙌 Contributing
-
-We love contributions! Decibyl AI is 100% open source and we intend to keep it that way.
-
-### Getting Started
-
-- Fork the repository
-- Create your feature branch (git checkout -b feature/AmazingFeature)
-- Commit your changes (git commit -m 'Add some AmazingFeature')
-- Push to the branch (git push origin feature/AmazingFeature)
-- Open a Pull Request
-
-## ⭐ Star History
-
-<img src="docs/images/star-history.png" alt="Decibyl star history" width="80%">
-
-## 📄 License
-
-Decibyl AI is licensed under the [BSD 2-Clause License](LICENSE)- the same license as projects that were used in building Decibyl AI, ensuring compatibility and freedom to use, modify, and distribute.
-
-## 🏢 About
-
-Built with ❤️ by **Decibyl** (Zansat Technologies Private Limited)
-Founded by YC alumni and exit founders committed to keeping voice AI open and accessible to everyone.
-
-<br><br><br>
-
-  <p align="center">
-    <a href="https://github.com/decibyl-hq/decibyl">⭐ Star us on GitHub</a> |
-    <a href="https://app.decibyl.com">☁️ Try Cloud Version</a> |
-    <a href="https://join.slack.com/t/decibyl-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g">💬 Join Slack</a>
-  </p>
+- Security vulnerabilities: <security@decibyl.com> — privately, please.
+- Everything else: <support@decibyl.com>.
