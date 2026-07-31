@@ -267,11 +267,17 @@ switch rather than a rebuild.
 | 6 | Encryption-at-rest verification + readiness check | High — §11 evidence | 2 d |
 | 7 | Migration to `ap-south-1` (Mumbai) | **Critical — data residency** | 5 d |
 | 8 | Number pool sizing and warm-up | Medium | 2 d |
-| | **Subtotal** | | **28 d** |
+| 9 | Scheduled scaling — media fleet off outside the calling window | **Critical — the bid depends on it** | 2 d |
+| | **Subtotal** | | **30 d** |
 | | Contingency (20%) | | 6 d |
-| | **Total** | | **34 engineer-days** |
+| | **Total** | | **36 engineer-days** |
 
 ≈ **7 weeks with one engineer, 4 weeks with two.**
+
+**Item 9 exists because of the price.** Running the media fleet for a calendar
+month to serve 70 hours of calling is ₹0.91L of pure waste on a campaign
+quoted at ₹5.75L — it is the difference between a viable bid and a marginal
+one. It must be built before the campaign, not during it.
 
 **Calendar dependencies that run in parallel and may dominate:** Plivo India
 KYC, DLT/entity registration for outbound voice, and carrier provisioning of
@@ -288,8 +294,9 @@ whether 50,000 connections is achievable and whether the campaign is lawful.
 Nothing else matters if retries stay flat.
 
 **Phase 2 — Infrastructure and evidence (weeks 2–4, parallel).**
-`ap-south-1` migration. Encryption at rest, verified and reported. Number pool
-sizing. Carrier KYC in flight throughout.
+`ap-south-1` migration. Scheduled scaling of the media fleet. Encryption at
+rest, verified and reported. Number pool sizing. Carrier KYC in flight
+throughout.
 
 **Phase 3 — Reporting (weeks 3–5).** Campaign report and dashboard view.
 Delivered before the pilot, so the pilot is reported through the same artefact

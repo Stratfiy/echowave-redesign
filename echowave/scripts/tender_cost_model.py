@@ -59,15 +59,28 @@ class Assumptions:
     turns: int = 8
     tokens_per_turn: int = 1650
 
-    #: Fraction of agent speech that must be synthesised live. The rest is the
-    #: fixed advisory body, pre-rendered once per segment.
-    live_tts_share: float = 0.40
-    segments: int = 200
+    #: Fraction of agent speech that must be synthesised live. The rest is
+    #: pre-rendered: the fixed advisory body, the finite slot values (mandal,
+    #: crop, season) and the top FAQ answers, assembled at call time. Only a
+    #: genuinely novel question needs live synthesis. Assembling pre-rendered
+    #: fragments is not an IVR — the conversation is still driven by the model,
+    #: which is what §6 of the requirement actually asks for — but it does
+    #: depend on the knowledge base covering the common questions well. If FAQ
+    #: coverage disappoints, this rises and so does cost.
+    live_tts_share: float = 0.25
+    segments: int = 400
     advisory_seconds: float = 90.0
 
     #: Unverified. Get a written quote before signing anything.
     carrier_rupees_per_minute: float = 0.25
-    infra_rupees_per_month: int = 1_91_000
+
+    #: **Campaign-scoped, not a calendar month.** The database and cache stay
+    #: up for roughly four weeks across setup, pilot, campaign and reporting;
+    #: the media fleet runs only inside the 09:00–19:00 calling window, which
+    #: is 70 hours rather than 730. Provisioning a full month of everything is
+    #: the single most expensive mistake available in this budget — it was
+    #: ₹1.91L before this line was worked properly.
+    infra_rupees_campaign: int = 1_00_000
     campaign_one_offs: int = 50_000
 
     calling_days: int = 7
@@ -189,6 +202,47 @@ def agent_cost_per_minute(a: Assumptions) -> dict[str, float]:
     }
 
 
+def effort_scenario(a: Assumptions, connect_rate: float) -> dict[str, float]:
+    """Cost of dialling the whole list under an *effort* commitment.
+
+    Two different deals hide behind the same campaign. Committing to 50,000
+    connections makes a poor connect rate a breach; committing to 80,000
+    farmers at up to three attempts makes it merely cheap. This function
+    models the second, where connections are an outcome rather than a promise.
+
+    **The risk inverts, and that is the point.** Under an outcome commitment a
+    low connect rate is the thing to fear. Under an effort commitment at a
+    fixed price it is a *good* connect rate that costs money — more farmers
+    answer, more conversations run, and every conversation is variable cost
+    against fixed revenue. Success becomes the downside case, which is exactly
+    the sort of exposure nobody prices for because it does not feel like risk.
+    """
+    reach = 1 - (1 - connect_rate) ** a.max_attempts
+    attempts = a.farmers * sum((1 - connect_rate) ** i for i in range(a.max_attempts))
+    connects = a.farmers * reach
+    conv_minutes = connects * a.call_seconds / 60
+    carrier_minutes = connects * (a.call_seconds + a.ring_connected) / 60
+
+    # Priced off the real conversation volume, not the planning figure: the
+    # per-minute agent cost carries a pre-render term amortised over minutes,
+    # so it has to be recomputed rather than reused.
+    scenario = replace(a, target_connects=round(connects))
+    agent = agent_cost_per_minute(scenario)["A Hybrid Sarvam"]
+
+    cost = (
+        agent * conv_minutes
+        + carrier_minutes * a.carrier_rupees_per_minute
+        + a.infra_rupees_campaign
+        + a.campaign_one_offs
+    )
+    return {
+        "attempts": attempts,
+        "connects": connects,
+        "conversation_minutes": conv_minutes,
+        "cost": cost,
+    }
+
+
 def report(a: Assumptions | None = None) -> None:
     a = a or Assumptions()
     v = volume(a)
@@ -214,7 +268,7 @@ def report(a: Assumptions | None = None) -> None:
         )
 
     telephony = v.carrier_minutes * a.carrier_rupees_per_minute / v.conversation_minutes
-    infra = a.infra_rupees_per_month / v.conversation_minutes
+    infra = a.infra_rupees_campaign / v.conversation_minutes
 
     print(
         f"\nPER CONVERSATION MINUTE   (telephony ₹{telephony:.2f}, infra ₹{infra:.2f})"
@@ -239,6 +293,28 @@ def report(a: Assumptions | None = None) -> None:
             f"  ₹{price / v.attempts:.2f}/attempt"
         )
 
+    print("\nEFFORT COMMITMENT — 80,000 farmers x 3 attempts, connections not promised")
+    print(
+        f"  {'rate':>6}{'attempts':>10}{'connects':>10}{'conv min':>10}{'cost':>9}",
+        end="",
+    )
+    prices = (5_00_000, 5_50_000, 5_75_000, 6_00_000)
+    for price in prices:
+        print(f"{'₹' + f'{price / 1e5:.2f}L':>9}", end="")
+    print()
+    for p in (0.20, 0.25, 0.279, 0.30, 0.35):
+        s = effort_scenario(a, p)
+        print(
+            f"  {p:>6.1%}{s['attempts']:>10,.0f}{s['connects']:>10,.0f}"
+            f"{s['conversation_minutes']:>10,.0f}{rupee(s['cost']):>9}",
+            end="",
+        )
+        for price in prices:
+            print(f"{(price - s['cost']) / price:>9.1%}", end="")
+        print()
+    print("  (last four columns are margin at that price — note it FALLS as the")
+    print("   connect rate rises: under a fixed price, success is the downside)")
+
     print("\nSENSITIVITY — cost delta against the base case")
     base = chosen * v.conversation_minutes
     for label, alt in (
@@ -253,7 +329,7 @@ def report(a: Assumptions | None = None) -> None:
             + av.carrier_minutes
             * alt.carrier_rupees_per_minute
             / av.conversation_minutes
-            + alt.infra_rupees_per_month / av.conversation_minutes
+            + alt.infra_rupees_campaign / av.conversation_minutes
         ) * av.conversation_minutes
         print(f"  {label:<34}{rupee(acost - base):>10}")
 
