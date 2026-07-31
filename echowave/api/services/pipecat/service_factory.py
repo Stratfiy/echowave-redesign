@@ -982,6 +982,33 @@ def create_llm_service_from_provider(
         raise HTTPException(status_code=400, detail=f"Invalid LLM provider {provider}")
 
 
+#: Language values that mean "let the model work it out" rather than naming a
+#: language. Kept alongside the pipeline follower's own set deliberately: both
+#: halves of the product have to agree on what "not pinned" looks like.
+_UNPINNED_LANGUAGES = frozenset({"auto", "multi", ""})
+
+
+def _realtime_language_setting(language: str | None) -> str | None:
+    """Translate a configured language into what Gemini Live's settings want.
+
+    ``None`` is the load-bearing value and it is not the same as leaving the
+    field out. Gemini Live's own defaults fill an omitted language with
+    ``en-US``, so *not passing it* silently pins English — the exact opposite of
+    what an operator choosing "auto" asked for. Passing ``None`` explicitly
+    makes it through to ``SpeechConfig(language_code=None)``, which the Google
+    SDK drops from the wire payload.
+
+    That matters because the models shipped here are native-audio ones. They
+    detect the caller's language and switch between languages mid-conversation
+    by themselves, and Google documents ``language_code`` as unsupported for
+    them. Pinning a code on one is at best ignored and at worst fights the
+    behaviour we want.
+    """
+    if language is None or language.strip().lower() in _UNPINNED_LANGUAGES:
+        return None
+    return language
+
+
 def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
     """Create a realtime (speech-to-speech) LLM service that handles STT+LLM+TTS.
 
@@ -1081,15 +1108,13 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
 
         # Gemini Live enables input/output audio transcription by default
         # in its _connect() method — no need to configure it explicitly.
-        settings_kwargs = {
-            "model": model,
-            "voice": voice or "Puck",
-        }
-        if language:
-            settings_kwargs["language"] = language
         return DecibylGeminiLiveLLMService(
             api_key=api_key,
-            settings=DecibylGeminiLiveLLMService.Settings(**settings_kwargs),
+            settings=DecibylGeminiLiveLLMService.Settings(
+                model=model,
+                voice=voice or "Puck",
+                language=_realtime_language_setting(language),
+            ),
         )
     elif provider == ServiceProviders.GOOGLE_VERTEX_REALTIME.value:
         from api.services.pipecat.realtime.gemini_live_vertex import (
@@ -1100,17 +1125,15 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
         location = getattr(realtime_config, "location", None) or "us-east4"
         credentials = getattr(realtime_config, "credentials", None)
 
-        settings_kwargs = {
-            "model": model,
-            "voice": voice or "Charon",
-        }
-        if language:
-            settings_kwargs["language"] = language
         return DecibylGeminiLiveVertexLLMService(
             credentials=credentials,
             project_id=project_id,
             location=location,
-            settings=DecibylGeminiLiveVertexLLMService.Settings(**settings_kwargs),
+            settings=DecibylGeminiLiveVertexLLMService.Settings(
+                model=model,
+                voice=voice or "Charon",
+                language=_realtime_language_setting(language),
+            ),
         )
     elif provider == ServiceProviders.AZURE_REALTIME.value:
         from api.services.pipecat.realtime.azure_realtime import (

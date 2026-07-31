@@ -14,6 +14,12 @@ GOOGLE_VERTEX_MODELS = (
 GOOGLE_REALTIME_MODELS = ("gemini-3.1-flash-live-preview",)
 GOOGLE_REALTIME_VOICES = ("Puck", "Charon", "Kore", "Fenrir", "Aoede")
 GOOGLE_REALTIME_LANGUAGES = (
+    # Native-audio Live models detect the caller's language and switch between
+    # languages mid-conversation on their own, and Google documents
+    # speech_config.language_code as unsupported for them. "auto" is the
+    # setting that leaves that alone; everything below pins it, which is only
+    # meaningful on a half-cascade model.
+    "auto",
     "ar",
     "bn",
     "de",

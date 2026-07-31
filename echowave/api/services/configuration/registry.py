@@ -690,8 +690,13 @@ class GoogleRealtimeLLMConfiguration(BaseLLMConfiguration):
         },
     )
     language: str = Field(
-        default="en",
-        description="ISO 639-1 language code.",
+        default="auto",
+        description=(
+            "ISO 639-1 language code, or 'auto' to let the model follow the "
+            "caller. Native-audio Live models switch language mid-conversation "
+            "on their own and ignore a pinned code; pinning one is only "
+            "meaningful on a half-cascade model."
+        ),
         json_schema_extra={
             "examples": GOOGLE_REALTIME_LANGUAGES,
             "allow_custom_input": True,
@@ -722,8 +727,13 @@ class GoogleVertexRealtimeLLMConfiguration(BaseLLMConfiguration):
         },
     )
     language: str = Field(
-        default="en",
-        description="BCP-47 language code (e.g. 'en-US').",
+        default="auto",
+        description=(
+            "BCP-47 language code (e.g. 'en-US'), or 'auto' to let the model "
+            "follow the caller. The default model here is a native-audio one, "
+            "which switches language mid-conversation on its own and ignores a "
+            "pinned code."
+        ),
         json_schema_extra={
             "examples": GOOGLE_VERTEX_REALTIME_LANGUAGES,
             "allow_custom_input": True,
