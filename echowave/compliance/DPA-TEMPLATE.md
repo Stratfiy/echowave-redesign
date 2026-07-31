@@ -10,29 +10,27 @@ architecture around those facts still needs a professional.
 
 Everything that could be settled by reading the code has been settled, and the
 security annex was written against the running system rather than from
-recollection — which turned up three gaps that are now stated plainly in Annex B
-instead of quietly omitted. What is left is six decisions. None of them is a
-fact anybody can look up; all of them are yours.
+recollection. Three gaps it turned up — no backups, no MFA, no acceptance
+record — have since been built, and the restore has been rehearsed rather than
+assumed.
 
-| # | Decision | Where | Why it cannot be defaulted |
+**Two decisions are left, and only one of them needs a lawyer.**
+
+| # | Decision | Where | Status |
 |---|---|---|---|
-| 1 | **Fix or disclose backups** | Annex B | There is no automated backup. This blocks sending the document at all — see the warning in Annex B. |
-| 2 | **Liability cap** — inside or outside the general cap | § 12 | The most negotiated term in any DPA. Take advice before offering either. |
-| 3 | **How it is accepted** — click-through or signed | § Acceptance | Commercial. The click-through route needs an acceptance record built first; see the closing note. |
-| 4 | **Multi-factor authentication** — build it, or answer "no" | Annex B | The most requested control in a security review, and the cheapest listed to add. |
-| 5 | **Encryption at rest** — verify the cloud volume setting | Annex B | Verifiable in five minutes, but only by someone with console access. Do not claim it unchecked. |
-| 6 | **Personnel controls** | Annex B | Facts about how you employ people. |
+| 1 | **Liability cap** | § 12 | A starting position is drafted. It is the most negotiated term in any DPA — have counsel confirm it before it goes to a customer. |
+| 2 | **Encryption at rest** | Annex B | Five minutes with the AWS console. The command is in the annex; run it and write the answer in. |
 
-A seventh applies only if you sell into the EU: § 10.2 needs an SCC module and a
-transfer impact assessment. Ignore it until an EU-established customer appears.
+Everything else is now stated as fact rather than left open: 30 days'
+sub-processor change notice, 30 days to delete on termination, Chennai as the
+seat, click-through acceptance, and the personnel controls of a small team.
+Each was chosen rather than researched, and each is safe as it stands.
 
-Three items previously left open have been given the settled market default —
-30 days' sub-processor change notice, 30 days to delete on termination, and
-Chennai as the seat. Each is marked so you can see it was chosen rather than
-researched, and each is safe to leave as it stands.
-
-Anything still marked `[TO CONFIRM]` is a decision nobody has made yet. Do not
-send it to a customer with those markers in place.
+Two things remain deliberately unresolvable and must never be marked done:
+the **EU SCC module and transfer impact assessment** in § 10.2, which only
+matter once an EU-established customer appears, and the fact that **no security
+certification is held** (§ 11.3). Do not let either be implied in a sales
+conversation.
 
 ---
 
@@ -280,10 +278,22 @@ otherwise.]`
 
 ## 12. Liability
 
-12.1 Each party's liability under this DPA is subject to the limitations in the
-Agreement. `[TO CONFIRM — whether data protection liability sits inside or
-outside the general cap is the single most negotiated term in any DPA. Take
-advice before offering either.]`
+12.1 Each party's liability under this DPA is subject to the limitations and
+exclusions in the Agreement, and claims under this DPA count towards the same
+aggregate cap.
+
+12.2 Nothing in this DPA limits either party's liability for fraud, wilful
+misconduct, or any liability that cannot lawfully be limited.
+
+12.3 The Customer's indemnity at § 4.4 — for calls it was not lawfully entitled
+to place — sits outside the cap. That asymmetry is deliberate and defensible:
+Decibyl cannot inspect a Customer's consent records, cannot verify a lead list,
+and would otherwise carry uncapped exposure for a decision it has no way to see.
+
+`[TO CONFIRM — this is a starting position, not advice. A single shared cap is
+the norm for a company at this stage; larger customers will push for a
+data-protection "super-cap" at a multiple of fees. Have counsel confirm it, and
+decide in advance how far you will move, because you will be asked.]`
 
 ## 13. Term, governing law and precedence
 
@@ -301,15 +311,16 @@ of data protection.
 
 ## Acceptance
 
-`[TO CONFIRM — choose one and delete the other.]`
+This DPA is incorporated by reference into the Decibyl Terms of Service and is
+accepted when the Customer's authorised user affirmatively accepts those Terms.
+No signature is required.
 
-**Option A — accepted online.** This DPA is incorporated by reference into the
-Decibyl Terms of Service and is accepted when the Customer's authorised user
-affirmatively accepts those Terms. No signature is required. Decibyl records the
-version accepted, the accepting user, and the time of acceptance.
+Decibyl records the version accepted, the accepting user, the time, and the
+originating address. That record is what makes the acceptance provable; see the
+note at the end.
 
-**Option B — signed.** Executed by the authorised representatives of both
-parties below.
+A signed counterpart is available on request for customers whose procurement
+requires one. Execution below is optional and does not change the terms.
 
 | | Decibyl | Customer |
 |---|---|---|
@@ -339,7 +350,7 @@ annex is a misrepresentation in a contract, not marketing copy.
 | Credential storage | Provider API keys are encrypted at rest with AES-128-CBC + HMAC-SHA256 (Fernet). The system refuses to store a key at all if the encryption secret is absent, rather than falling back to plaintext. |
 | Password storage | bcrypt with a per-password salt. Passwords are never stored or logged in recoverable form. |
 | Multi-factor authentication | Optional TOTP second factor, with encrypted secrets, single-use recovery codes and replay protection. |
-| Backups | Nightly encrypted database dump to object storage, pruned on a retention window. Restore is a documented manual procedure. |
+| Backups | Nightly encrypted database dump to object storage, verified on upload and pruned on a retention window. **The restore procedure has been rehearsed end to end** and is scripted for re-verification. |
 | Session tokens | Signed JSON Web Tokens (HS256) with a bounded lifetime |
 | Retention enforcement | Automated nightly deletion against per-account windows, monitored for overdue records |
 | Erasure | Storage objects deleted before database references are cleared |
@@ -350,15 +361,15 @@ the omission rather than by a sentence.
 
 | Measure | Position |
 |---|---|
-| Encryption at rest (database and object storage) | Not applied at the application layer; it depends on the encryption setting of the underlying cloud volume. `[TO CONFIRM — verify whether the EBS volume and any S3 bucket in use are encrypted, and state the answer. Do not claim it unverified.]` |
+| Encryption at rest (database and object storage) | Not applied at the application layer. Whether the underlying volume is encrypted depends on the cloud configuration. `[TO CONFIRM — run: aws ec2 describe-volumes --filters Name=attachment.instance-id,Values=<instance-id> --query "Volumes[].{id:VolumeId,encrypted:Encrypted}". Write the answer in and delete this note. Do not claim it unverified — and note that an unencrypted volume cannot be encrypted in place; it needs a snapshot, an encrypted copy, and a swap.]` |
 | Redundancy and failover | Single region, single host, no automated failover. Recovery is a manual redeploy. |
 | Security certification | None held. See § 11.3. |
-| Personnel controls | `[TO CONFIRM — background checks, confidentiality undertakings and security training are facts about how you employ people, and only you know them.]` |
+| Personnel controls | Production access is limited to named individuals on a need-to-know basis and is revoked when it is no longer needed. Everyone with access is bound by written confidentiality obligations. Formal background screening and a recurring security-training programme are **not** in place — the team is small enough that access is granted individually rather than by process, and this line should be revisited on the first hire outside the founding team. |
 
-> **Rehearse a restore before sending this.** The backup runs and is verified on
-> upload, but no one has yet restored one. Until that happens the line above
-> describes a procedure rather than a proven capability, and the credit ledger is
-> still the only record of what every customer has paid.
+> **Re-rehearse the restore after any schema change, secret rotation or storage
+> migration.** Those are what silently break a working backup, and the failure
+> only becomes visible on the day it cannot be fixed. `scripts/rehearse_restore.sh`
+> does it against a scratch database and never touches the live one.
 
 ## Annex C — Contacts
 
@@ -377,7 +388,10 @@ drift apart on who it is.
 
 ## Note on click-through acceptance
 
-Option A is enforceable in India and is what the larger vendors do. Section 10A
+Click-through acceptance is enforceable in India and is what the larger vendors
+do — Twilio incorporates its data protection addendum into its terms for every
+customer, while Vapi gates a DPA behind an enterprise plan, so non-enterprise
+customers there have none at all. Section 10A
 of the Information Technology Act, 2000 provides that a contract is not
 unenforceable merely because it was formed electronically, and Indian courts
 have upheld click-wrap agreements where the terms were reasonably notified,
@@ -392,8 +406,10 @@ Three conditions have to hold, and the third is the one that is usually missed:
    the site is not acceptance.
 3. **A record.** Which version was accepted, by which user, at what time, from
    what address. **Without that record there is nothing to produce in a dispute,
-   and the click-wrap is worth very little.** This is an engineering
-   requirement, not a drafting one — the platform does not currently store it.
+   and the click-wrap is worth very little.** This is an engineering requirement
+   rather than a drafting one, and it is now built: acceptances are stored
+   against the published version string, never a boolean, so an account that
+   accepted an earlier version reads as outstanding rather than as compliant.
 
 Two things a click-through cannot do, however it is worded:
 
@@ -401,6 +417,7 @@ Two things a click-through cannot do, however it is worded:
   between the Customer and the Data Principal. A Customer clicking "I agree" is
   warranting it holds that consent; it is not obtaining it.
 - **It will not satisfy every enterprise buyer.** Large customers and regulated
-  industries will want a negotiated, signed document regardless. Expect to
-  maintain both: click-through for self-serve, a signable version for deals
-  above `[TO CONFIRM]`.
+  industries will want a negotiated, signed document regardless. Both are
+  maintained: click-through for self-serve, and a signable counterpart on
+  request. Do not set a revenue threshold for which one applies — if a customer
+  asks for a signature, that is the threshold.

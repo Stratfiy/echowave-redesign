@@ -57,9 +57,13 @@ than by the presence of the code.
 Unlike the other scheduled jobs it re-raises after logging, so a failure reaches
 Sentry rather than leaving the readiness check reporting the last good one.
 
-**Still outstanding: nobody has restored one.** `restore_command()` prints the
-exact steps. An untested backup is a hypothesis, and this one has not been
-tested.
+The restore has been rehearsed end to end — dump, encrypt, decrypt, restore into
+a scratch database, verify — and `scripts/rehearse_restore.sh` repeats it on
+demand against a database it creates and drops itself, never the live one.
+
+Re-run it after any schema change, secret rotation or storage migration. Those
+are what silently break a working backup, and the failure is only visible on the
+day it cannot be fixed.
 
 ---
 

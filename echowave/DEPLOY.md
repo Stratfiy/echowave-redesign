@@ -244,8 +244,11 @@ overstated until you fill it in.
   provider you expect.
 * Check that the MinIO endpoint is **not** reachable from the internet, or that
   you are on S3 (`ENABLE_AWS_S3=true`).
-* Take a backup, and check you can restore it. The credit ledger is the only
-  record of what every customer has paid.
+* Backups run nightly on their own (`BACKUP_ENABLED`, on by default). Check one
+  has appeared, then rehearse the restore once —
+  `./scripts/rehearse_restore.sh <backup-file>` builds a scratch database,
+  restores into it and drops it again. The credit ledger is the only record of
+  what every customer has paid, and an untested backup is a hypothesis.
 
 ---
 
