@@ -134,6 +134,23 @@ class TestTakingABackup:
         assert storage.objects == {}
 
 
+class TestPgDumpMustExist:
+    """The bug this guards against shipped once and was invisible: the package
+    was added to a Dockerfile build stage that the runtime image throws away, so
+    everything built, ran and reported healthy while backups could not run."""
+
+    def test_a_missing_binary_names_the_actual_cause(self):
+        with (
+            patch("shutil.which", return_value=None),
+            pytest.raises(RuntimeError, match="runner.*stage|not installed"),
+        ):
+            database._require_pg_dump()
+
+    def test_it_returns_the_path_when_present(self):
+        with patch("shutil.which", return_value="/usr/bin/pg_dump"):
+            assert database._require_pg_dump() == "/usr/bin/pg_dump"
+
+
 class TestTheDatabaseUrl:
     def test_the_sqlalchemy_driver_is_stripped(self):
         """pg_dump does not understand postgresql+asyncpg:// and fails with a

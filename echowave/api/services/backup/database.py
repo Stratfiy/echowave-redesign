@@ -98,6 +98,29 @@ def _dump_key(at: datetime) -> str:
     return f"{BACKUP_PREFIX}/{at:%Y/%m/%d}/decibyl-{at:%Y%m%dT%H%M%SZ}.dump.enc"
 
 
+def _require_pg_dump() -> str:
+    """Locate pg_dump, or say precisely what is wrong.
+
+    Worth its own check because of how this fails otherwise. ``pg_dump`` is
+    installed by the Dockerfile, and it was once added to a *build* stage that
+    the runtime image discards — so the image built, the app ran, migrations
+    applied, every health check passed, and the only symptom was a backup job
+    that threw ``FileNotFoundError: pg_dump`` into a log nobody was reading.
+
+    A bare exec error names the missing file but not the reason. This does.
+    """
+    import shutil
+
+    found = shutil.which("pg_dump")
+    if found is None:
+        raise RuntimeError(
+            "pg_dump is not installed in this image, so no backup can be taken. "
+            "It must be installed in the *runner* stage of api/Dockerfile — a "
+            "package added to an earlier build stage is discarded with it."
+        )
+    return found
+
+
 async def _run_pg_dump(destination: str) -> None:
     """Dump the database to a local file.
 
@@ -106,7 +129,7 @@ async def _run_pg_dump(destination: str) -> None:
     process does not already hold.
     """
     process = await asyncio.create_subprocess_exec(
-        "pg_dump",
+        _require_pg_dump(),
         "--format",
         DUMP_FORMAT,
         "--no-owner",

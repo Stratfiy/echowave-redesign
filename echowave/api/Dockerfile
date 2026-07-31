@@ -83,7 +83,7 @@ ARG BTBN_TAG=autobuild-2026-05-31-13-22
 ARG BTBN_REV=N-124714-g49a77d37be
 RUN set -eu ; \
     apt-get update && apt-get install -y --no-install-recommends \
-        curl ca-certificates xz-utils postgresql-client ; \
+        curl ca-certificates xz-utils ; \
     rm -rf /var/lib/apt/lists/* ; \
     case "${TARGETARCH}" in \
       amd64) btbn_arch=linux64 ; \
@@ -111,6 +111,15 @@ RUN set -eu ; \
 FROM python:3.13-slim AS runner
 
 WORKDIR /app
+
+# pg_dump, for the nightly database backup. It has to be installed in *this*
+# stage: the ffmpeg-static stage above is discarded and contributes only the two
+# binaries it is COPY --from'd for, so a package added there is built, cached,
+# and thrown away. That failure is silent — the image builds, the app runs, and
+# only the backup job discovers it.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends postgresql-client \
+ && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system decibyl \
  && useradd --system --gid decibyl --no-log-init --home-dir /app --shell /usr/sbin/nologin decibyl \
