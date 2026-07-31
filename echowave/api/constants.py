@@ -180,6 +180,28 @@ RECORDING_DISCLOSURE_TEXT = os.getenv(
 # directly and already answer in the language they hear.
 FOLLOW_CALLER_LANGUAGE = os.getenv("FOLLOW_CALLER_LANGUAGE", "false").lower() == "true"
 
+# ─── Database backups ────────────────────────────────────────────────────────
+#
+# The credit ledger is the only record of what every customer has paid, and it
+# cannot be rebuilt from anywhere else — Razorpay knows what was charged but not
+# what was consumed, reserved or adjusted, and every issued tax invoice is
+# numbered against rows that live only here.
+#
+# On by default. A deployment that has to opt in to backups is a deployment
+# without backups.
+BACKUP_ENABLED = os.getenv("BACKUP_ENABLED", "true").lower() != "false"
+
+# How long dumps are kept. A dump is a copy of every phone number and recording
+# reference in the system, so it ages under the same obligation as the data
+# inside it — backups that quietly exempt themselves from retention are not a
+# retention policy.
+BACKUP_RETENTION_DAYS = int(os.getenv("BACKUP_RETENTION_DAYS", "30"))
+
+# Older than this and the nightly job has not completed. Set above 24 hours so
+# one missed run is a warning rather than an alarm, but well under two days so a
+# silently dead worker is caught on the second morning rather than the tenth.
+BACKUP_STALE_AFTER_HOURS = int(os.getenv("BACKUP_STALE_AFTER_HOURS", "36"))
+
 # DPDP s13 requires a named, contactable person for data protection grievances,
 # published where a Data Principal can find it. Surfaced through the API so the
 # app and the marketing site cannot drift apart on who it is.

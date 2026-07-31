@@ -2,7 +2,7 @@ import asyncio
 import io
 import json
 from datetime import timedelta
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 from loguru import logger
@@ -49,7 +49,7 @@ class MinioFileSystem(BaseFileSystem):
         secret_key: str = "minioadmin",
         bucket_name: str = "voice-audio",
         secure: bool = False,
-        public_endpoint: Optional[str] = None,
+        public_endpoint: str | None = None,
     ):
         if not public_endpoint:
             raise ValueError(
@@ -134,7 +134,6 @@ class MinioFileSystem(BaseFileSystem):
         except Exception as e:
             # Bucket might already exist or we might be in a restricted environment
             logger.debug(f"Bucket setup note: {e}")
-            pass
 
     async def acreate_file(self, file_path: str, content: AsyncReadable) -> bool:
         try:
@@ -171,7 +170,7 @@ class MinioFileSystem(BaseFileSystem):
         expiration: int = 3600,
         force_inline: bool = False,
         use_internal_endpoint: bool = False,
-    ) -> Optional[str]:
+    ) -> str | None:
         """A time-limited URL granting read access to one object.
 
         Genuinely signed, not a bare bucket URL that happens to work because the
@@ -200,7 +199,7 @@ class MinioFileSystem(BaseFileSystem):
             logger.error(f"Error generating MinIO signed URL: {e}")
             return None
 
-    async def aget_file_metadata(self, file_path: str) -> Optional[Dict[str, Any]]:
+    async def aget_file_metadata(self, file_path: str) -> dict[str, Any] | None:
         """Get MinIO object metadata."""
         try:
 
@@ -219,13 +218,30 @@ class MinioFileSystem(BaseFileSystem):
         except S3Error:
             return None
 
+    async def alist_files(self, prefix: str) -> list[str]:
+        """Every object key under a prefix."""
+        try:
+
+            def _list():
+                return [
+                    obj.object_name
+                    for obj in self.client.list_objects(
+                        self.bucket_name, prefix=prefix, recursive=True
+                    )
+                ]
+
+            return await asyncio.to_thread(_list)
+        except S3Error as e:
+            logger.error(f"Error listing MinIO objects under {prefix}: {e}")
+            return []
+
     async def aget_presigned_put_url(
         self,
         file_path: str,
         expiration: int = 900,
         content_type: str = "text/csv",
         max_size: int = 10_485_760,
-    ) -> Optional[str]:
+    ) -> str | None:
         """A time-limited URL granting write access to one object key.
 
         Signed against the public host, which is what makes it work without the

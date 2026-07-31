@@ -42,6 +42,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import (
+    BACKUP_ENABLED,
+    BACKUP_STALE_AFTER_HOURS,
     DEFAULT_RECORDING_RETENTION_DAYS,
     DEFAULT_TRANSCRIPT_RETENTION_DAYS,
     GRIEVANCE_OFFICER_ADDRESS,
@@ -291,6 +293,53 @@ async def _evidence_checks(
             remedy=""
             if logged
             else "Play back one recording, then re-check that this reads a non-zero count.",
+        )
+    )
+
+    # Not a privacy obligation in itself, but the one whose absence destroys
+    # every other record here — including the proof that an erasure was carried
+    # out. Checked by the age of the newest dump, because the presence of the
+    # backup code proves nothing about whether it runs.
+    from api.services.backup import last_successful
+
+    backup = await last_successful(now=now)
+    age = backup.get("age_hours")
+    if not BACKUP_ENABLED:
+        backup_status, backup_detail = (
+            ACTION_REQUIRED,
+            "Backups are switched off. The credit ledger has no other copy.",
+        )
+    elif not backup.get("available"):
+        backup_status, backup_detail = (
+            UNKNOWN,
+            "No backup found yet. Expected before the first nightly run; an "
+            "incident after that.",
+        )
+    elif age is not None and age > BACKUP_STALE_AFTER_HOURS:
+        backup_status, backup_detail = (
+            ACTION_REQUIRED,
+            f"Newest backup is {age:.0f} hours old — the nightly job is not completing.",
+        )
+    else:
+        backup_status, backup_detail = (
+            READY,
+            f"{backup['count']} backups held; newest is {age:.0f} hours old.",
+        )
+
+    checks.append(
+        Check(
+            key="database_backed_up",
+            title="The database is backed up",
+            status=backup_status,
+            detail=backup_detail,
+            reference="DPDP s8(5) (reasonable security safeguards); GDPR Art 32(1)(c)",
+            remedy=""
+            if backup_status == READY
+            else (
+                "Check the arq worker is running and read its logs for "
+                "run_database_backup. An untested backup is not a backup — "
+                "rehearse a restore once."
+            ),
         )
     )
 

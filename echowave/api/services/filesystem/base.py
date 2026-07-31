@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Protocol
 
 
 class AsyncReadable(Protocol):
@@ -32,7 +32,6 @@ class BaseFileSystem(ABC):
         Returns:
             bool: True if file was created successfully, False otherwise
         """
-        pass
 
     async def acreate_file_from_bytes(self, file_path: str, data: bytes) -> bool:
         """Create a file directly from in-memory bytes (no local file needed).
@@ -57,7 +56,6 @@ class BaseFileSystem(ABC):
         Returns:
             bool: True if file was uploaded successfully, False otherwise
         """
-        pass
 
     @abstractmethod
     async def aget_signed_url(
@@ -66,7 +64,7 @@ class BaseFileSystem(ABC):
         expiration: int = 3600,
         force_inline: bool = False,
         use_internal_endpoint: bool = False,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Generate a signed URL for temporary access to a file.
 
         Args:
@@ -78,10 +76,9 @@ class BaseFileSystem(ABC):
         Returns:
             Optional[str]: Signed URL if successful, None otherwise
         """
-        pass
 
     @abstractmethod
-    async def aget_file_metadata(self, file_path: str) -> Optional[Dict[str, Any]]:
+    async def aget_file_metadata(self, file_path: str) -> dict[str, Any] | None:
         """Get metadata for a file.
 
         Args:
@@ -91,7 +88,22 @@ class BaseFileSystem(ABC):
             Optional[Dict[str, Any]]: File metadata if successful, None otherwise
             Contains: size, created_at, modified_at, etag, etc.
         """
-        pass
+
+    @abstractmethod
+    async def alist_files(self, prefix: str) -> list[str]:
+        """Every object key under a prefix.
+
+        Added for the backup sweep, which has to find its own previous dumps in
+        order to prune them. Deliberately reads from the object store rather
+        than from a table: an index of backups that lives in the database is
+        useless in the situation backups exist for.
+
+        Args:
+            prefix: Key prefix to list under.
+
+        Returns:
+            Object keys, or an empty list if the prefix holds nothing.
+        """
 
     @abstractmethod
     async def aget_presigned_put_url(
@@ -100,7 +112,7 @@ class BaseFileSystem(ABC):
         expiration: int = 900,
         content_type: str = "text/csv",
         max_size: int = 10_485_760,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Generate a presigned PUT URL for direct file upload.
 
         Args:
@@ -112,7 +124,6 @@ class BaseFileSystem(ABC):
         Returns:
             Optional[str]: Presigned PUT URL if successful, None otherwise
         """
-        pass
 
     @abstractmethod
     async def adownload_file(self, source_path: str, local_path: str) -> bool:
@@ -125,7 +136,6 @@ class BaseFileSystem(ABC):
         Returns:
             bool: True if file was downloaded successfully, False otherwise
         """
-        pass
 
     @abstractmethod
     async def acopy_file(self, source_path: str, destination_path: str) -> bool:
@@ -138,7 +148,6 @@ class BaseFileSystem(ABC):
         Returns:
             bool: True if file was copied successfully, False otherwise
         """
-        pass
 
     @abstractmethod
     async def adelete_file(self, file_path: str) -> bool:
@@ -158,4 +167,3 @@ class BaseFileSystem(ABC):
         Returns:
             bool: True if the object is no longer stored, False on failure
         """
-        pass

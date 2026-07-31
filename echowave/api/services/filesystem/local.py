@@ -1,7 +1,6 @@
 import asyncio
 import os
 from datetime import datetime
-from typing import Optional
 
 import aiofiles
 
@@ -60,7 +59,7 @@ class LocalFileSystem(BaseFileSystem):
 
     async def aget_signed_url(
         self, file_path: str, expiration: int = 3600
-    ) -> Optional[str]:
+    ) -> str | None:
         # For local filesystem, we'll create a temporary symlink with expiration
         try:
             full_path = self._get_full_path(file_path)

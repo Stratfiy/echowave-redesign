@@ -1,4 +1,4 @@
-from typing import Any, Dict, NoReturn, Optional
+from typing import Any, NoReturn
 
 from .base import AsyncReadable, BaseFileSystem
 
@@ -28,11 +28,14 @@ class NullFileSystem(BaseFileSystem):
         expiration: int = 3600,
         force_inline: bool = False,
         use_internal_endpoint: bool = False,
-    ) -> Optional[str]:
+    ) -> str | None:
         self._fail("aget_signed_url")
 
-    async def aget_file_metadata(self, file_path: str) -> Optional[Dict[str, Any]]:
+    async def aget_file_metadata(self, file_path: str) -> dict[str, Any] | None:
         self._fail("aget_file_metadata")
+
+    async def alist_files(self, prefix: str) -> list[str]:
+        return []
 
     async def aget_presigned_put_url(
         self,
@@ -40,7 +43,7 @@ class NullFileSystem(BaseFileSystem):
         expiration: int = 900,
         content_type: str = "text/csv",
         max_size: int = 10_485_760,
-    ) -> Optional[str]:
+    ) -> str | None:
         self._fail("aget_presigned_put_url")
 
     async def adownload_file(self, source_path: str, local_path: str) -> bool:

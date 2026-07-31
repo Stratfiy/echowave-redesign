@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any
 
 import aioboto3
 from botocore.config import Config
@@ -14,9 +14,9 @@ class S3FileSystem(BaseFileSystem):
         self,
         bucket_name: str,
         region_name: str = "us-east-1",
-        endpoint_url: Optional[str] = None,
-        signature_version: Optional[str] = None,
-        addressing_style: Optional[str] = None,
+        endpoint_url: str | None = None,
+        signature_version: str | None = None,
+        addressing_style: str | None = None,
     ):
         """Initialize S3 filesystem.
 
@@ -37,20 +37,20 @@ class S3FileSystem(BaseFileSystem):
 
         # Build a botocore Config only when an override is requested so that the
         # default behavior is byte-for-byte unchanged when no env vars are set.
-        config_kwargs: Dict[str, Any] = {}
+        config_kwargs: dict[str, Any] = {}
         if signature_version:
             config_kwargs["signature_version"] = signature_version
         if addressing_style:
             config_kwargs["s3"] = {"addressing_style": addressing_style}
         self._config = Config(**config_kwargs) if config_kwargs else None
 
-    def _client_kwargs(self) -> Dict[str, Any]:
+    def _client_kwargs(self) -> dict[str, Any]:
         """Common kwargs for every ``session.client("s3", ...)`` call.
 
         Only includes ``endpoint_url`` / ``config`` when configured, so default
         deployments behave exactly as before.
         """
-        kwargs: Dict[str, Any] = {"region_name": self.region_name}
+        kwargs: dict[str, Any] = {"region_name": self.region_name}
         if self.endpoint_url:
             kwargs["endpoint_url"] = self.endpoint_url
         if self._config is not None:
@@ -83,7 +83,7 @@ class S3FileSystem(BaseFileSystem):
         expiration: int = 3600,
         force_inline: bool = False,
         use_internal_endpoint: bool = False,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Generate a presigned GET url for the given object.
 
         For transcript text files we force the response headers so that the
@@ -128,7 +128,7 @@ class S3FileSystem(BaseFileSystem):
         except ClientError:
             return None
 
-    async def aget_file_metadata(self, file_path: str) -> Optional[Dict[str, Any]]:
+    async def aget_file_metadata(self, file_path: str) -> dict[str, Any] | None:
         """Get S3 object metadata."""
         try:
             async with self.session.client("s3", **self._client_kwargs()) as s3_client:
@@ -146,13 +146,32 @@ class S3FileSystem(BaseFileSystem):
         except ClientError:
             return None
 
+    async def alist_files(self, prefix: str) -> list[str]:
+        """Every object key under a prefix, following pagination.
+
+        A bucket holding more than 1,000 objects returns them a page at a time,
+        and stopping at the first page would make the backup sweep silently
+        prune only the oldest thousand.
+        """
+        keys: list[str] = []
+        try:
+            async with self.session.client("s3", **self._client_kwargs()) as s3_client:
+                paginator = s3_client.get_paginator("list_objects_v2")
+                async for page in paginator.paginate(
+                    Bucket=self.bucket_name, Prefix=prefix
+                ):
+                    keys.extend(item["Key"] for item in page.get("Contents", []))
+            return keys
+        except ClientError:
+            return []
+
     async def aget_presigned_put_url(
         self,
         file_path: str,
         expiration: int = 900,
         content_type: str = "text/csv",
         max_size: int = 10_485_760,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Generate a presigned PUT URL for direct file upload."""
         try:
             async with self.session.client("s3", **self._client_kwargs()) as s3_client:

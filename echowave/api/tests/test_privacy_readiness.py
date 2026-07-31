@@ -16,7 +16,7 @@ Two properties matter more than the individual checks:
 """
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -32,6 +32,25 @@ from api.services.privacy.readiness import (
 
 def _by_key(assessment):
     return {check.key: check for check in assessment.checks}
+
+
+@pytest.fixture(autouse=True)
+def _no_object_store():
+    """Keep the backup probe off the network.
+
+    ``assess`` asks the object store for the newest backup. Without this every
+    test in the file waits out the storage client's retries, which turns a
+    one-second suite into a two-minute one and tests nothing extra — the backup
+    probe has its own tests in ``test_backup.py``.
+    """
+    from api.services import backup
+
+    with patch.object(
+        backup,
+        "last_successful",
+        AsyncMock(return_value={"available": False, "count": 0}),
+    ):
+        yield
 
 
 @pytest.mark.asyncio

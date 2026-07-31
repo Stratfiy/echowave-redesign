@@ -45,6 +45,7 @@ from api.tasks.campaign_tasks import (
     sync_campaign_source,
 )
 from api.tasks.credit_reservations import sweep_credit_reservations
+from api.tasks.backup import run_database_backup
 from api.tasks.data_retention import purge_expired_call_data
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.kyc_carrier_poll import poll_kyc_carrier_status
@@ -67,6 +68,7 @@ class WorkerSettings:
         sweep_credit_reservations,
         issue_monthly_tax_invoices,
         purge_expired_call_data,
+        run_database_backup,
     ]
     cron_jobs = [
         # Safety net for webhook deliveries whose ARQ job was lost (worker
@@ -121,6 +123,17 @@ class WorkerSettings:
         cron(
             purge_expired_call_data,
             hour={19},
+            minute={0},
+            second=0,
+            run_at_startup=False,
+        ),
+        # 18:00 UTC is 23:30 IST — after the day's calling has finished and an
+        # hour before the retention sweep, so the dump does not include a day of
+        # data that is about to be deleted and the two are not competing for
+        # object-store IO.
+        cron(
+            run_database_backup,
+            hour={18},
             minute={0},
             second=0,
             run_at_startup=False,

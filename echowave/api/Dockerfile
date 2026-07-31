@@ -83,7 +83,7 @@ ARG BTBN_TAG=autobuild-2026-05-31-13-22
 ARG BTBN_REV=N-124714-g49a77d37be
 RUN set -eu ; \
     apt-get update && apt-get install -y --no-install-recommends \
-        curl ca-certificates xz-utils ; \
+        curl ca-certificates xz-utils postgresql-client ; \
     rm -rf /var/lib/apt/lists/* ; \
     case "${TARGETARCH}" in \
       amd64) btbn_arch=linux64 ; \
