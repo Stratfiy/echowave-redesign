@@ -12,10 +12,12 @@ from unittest.mock import patch
 
 import pyotp
 import pytest
+from cryptography.fernet import Fernet
 
 from api.services.auth import mfa
 
-SECRET_KEY = "vxLmjZc8usOuE6ruF78jTjMqx0afKYs_V34pXg9EDq8="
+# Generated per run, never a real key — see the note in test_backup.py.
+SECRET_KEY = Fernet.generate_key().decode()
 
 
 def _code_now(secret: str, offset_steps: int = 0) -> str:

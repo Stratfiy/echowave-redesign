@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from cryptography.fernet import Fernet
 
 from api.services.backup import database
 
@@ -41,7 +42,10 @@ class FakeStorage:
         return True
 
 
-SECRET = "vxLmjZc8usOuE6ruF78jTjMqx0afKYs_V34pXg9EDq8="
+# Generated per run, never a real key. A fixture copied from a deployment's
+# .env ends up in git history, where it is readable by anyone with repo access
+# and outlives the rotation that was supposed to retire it.
+SECRET = Fernet.generate_key().decode()
 
 
 def _dump_writes(payload: bytes):
@@ -74,8 +78,6 @@ class TestTakingABackup:
         assert b"PGDMP" not in stored
 
     async def test_the_upload_round_trips(self):
-        from cryptography.fernet import Fernet
-
         storage = FakeStorage()
         payload = b"PGDMP-the-actual-dump"
 
