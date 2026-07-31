@@ -54,6 +54,9 @@ Each subtree has an `AGENTS.md` with the conventions that apply inside it.
 
 ## Reference documents
 
+- **[`HANDOVER.md`](HANDOVER.md)** — start here if you are new. What was built
+  and why, the money invariants, the full admin API, metric definitions, what is
+  not built, and the bugs that were invisible to every test.
 - **[`DEPLOY.md`](DEPLOY.md)** — going live: what to configure, in what order,
   and how to create the first admin account. Two steps have an ordering that
   only bites once.
