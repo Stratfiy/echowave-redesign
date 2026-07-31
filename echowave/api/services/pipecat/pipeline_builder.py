@@ -37,11 +37,16 @@ def build_pipeline(
     pipeline_metrics_aggregator,
     voicemail_detector=None,
     recording_router=None,
+    language_follower=None,
 ):
     """Build the main pipeline with all components.
 
     Args:
         audio_buffer: AudioBufferProcessor that handles both input and output audio recording.
+        language_follower: Optional LanguageFollower. When provided, inserted
+            immediately after STT so it sees the detected language on every
+            transcription and can push TTS settings downstream before the
+            agent's next utterance is synthesised.
         voicemail_detector: Optional native pipecat VoicemailDetector. When provided,
             inserts voicemail detection after STT. Note: We don't use the TTS gate
             to avoid blocking TTS frames during classification.
@@ -54,6 +59,14 @@ def build_pipeline(
         transport.input(),  # Transport user input
         stt,
     ]
+
+    # Directly after STT, and before anything that consumes transcriptions: it
+    # reads the detected language off each TranscriptionFrame and pushes TTS
+    # settings downstream, so the switch lands before the next synthesis rather
+    # than a turn late.
+    if language_follower:
+        logger.info("Adding language follower to pipeline")
+        processors.append(language_follower)
 
     # Insert voicemail detector after STT if enabled
     # Note: We intentionally do NOT use voicemail_detector.gate() to allow TTS

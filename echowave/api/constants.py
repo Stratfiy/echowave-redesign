@@ -166,6 +166,20 @@ RECORDING_DISCLOSURE_TEXT = os.getenv(
     "Just so you know, this call is recorded for quality and training purposes.",
 )
 
+# Follow the caller's language mid-call.
+#
+# An agent is configured with one language; a caller in India frequently is not.
+# They open in English, switch to Hindi when the conversation gets substantive,
+# and mix both in a sentence. With this on, the agent's voice follows — after
+# two consecutive turns in the new language, so a single mis-detection cannot
+# flip it.
+#
+# Requires an STT in multilingual mode to be useful: Deepgram already defaults
+# to "multi", so detection has been running all along with nothing reading it.
+# Realtime speech-to-speech models ignore this entirely — they hear the caller
+# directly and already answer in the language they hear.
+FOLLOW_CALLER_LANGUAGE = os.getenv("FOLLOW_CALLER_LANGUAGE", "false").lower() == "true"
+
 # DPDP s13 requires a named, contactable person for data protection grievances,
 # published where a Data Principal can find it. Surfaced through the API so the
 # app and the marketing site cannot drift apart on who it is.

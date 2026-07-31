@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import HTTPException
 from loguru import logger
 
+from api.constants import FOLLOW_CALLER_LANGUAGE
 from api.db import db_client
 from api.enums import WorkflowRunMode
 from api.schemas.workflow_configurations import (
@@ -1018,6 +1019,23 @@ async def _run_pipeline_impl(
             )
         )
 
+    # A realtime speech-to-speech model hears the caller directly and already
+    # answers in the language it hears, so it gets no follower — pushing TTS
+    # settings at a model that generates its own speech would do nothing, and
+    # pinning a language on one would make it worse at what it is good at.
+    language_follower = None
+    if FOLLOW_CALLER_LANGUAGE and not is_realtime:
+        from api.services.pipecat.language_follower import (
+            LanguageFollower,
+            configured_language,
+        )
+
+        language_follower = LanguageFollower(
+            initial_language=configured_language(
+                getattr(user_config, "tts", None), getattr(user_config, "stt", None)
+            )
+        )
+
     # Build the pipeline
     if is_realtime:
         pipeline = build_realtime_pipeline(
@@ -1043,6 +1061,7 @@ async def _run_pipeline_impl(
             pipeline_metrics_aggregator,
             voicemail_detector=voicemail_detector,
             recording_router=recording_router,
+            language_follower=language_follower,
         )
 
     # Create pipeline task with audio configuration
