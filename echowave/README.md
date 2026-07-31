@@ -54,6 +54,8 @@ Each subtree has an `AGENTS.md` with the conventions that apply inside it.
 
 ## Reference documents
 
+- **[`PRD.md`](PRD.md)** — the commercial case: who it is for, unit economics
+  derived from the running rate card, differentiators, roadmap and risks.
 - **[`HANDOVER.md`](HANDOVER.md)** — start here if you are new. What was built
   and why, the money invariants, the full admin API, metric definitions, what is
   not built, and the bugs that were invisible to every test.
