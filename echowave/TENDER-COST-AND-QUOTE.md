@@ -58,33 +58,51 @@ cancel. Conversations move a great deal.
 
 | Connect rate | Attempts | Connections | Conversation minutes |
 |---|---|---|---|
-| 20% | 195,200 | 39,040 | 97,600 |
-| 25% | 185,000 | 46,250 | 115,625 |
-| **27.9%** | **179,267** | **50,016** | **125,039** |
-| 30% | 175,200 | 52,560 | 131,400 |
-| 35% | 165,800 | 58,030 | 145,075 |
+| 20% | 195,200 | 39,040 | 65,067 |
+| 25% | 185,000 | 46,250 | 77,083 |
+| **27.9%** | **179,267** | **50,016** | **83,359** |
+| 30% | 175,200 | 52,560 | 87,600 |
+| 35% | 165,800 | 58,030 | 96,717 |
 
-Concurrency is sized off attempts, so it is stable: **~100 SIP channels, ~60
-concurrent conversations.** Conversation modelled at 150 s — the biggest
-single cost assumption in the file, and the reason the call must be capped in
-the script design.
+**Conversation modelled at 100 s.** Shortening from 150 s took ₹0.78L out of
+the campaign and dropped concurrency by a third — **~75 SIP channels, ~40
+concurrent conversations**, so the media fleet is two instances rather than
+three.
+
+100 s is a real design constraint, not just a cheaper assumption. The budget
+is roughly: 15 s disclosure and purpose, 40 s advisory, 30 s for **one** farmer
+question and its answer, 15 s confirmation and close. A second question does
+not fit. That still satisfies §6 and §9 — the conversation is genuinely
+multi-turn and contextual — but it is one exchange, not a discussion, and the
+script has to be written knowing that.
+
+Two things follow. Shorter calls probably *raise* completion rates on cold
+rural calls, so this may deliver more finished advisories rather than fewer.
+And **100 s is an average, not a cap** — half the calls run longer by
+definition. Without a hard ceiling around 150 s a tail of long calls drags the
+average up and the cost with it. Cap it in the workflow and check the real
+distribution in the pilot.
 
 ## A2. Unit cost by stack, per conversation minute
 
 Sarvam at published list: **STT ₹30/hour, TTS ₹30 per 10,000 characters.**
-Telephony ₹0.26 (connected minutes only), infrastructure ₹0.80.
+Telephony ₹0.27 (connected minutes only), infrastructure ₹1.14 — the per-minute
+infra figure *rises* as calls shorten, because the same fixed cost spreads over
+fewer minutes. The campaign total is what matters, and it falls.
 
 | # | Stack | Agent | **All-in** | **Campaign @ 27.9%** |
 |---|---|---|---|---|
-| **A** | **Hybrid — Sarvam, mostly pre-rendered** | **1.73** | **2.79** | **₹3.49L** |
-| C | Gemini Live + context cache | 2.16 | 3.22 | ₹4.03L |
-| B | Gemini Live (native audio) | 3.61 | 4.67 | ₹5.84L |
-| D | Sarvam full cascade (all TTS live) | 5.06 | 6.12 | ₹7.65L |
-| E | OpenAI GPT Realtime | 13.09 | 14.15 | ₹17.69L |
-| F | Deepgram + GPT-4o + ElevenLabs | 17.17 | 18.24 | ₹22.79L |
+| **A** | **Hybrid — Sarvam, mostly pre-rendered** | **1.75** | **3.16** | **₹2.64L** |
+| C | Gemini Live + context cache | 2.02 | 3.43 | ₹2.86L |
+| B | Gemini Live (native audio) | 3.06 | 4.47 | ₹3.72L |
+| D | Sarvam full cascade (all TTS live) | 5.07 | 6.48 | ₹5.40L |
+| E | OpenAI GPT Realtime | 11.24 | 12.65 | ₹10.54L |
+| F | Deepgram + GPT-4o + ElevenLabs | 17.47 | 18.88 | ₹15.74L |
 
-**Two changes took stack A from ₹4.17 to ₹2.79 a minute — a 33% cut — and
-they are what makes a ₹5–6L bid possible at all.**
+(Campaign totals exclude the ₹0.50L of one-offs, which are stack-independent.)
+
+**Three changes took the campaign from ₹5.72L to ₹3.14L — a 45% cut — and they
+are what makes a ₹5L bid possible at all.**
 
 **1. Pre-render almost everything (₹1.79 → ₹1.12/min).** Previously only the
 fixed advisory body was pre-rendered. But the *slot values* are finite too —
@@ -101,31 +119,54 @@ coverage — **if the knowledge base is thin, live share rises and so does
 cost.**
 
 **2. Stop paying for a month of infrastructure to run a 7-day campaign
-(₹1.53 → ₹0.80/min).** The old number provisioned Multi-AZ everything for 730
+(₹1.91L → ₹0.95L).** The old number provisioned Multi-AZ everything for 730
 hours. The database and cache genuinely need ~4 weeks across setup, pilot,
-campaign and reporting; **the media fleet needs 70 hours**, because it only
-runs inside the calling window. Scaling it to zero outside 09:00–19:00 takes
-campaign infrastructure from ₹1.91L to ₹1.00L.
+campaign and reporting; **the media fleet needs about 120**, because it only
+runs inside the calling window — and at 100 s calls it is two instances, not
+three.
 
 This costs about 2 engineer-days of scheduled scaling and trades away burst
 headroom. Worth it at this price point, and it must be built before the
 campaign, not during it.
 
+**3. Shorten the call to 100 s (−₹0.78L).** Straight proportional saving on
+every per-minute line. See A1 for what it costs in conversation design — it is
+a real constraint, not free money.
+
 **TTS is still the whole cost question.** All-live Sarvam TTS is ₹4.49/min on
-its own. The LLM is ₹0.07.
+its own. The LLM is ₹0.08.
 
 ## A3. Cost build-up — stack A at the tender's own 27.9%
 
-| Line | Cost |
-|---|---|
-| Sarvam TTS — live (25% of agent speech) | ₹1.40L |
-| Sarvam TTS — pre-rendered library (400 fragments, one-off) | ₹0.04L |
-| Sarvam STT | ₹0.63L |
-| LLM (Gemini Flash class) | ₹0.09L |
-| Telephony (131,667 min × ₹0.25) | ₹0.33L |
-| Infrastructure (campaign-scoped) | ₹1.00L |
-| Campaign one-offs (DLT/KYC, DIDs, Telugu validation) | ₹0.50L |
-| **Total attributable cost** | **₹3.99L** |
+50,016 connections · 83,359 conversation minutes · 179,267 attempts.
+
+| Line | Basis | Cost |
+|---|---|---|
+| Sarvam TTS — live | 374 chars/min × ₹0.003 × 83,359 min | **₹93,467** |
+| Sarvam TTS — pre-rendered library | 400 fragments × 3,450 chars × ₹0.003 | ₹4,140 |
+| Sarvam STT | ₹0.50/min × 83,359 min | **₹41,680** |
+| LLM (Gemini Flash class) | 9,900 tokens/call × 50,016 calls | ₹6,774 |
+| Telephony | 90,029 connected min × ₹0.25 | **₹22,507** |
+| Infrastructure | campaign-scoped, 4 weeks | **₹95,000** |
+| Campaign one-offs | DLT/KYC, DIDs, Telugu validation | **₹50,000** |
+| **Total attributable cost** | | **₹3,13,568** |
+
+### Fixed vs variable — the number to hold on to
+
+| | Amount | Behaviour |
+|---|---|---|
+| Variable (live TTS, STT, LLM, telephony) | ₹1,64,428 | scales with connections |
+| **Fixed** (pre-render, infra, one-offs) | **₹1,49,140** | the same whatever happens |
+
+**Each extra connected conversation costs ₹3.29.** Fixed cost is now **48% of
+the total**, which changes the shape of the deal: extra volume is nearly free.
+If the department has 120,000 farmers rather than 80,000, the extra 40,000
+costs about ₹0.82L — **50% more reach for 26% more cost.** That is the upsell
+to put in front of them, and it is worth more than the price concession they
+will ask for.
+
+Break-even at ₹5.25L revenue is ~125,000 conversations, against a realistic
+ceiling of 58,000. There is a great deal of room before this contract turns.
 
 **Not charged here:** ~36 engineer-days of platform work — retry scheduler,
 campaign report, `ap-south-1` migration, scheduled scaling, load testing.
@@ -137,36 +178,40 @@ contract prices us out of the deal that funds it.
 Margin at a fixed price, by connect rate. **Read down the columns, not
 across:** the worst case is the bottom row, not the top.
 
-| Connect rate | Cost | @₹5.00L | @₹5.50L | **@₹5.75L** | @₹6.00L |
+| Connect rate | Cost | @₹4.50L | @₹5.00L | **@₹5.25L** | @₹5.75L |
 |---|---|---|---|---|---|
-| 20% | ₹3.45L | 31.0% | 37.2% | **40.0%** | 42.5% |
-| 25% | ₹3.80L | 23.9% | 30.8% | **33.8%** | 36.6% |
-| 27.9% | ₹3.99L | 20.2% | 27.5% | **30.6%** | 33.5% |
-| 30% | ₹4.11L | 17.7% | 25.2% | **28.5%** | 31.5% |
-| 35% | ₹4.38L | 12.4% | 20.4% | **23.8%** | 27.0% |
+| 20% | ₹2.77L | 38.4% | 44.5% | **47.2%** | 51.7% |
+| 25% | ₹3.01L | 33.1% | 39.8% | **42.6%** | 47.6% |
+| 27.9% | ₹3.14L | 30.3% | 37.3% | **40.3%** | 45.5% |
+| 30% | ₹3.22L | 28.5% | 35.6% | **38.7%** | 44.0% |
+| 35% | ₹3.40L | 24.5% | 32.0% | **35.3%** | 40.9% |
 
-**Bid ₹5.75L. Floor ₹5.00L. Walk away below ₹4.75L.**
+**Bid ₹5.25L. Concede once to ₹4.75L. Floor ₹4.25L.**
 
-At ₹5.75L we hold **24–40% margin across every realistic connect rate**, which
-is the property that matters — not the headline number at the expected case.
-₹5.00L still works but leaves only 12% if the campaign goes well, and no cover
-at all if the carrier quote or FAQ coverage disappoints.
+At ₹5.25L we hold **35–47% margin across every realistic connect rate.** The
+100-second call bought a full ₹0.50L off the previous recommendation while
+*improving* margin — that is the bid to win with.
 
-Quoting at ₹5.75L leaves one concession to ₹5.25L, which a government
-negotiation will expect.
+₹5.75L would earn more per contract and is defensible on 41–52% margin, but on
+a first government tender against unknown competition, **winning at ₹5.25L
+with a 40% margin beats losing at ₹5.75L with 45%.** The repeat campaign is
+where the money is.
 
 ### The competitive floor is still ours
 
 ```
-A  hybrid, mostly pre-rendered   Rs 3.49L   <- us
-D  full cascade, live TTS        Rs 7.65L   <- most competent competitors
-F  premium Western TTS           Rs 22.79L
+A  hybrid, mostly pre-rendered   Rs 3.14L   <- us (incl. one-offs)
+D  full cascade, live TTS        Rs 5.90L   <- most competent competitors
+F  premium Western TTS           Rs 16.24L
 ```
 
-**A competitor running live TTS cannot bid below ₹7.6L without losing money.
-We bid ₹5.75L at a 31% margin.** That is a 25% undercut on price with a better
-margin than they would have at their own floor — not a discount we are
-choosing to give, but an architecture they would have to rebuild to match.
+**A competitor running live TTS cannot bid below ₹5.9L without losing money.
+We bid ₹5.25L at a 40% margin.** That is an 11% undercut while earning a
+margin they cannot reach at any price — not a discount we are choosing to
+give, but an architecture they would have to rebuild to match.
+
+The gap narrowed with the shorter call, because shortening helps them too. Our
+durable advantage is the pre-rendering, not the call length.
 
 It is also perishable. The pre-rendering technique is a fortnight of work for
 anyone who thinks of it.
@@ -175,11 +220,11 @@ anyone who thinks of it.
 
 | Change | Cost delta | Comment |
 |---|---|---|
-| **Pre-rendering not built** | **+₹4.20L** | the entire bid depends on it |
-| Call runs 210 s not 150 s | +₹0.94L | cap it in the approved script |
-| Agent speaks 80% not 65% | +₹0.32L | tighten the script |
-| Carrier ₹0.40 not ₹0.25 | +₹0.20L | still unverified |
-| Infra not scaled to the window | +₹0.91L | 2 engineer-days, build it first |
+| **Pre-rendering not built** | **+₹2.80L** | the entire bid depends on it |
+| **Infra not scaled to the window** | **+₹0.96L** | 2 engineer-days, build it first |
+| Call averages 150 s not 100 s | +₹0.78L | the cap must be real, not aspirational |
+| Agent speaks 80% not 65% | +₹0.22L | tighten the script |
+| Carrier ₹0.40 not ₹0.25 | +₹0.14L | still unverified |
 
 **Two of these wipe out the bid on their own**, and both are ours to control.
 Neither depends on the client, the carrier or any vendor. If we cannot commit
@@ -187,11 +232,16 @@ to shipping pre-rendering and scheduled scaling, we should not bid at ₹5.75L.
 
 ## A6. Contract non-negotiables
 
-**1. Cap the conversations included.** ₹5.75L covers up to **55,000 connected
-conversations**; beyond that, ₹12 per conversation. This is the protection
+**1. Cap the conversations included.** ₹5.25L covers up to **55,000 connected
+conversations**; beyond that, ₹8 per conversation. This is the protection
 against the inverted risk in A0 — without it, an unusually good connect rate
 costs us money, and there is no clause anywhere else in the deal that catches
-it. At 35% connect the overage bills ~₹0.36L against ~₹0.39L of extra cost.
+it.
+
+₹8 is 2.4× the ₹3.29 marginal cost of a conversation. At 35% connect the
+overage bills ~₹0.24L against ~₹0.26L of extra cost — near-exact cover, and a
+rate low enough that the department is unlikely to argue with it. Do not let
+it be negotiated to zero; a cap with no price is not a cap.
 
 **2. Cap the call length in the approved script.** 150 s is a cost assumption,
 not a hope. Sign off script and cap together.
@@ -206,24 +256,30 @@ farmers within the campaign window" — connections reported, not warranted.
 If procurement inserts a connection guarantee, **escalate; do not concede it
 in the room.** A0 is why.
 
-**6. Recurrence discussed now.** A second campaign costs ~₹3.20L — no one-offs
-to repeat, and reserved instances once the pattern is proven. Offer ₹5.00L for
+**6. Recurrence discussed now.** A second campaign costs ~₹2.35L — no one-offs
+to repeat, and reserved instances once the pattern is proven. Offer ₹4.50L for
 repeats; it is worth more than any concession on this one.
+
+**7. Offer the bigger list.** Fixed cost is 48% of the total, so an extra
+40,000 farmers is ₹0.82L of cost. If they have more names, we want them —
+better reach for them, better margin for us, and it reframes the negotiation
+from price to scope.
 
 ## A7. Pilot
 
-5,000 farmers, one mandal. ~12,200 attempts, ~2,400 connections, ~6,100
+5,000 farmers, one mandal. ~12,200 attempts, ~2,400 connections, ~4,000
 conversation minutes, on reduced infrastructure.
 
 | | |
 |---|---|
-| Cost | ~₹0.57L — of which ₹0.45L is infrastructure and setup, not calls |
+| Cost | ~₹0.53L — of which ₹0.45L is infrastructure and setup, not calls |
 | Price | **₹50,000, credited in full against the campaign fee** |
 
-**The pilot runs at a small loss and should.** The calls themselves are ₹0.12L;
-the rest is standing up infrastructure we need anyway. Pricing it at cost would
-make it look like a purchase decision rather than a joint measurement, and the
-number it buys is worth far more than ₹7,000.
+**The pilot runs at about break-even and should.** The calls themselves are
+₹0.08L; the rest is standing up infrastructure we need anyway. Pricing it to
+make money would turn it into a purchase decision rather than a joint
+measurement, and the numbers it buys — connect rate, Telugu verdict, **and the
+real call-length distribution** — are worth far more than the margin.
 
 The pilot buys the connect-rate number and the Telugu-quality verdict before
 either is contractually load-bearing. It also proves FAQ coverage — **the
@@ -264,7 +320,7 @@ an advisory knowledge base the department controls and can edit at any time.
 | | |
 |---|---|
 | **Pilot — 5,000 farmers, one mandal** | **₹50,000** |
-| **Full campaign — 80,000 farmers** | **₹5,75,000** |
+| **Full campaign — 80,000 farmers** | **₹5,25,000** |
 | Taxes | IGST at 18% extra |
 | Pilot fee | **Credited in full against the campaign fee** |
 
@@ -304,7 +360,7 @@ On comparable rural campaigns, three well-spaced attempts typically reach
 before the full campaign runs**, and we will report it to you whatever it says.
 
 Should connected conversations exceed 55,000 — a better result than planned —
-further conversations are charged at ₹12 each. There is no charge for falling
+further conversations are charged at ₹8 each. There is no charge for falling
 below it.
 
 ### 4. Why we price this way
@@ -386,7 +442,7 @@ are external processes and should begin at award.
 |---|---|
 | Payment | 50% at award, 50% on campaign completion |
 | Pilot | Invoiced separately; credited in full against the campaign fee |
-| Repeat campaigns | **₹5,00,000 per campaign** at the same scope |
+| Repeat campaigns | **₹4,50,000 per campaign** at the same scope |
 | Price protection | Held for 12 months |
 | Cancellation | No charge if cancelled before campaign commencement |
 
@@ -414,8 +470,12 @@ answer rate that promise cannot be kept by anyone, at any price.
 **The 55,000 cap is not padding.** Under a fixed price, a *better* connect rate
 costs us money. That clause is the only thing in the document that catches it.
 
-**₹5.75L leaves one concession to ₹5.25L.** Do not go below ₹5.00L.
+**₹5.25L leaves one concession to ₹4.75L.** Do not go below ₹4.25L.
 
-**The ₹5.00L repeat price is deliberately visible.** It costs us ~₹3.10L once
+**The ₹4.50L repeat price is deliberately visible.** It costs us ~₹2.35L once
 the platform work is done, and planting it now is how one tender becomes a
 season.
+
+**If they push hard on price, sell scope instead.** An extra 40,000 farmers
+costs us ₹0.82L. Offering 120,000 farmers for ₹6.25L is a better deal for both
+sides than 80,000 for ₹4.50L, and it moves the conversation off unit price.

@@ -47,7 +47,7 @@ class Assumptions:
 
     #: Conversation length excluding ring. The single largest cost lever in
     #: the model: every per-minute line scales with it.
-    call_seconds: float = 150.0
+    call_seconds: float = 100.0
     ring_connected: float = 8.0
     #: An unanswered call still holds a channel while it rings, which is why
     #: channel sizing is not the same question as billable minutes.
@@ -56,7 +56,7 @@ class Assumptions:
     #: Share of the call the agent is talking. Drives TTS, which drives cost.
     agent_speech_share: float = 0.65
     chars_per_minute_speech: float = 2300.0
-    turns: int = 8
+    turns: int = 6
     tokens_per_turn: int = 1650
 
     #: Fraction of agent speech that must be synthesised live. The rest is
@@ -80,7 +80,7 @@ class Assumptions:
     #: is 70 hours rather than 730. Provisioning a full month of everything is
     #: the single most expensive mistake available in this budget — it was
     #: ₹1.91L before this line was worked properly.
-    infra_rupees_campaign: int = 1_00_000
+    infra_rupees_campaign: int = 95_000
     campaign_one_offs: int = 50_000
 
     calling_days: int = 7
@@ -318,7 +318,7 @@ def report(a: Assumptions | None = None) -> None:
     print("\nSENSITIVITY — cost delta against the base case")
     base = chosen * v.conversation_minutes
     for label, alt in (
-        ("call runs 210s not 150s", replace(a, call_seconds=210)),
+        ("call runs 150s not 100s", replace(a, call_seconds=150)),
         ("agent speaks 80% not 65%", replace(a, agent_speech_share=0.80)),
         ("no pre-rendering (all TTS live)", replace(a, live_tts_share=1.0)),
         ("carrier ₹0.40 not ₹0.25", replace(a, carrier_rupees_per_minute=0.40)),
