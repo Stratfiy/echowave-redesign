@@ -42,6 +42,12 @@ class PipelineMetricsAggregator(FrameProcessor):
         # reports a measured user-to-bot latency, so these accumulate against
         # the turn in progress and are flushed by record_turn_latency.
         self._turn_stage_ttfb: Dict[str, float] = {}
+        # Token usage banked against the turn in progress, on the same lifecycle
+        # as the stage TTFBs above. The call-wide totals in _llm_usage_metrics
+        # give a number with no shape: ten short exchanges and three long ones
+        # sum identically, and only the shape says whether context growth is
+        # what is costing the money.
+        self._turn_tokens: Dict[str, int] = {}
         self._turns: list[dict] = []
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
@@ -107,6 +113,19 @@ class PipelineMetricsAggregator(FrameProcessor):
                 cache_creation_input_tokens=new_usage.cache_creation_input_tokens,
             )
 
+        # Same numbers, banked against the open turn as well as the call. An
+        # LLM can be invoked more than once in a turn (a tool round-trip), so
+        # these add rather than replace.
+        self._turn_tokens["prompt_tokens"] = self._turn_tokens.get(
+            "prompt_tokens", 0
+        ) + (new_usage.prompt_tokens or 0)
+        self._turn_tokens["completion_tokens"] = self._turn_tokens.get(
+            "completion_tokens", 0
+        ) + (new_usage.completion_tokens or 0)
+        self._turn_tokens["cached_tokens"] = self._turn_tokens.get(
+            "cached_tokens", 0
+        ) + (new_usage.cache_read_input_tokens or 0)
+
         logger.debug(f"LLM usage metrics: {self._llm_usage_metrics}")
 
     async def _handle_tts_usage_metrics(self, data: TTSUsageMetricsData):
@@ -154,6 +173,8 @@ class PipelineMetricsAggregator(FrameProcessor):
         """
         stages = self._turn_stage_ttfb
         self._turn_stage_ttfb = {}
+        tokens = self._turn_tokens
+        self._turn_tokens = {}
 
         def ms(seconds: float) -> int:
             return max(int(round(seconds * 1000)), 0)
@@ -179,6 +200,12 @@ class PipelineMetricsAggregator(FrameProcessor):
                 "t_llm_first_token_ms": t_llm_first_token,
                 "t_tts_first_byte_ms": t_tts_first_byte,
                 "t_audio_out_ms": t_audio_out,
+                # None rather than 0 when the provider reported no usage for
+                # this turn. A zero would drag the median context size down and
+                # read as an agent that got cheaper.
+                "prompt_tokens": tokens.get("prompt_tokens") or None,
+                "completion_tokens": tokens.get("completion_tokens") or None,
+                "cached_tokens": tokens.get("cached_tokens") or None,
             }
         )
 

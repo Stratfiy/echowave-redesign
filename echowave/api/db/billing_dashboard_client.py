@@ -1460,3 +1460,101 @@ async def tool_call_stats(
         }
         for r in rows
     ]
+
+
+async def context_growth_by_turn(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    organization_id: int | None = None,
+    max_turn: int = 30,
+) -> dict:
+    """How the prompt grows as a conversation goes on.
+
+    A voice agent resends the whole conversation every turn: turn 1 sends the
+    system prompt, turn 20 sends the system prompt plus nineteen exchanges. So
+    prompt tokens rise roughly linearly with turn index, and their *sum over a
+    call* rises with the square of its length — a call twice as long costs
+    closer to four times as much in language-model spend, not twice.
+
+    Call-wide totals cannot show this. Ten short exchanges and three long ones
+    sum to the same number, and only the shape says whether context growth is
+    where the money went. The fixes are structural — summarise older turns, trim
+    the system prompt, turn on prompt caching — and none of them appears as a
+    line item on any invoice.
+
+    Medians rather than means throughout: one twenty-minute call would otherwise
+    define the curve for everybody.
+    """
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+    m = CallTurnMetricModel
+
+    conditions = [
+        m.created_at >= start_utc,
+        m.created_at < end_utc,
+        m.prompt_tokens.isnot(None),
+        m.turn_index < max_turn,
+    ]
+    if organization_id is not None:
+        conditions.append(WorkflowModel.organization_id == organization_id)
+
+    rows = (
+        await session.execute(
+            select(
+                m.turn_index,
+                func.percentile_cont(0.5).within_group(m.prompt_tokens).label("prompt"),
+                func.percentile_cont(0.5)
+                .within_group(m.completion_tokens)
+                .label("completion"),
+                func.percentile_cont(0.5)
+                .within_group(func.coalesce(m.cached_tokens, 0))
+                .label("cached"),
+                func.count().label("turns"),
+            )
+            .select_from(m)
+            .join(WorkflowRunModel, m.workflow_run_id == WorkflowRunModel.id)
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(*conditions)
+            .group_by(m.turn_index)
+            .order_by(m.turn_index)
+        )
+    ).all()
+
+    series = [
+        {
+            "turn": int(r.turn_index) + 1,
+            "prompt_tokens": int(r.prompt) if r.prompt is not None else None,
+            "completion_tokens": (
+                int(r.completion) if r.completion is not None else None
+            ),
+            "cached_tokens": int(r.cached) if r.cached is not None else 0,
+            "turns": int(r.turns or 0),
+        }
+        for r in rows
+    ]
+
+    # The headline: how much bigger the prompt is late in a call than at the
+    # start. A flat curve means context is being managed; a steep one is the
+    # single largest saving available and is invisible everywhere else.
+    first = series[0]["prompt_tokens"] if series else None
+    last = series[-1]["prompt_tokens"] if series else None
+    growth = round(last / first, 1) if first and last and first > 0 else None
+
+    cached_total = sum(row["cached_tokens"] for row in series)
+    prompt_total = sum(row["prompt_tokens"] or 0 for row in series)
+
+    return {
+        "series": series,
+        "first_turn_prompt_tokens": first,
+        "last_turn_prompt_tokens": last,
+        "growth_multiple": growth,
+        "deepest_turn": series[-1]["turn"] if series else None,
+        # Prompt caching cuts the cost of resent context by most of its value.
+        # None rather than 0 when nothing was measured, because "no cache" and
+        # "not reported" are different findings.
+        "cache_hit_rate": (
+            round(cached_total / prompt_total, 3) if prompt_total else None
+        ),
+    }

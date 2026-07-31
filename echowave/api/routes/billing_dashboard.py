@@ -395,6 +395,16 @@ async def get_tokens(
                 end=rng.end,
                 organization_id=organization_id,
             ),
+            # The shape a call-wide total cannot show: a voice agent resends the
+            # whole conversation every turn, so language-model spend grows with
+            # the square of call length. The fixes are structural and none of
+            # them appears as a line item.
+            "context_growth": await dash.context_growth_by_turn(
+                session,
+                start=rng.start,
+                end=rng.end,
+                organization_id=organization_id,
+            ),
         }
 
 

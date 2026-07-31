@@ -1812,6 +1812,25 @@ class CallTurnMetricModel(Base):
 
     tool_called = Column(String(128), nullable=True)
     tool_ms = Column(Integer, nullable=True)
+
+    # Token usage for this turn specifically, not the call.
+    #
+    # A voice agent resends the whole conversation every turn, so prompt_tokens
+    # at turn N *is* the context size, and plotting it against turn_index shows
+    # the growth that makes a long call cost more than proportionally. A
+    # call-wide total cannot show that shape: ten short exchanges and three long
+    # ones sum to the same number.
+    #
+    # Nullable because the provider does not always report usage, and a turn
+    # that reported nothing must stay silent rather than claim zero — a zero
+    # would drag the median context size down and read as an improvement.
+    prompt_tokens = Column(Integer, nullable=True)
+    completion_tokens = Column(Integer, nullable=True)
+    # The share of the prompt served from the provider's cache. The lever on
+    # everything above: caching cuts the cost of resent context by most of its
+    # value, and the hit rate is not derivable from any other stored figure.
+    cached_tokens = Column(Integer, nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     workflow_run = relationship("WorkflowRunModel", back_populates="turn_metrics")

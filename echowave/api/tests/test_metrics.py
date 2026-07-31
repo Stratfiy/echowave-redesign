@@ -408,3 +408,111 @@ class TestPrivacyHealth:
         assert report["completed"] == 1
         assert report["past_deadline"] == 0
         assert report["median_hours"] == 3.0
+
+
+@pytest.mark.asyncio
+class TestContextGrowth:
+    """A voice agent resends the whole conversation every turn, so prompt
+    tokens rise with turn index and their sum over a call rises with its
+    square. Call-wide totals cannot show that: ten short exchanges and three
+    long ones add up the same, and only the shape says where the money went."""
+
+    async def _conversation(self, async_session, slug, prompts, cached=None):
+        _, workflow = await _org(async_session, slug)
+        run = await _run(async_session, workflow)
+        for index, prompt in enumerate(prompts):
+            turn = CallTurnMetricModel(
+                workflow_run_id=run.id,
+                turn_index=index,
+                latency_ms=500,
+                prompt_tokens=prompt,
+                completion_tokens=100,
+                cached_tokens=(cached[index] if cached else None),
+                created_at=datetime.now(UTC),
+            )
+            async_session.add(turn)
+        await async_session.flush()
+        return run
+
+    async def test_growth_is_reported_as_a_multiple(self, async_session):
+        """The headline. A flat curve means context is being managed; a steep
+        one is the largest saving available and is invisible everywhere else."""
+        await self._conversation(
+            async_session, "growth", [1000, 2000, 3000, 4000, 5000]
+        )
+
+        start, end = _wide()
+        report = await dash.context_growth_by_turn(async_session, start=start, end=end)
+
+        assert report["first_turn_prompt_tokens"] == 1000
+        assert report["last_turn_prompt_tokens"] == 5000
+        assert report["growth_multiple"] == 5.0
+        assert report["deepest_turn"] == 5
+
+    async def test_turns_are_numbered_from_one(self, async_session):
+        """turn_index is zero-based in the table and one-based to a reader.
+        Off-by-one here would put the system prompt on "turn 0"."""
+        await self._conversation(async_session, "numbering", [500, 900])
+
+        start, end = _wide()
+        report = await dash.context_growth_by_turn(async_session, start=start, end=end)
+
+        assert [row["turn"] for row in report["series"]] == [1, 2]
+
+    async def test_a_turn_with_no_reported_usage_is_skipped(self, async_session):
+        """Not every provider reports usage. A zero would drag the median
+        context size down and read as an agent that got cheaper."""
+        _, workflow = await _org(async_session, "nousage")
+        run = await _run(async_session, workflow)
+        async_session.add(
+            CallTurnMetricModel(
+                workflow_run_id=run.id,
+                turn_index=0,
+                latency_ms=500,
+                prompt_tokens=None,
+                created_at=datetime.now(UTC),
+            )
+        )
+        await async_session.flush()
+
+        start, end = _wide()
+        report = await dash.context_growth_by_turn(async_session, start=start, end=end)
+
+        assert all(row["prompt_tokens"] is not None for row in report["series"])
+
+    async def test_the_median_resists_one_very_long_call(self, async_session):
+        """Means would let a single twenty-minute call define the curve for
+        everybody."""
+        await self._conversation(async_session, "typical-a", [1000, 2000])
+        await self._conversation(async_session, "typical-b", [1000, 2000])
+        await self._conversation(async_session, "outlier", [1000, 90_000])
+
+        start, end = _wide()
+        report = await dash.context_growth_by_turn(async_session, start=start, end=end)
+        turn_two = next(r for r in report["series"] if r["turn"] == 2)
+
+        assert turn_two["prompt_tokens"] == 2000
+
+    async def test_cache_hit_rate_is_reported(self, async_session):
+        """Prompt caching cuts the cost of resent context by most of its value,
+        and the hit rate is not derivable from anything else stored."""
+        await self._conversation(
+            async_session,
+            "cached",
+            [1000, 1000],
+            cached=[500, 500],
+        )
+
+        start, end = _wide()
+        report = await dash.context_growth_by_turn(async_session, start=start, end=end)
+
+        assert report["cache_hit_rate"] == 0.5
+
+    async def test_no_measurement_is_not_a_zero_hit_rate(self, async_session):
+        """ "No cache" and "not reported" are different findings, and reporting
+        0% for the second would send someone to enable something already on."""
+        start, end = _wide()
+        report = await dash.context_growth_by_turn(async_session, start=start, end=end)
+
+        assert report["cache_hit_rate"] is None
+        assert report["growth_multiple"] is None

@@ -157,6 +157,37 @@ class TestPersistence:
         assert [r.latency_ms for r in rows] == [700, 900]
         assert [r.t_llm_first_token_ms for r in rows] == [200, 260]
 
+    async def test_token_columns_reach_the_database(self, async_session):
+        """The banking in the aggregator is worthless if persistence drops it,
+        and it would drop it silently — the row still writes, just emptier."""
+        run = await _run(async_session, "persisttokens")
+        await persist_turn_metrics(
+            async_session,
+            workflow_run_id=run.id,
+            turns=[
+                {
+                    "turn_index": 0,
+                    "latency_ms": 700,
+                    "prompt_tokens": 1500,
+                    "completion_tokens": 90,
+                    "cached_tokens": 600,
+                }
+            ],
+        )
+        await async_session.flush()
+
+        row = (
+            await async_session.scalars(
+                select(CallTurnMetricModel).where(
+                    CallTurnMetricModel.workflow_run_id == run.id
+                )
+            )
+        ).one()
+
+        assert row.prompt_tokens == 1500
+        assert row.completion_tokens == 90
+        assert row.cached_tokens == 600
+
     async def test_a_retried_teardown_replaces_rather_than_doubling(
         self, async_session
     ):
@@ -210,3 +241,88 @@ class TestPersistence:
             await persist_turn_metrics(async_session, workflow_run_id=run.id, turns=[])
             == 0
         )
+
+
+class TestPerTurnTokens:
+    """Token usage was aggregated per call and per model, which gives a total
+    with no shape — ten short exchanges and three long ones sum identically.
+    Only the shape shows whether context growth is what costs the money, and
+    the fixes for it never appear as a line item."""
+
+    @staticmethod
+    def _usage(prompt, completion, cached=0):
+        from pipecat.metrics.metrics import LLMTokenUsage, LLMUsageMetricsData
+
+        return LLMUsageMetricsData(
+            processor="OpenAILLMService#0",
+            model="gpt-4o-mini",
+            value=LLMTokenUsage(
+                prompt_tokens=prompt,
+                completion_tokens=completion,
+                total_tokens=prompt + completion,
+                cache_read_input_tokens=cached,
+                cache_creation_input_tokens=0,
+            ),
+        )
+
+    async def test_a_turn_carries_the_tokens_it_used(self):
+        agg = PipelineMetricsAggregator()
+
+        await agg._handle_llm_usage_metrics(self._usage(1200, 80, cached=400))
+        agg.record_turn_latency(0.5)
+
+        (turn,) = agg.get_turn_metrics()
+        assert turn["prompt_tokens"] == 1200
+        assert turn["completion_tokens"] == 80
+        assert turn["cached_tokens"] == 400
+
+    async def test_tokens_do_not_leak_into_the_next_turn(self):
+        """The whole point is per-turn growth. Carrying a turn's tokens forward
+        would manufacture exactly the rising curve this is meant to measure."""
+        agg = PipelineMetricsAggregator()
+
+        await agg._handle_llm_usage_metrics(self._usage(1000, 50))
+        agg.record_turn_latency(0.5)
+        await agg._handle_llm_usage_metrics(self._usage(1800, 60))
+        agg.record_turn_latency(0.5)
+
+        first, second = agg.get_turn_metrics()
+        assert first["prompt_tokens"] == 1000
+        assert second["prompt_tokens"] == 1800
+
+    async def test_two_model_calls_in_one_turn_add_up(self):
+        """A tool round-trip invokes the LLM twice within a single turn."""
+        agg = PipelineMetricsAggregator()
+
+        await agg._handle_llm_usage_metrics(self._usage(900, 40))
+        await agg._handle_llm_usage_metrics(self._usage(1100, 60))
+        agg.record_turn_latency(0.5)
+
+        (turn,) = agg.get_turn_metrics()
+        assert turn["prompt_tokens"] == 2000
+        assert turn["completion_tokens"] == 100
+
+    async def test_a_turn_with_no_usage_reported_stays_null(self):
+        """Not every provider reports usage. A zero would drag the median
+        context size down and read as an agent that got cheaper."""
+        agg = PipelineMetricsAggregator()
+
+        agg.record_turn_latency(0.5)
+
+        (turn,) = agg.get_turn_metrics()
+        assert turn["prompt_tokens"] is None
+        assert turn["cached_tokens"] is None
+
+    async def test_the_call_wide_total_still_accumulates(self):
+        """Per-turn banking must not have replaced the per-model totals that
+        costing bills from."""
+        agg = PipelineMetricsAggregator()
+
+        await agg._handle_llm_usage_metrics(self._usage(1000, 50))
+        agg.record_turn_latency(0.5)
+        await agg._handle_llm_usage_metrics(self._usage(1800, 60))
+        agg.record_turn_latency(0.5)
+
+        total = agg._llm_usage_metrics["OpenAILLMService#0|||gpt-4o-mini"]
+        assert total.prompt_tokens == 2800
+        assert total.completion_tokens == 110

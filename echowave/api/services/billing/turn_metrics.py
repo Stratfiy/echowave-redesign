@@ -25,6 +25,15 @@ _TIMELINE_COLUMNS = (
     "t_audio_out_ms",
 )
 
+# Token usage for the turn, on the same "absent stays NULL" rule. prompt_tokens
+# at turn N is the context size — the whole conversation resent — so these are
+# what makes context growth measurable at all.
+_TOKEN_COLUMNS = (
+    "prompt_tokens",
+    "completion_tokens",
+    "cached_tokens",
+)
+
 
 async def persist_turn_metrics(
     session: AsyncSession,
@@ -60,7 +69,9 @@ async def persist_turn_metrics(
                 # percentile queries already filter on latency_ms, and a
                 # missing mark is honest where a zero would read as instant.
                 **{
-                    c: turn.get(c) for c in _TIMELINE_COLUMNS if turn.get(c) is not None
+                    c: turn.get(c)
+                    for c in (*_TIMELINE_COLUMNS, *_TOKEN_COLUMNS)
+                    if turn.get(c) is not None
                 },
             )
         )

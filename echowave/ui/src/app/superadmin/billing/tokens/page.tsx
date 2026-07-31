@@ -82,6 +82,14 @@ type TokenRow = {
     tokens_per_minute: number | null;
 };
 
+type GrowthRow = {
+    turn: number;
+    prompt_tokens: number | null;
+    completion_tokens: number | null;
+    cached_tokens: number;
+    turns: number;
+};
+
 type ModelRow = {
     provider: string;
     model: string;
@@ -141,6 +149,15 @@ export default function TokensPage() {
 
     const series = (data?.series ?? []) as TokenRow[];
     const byModel = (data?.by_model ?? []) as ModelRow[];
+    const growth = (data?.context_growth ?? {}) as {
+        series?: GrowthRow[];
+        first_turn_prompt_tokens?: number | null;
+        last_turn_prompt_tokens?: number | null;
+        growth_multiple?: number | null;
+        deepest_turn?: number | null;
+        cache_hit_rate?: number | null;
+    };
+    const growthSeries = growth.series ?? [];
 
     const totalTokens = series.reduce((sum, r) => sum + r.tokens, 0);
     const totalCost = series.reduce((sum, r) => sum + r.cost_paise, 0);
@@ -274,6 +291,109 @@ export default function TokensPage() {
                     </BarChart>
                 </ResponsiveContainer>
             </ChartCard>
+
+            {/* The chart no competitor draws.
+                A voice agent resends the whole conversation every turn, so the
+                prompt grows with turn index and language-model spend grows with
+                the *square* of call length — a call twice as long costs closer
+                to four times as much, not twice. A call-wide total cannot show
+                this: ten short exchanges and three long ones sum identically.
+                The fixes are structural (summarise older turns, trim the system
+                prompt, enable prompt caching) and none appears as a line item
+                on any invoice. */}
+            <ChartCard
+                title="Context growth per turn"
+                description="Median prompt size as a conversation goes on — the cost that compounds"
+                isEmpty={growthSeries.length === 0}
+                emptyMessage="No per-turn token usage recorded yet. Calls placed from now on will populate this."
+                height={300}
+            >
+                <ResponsiveContainer width="100%" height={300}>
+                    <BarChart
+                        data={growthSeries}
+                        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                    >
+                        <CartesianGrid stroke={gridStroke(mode)} vertical={false} />
+                        <XAxis
+                            dataKey="turn"
+                            tickFormatter={(v: number) => `Turn ${v}`}
+                            {...axisProps(mode)}
+                        />
+                        <YAxis
+                            width={62}
+                            tickFormatter={(v: number) => compactTokens(v)}
+                            {...axisProps(mode)}
+                        />
+                        <RTooltip
+                            content={
+                                <ChartTooltip
+                                    formatter={(v) => compactTokens(Number(v))}
+                                    labelFormatter={(l) => `Turn ${l}`}
+                                />
+                            }
+                        />
+                        <Bar
+                            dataKey="prompt_tokens"
+                            name="Prompt (context)"
+                            fill={seriesColor(0, mode)}
+                            radius={[3, 3, 0, 0]}
+                        />
+                        <Bar
+                            dataKey="completion_tokens"
+                            name="Completion"
+                            fill={seriesColor(2, mode)}
+                            radius={[3, 3, 0, 0]}
+                        />
+                    </BarChart>
+                </ResponsiveContainer>
+            </ChartCard>
+
+            {growthSeries.length > 0 && (
+                <div className="grid gap-3 sm:grid-cols-3">
+                    <StatTile
+                        label="Context growth"
+                        value={
+                            growth.growth_multiple
+                                ? `${growth.growth_multiple}×`
+                                : "—"
+                        }
+                        sub={`Turn 1 sends ${compactTokens(
+                            growth.first_turn_prompt_tokens,
+                        )}; turn ${growth.deepest_turn ?? "—"} sends ${compactTokens(
+                            growth.last_turn_prompt_tokens,
+                        )}`}
+                        tone={
+                            (growth.growth_multiple ?? 0) >= 4 ? "warning" : undefined
+                        }
+                    />
+                    <StatTile
+                        label="Prompt cache hit rate"
+                        value={
+                            growth.cache_hit_rate === null ||
+                            growth.cache_hit_rate === undefined
+                                ? "Not reported"
+                                : `${(growth.cache_hit_rate * 100).toFixed(0)}%`
+                        }
+                        sub="Caching cuts the cost of resent context by most of its value"
+                        tone={
+                            growth.cache_hit_rate !== null &&
+                            growth.cache_hit_rate !== undefined &&
+                            growth.cache_hit_rate < 0.2
+                                ? "warning"
+                                : undefined
+                        }
+                    />
+                    <StatTile
+                        label="Turns measured"
+                        value={formatNumber(
+                            growthSeries.reduce((sum, r) => sum + r.turns, 0),
+                        )}
+                        sub={`Across ${growthSeries.length} turn position${
+                            growthSeries.length === 1 ? "" : "s"
+                        }`}
+                    />
+                </div>
+            )}
 
             <Card>
                 <CardHeader>
