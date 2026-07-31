@@ -338,6 +338,8 @@ annex is a misrepresentation in a contract, not marketing copy.
 | Tenant isolation | Every data access is scoped by organisation at the query level |
 | Credential storage | Provider API keys are encrypted at rest with AES-128-CBC + HMAC-SHA256 (Fernet). The system refuses to store a key at all if the encryption secret is absent, rather than falling back to plaintext. |
 | Password storage | bcrypt with a per-password salt. Passwords are never stored or logged in recoverable form. |
+| Multi-factor authentication | Optional TOTP second factor, with encrypted secrets, single-use recovery codes and replay protection. |
+| Backups | Nightly encrypted database dump to object storage, pruned on a retention window. Restore is a documented manual procedure. |
 | Session tokens | Signed JSON Web Tokens (HS256) with a bounded lifetime |
 | Retention enforcement | Automated nightly deletion against per-account windows, monitored for overdue records |
 | Erasure | Storage objects deleted before database references are cleared |
@@ -348,18 +350,15 @@ the omission rather than by a sentence.
 
 | Measure | Position |
 |---|---|
-| Multi-factor authentication | Not available. Access is by password and bearer token. `[TO CONFIRM — this is the most commonly requested control in a security review and the cheapest of these to add. Decide whether to build it before answering a questionnaire that asks.]` |
 | Encryption at rest (database and object storage) | Not applied at the application layer; it depends on the encryption setting of the underlying cloud volume. `[TO CONFIRM — verify whether the EBS volume and any S3 bucket in use are encrypted, and state the answer. Do not claim it unverified.]` |
-| Backups | **No automated backup is configured.** `[TO CONFIRM — see the note below. This must be fixed before it is described to a customer either way.]` |
 | Redundancy and failover | Single region, single host, no automated failover. Recovery is a manual redeploy. |
 | Security certification | None held. See § 11.3. |
 | Personnel controls | `[TO CONFIRM — background checks, confidentiality undertakings and security training are facts about how you employ people, and only you know them.]` |
 
-> **Do not send this document to a customer until the backup line is resolved.**
-> The credit ledger is the only record of what every customer has paid; there is
-> no other copy of it. This is a larger commercial risk than any clause in the
-> agreement above, and it is the one thing on this page that could end the
-> business rather than cost it a customer.
+> **Rehearse a restore before sending this.** The backup runs and is verified on
+> upload, but no one has yet restored one. Until that happens the line above
+> describes a procedure rather than a proven capability, and the credit ledger is
+> still the only record of what every customer has paid.
 
 ## Annex C — Contacts
 

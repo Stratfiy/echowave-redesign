@@ -19,7 +19,9 @@ Last updated after the compliance and deployment pass.
 
 ### 13. Nothing backs up the database
 
-**Status:** OPEN · **Severity: critical**
+**Status:** FIXED · nightly encrypted pg_dump to object storage, pruned on a
+retention window, with the newest object's age surfaced by the readiness check.
+**The restore has still not been rehearsed — do that once before relying on it.**
 
 There is no automated backup of Postgres anywhere — no `pg_dump`, no WAL
 archiving, no volume snapshot, nothing in `docker-compose.yaml` and nothing in
