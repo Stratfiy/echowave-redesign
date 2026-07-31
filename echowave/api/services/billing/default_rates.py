@@ -65,6 +65,25 @@ class DefaultRate:
     basis: str
 
 
+#: Reference USD→INR for the few vendors who publish in rupees. Matches
+#: ``money.DEFAULT_USD_INR_PAISE``; a test holds them together, because if they
+#: drift the rupee prices below silently stop being the rupee prices published.
+REFERENCE_USD_INR = 96.0
+
+
+def _inr(rupees_per_unit: float) -> float:
+    """A rupee-quoted vendor price, expressed in this file's USD.
+
+    Indian vendors — Sarvam foremost — publish in ₹, and this schema is USD, so
+    their rows are a round trip: ₹ here, back to ₹ at seed time against whatever
+    USD→INR is then configured. The trip is lossless only while that rate equals
+    ``REFERENCE_USD_INR``. It is worth the wart to keep one unit in the file, but
+    it means a rupee vendor's row moves when the dollar moves and its real price
+    did not — check these two rows first when Sarvam's cost looks off.
+    """
+    return rupees_per_unit / REFERENCE_USD_INR
+
+
 def _blend(input_per_million: float, output_per_million: float) -> float:
     """Vendor per-million-token prices to one blended USD per 1k tokens."""
     per_million = input_per_million * LLM_INPUT_SHARE + output_per_million * (
@@ -192,7 +211,12 @@ STT_RATES = (
         "Nova streaming, pay-as-you-go",
     ),
     DefaultRate(
-        "sarvam", "", CostComponent.STT, RateUnit.MINUTE, 0.0060, "Saarika streaming"
+        "sarvam",
+        "",
+        CostComponent.STT,
+        RateUnit.MINUTE,
+        _inr(30.0 / 60),
+        "Saarika — ₹30/hour published. Diarization is ₹45/hour and not this row.",
     ),
     DefaultRate("elevenlabs", "", CostComponent.STT, RateUnit.MINUTE, 0.0060, "Scribe"),
     DefaultRate(
@@ -227,7 +251,12 @@ TTS_RATES = (
         "Sonic pay-as-you-go",
     ),
     DefaultRate(
-        "sarvam", "", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 0.0200, "Bulbul"
+        "sarvam",
+        "",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        _inr(3.00),
+        "Bulbul v3 — ₹30 per 10k characters published",
     ),
     DefaultRate(
         "smallest", "", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 0.0200, "Lightning"

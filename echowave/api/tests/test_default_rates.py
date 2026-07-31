@@ -14,10 +14,13 @@ from api.enums import CostComponent, RateUnit
 from api.services.billing.default_rates import (
     DEFAULT_RATES,
     LLM_INPUT_SHARE,
+    REFERENCE_USD_INR,
     SEED_NOTE,
     _blend,
+    _inr,
     usd_to_mpaise,
 )
+from api.services.billing.money import DEFAULT_USD_INR_PAISE
 
 
 class TestTheUnitMatchesTheComponent:
@@ -117,6 +120,42 @@ class TestConversion:
     def test_it_never_returns_zero_for_a_real_price(self):
         for rate in DEFAULT_RATES:
             assert usd_to_mpaise(rate.usd_per_unit, usd_inr=80.0) > 0
+
+
+class TestRupeeQuotedVendors:
+    """Sarvam publishes in ₹ and this file is in USD, so those rows are a round
+    trip. It is only lossless while the two reference rates agree."""
+
+    def test_the_reference_rate_matches_the_platform_default(self):
+        """If these drift, a rupee price seeds as a different rupee price and
+        nothing anywhere says so — the row still looks like a published figure."""
+        assert REFERENCE_USD_INR == DEFAULT_USD_INR_PAISE / 100
+
+    def test_a_rupee_price_round_trips_to_itself(self):
+        # ₹3.00 per 1k characters is 300 paise is 300,000 millipaise.
+        assert usd_to_mpaise(_inr(3.00), usd_inr=REFERENCE_USD_INR) == 300_000
+
+    def test_sarvam_tts_is_the_published_thirty_rupees_per_ten_thousand(self):
+        """This row was seeded at ₹1.92/1k characters against a published ₹3.00
+        — a 1.56× understatement, and TTS is the largest line in an Indic voice
+        call. It made every quote and every margin figure optimistic in the one
+        component big enough to decide whether a deal is profitable."""
+        row = next(
+            r
+            for r in DEFAULT_RATES
+            if r.provider == "sarvam" and r.component == CostComponent.TTS
+        )
+        mpaise = usd_to_mpaise(row.usd_per_unit, usd_inr=REFERENCE_USD_INR)
+        assert mpaise == 300_000  # ₹3.00 per 1k chars = ₹30 per 10k
+
+    def test_sarvam_stt_is_the_published_thirty_rupees_an_hour(self):
+        row = next(
+            r
+            for r in DEFAULT_RATES
+            if r.provider == "sarvam" and r.component == CostComponent.STT
+        )
+        mpaise = usd_to_mpaise(row.usd_per_unit, usd_inr=REFERENCE_USD_INR)
+        assert mpaise == 50_000  # ₹0.50 per minute
 
 
 class TestProvenance:
