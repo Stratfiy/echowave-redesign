@@ -127,6 +127,60 @@ LLM_RATES = (
     ),
 )
 
+
+def _realtime_blend(provider: str) -> float:
+    """Blended USD per 1k tokens for a speech-to-speech model.
+
+    Derived from ``realtime_pricing`` rather than written down, so the seeded
+    rate moves with the model that explains it instead of drifting away from it.
+    """
+    from api.services.billing.realtime_pricing import blended_usd_per_1k_tokens
+    from api.services.billing.realtime_rates import price_for
+
+    price = price_for(provider)
+    if price is None:  # pragma: no cover - guarded by a test
+        raise KeyError(f"No realtime price book entry for {provider!r}")
+    return blended_usd_per_1k_tokens(price)
+
+
+#: Speech-to-speech models, recorded by the pipeline as ordinary LLM usage.
+#:
+#: The provider names are the ones ``provider_from_processor`` derives from the
+#: service class — ``decibylgeminilive``, not ``google_realtime`` — because that
+#: is what lands in ``call_cost_items``. Getting these strings wrong is not a
+#: visible failure: the rate simply never matches, every realtime call is
+#: reported uncosted, and margin reads 100%.
+#:
+#: The rate is a blend across audio in, re-sent context and audio out at a
+#: three-minute reference call. Realtime billing has four prices and this schema
+#: has one field, so a blend is unavoidable; see ``blended_usd_per_1k_tokens``.
+REALTIME_RATES = (
+    DefaultRate(
+        "decibylgeminilive",
+        "",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _realtime_blend("google_realtime"),
+        "Gemini Live audio tokens, blended at a 3-minute call",
+    ),
+    DefaultRate(
+        "decibylgeminilivevertex",
+        "",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _realtime_blend("google_vertex_realtime"),
+        "Gemini Live on Vertex, blended at a 3-minute call",
+    ),
+    DefaultRate(
+        "decibylopenairealtime",
+        "",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _realtime_blend("openai_realtime"),
+        "GPT Realtime audio tokens, blended at a 3-minute call",
+    ),
+)
+
 #: Speech to text — unit is a minute of audio.
 STT_RATES = (
     DefaultRate(
@@ -200,6 +254,7 @@ TELEPHONY_RATES = (
 
 DEFAULT_RATES: tuple[DefaultRate, ...] = (
     *LLM_RATES,
+    *REALTIME_RATES,
     *STT_RATES,
     *TTS_RATES,
     *TELEPHONY_RATES,

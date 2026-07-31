@@ -2825,7 +2825,7 @@ export type GoogleRealtimeLlmConfiguration = {
     /**
      * Language
      *
-     * ISO 639-1 language code.
+     * ISO 639-1 language code, or 'auto' to let the model follow the caller. Native-audio Live models switch language mid-conversation on their own and ignore a pinned code; pinning one is only meaningful on a half-cascade model.
      */
     language?: string;
 };
@@ -2991,7 +2991,7 @@ export type GoogleVertexRealtimeLlmConfiguration = {
     /**
      * Language
      *
-     * BCP-47 language code (e.g. 'en-US').
+     * BCP-47 language code (e.g. 'en-US'), or 'auto' to let the model follow the caller. The default model here is a native-audio one, which switches language mid-conversation on its own and ignores a pinned code.
      */
     language?: string;
     /**
@@ -4769,6 +4769,36 @@ export type ProviderSyncStatus = {
      * Message
      */
     message?: string | null;
+};
+
+/**
+ * RealtimeEstimateRequest
+ *
+ * The call to price. Defaults describe a typical Indian outbound call —
+ * three minutes, ten-second turns, about two-thirds of the clock spent
+ * speaking — and every one of them is worth changing to match a real book.
+ */
+export type RealtimeEstimateRequest = {
+    /**
+     * Duration Seconds
+     */
+    duration_seconds?: number;
+    /**
+     * Seconds Per Turn
+     */
+    seconds_per_turn?: number;
+    /**
+     * Agent Talk Share
+     */
+    agent_talk_share?: number;
+    /**
+     * Caller Talk Share
+     */
+    caller_talk_share?: number;
+    /**
+     * Caching Enabled
+     */
+    caching_enabled?: boolean;
 };
 
 /**
@@ -9238,6 +9268,49 @@ export type GetCostPerMinuteApiV1CostEstimatePerMinutePostResponses = {
 };
 
 export type GetCostPerMinuteApiV1CostEstimatePerMinutePostResponse = GetCostPerMinuteApiV1CostEstimatePerMinutePostResponses[keyof GetCostPerMinuteApiV1CostEstimatePerMinutePostResponses];
+
+export type CompareRealtimeApiV1CostEstimateRealtimePostData = {
+    body: RealtimeEstimateRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/cost-estimate/realtime';
+};
+
+export type CompareRealtimeApiV1CostEstimateRealtimePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompareRealtimeApiV1CostEstimateRealtimePostError = CompareRealtimeApiV1CostEstimateRealtimePostErrors[keyof CompareRealtimeApiV1CostEstimateRealtimePostErrors];
+
+export type CompareRealtimeApiV1CostEstimateRealtimePostResponses = {
+    /**
+     * Response Compare Realtime Api V1 Cost Estimate Realtime Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CompareRealtimeApiV1CostEstimateRealtimePostResponse = CompareRealtimeApiV1CostEstimateRealtimePostResponses[keyof CompareRealtimeApiV1CostEstimateRealtimePostResponses];
 
 export type GetKycApiV1KycGetData = {
     body?: never;

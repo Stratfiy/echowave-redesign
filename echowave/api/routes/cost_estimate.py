@@ -18,6 +18,8 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.billing.estimator import estimate_cost_per_minute
+from api.services.billing.realtime_pricing import CallShape, compare_realtime_models
+from api.services.billing.realtime_rates import AS_OF, REALTIME_PRICES, SEED_NOTE
 
 router = APIRouter(prefix="/cost-estimate", tags=["cost-estimate"])
 
@@ -85,4 +87,75 @@ async def get_cost_per_minute(
         # USD figure the dual-currency line silently disappeared.
         "pulse_seconds": estimate.pulse_seconds,
         "total_micros_usd_per_minute": estimate.total_micros_usd_per_minute,
+    }
+
+
+class RealtimeEstimateRequest(BaseModel):
+    """The call to price. Defaults describe a typical Indian outbound call —
+    three minutes, ten-second turns, about two-thirds of the clock spent
+    speaking — and every one of them is worth changing to match a real book."""
+
+    duration_seconds: int = 180
+    seconds_per_turn: float = 10.0
+    agent_talk_share: float = 0.45
+    caller_talk_share: float = 0.30
+    #: Off by default. Assuming the provider's context cache is being hit
+    #: roughly halves the answer, and it is not free to hit.
+    caching_enabled: bool = False
+
+
+@router.post("/realtime")
+async def compare_realtime(
+    payload: RealtimeEstimateRequest,
+    user: UserModel = Depends(get_user),
+) -> dict[str, Any]:
+    """Every speech-to-speech model priced against the same call, cheapest first.
+
+    Needs no database and no organization: these are vendor list prices, not
+    this account's negotiated ones. The platform fee is deliberately absent —
+    the question here is what the *provider* costs, so that the choice between
+    a realtime model and a cascaded stack can be made on the part that differs.
+    """
+    try:
+        shape = CallShape(
+            duration_seconds=payload.duration_seconds,
+            seconds_per_turn=payload.seconds_per_turn,
+            agent_talk_share=payload.agent_talk_share,
+            caller_talk_share=payload.caller_talk_share,
+            caching_enabled=payload.caching_enabled,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    estimates = compare_realtime_models(REALTIME_PRICES, shape)
+
+    return {
+        "models": [
+            {
+                "provider": estimate.provider,
+                "model": estimate.model,
+                "label": estimate.label,
+                "micros_usd_per_minute": estimate.micros_usd_per_minute,
+                "total_micros_usd": estimate.total_micros_usd,
+                "fresh_input_micros_usd": estimate.fresh_input_micros_usd,
+                "repeated_input_micros_usd": estimate.repeated_input_micros_usd,
+                "output_micros_usd": estimate.output_micros_usd,
+                "fresh_input_tokens": estimate.fresh_input_tokens,
+                "repeated_input_tokens": estimate.repeated_input_tokens,
+                "output_tokens": estimate.output_tokens,
+                # The share of the bill that is context arriving again. The
+                # single number that explains why this is not the vendor's
+                # quoted per-minute price.
+                "repeated_share": estimate.repeated_share,
+                "caching_applied": estimate.caching_applied,
+                "basis": estimate.basis,
+            }
+            for estimate in estimates
+        ],
+        "turns": shape.turns,
+        "context_multiple": shape.context_multiple,
+        # Provenance travels with the numbers, so a list price is never
+        # mistaken on screen for something measured.
+        "as_of": AS_OF,
+        "note": SEED_NOTE,
     }
