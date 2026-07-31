@@ -29,6 +29,7 @@ from api.services.privacy import (
     erasure,
     export,
     metrics,
+    readiness,
     retention,
     subprocessors,
 )
@@ -283,3 +284,39 @@ async def privacy_metrics(user: UserModel = Depends(get_user)) -> dict[str, Any]
     organization_id = _organization_id(user)
     async with db_client.async_session() as session:
         return await metrics.snapshot(session, organization_id=organization_id)
+
+
+@router.get("/readiness")
+async def privacy_readiness(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+    """What is not yet in place, and what to do about each thing.
+
+    Deliberately not organization-scoped, and the only route here that is not:
+    these are properties of the deployment — whether a grievance officer was
+    named, whether the recordings bucket is public, whether the nightly purge
+    is completing — and they are the same answer for every account on it.
+    Nothing account-specific is returned.
+
+    Obligations that no code can discharge are listed with status
+    ``needs_a_human`` and can never read ready. A green tick beside "notice and
+    consent" would be a claim somebody might rely on in front of a regulator.
+    """
+    async with db_client.async_session() as session:
+        assessment = await readiness.assess(session)
+
+    return {
+        "checks": [
+            {
+                "key": check.key,
+                "title": check.title,
+                "status": check.status,
+                "detail": check.detail,
+                "reference": check.reference,
+                "remedy": check.remedy or None,
+            }
+            for check in assessment.checks
+        ],
+        # Split apart because they are worked differently: one list is a
+        # deployment checklist, the other is a legal to-do that never empties.
+        "action_required": len(assessment.blocking),
+        "needs_a_human": len(assessment.unresolvable),
+    }
