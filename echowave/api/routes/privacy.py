@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from api.constants import (
@@ -24,6 +24,7 @@ from api.constants import (
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
+from api.services.compliance import agreements
 from api.services.privacy import (
     access_log,
     erasure,
@@ -319,4 +320,87 @@ async def privacy_readiness(user: UserModel = Depends(get_user)) -> dict[str, An
         # deployment checklist, the other is a legal to-do that never empties.
         "action_required": len(assessment.blocking),
         "needs_a_human": len(assessment.unresolvable),
+    }
+
+
+@router.get("/agreements")
+async def list_agreements(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+    """Which agreements this account still owes at the current version.
+
+    An account that accepted last year's DPA appears here alongside one that
+    never accepted anything, which is correct: the obligations may have changed
+    between versions, and a stale acceptance is not evidence of agreeing to the
+    current terms.
+    """
+    organization_id = _organization_id(user)
+    async with db_client.async_session() as session:
+        outstanding = await agreements.outstanding_for(
+            session, organization_id=organization_id
+        )
+
+    return {
+        "agreements": [
+            {
+                "key": a.key,
+                "title": a.title,
+                "version": a.version,
+                "url": a.url,
+                "required": a.required,
+            }
+            for a in agreements.AGREEMENTS
+        ],
+        "outstanding": [a.key for a in outstanding],
+    }
+
+
+class AcceptAgreementRequest(BaseModel):
+    agreement: str = Field(description="Agreement key, e.g. 'dpa'")
+
+
+@router.post("/agreements/accept")
+async def accept_agreement(
+    payload: AcceptAgreementRequest,
+    request: Request,
+    user: UserModel = Depends(get_user),
+) -> dict[str, Any]:
+    """Record that this user accepted an agreement.
+
+    The version is taken from what is currently published, never from the
+    request: a client able to name its own version could claim acceptance of a
+    document that never existed.
+
+    The address is read from X-Forwarded-For before the socket, because the app
+    sits behind nginx and the socket address is the proxy for every user on the
+    platform — recording it would make the evidential value of the record nil.
+    """
+    organization_id = _organization_id(user)
+
+    forwarded = request.headers.get("x-forwarded-for", "")
+    ip_address = forwarded.split(",")[0].strip() or (
+        request.client.host if request.client else None
+    )
+
+    async with db_client.async_session() as session:
+        try:
+            row = await agreements.record_acceptance(
+                session,
+                organization_id=organization_id,
+                user_id=user.id,
+                agreement=payload.agreement,
+                ip_address=ip_address,
+                user_agent=request.headers.get("user-agent"),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+
+        outstanding = await agreements.outstanding_for(
+            session, organization_id=organization_id
+        )
+
+    return {
+        "agreement": row.agreement,
+        "version": row.version,
+        "accepted_at": row.accepted_at.isoformat(),
+        "outstanding": [a.key for a in outstanding],
     }

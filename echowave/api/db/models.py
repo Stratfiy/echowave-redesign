@@ -74,6 +74,20 @@ class UserModel(Base):
     email = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)
 
+    # Second factor. The secret is stored Fernet-encrypted, never in the clear:
+    # a readable TOTP secret is password-equivalent, since anyone holding it can
+    # mint valid codes indefinitely.
+    mfa_secret_encrypted = Column(String, nullable=True)
+    mfa_enabled = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    # The last accepted TOTP counter. Without it a code stays usable for its
+    # whole 30-second step and can be replayed by anyone who saw it.
+    mfa_last_counter = Column(BigInteger, nullable=True)
+    # SHA-256 of each unused recovery code. Hashed rather than encrypted because
+    # a reversible store of ten spare passwords is worse than the passwords.
+    mfa_recovery_hashes = Column(JSON, nullable=True)
+
     __table_args__ = (
         Index(
             "ix_users_email_lower",
@@ -2549,4 +2563,53 @@ class ErasureRequestModel(Base):
     __table_args__ = (
         Index("ix_erasure_org_requested", "organization_id", "requested_at"),
         Index("ix_erasure_status", "status"),
+    )
+
+
+class AgreementAcceptanceModel(Base):
+    """Who accepted which agreement, when, and from where.
+
+    A click-wrap is enforceable in India — IT Act s10A, given reasonable notice
+    and an affirmative act — but only if it can be *shown*. Without a record
+    there is nothing to produce in a dispute, and the acceptance is worth very
+    little however carefully the terms were drafted.
+
+    Append-only by design. Superseding an agreement means writing a new row for
+    the new version, never editing the old one: the question in a dispute is
+    what the customer agreed to at the time, and an updatable record cannot
+    answer it.
+
+    The IP address is kept because it is part of what makes the record
+    evidential. It is personal data, and it ages out with the account rather
+    than with call data — an acceptance record outlives the calls it authorised,
+    for the same reason an invoice does.
+    """
+
+    __tablename__ = "agreement_acceptances"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    # dpa | terms | privacy_notice
+    agreement = Column(String(32), nullable=False)
+    # The published version string, e.g. "2026-07". Meaningless as a boolean:
+    # "they accepted the DPA" is not a defence when the DPA has changed twice
+    # since.
+    version = Column(String(32), nullable=False)
+
+    accepted_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(512), nullable=True)
+
+    __table_args__ = (
+        Index(
+            "ix_agreement_acceptances_org_agreement",
+            "organization_id",
+            "agreement",
+        ),
     )

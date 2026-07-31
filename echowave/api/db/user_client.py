@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from loguru import logger
 from pydantic import ValidationError
@@ -32,7 +32,7 @@ class UserClient(BaseDBClient):
             # This is atomic and handles race conditions at the database level
             stmt = insert(UserModel.__table__).values(
                 provider_id=provider_id,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
                 selected_organization_id=None,  # Will be set later
                 is_superuser=False,  # Default value
             )
@@ -190,6 +190,22 @@ class UserClient(BaseDBClient):
             await session.execute(stmt)
             await session.commit()
 
+    async def update_user_mfa(self, user_id: int, **fields) -> None:
+        """Write MFA state for one user.
+
+        Kept as one setter rather than several because the fields move
+        together: enabling writes the secret, the flag and the recovery hashes
+        in one statement, and a partial write would leave an account either
+        locked out or protected by nothing.
+        """
+        async with self.async_session() as session:
+            from sqlalchemy import update
+
+            await session.execute(
+                update(UserModel).where(UserModel.id == user_id).values(**fields)
+            )
+            await session.commit()
+
     async def get_user_by_email(self, email: str) -> UserModel | None:
         """Fetch a user by their email address (case-insensitive).
 
@@ -211,7 +227,7 @@ class UserClient(BaseDBClient):
         """Create a new user with email and password hash."""
         async with self.async_session() as session:
             user = UserModel(
-                provider_id=f"oss_{int(datetime.now(timezone.utc).timestamp())}_{uuid.uuid4()}",
+                provider_id=f"oss_{int(datetime.now(UTC).timestamp())}_{uuid.uuid4()}",
                 email=email.lower(),
                 password_hash=password_hash,
             )

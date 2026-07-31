@@ -5,7 +5,16 @@ from api.constants import ENABLE_SIGNUP
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationConfigurationKey, PostHogEvent
-from api.schemas.auth import AuthResponse, LoginRequest, SignupRequest, UserResponse
+from api.schemas.auth import (
+    AuthResponse,
+    LoginRequest,
+    MfaDisableRequest,
+    MfaEnrollResponse,
+    MfaVerifyRequest,
+    SignupRequest,
+    UserResponse,
+)
+from api.services.auth import mfa
 from api.services.auth.depends import (
     create_user_configuration_with_mps_key,
     get_user,
@@ -112,6 +121,21 @@ async def login(request: LoginRequest):
     if not verify_password(request.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    # Second factor, if the account has one. Checked after the password so a
+    # wrong password and a wrong code are indistinguishable to an attacker
+    # probing which accounts have MFA enabled.
+    if user.mfa_enabled and user.mfa_secret_encrypted:
+        if not request.mfa_code:
+            # 401 with a machine-readable reason rather than an error: the
+            # client needs to know to prompt, and the credentials were correct.
+            raise HTTPException(
+                status_code=401,
+                detail="mfa_required",
+                headers={"X-MFA-Required": "totp"},
+            )
+        if not await _accept_second_factor(user, request.mfa_code):
+            raise HTTPException(status_code=401, detail="Invalid authentication code")
+
     # Create JWT token
     token = create_jwt_token(user.id, user.email)
 
@@ -143,3 +167,106 @@ async def get_current_user(user: UserModel = Depends(get_user)):
         organization_id=user.selected_organization_id,
         provider_id=user.provider_id,
     )
+
+
+async def _accept_second_factor(user: UserModel, code: str) -> bool:
+    """A TOTP code, or one of the account's recovery codes.
+
+    Both are single-use. The TOTP counter is recorded so a code cannot be
+    replayed inside its own 30-second step, and a spent recovery code is removed
+    — one that survived its use would be a permanent bypass.
+    """
+    secret = mfa.decrypt_secret(user.mfa_secret_encrypted)
+    counter = mfa.verify_code(
+        secret=secret, code=code, last_counter=user.mfa_last_counter
+    )
+    if counter is not None:
+        await db_client.update_user_mfa(user.id, mfa_last_counter=counter)
+        return True
+
+    remaining = list(user.mfa_recovery_hashes or [])
+    spent = mfa.verify_recovery_code(code, remaining)
+    if spent is None:
+        return False
+
+    remaining.remove(spent)
+    await db_client.update_user_mfa(user.id, mfa_recovery_hashes=remaining)
+    logger.warning(
+        "User {} signed in with a recovery code; {} remaining", user.id, len(remaining)
+    )
+    return True
+
+
+@router.post("/mfa/enroll", response_model=MfaEnrollResponse)
+async def enroll_mfa(user: UserModel = Depends(get_user)):
+    """Start enrolment. Nothing is enabled until a code is verified.
+
+    Enabling on the strength of the QR alone locks out anyone whose scan
+    silently failed, and the recovery codes would be the only way back — which
+    is precisely the situation they exist to avoid, not to create.
+    """
+    if user.mfa_enabled:
+        raise HTTPException(status_code=409, detail="MFA is already enabled")
+
+    enrollment = mfa.begin_enrollment(email=user.email or str(user.id))
+    await db_client.update_user_mfa(
+        user.id,
+        mfa_secret_encrypted=mfa.encrypt_secret(enrollment.secret),
+        mfa_enabled=False,
+        mfa_recovery_hashes=[
+            mfa.hash_recovery_code(code) for code in enrollment.recovery_codes
+        ],
+    )
+    return MfaEnrollResponse(
+        secret=enrollment.secret,
+        uri=enrollment.uri,
+        recovery_codes=list(enrollment.recovery_codes),
+    )
+
+
+@router.post("/mfa/verify")
+async def verify_mfa(
+    request: MfaVerifyRequest, user: UserModel = Depends(get_user)
+) -> dict:
+    """Finish enrolment by proving the authenticator works."""
+    if not user.mfa_secret_encrypted:
+        raise HTTPException(status_code=409, detail="Start enrolment first")
+
+    secret = mfa.decrypt_secret(user.mfa_secret_encrypted)
+    counter = mfa.verify_code(
+        secret=secret, code=request.code, last_counter=user.mfa_last_counter
+    )
+    if counter is None:
+        raise HTTPException(status_code=400, detail="Invalid authentication code")
+
+    await db_client.update_user_mfa(user.id, mfa_enabled=True, mfa_last_counter=counter)
+    return {"mfa_enabled": True}
+
+
+@router.post("/mfa/disable")
+async def disable_mfa(
+    request: MfaDisableRequest, user: UserModel = Depends(get_user)
+) -> dict:
+    """Turn MFA off. Needs the password *and* a current code.
+
+    A valid session alone must not be enough: if it were, a stolen token could
+    strip the second factor and the protection would end at the first XSS.
+    """
+    if not user.password_hash or not verify_password(
+        request.password, user.password_hash
+    ):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    if not user.mfa_enabled or not user.mfa_secret_encrypted:
+        raise HTTPException(status_code=409, detail="MFA is not enabled")
+    if not await _accept_second_factor(user, request.code):
+        raise HTTPException(status_code=401, detail="Invalid authentication code")
+
+    await db_client.update_user_mfa(
+        user.id,
+        mfa_enabled=False,
+        mfa_secret_encrypted=None,
+        mfa_last_counter=None,
+        mfa_recovery_hashes=None,
+    )
+    logger.info("MFA disabled for user {}", user.id)
+    return {"mfa_enabled": False}

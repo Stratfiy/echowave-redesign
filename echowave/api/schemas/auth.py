@@ -17,6 +17,32 @@ class SignupRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    # Supplied on the second step when the account has MFA enabled. Optional
+    # rather than a separate endpoint so an existing client keeps working: it
+    # simply receives the mfa_required response and prompts.
+    mfa_code: str | None = None
+
+
+class MfaEnrollResponse(BaseModel):
+    """Shown exactly once. The secret is never retrievable afterwards — a
+    support flow that can read it back is an account takeover waiting to be
+    socially engineered."""
+
+    secret: str
+    uri: str
+    recovery_codes: list[str]
+
+
+class MfaVerifyRequest(BaseModel):
+    code: str
+
+
+class MfaDisableRequest(BaseModel):
+    """Disabling needs the password as well as a current code. Otherwise a
+    stolen session alone is enough to strip the second factor off."""
+
+    password: str
+    code: str
 
 
 class UserResponse(BaseModel):
