@@ -8,7 +8,7 @@ call, not a code change)
 
 Last updated after the compliance and deployment pass.
 
-> **Current test status: `api/tests` is fully green — 1727 passed, 0 failed,
+> **Current test status: `api/tests` is fully green — 1,911 passed, 0 failed,
 > 0 collection errors** (Python 3.13, real Postgres 16 + pgvector, real Redis).
 > Every one of the 51 failures and 130 collection errors previously recorded
 > here was environmental. None was a code defect.
@@ -16,40 +16,6 @@ Last updated after the compliance and deployment pass.
 ---
 
 ## Open
-
-### 13. Nothing backs up the database
-
-**Status:** FIXED · nightly encrypted pg_dump to object storage, pruned on a
-retention window, with the newest object's age surfaced by the readiness check.
-**The restore has still not been rehearsed — do that once before relying on it.**
-
-There is no automated backup of Postgres anywhere — no `pg_dump`, no WAL
-archiving, no volume snapshot, nothing in `docker-compose.yaml` and nothing in
-any deploy script. `DEPLOY.md` tells the operator to "take a backup, and check
-you can restore it", which is an instruction to a human, not an implementation.
-
-The credit ledger is the only record of what every customer has paid. There is
-no second copy and no way to reconstruct it: Razorpay knows what was charged,
-but not what was consumed, reserved, or adjusted. Losing the volume loses the
-money history, and the tax invoices issued against it become unreproducible —
-which is a GST problem on top of a customer-trust one.
-
-Found while writing `compliance/DPA-TEMPLATE.md`, where the security annex has
-to state the backup position to a customer either way.
-
-Fixing it is small and there are two credible shapes:
-
-* **Nightly `pg_dump` to object storage**, encrypted, with a retention window
-  and a restore rehearsal. Lives in the repo, works on any host, and is the
-  only option if Postgres stays in a container.
-* **Managed snapshots** — move Postgres to RDS, or take scheduled EBS
-  snapshots. Less code, more cloud coupling, and does not help anyone running
-  the compose file elsewhere.
-
-Whichever is chosen, **an untested backup is not a backup**: the restore has to
-be rehearsed once before it counts.
-
----
 
 ### 7. Top-level directory is still named `echowave/`
 
@@ -64,6 +30,38 @@ deliberately.
 ---
 
 ## Fixed
+
+### 13. Nothing backed up the database
+
+**FIXED.** There was no automated backup of Postgres anywhere — no `pg_dump`, no
+WAL archiving, no volume snapshot, nothing in `docker-compose.yaml` and nothing
+in any deploy script. `DEPLOY.md` told the operator to "take a backup, and check
+you can restore it", which is an instruction to a human, not an implementation.
+
+The credit ledger is the only record of what every customer has paid, and it
+cannot be reconstructed: Razorpay knows what was charged but not what was
+consumed, reserved or adjusted, and the tax invoices issued against it become
+unreproducible — a GST problem on top of a customer-trust one.
+
+Found while writing `compliance/DPA-TEMPLATE.md`, where the security annex has
+to state the backup position to a customer either way.
+
+Now a nightly `run_database_backup` job: `pg_dump` in custom format, Fernet
+encrypted before it leaves the process, uploaded, then read back and size-checked
+before the local file goes. Old dumps are pruned on `BACKUP_RETENTION_DAYS`,
+because a dump holds every phone number in the system and ages under the same
+obligation as the data inside it. The privacy readiness check reports the age of
+the newest object, so "is there a backup" is answered by the object store rather
+than by the presence of the code.
+
+Unlike the other scheduled jobs it re-raises after logging, so a failure reaches
+Sentry rather than leaving the readiness check reporting the last good one.
+
+**Still outstanding: nobody has restored one.** `restore_command()` prints the
+exact steps. An untested backup is a hypothesis, and this one has not been
+tested.
+
+---
 
 ### 12. `scripts/format.sh` reformatted the documentation, and its result depended on where you ran it
 
