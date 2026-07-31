@@ -1,6 +1,6 @@
 # Compliance documents
 
-Four documents a regulator, an auditor or an enterprise customer's security team
+Five documents a regulator, an auditor or an enterprise customer's security team
 will ask for. They are drafts, and the split between what is drafted here and
 what is not is deliberate.
 
@@ -26,8 +26,9 @@ with something plausible.
 | `DPA-ANNEX-II.md` | Technical and organisational measures | GDPR Art 32 — every enterprise customer's DPA |
 | `PRIVACY-NOTICE-FACTS.md` | The factual sections of a privacy notice | DPDP s5, GDPR Arts 13–14 — published |
 | `TRUST.md` | Trust page content | Prospects, during procurement |
+| `DPA-TEMPLATE.md` | The processing agreement to send customers | DPDP s8(2) — every customer, before their first campaign |
 
-`../PRIVACY.md` is the engineering companion to all four: what the controls are
+`../PRIVACY.md` is the engineering companion to all five: what the controls are
 and why they are built the way they are.
 
 ## Keeping them true
