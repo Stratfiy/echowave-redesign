@@ -62,6 +62,10 @@ Each subtree has an `AGENTS.md` with the conventions that apply inside it.
 - **[`DEPLOY.md`](DEPLOY.md)** — going live: what to configure, in what order,
   and how to create the first admin account. Two steps have an ordering that
   only bites once.
+- **[`OPERATIONS.md`](OPERATIONS.md)** — running it: setting every rate, taking
+  payments, diagnosing a failed call, and the weekly checks. Start here after
+  deploying — a fresh install reports 100% margin until the price book is
+  seeded.
 - **[`PRIVACY.md`](PRIVACY.md)** — retention, erasure, export and access
   logging, what DPDP and GDPR each require, and which obligations code cannot
   discharge for you.

@@ -199,6 +199,15 @@ def register_event_handlers(
     async def on_pipeline_error(_task: PipelineWorker, frame: Frame):
         logger.warning(f"Pipeline error for workflow run {workflow_run_id}: {frame}")
         try:
+            # Persist what actually went wrong. Until this existed the run
+            # recorded the bare string "pipeline_error" and the cause lived only
+            # in a log line, so a failed call was undiagnosable the moment the
+            # logs rotated — which is exactly when someone comes asking.
+            await _record_pipeline_error(workflow_run_id, frame)
+        except Exception as exc:  # noqa: BLE001 - never let reporting kill the call
+            logger.error("Could not record the pipeline error detail: {}", exc)
+
+        try:
             workflow_run = await db_client.get_workflow_run_by_id(workflow_run_id)
             if workflow_run and workflow_run.campaign_id:
                 await circuit_breaker.record_and_evaluate(
@@ -463,3 +472,20 @@ def register_audio_data_handler(
                 await in_memory_buffers.bot.append(bot_audio)
         except MemoryError as e:
             logger.error(f"Track audio buffer full: {e}")
+
+
+async def _record_pipeline_error(workflow_run_id: int, frame) -> None:
+    """Write the pipeline failure onto the run so the UI can show it.
+
+    Kept short and bounded: this is a diagnostic breadcrumb, not a log sink, and
+    an unbounded frame repr on a JSON column is how a table becomes unqueryable.
+    """
+    detail = getattr(frame, "error", None) or str(frame)
+    run = await db_client.get_workflow_run_by_id(workflow_run_id)
+    extra = dict(getattr(run, "extra", None) or {}) if run else {}
+    extra["pipeline_error"] = {
+        "detail": str(detail)[:1000],
+        "frame_type": type(frame).__name__,
+        "at": datetime.now(UTC).isoformat(),
+    }
+    await db_client.update_workflow_run(workflow_run_id, extra=extra)
