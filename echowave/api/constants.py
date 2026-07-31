@@ -180,6 +180,31 @@ RECORDING_DISCLOSURE_TEXT = os.getenv(
 # directly and already answer in the language they hear.
 FOLLOW_CALLER_LANGUAGE = os.getenv("FOLLOW_CALLER_LANGUAGE", "false").lower() == "true"
 
+# ─── Database connection pool ────────────────────────────────────────────────
+#
+# SQLAlchemy defaults to 5 connections with 10 overflow. That ceiling is
+# invisible until concurrency crosses it, and then it does not raise — callers
+# *queue* on a connection while a live caller hears silence. It presents as
+# latency, so it gets blamed on the model rather than on the pool.
+#
+# Size against peak *concurrent calls*, not request rate: every in-flight call
+# touches the database several times over its life. A rough rule is
+#   pool_size >= peak_concurrent_calls / FASTAPI_WORKERS
+# with overflow for the bursts, and Postgres max_connections above the total
+# across every worker, the arq worker and the campaign dispatcher.
+DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "20"))
+DB_POOL_MAX_OVERFLOW = int(os.getenv("DB_POOL_MAX_OVERFLOW", "20"))
+
+# Seconds a caller waits for a connection before giving up. Deliberately short:
+# a call that cannot get a connection in ten seconds has already failed from the
+# listener's point of view, and failing fast frees the slot for the next one.
+DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "10"))
+
+# Concurrent post-call jobs. Raise with call volume: a backlog here does not
+# drop calls, it delays costing and makes the billing dashboard report stale
+# numbers, which looks like a reporting bug rather than a queue depth problem.
+ARQ_MAX_JOBS = int(os.getenv("ARQ_MAX_JOBS", "10"))
+
 # ─── Database backups ────────────────────────────────────────────────────────
 #
 # The credit ledger is the only record of what every customer has paid, and it

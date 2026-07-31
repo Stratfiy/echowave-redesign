@@ -45,6 +45,7 @@ from api.tasks.campaign_tasks import (
     sync_campaign_source,
 )
 from api.tasks.credit_reservations import sweep_credit_reservations
+from api.constants import ARQ_MAX_JOBS
 from api.tasks.backup import run_database_backup
 from api.tasks.data_retention import purge_expired_call_data
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
@@ -148,7 +149,11 @@ class WorkerSettings:
         ),
     ]
     redis_settings = REDIS_SETTINGS
-    max_jobs = 10
+    # Post-call work — costing, transcript upload, webhooks — is queued once per
+    # call. At tender volume (13,000 calls/day inside an 8-hour window) that is
+    # ~28 completions a minute, and a backlog here does not drop calls, it
+    # delays invoicing and the dashboard silently reports yesterday's numbers.
+    max_jobs = ARQ_MAX_JOBS
 
 
 LOG_CONFIG = {
