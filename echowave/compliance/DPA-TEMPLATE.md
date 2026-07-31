@@ -8,16 +8,31 @@ windows, the sub-processor list, the breach-scoping capability and the erasure
 mechanism are all real and all verifiable in the running system. The legal
 architecture around those facts still needs a professional.
 
-Two decisions must be made before this is used, and both are commercial rather
-than legal:
+Everything that could be settled by reading the code has been settled, and the
+security annex was written against the running system rather than from
+recollection — which turned up three gaps that are now stated plainly in Annex B
+instead of quietly omitted. What is left is six decisions. None of them is a
+fact anybody can look up; all of them are yours.
 
-1. **How it is accepted** — click-through at signup, or signed per customer.
-   See `§ Acceptance` below and the note at the end.
-2. **Where the liability cap sits** — left as `[TO CONFIRM]` because it is a
-   negotiation, not a fact.
+| # | Decision | Where | Why it cannot be defaulted |
+|---|---|---|---|
+| 1 | **Fix or disclose backups** | Annex B | There is no automated backup. This blocks sending the document at all — see the warning in Annex B. |
+| 2 | **Liability cap** — inside or outside the general cap | § 12 | The most negotiated term in any DPA. Take advice before offering either. |
+| 3 | **How it is accepted** — click-through or signed | § Acceptance | Commercial. The click-through route needs an acceptance record built first; see the closing note. |
+| 4 | **Multi-factor authentication** — build it, or answer "no" | Annex B | The most requested control in a security review, and the cheapest listed to add. |
+| 5 | **Encryption at rest** — verify the cloud volume setting | Annex B | Verifiable in five minutes, but only by someone with console access. Do not claim it unchecked. |
+| 6 | **Personnel controls** | Annex B | Facts about how you employ people. |
 
-Anything marked `[TO CONFIRM]` is a decision nobody has made yet. Do not ship
-it with those markers in place.
+A seventh applies only if you sell into the EU: § 10.2 needs an SCC module and a
+transfer impact assessment. Ignore it until an EU-established customer appears.
+
+Three items previously left open have been given the settled market default —
+30 days' sub-processor change notice, 30 days to delete on termination, and
+Chennai as the seat. Each is marked so you can see it was chosen rather than
+researched, and each is safe to leave as it stands.
+
+Anything still marked `[TO CONFIRM]` is a decision nobody has made yet. Do not
+send it to a customer with those markers in place.
 
 ---
 
@@ -158,8 +173,7 @@ data to vendors it never uses.
 protective than those in this DPA, and remains liable to the Customer for a
 Sub-processor's performance.
 
-6.4 **Change notice.** Decibyl will give the Customer at least `[TO CONFIRM —
-30 days is customary]` notice before engaging a new Sub-processor that will
+6.4 **Change notice.** Decibyl will give the Customer at least **30 days'** notice before engaging a new Sub-processor that will
 process the Customer's Call Data. The Customer may object on reasonable data
 protection grounds, in which case the parties will discuss in good faith; if no
 resolution is reached the Customer may terminate the affected Services without
@@ -212,8 +226,7 @@ actually reads.
 8.3 Deletion is enforced by an automated nightly job, not by request. Decibyl
 monitors the count of records past their retention window; the target is zero.
 
-8.4 On termination, Decibyl will delete Call Data within `[TO CONFIRM — 30 days
-is customary]`, except records it is required by law to retain.
+8.4 On termination, Decibyl will delete Call Data within **30 days**, except records it is required by law to retain.
 
 ## 9. Personal Data Breach
 
@@ -278,7 +291,10 @@ advice before offering either.]`
 for as long as Decibyl processes Personal Data on the Customer's behalf.
 
 13.2 This DPA is governed by the laws of India, and the courts at
-`[TO CONFIRM — Chennai or Bengaluru]` have exclusive jurisdiction.
+**Chennai** have exclusive jurisdiction. `[TO CONFIRM — Chennai is the seat of
+the High Court for Tamil Nadu, where Decibyl is registered, so it is the natural
+default. Change it if your counsel prefers the Krishnagiri district courts or a
+neutral commercial seat.]`
 
 13.3 In the event of conflict, this DPA prevails over the Agreement in respect
 of data protection.
@@ -316,17 +332,34 @@ annex is a misrepresentation in a contract, not marketing copy.
 
 | Measure | What is in place |
 |---|---|
-| Encryption in transit | TLS on all API and web traffic; encrypted transport to telephony and model providers |
+| Encryption in transit | TLS 1.2+ on all API and web traffic, with HTTP redirected to HTTPS and certificates issued by Let's Encrypt. Transport to telephony and model providers is HTTPS/WSS. |
 | Access to recordings | Time-limited presigned URLs only. The storage bucket grants no anonymous access. |
 | Access logging | Every retrieval of a recording or transcript is recorded with accessor identity and timestamp |
 | Tenant isolation | Every data access is scoped by organisation at the query level |
-| Credential storage | Provider API keys are encrypted at rest |
+| Credential storage | Provider API keys are encrypted at rest with AES-128-CBC + HMAC-SHA256 (Fernet). The system refuses to store a key at all if the encryption secret is absent, rather than falling back to plaintext. |
+| Password storage | bcrypt with a per-password salt. Passwords are never stored or logged in recoverable form. |
+| Session tokens | Signed JSON Web Tokens (HS256) with a bounded lifetime |
 | Retention enforcement | Automated nightly deletion against per-account windows, monitored for overdue records |
 | Erasure | Storage objects deleted before database references are cleared |
-| Authentication | `[TO CONFIRM — describe the authentication in use and whether MFA is available]` |
-| Backups | `[TO CONFIRM — describe backup frequency, retention and encryption]` |
-| Personnel | `[TO CONFIRM — background checks, confidentiality undertakings, security training]` |
-| Business continuity | `[TO CONFIRM — the platform currently runs in a single region with no automated failover. State this accurately; do not imply redundancy that does not exist.]` |
+
+**Measures not currently in place.** Stated because a security annex that omits
+them implies them, and a customer discovering the gap later has been misled by
+the omission rather than by a sentence.
+
+| Measure | Position |
+|---|---|
+| Multi-factor authentication | Not available. Access is by password and bearer token. `[TO CONFIRM — this is the most commonly requested control in a security review and the cheapest of these to add. Decide whether to build it before answering a questionnaire that asks.]` |
+| Encryption at rest (database and object storage) | Not applied at the application layer; it depends on the encryption setting of the underlying cloud volume. `[TO CONFIRM — verify whether the EBS volume and any S3 bucket in use are encrypted, and state the answer. Do not claim it unverified.]` |
+| Backups | **No automated backup is configured.** `[TO CONFIRM — see the note below. This must be fixed before it is described to a customer either way.]` |
+| Redundancy and failover | Single region, single host, no automated failover. Recovery is a manual redeploy. |
+| Security certification | None held. See § 11.3. |
+| Personnel controls | `[TO CONFIRM — background checks, confidentiality undertakings and security training are facts about how you employ people, and only you know them.]` |
+
+> **Do not send this document to a customer until the backup line is resolved.**
+> The credit ledger is the only record of what every customer has paid; there is
+> no other copy of it. This is a larger commercial risk than any clause in the
+> agreement above, and it is the one thing on this page that could end the
+> business rather than cost it a customer.
 
 ## Annex C — Contacts
 

@@ -17,6 +17,38 @@ Last updated after the compliance and deployment pass.
 
 ## Open
 
+### 13. Nothing backs up the database
+
+**Status:** OPEN · **Severity: critical**
+
+There is no automated backup of Postgres anywhere — no `pg_dump`, no WAL
+archiving, no volume snapshot, nothing in `docker-compose.yaml` and nothing in
+any deploy script. `DEPLOY.md` tells the operator to "take a backup, and check
+you can restore it", which is an instruction to a human, not an implementation.
+
+The credit ledger is the only record of what every customer has paid. There is
+no second copy and no way to reconstruct it: Razorpay knows what was charged,
+but not what was consumed, reserved, or adjusted. Losing the volume loses the
+money history, and the tax invoices issued against it become unreproducible —
+which is a GST problem on top of a customer-trust one.
+
+Found while writing `compliance/DPA-TEMPLATE.md`, where the security annex has
+to state the backup position to a customer either way.
+
+Fixing it is small and there are two credible shapes:
+
+* **Nightly `pg_dump` to object storage**, encrypted, with a retention window
+  and a restore rehearsal. Lives in the repo, works on any host, and is the
+  only option if Postgres stays in a container.
+* **Managed snapshots** — move Postgres to RDS, or take scheduled EBS
+  snapshots. Less code, more cloud coupling, and does not help anyone running
+  the compose file elsewhere.
+
+Whichever is chosen, **an untested backup is not a backup**: the restore has to
+be rehearsed once before it counts.
+
+---
+
 ### 7. Top-level directory is still named `echowave/`
 
 **Status:** DECISION NEEDED · **Severity: low**
