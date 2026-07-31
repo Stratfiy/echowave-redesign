@@ -392,15 +392,24 @@ async def accept_agreement(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        # Read the row into plain values *before* committing. The session
+        # expires every attribute on commit and is detached when the block
+        # exits, so touching row.version afterwards raises
+        # DetachedInstanceError — a 500 on an endpoint whose whole job is to
+        # record that the customer agreed. The write had already succeeded,
+        # which is the worst shape for this bug: the acceptance is in the
+        # database and the customer sees a failure.
+        recorded = {
+            "agreement": row.agreement,
+            "version": row.version,
+            "accepted_at": row.accepted_at.isoformat(),
+        }
+
         await session.commit()
 
         outstanding = await agreements.outstanding_for(
             session, organization_id=organization_id
         )
 
-    return {
-        "agreement": row.agreement,
-        "version": row.version,
-        "accepted_at": row.accepted_at.isoformat(),
-        "outstanding": [a.key for a in outstanding],
-    }
+    return {**recorded, "outstanding": [a.key for a in outstanding]}
