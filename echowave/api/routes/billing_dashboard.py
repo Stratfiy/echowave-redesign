@@ -28,7 +28,13 @@ from api.db.models import (
 )
 from api.enums import BillingAuditAction, CreditLedgerKind
 from api.services.auth.depends import get_superuser
-from api.services.billing import kpis, rate_card
+from api.services.billing import (
+    default_rates,
+    fx_source,
+    kpis,
+    rate_card,
+    realized_rates,
+)
 from api.services.billing.costing import current_balance_paise
 from api.services.billing.rate_card import RateCardError
 from api.services.billing.rollup import IST
@@ -491,9 +497,36 @@ class ExchangeRateRequest(BaseModel):
 
 @router.get("/rate-card")
 async def get_rate_card() -> dict[str, Any]:
-    """Every price currently in force, and whether any is still a fallback."""
+    """Every price in force, what we actually paid, and where the two disagree.
+
+    Three things an operator cannot get from the stored rate alone:
+
+    * **Both currencies.** Vendors quote in dollars, we invoice in rupees.
+      Showing one leaves somebody converting in their head at a guessed rate.
+    * **The realized rate**, measured from calls already made. List prices are
+      the number nobody pays; this is the number we paid.
+    * **Divergence**, where the two disagree by more than a rounding error.
+      That check is what would have caught the seeded Sarvam TTS rate sitting
+      at 1.56x under its published price, and what will catch a telephony rate
+      still set to a US list when the traffic is Indian.
+
+    Reported, never auto-applied. The realized figure is derived from costs that
+    were themselves computed from the configured rate, so writing it back would
+    be circular; it earns its keep by disagreeing, and a human decides why.
+    """
     async with db_client.async_session() as session:
         card = await rate_card.get_rate_card(session)
+        realized = await realized_rates.measure(session)
+
+    configured = {
+        (r["provider"], r["component"]): float(r["rate_mpaise"])
+        for r in card.provider_rates
+        # Provider-wide rows only: a model-specific rate cannot be compared
+        # against a blend measured across every model from that vendor.
+        if r["model"] is None
+    }
+    divergences = realized_rates.divergence(realized, configured)
+
     return {
         "global_tier": card.global_tier,
         "volume_tiers": card.volume_tiers,
@@ -501,7 +534,60 @@ async def get_rate_card() -> dict[str, Any]:
         "exchange_rate": card.exchange_rate,
         "using_fallback_platform_rate": card.using_fallback_platform_rate,
         "fallback": card.fallback,
+        "realized": [
+            {
+                "provider": r.provider,
+                "component": r.component,
+                "rate_mpaise": round(r.mpaise_per_unit, 4),
+                "rate_inr": r.mpaise_per_unit / 100_000,
+                "units": r.units,
+                "calls": r.calls,
+                "cost_paise": r.cost_paise,
+                # Below the significance floor a blend is one atypical call away
+                # from nonsense, so it is shown as unmeasured rather than as a
+                # small number that looks authoritative.
+                "significant": r.is_significant,
+            }
+            for r in realized
+        ],
+        "divergence": [
+            {
+                "provider": d.provider,
+                "component": d.component,
+                "configured_mpaise": d.configured_mpaise,
+                "realized_mpaise": round(d.realized_mpaise, 4),
+                "ratio": round(d.ratio, 4),
+                "units": d.units,
+                "note": d.note,
+            }
+            for d in divergences
+        ],
+        "list_prices_as_of": default_rates.AS_OF,
+        "window_days": realized_rates.DEFAULT_WINDOW_DAYS,
     }
+
+
+@router.post("/rate-card/exchange-rate/refresh")
+async def refresh_exchange_rate(
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Fetch USD→INR now and record it if it moved.
+
+    The one price in this system with a real feed behind it. Provider prices are
+    published as marketing HTML with no API, so they stay operator-set — see
+    ``services/billing/fx_source``.
+    """
+    async with db_client.async_session() as session:
+        try:
+            changed = await fx_source.refresh(session)
+        except fx_source.FxFetchError as exc:
+            # 502 rather than 500: the failure is upstream, and nothing was
+            # written. A stale rate is survivable; an invented one is not.
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        await session.commit()
+        card = await rate_card.get_rate_card(session)
+
+    return {"changed": changed, "exchange_rate": card.exchange_rate}
 
 
 @router.put("/rate-card/platform")

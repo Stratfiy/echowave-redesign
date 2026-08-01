@@ -517,6 +517,16 @@ async def get_rate_card(session: AsyncSession) -> RateCard:
                 "component": r.component,
                 "unit": r.unit,
                 "rate_mpaise": r.rate_mpaise,
+                # Both currencies, derived from one stored number. Vendors quote
+                # in dollars and we invoice in rupees, so a card showing only
+                # one of them makes somebody do the conversion in their head at
+                # a rate they have guessed.
+                "rate_inr": r.rate_mpaise / 100_000,
+                "rate_usd": (
+                    r.rate_mpaise / (fx.paise_per_usd * 1000)
+                    if fx and fx.paise_per_usd
+                    else None
+                ),
                 "effective_from": r.effective_from.isoformat(),
                 "note": r.note,
             }

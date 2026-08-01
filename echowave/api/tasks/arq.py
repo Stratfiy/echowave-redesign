@@ -39,15 +39,16 @@ REDIS_SETTINGS = RedisSettings(
     ssl_check_hostname=False if use_ssl else None,
 )
 
+from api.constants import ARQ_MAX_JOBS
+from api.tasks.backup import run_database_backup
 from api.tasks.billing_rollup import refresh_billing_rollups
 from api.tasks.campaign_tasks import (
     process_campaign_batch,
     sync_campaign_source,
 )
 from api.tasks.credit_reservations import sweep_credit_reservations
-from api.constants import ARQ_MAX_JOBS
-from api.tasks.backup import run_database_backup
 from api.tasks.data_retention import purge_expired_call_data
+from api.tasks.fx import refresh_exchange_rate
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.kyc_carrier_poll import poll_kyc_carrier_status
 from api.tasks.run_integrations import run_integrations_post_workflow_run
@@ -70,6 +71,7 @@ class WorkerSettings:
         issue_monthly_tax_invoices,
         purge_expired_call_data,
         run_database_backup,
+        refresh_exchange_rate,
     ]
     cron_jobs = [
         # Safety net for webhook deliveries whose ARQ job was lost (worker
@@ -136,6 +138,15 @@ class WorkerSettings:
             run_database_backup,
             hour={18},
             minute={0},
+            second=0,
+            run_at_startup=False,
+        ),
+        # 02:30 UTC is 08:00 IST — after the reference rates for the day are
+        # published and before anyone opens the rate card.
+        cron(
+            refresh_exchange_rate,
+            hour={2},
+            minute={30},
             second=0,
             run_at_startup=False,
         ),
