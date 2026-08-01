@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
-from typing import List, Literal, Optional, TypedDict, Union
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel, ValidationError
+from typing_extensions import TypedDict
 
 from api.db import db_client
 from api.db.models import (
@@ -97,15 +98,15 @@ async def get_auth_user(
 
 
 class UserConfigurationRequestResponseSchema(BaseModel):
-    llm: dict[str, Union[str, float, list[str], None]] | None = None
-    tts: dict[str, Union[str, float, list[str], None]] | None = None
-    stt: dict[str, Union[str, float, list[str], None]] | None = None
-    embeddings: dict[str, Union[str, float, list[str], None]] | None = None
-    realtime: dict[str, Union[str, float, list[str], None]] | None = None
+    llm: dict[str, str | float | list[str] | None] | None = None
+    tts: dict[str, str | float | list[str] | None] | None = None
+    stt: dict[str, str | float | list[str] | None] | None = None
+    embeddings: dict[str, str | float | list[str] | None] | None = None
+    realtime: dict[str, str | float | list[str] | None] | None = None
     is_realtime: bool | None = None
     test_phone_number: str | None = None
     timezone: str | None = None
-    organization_pricing: dict[str, Union[float, str, bool]] | None = None
+    organization_pricing: dict[str, float | str | bool] | None = None
 
 
 def _is_validation_cache_stale(
@@ -306,8 +307,8 @@ class APIKeyResponse(BaseModel):
     key_prefix: str
     is_active: bool
     created_at: datetime
-    last_used_at: Optional[datetime] = None
-    archived_at: Optional[datetime] = None
+    last_used_at: datetime | None = None
+    archived_at: datetime | None = None
 
 
 class CreateAPIKeyRequest(BaseModel):
@@ -326,7 +327,7 @@ class CreateAPIKeyResponse(BaseModel):
 async def get_api_keys(
     include_archived: bool = Query(default=False),
     user: UserModel = Depends(get_user),
-) -> List[APIKeyResponse]:
+) -> list[APIKeyResponse]:
     """Get all API keys for the user's selected organization."""
     if not user.selected_organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
@@ -426,35 +427,35 @@ TTSProvider = Literal["elevenlabs", "deepgram", "sarvam", "cartesia", "decibyl",
 class VoiceInfo(BaseModel):
     voice_id: str
     name: str
-    description: Optional[str] = None
-    accent: Optional[str] = None
-    gender: Optional[str] = None
-    language: Optional[str] = None
-    preview_url: Optional[str] = None
+    description: str | None = None
+    accent: str | None = None
+    gender: str | None = None
+    language: str | None = None
+    preview_url: str | None = None
 
 
 class VoiceFacets(BaseModel):
     """Distinct selector values across a provider's full voice catalog."""
 
-    genders: List[str] = []
-    accents: List[str] = []
-    languages: List[str] = []
+    genders: list[str] = []
+    accents: list[str] = []
+    languages: list[str] = []
 
 
 class VoicesResponse(BaseModel):
     provider: str
-    voices: List[VoiceInfo]
-    facets: Optional[VoiceFacets] = None
+    voices: list[VoiceInfo]
+    facets: VoiceFacets | None = None
 
 
 @router.get("/configurations/voices/{provider}")
 async def get_voices(
     provider: TTSProvider,
-    model: Optional[str] = None,
-    language: Optional[str] = None,
-    q: Optional[str] = None,
-    gender: Optional[str] = None,
-    accent: Optional[str] = None,
+    model: str | None = None,
+    language: str | None = None,
+    q: str | None = None,
+    gender: str | None = None,
+    accent: str | None = None,
     user: UserModel = Depends(get_user),
 ) -> VoicesResponse:
     """Get available voices for a TTS provider."""
