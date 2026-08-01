@@ -1,39 +1,20 @@
-"""End-to-end smoke test: signup -> agreement -> profile -> payment -> invoice.
+"""End-to-end: signup -> agreements -> billing profile -> top-up -> ledger -> invoice.
 
-Drives the real HTTP API rather than the service layer, because the question is
-whether a customer can get from nothing to a paid, invoiced account — and the
-gaps live precisely between a working service and a broken route.
-
-**This exists because the unit suite cannot see that class of bug.** It was
-written after 1,900 green tests, and its first run found a 500 on the agreement
-acceptance endpoint: the handler read an ORM row after committing, which
-expires every attribute and detaches the instance. All the service-level tests
-passed while the endpoint was unusable, and the failure shape was the worst
-available — the acceptance was written to the database and the customer saw an
-error.
-
-Usage:
-    BASE_URL=https://staging.example RAZORPAY_WEBHOOK_SECRET=... \\
-        python -m scripts.e2e_smoke
-
-Run it against staging, never production: it creates an account and posts a
-payment webhook. Give it its own database too — pointing it at the one pytest
-uses leaves accounts and signup bonuses behind, and the suite has assertions
-about global ledger totals that then fail for reasons nothing in the diff
-explains.
+Drives the real HTTP API, not the service layer, because the question is
+whether a customer can get from nothing to a paid, invoiced account — and every
+gap between a working service and a broken route lives in that difference.
 """
 
 import hashlib
 import hmac
 import json
-import os
 import sys
 import time
 
 import requests
 
-BASE = os.environ.get("BASE_URL", "http://127.0.0.1:8000").rstrip("/") + "/api/v1"
-WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")
+BASE = "http://127.0.0.1:8100/api/v1"
+WEBHOOK_SECRET = "e2ewebhooksecret"
 EMAIL = f"e2e-{int(time.time())}@decibyl-e2e.com"
 PASSWORD = "Test-Passw0rd!"
 
