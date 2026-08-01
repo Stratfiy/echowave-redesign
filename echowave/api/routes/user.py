@@ -16,6 +16,7 @@ from api.schemas.workflow_configurations import (
     get_default_workflow_configurations,
 )
 from api.services.auth.depends import get_user
+from api.services.configuration import voice_catalogue
 from api.services.configuration.ai_model_configuration import (
     convert_legacy_ai_model_configuration_to_v2,
     get_resolved_ai_model_configuration,
@@ -30,7 +31,6 @@ from api.services.configuration.defaults import DEFAULT_SERVICE_PROVIDERS
 from api.services.configuration.masking import check_for_masked_keys, mask_user_config
 from api.services.configuration.merge import merge_user_configurations
 from api.services.configuration.registry import REGISTRY, ServiceType
-from api.services.mps_service_key_client import mps_service_key_client
 from api.services.organization_preferences import (
     get_organization_preferences,
     upsert_organization_preferences,
@@ -458,22 +458,27 @@ async def get_voices(
     accent: str | None = None,
     user: UserModel = Depends(get_user),
 ) -> VoicesResponse:
-    """Get available voices for a TTS provider."""
+    """Available voices, served from the local catalogue.
+
+    Previously fetched from an external managed service that no longer exists,
+    which made every picker read "Failed to load voices" and left TTS
+    unconfigurable — and an agent with no voice cannot place a call.
+    """
     try:
-        result = await mps_service_key_client.get_voices(
-            provider=provider,
-            model=model,
-            language=language,
-            q=q,
-            gender=gender,
-            accent=accent,
-            organization_id=user.selected_organization_id,
-            created_by=user.provider_id,
-        )
+        catalogue = voice_catalogue.filtered(provider, model=model, q=q, gender=gender)
         return VoicesResponse(
-            provider=result.get("provider", provider),
-            voices=[VoiceInfo(**voice) for voice in result.get("voices", [])],
-            facets=result.get("facets"),
+            provider=catalogue.provider,
+            voices=[
+                VoiceInfo(
+                    voice_id=v.voice_id,
+                    name=v.name,
+                    gender=v.gender,
+                    language=v.language,
+                    description=v.description or catalogue.unavailable_reason,
+                )
+                for v in catalogue.voices
+            ],
+            facets=VoiceFacets(**voice_catalogue.facets(provider, model=model)),
         )
     except Exception as e:
         logger.error(f"Failed to fetch voices for {provider}: {e}")
