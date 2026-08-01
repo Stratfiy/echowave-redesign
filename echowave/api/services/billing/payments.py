@@ -238,7 +238,30 @@ def verify_webhook_signature(*, raw_body: bytes, signature: str | None) -> bool:
         raw_body,
         hashlib.sha256,
     ).hexdigest()
-    return hmac.compare_digest(expected, signature)
+    if hmac.compare_digest(expected, signature):
+        return True
+
+    # A rejected webhook is nearly undebuggable without this. The two ways it
+    # fails look identical from outside — a mismatched secret, and a body that
+    # was altered in transit by a proxy — and the fix for each is the opposite
+    # of the fix for the other.
+    #
+    # Signature *prefixes* only, and a fingerprint of the secret rather than
+    # the secret: enough to tell "different key" from "different bytes",
+    # useless to anyone reading the logs. The body length is the tell for a
+    # proxy that re-encoded or truncated the payload.
+    logger.warning(
+        "Razorpay signature mismatch: body={} bytes, received={}…, computed={}…, "
+        "secret fingerprint={} (len {}). Equal prefixes with unequal signatures "
+        "means the body changed in transit; different prefixes mean the secret "
+        "here and the one on the webhook do not match.",
+        len(raw_body),
+        signature[:8],
+        expected[:8],
+        hashlib.sha256(RAZORPAY_WEBHOOK_SECRET.encode()).hexdigest()[:8],
+        len(RAZORPAY_WEBHOOK_SECRET),
+    )
+    return False
 
 
 def _payment_entity(event: dict) -> dict:
