@@ -58,6 +58,9 @@ class WorkflowAIModelConfigurationMigrationResult:
     workflow_ids: list[int] | None = None
 
 
+from api.services.configuration import managed_resolution
+
+
 async def get_resolved_ai_model_configuration(
     *,
     organization_id: int | None,
@@ -98,17 +101,25 @@ async def get_effective_ai_model_configuration_for_workflow(
         WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY
     )
     if v2_override:
-        return compile_ai_model_configuration_v2(
+        effective = compile_ai_model_configuration_v2(
             OrganizationAIModelConfigurationV2.model_validate(v2_override)
         )
+        await managed_resolution.apply(effective)
+        return effective
 
     resolved_config = await get_resolved_ai_model_configuration(
         organization_id=organization_id,
     )
-    return resolve_effective_config(
+    effective = resolve_effective_config(
         resolved_config.effective,
         workflow_configurations.get("model_overrides"),
     )
+    # A section still saying "decibyl" has no vendor and no key. Resolve it to
+    # the provider serving that tier, on our platform key, so everything
+    # downstream sees an ordinary configured provider. Last, so it applies to
+    # workflow overrides too.
+    await managed_resolution.apply(effective)
+    return effective
 
 
 async def get_organization_ai_model_configuration_v2(
