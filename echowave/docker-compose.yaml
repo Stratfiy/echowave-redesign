@@ -189,11 +189,25 @@ services:
       # tunnel's URL at runtime instead (see api/utils/common.py).
       BACKEND_API_ENDPOINT: "${BACKEND_API_ENDPOINT:-}"
 
-      # Database configuration (using containerized postgres)
-      DATABASE_URL: "postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres"
+      # Database. Defaults to the sibling postgres container; set DATABASE_URL
+      # in .env to point at a managed instance (RDS, Cloud SQL) instead.
+      #
+      # The default has to be expressed as a fallback rather than a fixed value:
+      # anything named here wins over env_file, so hardcoding it made an
+      # external database unreachable without editing this file — and the way
+      # that failed was silent, since the stack came up healthy on the local
+      # container while the operator believed they were on RDS.
+      #
+      # Pointing this elsewhere does NOT stop the bundled postgres container
+      # from starting. Use `--scale postgres=0`, or the "internal" profile
+      # split, if you want the local one gone.
+      DATABASE_URL: "${DATABASE_URL:-postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres}"
 
-      # Redis configuration (using containerized redis)
-      REDIS_URL: "redis://:${REDIS_PASSWORD:-redissecret}@redis:6379"
+      # Cache and queue. Same reasoning — set REDIS_URL in .env for
+      # ElastiCache. Note that ARQ, the campaign concurrency counters and the
+      # cross-worker sync bus all share this one Redis, so it is not optional
+      # infrastructure and a managed instance wants Multi-AZ.
+      REDIS_URL: "${REDIS_URL:-redis://:${REDIS_PASSWORD:-redissecret}@redis:6379}"
 
       # Storage configuration - bundled MinIO by default. Set ENABLE_AWS_S3=true
       # in .env to make the API use AWS S3 or another S3-compatible server.
