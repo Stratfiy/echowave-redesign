@@ -50,7 +50,20 @@ class EffectiveAIModelConfiguration(BaseModel):
 
 
 class DecibylManagedAIModelConfiguration(BaseModel):
-    api_key: str
+    """Managed mode: we hold the vendor keys, the customer holds none.
+
+    ``api_key`` is deliberately optional and empty by default. This field is a
+    holdover from when "Decibyl" meant a hosted service the customer received a
+    service key for; it now means *we* pay for the inference on our platform
+    keys, which ``services/configuration/managed_resolution`` substitutes at
+    runtime. Requiring a key here made managed mode impossible to save — the
+    entire point of choosing it is not having one.
+
+    It is kept rather than deleted so a stored configuration written by the old
+    UI still loads. Nothing reads it.
+    """
+
+    api_key: str = ""
     voice: str = DECIBYL_DEFAULT_VOICE
     speed: float = Field(default=1.0, ge=DECIBYL_SPEED_MIN, le=DECIBYL_SPEED_MAX)
     language: str = DECIBYL_DEFAULT_LANGUAGE

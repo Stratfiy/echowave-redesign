@@ -12,6 +12,7 @@ import {
     ServiceConfigurationForm,
     type ServiceSegment,
 } from "@/components/ServiceConfigurationForm";
+import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,10 @@ interface DecibylDefaults {
         speed: number;
         language: string;
     };
+    // What the managed tiers resolve to today. Needed to price a managed
+    // stack — the cost estimator is keyed by real provider and model, and
+    // "decibyl" is neither.
+    upstream?: Record<string, { provider: string; model: string }>;
 }
 
 export interface ModelConfigurationDefaultsV2 {
@@ -472,6 +477,24 @@ export function AIModelConfigurationV2Editor({
                         </a>
                         .
                     </p>
+
+                    {/* Managed mode used to show no price at all, which made it
+                        look like the expensive option next to BYOK — where this
+                        same bar has always been rendered. It is the same
+                        estimate either way: units per minute measured from our
+                        own calls on that model, priced at the live rate card. */}
+                    <CostPerMinuteBar
+                        className="mb-4"
+                        stack={{
+                            stt_provider: defaults.decibyl.upstream?.stt?.provider ?? null,
+                            stt_model: defaults.decibyl.upstream?.stt?.model ?? "",
+                            llm_provider: defaults.decibyl.upstream?.llm?.provider ?? null,
+                            llm_model: defaults.decibyl.upstream?.llm?.model ?? "",
+                            tts_provider: defaults.decibyl.upstream?.tts?.provider ?? null,
+                            tts_model: defaults.decibyl.upstream?.tts?.model ?? "",
+                        }}
+                    />
+
                     <Card>
                         <CardContent className="pt-6">
                             <div className="grid gap-4 sm:grid-cols-2">
@@ -525,20 +548,22 @@ export function AIModelConfigurationV2Editor({
                                     />
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="decibyl-api-key">API Key</Label>
-                                    <div className="relative">
-                                        <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                        <Input
-                                            id="decibyl-api-key"
-                                            className="pl-9"
-                                            value={decibyl.api_key}
-                                            onChange={(event) => setDecibyl({ ...decibyl, api_key: event.target.value })}
-                                            placeholder="Enter API key"
-                                        />
-                                    </div>
-                                </div>
                             </div>
+
+                            {/*
+                             * No API key field, deliberately. Managed mode means Decibyl holds
+                             * the vendor keys — asking the customer for one was a holdover from
+                             * when this tab meant a hosted service they received a service key
+                             * for, and it made managed mode impossible to save.
+                             */}
+                            <p className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
+                                <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                <span>
+                                    No API keys needed. Decibyl provides and pays for the
+                                    transcriber, language model and voice, and bills them on your
+                                    invoice at a published rate.
+                                </span>
+                            </p>
 
                             <Button type="button" className="mt-6 w-full" onClick={saveDecibylConfiguration} disabled={isSavingDecibyl}>
                                 <Save className="mr-2 h-4 w-4" />

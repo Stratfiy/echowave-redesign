@@ -37,6 +37,15 @@ from api.enums import CostComponent
 LLM_TIERS = ("default", "fast", "lite", "accurate", "zen")
 STT_TIERS = ("default",)
 TTS_TIERS = ("default",)
+EMBEDDINGS_TIERS = ("default",)
+
+#: Embeddings are not a billing component — they are consumed at knowledge-base
+#: ingest rather than per call, so there is no ``CostComponent.EMBEDDINGS`` and
+#: no per-call line item for them. They still need a real provider and a real
+#: key, which is why they are mapped here alongside the rest: a managed
+#: configuration emits an embeddings section too, and until this existed that
+#: section named a provider nothing could resolve.
+EMBEDDINGS_COMPONENT = "embeddings"
 
 
 @dataclass(frozen=True)
@@ -83,6 +92,13 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # --- Speech --------------------------------------------------------
         ("stt", "default"): _tier("stt", "default", "sarvam", "saarika:v2"),
         ("tts", "default"): _tier("tts", "default", "sarvam", "bulbul:v2"),
+        # --- Embeddings ----------------------------------------------------
+        # Google, to match the default language model: one vendor key serves
+        # both chat and embeddings, so a managed customer needs no second
+        # credential stored and no second account to go wrong.
+        (EMBEDDINGS_COMPONENT, "default"): _tier(
+            EMBEDDINGS_COMPONENT, "default", "google", "text-embedding-004"
+        ),
     }
 
 

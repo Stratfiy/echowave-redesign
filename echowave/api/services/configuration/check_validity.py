@@ -12,7 +12,6 @@ from api.schemas.ai_model_configuration import (
     EffectiveAIModelConfiguration,
 )
 from api.services.configuration.registry import ServiceConfig, ServiceProviders
-from api.services.mps_service_key_client import mps_service_key_client
 from api.utils.url_security import validate_user_configured_service_url
 
 AuthContext = TypedDict(
@@ -329,17 +328,21 @@ class UserConfigurationValidator:
         return True
 
     def _check_decibyl_api_key(self, model: str, api_key: str) -> bool:
-        if api_key.startswith("dgr"):
-            raise ValueError(
-                "You provided a Decibyl API key (dgr...) instead of a service key. "
-                "Please use a service key (mps...)."
-            )
-        auth = getattr(self, "_auth_context", {})
-        return mps_service_key_client.validate_service_key(
-            api_key,
-            organization_id=auth.get("organization_id"),
-            created_by=auth.get("created_by"),
-        )
+        """Managed mode has no customer key to validate.
+
+        This used to POST the key to an external managed service to check it.
+        That service no longer exists, so every validation failed with "Invalid
+        ServiceProviders.DECIBYL API key" — which read as the customer having
+        typed the wrong key, when in fact **there is no key for them to type**.
+        Choosing Decibyl means choosing not to hold one.
+
+        What actually has to be true is that *we* hold a platform key for the
+        provider behind each managed tier. That is a property of our account,
+        not of theirs, so it does not belong in a per-customer key check —
+        ``managed_resolution.missing_platform_keys()`` reports it on the
+        readiness check, and a gap there is logged loudly at dial time.
+        """
+        return True
 
     def _check_sarvam_api_key(self, model: str, api_key: str) -> bool:
         return True

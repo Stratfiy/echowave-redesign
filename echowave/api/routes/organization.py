@@ -55,6 +55,7 @@ from api.services.configuration.ai_model_configuration import (
     migrate_workflow_model_configurations_to_v2,
     upsert_organization_ai_model_configuration_v2,
 )
+from api.services.configuration import managed_tiers
 from api.services.configuration.check_validity import UserConfigurationValidator
 from api.services.configuration.defaults import DEFAULT_SERVICE_PROVIDERS
 from api.services.configuration.masking import is_mask_of, mask_key, mask_user_config
@@ -280,6 +281,24 @@ async def get_model_configuration_v2_defaults(
                 "voice": DECIBYL_DEFAULT_VOICE,
                 "speed": 1.0,
                 "language": DECIBYL_DEFAULT_LANGUAGE,
+            },
+            # What the managed tiers actually resolve to right now. The screen
+            # needs it to price a managed stack: the cost estimator is keyed by
+            # real provider and model, and "decibyl" is neither.
+            #
+            # Naming the vendors here is deliberate. A buyer comparing us
+            # against a platform that shows its stack will not accept "trust
+            # us", and the tier can still be moved without a release — this
+            # reads the mapping rather than restating it.
+            "upstream": {
+                component: {
+                    "provider": upstream.provider,
+                    "model": upstream.model,
+                }
+                for component, upstream in (
+                    (name, managed_tiers.resolve(name, "default"))
+                    for name in ("stt", "llm", "tts")
+                )
             },
         },
         "byok": {

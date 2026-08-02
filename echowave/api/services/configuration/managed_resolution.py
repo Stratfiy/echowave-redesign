@@ -29,11 +29,29 @@ from api.services.configuration.registry import ServiceProviders
 #: Sections that can be served by a managed tier. Telephony is absent for the
 #: same reason it is absent from platform credentials: carrier accounts carry
 #: their own KYC and live on telephony_configurations.
-MANAGED_SECTIONS: tuple[tuple[str, CostComponent], ...] = (
+MANAGED_SECTIONS: tuple[tuple[str, CostComponent | str], ...] = (
     ("stt", CostComponent.STT),
     ("llm", CostComponent.LLM),
     ("tts", CostComponent.TTS),
+    # Emitted by every managed configuration for knowledge-base retrieval.
+    # Until this was here the section kept ``provider=decibyl`` all the way to
+    # the embeddings factory, which is what put the second "Invalid
+    # ServiceProviders.DECIBYL API key" on the model-override screen.
+    ("embeddings", managed_tiers.EMBEDDINGS_COMPONENT),
 )
+
+
+def _credential_component(component: CostComponent | str) -> CostComponent:
+    """Which stored platform credential authenticates this component.
+
+    Embeddings have no credential slot of their own, and should not get one: a
+    vendor issues **one** key that serves chat and embeddings alike, so a
+    separate slot would mean an admin pasting the same Google key twice and
+    the managed pipeline breaking whenever they updated only one of them.
+    """
+    if component == managed_tiers.EMBEDDINGS_COMPONENT:
+        return CostComponent.LLM
+    return component  # type: ignore[return-value]
 
 
 def _is_managed(section) -> bool:
@@ -67,7 +85,9 @@ async def apply(effective) -> None:
             upstream = managed_tiers.resolve(component, getattr(section, "model", None))
 
             api_key = await platform_credentials.resolve_api_key(
-                session, component=component, provider=upstream.provider
+                session,
+                component=_credential_component(component),
+                provider=upstream.provider,
             )
             if not api_key:
                 logger.error(
@@ -102,7 +122,9 @@ async def missing_platform_keys() -> list[tuple[str, str]]:
     async with db_client.async_session() as session:
         for component, provider in sorted(managed_tiers.upstream_providers()):
             key = await platform_credentials.resolve_api_key(
-                session, component=component, provider=provider
+                session,
+                component=_credential_component(component),
+                provider=provider,
             )
             if not key:
                 missing.append((component, provider))

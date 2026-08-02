@@ -65,8 +65,51 @@ class TestWhatTheOfferingDependsOn:
         assert any(component == "llm" for component, _ in pairs)
 
     def test_it_covers_every_managed_component(self):
+        """Embeddings belong here even though they are not a billing component.
+
+        A managed configuration emits an embeddings section for knowledge-base
+        retrieval. While it was missing from this map the section kept
+        ``provider=decibyl`` all the way to the embeddings factory, and the
+        model-override screen showed a second "Invalid ServiceProviders.DECIBYL
+        API key" that no customer could act on.
+        """
         assert {component for component, _ in managed_tiers.upstream_providers()} == {
             "stt",
             "llm",
             "tts",
+            "embeddings",
         }
+
+    def test_embeddings_resolve_to_a_real_provider_and_model(self):
+        up = managed_tiers.resolve(managed_tiers.EMBEDDINGS_COMPONENT, "default")
+        assert up.provider and up.model
+
+    def test_the_stored_embeddings_model_name_still_resolves(self):
+        """Managed configs compile with ``model="decibyl_embedding_v1"`` — a
+        name from the old hosted service, not a tier. It has to land on the
+        default rather than raise, or every managed knowledge base breaks."""
+        assert managed_tiers.resolve(
+            managed_tiers.EMBEDDINGS_COMPONENT, "decibyl_embedding_v1"
+        ) == managed_tiers.resolve(managed_tiers.EMBEDDINGS_COMPONENT, "default")
+
+
+class TestWhichCredentialAuthenticates:
+    """One vendor key serves chat and embeddings, so embeddings must not get a
+    credential slot of its own — an admin pasting the same Google key into two
+    slots is one rotation away from a half-broken managed pipeline."""
+
+    def test_embeddings_authenticate_on_the_llm_credential(self):
+        from api.enums import CostComponent
+        from api.services.configuration import managed_resolution
+
+        assert (
+            managed_resolution._credential_component(managed_tiers.EMBEDDINGS_COMPONENT)
+            is CostComponent.LLM
+        )
+
+    def test_every_other_component_keeps_its_own(self):
+        from api.enums import CostComponent
+        from api.services.configuration import managed_resolution
+
+        for component in (CostComponent.STT, CostComponent.LLM, CostComponent.TTS):
+            assert managed_resolution._credential_component(component) is component
