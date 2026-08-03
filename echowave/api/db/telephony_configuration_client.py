@@ -219,6 +219,28 @@ class TelephonyConfigurationClient(BaseDBClient):
             await session.refresh(row)
             return row
 
+    async def set_platform_managed(
+        self, config_id: int, *, managed: bool = True
+    ) -> Optional[TelephonyConfigurationModel]:
+        """Mark a configuration as platform-managed (Decibyl's own carrier account).
+
+        Admin-only operation — no organization_id check. This gates the
+        telephony KYC flow: only platform-managed configurations are subject to
+        ``assert_may_place_calls``.
+        """
+        async with self.async_session() as session:
+            row = await session.get(TelephonyConfigurationModel, config_id)
+            if row is None:
+                return None
+            row.is_platform_managed = managed
+            try:
+                await session.commit()
+            except IntegrityError as e:
+                await session.rollback()
+                raise e
+            await session.refresh(row)
+            return row
+
     async def delete_telephony_configuration(
         self, config_id: int, organization_id: int
     ) -> bool:

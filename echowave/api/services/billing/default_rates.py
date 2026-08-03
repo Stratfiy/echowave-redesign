@@ -271,7 +271,7 @@ TELEPHONY_RATES = (
         "twilio", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 0.0140, "US outbound"
     ),
     DefaultRate(
-        "plivo", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 0.0100, "US outbound"
+        "plivo", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 0.0030, "India outbound"
     ),
     DefaultRate(
         "telnyx", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 0.0070, "US outbound"
