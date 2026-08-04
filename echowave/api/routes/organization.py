@@ -44,6 +44,7 @@ from api.services.auth.depends import (
     get_user,
     get_user_with_selected_organization,
 )
+from api.services.configuration import managed_tiers
 from api.services.configuration.ai_model_configuration import (
     check_for_masked_keys_in_ai_model_configuration_v2,
     compile_ai_model_configuration_v2,
@@ -55,7 +56,6 @@ from api.services.configuration.ai_model_configuration import (
     migrate_workflow_model_configurations_to_v2,
     upsert_organization_ai_model_configuration_v2,
 )
-from api.services.configuration import managed_tiers
 from api.services.configuration.check_validity import UserConfigurationValidator
 from api.services.configuration.defaults import DEFAULT_SERVICE_PROVIDERS
 from api.services.configuration.masking import is_mask_of, mask_key, mask_user_config
