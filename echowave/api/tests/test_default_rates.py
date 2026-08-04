@@ -135,18 +135,37 @@ class TestRupeeQuotedVendors:
         # ₹3.00 per 1k characters is 300 paise is 300,000 millipaise.
         assert usd_to_mpaise(_inr(3.00), usd_inr=REFERENCE_USD_INR) == 300_000
 
-    def test_sarvam_tts_is_the_published_thirty_rupees_per_ten_thousand(self):
-        """This row was seeded at ₹1.92/1k characters against a published ₹3.00
-        — a 1.56× understatement, and TTS is the largest line in an Indic voice
-        call. It made every quote and every margin figure optimistic in the one
-        component big enough to decide whether a deal is profitable."""
+    def test_sarvam_tts_fallback_is_the_generation_the_managed_tier_runs(self):
+        """Bulbul v2 and v3 are published at ₹15 and ₹30 per 10k characters, so
+        which one the provider-wide row quotes changes synthesis cost by 2×.
+
+        It is v2, because ``managed_tiers`` resolves the default TTS tier to
+        ``bulbul:v2``. Quoting v3 — as this row previously did — priced every
+        managed call at twice the synthesis it actually bought, in the component
+        large enough to decide whether an Indic deal is profitable.
+
+        Whenever the managed tier moves to v3, this row moves with it.
+        """
         row = next(
             r
             for r in DEFAULT_RATES
-            if r.provider == "sarvam" and r.component == CostComponent.TTS
+            if r.provider == "sarvam"
+            and r.component == CostComponent.TTS
+            and not r.model
         )
         mpaise = usd_to_mpaise(row.usd_per_unit, usd_inr=REFERENCE_USD_INR)
-        assert mpaise == 300_000  # ₹3.00 per 1k chars = ₹30 per 10k
+        assert mpaise == 150_000  # ₹1.50 per 1k chars = ₹15 per 10k
+
+    def test_both_bulbul_generations_are_priced(self):
+        """The 2× gap between them is why an explicit row exists for each: a
+        customer who switches generation should see the cost move."""
+        by_model = {
+            r.model: usd_to_mpaise(r.usd_per_unit, usd_inr=REFERENCE_USD_INR)
+            for r in DEFAULT_RATES
+            if r.provider == "sarvam" and r.component == CostComponent.TTS
+        }
+        assert by_model["bulbul:v2"] == 150_000
+        assert by_model["bulbul:v3"] == 300_000
 
     def test_sarvam_stt_is_the_published_thirty_rupees_an_hour(self):
         row = next(

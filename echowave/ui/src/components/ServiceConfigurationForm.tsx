@@ -561,6 +561,14 @@ export function ServiceConfigurationForm({
             : apiKeys[service].map(k => k.trim()).filter(k => k.length > 0);
         if (keys.length > 0) {
             config.api_key = mode === 'override' ? keys[0] : keys;
+        } else if (keysFromVault) {
+            // An explicit empty key, not an omitted one. The field stays
+            // required on the backend so a configuration that genuinely forgot
+            // a key still fails; sending "" says the key lives in the vault and
+            // byok_resolution will supply it at dial time. Sending a real key
+            // here would beat the vault at resolution and pin this slot to
+            // whatever was pasted once, surviving every later rotation.
+            config.api_key = "";
         }
         Object.entries(data).forEach(([property, value]) => {
             if (!property.startsWith(`${service}_`)) return;
