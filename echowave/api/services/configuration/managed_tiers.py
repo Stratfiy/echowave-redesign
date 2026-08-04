@@ -38,6 +38,7 @@ LLM_TIERS = ("default", "fast", "lite", "accurate", "zen")
 STT_TIERS = ("default",)
 TTS_TIERS = ("default",)
 EMBEDDINGS_TIERS = ("default",)
+REALTIME_TIERS = ("default",)
 
 #: Embeddings are not a billing component — they are consumed at knowledge-base
 #: ingest rather than per call, so there is no ``CostComponent.EMBEDDINGS`` and
@@ -46,6 +47,12 @@ EMBEDDINGS_TIERS = ("default",)
 #: configuration emits an embeddings section too, and until this existed that
 #: section named a provider nothing could resolve.
 EMBEDDINGS_COMPONENT = "embeddings"
+
+#: Speech-to-speech is not a billing component either — a realtime model is
+#: metered as LLM usage, because that is what the vendor charges it as and what
+#: the rate card prices. It still needs a provider and a key, so it is mapped
+#: here alongside the rest.
+REALTIME_COMPONENT = "realtime"
 
 
 @dataclass(frozen=True)
@@ -92,6 +99,17 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # --- Speech --------------------------------------------------------
         ("stt", "default"): _tier("stt", "default", "sarvam", "saarika:v2"),
         ("tts", "default"): _tier("tts", "default", "sarvam", "bulbul:v2"),
+        # --- Speech-to-speech ----------------------------------------------
+        # A single model that hears and speaks, replacing the STT and TTS pair.
+        # Deliberately *not* Sarvam: no Indic speech-to-speech model is good
+        # enough yet, so this tier is a Western model and is the one managed
+        # tier that is worse on Telugu than the cascade it replaces. It is
+        # offered because latency is the reason anyone picks speech-to-speech,
+        # and refusing to offer it at all would just push those customers to
+        # bring their own key for the same model.
+        (REALTIME_COMPONENT, "default"): _tier(
+            REALTIME_COMPONENT, "default", "openai_realtime", "gpt-4o-realtime-preview"
+        ),
         # --- Embeddings ----------------------------------------------------
         # Google, to match the default language model: one vendor key serves
         # both chat and embeddings, so a managed customer needs no second

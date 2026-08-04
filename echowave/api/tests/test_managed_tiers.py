@@ -65,19 +65,26 @@ class TestWhatTheOfferingDependsOn:
         assert any(component == "llm" for component, _ in pairs)
 
     def test_it_covers_every_managed_component(self):
-        """Embeddings belong here even though they are not a billing component.
+        """Embeddings and realtime belong here even though neither is a billing
+        component.
 
         A managed configuration emits an embeddings section for knowledge-base
         retrieval. While it was missing from this map the section kept
         ``provider=decibyl`` all the way to the embeddings factory, and the
         model-override screen showed a second "Invalid ServiceProviders.DECIBYL
         API key" that no customer could act on.
+
+        Realtime is here so speech-to-speech can be managed at all. Without a
+        mapping it was BYOK-only, which is why the old UI listed "Speech to
+        Speech" beside "BYOK" as though the two were alternatives rather than
+        an architecture and a way of paying for it.
         """
         assert {component for component, _ in managed_tiers.upstream_providers()} == {
             "stt",
             "llm",
             "tts",
             "embeddings",
+            "realtime",
         }
 
     def test_embeddings_resolve_to_a_real_provider_and_model(self):

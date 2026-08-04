@@ -86,34 +86,78 @@ def test_decibyl_v2_rejects_out_of_range_speed():
         )
 
 
-def test_byok_v2_rejects_decibyl_provider():
-    with pytest.raises(ValidationError):
-        OrganizationAIModelConfigurationV2.model_validate(
-            {
-                "mode": "byok",
-                "byok": {
-                    "mode": "pipeline",
-                    "pipeline": {
-                        "llm": {
-                            "provider": "decibyl",
-                            "api_key": "mps-secret",
-                            "model": "default",
-                        },
-                        "tts": {
-                            "provider": "decibyl",
-                            "api_key": "mps-secret",
-                            "model": "default",
-                            "voice": "default",
-                        },
-                        "stt": {
-                            "provider": "decibyl",
-                            "api_key": "mps-secret",
-                            "model": "default",
-                        },
+def test_byok_v2_now_accepts_a_managed_slot():
+    """A slot naming ``decibyl`` alongside the customer's own providers.
+
+    This used to raise, and that single rule is what made the product's model
+    story confusing: managed-versus-BYOK was an account-wide switch, so "your
+    Indic transcriber with my OpenAI key" — the stack the Indian market
+    actually wants — could not be expressed, and the UI had to offer the two as
+    exclusive tabs.
+
+    Nothing downstream ever needed the restriction. The config unions already
+    admitted the Decibyl variants and ``managed_resolution`` already rewrote
+    each section independently, so removing the rule is what makes a mixed
+    stack work rather than any new machinery. See
+    ``test_ai_model_configuration_v3.py`` for the shape that replaces it.
+    """
+    config = OrganizationAIModelConfigurationV2.model_validate(
+        {
+            "mode": "byok",
+            "byok": {
+                "mode": "pipeline",
+                "pipeline": {
+                    "llm": {
+                        "provider": "openai",
+                        "api_key": "sk-customer-key",
+                        "model": "gpt-4o",
+                    },
+                    "tts": {
+                        "provider": "decibyl",
+                        "model": "default",
+                        "voice": "default",
+                    },
+                    "stt": {
+                        "provider": "decibyl",
+                        "model": "default",
                     },
                 },
-            }
-        )
+            },
+        }
+    )
+
+    pipeline = config.byok.pipeline
+    assert pipeline.llm.provider.value == "openai"
+    assert pipeline.stt.provider.value == "decibyl"
+    assert pipeline.tts.provider.value == "decibyl"
+
+
+def test_a_managed_slot_needs_no_api_key():
+    """The entire point of picking managed is not holding a key.
+
+    ``api_key`` was inherited as required from the base configuration, which
+    made a managed slot unsaveable — the same holdover already documented on
+    DecibylManagedAIModelConfiguration. managed_resolution substitutes our
+    platform key at resolution time.
+    """
+    config = OrganizationAIModelConfigurationV2.model_validate(
+        {
+            "mode": "byok",
+            "byok": {
+                "mode": "pipeline",
+                "pipeline": {
+                    "llm": {"provider": "decibyl", "model": "default"},
+                    "tts": {
+                        "provider": "decibyl",
+                        "model": "default",
+                        "voice": "default",
+                    },
+                    "stt": {"provider": "decibyl", "model": "default"},
+                },
+            },
+        }
+    )
+    assert config.byok.pipeline.llm.api_key == ""
 
 
 @pytest.mark.asyncio

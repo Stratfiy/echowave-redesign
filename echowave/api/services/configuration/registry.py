@@ -444,6 +444,12 @@ class AzureLLMService(BaseLLMConfiguration):
 @register_llm
 class DecibylLLMService(BaseLLMConfiguration):
     model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    # Managed slots carry no key from the customer — that is the entire point
+    # of choosing one. ``managed_resolution`` substitutes our platform key at
+    # resolution time. Inherited as required from the base, which made a
+    # managed slot unsaveable and is the same holdover already documented on
+    # DecibylManagedAIModelConfiguration.
+    api_key: str | list[str] = ""
     provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
     model: str = Field(
         default="default",
@@ -617,6 +623,39 @@ class OpenAIRealtimeLLMConfiguration(BaseLLMConfiguration):
             "examples": OPENAI_REALTIME_VOICES,
             "allow_custom_input": True,
         },
+    )
+
+
+DECIBYL_REALTIME_MODELS = ["default"]
+
+
+@register_service(ServiceType.REALTIME)
+class DecibylRealtimeConfiguration(BaseLLMConfiguration):
+    """Speech-to-speech on our key, chosen as a tier rather than a vendor.
+
+    The realtime counterpart of the managed STT/LLM/TTS classes, and it exists
+    for the same reason: a customer picking "managed" is choosing not to hold a
+    key, and without a Decibyl variant in the realtime union that choice was
+    unrepresentable — speech-to-speech was BYOK-only, which is why the old UI
+    listed it beside BYOK as though it were an alternative to it.
+
+    ``voice`` is carried because a realtime model speaks directly; there is no
+    separate TTS section to hold it.
+    """
+
+    model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    # No key from the customer — managed_resolution substitutes ours.
+    api_key: str | list[str] = ""
+    provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
+    model: str = Field(
+        default="default",
+        description="Decibyl speech-to-speech tier.",
+        json_schema_extra={"examples": DECIBYL_REALTIME_MODELS},
+    )
+    voice: str = Field(
+        default="default",
+        description="Voice the model speaks in.",
+        json_schema_extra={"allow_custom_input": True},
     )
 
 
@@ -832,6 +871,7 @@ RealtimeConfig = Annotated[
         GoogleRealtimeLLMConfiguration,
         GoogleVertexRealtimeLLMConfiguration,
         AzureRealtimeLLMConfiguration,
+        DecibylRealtimeConfiguration,
     ],
     Field(discriminator="provider"),
 ]
@@ -978,6 +1018,12 @@ DECIBYL_TTS_MODELS = ["default"]
 @register_tts
 class DecibylTTSService(BaseTTSConfiguration):
     model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    # Managed slots carry no key from the customer — that is the entire point
+    # of choosing one. ``managed_resolution`` substitutes our platform key at
+    # resolution time. Inherited as required from the base, which made a
+    # managed slot unsaveable and is the same holdover already documented on
+    # DecibylManagedAIModelConfiguration.
+    api_key: str | list[str] = ""
     provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
     model: str = Field(
         default="default",
@@ -1467,6 +1513,12 @@ DECIBYL_MULTILINGUAL_AUTODETECT_LANGUAGES = DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGES
 @register_stt
 class DecibylSTTService(BaseSTTConfiguration):
     model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    # Managed slots carry no key from the customer — that is the entire point
+    # of choosing one. ``managed_resolution`` substitutes our platform key at
+    # resolution time. Inherited as required from the base, which made a
+    # managed slot unsaveable and is the same holdover already documented on
+    # DecibylManagedAIModelConfiguration.
+    api_key: str | list[str] = ""
     provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
     model: str = Field(
         default="default",
@@ -1827,6 +1879,12 @@ DECIBYL_EMBEDDING_MODELS = ["decibyl_embedding_v1"]
 @register_embeddings
 class DecibylEmbeddingsConfiguration(BaseEmbeddingsConfiguration):
     model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    # Managed slots carry no key from the customer — that is the entire point
+    # of choosing one. ``managed_resolution`` substitutes our platform key at
+    # resolution time. Inherited as required from the base, which made a
+    # managed slot unsaveable and is the same holdover already documented on
+    # DecibylManagedAIModelConfiguration.
+    api_key: str | list[str] = ""
     provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
     model: str = Field(
         default="decibyl_embedding_v1",

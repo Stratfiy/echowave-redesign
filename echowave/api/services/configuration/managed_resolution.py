@@ -33,6 +33,10 @@ MANAGED_SECTIONS: tuple[tuple[str, CostComponent | str], ...] = (
     ("stt", CostComponent.STT),
     ("llm", CostComponent.LLM),
     ("tts", CostComponent.TTS),
+    # Speech-to-speech. Metered as LLM usage because that is what the vendor
+    # charges it as, so it authenticates with the LLM credential — see
+    # _credential_component below.
+    ("realtime", managed_tiers.REALTIME_COMPONENT),
     # Emitted by every managed configuration for knowledge-base retrieval.
     # Until this was here the section kept ``provider=decibyl`` all the way to
     # the embeddings factory, which is what put the second "Invalid
@@ -49,7 +53,12 @@ def _credential_component(component: CostComponent | str) -> CostComponent:
     separate slot would mean an admin pasting the same Google key twice and
     the managed pipeline breaking whenever they updated only one of them.
     """
-    if component == managed_tiers.EMBEDDINGS_COMPONENT:
+    if component in (
+        managed_tiers.EMBEDDINGS_COMPONENT,
+        # A realtime model is a language model that happens to speak. The
+        # vendor issues one key for both, and the rate card meters it as LLM.
+        managed_tiers.REALTIME_COMPONENT,
+    ):
         return CostComponent.LLM
     return component  # type: ignore[return-value]
 
