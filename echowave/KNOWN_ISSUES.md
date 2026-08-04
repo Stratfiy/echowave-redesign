@@ -31,6 +31,140 @@ deliberately.
 
 ## Fixed
 
+### 19. The two silent billing killers had no signal
+
+**FIXED.** `PRODUCTION-CHECKLIST.md` §2 reproduced both against a real
+deployment, and the only thing standing between either one and an operator was
+a log line nobody was reading.
+
+With `SUPPLIER_LEGAL_NAME` and `SUPPLIER_GSTIN` unset, a signature-verified
+payment was credited to the ledger and issued **zero** tax documents.
+`issue_receipt_voucher()` returning `None` rather than raising is correct — a
+real payment must not be rolled back over a missing environment variable — so
+the fix is not to make it throw. It is to make the consequence visible. With an
+empty price book the second one has the same shape: every call bills its
+platform fee, provider cost reads zero, and the dashboard reports 100% margin
+rather than an error.
+
+`GET /admin/billing/readiness` now answers both, in the shape
+`/privacy/readiness` already used. The split that carries the weight is
+configuration versus evidence:
+
+* **Configuration** — is the supplier identity set, is there a webhook secret,
+  is there a price book. Cheap, and worth little alone.
+* **Evidence** — *are there captured payments carrying no receipt voucher*, and
+  *are there costed calls that used a provider we hold no rate for*. These are
+  the ones that matter, because setting the supplier identity today does
+  nothing about the payments already taken without one. Those are an accrued
+  liability and only a query finds them.
+
+The headline check is designed to read zero missing vouchers. Any other value
+is an incident, not a statistic.
+
+A fresh install reports `unknown` rather than `ready` for every evidence check.
+Reporting a pass because nothing has happened yet is the specific dishonesty
+the module exists to avoid, and it is why one live ₹10 top-up remains on the
+pre-launch checklist — it is the only thing that proves payment, credit and
+document issuance work end to end.
+
+The `Check`/`Readiness` vocabulary moved to `api/services/readiness.py` and is
+shared with the privacy assessment, which re-exports it so its own callers and
+tests are unaffected. Two independent status vocabularies that both meant
+"ready" would have drifted.
+
+### 18. A dead background worker was invisible
+
+**FIXED.** One container runs uvicorn, the ARQ workers, the ARI manager and the
+campaign orchestrator (`start_services_docker.sh`). When the ARQ worker dies
+the API keeps answering 200 on every endpoint while completed calls stop being
+costed, the rollups the entire dashboard reads stop refreshing, monthly tax
+invoices stop being issued, and the nightly purge and backup stop running.
+
+The dashboard does not go blank, which is the problem — it serves the last
+figures it had. A quiet morning and a dead worker look identical.
+
+The absence of work cannot be the signal, because a night with no calls
+produces no costing either. So the worker now states positively that it is
+alive: a one-minute ARQ cron writes a timestamp to Redis, and
+`GET /health/workers` reports its age. Behind the devops secret, like
+`/health/active-calls`.
+
+Two design points worth keeping:
+
+* **The key's TTL is a day, far longer than the five-minute staleness
+  threshold.** An expiring key would answer "the worker is gone" and destroy
+  the more useful answer — *when* it stopped, which is what lines the failure
+  up against a deploy or an OOM kill.
+* **`alive` is tri-state.** `null` means no heartbeat on record or Redis
+  unreachable, and is deliberately not folded into `false`. A deployment whose
+  worker was never started and one whose worker died an hour ago need different
+  responses, and collapsing them sends an operator hunting a process that never
+  existed.
+
+The billing readiness check consumes the same signal, because a dead worker is
+precisely what makes every billing number on the dashboard stale.
+
+### 17. The campaign report had no aggregate, and no Language column
+
+**FIXED.** `GET /campaign/{id}/report` streams a row per call and always did.
+What it could not answer is what tender §10 asks for: connection rate,
+completion rate, retry statistics, language distribution, daily progress.
+
+`GET /campaign/{id}/summary` now does. The arithmetic is division; the content
+is the denominators, so they are fixed in one module and match the admin
+dashboard's campaign query exactly — `/admin/billing/campaigns` and this
+endpoint cannot disagree about the same campaign.
+
+The choice that changes the answer: **completion rate is over connected calls,
+not over attempts.** A call nobody picked up cannot complete a conversation, so
+putting it in the denominator reports the agent as failing at something it
+never got the chance to attempt. Connection rate keeps attempts as its
+denominator, and reach against the supplied contact list is reported separately
+again — a reach target is written against the list you were given, not the
+dials you chose to make.
+
+A rate with nothing in its denominator is `null`, never `0.0`, consistent with
+the rest of the codebase (HANDOVER.md §6): a campaign that has not dialled has
+measured nothing, and 0% reads as total failure.
+
+Daily progress buckets by **IST** calendar day. In UTC the boundary sits 5h30m
+off an operator's own day, so a call at 01:00 IST would be filed under
+yesterday.
+
+Separately, the per-run CSV now carries a **Language** column.
+`workflow_runs.language` was populated all along and the report query simply
+did not select it, so language distribution — which the tender explicitly
+requires — was underivable from the export a customer is handed.
+
+### 16. Recordings defaulted to a US region
+
+**FIXED.** `S3_REGION` defaulted to `us-east-1` in `api/constants.py`, in
+`docker-compose.yaml`, and across the Helm values. That bucket holds call
+recordings and transcripts of conversations with people in India, and the
+region is where that personal data comes to rest — so every deployment that
+never set the variable put it in Virginia.
+
+Now `ap-south-1` (Mumbai) in all four places. The safe location should be what
+you get by not thinking about it; a deployment whose data subjects are
+elsewhere can still override deliberately.
+
+This does **not** discharge the `ap-south-1` migration on the pre-tender
+checklist — an existing deployment's data does not move because a default
+changed. It stops the next one from starting out wrong.
+
+### 15. `usage/daily-breakdown` returned 400 for an unconfigured account
+
+**FIXED.** The guard was right — an account with no `price_per_second_usd` has
+nothing to break down — but a 400 made a correct guard render as a broken
+dashboard tile on the first screen a new customer sees.
+
+Now an empty series with `pricing_configured: false`. The flag is the point:
+without it a caller cannot distinguish *not priced yet* from *priced, but
+nobody has called*, and would render the same empty chart for a configuration
+problem and for a normal Sunday. `total_cost_usd` stays `null` rather than
+`0.0` — there is no price, so there is no cost, as distinct from a cost that
+was measured and came to nothing.
+
 ### 13. Nothing backed up the database
 
 **FIXED.** There was no automated backup of Postgres anywhere — no `pg_dump`, no

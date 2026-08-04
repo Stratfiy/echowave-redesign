@@ -273,6 +273,24 @@ number appears in an account would itself be a disclosure.
 | `GET` | `/privacy/breach-report` | What was reached between two timestamps |
 | `GET` | `/privacy/metrics` | Privacy health — see §7 |
 
+### 5.5 Readiness — is this deployment actually fit to run
+
+Two assessments in one shape (`services/readiness.py` holds the shared
+vocabulary). Both split **configuration** — is the setting present — from
+**evidence** — did the thing actually happen. Only the second kind catches a
+deployment where the code is correct and the outcome is still wrong, and a
+fresh install reports `unknown` rather than `ready` for those, because
+reporting a pass on absence of evidence is the failure both exist to prevent.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/privacy/readiness` | Data-protection obligations. `needs_a_human` never clears. |
+| `GET` | `/admin/billing/readiness` | Supplier identity, price book, **payments with no receipt voucher**, uncosted calls, worker liveness. Staff only. |
+| `GET` | `/health/workers` | ARQ worker heartbeat age. Devops secret, like `/health/active-calls`. |
+
+The billing check to watch is `payments_have_vouchers`. It is designed to read
+zero; any other value is an accrued tax liability rather than a statistic.
+
 ### 5.4 Webhook
 
 `POST /billing/razorpay/webhook` — **excluded from the OpenAPI schema on
@@ -343,11 +361,20 @@ not a statistic — it means the purge job stopped and nothing said so.
 | `purge_expired_call_data` | daily 19:00 UTC (00:30 IST) |
 | `issue_monthly_tax_invoices` | 1st of month, 20:30 UTC |
 
+| `record_worker_heartbeat` | every minute |
+
 **One container runs everything** — `start_services_docker.sh` starts uvicorn,
 the ARQ workers, the ARI manager and the campaign orchestrator together. There
 is no separate worker to deploy, but it also means **if the ARQ worker dies,
 calls silently stop being costed and invoices stop being issued** while the API
-keeps answering. Monitor it.
+keeps answering.
+
+`GET /health/workers` is the signal for exactly that, and
+`background_worker_alive` on `/admin/billing/readiness` reads the same
+heartbeat. **Alert on it** — nothing else in the system notices, because the
+absence of costing is indistinguishable from a quiet night. See
+`services/worker_health.py` for why the heartbeat is positive rather than
+inferred, and why `alive` is tri-state.
 
 ### Scripts
 
@@ -419,6 +446,15 @@ Honest list. Priorities are mine; argue with them.
 | **Number provisioning not built** | `is_platform_managed` is the flag the KYC gate keys on and nothing sets it. The gate is correct but dormant. |
 | **No recost script** | `cost_workflow_run(recost=True)` exists; nothing exposes it. Calls placed before rates existed stay uncosted. |
 | **Role model is one boolean** | `is_superuser`. There is no matrix. |
+
+### Built since this list was written
+
+| Was missing | Now |
+|---|---|
+| §10 aggregate campaign report | `GET /campaign/{id}/summary` — rates, retries, language distribution, daily progress in IST. Denominators documented in `services/reports/campaign_summary.py`. |
+| Language on the run CSV | Added. The column was never selected; the data was always there. |
+| Any signal for the two silent billing failures | `GET /admin/billing/readiness` |
+| Any signal for a dead ARQ worker | `GET /health/workers` |
 
 ### Metrics not yet built
 
