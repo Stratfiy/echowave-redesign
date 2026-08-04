@@ -31,6 +31,51 @@ deliberately.
 
 ## Fixed
 
+### 20. The model screen offered three tabs that were never three options
+
+**FIXED.** Full write-up in `MODEL-SELECTION-REDESIGN.md`, including the
+competitor comparison. Summary:
+
+The screen asked you to pick one of "Speech to Speech", "Decibyl" or "BYOK".
+Two of those are ways of paying for inference and one is an architecture, so
+they were never comparable — they were exclusive only because a single stored
+`mode` field had been made to carry both meanings.
+
+What that cost:
+
+* **A mixed stack was unrepresentable.** "Your Indic transcriber, my OpenAI
+  contract" is what most Indian accounts want, and there was no way to say it.
+* **Managed speech-to-speech was impossible**, because realtime lived inside
+  the BYOK branch.
+* **Nothing said that picking Speech to Speech meant bringing your own key.**
+  That fact was in the shape of the JSON, not in any label.
+* The screen had grown a warning strip explaining that switching tabs did not
+  switch your account over — a reliable sign the model underneath is wrong.
+
+Now two questions, asked separately. Architecture is the only top-level choice.
+Whose key each model runs on is a property of the slot: pick `decibyl` in any
+provider dropdown and that one model is managed, so half a stack can be managed
+and half your own. There is deliberately no `mode` field in v3 — managed-ness is
+derived, because a stored summary of the slots would eventually disagree with
+them and the summary is what people would trust.
+
+**The change was small, which is the part worth remembering.** The config types
+were already discriminated unions including the Decibyl variants, and
+`managed_resolution` already rewrote each section independently. One validator
+(`_reject_decibyl_provider`) and one dropdown filter (`_byok_provider_schemas`)
+were the only things forbidding mixed stacks. The rest is a vault to get keys
+out of the configuration JSON.
+
+Keys now live in `organization_provider_credentials` — Fernet-encrypted,
+org-scoped, write-only — instead of inline as plaintext inside the model config.
+That is what makes "store a key" and "choose a model" two separate jobs; before,
+a key could only be entered while choosing a model, and switching a slot's
+provider discarded the key you had just pasted.
+
+Still open from this work: the per-agent model override. The backend has
+supported it all along (`model_configuration_v2_override` on the workflow) and
+the UI has never surfaced it. Cheapest remaining win.
+
 ### 19. The two silent billing killers had no signal
 
 **FIXED.** `PRODUCTION-CHECKLIST.md` §2 reproduced both against a real
