@@ -35,7 +35,6 @@ because a green tick beside them would be a lie a court would take seriously.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -59,52 +58,19 @@ from api.services.privacy.metrics import (
     overdue_recordings,
 )
 
-#: A check that is satisfied.
-READY = "ready"
-#: A check that is not satisfied and can be fixed by whoever runs the platform.
-ACTION_REQUIRED = "action_required"
-#: Nothing has happened yet that would prove this either way. Not a pass.
-UNKNOWN = "unknown"
-#: An obligation no code can discharge. Never reports ``ready``.
-NEEDS_A_HUMAN = "needs_a_human"
-
-
-@dataclass(frozen=True)
-class Check:
-    """One obligation, and whether this deployment is meeting it."""
-
-    key: str
-    title: str
-    status: str
-    #: What is true right now, in a sentence someone can act on.
-    detail: str
-    #: The legal hook, so a reviewer can follow it up rather than trust us.
-    reference: str
-    #: What to do about it. Empty when the check is satisfied.
-    remedy: str = ""
-
-
-@dataclass(frozen=True)
-class Readiness:
-    checks: tuple[Check, ...] = field(default_factory=tuple)
-
-    @property
-    def action_required(self) -> tuple[Check, ...]:
-        return tuple(c for c in self.checks if c.status == ACTION_REQUIRED)
-
-    @property
-    def blocking(self) -> tuple[Check, ...]:
-        """What must be fixed before taking a customer's personal data.
-
-        Excludes ``needs_a_human`` deliberately — those never clear, so folding
-        them in would make the count permanently non-zero and therefore ignored.
-        They are reported separately for exactly that reason.
-        """
-        return self.action_required
-
-    @property
-    def unresolvable(self) -> tuple[Check, ...]:
-        return tuple(c for c in self.checks if c.status == NEEDS_A_HUMAN)
+# The Check/Readiness vocabulary and the four statuses are shared with the
+# billing assessment — see api/services/readiness.py for why the config vs
+# evidence split is the load-bearing part. Re-exported here because this module
+# defined them first and both its callers and its tests import them from this
+# path.
+from api.services.readiness import (  # noqa: F401
+    ACTION_REQUIRED,
+    NEEDS_A_HUMAN,
+    READY,
+    UNKNOWN,
+    Check,
+    Readiness,
+)
 
 
 def _grievance_officer_checks() -> list[Check]:
