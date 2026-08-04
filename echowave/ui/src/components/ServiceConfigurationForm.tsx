@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Plus, X } from "lucide-react";
+import { AlertTriangle, ExternalLink, KeyRound, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
@@ -104,11 +104,31 @@ export interface ServiceConfigurationFormProps {
     initialConfig?: Record<string, unknown> | null;
     /**
      * When set, locks the realtime/pipeline mode to this value and hides the
-     * in-form toggle. The v2 editor uses this to surface realtime
-     * ("Speech to Speech") and pipeline (BYOK) as separate top-level tabs.
+     * in-form toggle. The model editor uses this because architecture is chosen
+     * above the form, as its own question.
      * Leave undefined to keep the user-controllable toggle (legacy + overrides).
      */
     forceRealtime?: boolean;
+    /**
+     * What each managed tier resolves to, as `{ stt: { provider, model } }`.
+     *
+     * Needed to price a slot set to "decibyl": the cost estimator is keyed by
+     * real provider and model, and "decibyl" is neither — so without this a
+     * managed slot reports as unpriced and the whole stack reads "incomplete",
+     * which is exactly wrong for the option we want people to pick.
+     */
+    managedUpstream?: Record<string, { provider: string; model: string }>;
+    /**
+     * Take keys from the organization's vault instead of rendering key inputs.
+     *
+     * When set, each slot gets an explicit "Decibyl provides it / My own key"
+     * toggle and a line saying whether the key it depends on is stored. Off for
+     * the legacy per-workflow override screen, which still carries its keys
+     * inline.
+     */
+    keysFromVault?: boolean;
+    /** Which vendors this account holds keys for, by component. */
+    keysHeld?: Record<string, string[]>;
 }
 
 function getProviderDisplayName(
@@ -117,6 +137,62 @@ function getProviderDisplayName(
 ): string | undefined {
     if (!provider) return provider;
     return providerSchema?.title || provider;
+}
+
+/** The provider value that means "Decibyl holds the key for this slot". */
+const MANAGED = "decibyl";
+
+/**
+ * Whether the key this slot depends on is actually in the vault.
+ *
+ * Replaces the API-key input that used to sit here. The useful question on a
+ * model screen is not "what is the key" — it is "will this slot authenticate",
+ * and that is answerable without ever putting the secret on the page. Saying it
+ * here rather than at dial time is the difference between a warning and a
+ * wasted call.
+ */
+function VaultKeyStatus({
+    service,
+    provider,
+    providerLabel,
+    keysHeld,
+}: {
+    service: ServiceSegment;
+    provider: string;
+    providerLabel: string;
+    keysHeld?: Record<string, string[]>;
+}) {
+    // Embeddings and realtime authenticate with the LLM credential: a vendor
+    // issues one key for chat and embeddings alike, and a realtime model is a
+    // language model that speaks. The backend resolves them the same way.
+    const credentialComponent =
+        service === "embeddings" || service === "realtime" ? "llm" : service;
+    const held = keysHeld?.[credentialComponent] ?? [];
+    const hasKey = held.includes(provider);
+
+    if (hasKey) {
+        return (
+            <div className="flex items-start gap-2 rounded-md border border-input bg-muted/40 px-3 py-2.5 text-sm">
+                <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="text-muted-foreground">
+                    Runs on your stored {providerLabel} key.{" "}
+                    <a href="/provider-keys" className="underline">Manage keys</a>
+                </span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-900 dark:text-amber-200">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+                No {providerLabel} key stored, so this slot cannot authenticate and the
+                call will fail.{" "}
+                <a href="/provider-keys" className="underline">Add the key</a>, or switch
+                this model to Decibyl.
+            </span>
+        </div>
+    );
 }
 
 function getGlobalSummary(
@@ -152,7 +228,27 @@ export function ServiceConfigurationForm({
     configurationDefaults,
     initialConfig,
     forceRealtime,
+    managedUpstream,
+    keysFromVault,
+    keysHeld,
 }: ServiceConfigurationFormProps) {
+    // A slot set to "decibyl" is priced at whatever that tier resolves to
+    // today. Passing "decibyl" straight through would report it as unpriced —
+    // the estimator is keyed by real provider and model — so the managed
+    // option would look like the one we cannot cost, which is the opposite of
+    // true.
+    const pricedSlot = (
+        slot: "stt" | "llm" | "tts",
+        provider: string | null | undefined,
+        model: string,
+    ) => {
+        const upstream = provider === "decibyl" ? managedUpstream?.[slot] : undefined;
+        return {
+            [`${slot}_provider`]: upstream?.provider ?? provider ?? null,
+            [`${slot}_model`]: upstream?.model ?? model ?? "",
+        };
+    };
+
     const [apiError, setApiError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isRealtime, setIsRealtime] = useState(forceRealtime ?? false);
@@ -456,7 +552,13 @@ export function ServiceConfigurationForm({
         const config: Record<string, string | number | string[]> = {
             provider: serviceProviders[service],
         };
-        const keys = apiKeys[service].map(k => k.trim()).filter(k => k.length > 0);
+        // In vault mode the key is deliberately absent from the saved
+        // configuration: byok_resolution looks it up at dial time, and an
+        // inline key would win over the vault and quietly pin this slot to
+        // whatever was pasted here once — surviving every later rotation.
+        const keys = keysFromVault
+            ? []
+            : apiKeys[service].map(k => k.trim()).filter(k => k.length > 0);
         if (keys.length > 0) {
             config.api_key = mode === 'override' ? keys[0] : keys;
         }
@@ -532,14 +634,70 @@ export function ServiceConfigurationForm({
     const renderServiceFields = (service: ServiceSegment) => {
         const currentProvider = serviceProviders[service];
         const providerSchema = schemas?.[service]?.[currentProvider];
-        const availableProviders = schemas?.[service] ? Object.keys(schemas[service]) : [];
+        const allProviders = schemas?.[service] ? Object.keys(schemas[service]) : [];
+        // Managed is chosen by the toggle above, not from this list — leaving
+        // "Decibyl" among the vendors would mean two controls setting the same
+        // thing and disagreeing.
+        const availableProviders = keysFromVault
+            ? allProviders.filter((p) => p !== MANAGED)
+            : allProviders;
         const configFields = getConfigFields(service);
+        const managed = currentProvider === MANAGED;
+        const canBeManaged = keysFromVault && Boolean(schemas?.[service]?.[MANAGED]);
 
         return (
             <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+                {canBeManaged && (
                     <div className="space-y-2">
-                        <Label>Provider</Label>
+                        <Label>Who provides this model</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => handleProviderChange(service, MANAGED)}
+                                className={`rounded-md border px-3 py-2.5 text-left text-sm transition ${
+                                    managed
+                                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                        : "border-input hover:border-primary/40"
+                                }`}
+                            >
+                                <span className="font-medium">Decibyl provides it</span>
+                                <span className="mt-0.5 block text-xs text-muted-foreground">
+                                    No key needed. Billed at the published rate.
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (!managed) return;
+                                    const fallback =
+                                        configurationDefaults?.default_providers?.[service] ||
+                                        availableProviders[0];
+                                    if (fallback) handleProviderChange(service, fallback);
+                                }}
+                                className={`rounded-md border px-3 py-2.5 text-left text-sm transition ${
+                                    !managed
+                                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                        : "border-input hover:border-primary/40"
+                                }`}
+                            >
+                                <span className="font-medium">My own key</span>
+                                <span className="mt-0.5 block text-xs text-muted-foreground">
+                                    Runs on a key you store under Provider Keys.
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className={`space-y-2 ${managed && keysFromVault ? "col-span-2" : ""}`}>
+                        <Label>{managed && keysFromVault ? "Tier" : "Provider"}</Label>
+                        {managed && keysFromVault ? (
+                            <p className="rounded-md border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                                Decibyl picks the vendor for this tier and can move it without
+                                changing your agents.
+                            </p>
+                        ) : (
                         <Select
                             value={currentProvider}
                             onValueChange={(providerName) => {
@@ -557,6 +715,7 @@ export function ServiceConfigurationForm({
                                 ))}
                             </SelectContent>
                         </Select>
+                        )}
                         {(providerSchema?.description || providerSchema?.provider_docs_url) && (
                             <p className="text-xs text-muted-foreground">
                                 {providerSchema?.description}{" "}
@@ -600,7 +759,22 @@ export function ServiceConfigurationForm({
                     </div>
                 )}
 
-                {currentProvider && providerSchema && providerSchema.properties.api_key && (
+                {/* Keys do not belong on this screen. They live in the vault at
+                    /provider-keys, and are resolved at dial time — so all this
+                    needs to say is whether the one this slot depends on is
+                    actually there. Showing an input here is what made every
+                    model screen a key-entry screen, and what discarded a pasted
+                    key when you changed provider. */}
+                {keysFromVault && !managed && currentProvider && providerSchema?.properties.api_key && (
+                    <VaultKeyStatus
+                        service={service}
+                        provider={currentProvider}
+                        providerLabel={getProviderDisplayName(currentProvider, providerSchema) || currentProvider}
+                        keysHeld={keysHeld}
+                    />
+                )}
+
+                {!keysFromVault && currentProvider && providerSchema && providerSchema.properties.api_key && (
                     <div className="space-y-2">
                         <Label>{mode === 'override' ? 'API Key (leave empty to use global)' : 'API Key(s)'}</Label>
                         {renderFieldDescription("api_key", providerSchema)}
@@ -911,12 +1085,9 @@ export function ServiceConfigurationForm({
             <CostPerMinuteBar
                 className="mb-4"
                 stack={{
-                    stt_provider: isRealtime ? null : serviceProviders.stt || null,
-                    stt_model: (watch("stt_model") as string) || "",
-                    llm_provider: serviceProviders.llm || null,
-                    llm_model: (watch("llm_model") as string) || "",
-                    tts_provider: isRealtime ? null : serviceProviders.tts || null,
-                    tts_model: (watch("tts_model") as string) || "",
+                    ...pricedSlot("stt", isRealtime ? null : serviceProviders.stt, watch("stt_model") as string),
+                    ...pricedSlot("llm", serviceProviders.llm, watch("llm_model") as string),
+                    ...pricedSlot("tts", isRealtime ? null : serviceProviders.tts, watch("tts_model") as string),
                 }}
             />
 

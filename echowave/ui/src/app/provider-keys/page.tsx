@@ -53,11 +53,30 @@ const COMPONENTS = [
     },
 ] as const;
 
+// Vendors capitalise their own names, and title-casing produces "Openai" and
+// "Elevenlabs" — which look like we do not know who we are integrating with.
+// Only the ones whose casing a naive transform gets wrong are listed; anything
+// missing falls back to title case, so a new provider still reads sensibly.
+const PROVIDER_NAMES: Record<string, string> = {
+    openai: "OpenAI",
+    openai_realtime: "OpenAI Realtime",
+    elevenlabs: "ElevenLabs",
+    openrouter: "OpenRouter",
+    aws_bedrock: "AWS Bedrock",
+    google_vertex: "Google Vertex",
+    huggingface: "Hugging Face",
+    minimax: "MiniMax",
+    xai: "xAI",
+};
+
 function providerLabel(provider: string): string {
-    return provider
-        .split("_")
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" ");
+    return (
+        PROVIDER_NAMES[provider] ??
+        provider
+            .split("_")
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(" ")
+    );
 }
 
 export default function ProviderKeysPage() {

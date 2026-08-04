@@ -4,7 +4,6 @@ import { Info, KeyRound, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { OrganizationAiModelConfigurationV2 } from "@/client/types.gen";
-import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
 import {
     type ProviderSchema,
     type ServiceConfigurationDefaults,
@@ -372,22 +371,10 @@ export function AIModelConfigurationV2Editor({
                 </CardContent>
             </Card>
 
-            {/* The same estimate for either kind of stack: units per minute
-                measured from our own calls on that model, priced at the live
-                rate card. Managed used to show no price at all, which made it
-                look like the expensive option. */}
-            {architecture === "pipeline" && (
-                <CostPerMinuteBar
-                    stack={{
-                        stt_provider: upstream?.stt?.provider ?? null,
-                        stt_model: upstream?.stt?.model ?? "",
-                        llm_provider: upstream?.llm?.provider ?? null,
-                        llm_model: upstream?.llm?.model ?? "",
-                        tts_provider: upstream?.tts?.provider ?? null,
-                        tts_model: upstream?.tts?.model ?? "",
-                    }}
-                />
-            )}
+            {/* No cost bar here: the form renders one that tracks the live
+                selection, and a second static one above it showed a different
+                number for the same stack. Managed slots are priced through
+                `managedUpstream` below. */}
 
             <div>
                 <h2 className="text-sm font-medium">Models</h2>
@@ -407,6 +394,9 @@ export function AIModelConfigurationV2Editor({
                     configurationDefaults={defaultsForSlots}
                     initialConfig={initialConfig}
                     submitLabel={submitLabel}
+                    managedUpstream={upstream}
+                    keysFromVault
+                    keysHeld={defaults.byok_keys_held}
                     onSave={save}
                 />
                 <ThirdPartyProviderNotice />

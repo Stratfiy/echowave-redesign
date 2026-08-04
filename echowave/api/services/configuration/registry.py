@@ -127,7 +127,18 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.SMALLEST,
         ServiceProviders.XAI,
     ]
-    api_key: str | list[str]
+    # Defaults to empty because a key is no longer required to *be* in the
+    # configuration. Since the BYOK vault exists, the ordinary case is a slot
+    # that names a vendor and carries no key, with byok_resolution supplying it
+    # at dial time from api/services/configuration/organization_credentials.py.
+    #
+    # Absence here is therefore not a misconfiguration on its own, and the check
+    # that a slot can actually authenticate moved to where it can be answered
+    # properly: byok_resolution.missing_keys(), the readiness endpoint, and the
+    # warning the model picker shows against a slot whose key is not stored.
+    # Keeping it required would have forced the UI to keep asking for a secret
+    # on a screen that no longer holds one.
+    api_key: str | list[str] = ""
 
     @field_validator("api_key")
     @classmethod

@@ -44,7 +44,11 @@ from api.services.auth.depends import (
     get_user,
     get_user_with_selected_organization,
 )
-from api.services.configuration import managed_tiers, organization_credentials
+from api.services.configuration import (
+    byok_resolution,
+    managed_tiers,
+    organization_credentials,
+)
 from api.services.configuration.ai_model_configuration import (
     check_for_masked_keys_in_ai_model_configuration_v2,
     compile_ai_model_configuration_v2,
@@ -381,6 +385,17 @@ async def save_model_configuration_v2(
     try:
         check_for_masked_keys_in_ai_model_configuration_v2(configuration)
         effective = compile_ai_model_configuration_v2(configuration)
+        # Fill BYOK slots from the vault before validating. A slot that names a
+        # vendor and carries no key is the ordinary case now, and validating it
+        # empty would reject the configuration for a key that exists — just not
+        # in the request body. Resolving first also means we validate the key
+        # the call will actually use, rather than one pasted here that may
+        # already have been rotated.
+        #
+        # Deliberately not resolving managed slots: they keep provider=decibyl
+        # and are checked as such, so a customer pressing Save does not send a
+        # request to every vendor we hold a platform key for.
+        await byok_resolution.apply(effective, organization_id=organization_id)
         await UserConfigurationValidator().validate(
             effective,
             organization_id=organization_id,
