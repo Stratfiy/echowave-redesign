@@ -1,0 +1,160 @@
+"""Fill a BYOK section's key from the account's vault.
+
+The exact mirror of ``managed_resolution``, for the other key source. Between
+them, every section of an effective configuration arrives at the pipeline with
+a real provider and a real key, and the pipeline never learns which of the two
+answered:
+
+* ``managed_resolution`` — the section says ``decibyl``. Turn the tier into a
+  vendor and authenticate with **our** key.
+* ``byok_resolution`` — the section names a vendor and carries no key. Look up
+  **the account's** key for that vendor and component.
+
+That symmetry is what makes a mixed stack work. A customer running our Indic
+STT alongside their own OpenAI key has one section resolved by each module, and
+neither needs to know the other ran.
+
+**Order matters, and it is byok-then-managed.** A managed section has no key
+until ``managed_resolution`` supplies one, so running this second would see a
+resolved managed section as a keyless BYOK section and go looking in the vault
+for a key the customer was never asked for. Running it first means every
+section this module sees is one the customer chose a vendor for.
+
+**An inline key always wins.** Configurations written before the vault existed
+carry their key in the JSON, and a workflow override may legitimately carry a
+one-off key. Looking up the vault only when the section has no key of its own
+means neither case changes behaviour on the call after this ships.
+"""
+
+from __future__ import annotations
+
+from loguru import logger
+
+from api.db import db_client
+from api.enums import CostComponent
+from api.services.configuration import organization_credentials
+from api.services.configuration.registry import ServiceProviders
+
+#: Sections that can run on a customer key, and which credential authenticates
+#: them. Embeddings deliberately resolve against the LLM credential: a vendor
+#: issues one key that serves chat and embeddings alike, so a separate slot
+#: would mean pasting the same Google key twice and the pipeline breaking
+#: whenever only one of them was rotated. ``managed_resolution`` makes the same
+#: choice for the same reason.
+BYOK_SECTIONS: tuple[tuple[str, CostComponent], ...] = (
+    ("stt", CostComponent.STT),
+    ("llm", CostComponent.LLM),
+    ("tts", CostComponent.TTS),
+    ("realtime", CostComponent.LLM),
+    ("embeddings", CostComponent.LLM),
+)
+
+
+def _is_managed(section) -> bool:
+    return section is not None and getattr(section, "provider", None) in (
+        ServiceProviders.DECIBYL,
+        ServiceProviders.DECIBYL.value,
+    )
+
+
+def _has_own_key(section) -> bool:
+    """Whether the section already carries a usable key.
+
+    ``api_key`` is a list on some providers (several keys, rotated round-robin)
+    and a string on others, so both shapes are checked rather than assuming the
+    one the current provider happens to use.
+    """
+    api_key = getattr(section, "api_key", None)
+    if isinstance(api_key, (list, tuple)):
+        return any(isinstance(k, str) and k.strip() for k in api_key)
+    return isinstance(api_key, str) and bool(api_key.strip())
+
+
+def _provider_value(section) -> str:
+    provider = getattr(section, "provider", None)
+    return provider.value if hasattr(provider, "value") else str(provider or "")
+
+
+async def apply(effective, *, organization_id: int | None) -> list[str]:
+    """Fill every keyless BYOK section from the vault, in place.
+
+    Returns the names of sections still without a key, so a caller that wants
+    to refuse the call up front can. Nothing is raised here: one unusable
+    section should fail in that provider's own branch with that vendor's error,
+    which is far more diagnosable than a generic one raised three layers away
+    from the thing that is actually misconfigured.
+
+    Mutates rather than copying for the same reason ``managed_resolution`` does
+    — the caller owns the object and every consumer reads it by attribute, so a
+    second representation would only create a way to use the wrong one.
+    """
+    if organization_id is None:
+        return []
+
+    candidates = [
+        (name, component)
+        for name, component in BYOK_SECTIONS
+        if (section := getattr(effective, name, None)) is not None
+        and not _is_managed(section)
+        and not _has_own_key(section)
+    ]
+    if not candidates:
+        return []
+
+    unresolved: list[str] = []
+    async with db_client.async_session() as session:
+        for name, component in candidates:
+            section = getattr(effective, name)
+            provider = _provider_value(section)
+
+            api_key = await organization_credentials.resolve_api_key(
+                session,
+                organization_id=organization_id,
+                component=component,
+                provider=provider,
+            )
+            if not api_key:
+                unresolved.append(name)
+                logger.warning(
+                    "{} is set to {} on this account's own key, but no key for "
+                    "{} is stored. Add one under Provider Keys, or switch the "
+                    "slot to managed.",
+                    name,
+                    provider,
+                    provider,
+                )
+                continue
+
+            section.api_key = api_key
+            logger.debug(
+                "Resolved {} key for {} from the account vault.", name, provider
+            )
+
+    return unresolved
+
+
+async def missing_keys(effective, *, organization_id: int | None) -> list[str]:
+    """Which BYOK sections this account cannot currently run.
+
+    Read-only: unlike :func:`apply` it leaves the configuration alone, so a
+    validity check or a pre-flight screen can ask the question without the side
+    effect of loading secrets into an object that is about to be discarded.
+    """
+    if organization_id is None:
+        return []
+
+    missing: list[str] = []
+    async with db_client.async_session() as session:
+        for name, component in BYOK_SECTIONS:
+            section = getattr(effective, name, None)
+            if section is None or _is_managed(section) or _has_own_key(section):
+                continue
+            api_key = await organization_credentials.resolve_api_key(
+                session,
+                organization_id=organization_id,
+                component=component,
+                provider=_provider_value(section),
+            )
+            if not api_key:
+                missing.append(name)
+    return missing
