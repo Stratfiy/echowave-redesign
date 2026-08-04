@@ -193,3 +193,40 @@ async def active_calls(
 
     _verify_devops_secret(DECIBYL_DEVOPS_SECRET, x_decibyl_devops_secret)
     return ActiveCallsResponse(active_calls=active_call_count())
+
+
+class WorkerHealthResponse(BaseModel):
+    # Tri-state: true alive, false dead, null means no heartbeat on record or
+    # Redis unreachable. "Never started" and "stopped an hour ago" need
+    # different responses, so they are not collapsed into one boolean.
+    alive: bool | None = None
+    last_seen: str | None = None
+    age_seconds: float | None = None
+    stale_after_seconds: int
+    interval_seconds: int | None = None
+    detail: str
+
+
+@router.get("/health/workers", response_model=WorkerHealthResponse)
+async def worker_health_check(
+    x_decibyl_devops_secret: Annotated[
+        str | None,
+        Header(alias=DECIBYL_DEVOPS_SECRET_HEADER),
+    ] = None,
+) -> WorkerHealthResponse:
+    """Is the background worker alive — the thing `/health` cannot tell you.
+
+    One container runs uvicorn and the ARQ worker together, so `/health`
+    answering ok says nothing about whether calls are being costed, rollups
+    refreshed or invoices issued. When the worker dies all of that stops
+    silently and every other endpoint keeps working.
+
+    Alert on `alive` being anything other than true. Behind the devops secret
+    like `/health/active-calls`, since both are operational signals for
+    monitoring rather than for callers.
+    """
+    from api.constants import DECIBYL_DEVOPS_SECRET
+    from api.services.worker_health import worker_health
+
+    _verify_devops_secret(DECIBYL_DEVOPS_SECRET, x_decibyl_devops_secret)
+    return WorkerHealthResponse(**await worker_health())

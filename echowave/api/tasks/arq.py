@@ -49,6 +49,7 @@ from api.tasks.campaign_tasks import (
 from api.tasks.credit_reservations import sweep_credit_reservations
 from api.tasks.data_retention import purge_expired_call_data
 from api.tasks.fx import refresh_exchange_rate
+from api.tasks.heartbeat import record_worker_heartbeat
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.kyc_carrier_poll import poll_kyc_carrier_status
 from api.tasks.run_integrations import run_integrations_post_workflow_run
@@ -72,8 +73,19 @@ class WorkerSettings:
         purge_expired_call_data,
         run_database_backup,
         refresh_exchange_rate,
+        record_worker_heartbeat,
     ]
     cron_jobs = [
+        # Every minute, and at startup so a deployment is not indistinguishable
+        # from a dead worker for the first minute. This is the only signal that
+        # separates "the worker is down" from "nothing needed doing" — see
+        # services/worker_health.py.
+        cron(
+            record_worker_heartbeat,
+            minute=set(range(0, 60)),
+            second=0,
+            run_at_startup=True,
+        ),
         # Safety net for webhook deliveries whose ARQ job was lost (worker
         # restart / Redis flush): re-enqueue any pending delivery that is overdue.
         cron(
