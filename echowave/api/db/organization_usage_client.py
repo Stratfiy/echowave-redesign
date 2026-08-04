@@ -266,6 +266,7 @@ class OrganizationUsageClient(BaseDBClient):
                     WorkflowRunModel.definition_id,
                     WorkflowRunModel.campaign_id,
                     WorkflowRunModel.created_at,
+                    WorkflowRunModel.language,
                     WorkflowRunModel.initial_context,
                     WorkflowRunModel.gathered_context,
                     WorkflowRunModel.cost_info,

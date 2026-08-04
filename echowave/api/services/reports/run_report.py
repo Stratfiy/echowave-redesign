@@ -42,6 +42,10 @@ def build_run_report_csv(runs: List[Any]) -> io.StringIO:
         "Phone Number",
         "Call Disposition",
         "Call Duration (s)",
+        # workflow_runs.language is populated by the pipeline and is what the
+        # language-distribution aggregate counts. Reported per row as well so a
+        # customer can pivot the raw CSV and arrive at the same figure.
+        "Language",
     ]
     post_headers = [
         "Call Tags",
@@ -68,6 +72,7 @@ def build_run_report_csv(runs: List[Any]) -> io.StringIO:
             initial.get("phone_number", ""),
             gathered.get("mapped_call_disposition", ""),
             usage.get("call_duration_seconds", ""),
+            getattr(run, "language", None) or "",
         ]
 
         extracted = gathered.get("extracted_variables", {})
