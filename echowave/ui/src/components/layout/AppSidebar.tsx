@@ -11,6 +11,7 @@ import {
   FileText,
   Home,
   Key,
+  KeyRound,
   LogOut,
   type LucideIcon,
   Megaphone,
@@ -104,6 +105,15 @@ const NAV_SECTIONS: SidebarNavSection[] = [
         title: "Models",
         url: "/model-configurations",
         icon: Brain,
+      },
+      // Sits under Models because that is where someone discovers they want it:
+      // a slot in the model picker offers "your own key", and this is where the
+      // key goes. Storing keys and choosing models are separate jobs, which is
+      // why they are separate screens.
+      {
+        title: "Provider Keys",
+        url: "/provider-keys",
+        icon: KeyRound,
       },
       {
         title: "Telephony",

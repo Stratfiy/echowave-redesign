@@ -102,9 +102,10 @@ export default function ModelConfigurationV2({ docsUrl }: { docsUrl?: string }) 
         <div className="w-full max-w-4xl mx-auto space-y-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold">AI Models Configuration</h1>
+                    <h1 className="text-3xl font-bold">Models</h1>
                     <p className="mt-2 text-sm text-muted-foreground">
-                        Organization-scoped model settings.{" "}
+                        The default stack for every agent in this organization. An agent can
+                        override it.{" "}
                         {docsUrl && (
                             <a href={docsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
                                 Learn more <ExternalLink className="h-3 w-3" />

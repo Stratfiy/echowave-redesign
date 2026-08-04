@@ -1,58 +1,56 @@
 "use client";
 
-import { Info, KeyRound, Save } from "lucide-react";
+import { Info, KeyRound, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import type {
-    OrganizationAiModelConfigurationV2,
-} from "@/client/types.gen";
+import type { OrganizationAiModelConfigurationV2 } from "@/client/types.gen";
+import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
 import {
     type ProviderSchema,
     type ServiceConfigurationDefaults,
     ServiceConfigurationForm,
-    type ServiceSegment,
 } from "@/components/ServiceConfigurationForm";
-import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { VoiceSelectorModal } from "@/components/VoiceSelectorModal";
-import { LANGUAGE_DISPLAY_NAMES } from "@/constants/languages";
 
-type ModelMode = "realtime" | "decibyl" | "byok";
+// How the conversation is produced. This is the only top-level choice left on
+// this screen, and it is deliberately not a choice about keys.
+//
+// It used to be one of three tabs — "Speech to Speech", "Decibyl", "BYOK" —
+// which put an architecture beside two ways of paying for inference and
+// presented all three as alternatives. Nothing on the screen said that picking
+// Speech to Speech also committed you to bringing your own key, because that
+// fact was in neither label.
+//
+// Whose key each model runs on is now a property of the slot: choose Decibyl as
+// a provider and that slot is managed. See api/schemas/ai_model_configuration.py.
+type Architecture = "pipeline" | "realtime";
 
-const MODE_LABELS: Record<ModelMode, string> = {
+const ARCHITECTURE_LABELS: Record<Architecture, string> = {
+    pipeline: "Transcriber → Model → Voice",
     realtime: "Speech to Speech",
-    decibyl: "Decibyl",
-    byok: "BYOK",
 };
 
-// Sentinel language value for "Multilingual (Auto-detect)".
-const MULTILINGUAL_LANGUAGE_CODE = "multi";
+const ARCHITECTURE_BLURBS: Record<Architecture, string> = {
+    pipeline:
+        "Three models in a chain. More control over each stage, better Indic language support, and cheaper at most volumes.",
+    realtime:
+        "One model hears and speaks. Lower latency and more natural interruptions, but no separate transcriber or voice to tune.",
+};
+
+const MANAGED_PROVIDER = "decibyl";
 
 interface DecibylDefaults {
     voices: string[];
     allow_custom_input?: boolean;
     speeds: number[];
-    speed_range?: {
-        min: number;
-        max: number;
-        step?: number;
-    };
+    speed_range?: { min: number; max: number; step?: number };
     languages: string[];
-    // Languages covered by the "multi" (Multilingual / Auto-detect) option.
     multilingual_languages?: string[];
-    defaults: {
-        voice: string;
-        speed: number;
-        language: string;
-    };
-    // What the managed tiers resolve to today. Needed to price a managed
-    // stack — the cost estimator is keyed by real provider and model, and
-    // "decibyl" is neither.
+    defaults: { voice: string; speed: number; language: string };
+    // What the managed tiers resolve to today. Needed to price a managed stack:
+    // the cost estimator is keyed by real provider and model, and "decibyl" is
+    // neither.
     upstream?: Record<string, { provider: string; model: string }>;
 }
 
@@ -67,13 +65,9 @@ export interface ModelConfigurationDefaultsV2 {
             default_providers: ServiceConfigurationDefaults["default_providers"];
         };
     };
-}
-
-interface DecibylFormState {
-    api_key: string;
-    voice: string;
-    speed: number;
-    language: string;
+    // Which vendors this account holds its own key for, by component. Used to
+    // warn before a slot is pointed at a vendor we cannot authenticate to.
+    byok_keys_held?: Record<string, string[]>;
 }
 
 interface AIModelConfigurationV2EditorProps {
@@ -84,28 +78,10 @@ interface AIModelConfigurationV2EditorProps {
     submitLabel?: string;
 }
 
-function firstApiKey(value: unknown): string {
-    if (Array.isArray(value)) return String(value[0] || "");
-    return typeof value === "string" ? value : "";
-}
-
-function numberOrDefault(value: unknown, fallback: number): number {
-    const parsed = typeof value === "number" ? value : Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-}
-
 function asRecord(value: unknown): Record<string, unknown> | null {
     return value && typeof value === "object" && !Array.isArray(value)
-        ? value as Record<string, unknown>
+        ? (value as Record<string, unknown>)
         : null;
-}
-
-function isDecibylEffectiveConfig(config: Record<string, unknown> | null | undefined): boolean {
-    if (!config || config.is_realtime) return false;
-    const llm = asRecord(config.llm);
-    const tts = asRecord(config.tts);
-    const stt = asRecord(config.stt);
-    return llm?.provider === "decibyl" && tts?.provider === "decibyl" && stt?.provider === "decibyl";
 }
 
 function byokDefaults(defaults: ModelConfigurationDefaultsV2): ServiceConfigurationDefaults {
@@ -119,163 +95,93 @@ function byokDefaults(defaults: ModelConfigurationDefaultsV2): ServiceConfigurat
     };
 }
 
-function byokConfigToLegacyShape(config: Record<string, unknown> | null): Record<string, unknown> | null {
-    if (!config || config.mode !== "byok") return null;
-    const byok = asRecord(config.byok);
-    if (!byok) return null;
-
-    if (byok.mode === "realtime") {
-        const realtime = asRecord(byok.realtime);
-        return {
-            is_realtime: true,
-            realtime: realtime?.realtime,
-            llm: realtime?.llm,
-            embeddings: realtime?.embeddings,
-        };
-    }
-
-    const pipeline = asRecord(byok.pipeline);
-    return {
-        is_realtime: false,
-        llm: pipeline?.llm,
-        tts: pipeline?.tts,
-        stt: pipeline?.stt,
-        embeddings: pipeline?.embeddings,
-    };
-}
-
-function effectiveConfigToLegacyShape(config: Record<string, unknown> | null): Record<string, unknown> | null {
-    if (!config) return null;
-    return {
-        is_realtime: Boolean(config.is_realtime),
-        llm: config.llm,
-        tts: config.tts,
-        stt: config.stt,
-        realtime: config.realtime,
-        embeddings: config.embeddings,
-    };
-}
-
-function emptyByokInitialConfig(isRealtime: boolean): Record<string, unknown> {
-    return {
-        is_realtime: isRealtime,
-    };
-}
-
-// The v2 editor surfaces realtime ("Speech to Speech") and pipeline (BYOK) as
-// separate tabs, so each tab gets its own initial config. A tab is pre-filled
-// only when the saved (or effective) configuration matches that tab's mode;
-// otherwise it starts empty so the other tab's data does not leak across.
-function getByokInitialConfig(
+/** The stored configuration flattened into the shape the form edits. */
+function toFormConfig(
     configuration: Record<string, unknown> | null,
     effectiveConfiguration: Record<string, unknown> | null,
-    wantRealtime: boolean,
 ): Record<string, unknown> {
-    const matchesTab = (config: Record<string, unknown> | null) =>
-        config ? Boolean(config.is_realtime) === wantRealtime : false;
-
-    const byokConfiguration = byokConfigToLegacyShape(configuration);
-    if (byokConfiguration) {
-        return matchesTab(byokConfiguration) ? byokConfiguration : emptyByokInitialConfig(wantRealtime);
-    }
-
-    if (configuration?.mode === "decibyl" || isDecibylEffectiveConfig(effectiveConfiguration)) {
-        return emptyByokInitialConfig(wantRealtime);
-    }
-
-    const effective = effectiveConfigToLegacyShape(effectiveConfiguration);
-    return matchesTab(effective) ? (effective as Record<string, unknown>) : emptyByokInitialConfig(wantRealtime);
-}
-
-function buildDecibylState(
-    defaults: ModelConfigurationDefaultsV2,
-    configuration: Record<string, unknown> | null,
-    effectiveConfiguration: Record<string, unknown> | null,
-): DecibylFormState {
-    const fallback = defaults.decibyl.defaults;
-    const configuredDecibyl = configuration?.mode === "decibyl" ? asRecord(configuration.decibyl) : null;
-    if (configuredDecibyl) {
+    // A v2 "decibyl" configuration is every slot managed. Expanding it to
+    // explicit managed slots is what lets the form show it as an ordinary stack
+    // that happens to be all-Decibyl, rather than as a separate mode.
+    if (configuration?.mode === "decibyl") {
+        const managed = asRecord(configuration.decibyl) ?? {};
         return {
-            api_key: String(configuredDecibyl.api_key || ""),
-            voice: String(configuredDecibyl.voice || fallback.voice),
-            speed: numberOrDefault(configuredDecibyl.speed, fallback.speed),
-            language: String(configuredDecibyl.language || fallback.language),
+            is_realtime: false,
+            llm: { provider: MANAGED_PROVIDER, model: "default" },
+            stt: {
+                provider: MANAGED_PROVIDER,
+                model: "default",
+                language: managed.language ?? "multi",
+            },
+            tts: {
+                provider: MANAGED_PROVIDER,
+                model: "default",
+                voice: managed.voice ?? "default",
+                speed: managed.speed ?? 1.0,
+            },
         };
     }
 
-    if (isDecibylEffectiveConfig(effectiveConfiguration)) {
-        const llm = asRecord(effectiveConfiguration?.llm);
-        const tts = asRecord(effectiveConfiguration?.tts);
-        const stt = asRecord(effectiveConfiguration?.stt);
-        return {
-            api_key: firstApiKey(llm?.api_key || tts?.api_key || stt?.api_key),
-            voice: String(tts?.voice || fallback.voice),
-            speed: numberOrDefault(tts?.speed, fallback.speed),
-            language: String(stt?.language || fallback.language),
-        };
-    }
-
-    return {
-        api_key: "",
-        voice: fallback.voice,
-        speed: fallback.speed,
-        language: fallback.language,
-    };
-}
-
-function preferredMode(
-    configuration: Record<string, unknown> | null,
-    effectiveConfiguration: Record<string, unknown> | null,
-): ModelMode {
-    if (configuration?.mode === "decibyl") return "decibyl";
     if (configuration?.mode === "byok") {
-        return asRecord(configuration.byok)?.mode === "realtime" ? "realtime" : "byok";
+        const byok = asRecord(configuration.byok);
+        if (byok?.mode === "realtime") {
+            const realtime = asRecord(byok.realtime);
+            return {
+                is_realtime: true,
+                realtime: realtime?.realtime,
+                llm: realtime?.llm,
+                embeddings: realtime?.embeddings,
+            };
+        }
+        const pipeline = asRecord(byok?.pipeline);
+        return {
+            is_realtime: false,
+            llm: pipeline?.llm,
+            tts: pipeline?.tts,
+            stt: pipeline?.stt,
+            embeddings: pipeline?.embeddings,
+        };
     }
-    if (isDecibylEffectiveConfig(effectiveConfiguration)) return "decibyl";
-    return Boolean(effectiveConfiguration?.is_realtime) ? "realtime" : "byok";
+
+    if (effectiveConfiguration) {
+        return {
+            is_realtime: Boolean(effectiveConfiguration.is_realtime),
+            llm: effectiveConfiguration.llm,
+            tts: effectiveConfiguration.tts,
+            stt: effectiveConfiguration.stt,
+            realtime: effectiveConfiguration.realtime,
+            embeddings: effectiveConfiguration.embeddings,
+        };
+    }
+
+    return { is_realtime: false };
 }
 
-function hasRequiredApiKey(
-    service: ServiceSegment,
-    serviceConfiguration: Record<string, unknown>,
-    defaults: ServiceConfigurationDefaults,
-): boolean {
-    const provider = serviceConfiguration.provider as string | undefined;
-    if (!provider) return false;
-    const providerSchema = service === "realtime"
-        ? defaults.realtime?.[provider]
-        : defaults[service as "llm" | "tts" | "stt" | "embeddings"]?.[provider];
-    const requiresApiKey = providerSchema?.required?.includes("api_key") ?? false;
-    if (!requiresApiKey) return true;
-
-    const apiKey = serviceConfiguration.api_key;
-    if (Array.isArray(apiKey)) {
-        return apiKey.some((key) => typeof key === "string" && key.trim().length > 0);
-    }
-    return typeof apiKey === "string" && apiKey.trim().length > 0;
+function providerOf(config: Record<string, unknown>, slot: string): string {
+    return String(asRecord(config[slot])?.provider ?? "");
 }
 
-function requireByokService(
+function isManaged(config: Record<string, unknown>, slot: string): boolean {
+    return providerOf(config, slot) === MANAGED_PROVIDER;
+}
+
+function requireSlot(
     config: Record<string, unknown>,
-    service: ServiceSegment,
-    defaults: ServiceConfigurationDefaults,
+    slot: string,
 ): Record<string, unknown> {
-    const serviceConfiguration = asRecord(config[service]);
-    if (
-        !serviceConfiguration
-        || !serviceConfiguration.provider
-        || serviceConfiguration.provider === "decibyl"
-        || !hasRequiredApiKey(service, serviceConfiguration, defaults)
-    ) {
-        throw new Error(`${service} configuration is required`);
+    const value = asRecord(config[slot]);
+    if (!value?.provider) {
+        throw new Error(`Choose a provider for ${slot}.`);
     }
-    return serviceConfiguration;
+    return value;
 }
 
-function optionalByokService(config: Record<string, unknown>, service: ServiceSegment): Record<string, unknown> | undefined {
-    const serviceConfiguration = asRecord(config[service]);
-    if (!serviceConfiguration?.provider || serviceConfiguration.provider === "decibyl") return undefined;
-    return serviceConfiguration;
+function optionalSlot(
+    config: Record<string, unknown>,
+    slot: string,
+): Record<string, unknown> | undefined {
+    const value = asRecord(config[slot]);
+    return value?.provider ? value : undefined;
 }
 
 function ThirdPartyProviderNotice() {
@@ -285,10 +191,10 @@ function ThirdPartyProviderNotice() {
             <div>
                 <p className="font-medium">Third-party provider data notice</p>
                 <p className="mt-1 leading-6">
-                    Decibyl sends data required by the selected model service. This may include prompts,
-                    transcripts, audio, generated text, tool data, and request metadata depending on the
-                    provider and service type. Review the provider&apos;s data and retention policies before
-                    using sensitive data.
+                    Decibyl sends data required by the selected model service. This may
+                    include prompts, transcripts, audio, generated text, tool data, and
+                    request metadata depending on the provider and service type. Review the
+                    provider&apos;s data and retention policies before using sensitive data.
                 </p>
             </div>
         </div>
@@ -302,104 +208,98 @@ export function AIModelConfigurationV2Editor({
     onSave,
     submitLabel = "Save Configuration",
 }: AIModelConfigurationV2EditorProps) {
-    const defaultsForByok = useMemo(() => byokDefaults(defaults), [defaults]);
-    const [mode, setMode] = useState<ModelMode>("decibyl");
-    // Which mode this organization is actually running on, as distinct from the
-    // tab being looked at. Without the distinction, switching tabs reads as
-    // switching the account over — and the two only converge when Save is
-    // pressed, which is precisely the moment a mistake becomes live.
-    const [savedMode, setSavedMode] = useState<ModelMode | null>(null);
-    const [decibyl, setDecibyl] = useState<DecibylFormState>(() => ({
-        api_key: "",
-        voice: defaults.decibyl.defaults.voice,
-        speed: defaults.decibyl.defaults.speed,
-        language: defaults.decibyl.defaults.language,
-    }));
-    const [realtimeInitialConfig, setRealtimeInitialConfig] = useState<Record<string, unknown> | null>(null);
-    const [pipelineInitialConfig, setPipelineInitialConfig] = useState<Record<string, unknown> | null>(null);
-    const [isSavingDecibyl, setIsSavingDecibyl] = useState(false);
+    const defaultsForSlots = useMemo(() => byokDefaults(defaults), [defaults]);
+
+    const [architecture, setArchitecture] = useState<Architecture>("pipeline");
+    const [initialConfig, setInitialConfig] = useState<Record<string, unknown> | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    const allowCustomVoice = defaults.decibyl.allow_custom_input ?? false;
-    const decibylSpeedRange = defaults.decibyl.speed_range ?? { min: 0.5, max: 2.0, step: 0.1 };
-    const multilingualLanguageNames = useMemo(() => {
-        const codes = defaults.decibyl.multilingual_languages ?? [];
-        if (codes.length === 0) return null;
-        return codes.map((code) => LANGUAGE_DISPLAY_NAMES[code] || code).join(", ");
-    }, [defaults.decibyl.multilingual_languages]);
-
     useEffect(() => {
-        const rawConfiguration = asRecord(configuration);
-        const rawEffectiveConfiguration = asRecord(effectiveConfiguration);
-        const resolved = preferredMode(rawConfiguration, rawEffectiveConfiguration);
-        setMode(resolved);
-        setSavedMode(resolved);
-        const nextDecibyl = buildDecibylState(defaults, rawConfiguration, rawEffectiveConfiguration);
-        setDecibyl(nextDecibyl);
-        setRealtimeInitialConfig(getByokInitialConfig(rawConfiguration, rawEffectiveConfiguration, true));
-        setPipelineInitialConfig(getByokInitialConfig(rawConfiguration, rawEffectiveConfiguration, false));
-    }, [configuration, defaults, effectiveConfiguration, allowCustomVoice]);
+        const flattened = toFormConfig(
+            asRecord(configuration),
+            asRecord(effectiveConfiguration),
+        );
+        setArchitecture(flattened.is_realtime ? "realtime" : "pipeline");
+        setInitialConfig(flattened);
+    }, [configuration, effectiveConfiguration]);
 
-    const saveDecibylConfiguration = async () => {
-        setIsSavingDecibyl(true);
+    // Which slots the *saved* stack has on our keys, so the summary describes
+    // reality rather than whatever is currently typed into the form.
+    const savedSlots = useMemo(() => {
+        const flattened = toFormConfig(
+            asRecord(configuration),
+            asRecord(effectiveConfiguration),
+        );
+        const slots = flattened.is_realtime
+            ? ["realtime", "llm"]
+            : ["stt", "llm", "tts"];
+        return {
+            managed: slots.filter((slot) => isManaged(flattened, slot)),
+            byok: slots.filter(
+                (slot) => providerOf(flattened, slot) && !isManaged(flattened, slot),
+            ),
+        };
+    }, [configuration, effectiveConfiguration]);
+
+    const save = async (config: Record<string, unknown>) => {
         setError(null);
-        try {
-            if (
-                !Number.isFinite(decibyl.speed)
-                || decibyl.speed < decibylSpeedRange.min
-                || decibyl.speed > decibylSpeedRange.max
-            ) {
-                throw new Error(
-                    `Decibyl speed must be between ${decibylSpeedRange.min} and ${decibylSpeedRange.max}.`,
-                );
-            }
+        const isRealtime = Boolean(config.is_realtime);
+
+        // Still written as v2 on the wire: the stored shape is upgraded to v3
+        // on read, so nothing has to migrate on the way in. A slot naming
+        // "decibyl" is no longer rejected, which is what makes a mixed stack
+        // saveable at all.
+        const llm = requireSlot(config, "llm");
+        const embeddings = optionalSlot(config, "embeddings");
+        const everySlotManaged = isRealtime
+            ? isManaged(config, "realtime") && isManaged(config, "llm")
+            : ["stt", "llm", "tts"].every((slot) => isManaged(config, slot));
+
+        // An all-managed pipeline round-trips as mode "decibyl" so it keeps
+        // loading on any deployment still reading the old shape, and so the
+        // voice and language the customer chose survive in the place the
+        // managed section stores them.
+        if (everySlotManaged && !isRealtime) {
+            const tts = asRecord(config.tts) ?? {};
+            const stt = asRecord(config.stt) ?? {};
             await onSave({
                 version: 2,
                 mode: "decibyl",
                 decibyl: {
-                    api_key: decibyl.api_key.trim(),
-                    voice: decibyl.voice,
-                    speed: decibyl.speed,
-                    language: decibyl.language,
+                    api_key: "",
+                    voice: String(tts.voice ?? "default"),
+                    speed: Number(tts.speed ?? 1.0),
+                    language: String(stt.language ?? "multi"),
                 },
             });
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to save configuration");
-        } finally {
-            setIsSavingDecibyl(false);
+            return;
         }
-    };
 
-    const saveByokConfiguration = async (config: Record<string, unknown>) => {
-        setError(null);
-        const isRealtime = Boolean(config.is_realtime);
-        const llm = requireByokService(config, "llm", defaultsForByok);
-        const embeddings = optionalByokService(config, "embeddings");
-        const body: OrganizationAiModelConfigurationV2 = {
+        await onSave({
             version: 2,
             mode: "byok",
             byok: isRealtime
                 ? {
-                    mode: "realtime",
-                    realtime: {
-                        realtime: requireByokService(config, "realtime", defaultsForByok) as never,
-                        llm: llm as never,
-                        ...(embeddings ? { embeddings: embeddings as never } : {}),
-                    },
-                }
+                      mode: "realtime",
+                      realtime: {
+                          realtime: requireSlot(config, "realtime") as never,
+                          llm: llm as never,
+                          ...(embeddings ? { embeddings: embeddings as never } : {}),
+                      },
+                  }
                 : {
-                    mode: "pipeline",
-                    pipeline: {
-                        llm: llm as never,
-                        tts: requireByokService(config, "tts", defaultsForByok) as never,
-                        stt: requireByokService(config, "stt", defaultsForByok) as never,
-                        ...(embeddings ? { embeddings: embeddings as never } : {}),
-                    },
-                },
-        };
-
-        await onSave(body);
+                      mode: "pipeline",
+                      pipeline: {
+                          llm: llm as never,
+                          tts: requireSlot(config, "tts") as never,
+                          stt: requireSlot(config, "stt") as never,
+                          ...(embeddings ? { embeddings: embeddings as never } : {}),
+                      },
+                  },
+        });
     };
+
+    const upstream = defaults.decibyl.upstream;
 
     return (
         <div className="space-y-6">
@@ -409,186 +309,108 @@ export function AIModelConfigurationV2Editor({
                 </div>
             )}
 
-            <Tabs value={mode} onValueChange={(value) => setMode(value as ModelMode)} className="space-y-6">
-                <div className="space-y-2">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                        <span className="text-sm font-medium">
-                            Pick one — how models are provided for every agent in this
-                            organization
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                            {savedMode
-                                ? `Currently running: ${MODE_LABELS[savedMode]}`
-                                : "Nothing saved yet"}
-                        </span>
-                    </div>
-                    <TabsList className="grid w-full grid-cols-3">
-                        {(["realtime", "decibyl", "byok"] as const).map((value) => (
-                            <TabsTrigger
-                                key={value}
-                                value={value}
-                                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-                            >
-                                {MODE_LABELS[value]}
-                                {savedMode === value && (
-                                    <span className="ml-1.5 text-[10px] opacity-70">
-                                        active
-                                    </span>
-                                )}
-                            </TabsTrigger>
-                        ))}
-                    </TabsList>
-                    {savedMode && mode !== savedMode && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400">
-                            You are looking at {MODE_LABELS[mode]}. Nothing changes until
-                            you save — this organization is still running{" "}
-                            {MODE_LABELS[savedMode]}.
-                        </p>
-                    )}
+            {/* One choice, and it is about shape rather than about money. */}
+            <div className="space-y-3">
+                <div>
+                    <h2 className="text-sm font-medium">How the conversation runs</h2>
+                    <p className="text-xs text-muted-foreground">
+                        Pick the shape of the pipeline. Who pays for each model is a separate
+                        choice, made per model below.
+                    </p>
                 </div>
-
-                <TabsContent value="realtime" className="mt-0">
-                    <p className="mb-4 text-sm text-muted-foreground">
-                        A single speech-to-speech model handles the conversation in realtime (no separate transcriber or voice). An LLM is still required for variable extraction and QA.
-                    </p>
-                    <ServiceConfigurationForm
-                        key={`realtime-${JSON.stringify(realtimeInitialConfig)}`}
-                        mode="global"
-                        forceRealtime
-                        configurationDefaults={defaultsForByok}
-                        initialConfig={realtimeInitialConfig}
-                        submitLabel={submitLabel}
-                        onSave={saveByokConfiguration}
-                    />
-                    <ThirdPartyProviderNotice />
-                </TabsContent>
-
-                <TabsContent value="decibyl" className="mt-0">
-                    <p className="mb-4 text-sm text-muted-foreground">
-                        Decibyl provides a managed transcriber, LLM, and voice pipeline. Select a voice and language while Decibyl manages the underlying model providers.{" "}
-                        We offer custom pricing and a 15-second pulse with a monthly commitment.{" "}
-                        <a
-                            href="https://decibyl.ai/contact"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline"
-                        >
-                            Contact us
-                        </a>
-                        .
-                    </p>
-
-                    {/* Managed mode used to show no price at all, which made it
-                        look like the expensive option next to BYOK — where this
-                        same bar has always been rendered. It is the same
-                        estimate either way: units per minute measured from our
-                        own calls on that model, priced at the live rate card. */}
-                    <CostPerMinuteBar
-                        className="mb-4"
-                        stack={{
-                            stt_provider: defaults.decibyl.upstream?.stt?.provider ?? null,
-                            stt_model: defaults.decibyl.upstream?.stt?.model ?? "",
-                            llm_provider: defaults.decibyl.upstream?.llm?.provider ?? null,
-                            llm_model: defaults.decibyl.upstream?.llm?.model ?? "",
-                            tts_provider: defaults.decibyl.upstream?.tts?.provider ?? null,
-                            tts_model: defaults.decibyl.upstream?.tts?.model ?? "",
-                        }}
-                    />
-
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <div className="space-y-2 sm:col-span-2">
-                                    <Label>Voice</Label>
-                                    <VoiceSelectorModal
-                                        provider="decibyl"
-                                        value={decibyl.voice}
-                                        onChange={(voice) => setDecibyl({ ...decibyl, voice })}
-                                        allowManualInput={allowCustomVoice}
-                                    />
+                <div className="grid gap-3 sm:grid-cols-2">
+                    {(["pipeline", "realtime"] as const).map((value) => {
+                        const selected = architecture === value;
+                        return (
+                            <button
+                                key={value}
+                                type="button"
+                                onClick={() => setArchitecture(value)}
+                                className={`rounded-lg border p-4 text-left transition ${
+                                    selected
+                                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                        : "border-border hover:border-primary/40"
+                                }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    {value === "realtime" && <Zap className="h-4 w-4" />}
+                                    <span className="font-medium">
+                                        {ARCHITECTURE_LABELS[value]}
+                                    </span>
                                 </div>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {ARCHITECTURE_BLURBS[value]}
+                                </p>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
 
-                                <div className="space-y-2 sm:col-span-2">
-                                    <Label>Language</Label>
-                                    <Select value={decibyl.language} onValueChange={(language) => setDecibyl({ ...decibyl, language })}>
-                                        <SelectTrigger className="w-full">
-                                            <SelectValue placeholder="Select language" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {defaults.decibyl.languages.map((language) => (
-                                                <SelectItem key={language} value={language}>
-                                                    {LANGUAGE_DISPLAY_NAMES[language] || language}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {decibyl.language === MULTILINGUAL_LANGUAGE_CODE && multilingualLanguageNames && (
-                                        <p className="text-xs text-muted-foreground">
-                                            Auto-detects {multilingualLanguageNames}.
-                                        </p>
-                                    )}
-                                </div>
+            {/* What the account is actually running, in the language of slots. */}
+            <Card>
+                <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-2 py-4 text-sm">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <KeyRound className="h-3.5 w-3.5" />
+                        Currently running
+                    </span>
+                    {savedSlots.managed.length > 0 && (
+                        <span className="flex items-center gap-1.5">
+                            <Badge variant="secondary">Decibyl&apos;s keys</Badge>
+                            {savedSlots.managed.join(", ")}
+                        </span>
+                    )}
+                    {savedSlots.byok.length > 0 && (
+                        <span className="flex items-center gap-1.5">
+                            <Badge variant="outline">Your keys</Badge>
+                            {savedSlots.byok.join(", ")}
+                        </span>
+                    )}
+                    {savedSlots.managed.length === 0 && savedSlots.byok.length === 0 && (
+                        <span className="text-muted-foreground">Nothing saved yet.</span>
+                    )}
+                </CardContent>
+            </Card>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="decibyl-speed">Speed</Label>
-                                    <Input
-                                        id="decibyl-speed"
-                                        type="number"
-                                        min={decibylSpeedRange.min}
-                                        max={decibylSpeedRange.max}
-                                        step={decibylSpeedRange.step ?? 0.1}
-                                        value={decibyl.speed}
-                                        onChange={(event) => {
-                                            const speed = event.currentTarget.valueAsNumber;
-                                            setDecibyl({
-                                                ...decibyl,
-                                                speed: Number.isFinite(speed) ? speed : defaults.decibyl.defaults.speed,
-                                            });
-                                        }}
-                                    />
-                                </div>
+            {/* The same estimate for either kind of stack: units per minute
+                measured from our own calls on that model, priced at the live
+                rate card. Managed used to show no price at all, which made it
+                look like the expensive option. */}
+            {architecture === "pipeline" && (
+                <CostPerMinuteBar
+                    stack={{
+                        stt_provider: upstream?.stt?.provider ?? null,
+                        stt_model: upstream?.stt?.model ?? "",
+                        llm_provider: upstream?.llm?.provider ?? null,
+                        llm_model: upstream?.llm?.model ?? "",
+                        tts_provider: upstream?.tts?.provider ?? null,
+                        tts_model: upstream?.tts?.model ?? "",
+                    }}
+                />
+            )}
 
-                            </div>
-
-                            {/*
-                             * No API key field, deliberately. Managed mode means Decibyl holds
-                             * the vendor keys — asking the customer for one was a holdover from
-                             * when this tab meant a hosted service they received a service key
-                             * for, and it made managed mode impossible to save.
-                             */}
-                            <p className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
-                                <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                <span>
-                                    No API keys needed. Decibyl provides and pays for the
-                                    transcriber, language model and voice, and bills them on your
-                                    invoice at a published rate.
-                                </span>
-                            </p>
-
-                            <Button type="button" className="mt-6 w-full" onClick={saveDecibylConfiguration} disabled={isSavingDecibyl}>
-                                <Save className="mr-2 h-4 w-4" />
-                                {isSavingDecibyl ? "Saving..." : submitLabel}
-                            </Button>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                <TabsContent value="byok" className="mt-0">
-                    <p className="mb-4 text-sm text-muted-foreground">
-                        Configure separate transcriber, LLM, and voice providers using your own API keys. An embeddings model can also be configured for knowledge retrieval.
-                    </p>
-                    <ServiceConfigurationForm
-                        key={`byok-${JSON.stringify(pipelineInitialConfig)}`}
-                        mode="global"
-                        forceRealtime={false}
-                        configurationDefaults={defaultsForByok}
-                        initialConfig={pipelineInitialConfig}
-                        submitLabel={submitLabel}
-                        onSave={saveByokConfiguration}
-                    />
-                    <ThirdPartyProviderNotice />
-                </TabsContent>
-            </Tabs>
+            <div>
+                <h2 className="text-sm font-medium">Models</h2>
+                <p className="mb-3 text-xs text-muted-foreground">
+                    Choose <span className="font-medium">Decibyl</span> for any model you
+                    want us to provide and bill — no key needed. Choose a vendor to run it on
+                    your own key from{" "}
+                    <a href="/provider-keys" className="underline">
+                        Provider Keys
+                    </a>
+                    . You can mix the two.
+                </p>
+                <ServiceConfigurationForm
+                    key={`${architecture}-${JSON.stringify(initialConfig)}`}
+                    mode="global"
+                    forceRealtime={architecture === "realtime"}
+                    configurationDefaults={defaultsForSlots}
+                    initialConfig={initialConfig}
+                    submitLabel={submitLabel}
+                    onSave={save}
+                />
+                <ThirdPartyProviderNotice />
+            </div>
         </div>
     );
 }
