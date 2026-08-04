@@ -21,7 +21,8 @@ redis:
 storage:
   mode: s3
   s3:
-    region: us-east-1
+    # Mumbai: recordings are personal data of people in India. See values.yaml.
+    region: ap-south-1
     bucket: ""  # set via --set
 
 exposure:

@@ -64,8 +64,15 @@ storage:
     bucket: voice-audio
   # For s3 mode, set s3.region. AWS credentials are picked up from the pod's
   # IAM role (IRSA recommended) or from secrets.awsAccessKeyId + secrets.awsSecretAccessKey.
+  #
+  # Defaults to ap-south-1 (Mumbai) because this bucket holds call recordings
+  # and transcripts of conversations with people in India, and the region is
+  # where that personal data comes to rest. A US default silently placed it
+  # offshore for anyone who did not override it, which is the wrong way round:
+  # the safe location should be what you get by not thinking about it.
+  # Override deliberately if your data subjects are elsewhere.
   s3:
-    region: us-east-1
+    region: ap-south-1
     bucket: voice-audio
     publicEndpoint: ""  # e.g. https://s3.amazonaws.com
 
