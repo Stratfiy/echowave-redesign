@@ -35,6 +35,7 @@ type NodeStyleVariant =
     | "webhook"
     | "qa"
     | "branch"
+    | "wait"
     | "integration";
 
 const STYLE_VARIANT_BY_SPEC: Record<string, NodeStyleVariant> = {
@@ -46,6 +47,7 @@ const STYLE_VARIANT_BY_SPEC: Record<string, NodeStyleVariant> = {
     webhook: "webhook",
     qa: "qa",
     branch: "branch",
+    wait: "wait",
 };
 
 const HANDLES_BY_SPEC: Record<string, { source: boolean; target: boolean }> = {
@@ -57,6 +59,7 @@ const HANDLES_BY_SPEC: Record<string, { source: boolean; target: boolean }> = {
     webhook: { source: false, target: false },
     qa: { source: false, target: false },
     branch: { source: true, target: true },
+    wait: { source: true, target: true },
 };
 
 const DOC_URL_BY_SPEC: Record<string, string | undefined> = {
@@ -68,6 +71,7 @@ const DOC_URL_BY_SPEC: Record<string, string | undefined> = {
     webhook: NODE_DOCUMENTATION_URLS.webhook,
     qa: NODE_DOCUMENTATION_URLS.qaAnalysis,
     branch: NODE_DOCUMENTATION_URLS.branch,
+    wait: NODE_DOCUMENTATION_URLS.wait,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -169,6 +173,10 @@ function getBadgeForSpec(
         // as another conversational step is the correct signal.
         case "branch":
             return { label: "Branch", className: "bg-slate-600 text-white" };
+        // Same slate family as Branch: both are flow machinery rather than
+        // conversation, and reading as a pair is the correct signal.
+        case "wait":
+            return { label: "Wait", className: "bg-slate-500 text-white" };
         case "integration":
             return { label: spec.display_name, className: "bg-cyan-600 text-white" };
     }

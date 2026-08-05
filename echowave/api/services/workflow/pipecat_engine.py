@@ -68,6 +68,16 @@ from api.utils.template_renderer import render_template
 #: and well below anything that would stall a call while it counts.
 BRANCH_HOP_LIMIT = 10
 
+#: Longest a single wait node may hold the line. Mirrors the field's own max, so
+#: a value that reached the engine from a workflow saved before the bound
+#: existed is still clamped rather than obeyed.
+MAX_WAIT_SECONDS = 30.0
+
+#: Total seconds a call may spend in wait nodes. A wait cycle cannot spin the
+#: event loop the way a branch cycle can, but it can hold someone on a silent
+#: line forever — slowly enough to look deliberate.
+MAX_TOTAL_WAIT_SECONDS = 120.0
+
 
 class PipecatEngine:
     def __init__(
@@ -120,6 +130,9 @@ class PipecatEngine:
         #: Consecutive branch nodes traversed without a conversational node in
         #: between. Reset by any non-branch node; see BRANCH_HOP_LIMIT.
         self._branch_hops: int = 0
+        #: Seconds spent in wait nodes across this whole call. Not reset — a
+        #: caller held for two minutes does not care that it was eight nodes.
+        self._waited_seconds: float = 0.0
         self._user_response_timeout_task: Optional[asyncio.Task] = None
         self._pending_extraction_tasks: set[asyncio.Task] = set()
 
@@ -610,6 +623,13 @@ class PipecatEngine:
             await self._route_branch(node)
             return
 
+        # A wait node is passed through the same way — it holds the line, then
+        # continues. Unlike a branch it may make a sound, but it still takes no
+        # turn: the caller is not asked anything and no completion is requested.
+        if node.node_type == NodeType.wait.value:
+            await self._hold_and_continue(node)
+            return
+
         # Any non-branch node ends whatever chain of branches led here, so the
         # hop budget is per-chain rather than per-call. Two branch nodes early
         # in a flow and two more later is ordinary; twelve in a row is a cycle.
@@ -915,6 +935,80 @@ class PipecatEngine:
         )
 
         await self.set_node(target_edge.target)
+
+    async def _hold_and_continue(self, node: Node) -> None:
+        """Pause, optionally saying something, then carry on down the one edge.
+
+        **The filler is the point, not a decoration.** Silence on a phone line
+        is indistinguishable from a dropped call, and a caller who thinks the
+        line died talks over the agent when it comes back or hangs up before it
+        does. Anything past a beat should say why it is quiet.
+
+        Total waiting is budgeted per call rather than per node: a cycle through
+        a wait node cannot spin the event loop the way a branch cycle can, but it
+        can hold a caller on a silent line indefinitely, which is worse for
+        being slow enough to look intentional.
+        """
+        duration = float(getattr(node.data, "duration_seconds", 2.0) or 0)
+        duration = max(0.0, min(duration, MAX_WAIT_SECONDS))
+
+        self._waited_seconds += duration
+        if self._waited_seconds > MAX_TOTAL_WAIT_SECONDS:
+            logger.error(
+                "Wait '{}' would take this call past {}s of total waiting — the "
+                "wait nodes are in a loop. Ending the call rather than holding "
+                "the line.",
+                node.name,
+                MAX_TOTAL_WAIT_SECONDS,
+            )
+            await self.end_call_with_reason(EndTaskReason.PIPELINE_ERROR.value)
+            return
+
+        filler_type = getattr(node.data, "filler_type", "none")
+        if filler_type == "text":
+            text = self._format_prompt(getattr(node.data, "filler_text", "") or "")
+            if text:
+                self._queued_speech_mute_state = "waiting"
+                await self.task.queue_frame(
+                    TTSSpeakFrame(text, append_to_context=False, persist_to_logs=True)
+                )
+        elif filler_type == "audio":
+            recording_id = getattr(node.data, "filler_recording_id", None)
+            if recording_id and self._fetch_recording_audio:
+                self._queued_speech_mute_state = "waiting"
+                result = await self._fetch_recording_audio(
+                    recording_pk=int(recording_id)
+                )
+                if result:
+                    await play_audio(
+                        result.audio,
+                        sample_rate=self._audio_config.pipeline_sample_rate
+                        if self._audio_config
+                        else 16000,
+                        queue_frame=self._transport_output.queue_frame,
+                        transcript=result.transcript,
+                        persist_to_logs=True,
+                    )
+                else:
+                    logger.warning(
+                        "Wait '{}' could not fetch recording {} — holding silently.",
+                        node.name,
+                        recording_id,
+                    )
+
+        logger.info("Wait '{}' holding for {:.1f}s.", node.name, duration)
+        await asyncio.sleep(duration)
+
+        if not node.out_edges:
+            logger.error(
+                "Wait '{}' has no outgoing edge — ending the call, because "
+                "there is nowhere to continue to.",
+                node.name,
+            )
+            await self.end_call_with_reason(EndTaskReason.PIPELINE_ERROR.value)
+            return
+
+        await self.set_node(node.out_edges[0].target)
 
     async def _handle_end_node(self, node: Node) -> None:
         """Handle end node execution."""

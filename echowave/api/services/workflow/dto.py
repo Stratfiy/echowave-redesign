@@ -31,6 +31,7 @@ class NodeType(str, Enum):
     webhook = "webhook"
     qa = "qa"
     branch = "branch"
+    wait = "wait"
 
 
 class Position(BaseModel):
@@ -1144,6 +1145,115 @@ class BranchNodeData(BaseNodeData):
         return self
 
 
+@node_spec(
+    name="wait",
+    display_name="Wait",
+    description="Pause the conversation for a moment before continuing.",
+    llm_hint=(
+        "Holds the call for a fixed number of seconds, then continues down its "
+        "single outgoing edge. No LLM turn is taken and the caller is not asked "
+        "anything.\n\n"
+        "Use it when the flow needs a beat that is not a question: after a tool "
+        "call whose result the caller is waiting on, before repeating an "
+        "important number, or to let a transfer announcement land. Do **not** "
+        "use it to wait for the caller to speak — an agent node already waits "
+        "for a turn, and a wait node on top of that is silence they will fill "
+        "by hanging up.\n\n"
+        "Say something during anything longer than about two seconds. Silence "
+        "on a phone line reads as a dropped call, and `filler_text` is what "
+        "stops the caller saying 'hello? hello?' into a working connection."
+    ),
+    category=NodeCategory.call_node,
+    icon="Hourglass",
+    docs_url="/voice-agent/wait",
+    examples=[
+        NodeExample(
+            name="hold_while_a_lookup_finishes",
+            data={
+                "name": "Checking",
+                "duration_seconds": 3,
+                "filler_type": "text",
+                "filler_text": "One moment, let me pull that up.",
+            },
+        ),
+        NodeExample(
+            name="a_short_beat",
+            data={"name": "Beat", "duration_seconds": 1, "filler_type": "none"},
+        ),
+    ],
+    graph_constraints=GraphConstraints(min_incoming=1, min_outgoing=1, max_outgoing=1),
+    property_order=(
+        "name",
+        "duration_seconds",
+        "filler_type",
+        "filler_text",
+        "filler_recording_id",
+    ),
+    field_overrides={
+        "name": {
+            "spec_default": "Wait",
+            "description": "Short identifier shown in the canvas and call logs.",
+        },
+        "duration_seconds": {
+            "display_name": "Wait for (seconds)",
+            "description": (
+                "How long to hold before continuing. Capped at 30 — a longer "
+                "pause is a caller who has already hung up."
+            ),
+            "min_value": 0.1,
+            "max_value": 30,
+        },
+        "filler_type": {
+            "display_name": "While waiting",
+            "description": "What the caller hears during the pause.",
+            "options": [
+                PropertyOption(value="none", label="Nothing"),
+                PropertyOption(value="text", label="Say something"),
+                PropertyOption(value="audio", label="Play a recording"),
+            ],
+        },
+        "filler_text": {
+            "display_name": "Say",
+            "description": (
+                "Spoken once at the start of the pause. Supports "
+                "{{template_variables}}."
+            ),
+            "display_options": DisplayOptions(show={"filler_type": ["text"]}),
+        },
+        "filler_recording_id": {
+            "display_name": "Recording",
+            "description": "Pre-recorded audio played at the start of the pause.",
+            "display_options": DisplayOptions(show={"filler_type": ["audio"]}),
+        },
+    },
+)
+class WaitNodeData(BaseNodeData):
+    duration_seconds: float = spec_field(
+        default=2.0, ge=0.1, le=30, ui_type=PropertyType.number
+    )
+    filler_type: str = spec_field(default="none", ui_type=PropertyType.options)
+    filler_text: Optional[str] = spec_field(default=None, ui_type=PropertyType.string)
+    filler_recording_id: Optional[str] = spec_field(
+        default=None, ui_type=PropertyType.recording_ref
+    )
+
+    @model_validator(mode="after")
+    def _filler_is_complete(self):
+        """A filler mode with nothing to play is silence the author did not
+        intend — they chose "say something" and then did not say what."""
+        if self.filler_type == "text" and not (self.filler_text or "").strip():
+            raise ValueError(
+                "Wait node is set to say something during the pause but has no "
+                "text. Add the line, or set 'While waiting' to Nothing."
+            )
+        if self.filler_type == "audio" and not (self.filler_recording_id or "").strip():
+            raise ValueError(
+                "Wait node is set to play a recording during the pause but none "
+                "is chosen. Pick one, or set 'While waiting' to Nothing."
+            )
+        return self
+
+
 # Union of every per-type data class — useful as a type annotation on
 # consumers that handle any node data without dispatching on type. Cannot
 # be called as a constructor; use the per-type class directly.
@@ -1156,6 +1266,7 @@ NodeDataDTO = Union[
     WebhookNodeData,
     QANodeData,
     BranchNodeData,
+    WaitNodeData,
 ]
 
 
@@ -1237,6 +1348,11 @@ class QARFNode(_RFNodeBase):
 class BranchRFNode(_RFNodeBase):
     type: Literal["branch"] = "branch"
     data: BranchNodeData
+
+
+class WaitRFNode(_RFNodeBase):
+    type: Literal["wait"] = "wait"
+    data: WaitNodeData
 
 
 _PROMPT_REQUIRED_NODE_TYPES: dict[str, str] = {
@@ -1333,6 +1449,7 @@ _CORE_NODE_DATA_CLASSES: dict[str, type[BaseNodeData]] = {
     NodeType.webhook.value: WebhookNodeData,
     NodeType.qa.value: QANodeData,
     NodeType.branch.value: BranchNodeData,
+    NodeType.wait.value: WaitNodeData,
 }
 
 

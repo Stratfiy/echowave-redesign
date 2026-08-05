@@ -9,6 +9,7 @@ export const NODE_DOCUMENTATION_URLS: Record<string, string> = {
     webhook: `${DOCS_BASE}/voice-agent/webhook`,
     qaAnalysis: `${DOCS_BASE}/getting-started`,
     branch: `${DOCS_BASE}/voice-agent/branch`,
+    wait: `${DOCS_BASE}/voice-agent/wait`,
 };
 
 export const CONTEXT_VARIABLES_DOC_URL = `${DOCS_BASE}/core-concepts/context-and-variables`;

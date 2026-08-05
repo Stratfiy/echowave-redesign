@@ -12,6 +12,7 @@ export { type Qa, qa } from "./qa.js";
 export { type StartCall, startCall } from "./start-call.js";
 export { type Trigger, trigger } from "./trigger.js";
 export { type Tuner, tuner } from "./tuner.js";
+export { type Wait, wait } from "./wait.js";
 export { type Webhook, webhook } from "./webhook.js";
 
 import type {
@@ -24,8 +25,9 @@ import type {
     StartCall,
     Trigger,
     Tuner,
+    Wait,
     Webhook,
 } from "./index.js";
 
 /** Discriminated union of every generated typed node. */
-export type TypedNode = AgentNode | Branch | EndCall | GlobalNode | Paygent | Qa | StartCall | Trigger | Tuner | Webhook;
+export type TypedNode = AgentNode | Branch | EndCall | GlobalNode | Paygent | Qa | StartCall | Trigger | Tuner | Wait | Webhook;

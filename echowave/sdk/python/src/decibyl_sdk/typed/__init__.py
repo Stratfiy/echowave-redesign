@@ -13,6 +13,7 @@ from decibyl_sdk.typed.qa import Qa
 from decibyl_sdk.typed.start_call import StartCall
 from decibyl_sdk.typed.trigger import Trigger
 from decibyl_sdk.typed.tuner import Tuner
+from decibyl_sdk.typed.wait import Wait
 from decibyl_sdk.typed.webhook import Webhook
 from decibyl_sdk.typed._base import TypedNode
 
@@ -27,5 +28,6 @@ __all__ = [
     "Trigger",
     "Tuner",
     "TypedNode",
+    "Wait",
     "Webhook",
 ]

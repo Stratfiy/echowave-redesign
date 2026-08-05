@@ -1,0 +1,94 @@
+---
+title: "Wait Node"
+description: "Hold the line for a moment — with something to say while you do it."
+tag: "NEW"
+---
+
+A wait node pauses the conversation for a fixed number of seconds, then
+continues down its single outgoing edge. It takes no turn: the caller is not
+asked anything and no model is consulted.
+
+Use it when the flow needs a beat that is not a question — after a tool call the
+caller is waiting on, before repeating a reference number, or to let a transfer
+announcement land before the transfer happens.
+
+<Warning>
+**Do not use it to wait for the caller to speak.** An agent node already waits
+for a turn. A wait node on top of that is dead air the caller will fill by
+saying "hello?" or hanging up.
+</Warning>
+
+## Say something
+
+Silence on a phone line is indistinguishable from a dropped call. A caller who
+hears three seconds of nothing does not conclude that the system is working —
+they either talk over the agent when it comes back or hang up before it does.
+
+Set **While waiting** to say a line, and the pause becomes legible:
+
+| While waiting | What the caller experiences |
+|---|---|
+| **Nothing** | Dead air. Fine below about a second; a dropped call above it. |
+| **Say something** | *"One moment, let me pull that up."* Then quiet. |
+| **Play a recording** | Your own audio — hold music, a branded line. |
+
+The line is spoken once at the start of the pause, not on a loop, and it
+supports `{{template_variables}}`:
+
+```
+One moment {{first_name}}, I'm checking that now.
+```
+
+## Configuration
+
+| Field | Notes |
+|---|---|
+| **Wait for (seconds)** | 0.1 to 30. Anything longer is a caller reaching for the red button — if you genuinely need longer, say something and wait again. |
+| **While waiting** | `none`, `text` or `audio`. |
+| **Say** | Required when the mode is `text`. |
+| **Recording** | Required when the mode is `audio`. |
+
+A wait node has exactly **one** outgoing edge. Two would be a branch with no
+rules to choose between them — a coin toss dressed up as a flow. Use a
+[Branch](/voice-agent/branch) when the next step depends on something.
+
+## Limits
+
+The engine holds two bounds you cannot exceed from the editor:
+
+- **Any single pause is clamped to 30 seconds**, even if an older workflow says
+  otherwise.
+- **A call may spend two minutes total in wait nodes.** Past that, the call ends
+  and the reason is logged. A cycle through a wait node cannot spin the CPU the
+  way a branch cycle can — it sleeps — which makes it worse, not better: the
+  caller sits on a silent line for as long as the loop runs, slowly enough to
+  look deliberate.
+
+## From code
+
+```typescript
+import { wait } from "@decibyl/sdk/typed";
+
+const hold = await wf.addTyped(wait({
+  name: "Checking",
+  duration_seconds: 3,
+  filler_type: "text",
+  filler_text: "One moment, let me pull that up.",
+}));
+
+wf.edge(hold, confirmed, { label: "onward", condition: "after the pause" });
+```
+
+<Note>
+**Scheduling a call back for later is a different thing**, and this node does
+not do it. A wait node holds the *current* call; re-dialling someone tomorrow
+morning is a campaign concern. For "call me back after 6pm", capture the time as
+a variable and hand it to your own scheduler through a
+[webhook](/voice-agent/webhook) or an [HTTP tool](/voice-agent/tools/http-api).
+</Note>
+
+## Next
+
+- [Branch Node](/voice-agent/branch) — when the next step depends on a value.
+- [HTTP API tool](/voice-agent/tools/http-api) — the thing you are usually
+  waiting for.
