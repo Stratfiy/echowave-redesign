@@ -506,3 +506,48 @@ class TestWhatThePickerIsOffered:
             )
             is None
         )
+
+
+class TestAMaskedKeyIsNotAKey:
+    """A masked value must not stop the vault fallback from firing.
+
+    Responses mask stored keys before they leave the API, and both save paths
+    refuse to persist a masked value — so this should never happen. If it ever
+    does, treating the mask as a real key is the worst outcome available: the
+    vault is never consulted and the call reaches the vendor with a string of
+    asterisks, failing on their authentication error three layers from anything
+    that explains it.
+    """
+
+    def test_a_masked_string_does_not_count_as_a_key(self):
+        from types import SimpleNamespace
+
+        from api.services.configuration.byok_resolution import _has_own_key
+
+        assert not _has_own_key(SimpleNamespace(api_key="****************cdef"))
+
+    def test_a_real_key_still_counts(self):
+        from types import SimpleNamespace
+
+        from api.services.configuration.byok_resolution import _has_own_key
+
+        assert _has_own_key(SimpleNamespace(api_key="sk-real-key-value"))
+
+    def test_a_masked_entry_in_a_key_list_does_not_count(self):
+        """Providers that rotate several keys carry a list. One masked entry
+        should not make the whole section look authenticated."""
+        from types import SimpleNamespace
+
+        from api.services.configuration.byok_resolution import _has_own_key
+
+        assert not _has_own_key(SimpleNamespace(api_key=["****abcd", "  "]))
+        assert _has_own_key(SimpleNamespace(api_key=["****abcd", "sk-real"]))
+
+    def test_empty_and_missing_are_not_keys(self):
+        from types import SimpleNamespace
+
+        from api.services.configuration.byok_resolution import _has_own_key
+
+        assert not _has_own_key(SimpleNamespace(api_key=""))
+        assert not _has_own_key(SimpleNamespace(api_key=None))
+        assert not _has_own_key(SimpleNamespace())

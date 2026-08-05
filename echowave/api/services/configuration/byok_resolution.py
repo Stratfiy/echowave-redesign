@@ -33,6 +33,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import CostComponent
 from api.services.configuration import organization_credentials
+from api.services.configuration.masking import MASK_MARKER
 from api.services.configuration.registry import ServiceProviders
 
 #: Sections that can run on a customer key, and which credential authenticates
@@ -57,8 +58,24 @@ def _is_managed(section) -> bool:
     )
 
 
+def _is_usable(key) -> bool:
+    """A key we could actually authenticate with.
+
+    A masked key is not one. Responses mask stored keys to ``****...cdef``
+    before they leave the API, and both save paths refuse to persist a masked
+    value — but treating one as usable here would be the worst of both worlds:
+    the vault fallback would not fire, and the call would reach the vendor with
+    a string of asterisks and fail on *their* authentication error, three layers
+    from anything that explains it.
+
+    Cheap insurance rather than a live defect. It costs one substring check on
+    a path that already decided to look at the key.
+    """
+    return isinstance(key, str) and bool(key.strip()) and MASK_MARKER not in key
+
+
 def _has_own_key(section) -> bool:
-    """Whether the section already carries a usable key.
+    """Whether the section already carries a usable key of its own.
 
     ``api_key`` is a list on some providers (several keys, rotated round-robin)
     and a string on others, so both shapes are checked rather than assuming the
@@ -66,8 +83,8 @@ def _has_own_key(section) -> bool:
     """
     api_key = getattr(section, "api_key", None)
     if isinstance(api_key, (list, tuple)):
-        return any(isinstance(k, str) and k.strip() for k in api_key)
-    return isinstance(api_key, str) and bool(api_key.strip())
+        return any(_is_usable(k) for k in api_key)
+    return _is_usable(api_key)
 
 
 def _provider_value(section) -> str:
