@@ -164,6 +164,107 @@ class TestStoringAKey:
 
 
 @pytest.mark.asyncio
+class TestTwoSavesAtOnce:
+    """Read-then-insert against a unique constraint, which is what storing a
+    key for the first time is. Whoever loses the race must still end up with a
+    stored key rather than a 500."""
+
+    async def test_losing_the_insert_race_rotates_onto_the_winners_row(
+        self, async_session, monkeypatch
+    ):
+        """The second writer's read is forced to miss, which is exactly what
+        happens when two saves interleave: both see nothing, both insert, and
+        the unique constraint rejects the second.
+
+        The right outcome is the one a serial run would have produced — both
+        callers asked for their key to be the stored one, so the last write
+        wins — not a duplicate-key error on a screen where the customer did
+        nothing wrong.
+        """
+        org = await _org(async_session, "race")
+        await creds.set_credential(
+            async_session,
+            organization_id=org.id,
+            actor_user_id=None,
+            component=CostComponent.LLM,
+            provider="openai",
+            api_key="sk-winner-1234",
+        )
+
+        real_scalar = async_session.scalar
+        seen = {"reads": 0}
+
+        async def blind_on_the_first_read(*args, **kwargs):
+            seen["reads"] += 1
+            if seen["reads"] == 1:
+                return None
+            return await real_scalar(*args, **kwargs)
+
+        monkeypatch.setattr(async_session, "scalar", blind_on_the_first_read)
+        stored = await creds.set_credential(
+            async_session,
+            organization_id=org.id,
+            actor_user_id=None,
+            component=CostComponent.LLM,
+            provider="openai",
+            api_key="sk-loser-5678",
+        )
+        # Restore by re-setting rather than monkeypatch.undo(): undo() reverts
+        # every patch this monkeypatch instance holds, and the autouse
+        # ``encryption`` fixture shares it — undoing would take
+        # PLATFORM_CREDENTIAL_SECRET away too and the next decrypt would
+        # return None for a reason that has nothing to do with the race.
+        monkeypatch.setattr(async_session, "scalar", real_scalar)
+
+        assert stored.masked_key.endswith("5678")
+        assert (
+            await creds.resolve_api_key(
+                async_session,
+                organization_id=org.id,
+                component=CostComponent.LLM,
+                provider="openai",
+            )
+            == "sk-loser-5678"
+        )
+
+    async def test_only_one_row_survives(self, async_session, monkeypatch):
+        """The constraint is the thing doing the work. If the recovery path
+        ever inserted instead of rotating, this is what would catch it."""
+        org = await _org(async_session, "race-count")
+        await creds.set_credential(
+            async_session,
+            organization_id=org.id,
+            actor_user_id=None,
+            component=CostComponent.TTS,
+            provider="elevenlabs",
+            api_key="el-first-1234",
+        )
+
+        real_scalar = async_session.scalar
+        seen = {"reads": 0}
+
+        async def blind_on_the_first_read(*args, **kwargs):
+            seen["reads"] += 1
+            if seen["reads"] == 1:
+                return None
+            return await real_scalar(*args, **kwargs)
+
+        monkeypatch.setattr(async_session, "scalar", blind_on_the_first_read)
+        await creds.set_credential(
+            async_session,
+            organization_id=org.id,
+            actor_user_id=None,
+            component=CostComponent.TTS,
+            provider="elevenlabs",
+            api_key="el-second-5678",
+        )
+        monkeypatch.setattr(async_session, "scalar", real_scalar)
+
+        held = await creds.list_credentials(async_session, organization_id=org.id)
+        assert len(held) == 1
+
+
+@pytest.mark.asyncio
 class TestWhatCannotBeStored:
     async def test_a_key_for_decibyl_is_refused(self, async_session):
         """ "decibyl" is how a slot says *managed* — it names our key, not one

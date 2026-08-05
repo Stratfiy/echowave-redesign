@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from cryptography.fernet import Fernet, InvalidToken
 from loguru import logger
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import PLATFORM_CREDENTIAL_SECRET
@@ -163,29 +164,58 @@ async def set_credential(
         )
 
     cipher = _cipher()
-    existing = await session.scalar(
-        select(OrganizationProviderCredentialModel).where(
-            OrganizationProviderCredentialModel.organization_id == organization_id,
-            OrganizationProviderCredentialModel.component == component_value,
-            OrganizationProviderCredentialModel.provider == provider,
+
+    def _write(row: OrganizationProviderCredentialModel) -> None:
+        row.encrypted_key = cipher.encrypt(api_key.encode()).decode()
+        row.key_last_four = api_key[-4:]
+        row.label = label
+        row.is_active = True
+        row.set_by = actor_user_id
+
+    async def _find() -> OrganizationProviderCredentialModel | None:
+        return await session.scalar(
+            select(OrganizationProviderCredentialModel).where(
+                OrganizationProviderCredentialModel.organization_id == organization_id,
+                OrganizationProviderCredentialModel.component == component_value,
+                OrganizationProviderCredentialModel.provider == provider,
+            )
         )
-    )
+
+    existing = await _find()
 
     if existing is None:
-        existing = OrganizationProviderCredentialModel(
+        # Read-then-insert is a race against the unique constraint. Two saves
+        # landing together — a double-click is enough — both read nothing and
+        # both insert; one wins and the other takes a duplicate-key error that
+        # would reach the customer as a 500 on a screen where they did nothing
+        # wrong.
+        #
+        # The insert goes inside a SAVEPOINT so losing the race costs only the
+        # savepoint. Without one the IntegrityError poisons the surrounding
+        # transaction, and recovering would mean discarding whatever else the
+        # caller had already done in it.
+        candidate = OrganizationProviderCredentialModel(
             organization_id=organization_id,
             component=component_value,
             provider=provider,
         )
-        session.add(existing)
+        _write(candidate)
+        try:
+            async with session.begin_nested():
+                session.add(candidate)
+                await session.flush()
+            existing = candidate
+        except IntegrityError:
+            # The other writer got there first. Rotating onto its row is the
+            # right outcome: both callers asked for this key to be the stored
+            # one, and last-write-wins is what a serial run would have done.
+            existing = await _find()
+            if existing is None:
+                raise
 
-    existing.encrypted_key = cipher.encrypt(api_key.encode()).decode()
-    existing.key_last_four = api_key[-4:]
-    existing.label = label
-    existing.is_active = True
-    existing.set_by = actor_user_id
-
+    _write(existing)
     await session.flush()
+
     # The key itself is never logged, and neither is its last four: this line
     # exists to answer "who changed what, when", not to identify the secret.
     logger.info(

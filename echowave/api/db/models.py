@@ -2206,18 +2206,18 @@ class OrganizationProviderCredentialModel(Base):
     organization = relationship("OrganizationModel")
     set_by_user = relationship("UserModel")
 
+    #: One row per account, component and provider. The unique constraint is
+    #: also the lookup index — Postgres backs it with a btree on exactly these
+    #: three columns in this order, which is the order every read here uses. A
+    #: second index on the same tuple was carried alongside it for a while and
+    #: served no query the constraint's own index did not: it only cost a write
+    #: on every key rotation.
     __table_args__ = (
         UniqueConstraint(
             "organization_id",
             "component",
             "provider",
             name="uq_organization_provider_credential",
-        ),
-        Index(
-            "ix_organization_provider_credentials_lookup",
-            "organization_id",
-            "component",
-            "provider",
         ),
     )
 
