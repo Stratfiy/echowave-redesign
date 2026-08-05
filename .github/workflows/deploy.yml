@@ -13,16 +13,27 @@ name: Deploy
 #     change rather than on every machine that trusted a key.
 #   * Every command is in CloudTrail with the identity that ran it.
 #
-# One-time AWS setup is in docs/DEPLOY-GITHUB-ACTIONS.md. Until that is done
-# this workflow cannot authenticate and will fail at the first step, which is
-# the intended behaviour — it should not fall back to anything weaker.
+# One-time AWS setup is in echowave/docs/DEPLOY-GITHUB-ACTIONS.md. Until that
+# is done this workflow cannot authenticate and will fail at the first step,
+# which is the intended behaviour — it should not fall back to anything weaker.
+#
+# **This file has to live at the repository root, not under echowave/.**
+# GitHub only reads workflows from `<repo-root>/.github/workflows/`, and this
+# repository's root is echowave-redesign with the application one level down.
+# The seven workflows still sitting in echowave/.github/workflows/ are inherited
+# from upstream, where echowave *was* the root, and not one of them has ever
+# run here — `actions_list` on this repository returns zero workflows. A deploy
+# workflow that never fires is worse than no deploy workflow: it looks like
+# automation while every push goes nowhere.
 
 on:
   push:
     branches: [main]
+    # Prefixed with echowave/, because these are matched against paths from the
+    # repository root and the application is a directory down.
     paths-ignore:
       - "**/*.md"
-      - "docs/**"
+      - "echowave/docs/**"
   workflow_dispatch:
     inputs:
       ref:

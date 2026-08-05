@@ -1,7 +1,15 @@
 # Auto-deploy from GitHub, without an SSH key
 
-`\.github/workflows/deploy.yml` deploys to the EC2 box on every push to `main`,
-and on demand for any branch. This is the one-time setup that makes it work.
+`.github/workflows/deploy.yml` — **at the repository root, not under
+`echowave/`** — deploys to the EC2 box on every push to `main`, and on demand
+for any branch. This is the one-time setup that makes it work.
+
+> The path is load-bearing. GitHub reads workflows only from
+> `<repo-root>/.github/workflows/`, and this repository's root is
+> `echowave-redesign` with the application one directory down. The workflows
+> under `echowave/.github/workflows/` are inherited from upstream, where
+> `echowave` was the root; none of them has ever run here. If you add a
+> workflow, add it at the root and write its paths with the `echowave/` prefix.
 
 **It uses AWS Systems Manager, not SSH.** That is the point of it:
 
