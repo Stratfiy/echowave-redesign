@@ -100,13 +100,14 @@
                   "voice-agent/api-trigger",
                   "voice-agent/webhook"
                 ]
-              },
-              "voice-agent/add-to-website"
+              }
             ]
           },
           {
-            "group": "Telephony",
+            "group": "Channels",
+            "tag": "NEW",
             "pages": [
+              "voice-agent/add-to-website",
               "integrations/telephony/overview",
               "integrations/telephony/inbound",
               "integrations/telephony/twilio",
@@ -299,7 +300,7 @@
     }
   },
   "banner": {
-    "content": "🎉 **New: MCP Server & SDKs Released** — Drive Decibyl from Claude, Cursor, or your own Python/TypeScript code. [MCP →](/integrations/mcp) · [SDKs →](/sdks/introduction)",
+    "content": "🎉 **Describe an agent in Claude Code and get a working one.** Or put a talk button on your site with one script tag. [Build from Claude Code →](/integrations/mcp) · [Web widget →](/voice-agent/add-to-website)",
     "dismissible": true
   },
   "search": {
