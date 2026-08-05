@@ -34,6 +34,7 @@ type NodeStyleVariant =
     | "trigger"
     | "webhook"
     | "qa"
+    | "branch"
     | "integration";
 
 const STYLE_VARIANT_BY_SPEC: Record<string, NodeStyleVariant> = {
@@ -44,6 +45,7 @@ const STYLE_VARIANT_BY_SPEC: Record<string, NodeStyleVariant> = {
     trigger: "trigger",
     webhook: "webhook",
     qa: "qa",
+    branch: "branch",
 };
 
 const HANDLES_BY_SPEC: Record<string, { source: boolean; target: boolean }> = {
@@ -54,6 +56,7 @@ const HANDLES_BY_SPEC: Record<string, { source: boolean; target: boolean }> = {
     trigger: { source: false, target: false },
     webhook: { source: false, target: false },
     qa: { source: false, target: false },
+    branch: { source: true, target: true },
 };
 
 const DOC_URL_BY_SPEC: Record<string, string | undefined> = {
@@ -64,6 +67,7 @@ const DOC_URL_BY_SPEC: Record<string, string | undefined> = {
     trigger: NODE_DOCUMENTATION_URLS.apiTrigger,
     webhook: NODE_DOCUMENTATION_URLS.webhook,
     qa: NODE_DOCUMENTATION_URLS.qaAnalysis,
+    branch: NODE_DOCUMENTATION_URLS.branch,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -160,6 +164,11 @@ function getBadgeForSpec(
             return { label: "Webhook", className: "bg-indigo-500 text-white" };
         case "qa":
             return { label: "QA Analysis", className: "bg-teal-500 text-white" };
+        // Slate rather than a colour of its own: a branch is the one node on
+        // the canvas that never speaks, and reading as machinery rather than
+        // as another conversational step is the correct signal.
+        case "branch":
+            return { label: "Branch", className: "bg-slate-600 text-white" };
         case "integration":
             return { label: spec.display_name, className: "bg-cyan-600 text-white" };
     }

@@ -30,6 +30,7 @@ class NodeType(str, Enum):
     trigger = "trigger"
     webhook = "webhook"
     qa = "qa"
+    branch = "branch"
 
 
 class Position(BaseModel):
@@ -922,6 +923,227 @@ class QANodeData(BaseNodeData):
     qa_sample_rate: int = spec_field(default=100, ui_type=PropertyType.number)
 
 
+class BranchRuleDTO(BaseModel):
+    label: str = spec_field(
+        ...,
+        min_length=1,
+        ui_type=PropertyType.string,
+        display_name="Send to",
+        description=(
+            "Label of the outgoing edge to take when this rule matches. Must "
+            "match one of this node's edge labels exactly."
+        ),
+        llm_hint=(
+            "This is the join between the rule and the canvas. Create an edge "
+            "out of the branch node with this exact label, or the rule can "
+            "never route anywhere and validation will reject the workflow."
+        ),
+        required=True,
+    )
+    variable: str = spec_field(
+        ...,
+        min_length=1,
+        ui_type=PropertyType.string,
+        display_name="Variable",
+        description=(
+            "Name of the variable to test — from extraction, the trigger "
+            "payload, a campaign column, or a pre-call fetch."
+        ),
+        llm_hint=(
+            "Bare name, no braces: `order_value`, not `{{order_value}}`. A "
+            "variable that is missing or blank never matches, except under "
+            "is_empty."
+        ),
+        required=True,
+    )
+    operator: str = spec_field(
+        ...,
+        display_name="Condition",
+        description="How the variable is compared to the value.",
+        required=True,
+        spec_default="equals",
+        options=[
+            PropertyOption(value="equals", label="equals"),
+            PropertyOption(value="not_equals", label="does not equal"),
+            PropertyOption(value="contains", label="contains"),
+            PropertyOption(value="not_contains", label="does not contain"),
+            PropertyOption(value="starts_with", label="starts with"),
+            PropertyOption(value="ends_with", label="ends with"),
+            PropertyOption(value="matches_regex", label="matches regex"),
+            PropertyOption(value="greater_than", label="is greater than"),
+            PropertyOption(value="greater_or_equal", label="is at least"),
+            PropertyOption(value="less_than", label="is less than"),
+            PropertyOption(value="less_or_equal", label="is at most"),
+            PropertyOption(value="in_list", label="is one of"),
+            PropertyOption(value="not_in_list", label="is not one of"),
+            PropertyOption(value="is_empty", label="is empty"),
+            PropertyOption(value="is_not_empty", label="is not empty"),
+            PropertyOption(value="is_true", label="is true"),
+            PropertyOption(value="is_false", label="is false"),
+        ],
+    )
+    value: Optional[str] = spec_field(
+        default=None,
+        ui_type=PropertyType.string,
+        display_name="Value",
+        description=(
+            "What to compare against. Leave blank for is_empty, is_not_empty, "
+            "is_true and is_false. For 'is one of', a comma-separated list."
+        ),
+        llm_hint=(
+            "Text comparisons are case-insensitive. Numeric operators tolerate "
+            "commas and a currency symbol, so `50,000` and `₹50000` both parse."
+        ),
+    )
+
+
+@node_spec(
+    name="branch",
+    display_name="Branch",
+    description="Route on a variable — same input, same path, every time.",
+    llm_hint=(
+        "Deterministic routing. Every other transition in a workflow is decided "
+        "by the LLM from the edge's natural-language condition; a branch node is "
+        "decided by evaluating a rule, with no model involved.\n\n"
+        "Use it whenever the decision is a fact rather than a judgement: a "
+        "threshold on an amount, a language the caller already chose, an attempt "
+        "count, a flag from a pre-call fetch. Keep LLM-decided edges for "
+        "judgements about what the caller meant.\n\n"
+        "Rules are evaluated top to bottom and the first match wins, so order "
+        "bands from most specific down. Every rule's `label` must match an "
+        "outgoing edge label, and `default_label` must match one too — that edge "
+        "is taken when nothing matches, so a call can never be stranded here.\n\n"
+        "The node never speaks. It routes on entry, and the caller hears nothing "
+        "between the previous node and the next one."
+    ),
+    category=NodeCategory.call_node,
+    icon="GitBranch",
+    docs_url="/voice-agent/branch",
+    examples=[
+        NodeExample(
+            name="escalate_high_value_complaints",
+            data={
+                "name": "Route by value",
+                "rules": [
+                    {
+                        "label": "high value",
+                        "variable": "order_value",
+                        "operator": "greater_than",
+                        "value": "50000",
+                    },
+                    {
+                        "label": "repeat caller",
+                        "variable": "previous_calls",
+                        "operator": "greater_or_equal",
+                        "value": "3",
+                    },
+                ],
+                "default_label": "standard",
+            },
+        ),
+        NodeExample(
+            name="route_by_language",
+            data={
+                "name": "Language split",
+                "rules": [
+                    {
+                        "label": "telugu",
+                        "variable": "language",
+                        "operator": "in_list",
+                        "value": "te, telugu",
+                    },
+                    {
+                        "label": "hindi",
+                        "variable": "language",
+                        "operator": "in_list",
+                        "value": "hi, hindi",
+                    },
+                ],
+                "default_label": "english",
+            },
+        ),
+    ],
+    # Only the incoming side is expressed here. "A branch needs at least two
+    # ways out" cannot be: the generic outgoing check counts distinct *target
+    # nodes* (`Node.out` is keyed by target id), and two labelled edges into the
+    # same node — "high value" and "repeat caller" both going to the escalation
+    # node — is an ordinary branch that would fail a min_outgoing of 2. Counting
+    # distinct labels is the property that matters, and WorkflowGraph does it in
+    # `_assert_branch_labels_resolve` where the labels are already in hand.
+    graph_constraints=GraphConstraints(min_incoming=1),
+    property_order=("name", "rules", "default_label"),
+    field_overrides={
+        "name": {
+            "spec_default": "Branch",
+            "description": "Short identifier shown in the canvas and call logs.",
+        },
+        "rules": {
+            "display_name": "Rules",
+            "description": (
+                "Evaluated top to bottom. The first rule that matches decides "
+                "the branch; drag to reorder."
+            ),
+        },
+        "default_label": {
+            "display_name": "Otherwise send to",
+            "description": (
+                "Edge taken when no rule matches. Required — every call that "
+                "reaches this node must have somewhere to go."
+            ),
+            "spec_default": "default",
+        },
+    },
+)
+class BranchNodeData(BaseNodeData):
+    rules: List[BranchRuleDTO] = spec_field(
+        default_factory=list, ui_type=PropertyType.fixed_collection
+    )
+    default_label: str = spec_field(
+        default="default", min_length=1, ui_type=PropertyType.string
+    )
+
+    @model_validator(mode="after")
+    def _rules_are_evaluable(self):
+        """Reject a rule that could never match, at save time.
+
+        A branch node whose rule is malformed does not fail loudly at runtime —
+        it simply never matches and every call takes the default. That is the
+        worst failure shape available: the workflow looks fine, the calls
+        complete, and the routing quietly does not exist. Catching it here costs
+        one validation pass.
+        """
+        from api.services.workflow.branching import Rule, validate_rule
+
+        problems: list[str] = []
+        for index, raw in enumerate(self.rules):
+            problems.extend(
+                validate_rule(Rule.from_mapping(raw.model_dump()), index=index)
+            )
+
+        seen: dict[str, int] = {}
+        for index, raw in enumerate(self.rules):
+            label = (raw.label or "").strip().casefold()
+            if label in seen:
+                problems.append(
+                    f"Rule {index + 1}: label '{raw.label}' is already used by "
+                    f"rule {seen[label] + 1}. Two rules pointing at one edge "
+                    "means the second can never be reached."
+                )
+            else:
+                seen[label] = index
+
+        if self.default_label.strip().casefold() in seen:
+            problems.append(
+                f"'Otherwise send to' is '{self.default_label}', which a rule "
+                "already routes to. Give the fallback its own edge so the run "
+                "log can tell a matched call from an unmatched one."
+            )
+
+        if problems:
+            raise ValueError(" ".join(problems))
+        return self
+
+
 # Union of every per-type data class — useful as a type annotation on
 # consumers that handle any node data without dispatching on type. Cannot
 # be called as a constructor; use the per-type class directly.
@@ -933,6 +1155,7 @@ NodeDataDTO = Union[
     TriggerNodeData,
     WebhookNodeData,
     QANodeData,
+    BranchNodeData,
 ]
 
 
@@ -1009,6 +1232,11 @@ class WebhookRFNode(_RFNodeBase):
 class QARFNode(_RFNodeBase):
     type: Literal["qa"] = "qa"
     data: QANodeData
+
+
+class BranchRFNode(_RFNodeBase):
+    type: Literal["branch"] = "branch"
+    data: BranchNodeData
 
 
 _PROMPT_REQUIRED_NODE_TYPES: dict[str, str] = {
@@ -1104,6 +1332,7 @@ _CORE_NODE_DATA_CLASSES: dict[str, type[BaseNodeData]] = {
     NodeType.trigger.value: TriggerNodeData,
     NodeType.webhook.value: WebhookNodeData,
     NodeType.qa.value: QANodeData,
+    NodeType.branch.value: BranchNodeData,
 }
 
 

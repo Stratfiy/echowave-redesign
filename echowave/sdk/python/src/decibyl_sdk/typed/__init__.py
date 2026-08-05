@@ -5,6 +5,7 @@ Re-exports every typed node class so users can write
 """
 
 from decibyl_sdk.typed.agent_node import AgentNode
+from decibyl_sdk.typed.branch import Branch
 from decibyl_sdk.typed.end_call import EndCall
 from decibyl_sdk.typed.global_node import GlobalNode
 from decibyl_sdk.typed.paygent import Paygent
@@ -17,6 +18,7 @@ from decibyl_sdk.typed._base import TypedNode
 
 __all__ = [
     "AgentNode",
+    "Branch",
     "EndCall",
     "GlobalNode",
     "Paygent",

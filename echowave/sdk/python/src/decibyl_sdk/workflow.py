@@ -12,6 +12,8 @@ Wire format matches `ReactFlowDTO` from `api/services/workflow/dto.py`
 
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -155,7 +157,16 @@ class Workflow:
         if transition_speech_recording_id is not None:
             data["transition_speech_recording_id"] = transition_speech_recording_id
 
-        edge_id = f"{source.id}-{target.id}"
+        # Two edges between the same pair of nodes must not collide.
+        # `source-target` was unique while every pair had at most one edge, but a
+        # branch node routing two labels to the same destination — "high value"
+        # and "repeat caller" both reaching the escalation node — is ordinary,
+        # and duplicate ids break React Flow's reconciliation on the canvas.
+        # The label is what distinguishes the two paths, so it belongs in the id.
+        slug = re.sub(r"[^a-z0-9]+", "-", label.strip().lower()).strip("-")
+        edge_id = (
+            f"{source.id}-{target.id}-{slug}" if slug else f"{source.id}-{target.id}"
+        )
         self._edges.append(
             _Edge(id=edge_id, source=source.id, target=target.id, data=data)
         )
@@ -208,7 +219,9 @@ class Workflow:
         for raw in data.get("nodes", []):
             node_id = str(raw.get("id"))
             spec: NodeSpec = client.get_node_type(raw["type"])
-            validated = validate_node_data(spec.model_dump(mode="json"), raw.get("data") or {})
+            validated = validate_node_data(
+                spec.model_dump(mode="json"), raw.get("data") or {}
+            )
             wf._nodes.append(
                 _Node(
                     id=node_id,

@@ -40,6 +40,11 @@ export interface EdgeOptions {
     transitionSpeechRecordingId?: string;
 }
 
+function edgeId(source: string, target: string, label: string): string {
+    const slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return slug ? `${source}-${target}-${slug}` : `${source}-${target}`;
+}
+
 export class Workflow {
     readonly name: string;
     readonly description: string;
@@ -131,7 +136,13 @@ export class Workflow {
         }
 
         this.edges.push({
-            id: `${source.id}-${target.id}`,
+            // Two edges between the same pair of nodes must not collide.
+        # `source-target` was unique while every pair had at most one edge, but a
+        # branch node routing two labels to the same destination — "high value"
+        # and "repeat caller" both reaching the escalation node — is ordinary,
+        # and duplicate ids break React Flow's reconciliation on the canvas.
+        # The label is what distinguishes the two paths, so it belongs in the id.
+            id: edgeId(source.id, target.id, opts.label),
             source: source.id,
             target: target.id,
             data,

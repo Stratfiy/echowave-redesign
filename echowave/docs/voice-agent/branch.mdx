@@ -1,0 +1,217 @@
+---
+title: "Branch Node"
+description: "Route on a variable instead of asking the model — same input, same path, every time."
+tag: "NEW"
+---
+
+Every other transition in a workflow is decided by the language model. Each edge
+out of an agent node carries a condition in plain English — *"the caller has
+confirmed their appointment"* — and the model chooses. For a judgement about
+what a person meant, that is the right instrument.
+
+It is the wrong one for a fact. `order_value > 50000` is not a judgement.
+Neither is "this is the third attempt" or "the caller already chose Telugu". A
+branch node evaluates those itself, with no model involved.
+
+<CardGroup cols={3}>
+  <Card title="Reproducible" icon="repeat">
+    The same inputs take the same path. Every time, not almost every time.
+  </Card>
+  <Card title="Auditable" icon="clipboard-check">
+    The winning rule and its reason are written into the run record.
+  </Card>
+  <Card title="Silent" icon="forward">
+    No turn, no pause. The caller hears nothing between the two nodes either side.
+  </Card>
+</CardGroup>
+
+## When to use one
+
+Use a branch when the answer is already in a variable:
+
+| Situation | Why a branch, not an edge condition |
+|---|---|
+| Escalate complaints above ₹50,000 | A threshold you may have to demonstrate to a regulator or a client. "The prompt usually gets it right" is not a control. |
+| Split by the caller's language | They already chose. Asking a model to re-derive it adds a way to get it wrong. |
+| Stop after three attempts | A count is a count. |
+| Act on a flag from a pre-call fetch | The CRM already answered. Re-asking the model is asking it to guess at your own data. |
+
+Keep LLM-decided edges for what they are good at: *did the caller agree? are
+they frustrated? have they finished explaining?*
+
+## Set one up
+
+<Steps>
+<Step title="Add the node">
+Drag **Branch** onto the canvas from **Agent Nodes** in the add-node panel.
+</Step>
+
+<Step title="Draw the edges out first">
+Give each one a label — `high value`, `standard`. **The labels are how rules
+find their edge**, so it is easier to draw them before writing the rules.
+</Step>
+
+<Step title="Write the rules">
+Each rule names a variable, a condition, a value, and the edge label to send
+matching calls down.
+</Step>
+
+<Step title="Set 'Otherwise send to'">
+The label of the edge every non-matching call takes. It is required — a call
+that reaches a branch always leaves it.
+</Step>
+</Steps>
+
+<Warning>
+**Rules are evaluated top to bottom and the first match wins.** That is what
+makes bands work:
+
+```
+order_value  is greater than  100000   →  platinum
+order_value  is greater than  50000    →  gold
+otherwise                              →  standard
+```
+
+Written the other way round, everything above ₹50,000 would be *gold* and
+*platinum* would be unreachable. Order is yours to control, and the editor never
+reorders the rows.
+</Warning>
+
+## Conditions
+
+| Condition | Notes |
+|---|---|
+| `equals`, `does not equal` | Case-insensitive. |
+| `contains`, `does not contain` | Case-insensitive. |
+| `starts with`, `ends with` | Useful for phone number prefixes. |
+| `matches regex` | For anything the rest cannot express. |
+| `is greater than`, `is at least`, `is less than`, `is at most` | Both sides must be numbers. `50,000` and `₹50000` both parse; `fifty thousand` does not. |
+| `is one of`, `is not one of` | Comma-separated: `te, en, hi`. |
+| `is empty`, `is not empty` | No value needed. |
+| `is true`, `is false` | Accepts `true`, `"true"`, `"yes"`, `1`, and their opposites — a flag arrives differently from a CSV, a JSON body and an extraction. |
+
+## The rule that surprises people
+
+**A variable that is missing or blank never matches** — the only exception is
+`is empty`, where absence is the question.
+
+This matters most with `does not equal`. It reads as "anything but this", so it
+looks like it should match a caller whose language you never captured. It does
+not:
+
+```
+language  does not equal  en   →  regional
+```
+
+A caller whose `language` came back blank from a failed pre-call fetch is **not**
+a caller who chose a regional language — you simply do not know. They take the
+default. If you want to catch that case, say so:
+
+```
+language  is empty        →  ask them
+language  does not equal  en   →  regional
+otherwise                      →  english
+```
+
+<Note>
+The reason is that a failed API call, an empty CSV column and an extraction that
+found nothing all arrive at the branch identically: as nothing. Treating that as
+a match would let an outage choose a caller's path.
+</Note>
+
+## Where the variables come from
+
+Anything already in the call's context:
+
+- **Extraction** on an earlier node — the most common source.
+- **The trigger payload** you posted to start the call.
+- **A campaign CSV column.**
+- **A [pre-call data fetch](/voice-agent/pre-call-data-fetch)** from your own API.
+
+Write the bare name — `order_value`, not `{{order_value}}`.
+
+<Note>
+When the same name exists in more than one place, the value gathered **during**
+the call wins. If the CSV said the order was ₹10,000 and the caller has since
+told the agent it was ₹90,000, the branch uses ₹90,000 — the fresher fact.
+</Note>
+
+## Reading the decision afterwards
+
+Every branch a call passes through is recorded on the run with the rule that
+won and why:
+
+```json
+{
+  "branch_decisions": [
+    {
+      "node": "Route by value",
+      "label": "high value",
+      "matched": true,
+      "reason": "high value: order_value=60000 greater_than 50000",
+      "rule_index": 0
+    }
+  ]
+}
+```
+
+`"matched": false` means nothing matched and the call took the default. That is
+the line to look for when a call went somewhere unexpected — and the reason a
+deterministic branch is worth having: the answer is in the record, not in a
+model's reasoning you cannot inspect.
+
+## What it will refuse to save
+
+Each of these is caught when you save, because none of them fails loudly at run
+time — a broken branch quietly routes everything to the default while looking
+like it works.
+
+- A rule whose label matches **no outgoing edge**, and the same for the default.
+- A numeric comparison against something that is not a number.
+- An invalid regex.
+- Two rules with the **same label** — the second could never be reached.
+- A default reusing a rule's label — matched and unmatched calls would leave by
+  the same edge and the run log could not tell them apart.
+- Fewer than two differently-labelled edges out. A branch with one way out is
+  not a branch.
+
+## From code
+
+Branch nodes are available in the TypeScript and Python SDKs, and to any
+assistant connected over [MCP](/integrations/mcp):
+
+```typescript
+import { branch } from "@decibyl/sdk/typed";
+
+const router = await wf.addTyped(branch({
+  name: "Route by value",
+  rules: [
+    { label: "high value", variable: "order_value",
+      operator: "greater_than", value: "50000" },
+  ],
+  default_label: "standard",
+}));
+
+wf.edge(router, escalate, { label: "high value", condition: "deterministic" });
+wf.edge(router, normal,   { label: "standard",   condition: "deterministic" });
+```
+
+<Note>
+Edges out of a branch still need a `condition` — it is required on every edge —
+but the branch never reads it. Something like `"deterministic"` documents that
+for whoever opens the workflow next.
+</Note>
+
+## Limits
+
+There is no `and` / `or` and no parentheses, on purpose. A branch node exists to
+make routing legible to somebody who did not write it — an operator during an
+incident, a reviewer during a tender. When you need two conditions, use two
+branch nodes in a row: it reads better on a canvas than a nested expression, and
+each decision gets its own line in the run record.
+
+## Next
+
+- [Context and variables](/core-concepts/context-and-variables) — what is
+  available to test, and where it comes from.
+- [Agent Node](/voice-agent/agent) — the LLM-decided edges a branch complements.

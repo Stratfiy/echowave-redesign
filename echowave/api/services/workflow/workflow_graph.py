@@ -292,6 +292,7 @@ class WorkflowGraph:
         )
         errors.extend(self._assert_connection_counts())
         errors.extend(self._assert_node_configs())
+        errors.extend(self._assert_branch_labels_resolve())
         if errors:
             raise ValueError(errors)
 
@@ -370,6 +371,87 @@ class WorkflowGraph:
                         id=n.id,
                         field=None,
                         message=f"{label} must have at least {gc.min_outgoing} outgoing edge(s)",
+                    )
+                )
+
+        return errors
+
+    def _assert_branch_labels_resolve(self) -> list[WorkflowError]:
+        """Every branch rule, and the fallback, must name an edge that exists.
+
+        This is the one failure a branch node cannot survive at runtime and
+        cannot report at runtime either. A rule whose label matches no outgoing
+        edge does not raise when the call reaches it — it simply never routes,
+        so the call falls to the default and the branch appears to work while
+        doing nothing. A *default* that matches no edge is worse: the call
+        arrives with nowhere to go at all.
+
+        Both are only visible by comparing two halves of the node against each
+        other, which is exactly what a graph validator is for. Caught here, the
+        author sees it on save with the labels they actually typed; caught at
+        runtime, they see it in a call recording a week later.
+        """
+        errors: list[WorkflowError] = []
+
+        for node in self.nodes.values():
+            if node.node_type != NodeType.branch.value:
+                continue
+
+            edge_labels = {
+                (edge.label or "").strip().casefold() for edge in node.out_edges
+            }
+            available = ", ".join(sorted(e.label for e in node.out_edges)) or "none"
+
+            # Counted here rather than as a `min_outgoing` graph constraint,
+            # because the generic check counts distinct *target nodes* — `out`
+            # is keyed by target id — and two labelled edges into one node is a
+            # perfectly ordinary branch. Distinct labels are what a branch
+            # actually needs two of.
+            if len(edge_labels) < 2:
+                errors.append(
+                    WorkflowError(
+                        kind=ItemKind.node,
+                        id=node.id,
+                        field=None,
+                        message=(
+                            "Branch needs at least two differently-labelled "
+                            "outgoing edges — one for a rule to match and one "
+                            "for everything else. It currently has: "
+                            f"{available}."
+                        ),
+                    )
+                )
+
+            rules = getattr(node.data, "rules", None) or []
+            for index, rule in enumerate(rules):
+                label = (getattr(rule, "label", "") or "").strip()
+                if label.casefold() not in edge_labels:
+                    errors.append(
+                        WorkflowError(
+                            kind=ItemKind.node,
+                            id=node.id,
+                            field="rules",
+                            message=(
+                                f"Rule {index + 1} sends to '{label}', but this "
+                                f"node has no outgoing edge with that label. "
+                                f"Edges out of it: {available}."
+                            ),
+                        )
+                    )
+
+            default_label = (getattr(node.data, "default_label", "") or "").strip()
+            if default_label.casefold() not in edge_labels:
+                errors.append(
+                    WorkflowError(
+                        kind=ItemKind.node,
+                        id=node.id,
+                        field="default_label",
+                        message=(
+                            f"'Otherwise send to' is '{default_label}', but this "
+                            f"node has no outgoing edge with that label. Every "
+                            f"call reaching a branch must have somewhere to go. "
+                            f"Edges out of it: {available}."
+                        ),
                     )
                 )
 

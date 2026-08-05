@@ -27,6 +27,7 @@ from api.services.workflow.node_specs import (
     PropertySpec,
     PropertyType,
     all_specs,
+    get_spec,
 )
 
 PLACEHOLDER_DESCRIPTION_PATTERN = re.compile(
@@ -380,10 +381,23 @@ _UI_ONLY_KEYS = frozenset(
 
 
 def _walk_dicts(node):
-    """Yield every dict nested anywhere inside a projected structure."""
+    """Yield every dict nested anywhere inside a projected structure.
+
+    Skips the `examples` subtree. The keys in there are the node's own **field
+    names**, not spec metadata, and a node is free to have a field called
+    `label`, `description` or `icon` — the branch node's rules genuinely have a
+    `label`, deliberately named to match the edge field it points at. Walking
+    example payloads with a metadata blocklist compares two different
+    vocabularies and flags the collision as a leak.
+
+    Examples are meant to reach the LLM in full; showing the model a rule
+    without its `label` would teach it to write one that routes nowhere.
+    """
     if isinstance(node, dict):
         yield node
-        for value in node.values():
+        for key, value in node.items():
+            if key == "examples":
+                continue
             yield from _walk_dicts(value)
     elif isinstance(node, list):
         for item in node:
@@ -396,6 +410,18 @@ def test_to_mcp_dict_drops_ui_only_keys(spec: NodeSpec):
     for d in _walk_dicts(projected):
         leaked = _UI_ONLY_KEYS & d.keys()
         assert not leaked, f"{spec.name}: UI-only keys leaked into LLM view: {leaked}"
+
+
+def test_examples_are_still_projected_in_full():
+    """The exclusion above must not become a hole the projection hides in.
+
+    If `to_mcp_dict` ever started stripping example data, the walk would pass
+    vacuously and the model would lose the one part of a spec that shows it what
+    a valid node looks like.
+    """
+    projected = get_spec("branch").to_mcp_dict()
+    rules = projected["examples"][0]["data"]["rules"]
+    assert rules[0]["label"] and rules[0]["operator"] and rules[0]["variable"]
 
 
 @pytest.mark.parametrize("spec", all_specs(), ids=lambda s: s.name)
