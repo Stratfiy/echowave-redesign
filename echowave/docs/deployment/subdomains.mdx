@@ -143,6 +143,19 @@ Splitting hostnames silently invalidates anything that stored the old one:
 - **`SENTRY_ORG` / source maps**, if the app URL changed.
 
 <Note>
+**`/api/` deliberately keeps working on `app.decibyl.ai`.** `api.decibyl.ai` is
+canonical and is what new integrations should use, but the MCP endpoint is
+published as `https://app.decibyl.ai/api/v1/mcp/` in
+[MCP Server](/integrations/mcp) and the API reference — and every customer who
+has already run `claude mcp add` has that URL saved in their own config.
+Serving only the UI there would break all of them silently: their assistant
+would simply stop finding the tools.
+
+Published integration URLs are a contract. Migrate them with a deprecation and
+notice, not as a side effect of splitting hostnames.
+</Note>
+
+<Note>
 Serving the OpenAPI schema publicly at `api.decibyl.ai` is normal and fine, but
 check the Razorpay webhook is still `include_in_schema=False`. It is excluded
 deliberately — it carries no session, and the HMAC signature is its

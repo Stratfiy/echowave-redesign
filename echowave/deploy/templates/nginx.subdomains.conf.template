@@ -66,6 +66,39 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
+    # /api/ keeps working on the app host, deliberately.
+    #
+    # api.decibyl.ai is canonical and is what new integrations should use. But
+    # the MCP endpoint is published as https://app.decibyl.ai/api/v1/mcp/ in
+    # docs/integrations/mcp.mdx and docs/api-reference/overview.mdx, and any
+    # customer who has already run `claude mcp add` has that URL saved in their
+    # own config. Serving only the UI here would break every one of them the
+    # moment DNS changed — silently, since their assistant would just stop
+    # finding the tools.
+    #
+    # Published integration URLs are a contract. Migrating them is a
+    # deprecation with notice, not a side effect of splitting hostnames.
+    location /api/ {
+        proxy_pass http://decibyl_api;
+        proxy_http_version 1.1;
+
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+
+        proxy_buffering off;
+        client_max_body_size 100M;
+    }
+
     location / {
         proxy_pass         http://ui:3010;
         proxy_http_version 1.1;
