@@ -1,0 +1,158 @@
+---
+title: "Splitting onto subdomains"
+description: "Serving the app, the API and the docs from their own hostnames, with the apex free for a marketing site."
+---
+
+The default deployment serves everything from one hostname and splits by path:
+`/api/v1/` to the API, `/` to the app. That is correct for a self-hosted
+install and you should leave it alone.
+
+This page is for the commercial deployment, where you want:
+
+| Hostname | Serves |
+|---|---|
+| `decibyl.ai` | marketing site — **not** served by this stack |
+| `app.decibyl.ai` | the product |
+| `api.decibyl.ai` | API, WebSockets, MCP server, embed widget |
+| `docs.decibyl.ai` | documentation |
+
+<Warning>
+**The split makes the browser cross-origin.** That is the one thing capable of
+breaking it. It is safe today because the app authenticates with a **Bearer
+token, not a cookie** — there is no SameSite problem to solve. If auth ever
+moves to cookies they must be issued on `.decibyl.ai` with `SameSite=None`, and
+`CORS_ALLOWED_ORIGINS` must stop being a wildcard: browsers reject a wildcard
+origin on a credentialed request.
+</Warning>
+
+## 1. DNS
+
+Four records. The apex is deliberately **not** pointed at this box — send it
+wherever the marketing site lives.
+
+| Type | Name | Value |
+|---|---|---|
+| A | `app` | your Elastic IP |
+| A | `api` | your Elastic IP |
+| CNAME | `docs` | `cname.mintlify.app` (or your Elastic IP as an A record if self-hosting) |
+| A / CNAME | `@` | your marketing host — Vercel, Webflow, wherever |
+
+Wait for them to resolve before going further. Certificate issuance fails
+against a name that does not resolve, and the failure message points at the
+wrong thing:
+
+```bash
+dig +short app.decibyl.ai api.decibyl.ai docs.decibyl.ai
+```
+
+## 2. Certificates
+
+One certificate covering both names this box serves:
+
+```bash
+sudo certbot certonly --webroot -w ./certs \
+  -d app.decibyl.ai -d api.decibyl.ai \
+  --email you@decibyl.ai --agree-tos --no-eff-email
+
+# nginx reads these paths; point them at the issued certificate
+sudo ln -sf /etc/letsencrypt/live/app.decibyl.ai/fullchain.pem ./certs/local.crt
+sudo ln -sf /etc/letsencrypt/live/app.decibyl.ai/privkey.pem   ./certs/local.key
+```
+
+Add `docs.decibyl.ai` to the `-d` list only if you are self-hosting the docs.
+
+## 3. Configuration
+
+In `.env` on the box:
+
+```bash
+# The API's own public URL. Telephony providers call webhooks here, the SDK
+# targets it, and the MCP server is advertised at it — so this is the one
+# hostname that must not move once customers have integrated.
+BACKEND_API_ENDPOINT=https://api.decibyl.ai
+PUBLIC_BASE_URL=https://api.decibyl.ai
+
+# What the browser bundle calls. Baked in at build time, so the UI image must
+# be rebuilt after changing it — not just restarted.
+NEXT_PUBLIC_BACKEND_URL=https://api.decibyl.ai
+
+# Recordings are fetched from the API host.
+MINIO_PUBLIC_ENDPOINT=https://api.decibyl.ai
+
+# Only needed when DEPLOYMENT_MODE is not "oss". In oss mode the API already
+# allows any origin without credentials, which is correct for Bearer auth.
+CORS_ALLOWED_ORIGINS=https://app.decibyl.ai
+```
+
+<Warning>
+`NEXT_PUBLIC_*` variables are compiled into the browser bundle. Changing one
+and restarting does nothing — the old value is inside the built JavaScript.
+Rebuild the UI image.
+</Warning>
+
+## 4. Render the subdomain config
+
+`deploy/templates/nginx.subdomains.conf.template` replaces the single-host
+template. Substitute the three hostnames and the upstream block, write the
+result where nginx reads its config, and reload:
+
+```bash
+docker compose build ui        # picks up NEXT_PUBLIC_BACKEND_URL
+docker compose up -d
+docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
+```
+
+## 5. Check it, in this order
+
+Each step tells you something the previous one could not.
+
+```bash
+# 1. The API answers on its own hostname
+curl -s https://api.decibyl.ai/api/v1/health | jq .status
+
+# 2. The app is served, and is NOT reachable on the API host
+curl -sI https://app.decibyl.ai | head -1
+curl -s https://api.decibyl.ai/ | jq -r .detail     # expect the pointer message
+
+# 3. Cross-origin actually works from the browser's point of view
+curl -si -X OPTIONS https://api.decibyl.ai/api/v1/health \
+  -H "Origin: https://app.decibyl.ai" \
+  -H "Access-Control-Request-Method: GET" | grep -i access-control
+
+# 4. WebSockets upgrade — this is what carries voice
+curl -si https://api.decibyl.ai/api/v1/health \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" | head -1
+```
+
+Then log in at `https://app.decibyl.ai` and place one test call. Nothing above
+proves audio works; only a call does.
+
+## 6. Repoint the things that hold your old URL
+
+Splitting hostnames silently invalidates anything that stored the old one:
+
+- **Telephony webhooks.** Every provider's callback URL must become
+  `https://api.decibyl.ai/...`. An inbound call to a stale URL fails with no
+  error on your side — the carrier gets the 404, you get silence.
+- **The Razorpay webhook**, to
+  `https://api.decibyl.ai/api/v1/billing/razorpay/webhook`. Miss this and
+  payments are captured and never credited, which is the failure the billing
+  readiness check exists to catch.
+- **Embed widget snippets** already on customer sites, which point at the old
+  host. Regenerate and reissue them.
+- **`SENTRY_ORG` / source maps**, if the app URL changed.
+
+<Note>
+Serving the OpenAPI schema publicly at `api.decibyl.ai` is normal and fine, but
+check the Razorpay webhook is still `include_in_schema=False`. It is excluded
+deliberately — it carries no session, and the HMAC signature is its
+authentication.
+</Note>
+
+## Why the apex is not proxied here
+
+Redirecting `decibyl.ai` to `app.decibyl.ai` would work today and be in the way
+the moment a marketing site exists. Point the apex at your site host in DNS and
+keep this stack out of it — the two have different uptime requirements, and a
+marketing page that goes down with the API is a marketing page that cannot tell
+anyone the API is down.

@@ -167,6 +167,7 @@
               "deployment/docker",
               "deployment/authentication",
               "deployment/custom-domain",
+              "deployment/subdomains",
               "deployment/scaling",
               "deployment/update",
               "deployment/heroku"
