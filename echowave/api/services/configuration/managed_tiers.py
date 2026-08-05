@@ -97,7 +97,12 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # "zen" is the quiet tier — cheapest that still holds a conversation.
         ("llm", "zen"): _tier("llm", "zen", "google", "gemini-2.5-flash-lite"),
         # --- Speech --------------------------------------------------------
-        ("stt", "default"): _tier("stt", "default", "sarvam", "saarika:v2"),
+        # saarika:v2.5, not v2. Sarvam's own configuration class defaults to
+        # v2.5 and offers only v2.5 and saaras:v3 — "saarika:v2" is a name from
+        # a generation the vendor no longer serves, and it appeared nowhere
+        # else in this repository. A managed customer transcribes every call on
+        # this string, so a stale one is not a fallback, it is silence.
+        ("stt", "default"): _tier("stt", "default", "sarvam", "saarika:v2.5"),
         ("tts", "default"): _tier("tts", "default", "sarvam", "bulbul:v2"),
         # --- Speech-to-speech ----------------------------------------------
         # A single model that hears and speaks, replacing the STT and TTS pair.
@@ -107,15 +112,36 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # offered because latency is the reason anyone picks speech-to-speech,
         # and refusing to offer it at all would just push those customers to
         # bring their own key for the same model.
+        #
+        # The model string must be one the realtime registry actually offers —
+        # ``OPENAI_REALTIME_MODELS`` in registry.py — because service_factory
+        # passes it straight through to the vendor. A name that only exists
+        # here fails at session open, after the call has already connected.
         (REALTIME_COMPONENT, "default"): _tier(
-            REALTIME_COMPONENT, "default", "openai_realtime", "gpt-4o-realtime-preview"
+            REALTIME_COMPONENT, "default", "openai_realtime", "gpt-realtime-2"
         ),
         # --- Embeddings ----------------------------------------------------
-        # Google, to match the default language model: one vendor key serves
-        # both chat and embeddings, so a managed customer needs no second
-        # credential stored and no second account to go wrong.
+        # OpenAI, and it has to be: **there is no Google embeddings service in
+        # this codebase.** ``REGISTRY[ServiceType.EMBEDDINGS]`` holds azure,
+        # decibyl, openai and openrouter, and ``build_embedding_service``
+        # branches on azure and decibyl then *falls through to OpenAI for
+        # everything else*. Pointing this tier at Google did not fail loudly —
+        # it built an OpenAI client, aimed it at OpenAI's endpoint, and handed
+        # it a Google API key. Every managed knowledge-base lookup came back
+        # 401 from a vendor the configuration never named.
+        #
+        # It read plausibly because the credential half was sound: embeddings
+        # authenticate on the LLM credential, and the default LLM tier is
+        # Google, so one key would have served both. That argument only holds
+        # if a Google embeddings client exists. Until one does, the tier must
+        # name a provider the factory can actually build.
+        #
+        # OpenAI costs no extra platform key — the "accurate" LLM tier and the
+        # speech-to-speech tier already need one — and text-embedding-3-small
+        # is the factory's own default, so the managed path and the fallback
+        # path now agree.
         (EMBEDDINGS_COMPONENT, "default"): _tier(
-            EMBEDDINGS_COMPONENT, "default", "google", "text-embedding-004"
+            EMBEDDINGS_COMPONENT, "default", "openai", "text-embedding-3-small"
         ),
     }
 

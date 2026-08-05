@@ -9,6 +9,7 @@ import pytest
 
 from api.enums import CostComponent
 from api.services.configuration import managed_tiers
+from api.services.configuration.registry import REGISTRY, ServiceType
 
 
 class TestTierMapping:
@@ -120,3 +121,133 @@ class TestWhichCredentialAuthenticates:
 
         for component in (CostComponent.STT, CostComponent.LLM, CostComponent.TTS):
             assert managed_resolution._credential_component(component) is component
+
+
+class TestEveryTierNamesSomethingThatExists:
+    """A tier is a promise that a real provider and a real model are waiting.
+
+    Nothing enforced that promise. The tier table is a plain dict of strings,
+    and every consumer downstream — the config registry, the embedding factory,
+    the rate card — looks its half up by name and shrugs when it misses. Three
+    tiers were pointing at names nothing served, and all three failed the same
+    way: late, at dial time, with an error naming a vendor the customer never
+    chose.
+
+    * ``embeddings`` said ``google``. There is no Google embeddings service
+      here, and ``build_embedding_service`` falls through to OpenAI for any
+      provider it does not recognise — so a managed knowledge base built an
+      OpenAI client and authenticated it with a Google key.
+    * ``stt`` said ``saarika:v2``, a Sarvam generation the vendor's own
+      configuration class no longer offers.
+    * ``realtime`` said ``gpt-4o-realtime-preview``, which appeared in no model
+      list and no price book entry in this repository.
+
+    These tests are the enforcement. They read the tier table against the
+    things that consume it, so the next stale string fails here rather than on
+    somebody's call.
+    """
+
+    SERVICE_TYPES = {
+        "stt": ServiceType.STT,
+        "llm": ServiceType.LLM,
+        "tts": ServiceType.TTS,
+        managed_tiers.EMBEDDINGS_COMPONENT: ServiceType.EMBEDDINGS,
+        managed_tiers.REALTIME_COMPONENT: ServiceType.REALTIME,
+    }
+
+    def test_every_tier_provider_has_a_configuration_class(self):
+        """The one that matters: a provider with no class in the registry for
+        its service type cannot be built, and nothing on the resolution path
+        checks."""
+        missing = [
+            (component, tier, upstream.provider)
+            for (component, tier), upstream in managed_tiers._defaults().items()
+            if upstream.provider not in REGISTRY[self.SERVICE_TYPES[component]]
+        ]
+        assert missing == []
+
+    def test_the_embeddings_tier_is_a_provider_the_factory_actually_branches_on(self):
+        """``build_embedding_service`` names azure and decibyl, then falls
+        through to an OpenAI client for everything else. That fallback is why
+        the Google mistake was silent — so the tier is held to the set the
+        factory can genuinely serve, not merely to a registered class."""
+        upstream = managed_tiers.resolve(managed_tiers.EMBEDDINGS_COMPONENT, "default")
+        assert upstream.provider in {"azure", "decibyl", "openai", "openrouter"}
+
+    def test_every_cascade_tier_has_a_rate_on_file(self):
+        """An unpriced tier is worse than an expensive one: the call runs, the
+        cost lands nowhere, and margin reports 100%.
+
+        Scoped to the cascade components, whose billing provider name is the
+        same string the configuration uses. Realtime is excluded on purpose —
+        it is metered under the processor class name
+        (``decibylopenairealtime``), not the configuration provider, and
+        ``test_default_rates`` covers that mapping.
+        """
+        from api.enums import CostComponent
+        from api.services.billing.default_rates import DEFAULT_RATES
+
+        components = {
+            "stt": CostComponent.STT,
+            "llm": CostComponent.LLM,
+            "tts": CostComponent.TTS,
+        }
+        unpriced = []
+        for (component, tier), upstream in managed_tiers._defaults().items():
+            cost_component = components.get(component)
+            if cost_component is None:
+                continue
+            priced = any(
+                rate.provider == upstream.provider
+                and rate.component == cost_component
+                and rate.model in ("", upstream.model)
+                for rate in DEFAULT_RATES
+            )
+            if not priced:
+                unpriced.append((component, tier, upstream.provider, upstream.model))
+        assert unpriced == []
+
+    #: Tier models that are deliberately absent from a provider's published
+    #: list, with the reason. The list on a configuration class is what the
+    #: BYOK dropdown offers a customer; a managed tier is what *we* choose to
+    #: run on our own key, and the two need not be identical. But the gap has
+    #: to be a decision somebody made, not a string that rotted — so each one
+    #: is written down here and everything else fails.
+    DELIBERATELY_OFF_LIST = {
+        # The "accurate" tier. Older than the gpt-4.1/gpt-5 line the dropdown
+        # offers, still served by OpenAI, and priced explicitly at $2.50/$10 in
+        # default_rates — kept on purpose, not by neglect.
+        ("llm", "openai", "gpt-4o"),
+    }
+
+    def test_every_tier_model_is_one_the_provider_publishes(self):
+        """Catches the failure the provider check cannot see: a real vendor,
+        a model name that vendor retired.
+
+        ``saarika:v2`` passed every other test here. Sarvam is registered, the
+        provider-wide Sarvam rate priced it, and nothing compared the string
+        against Sarvam's own class — which defaults to ``saarika:v2.5`` and
+        describes only v2.5 and saaras:v3. A managed customer would have
+        transcribed every call on a name the vendor no longer answers to.
+        """
+        stale = []
+        for (component, tier), upstream in managed_tiers._defaults().items():
+            config_cls = REGISTRY[self.SERVICE_TYPES[component]].get(upstream.provider)
+            if config_cls is None:
+                continue  # covered, and reported, by the provider test above
+            field = config_cls.model_fields.get("model")
+            published = (getattr(field, "json_schema_extra", None) or {}).get(
+                "examples"
+            )
+            if not published:
+                continue  # the class publishes no list; nothing to check against
+            if upstream.model in published:
+                continue
+            if (
+                component,
+                upstream.provider,
+                upstream.model,
+            ) in self.DELIBERATELY_OFF_LIST:
+                continue
+            stale.append((component, tier, upstream.provider, upstream.model))
+        assert stale == []

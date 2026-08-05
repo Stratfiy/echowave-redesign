@@ -256,7 +256,7 @@ STT_RATES = (
     ),
     DefaultRate(
         "sarvam",
-        "saarika:v2",
+        "saarika:v2.5",
         CostComponent.STT,
         RateUnit.MINUTE,
         _inr(30.0 / 60),
