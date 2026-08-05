@@ -22,6 +22,7 @@ from api.services.pipecat.tracing_config import register_org_langfuse_credential
 from api.services.workflow.dto import (
     QANodeData,
     QARFNode,
+    SmsRFNode,
     WebhookNodeData,
     WebhookRFNode,
 )
@@ -219,12 +220,14 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
         nodes = workflow_definition.get("nodes", [])
         qa_nodes = [n for n in nodes if n.get("type") == "qa"]
         webhook_nodes = [n for n in nodes if n.get("type") == "webhook"]
+        sms_nodes = [n for n in nodes if n.get("type") == "sms"]
         has_registered_integrations = has_completion_handlers(workflow_definition)
 
         # Step 4: Generate a public access token for any run that needs post-call work.
         has_campaign = workflow_run.campaign_id is not None
         if (
             not webhook_nodes
+            and not sms_nodes
             and not qa_nodes
             and not has_registered_integrations
             and not has_campaign
@@ -292,15 +295,35 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
                 workflow_run_id
             )
 
-        # Step 7: Execute webhooks
+        # Step 7: Build render context (includes annotations from QA and
+        # integrations) — shared by follow-up messages and webhooks alike.
+        if not webhook_nodes and not sms_nodes:
+            logger.debug("No webhook or message nodes in workflow")
+            return
+
+        render_context = _build_render_context(workflow_run, public_token)
+
+        # Step 8: Send follow-up messages.
+        #
+        # Before webhooks rather than after, because the message is what the
+        # caller is waiting on: they were told "I have sent you the link" and
+        # every second it does not arrive is a second they doubt the call. A
+        # webhook has no such audience.
+        if sms_nodes:
+            logger.info(f"Found {len(sms_nodes)} message nodes to send")
+            await _send_follow_up_messages(
+                sms_nodes,
+                render_context=render_context,
+                workflow_run=workflow_run,
+                organization_id=organization_id,
+                workflow_run_id=workflow_run_id,
+            )
+
         if not webhook_nodes:
             logger.debug("No webhook nodes in workflow")
             return
 
         logger.info(f"Found {len(webhook_nodes)} webhook nodes to execute")
-
-        # Step 8: Build render context (includes annotations from QA and integrations)
-        render_context = _build_render_context(workflow_run, public_token)
 
         # Step 9: Execute each webhook node
         for node in webhook_nodes:
@@ -328,6 +351,91 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
     except Exception as e:
         logger.error(f"Error running integrations: {e}", exc_info=True)
         raise
+
+
+async def _send_follow_up_messages(
+    sms_nodes: list[dict],
+    *,
+    render_context: Dict[str, Any],
+    workflow_run: WorkflowRunModel,
+    organization_id: int,
+    workflow_run_id: int,
+) -> None:
+    """Send each Send Message node, recording the outcome on the run.
+
+    **Never raises.** This is the least important thing on the post-call path —
+    the conversation is over, the transcript is stored, the receipt is costed —
+    and losing any of that because a carrier rate-limited us would be a bad
+    trade. Every failure is written down and the loop continues.
+    """
+    from api.services.messaging import follow_up
+
+    telephony_config = None
+    config_id = getattr(workflow_run, "telephony_configuration_id", None)
+    if config_id:
+        telephony_config = await db_client.get_telephony_configuration_for_org(
+            config_id, organization_id
+        )
+    if telephony_config is None:
+        telephony_config = await db_client.get_default_telephony_configuration(
+            organization_id
+        )
+
+    if telephony_config is None:
+        logger.warning(
+            "Workflow run {} has message nodes but the organisation has no "
+            "telephony configuration, so there are no carrier credentials to "
+            "send with.",
+            workflow_run_id,
+        )
+        return
+
+    credentials = telephony_config.credentials or {}
+    default_from = (
+        credentials.get("caller_id")
+        or credentials.get("from_number")
+        or credentials.get("phone_number")
+        or ""
+    )
+
+    results: list[dict] = []
+    for node in sms_nodes:
+        node_id = node.get("id", "unknown")
+        try:
+            sms_node = SmsRFNode.model_validate(node)
+        except ValidationError as e:
+            logger.warning(f"Message node #{node_id} failed validation, skipping: {e}")
+            continue
+
+        try:
+            result = await follow_up.deliver(
+                sms_node.data,
+                variables=render_context,
+                provider=telephony_config.provider,
+                credentials=credentials,
+                default_from=str(default_from),
+            )
+        except Exception as e:  # noqa: BLE001 - see the docstring
+            logger.error(
+                f"Message node '{sms_node.data.name}' raised unexpectedly: {e}",
+                exc_info=True,
+            )
+            continue
+
+        if result is not None:
+            results.append({"node": sms_node.data.name, **result.as_dict()})
+
+    if results:
+        # Merged into annotations the same way QA and integration results are.
+        # A message that failed is the first thing a support conversation needs,
+        # and "check the carrier dashboard" is not an answer when the customer
+        # is asking why their applicant never got the link.
+        try:
+            await db_client.update_workflow_run(
+                workflow_run_id, annotations={"follow_up_messages": results}
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not record message delivery on the run: {e}")
 
 
 def _build_render_context(

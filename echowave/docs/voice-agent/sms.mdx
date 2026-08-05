@@ -1,0 +1,136 @@
+---
+title: "Send Message Node"
+description: "Text the caller after the call — SMS or WhatsApp, on the carrier you already dial with."
+tag: "NEW"
+---
+
+The agent confirms the appointment, reads out a reference number, and the caller
+writes it on the back of an envelope. Or they do not, and they ring back
+tomorrow to ask what it was.
+
+A Send Message node texts them instead. Call, then text, is the pattern people
+in India actually complete — the conversation persuades, the message is the
+thing they keep.
+
+<Note>
+**No new account.** Twilio and Plivo bill messaging to the same account as
+voice, so the telephony configuration your agent already dials with can already
+send. WhatsApp needs a Twilio WhatsApp Business sender; everything else is
+already in place.
+</Note>
+
+## How it behaves
+
+Like the [Webhook](/voice-agent/webhook) node, this one is **detached** — no
+edges in or out. It is not a step in the conversation. It fires once the run
+completes, with everything the call gathered available to the message.
+
+| | |
+|---|---|
+| **When** | After the call ends, alongside webhooks and QA. |
+| **To** | The number that was on the call, unless you say otherwise. |
+| **From** | The configuration's default caller ID, unless you say otherwise. |
+| **Body** | Supports `{{template_variables}}` from the call. |
+
+## Write the message
+
+```
+Namaste {{first_name}}, your appointment is confirmed for
+{{appointment_time}}. Reference: {{reference_id}}
+```
+
+Everything the call knows is available: variables extracted during the
+conversation, columns from the campaign CSV, fields from the trigger payload,
+and anything a [pre-call fetch](/voice-agent/pre-call-data-fetch) returned.
+
+<Warning>
+**Keep it short.** Carriers split long messages into separately-billed segments
+— 160 characters for plain Latin text, but only **70 for Indic scripts**, so a
+Telugu message hits the boundary in a sentence and a half. A 1,000-character
+message is not one message, it is fifteen. Anything past 1,600 characters is
+refused rather than sent, so the invoice never surprises you.
+</Warning>
+
+## Only send when it is worth sending
+
+The failure this node must not have is texting somebody a confirmation of a call
+that did not succeed. **Only send if** takes the same shape as a
+[branch rule](/voice-agent/branch):
+
+| | |
+|---|---|
+| Variable | `call_outcome` |
+| Condition | `equals` |
+| Value | `agreed` |
+
+Leave the variable blank to always send.
+
+<Note>
+The same rule as a branch applies here, and for the same reason: **a variable
+that is missing never matches.** A call whose outcome you failed to capture is
+not a call that went well, so it is not texted a confirmation.
+</Note>
+
+## Reading what happened
+
+Every attempt is recorded on the run under `follow_up_messages`:
+
+```json
+{
+  "follow_up_messages": [
+    {
+      "node": "Confirmation SMS",
+      "ok": false,
+      "provider": "twilio",
+      "to": "+919876543210",
+      "error": "The 'To' number is not a valid mobile number",
+      "status_code": 400
+    }
+  ]
+}
+```
+
+The carrier's own words are kept, because *"the To number is not a valid mobile
+number"* tells you what to fix and *"HTTP 400"* does not.
+
+## Numbers
+
+Recipients must be **E.164** — `+919876543210`. Spaces, dashes and a leading
+`00` are cleaned up for you.
+
+<Warning>
+**A bare ten-digit number is refused, not assumed.** `9876543210` is a valid
+mobile in a dozen countries. Defaulting it to `+91` would, for any customer
+dialling outside India, text a stranger about an appointment they never made —
+and the send would succeed, so nobody would find out.
+</Warning>
+
+## Failures never take the call down with them
+
+By the time this runs the conversation is over, the transcript is stored and the
+receipt is costed. A carrier that rate-limits you, a network blip, a number that
+turns out to be a landline — all of them are written onto the run and none of
+them stops the rest of the post-call work. Losing a call's data over an SMS
+would be a bad trade.
+
+## From code
+
+```typescript
+import { sms } from "@decibyl/sdk/typed";
+
+await wf.addTyped(sms({
+  name: "Confirmation SMS",
+  channel: "sms",
+  body: "Namaste {{first_name}}, ref {{reference_id}}.",
+  send_when_variable: "call_outcome",
+  send_when_operator: "equals",
+  send_when_value: "agreed",
+}));
+```
+
+No `wf.edge` call — the node is detached.
+
+## Next
+
+- [Branch Node](/voice-agent/branch) — the same condition shape, for routing.
+- [Webhook](/voice-agent/webhook) — for telling *your systems* what happened.

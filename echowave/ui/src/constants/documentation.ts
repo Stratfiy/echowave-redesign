@@ -10,6 +10,7 @@ export const NODE_DOCUMENTATION_URLS: Record<string, string> = {
     qaAnalysis: `${DOCS_BASE}/getting-started`,
     branch: `${DOCS_BASE}/voice-agent/branch`,
     wait: `${DOCS_BASE}/voice-agent/wait`,
+    sms: `${DOCS_BASE}/voice-agent/sms`,
 };
 
 export const CONTEXT_VARIABLES_DOC_URL = `${DOCS_BASE}/core-concepts/context-and-variables`;

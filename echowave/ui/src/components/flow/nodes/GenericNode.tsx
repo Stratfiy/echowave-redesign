@@ -48,6 +48,10 @@ const STYLE_VARIANT_BY_SPEC: Record<string, NodeStyleVariant> = {
     qa: "qa",
     branch: "branch",
     wait: "wait",
+    // Grouped with the other post-call integrations (webhook, QA): it is not a
+    // step in the conversation, it is something that happens once the call is
+    // over.
+    sms: "integration",
 };
 
 const HANDLES_BY_SPEC: Record<string, { source: boolean; target: boolean }> = {
@@ -60,6 +64,7 @@ const HANDLES_BY_SPEC: Record<string, { source: boolean; target: boolean }> = {
     qa: { source: false, target: false },
     branch: { source: true, target: true },
     wait: { source: true, target: true },
+    sms: { source: false, target: false },
 };
 
 const DOC_URL_BY_SPEC: Record<string, string | undefined> = {
@@ -72,6 +77,7 @@ const DOC_URL_BY_SPEC: Record<string, string | undefined> = {
     qa: NODE_DOCUMENTATION_URLS.qaAnalysis,
     branch: NODE_DOCUMENTATION_URLS.branch,
     wait: NODE_DOCUMENTATION_URLS.wait,
+    sms: NODE_DOCUMENTATION_URLS.sms,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────

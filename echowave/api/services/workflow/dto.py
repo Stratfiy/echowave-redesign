@@ -32,6 +32,7 @@ class NodeType(str, Enum):
     qa = "qa"
     branch = "branch"
     wait = "wait"
+    sms = "sms"
 
 
 class Position(BaseModel):
@@ -1254,6 +1255,186 @@ class WaitNodeData(BaseNodeData):
         return self
 
 
+@node_spec(
+    name="sms",
+    display_name="Send Message",
+    description="Text the caller after the call — SMS or WhatsApp, on the carrier you already use.",
+    llm_hint=(
+        "Sends one SMS or WhatsApp message after the call finishes, on the "
+        "organisation's existing telephony credentials. No new account is "
+        "needed: Twilio and Plivo bill messaging to the same account as "
+        "voice.\n\n"
+        "Like the webhook node it is **detached** — no edges in or out. It is "
+        "not a step in the conversation; it fires once the run completes, with "
+        "the run's variables available to the template.\n\n"
+        "Use it for the artefact the caller keeps: a confirmation, a reference "
+        "number, a payment or application link. `to` defaults to the number "
+        "that was on the call, which is what you want almost every time.\n\n"
+        "Only send when it is worth sending. The `send_when_*` fields take the "
+        "same variable/operator/value shape as a branch rule, so a failed call "
+        "does not text somebody a confirmation of nothing."
+    ),
+    category=NodeCategory.integration,
+    icon="MessageSquare",
+    docs_url="/voice-agent/sms",
+    examples=[
+        NodeExample(
+            name="confirm_the_appointment",
+            data={
+                "name": "Confirmation SMS",
+                "enabled": True,
+                "channel": "sms",
+                "body": (
+                    "Namaste {{first_name}}, your appointment is confirmed for "
+                    "{{appointment_time}}. Ref: {{reference_id}}"
+                ),
+            },
+        ),
+        NodeExample(
+            name="only_when_the_call_succeeded",
+            data={
+                "name": "Payment link",
+                "enabled": True,
+                "channel": "whatsapp",
+                "body": "Your payment link: {{payment_url}}",
+                "send_when_variable": "call_outcome",
+                "send_when_operator": "equals",
+                "send_when_value": "agreed",
+            },
+        ),
+    ],
+    graph_constraints=GraphConstraints(
+        min_incoming=0, max_incoming=0, min_outgoing=0, max_outgoing=0
+    ),
+    property_order=(
+        "name",
+        "enabled",
+        "channel",
+        "to",
+        "from_number",
+        "body",
+        "send_when_variable",
+        "send_when_operator",
+        "send_when_value",
+    ),
+    field_overrides={
+        "name": {
+            "spec_default": "Send Message",
+            "description": "Short identifier shown in the canvas and call logs.",
+        },
+        "enabled": {
+            "display_name": "Enabled",
+            "description": "When false, nothing is sent.",
+        },
+        "channel": {
+            "display_name": "Channel",
+            "description": (
+                "SMS goes over the telephony configuration's carrier. WhatsApp "
+                "requires a Twilio WhatsApp Business sender."
+            ),
+            "options": [
+                PropertyOption(value="sms", label="SMS"),
+                PropertyOption(value="whatsapp", label="WhatsApp"),
+            ],
+        },
+        "to": {
+            "display_name": "To",
+            "description": (
+                "Recipient in E.164 (+919876543210). Leave blank to use the "
+                "number that was on the call. Supports {{template_variables}}."
+            ),
+        },
+        "from_number": {
+            "display_name": "From",
+            "description": (
+                "Sender number. Leave blank to use the configuration's default "
+                "outbound caller ID."
+            ),
+        },
+        "body": {
+            "display_name": "Message",
+            "description": (
+                "Supports {{template_variables}} from the call — extracted "
+                "values, campaign columns, trigger payload."
+            ),
+            "editor": "textarea",
+        },
+        "send_when_variable": {
+            "display_name": "Only send if — variable",
+            "description": "Leave blank to always send. Same shape as a branch rule.",
+        },
+        "send_when_operator": {
+            "display_name": "Only send if — condition",
+            "description": "How the variable is compared.",
+            "options": [
+                PropertyOption(value="equals", label="equals"),
+                PropertyOption(value="not_equals", label="does not equal"),
+                PropertyOption(value="contains", label="contains"),
+                PropertyOption(value="in_list", label="is one of"),
+                PropertyOption(value="greater_than", label="is greater than"),
+                PropertyOption(value="less_than", label="is less than"),
+                PropertyOption(value="is_true", label="is true"),
+                PropertyOption(value="is_not_empty", label="is not empty"),
+            ],
+        },
+        "send_when_value": {
+            "display_name": "Only send if — value",
+            "description": "Blank for 'is true' and 'is not empty'.",
+        },
+    },
+)
+class SmsNodeData(BaseNodeData):
+    enabled: bool = spec_field(default=True, ui_type=PropertyType.boolean)
+    channel: str = spec_field(default="sms", ui_type=PropertyType.options)
+    to: Optional[str] = spec_field(default=None, ui_type=PropertyType.string)
+    from_number: Optional[str] = spec_field(default=None, ui_type=PropertyType.string)
+    body: str = spec_field(default="", ui_type=PropertyType.string)
+    send_when_variable: Optional[str] = spec_field(
+        default=None, ui_type=PropertyType.string
+    )
+    send_when_operator: Optional[str] = spec_field(
+        default=None, ui_type=PropertyType.options
+    )
+    send_when_value: Optional[str] = spec_field(
+        default=None, ui_type=PropertyType.string
+    )
+
+    @model_validator(mode="after")
+    def _is_sendable(self):
+        """Catch at save time the two ways this node silently does nothing.
+
+        An empty body sends nothing. A half-written condition is worse: a
+        variable with no operator reads as a guard that is doing something,
+        while in fact every call is texted.
+        """
+        if self.enabled and not (self.body or "").strip():
+            raise ValueError(
+                "Send Message is enabled but has no message body. Write the "
+                "message, or switch the node off."
+            )
+
+        from api.services.workflow.branching import Rule, validate_rule
+
+        if self.send_when_variable:
+            problems = validate_rule(
+                Rule(
+                    label="send",
+                    variable=self.send_when_variable,
+                    operator=self.send_when_operator or "",
+                    value=self.send_when_value or "",
+                )
+            )
+            if problems:
+                raise ValueError(" ".join(problems))
+        elif self.send_when_operator or self.send_when_value:
+            raise ValueError(
+                "The 'only send if' condition names a comparison but no "
+                "variable to compare, so it would never hold anything back. "
+                "Add the variable, or clear the condition."
+            )
+        return self
+
+
 # Union of every per-type data class — useful as a type annotation on
 # consumers that handle any node data without dispatching on type. Cannot
 # be called as a constructor; use the per-type class directly.
@@ -1267,6 +1448,7 @@ NodeDataDTO = Union[
     QANodeData,
     BranchNodeData,
     WaitNodeData,
+    SmsNodeData,
 ]
 
 
@@ -1353,6 +1535,11 @@ class BranchRFNode(_RFNodeBase):
 class WaitRFNode(_RFNodeBase):
     type: Literal["wait"] = "wait"
     data: WaitNodeData
+
+
+class SmsRFNode(_RFNodeBase):
+    type: Literal["sms"] = "sms"
+    data: SmsNodeData
 
 
 _PROMPT_REQUIRED_NODE_TYPES: dict[str, str] = {
@@ -1450,6 +1637,7 @@ _CORE_NODE_DATA_CLASSES: dict[str, type[BaseNodeData]] = {
     NodeType.qa.value: QANodeData,
     NodeType.branch.value: BranchNodeData,
     NodeType.wait.value: WaitNodeData,
+    NodeType.sms.value: SmsNodeData,
 }
 
 
