@@ -40,7 +40,6 @@ from api.services.configuration.resolve import (
     enrich_overrides_with_api_keys,
     resolve_effective_config,
 )
-from api.services.mps_service_key_client import mps_service_key_client
 from api.services.posthog_client import capture_event
 from api.services.reports import generate_workflow_report_csv
 from api.services.storage import storage_fs
@@ -51,6 +50,7 @@ from api.services.workflow.run_usage_response import (
     format_public_cost_info,
     format_public_usage_info,
 )
+from api.services.workflow.template_generation import generate_workflow_definition
 from api.services.workflow.trigger_paths import (
     TriggerPathIssue,
     ensure_trigger_paths,
@@ -478,7 +478,8 @@ async def create_workflow_from_template(
     Create a new workflow from a natural language template request.
 
     This endpoint:
-    1. Uses mps_service_key_client to call MPS workflow API
+    1. Asks MPS to generate a workflow, falling back to a locally-built starter
+       workflow when MPS is unconfigured or unreachable (self-hosted deployments)
     2. Passes organization ID (authenticated mode) or created_by (OSS mode)
     3. Creates the workflow in the database
 
@@ -493,9 +494,9 @@ async def create_workflow_from_template(
         HTTPException: If MPS API call fails
     """
     try:
-        # Call MPS API to generate workflow using the client
+        # Generate the workflow — MPS when it is available, local starter otherwise
         if DEPLOYMENT_MODE == "oss":
-            workflow_data = await mps_service_key_client.call_workflow_api(
+            workflow_data = await generate_workflow_definition(
                 call_type=request.call_type.upper(),
                 use_case=request.use_case,
                 activity_description=request.activity_description,
@@ -505,7 +506,7 @@ async def create_workflow_from_template(
             if not user.selected_organization_id:
                 raise HTTPException(status_code=400, detail="No organization selected")
 
-            workflow_data = await mps_service_key_client.call_workflow_api(
+            workflow_data = await generate_workflow_definition(
                 call_type=request.call_type.upper(),
                 use_case=request.use_case,
                 activity_description=request.activity_description,
