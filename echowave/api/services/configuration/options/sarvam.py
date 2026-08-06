@@ -94,7 +94,8 @@ SARVAM_STT_LANGUAGES_V3 = SARVAM_STT_LANGUAGES_V25 + (
     "mai-IN",
     "doi-IN",
 )
-SARVAM_LLM_MODELS = (
-    "sarvam-30b",
-    "sarvam-105b",
-)
+# sarvam-30b is retired: the API answers a 400 with "Model 'sarvam-30b' has
+# been deprecated. Please use one of the available models instead:
+# sarvam-105b." Offering it meant every agent built on the default died mid-call,
+# after the caller had already spoken.
+SARVAM_LLM_MODELS = ("sarvam-105b",)
