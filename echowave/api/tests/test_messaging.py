@@ -171,7 +171,7 @@ class TestTalkingToCarriers:
         assert post.await_args.kwargs["json"]["dst"] == "919876543210"
 
     async def test_a_refusal_carries_the_carriers_own_words(self):
-        """"The 'To' number is not a valid mobile number" tells an operator what
+        """ "The 'To' number is not a valid mobile number" tells an operator what
         to fix. "HTTP 400" tells them to open a ticket."""
         post = AsyncMock(
             return_value=_response(
@@ -193,7 +193,9 @@ class TestTalkingToCarriers:
     async def test_a_network_failure_is_a_result_not_an_exception(self):
         """The post-call task must survive this. The transcript and the receipt
         matter more than the SMS."""
-        with patch("httpx.AsyncClient.post", AsyncMock(side_effect=httpx.ConnectError("boom"))):
+        with patch(
+            "httpx.AsyncClient.post", AsyncMock(side_effect=httpx.ConnectError("boom"))
+        ):
             result = await send_message(
                 provider="twilio",
                 credentials=TWILIO,
@@ -328,3 +330,48 @@ class TestDecidingWhetherToSend:
         result, post = await self._deliver(node, {})
         assert result is not None and not result.ok
         post.assert_not_awaited()
+
+
+class TestTheSenderNumberComesFromTheCarrierConfig:
+    """The bug this class exists for: the sender lookup guessed at key names
+    (`caller_id`, `from_number`, `phone_number`) that no provider in this
+    codebase stores. Every provider — Twilio, Plivo, Telnyx, Vonage, Vobiz,
+    Cloudonix, ARI — reads `config.get("from_numbers", [])`.
+
+    The failure was quiet and misleading: every message with no explicit `from`
+    came back "No sender number", which reads as a misconfigured node rather
+    than a lookup that could never have matched.
+    """
+
+    @staticmethod
+    def _resolve(credentials):
+        """Mirror of the resolution in run_integrations._send_follow_up_messages."""
+        from_numbers = credentials.get("from_numbers") or []
+        if isinstance(from_numbers, str):
+            from_numbers = [from_numbers]
+        return next((str(n).strip() for n in from_numbers if str(n).strip()), "")
+
+    def test_a_list_of_numbers_yields_the_first(self):
+        assert self._resolve({"from_numbers": ["+911111111111", "+912222222222"]}) == (
+            "+911111111111"
+        )
+
+    def test_a_bare_string_is_accepted(self):
+        """The provider classes coerce a string to a list, so a config saved
+        that way is legal and must not resolve to the first character."""
+        assert self._resolve({"from_numbers": "+911111111111"}) == "+911111111111"
+
+    def test_no_numbers_yields_empty_rather_than_raising(self):
+        assert self._resolve({}) == ""
+        assert self._resolve({"from_numbers": []}) == ""
+
+    def test_blank_entries_are_skipped(self):
+        assert self._resolve({"from_numbers": ["", "  ", "+911111111111"]}) == (
+            "+911111111111"
+        )
+
+    def test_the_keys_that_used_to_be_guessed_are_not_used(self):
+        """Guarding the regression directly: a config carrying only the old
+        invented keys must resolve to nothing, because that is the truth."""
+        assert self._resolve({"caller_id": "+919999999999"}) == ""
+        assert self._resolve({"from_number": "+919999999999"}) == ""

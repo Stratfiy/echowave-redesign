@@ -391,11 +391,19 @@ async def _send_follow_up_messages(
         return
 
     credentials = telephony_config.credentials or {}
-    default_from = (
-        credentials.get("caller_id")
-        or credentials.get("from_number")
-        or credentials.get("phone_number")
-        or ""
+
+    # `from_numbers` is the shape every provider in this codebase stores —
+    # Twilio, Plivo, Telnyx, Vonage, Vobiz, Cloudonix and ARI all read
+    # `config.get("from_numbers", [])`, and the provider classes coerce a bare
+    # string into a list. Guessing at `caller_id` / `from_number` matched none
+    # of them, which left every message with no sender and a "No sender number"
+    # failure that looked like the node's fault rather than a lookup bug.
+    from_numbers = credentials.get("from_numbers") or []
+    if isinstance(from_numbers, str):
+        from_numbers = [from_numbers]
+    default_from = next(
+        (str(n).strip() for n in from_numbers if str(n).strip()),
+        "",
     )
 
     results: list[dict] = []
