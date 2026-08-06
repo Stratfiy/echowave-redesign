@@ -51,6 +51,11 @@ interface DecibylDefaults {
     // the cost estimator is keyed by real provider and model, and "decibyl" is
     // neither.
     upstream?: Record<string, { provider: string; model: string }>;
+    // Per-slot: can this be chosen as managed right now? False means the
+    // platform holds no key for the provider that tier resolves to, so the
+    // slot is offered as coming soon rather than as a choice that would fail
+    // at dial time. Flips to true on its own once a key is stored.
+    available?: Record<string, boolean>;
 }
 
 export interface ModelConfigurationDefaultsV2 {
@@ -299,6 +304,7 @@ export function AIModelConfigurationV2Editor({
     };
 
     const upstream = defaults.decibyl.upstream;
+    const managedAvailable = defaults.decibyl.available;
 
     return (
         <div className="space-y-6">
@@ -395,6 +401,7 @@ export function AIModelConfigurationV2Editor({
                     initialConfig={initialConfig}
                     submitLabel={submitLabel}
                     managedUpstream={upstream}
+                    managedAvailable={managedAvailable}
                     keysFromVault
                     keysHeld={defaults.byok_keys_held}
                     onSave={save}

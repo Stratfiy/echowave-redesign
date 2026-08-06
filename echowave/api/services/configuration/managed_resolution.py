@@ -120,6 +120,33 @@ async def apply(effective) -> None:
             )
 
 
+async def managed_availability(session) -> dict[str, bool]:
+    """Whether each section can be offered as managed right now.
+
+    A slot is available when we hold an active platform key for whatever
+    provider its default tier resolves to. This is what lets the customer's
+    model picker offer "managed" only where it actually works, and show the
+    rest as not yet available.
+
+    Offering a managed slot we hold no key for is the worst of the three
+    outcomes: the customer picks it, saves, builds an agent, and finds out at
+    dial time. Showing it as unavailable costs a signup nothing and is honest.
+
+    Takes a session rather than opening one, because the caller is a request
+    handler that already has one and this is one query per section.
+    """
+    available: dict[str, bool] = {}
+    for name, component in MANAGED_SECTIONS:
+        upstream = managed_tiers.resolve(component, "default")
+        key = await platform_credentials.resolve_api_key(
+            session,
+            component=_credential_component(component),
+            provider=upstream.provider,
+        )
+        available[name] = bool(key)
+    return available
+
+
 async def missing_platform_keys() -> list[tuple[str, str]]:
     """``(component, provider)`` pairs a managed tier needs but we do not hold.
 

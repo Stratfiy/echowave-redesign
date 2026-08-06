@@ -46,6 +46,7 @@ from api.services.auth.depends import (
 )
 from api.services.configuration import (
     byok_resolution,
+    managed_resolution,
     managed_tiers,
     organization_credentials,
 )
@@ -298,6 +299,10 @@ async def get_model_configuration_v2_defaults(
         keys_held = await organization_credentials.available_providers(
             session, organization_id=user.selected_organization_id
         )
+        # Which slots we can actually serve as managed today. A slot we hold no
+        # platform key for is offered as "coming soon" rather than as a choice
+        # that fails at dial time.
+        managed_available = await managed_resolution.managed_availability(session)
     return {
         "decibyl": {
             "voices": [DECIBYL_DEFAULT_VOICE],
@@ -333,6 +338,11 @@ async def get_model_configuration_v2_defaults(
                     for name in ("stt", "llm", "tts")
                 )
             },
+            # Per-slot: can this be chosen as managed right now? False means we
+            # hold no platform key for the provider the tier resolves to, so
+            # the screen offers it as not yet available. It flips to true on
+            # its own the moment a key is stored — no release, no cache.
+            "available": managed_available,
         },
         # Named "byok" for the wire shape the screen already reads, but the
         # lists now include the managed provider so a slot can be set to it

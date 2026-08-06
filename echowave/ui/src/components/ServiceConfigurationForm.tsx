@@ -119,6 +119,15 @@ export interface ServiceConfigurationFormProps {
      */
     managedUpstream?: Record<string, { provider: string; model: string }>;
     /**
+     * Which slots can be served as managed today, as `{ stt: true, tts: false }`.
+     *
+     * A slot the platform holds no key for is shown as coming soon rather than
+     * offered — picking it would save cleanly, build an agent, and only fail
+     * when the call is placed. A slot missing from this map is treated as
+     * available, so a response that predates the field behaves as before.
+     */
+    managedAvailable?: Record<string, boolean>;
+    /**
      * Take keys from the organization's vault instead of rendering key inputs.
      *
      * When set, each slot gets an explicit "Decibyl provides it / My own key"
@@ -229,6 +238,7 @@ export function ServiceConfigurationForm({
     initialConfig,
     forceRealtime,
     managedUpstream,
+    managedAvailable,
     keysFromVault,
     keysHeld,
 }: ServiceConfigurationFormProps) {
@@ -652,6 +662,13 @@ export function ServiceConfigurationForm({
         const configFields = getConfigFields(service);
         const managed = currentProvider === MANAGED;
         const canBeManaged = keysFromVault && Boolean(schemas?.[service]?.[MANAGED]);
+        // Absent means available: a defaults response that predates this field
+        // should keep behaving as it did rather than locking every slot.
+        const managedReady = managedAvailable?.[service] !== false;
+        // Already selected but no longer servable — the key was removed or the
+        // tier was moved to a provider we do not hold. Say so instead of
+        // letting it fail at dial time.
+        const managedStranded = managed && !managedReady;
 
         return (
             <div className="space-y-6">
@@ -661,16 +678,32 @@ export function ServiceConfigurationForm({
                         <div className="grid grid-cols-2 gap-2">
                             <button
                                 type="button"
-                                onClick={() => handleProviderChange(service, MANAGED)}
+                                disabled={!managedReady}
+                                aria-disabled={!managedReady}
+                                onClick={() => {
+                                    if (!managedReady) return;
+                                    handleProviderChange(service, MANAGED);
+                                }}
                                 className={`rounded-md border px-3 py-2.5 text-left text-sm transition ${
-                                    managed
-                                        ? "border-primary bg-primary/5 ring-1 ring-primary"
-                                        : "border-input hover:border-primary/40"
+                                    !managedReady
+                                        ? "cursor-not-allowed border-dashed border-input bg-muted/30 opacity-70"
+                                        : managed
+                                          ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                          : "border-input hover:border-primary/40"
                                 }`}
                             >
-                                <span className="font-medium">Decibyl provides it</span>
+                                <span className="flex items-center gap-2 font-medium">
+                                    Decibyl provides it
+                                    {!managedReady && (
+                                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                            Coming soon
+                                        </span>
+                                    )}
+                                </span>
                                 <span className="mt-0.5 block text-xs text-muted-foreground">
-                                    No key needed. Billed at the published rate.
+                                    {managedReady
+                                        ? "No key needed. Billed at the published rate."
+                                        : "Not available yet. Use your own key for now."}
                                 </span>
                             </button>
                             <button
@@ -694,6 +727,13 @@ export function ServiceConfigurationForm({
                                 </span>
                             </button>
                         </div>
+                        {managedStranded && (
+                            <p className="text-xs text-amber-600 dark:text-amber-500">
+                                This slot is set to Decibyl, but we cannot serve it right
+                                now. Switch it to your own key, or calls using this agent
+                                will fail.
+                            </p>
+                        )}
                     </div>
                 )}
 
