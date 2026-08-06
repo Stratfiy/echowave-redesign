@@ -76,7 +76,11 @@ docker compose up -d
 # that half-applied needs a human, and pretending otherwise would turn one bad
 # deploy into a corrupted database.
 say "Migrations"
-docker compose exec -T api python -m alembic upgrade head
+# -c is required: alembic.ini lives at api/alembic.ini, not the container's
+# WORKDIR (/app). Without it alembic exits with "No 'script_location' key found
+# in configuration", which reads like a broken config rather than a wrong path.
+# Same invocation as scripts/migrate.sh.
+docker compose exec -T api python -m alembic -c api/alembic.ini upgrade head
 
 say "Health"
 for i in $(seq 1 "$HEALTH_RETRIES"); do
