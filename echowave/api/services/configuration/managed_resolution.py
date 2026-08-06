@@ -23,7 +23,11 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import CostComponent
-from api.services.configuration import managed_tiers, platform_credentials
+from api.services.configuration import (
+    managed_language,
+    managed_tiers,
+    platform_credentials,
+)
 from api.services.configuration.registry import ServiceProviders
 
 #: Sections that can be served by a managed tier. Telephony is absent for the
@@ -112,6 +116,31 @@ async def apply(effective) -> None:
             section.provider = upstream.provider
             section.model = upstream.model
             section.api_key = api_key
+
+            # The customer's language is in Decibyl's vocabulary, which is not
+            # every vendor's. Translating here rather than in the service
+            # factory keeps it in the one place that knows a section used to be
+            # managed — by the time the factory sees it, it looks like any
+            # other Sarvam config a customer typed themselves.
+            if hasattr(section, "language"):
+                original = getattr(section, "language", None)
+                if name == "stt":
+                    section.language = managed_language.for_stt(
+                        upstream.provider, upstream.model, original
+                    )
+                elif name == "tts":
+                    section.language = managed_language.for_tts(
+                        upstream.provider, upstream.model, original
+                    )
+                if section.language != original:
+                    logger.debug(
+                        "Managed {} language {!r} translated to {!r} for {}.",
+                        name,
+                        original,
+                        section.language,
+                        upstream.provider,
+                    )
+
             logger.info(
                 "Managed {} resolved to {}/{} on a platform key.",
                 name,
