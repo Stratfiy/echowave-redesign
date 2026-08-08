@@ -22,6 +22,10 @@ from pipecat.utils.enums import EndTaskReason
 
 from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
+from api.services.integrations.google_calendar.client import (
+    execute_google_calendar_tool,
+    google_calendar_function_schema,
+)
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.factory import get_telephony_provider_for_run
@@ -40,6 +44,13 @@ from api.utils.template_renderer import render_template
 if TYPE_CHECKING:
     from api.services.workflow.mcp_tool_session import McpToolSession
     from api.services.workflow.pipecat_engine import PipecatEngine
+
+
+def _is_google_calendar_tool(tool: Any) -> bool:
+    """Same shape as the CALCULATOR/MCP category checks below: category alone
+    is sufficient, since tool creation enforces category == definition.type
+    (see api/schemas/tool.py CreateToolRequest.validate_category_matches_definition)."""
+    return tool.category == ToolCategory.GOOGLE_CALENDAR.value
 
 
 def _render_transfer_destination(
@@ -185,6 +196,22 @@ class CustomToolManager:
                         )
                     continue
 
+                if _is_google_calendar_tool(tool):
+                    raw_schema = google_calendar_function_schema(tool)
+                    schemas.append(
+                        get_function_schema(
+                            raw_schema["function"]["name"],
+                            raw_schema["function"]["description"],
+                            properties=raw_schema["function"]["parameters"].get(
+                                "properties", {}
+                            ),
+                            required=raw_schema["function"]["parameters"].get(
+                                "required", []
+                            ),
+                        )
+                    )
+                    continue
+
                 if tool.category == ToolCategory.MCP.value:
                     session = self._engine._mcp_sessions.get(tool.tool_uuid)
                     if session is None or not session.available:
@@ -254,6 +281,20 @@ class CustomToolManager:
                     logger.debug(
                         f"Registered calculator tool handler "
                         f"(tool_uuid: {tool.tool_uuid})"
+                    )
+                    continue
+
+                if _is_google_calendar_tool(tool):
+                    gcal_schema = google_calendar_function_schema(tool)
+                    gcal_function_name = gcal_schema["function"]["name"]
+                    self._engine.llm.register_function(
+                        gcal_function_name,
+                        self._create_google_calendar_handler(tool, gcal_function_name),
+                        timeout_secs=15.0,
+                    )
+                    logger.debug(
+                        f"Registered Google Calendar tool handler: "
+                        f"{gcal_function_name} (tool_uuid: {tool.tool_uuid})"
                     )
                     continue
 
@@ -448,6 +489,33 @@ class CustomToolManager:
                 )
 
         return http_tool_handler
+
+    def _create_google_calendar_handler(self, tool: Any, function_name: str):
+        """Create a handler that books an event on the organization's connected
+        Google Calendar. Same result shape as the HTTP handler above
+        (``{"status": "success"|"error", ...}``) so the LLM sees one
+        consistent contract regardless of which kind of tool it called."""
+
+        async def google_calendar_handler(
+            function_call_params: FunctionCallParams,
+        ) -> None:
+            logger.info(f"Google Calendar Tool EXECUTED: {function_name}")
+            logger.info(f"Arguments: {function_call_params.arguments}")
+
+            try:
+                result = await execute_google_calendar_tool(
+                    tool=tool,
+                    arguments=function_call_params.arguments,
+                    organization_id=await self.get_organization_id(),
+                )
+                await function_call_params.result_callback(result)
+            except Exception as e:
+                logger.error(f"Google Calendar tool '{function_name}' failed: {e}")
+                await function_call_params.result_callback(
+                    {"status": "error", "error": str(e)}
+                )
+
+        return google_calendar_handler
 
     def _create_mcp_handler(self, session: "McpToolSession", function_name: str):
         """Create a handler that proxies an LLM function call to a live MCP

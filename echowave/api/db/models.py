@@ -2222,6 +2222,77 @@ class OrganizationProviderCredentialModel(Base):
     )
 
 
+class GoogleCalendarConnectionModel(Base):
+    """An organization's OAuth grant to create events on one Google Calendar.
+
+    One row per organization — connecting a second account replaces this one
+    rather than adding a row, because a workflow's ``google_calendar`` tool
+    has no way to choose between two connected calendars and offering the
+    choice with no way to act on it would be worse than not offering it.
+
+    Both tokens are Fernet-encrypted under ``PLATFORM_CREDENTIAL_SECRET``, the
+    same secret and the same at-rest posture as ``organization_provider_credentials``
+    — a Calendar refresh token is a standing grant to read and write someone's
+    calendar indefinitely, which is at least as sensitive as a model provider
+    key. Never returned by any endpoint; ``connected_email`` exists so the
+    owning organization can see *which* Google account is connected without
+    the tokens themselves ever leaving the database.
+
+    ``access_token``/``access_token_expires_at`` are a cache: Google's access
+    tokens last about an hour, and refreshing on every call would mean every
+    tool invocation pays a synchronous round trip to Google's token endpoint
+    before it can do the one that actually creates the event. The refresh
+    token is the durable credential; the access token is reconstructible from
+    it at any time and is only stored to avoid that extra hop.
+    """
+
+    __tablename__ = "google_calendar_connections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # Ciphertext, Fernet, keyed by PLATFORM_CREDENTIAL_SECRET. Never returned
+    # by any endpoint. This is the durable grant — it does not expire on
+    # Google's side until the organization disconnects or Google revokes it.
+    encrypted_refresh_token = Column(Text, nullable=False)
+
+    # Short-lived cache of the current access token, also encrypted — it is
+    # exactly as sensitive as the refresh token for the hour it is valid.
+    encrypted_access_token = Column(Text, nullable=True)
+    access_token_expires_at = Column(DateTime(timezone=True), nullable=True)
+
+    # The Google account email and calendar id this grant covers, so the
+    # "Connected as ..." line in the UI needs no token decryption to render.
+    connected_email = Column(String(320), nullable=True)
+    calendar_id = Column(
+        String(255), nullable=False, default="primary", server_default="primary"
+    )
+
+    is_active = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    connected_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+    connected_by_user = relationship("UserModel")
+
+    #: One connection per organization. See the class docstring — a second
+    #: `Connect` replaces this row rather than adding one.
+    __table_args__ = (
+        UniqueConstraint("organization_id", name="uq_google_calendar_connection_org"),
+    )
+
+
 class PaymentModel(Base):
     """One attempt by an account to buy credit.
 

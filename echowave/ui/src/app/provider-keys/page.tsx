@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertTriangle, KeyRound, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, KeyRound, Loader2, Plus, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -21,6 +22,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+
+interface GoogleCalendarStatus {
+    connected: boolean;
+    connected_email: string | null;
+    calendar_id: string | null;
+    updated_at: string | null;
+    configured: boolean;
+}
 
 interface ProviderCredential {
     id: number;
@@ -79,8 +88,35 @@ function providerLabel(provider: string): string {
     );
 }
 
+// Not yet in the generated SDK (client/sdk.gen.ts) -- these routes are new.
+// Plain fetch, same auth header the generated client attaches, until
+// `npm run generate-client` is re-run against a live backend.
+async function googleCalendarFetch(
+    path: string,
+    accessToken: string,
+    init?: RequestInit,
+): Promise<{ data?: unknown; error?: string }> {
+    try {
+        const response = await fetch(`/api/v1/integrations/google-calendar${path}`, {
+            ...init,
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                ...(init?.headers ?? {}),
+            },
+        });
+        const body = await response.json().catch(() => null);
+        if (!response.ok) {
+            return { error: (body as { detail?: string })?.detail || "Request failed" };
+        }
+        return { data: body };
+    } catch {
+        return { error: "Network error" };
+    }
+}
+
 export default function ProviderKeysPage() {
     const auth = useAuth();
+    const router = useRouter();
     const hasFetched = useRef(false);
 
     const [credentials, setCredentials] = useState<ProviderCredential[]>([]);
@@ -88,6 +124,13 @@ export default function ProviderKeysPage() {
     const [encryptionConfigured, setEncryptionConfigured] = useState(true);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    const [gcalStatus, setGcalStatus] = useState<GoogleCalendarStatus | null>(null);
+    const [gcalLoading, setGcalLoading] = useState(true);
+    const [gcalBusy, setGcalBusy] = useState(false);
+    const [gcalMessage, setGcalMessage] = useState<
+        { kind: "success" | "error"; text: string } | null
+    >(null);
 
     const [dialogComponent, setDialogComponent] = useState<string | null>(null);
     const [formProvider, setFormProvider] = useState("");
@@ -136,11 +179,74 @@ export default function ProviderKeysPage() {
         setLoading(false);
     }, []);
 
+    const loadGoogleCalendarStatus = useCallback(async () => {
+        setGcalLoading(true);
+        const accessToken = await auth.getAccessToken();
+        const result = await googleCalendarFetch("/status", accessToken);
+        if (!result.error && result.data) {
+            setGcalStatus(result.data as GoogleCalendarStatus);
+        }
+        setGcalLoading(false);
+    }, [auth]);
+
     useEffect(() => {
         if (auth.loading || !auth.user || hasFetched.current) return;
         hasFetched.current = true;
         load();
-    }, [auth.loading, auth.user, load]);
+        loadGoogleCalendarStatus();
+    }, [auth.loading, auth.user, load, loadGoogleCalendarStatus]);
+
+    // Landing back here after the Google consent screen: ?google_calendar=connected|error
+    // Read straight from window.location rather than useSearchParams() -- this
+    // only needs to run once on mount, and avoids Next's Suspense-boundary
+    // requirement for that hook.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const outcome = params.get("google_calendar");
+        if (!outcome) return;
+
+        if (outcome === "connected") {
+            setGcalMessage({ kind: "success", text: "Google Calendar connected." });
+            loadGoogleCalendarStatus();
+        } else if (outcome === "error") {
+            const reason = params.get("reason") || "Something went wrong.";
+            setGcalMessage({ kind: "error", text: `Could not connect Google Calendar: ${reason}` });
+        }
+
+        // Strip the query params so a refresh doesn't re-show the banner.
+        router.replace("/provider-keys");
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const connectGoogleCalendar = async () => {
+        setGcalBusy(true);
+        setGcalMessage(null);
+        const accessToken = await auth.getAccessToken();
+        const result = await googleCalendarFetch("/authorize-url", accessToken);
+        if (result.error || !result.data) {
+            setGcalMessage({
+                kind: "error",
+                text: (result.error as string) || "Could not start the connect flow",
+            });
+            setGcalBusy(false);
+            return;
+        }
+        window.location.href = (result.data as { url: string }).url;
+    };
+
+    const disconnectGoogleCalendar = async () => {
+        setGcalBusy(true);
+        setGcalMessage(null);
+        const accessToken = await auth.getAccessToken();
+        const result = await googleCalendarFetch("/disconnect", accessToken, { method: "POST" });
+        if (result.error) {
+            setGcalMessage({ kind: "error", text: result.error });
+        } else {
+            setGcalMessage({ kind: "success", text: "Google Calendar disconnected." });
+            await loadGoogleCalendarStatus();
+        }
+        setGcalBusy(false);
+    };
 
     const openDialog = (component: string) => {
         setDialogComponent(component);
@@ -246,6 +352,86 @@ export default function ProviderKeysPage() {
                     {error}
                 </div>
             )}
+
+            {gcalMessage && (
+                <div
+                    className={
+                        gcalMessage.kind === "success"
+                            ? "flex items-center gap-2 rounded-md border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-400"
+                            : "rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                    }
+                >
+                    {gcalMessage.kind === "success" && <CheckCircle2 className="h-4 w-4 shrink-0" />}
+                    {gcalMessage.text}
+                </div>
+            )}
+
+            <Card>
+                <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+                    <div>
+                        <CardTitle className="text-lg">Google Calendar</CardTitle>
+                        <CardDescription>
+                            Let an agent book real events on a connected Google Calendar. Sign in
+                            with Google — no API key.
+                        </CardDescription>
+                    </div>
+                    {gcalLoading ? (
+                        <Skeleton className="h-9 w-32" />
+                    ) : gcalStatus?.connected ? (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={disconnectGoogleCalendar}
+                            disabled={gcalBusy}
+                        >
+                            {gcalBusy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                            Disconnect
+                        </Button>
+                    ) : (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={connectGoogleCalendar}
+                            disabled={gcalBusy || !gcalStatus?.configured}
+                        >
+                            {gcalBusy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                            Connect Google Calendar
+                        </Button>
+                    )}
+                </CardHeader>
+                <CardContent>
+                    {gcalLoading ? (
+                        <Skeleton className="h-5 w-64" />
+                    ) : gcalStatus?.connected ? (
+                        <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span>
+                                Connected as{" "}
+                                <span className="text-foreground">{gcalStatus.connected_email}</span>.
+                                New events go on this account&apos;s{" "}
+                                {gcalStatus.calendar_id === "primary" ? "primary" : gcalStatus.calendar_id}{" "}
+                                calendar.
+                            </span>
+                        </p>
+                    ) : gcalStatus?.configured ? (
+                        <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span>
+                                Not connected. Connect a Google account to let agents use the
+                                Google Calendar tool.
+                            </span>
+                        </p>
+                    ) : (
+                        <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span>
+                                Not available on this deployment yet — an administrator needs to
+                                configure GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET.
+                            </span>
+                        </p>
+                    )}
+                </CardContent>
+            </Card>
 
             {COMPONENTS.map((component) => {
                 const stored = credentials.filter((c) => c.component === component.value);

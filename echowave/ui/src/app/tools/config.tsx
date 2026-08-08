@@ -1,12 +1,13 @@
 "use client";
 
-import { Calculator, Cog, Globe, type LucideIcon, PhoneForwarded, PhoneOff, Puzzle } from "lucide-react";
+import { Calculator, CalendarClock, Cog, Globe, type LucideIcon, PhoneForwarded, PhoneOff, Puzzle } from "lucide-react";
 import { type ReactNode } from "react";
 
 import type {
     CalculatorToolDefinition,
     EndCallConfig,
     EndCallToolDefinition,
+    GoogleCalendarToolDefinition,
     HttpApiToolDefinition,
     McpToolDefinition,
     PresetToolParameter,
@@ -15,7 +16,7 @@ import type {
     TransferCallToolDefinition,
 } from "@/client/types.gen";
 
-export type ToolCategory = "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp";
+export type ToolCategory = "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "google_calendar";
 
 export type EndCallMessageType = "none" | "custom" | "audio";
 export type TransferDestinationSource = "static" | "dynamic";
@@ -104,6 +105,18 @@ export const TOOL_CATEGORIES: ToolCategoryConfig[] = [
         iconColor: "#8B5CF6",
     },
     {
+        value: "google_calendar",
+        label: "Google Calendar",
+        description: "Create an event on your connected Google Calendar — no API key, sign in with Google",
+        icon: CalendarClock,
+        iconName: "calendar-clock",
+        iconColor: "#0F9D58",
+        autoFill: {
+            name: "Book Appointment",
+            description: "Use this to book the appointment, but only after the caller has confirmed the name, date and time out loud. Do not call this while still gathering information.",
+        },
+    },
+    {
         value: "native",
         label: "Native (Coming Soon)",
         description: "Built-in tools like call transfer, DTMF input",
@@ -158,6 +171,8 @@ export function getToolTypeLabel(category: string): string {
             return "Integration Tool";
         case "mcp":
             return "MCP Server Tool";
+        case "google_calendar":
+            return "Google Calendar Tool";
         default:
             return "Tool";
     }
@@ -184,7 +199,8 @@ export type ToolDefinition =
     | EndCallToolDefinition
     | TransferCallToolDefinition
     | CalculatorToolDefinition
-    | McpToolDefinition;
+    | McpToolDefinition
+    | GoogleCalendarToolDefinition;
 
 export function createEndCallDefinition(config: EndCallConfig): EndCallToolDefinition {
     return {
@@ -220,6 +236,13 @@ export function createCalculatorDefinition(): CalculatorToolDefinition {
     };
 }
 
+export function createGoogleCalendarDefinition(): GoogleCalendarToolDefinition {
+    return {
+        schema_version: 1,
+        type: "google_calendar",
+    };
+}
+
 export const MCP_URL_PATTERN = /^https?:\/\//i;
 
 export function createMcpDefinition(
@@ -250,6 +273,8 @@ export function createToolDefinition(category: ToolCategory): ToolDefinition {
             return createTransferCallDefinition(DEFAULT_TRANSFER_CALL_CONFIG);
         case "calculator":
             return createCalculatorDefinition();
+        case "google_calendar":
+            return createGoogleCalendarDefinition();
         case "http_api":
         default:
             return createHttpApiDefinition();

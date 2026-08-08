@@ -84,6 +84,21 @@ RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET") or None
 RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET") or None
 RAZORPAY_API_BASE = os.getenv("RAZORPAY_API_BASE", "https://api.razorpay.com/v1")
 
+# Google OAuth, for the google_calendar tool's "Connect Google Calendar" flow.
+# This is our OAuth app's identity, not a per-organization secret — every
+# organization that connects a calendar authorizes against the same client,
+# and what is per-organization is the refresh token that flow produces (see
+# GoogleCalendarConnectionModel). Registered in Google Cloud Console with
+# redirect URI {BACKEND_API_ENDPOINT}/api/v1/integrations/google-calendar/callback.
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID") or None
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or None
+# IANA zone name events are created in. Google's API takes a zone name rather
+# than a UTC offset, so "Asia/Kolkata" is correct across DST-free India
+# year-round; a deployment outside India overrides this.
+GOOGLE_CALENDAR_DEFAULT_TIMEZONE = os.getenv(
+    "GOOGLE_CALENDAR_DEFAULT_TIMEZONE", "Asia/Kolkata"
+)
+
 # Bounds on a single top-up. The floor keeps card fees from exceeding the
 # credit bought; the ceiling is a guard against a mistyped amount, not a
 # business limit — raise it deliberately for an enterprise invoice.

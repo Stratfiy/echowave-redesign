@@ -76,7 +76,8 @@
                     "group": "Built-in Tools",
                     "pages": [
                       "voice-agent/tools/call-transfer",
-                      "voice-agent/tools/end-call"
+                      "voice-agent/tools/end-call",
+                      "voice-agent/tools/google-calendar"
                     ]
                   },
                   {
