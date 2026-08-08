@@ -15,6 +15,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import httpx
 from loguru import logger
@@ -101,6 +102,59 @@ def google_calendar_function_schema(tool: Any) -> Dict[str, Any]:
     }
 
 
+def _localize(naive_iso: str) -> str:
+    """Attach the deployment's calendar timezone to a ``_combine_start_end``
+    ISO string, so it carries the explicit UTC offset Google's ``events.list``
+    requires for ``timeMin``/``timeMax``. Event creation itself sends a naive
+    ``dateTime`` alongside a separate ``timeZone`` field, which Google accepts
+    on its own -- this is only for the availability-check query below."""
+    naive = datetime.fromisoformat(naive_iso)
+    return naive.replace(tzinfo=ZoneInfo(GOOGLE_CALENDAR_DEFAULT_TIMEZONE)).isoformat()
+
+
+async def _find_conflicting_event(
+    access_token: str, calendar_id: str, start_iso: str, end_iso: str
+) -> Optional[Dict[str, Any]]:
+    """The first non-cancelled event already on the calendar that overlaps
+    [start_iso, end_iso), or None if the slot is free.
+
+    Best-effort: a failed check is logged and treated as "no conflict found"
+    rather than blocking the booking. The write is what matters here -- a
+    transient read failure must not turn into no bookings getting made at
+    all, the same trade-off issue_receipt_voucher makes for a missing
+    supplier identity elsewhere in billing.
+    """
+    url = EVENTS_ENDPOINT_TEMPLATE.format(calendar_id=quote(calendar_id, safe=""))
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.get(
+                url,
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={
+                    "timeMin": _localize(start_iso),
+                    "timeMax": _localize(end_iso),
+                    "singleEvents": "true",
+                    "orderBy": "startTime",
+                    "maxResults": 5,
+                },
+            )
+    except httpx.HTTPError as exc:
+        logger.warning("Google Calendar availability check failed: {}", exc)
+        return None
+
+    if response.status_code != 200:
+        logger.warning(
+            "Google Calendar availability check failed ({}); booking without it.",
+            response.status_code,
+        )
+        return None
+
+    for item in response.json().get("items") or []:
+        if item.get("status") != "cancelled":
+            return item
+    return None
+
+
 def _combine_start_end(
     start_date: str, start_time: str, duration_minutes: float
 ) -> tuple[str, str]:
@@ -180,6 +234,24 @@ async def execute_google_calendar_tool(
 
             status = await get_status(session, organization_id=organization_id)
             calendar_id = status.calendar_id or "primary"
+
+        conflict = await _find_conflicting_event(
+            access_token, calendar_id, start_iso, end_iso
+        )
+        if conflict:
+            conflict_summary = conflict.get("summary") or "an existing event"
+            logger.info(
+                "Google Calendar booking for org {} skipped -- conflicts with '{}'",
+                organization_id,
+                conflict_summary,
+            )
+            return {
+                "status": "error",
+                "error": (
+                    f"That time is already booked ({conflict_summary}). "
+                    "Ask the caller for a different date or time and try again."
+                ),
+            }
 
         url = EVENTS_ENDPOINT_TEMPLATE.format(calendar_id=quote(calendar_id, safe=""))
         params = {"sendUpdates": "all"} if attendee_email else {}
