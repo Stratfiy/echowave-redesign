@@ -249,7 +249,21 @@ not a hope. Sign off script and cap together.
 **3. Payment 50% at award.** ₹4.0L of cost lands inside three weeks.
 Government pays on government terms.
 
-**4. Written carrier quote before signing.** ₹0.25/min is unverified.
+**4. Written carrier quote before signing.** ₹0.25/min was unverified, and is
+now known to be **below both of Plivo's published India rates** — ₹0.34/min over
+SIP, ₹0.60/min outbound local (checked 2026-08, see `PROVIDER-PRICING.md`).
+Market benchmarks for outbound-to-mobile via aggregators run ₹0.80–₹1.80/min.
+At 90,029 connected minutes the gap is **₹8,100 at the SIP rate and ₹31,500 at
+the local rate**. Get the written quote before signing; the ₹0.25 assumption
+should not survive into a contract.
+
+**4b. Which Bulbul generation, decided in writing.** This model costs TTS at
+₹0.003/char, which is Bulbul **v3**. v2 is half that (₹15 per 10k characters),
+and it is what the default managed tier actually resolves to. If the campaign
+runs v2 the live-TTS line falls from ₹93,467 to about ₹46,700 — a larger swing
+than the telephony risk above, in the opposite direction. Confirm it, because
+these two together are the difference between the campaign costing ₹38,600 less
+than modelled and ₹31,500 more.
 
 **5. State the delivery basis in writing.** "Up to 3 attempts to all 80,000
 farmers within the campaign window" — connections reported, not warranted.

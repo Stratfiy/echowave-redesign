@@ -83,6 +83,12 @@ class DailyUsageBreakdownResponse(BaseModel):
     total_cost_usd: Optional[float] = None
     total_decibyl_tokens: float
     currency: Optional[str] = None
+    # False when the account has no per-second price set, which is the normal
+    # state of a fresh account rather than an error. The endpoint used to answer
+    # 400 here, so a dashboard tile rendered a failure where it should render
+    # "no data yet"; the flag lets the caller tell "not priced yet" apart from
+    # "priced, but nobody has called".
+    pricing_configured: bool = True
 
 
 @router.get("/usage/current-period", response_model=CurrentUsageResponse)
@@ -268,12 +274,19 @@ async def get_daily_usage_breakdown(
         raise HTTPException(status_code=400, detail="No organization selected")
 
     try:
-        # Get organization to check if it has pricing
+        # An account with no price set has nothing to break down, which is the
+        # ordinary state of a new account rather than a client error. Answer an
+        # empty series with the flag cleared so the dashboard renders "no data
+        # yet"; a 400 here made a correct guard look like a broken tile.
         org = await db_client.get_organization_by_id(user.selected_organization_id)
         if not org or org.price_per_second_usd is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Daily breakdown is only available for organizations with pricing configured",
+            return DailyUsageBreakdownResponse(
+                breakdown=[],
+                total_minutes=0.0,
+                total_cost_usd=None,
+                total_decibyl_tokens=0.0,
+                currency=None,
+                pricing_configured=False,
             )
 
         # Calculate date range

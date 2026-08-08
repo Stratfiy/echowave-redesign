@@ -184,6 +184,50 @@ Controls concurrency for [Campaigns](/core-concepts/campaigns), Decibyl's bulk o
 
 ---
 
+## Managed models (platform keys)
+
+An account that has not brought its own API key runs on the platform's keys and
+is billed at the published rate. These variables are what make that work.
+
+| Variable | Default | Description |
+|---|---|---|
+| `PLATFORM_CREDENTIAL_SECRET` | — | Fernet key that encrypts platform provider keys at rest. Without it no key can be stored, so no slot can be served as managed. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `PLATFORM_KEY_<COMPONENT>_<PROVIDER>` | — | A provider key to install at startup, e.g. `PLATFORM_KEY_LLM_GOOGLE`. Component is `LLM`, `STT` or `TTS` |
+| `SIGNUP_BONUS_MICROS_USD` | `5000000` | Free credit granted once per new organization, in millionths of a dollar. The default is $5. Set to `0` to switch it off |
+
+<Warning>
+Put these in the deployment's own environment file, never in source. A key
+committed to a repository has to be rotated at the provider the moment anyone
+notices, and the history keeps it long after the file stops showing it.
+</Warning>
+
+Keys named here are written into the encrypted store at boot and then behave
+exactly like keys typed into the staff screen — maskable, rotatable, and
+deactivatable without a deploy. Re-seeding an unchanged key does nothing, so
+restarts are free.
+
+### Which providers you need
+
+A slot is offered as managed only when a key is held for whatever provider that
+tier resolves to. Anything else appears to customers as **coming soon** and
+becomes selectable on its own once the key is added — no release, no cache.
+With the default tiers:
+
+```bash
+PLATFORM_KEY_LLM_GOOGLE=...    # LLM, realtime and embeddings
+PLATFORM_KEY_STT_SARVAM=...    # speech to text
+PLATFORM_KEY_TTS_SARVAM=...    # text to speech
+```
+
+One key per vendor, not per slot: a vendor issues a single key that serves chat,
+realtime and embeddings alike, so `PLATFORM_KEY_LLM_GOOGLE` lights up all three.
+
+Tier mappings are themselves overridable — see `MANAGED_<COMPONENT>_<TIER>`, for
+example `MANAGED_LLM_ACCURATE=openai:gpt-4o`. Move a tier and you may need a key
+for the provider it now points at.
+
+---
+
 ## Further Customisation
 
 The variables documented here cover the standard configuration surface. For advanced customisation — such as integrating additional services or tuning internal behaviour — consult the relevant module alongside `api/constants.py` to understand how each variable is consumed.

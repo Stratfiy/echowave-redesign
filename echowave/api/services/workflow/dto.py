@@ -30,6 +30,9 @@ class NodeType(str, Enum):
     trigger = "trigger"
     webhook = "webhook"
     qa = "qa"
+    branch = "branch"
+    wait = "wait"
+    sms = "sms"
 
 
 class Position(BaseModel):
@@ -922,6 +925,516 @@ class QANodeData(BaseNodeData):
     qa_sample_rate: int = spec_field(default=100, ui_type=PropertyType.number)
 
 
+class BranchRuleDTO(BaseModel):
+    label: str = spec_field(
+        ...,
+        min_length=1,
+        ui_type=PropertyType.string,
+        display_name="Send to",
+        description=(
+            "Label of the outgoing edge to take when this rule matches. Must "
+            "match one of this node's edge labels exactly."
+        ),
+        llm_hint=(
+            "This is the join between the rule and the canvas. Create an edge "
+            "out of the branch node with this exact label, or the rule can "
+            "never route anywhere and validation will reject the workflow."
+        ),
+        required=True,
+    )
+    variable: str = spec_field(
+        ...,
+        min_length=1,
+        ui_type=PropertyType.string,
+        display_name="Variable",
+        description=(
+            "Name of the variable to test — from extraction, the trigger "
+            "payload, a campaign column, or a pre-call fetch."
+        ),
+        llm_hint=(
+            "Bare name, no braces: `order_value`, not `{{order_value}}`. A "
+            "variable that is missing or blank never matches, except under "
+            "is_empty."
+        ),
+        required=True,
+    )
+    operator: str = spec_field(
+        ...,
+        display_name="Condition",
+        description="How the variable is compared to the value.",
+        required=True,
+        spec_default="equals",
+        options=[
+            PropertyOption(value="equals", label="equals"),
+            PropertyOption(value="not_equals", label="does not equal"),
+            PropertyOption(value="contains", label="contains"),
+            PropertyOption(value="not_contains", label="does not contain"),
+            PropertyOption(value="starts_with", label="starts with"),
+            PropertyOption(value="ends_with", label="ends with"),
+            PropertyOption(value="matches_regex", label="matches regex"),
+            PropertyOption(value="greater_than", label="is greater than"),
+            PropertyOption(value="greater_or_equal", label="is at least"),
+            PropertyOption(value="less_than", label="is less than"),
+            PropertyOption(value="less_or_equal", label="is at most"),
+            PropertyOption(value="in_list", label="is one of"),
+            PropertyOption(value="not_in_list", label="is not one of"),
+            PropertyOption(value="is_empty", label="is empty"),
+            PropertyOption(value="is_not_empty", label="is not empty"),
+            PropertyOption(value="is_true", label="is true"),
+            PropertyOption(value="is_false", label="is false"),
+        ],
+    )
+    value: Optional[str] = spec_field(
+        default=None,
+        ui_type=PropertyType.string,
+        display_name="Value",
+        description=(
+            "What to compare against. Leave blank for is_empty, is_not_empty, "
+            "is_true and is_false. For 'is one of', a comma-separated list."
+        ),
+        llm_hint=(
+            "Text comparisons are case-insensitive. Numeric operators tolerate "
+            "commas and a currency symbol, so `50,000` and `₹50000` both parse."
+        ),
+    )
+
+
+@node_spec(
+    name="branch",
+    display_name="Branch",
+    description="Route on a variable — same input, same path, every time.",
+    llm_hint=(
+        "Deterministic routing. Every other transition in a workflow is decided "
+        "by the LLM from the edge's natural-language condition; a branch node is "
+        "decided by evaluating a rule, with no model involved.\n\n"
+        "Use it whenever the decision is a fact rather than a judgement: a "
+        "threshold on an amount, a language the caller already chose, an attempt "
+        "count, a flag from a pre-call fetch. Keep LLM-decided edges for "
+        "judgements about what the caller meant.\n\n"
+        "Rules are evaluated top to bottom and the first match wins, so order "
+        "bands from most specific down. Every rule's `label` must match an "
+        "outgoing edge label, and `default_label` must match one too — that edge "
+        "is taken when nothing matches, so a call can never be stranded here.\n\n"
+        "The node never speaks. It routes on entry, and the caller hears nothing "
+        "between the previous node and the next one."
+    ),
+    category=NodeCategory.call_node,
+    icon="GitBranch",
+    docs_url="/voice-agent/branch",
+    examples=[
+        NodeExample(
+            name="escalate_high_value_complaints",
+            data={
+                "name": "Route by value",
+                "rules": [
+                    {
+                        "label": "high value",
+                        "variable": "order_value",
+                        "operator": "greater_than",
+                        "value": "50000",
+                    },
+                    {
+                        "label": "repeat caller",
+                        "variable": "previous_calls",
+                        "operator": "greater_or_equal",
+                        "value": "3",
+                    },
+                ],
+                "default_label": "standard",
+            },
+        ),
+        NodeExample(
+            name="route_by_language",
+            data={
+                "name": "Language split",
+                "rules": [
+                    {
+                        "label": "telugu",
+                        "variable": "language",
+                        "operator": "in_list",
+                        "value": "te, telugu",
+                    },
+                    {
+                        "label": "hindi",
+                        "variable": "language",
+                        "operator": "in_list",
+                        "value": "hi, hindi",
+                    },
+                ],
+                "default_label": "english",
+            },
+        ),
+    ],
+    # Only the incoming side is expressed here. "A branch needs at least two
+    # ways out" cannot be: the generic outgoing check counts distinct *target
+    # nodes* (`Node.out` is keyed by target id), and two labelled edges into the
+    # same node — "high value" and "repeat caller" both going to the escalation
+    # node — is an ordinary branch that would fail a min_outgoing of 2. Counting
+    # distinct labels is the property that matters, and WorkflowGraph does it in
+    # `_assert_branch_labels_resolve` where the labels are already in hand.
+    graph_constraints=GraphConstraints(min_incoming=1),
+    property_order=("name", "rules", "default_label"),
+    field_overrides={
+        "name": {
+            "spec_default": "Branch",
+            "description": "Short identifier shown in the canvas and call logs.",
+        },
+        "rules": {
+            "display_name": "Rules",
+            "description": (
+                "Evaluated top to bottom. The first rule that matches decides "
+                "the branch; drag to reorder."
+            ),
+        },
+        "default_label": {
+            "display_name": "Otherwise send to",
+            "description": (
+                "Edge taken when no rule matches. Required — every call that "
+                "reaches this node must have somewhere to go."
+            ),
+            "spec_default": "default",
+        },
+    },
+)
+class BranchNodeData(BaseNodeData):
+    rules: List[BranchRuleDTO] = spec_field(
+        default_factory=list, ui_type=PropertyType.fixed_collection
+    )
+    default_label: str = spec_field(
+        default="default", min_length=1, ui_type=PropertyType.string
+    )
+
+    @model_validator(mode="after")
+    def _rules_are_evaluable(self):
+        """Reject a rule that could never match, at save time.
+
+        A branch node whose rule is malformed does not fail loudly at runtime —
+        it simply never matches and every call takes the default. That is the
+        worst failure shape available: the workflow looks fine, the calls
+        complete, and the routing quietly does not exist. Catching it here costs
+        one validation pass.
+        """
+        from api.services.workflow.branching import Rule, validate_rule
+
+        problems: list[str] = []
+        for index, raw in enumerate(self.rules):
+            problems.extend(
+                validate_rule(Rule.from_mapping(raw.model_dump()), index=index)
+            )
+
+        seen: dict[str, int] = {}
+        for index, raw in enumerate(self.rules):
+            label = (raw.label or "").strip().casefold()
+            if label in seen:
+                problems.append(
+                    f"Rule {index + 1}: label '{raw.label}' is already used by "
+                    f"rule {seen[label] + 1}. Two rules pointing at one edge "
+                    "means the second can never be reached."
+                )
+            else:
+                seen[label] = index
+
+        if self.default_label.strip().casefold() in seen:
+            problems.append(
+                f"'Otherwise send to' is '{self.default_label}', which a rule "
+                "already routes to. Give the fallback its own edge so the run "
+                "log can tell a matched call from an unmatched one."
+            )
+
+        if problems:
+            raise ValueError(" ".join(problems))
+        return self
+
+
+@node_spec(
+    name="wait",
+    display_name="Wait",
+    description="Pause the conversation for a moment before continuing.",
+    llm_hint=(
+        "Holds the call for a fixed number of seconds, then continues down its "
+        "single outgoing edge. No LLM turn is taken and the caller is not asked "
+        "anything.\n\n"
+        "Use it when the flow needs a beat that is not a question: after a tool "
+        "call whose result the caller is waiting on, before repeating an "
+        "important number, or to let a transfer announcement land. Do **not** "
+        "use it to wait for the caller to speak — an agent node already waits "
+        "for a turn, and a wait node on top of that is silence they will fill "
+        "by hanging up.\n\n"
+        "Say something during anything longer than about two seconds. Silence "
+        "on a phone line reads as a dropped call, and `filler_text` is what "
+        "stops the caller saying 'hello? hello?' into a working connection."
+    ),
+    category=NodeCategory.call_node,
+    icon="Hourglass",
+    docs_url="/voice-agent/wait",
+    examples=[
+        NodeExample(
+            name="hold_while_a_lookup_finishes",
+            data={
+                "name": "Checking",
+                "duration_seconds": 3,
+                "filler_type": "text",
+                "filler_text": "One moment, let me pull that up.",
+            },
+        ),
+        NodeExample(
+            name="a_short_beat",
+            data={"name": "Beat", "duration_seconds": 1, "filler_type": "none"},
+        ),
+    ],
+    graph_constraints=GraphConstraints(min_incoming=1, min_outgoing=1, max_outgoing=1),
+    property_order=(
+        "name",
+        "duration_seconds",
+        "filler_type",
+        "filler_text",
+        "filler_recording_id",
+    ),
+    field_overrides={
+        "name": {
+            "spec_default": "Wait",
+            "description": "Short identifier shown in the canvas and call logs.",
+        },
+        "duration_seconds": {
+            "display_name": "Wait for (seconds)",
+            "description": (
+                "How long to hold before continuing. Capped at 30 — a longer "
+                "pause is a caller who has already hung up."
+            ),
+            "min_value": 0.1,
+            "max_value": 30,
+        },
+        "filler_type": {
+            "display_name": "While waiting",
+            "description": "What the caller hears during the pause.",
+            "options": [
+                PropertyOption(value="none", label="Nothing"),
+                PropertyOption(value="text", label="Say something"),
+                PropertyOption(value="audio", label="Play a recording"),
+            ],
+        },
+        "filler_text": {
+            "display_name": "Say",
+            "description": (
+                "Spoken once at the start of the pause. Supports "
+                "{{template_variables}}."
+            ),
+            "display_options": DisplayOptions(show={"filler_type": ["text"]}),
+        },
+        "filler_recording_id": {
+            "display_name": "Recording",
+            "description": "Pre-recorded audio played at the start of the pause.",
+            "display_options": DisplayOptions(show={"filler_type": ["audio"]}),
+        },
+    },
+)
+class WaitNodeData(BaseNodeData):
+    duration_seconds: float = spec_field(
+        default=2.0, ge=0.1, le=30, ui_type=PropertyType.number
+    )
+    filler_type: str = spec_field(default="none", ui_type=PropertyType.options)
+    filler_text: Optional[str] = spec_field(default=None, ui_type=PropertyType.string)
+    filler_recording_id: Optional[str] = spec_field(
+        default=None, ui_type=PropertyType.recording_ref
+    )
+
+    @model_validator(mode="after")
+    def _filler_is_complete(self):
+        """A filler mode with nothing to play is silence the author did not
+        intend — they chose "say something" and then did not say what."""
+        if self.filler_type == "text" and not (self.filler_text or "").strip():
+            raise ValueError(
+                "Wait node is set to say something during the pause but has no "
+                "text. Add the line, or set 'While waiting' to Nothing."
+            )
+        if self.filler_type == "audio" and not (self.filler_recording_id or "").strip():
+            raise ValueError(
+                "Wait node is set to play a recording during the pause but none "
+                "is chosen. Pick one, or set 'While waiting' to Nothing."
+            )
+        return self
+
+
+@node_spec(
+    name="sms",
+    display_name="Send Message",
+    description="Text the caller after the call — SMS or WhatsApp, on the carrier you already use.",
+    llm_hint=(
+        "Sends one SMS or WhatsApp message after the call finishes, on the "
+        "organisation's existing telephony credentials. No new account is "
+        "needed: Twilio and Plivo bill messaging to the same account as "
+        "voice.\n\n"
+        "Like the webhook node it is **detached** — no edges in or out. It is "
+        "not a step in the conversation; it fires once the run completes, with "
+        "the run's variables available to the template.\n\n"
+        "Use it for the artefact the caller keeps: a confirmation, a reference "
+        "number, a payment or application link. `to` defaults to the number "
+        "that was on the call, which is what you want almost every time.\n\n"
+        "Only send when it is worth sending. The `send_when_*` fields take the "
+        "same variable/operator/value shape as a branch rule, so a failed call "
+        "does not text somebody a confirmation of nothing."
+    ),
+    category=NodeCategory.integration,
+    icon="MessageSquare",
+    docs_url="/voice-agent/sms",
+    examples=[
+        NodeExample(
+            name="confirm_the_appointment",
+            data={
+                "name": "Confirmation SMS",
+                "enabled": True,
+                "channel": "sms",
+                "body": (
+                    "Namaste {{first_name}}, your appointment is confirmed for "
+                    "{{appointment_time}}. Ref: {{reference_id}}"
+                ),
+            },
+        ),
+        NodeExample(
+            name="only_when_the_call_succeeded",
+            data={
+                "name": "Payment link",
+                "enabled": True,
+                "channel": "whatsapp",
+                "body": "Your payment link: {{payment_url}}",
+                "send_when_variable": "call_outcome",
+                "send_when_operator": "equals",
+                "send_when_value": "agreed",
+            },
+        ),
+    ],
+    graph_constraints=GraphConstraints(
+        min_incoming=0, max_incoming=0, min_outgoing=0, max_outgoing=0
+    ),
+    property_order=(
+        "name",
+        "enabled",
+        "channel",
+        "to",
+        "from_number",
+        "body",
+        "send_when_variable",
+        "send_when_operator",
+        "send_when_value",
+    ),
+    field_overrides={
+        "name": {
+            "spec_default": "Send Message",
+            "description": "Short identifier shown in the canvas and call logs.",
+        },
+        "enabled": {
+            "display_name": "Enabled",
+            "description": "When false, nothing is sent.",
+        },
+        "channel": {
+            "display_name": "Channel",
+            "description": (
+                "SMS goes over the telephony configuration's carrier. WhatsApp "
+                "requires a Twilio WhatsApp Business sender."
+            ),
+            "options": [
+                PropertyOption(value="sms", label="SMS"),
+                PropertyOption(value="whatsapp", label="WhatsApp"),
+            ],
+        },
+        "to": {
+            "display_name": "To",
+            "description": (
+                "Recipient in E.164 (+919876543210). Leave blank to use the "
+                "number that was on the call. Supports {{template_variables}}."
+            ),
+        },
+        "from_number": {
+            "display_name": "From",
+            "description": (
+                "Sender number. Leave blank to use the configuration's default "
+                "outbound caller ID."
+            ),
+        },
+        "body": {
+            "display_name": "Message",
+            "description": (
+                "Supports {{template_variables}} from the call — extracted "
+                "values, campaign columns, trigger payload."
+            ),
+            "editor": "textarea",
+        },
+        "send_when_variable": {
+            "display_name": "Only send if — variable",
+            "description": "Leave blank to always send. Same shape as a branch rule.",
+        },
+        "send_when_operator": {
+            "display_name": "Only send if — condition",
+            "description": "How the variable is compared.",
+            "options": [
+                PropertyOption(value="equals", label="equals"),
+                PropertyOption(value="not_equals", label="does not equal"),
+                PropertyOption(value="contains", label="contains"),
+                PropertyOption(value="in_list", label="is one of"),
+                PropertyOption(value="greater_than", label="is greater than"),
+                PropertyOption(value="less_than", label="is less than"),
+                PropertyOption(value="is_true", label="is true"),
+                PropertyOption(value="is_not_empty", label="is not empty"),
+            ],
+        },
+        "send_when_value": {
+            "display_name": "Only send if — value",
+            "description": "Blank for 'is true' and 'is not empty'.",
+        },
+    },
+)
+class SmsNodeData(BaseNodeData):
+    enabled: bool = spec_field(default=True, ui_type=PropertyType.boolean)
+    channel: str = spec_field(default="sms", ui_type=PropertyType.options)
+    to: Optional[str] = spec_field(default=None, ui_type=PropertyType.string)
+    from_number: Optional[str] = spec_field(default=None, ui_type=PropertyType.string)
+    body: str = spec_field(default="", ui_type=PropertyType.string)
+    send_when_variable: Optional[str] = spec_field(
+        default=None, ui_type=PropertyType.string
+    )
+    send_when_operator: Optional[str] = spec_field(
+        default=None, ui_type=PropertyType.options
+    )
+    send_when_value: Optional[str] = spec_field(
+        default=None, ui_type=PropertyType.string
+    )
+
+    @model_validator(mode="after")
+    def _is_sendable(self):
+        """Catch at save time the two ways this node silently does nothing.
+
+        An empty body sends nothing. A half-written condition is worse: a
+        variable with no operator reads as a guard that is doing something,
+        while in fact every call is texted.
+        """
+        if self.enabled and not (self.body or "").strip():
+            raise ValueError(
+                "Send Message is enabled but has no message body. Write the "
+                "message, or switch the node off."
+            )
+
+        from api.services.workflow.branching import Rule, validate_rule
+
+        if self.send_when_variable:
+            problems = validate_rule(
+                Rule(
+                    label="send",
+                    variable=self.send_when_variable,
+                    operator=self.send_when_operator or "",
+                    value=self.send_when_value or "",
+                )
+            )
+            if problems:
+                raise ValueError(" ".join(problems))
+        elif self.send_when_operator or self.send_when_value:
+            raise ValueError(
+                "The 'only send if' condition names a comparison but no "
+                "variable to compare, so it would never hold anything back. "
+                "Add the variable, or clear the condition."
+            )
+        return self
+
+
 # Union of every per-type data class — useful as a type annotation on
 # consumers that handle any node data without dispatching on type. Cannot
 # be called as a constructor; use the per-type class directly.
@@ -933,6 +1446,9 @@ NodeDataDTO = Union[
     TriggerNodeData,
     WebhookNodeData,
     QANodeData,
+    BranchNodeData,
+    WaitNodeData,
+    SmsNodeData,
 ]
 
 
@@ -1009,6 +1525,21 @@ class WebhookRFNode(_RFNodeBase):
 class QARFNode(_RFNodeBase):
     type: Literal["qa"] = "qa"
     data: QANodeData
+
+
+class BranchRFNode(_RFNodeBase):
+    type: Literal["branch"] = "branch"
+    data: BranchNodeData
+
+
+class WaitRFNode(_RFNodeBase):
+    type: Literal["wait"] = "wait"
+    data: WaitNodeData
+
+
+class SmsRFNode(_RFNodeBase):
+    type: Literal["sms"] = "sms"
+    data: SmsNodeData
 
 
 _PROMPT_REQUIRED_NODE_TYPES: dict[str, str] = {
@@ -1104,6 +1635,9 @@ _CORE_NODE_DATA_CLASSES: dict[str, type[BaseNodeData]] = {
     NodeType.trigger.value: TriggerNodeData,
     NodeType.webhook.value: WebhookNodeData,
     NodeType.qa.value: QANodeData,
+    NodeType.branch.value: BranchNodeData,
+    NodeType.wait.value: WaitNodeData,
+    NodeType.sms.value: SmsNodeData,
 }
 
 

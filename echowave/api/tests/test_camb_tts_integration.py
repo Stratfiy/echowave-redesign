@@ -71,8 +71,14 @@ class TestServiceFactoryCamb:
         import sys
 
         # Mock missing modules (custom pipecat fork, not in public pipecat-ai)
+        # Must list every module service_factory imports from the fork.
+        # Mocking the `pipecat.services.dograh` package replaces it with a
+        # MagicMock, which is not a package — so any submodule left out here
+        # stops resolving and the import below fails rather than being mocked.
         decibyl_modules = [
             "pipecat.services.dograh",
+            "pipecat.services.dograh.flux",
+            "pipecat.services.dograh.flux.stt",
             "pipecat.services.dograh.llm",
             "pipecat.services.dograh.stt",
             "pipecat.services.dograh.tts",

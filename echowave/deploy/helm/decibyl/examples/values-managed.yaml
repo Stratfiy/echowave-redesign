@@ -16,7 +16,8 @@ redis:
 storage:
   mode: s3
   s3:
-    region: us-east-1
+    # Mumbai: recordings are personal data of people in India. See values.yaml.
+    region: ap-south-1
     bucket: decibyl-voice-audio
     publicEndpoint: https://decibyl-voice-audio.s3.amazonaws.com
 exposure:

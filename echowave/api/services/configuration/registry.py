@@ -38,6 +38,10 @@ from api.services.configuration.options import (
     GOOGLE_VERTEX_REALTIME_LANGUAGES,
     GOOGLE_VERTEX_REALTIME_MODELS,
     GOOGLE_VERTEX_REALTIME_VOICES,
+    RUMIK_DEFAULT_DESCRIPTION,
+    RUMIK_LANGUAGES,
+    RUMIK_TTS_MODELS,
+    RUMIK_VOICES,
     SARVAM_LANGUAGES,
     SARVAM_LLM_MODELS,
     SARVAM_STT_LANGUAGES_V3,
@@ -77,6 +81,7 @@ class ServiceProviders(str, Enum):
     AZURE_SPEECH = "azure_speech"
     DECIBYL = "decibyl"
     SARVAM = "sarvam"
+    RUMIK = "rumik"
     SPEECHMATICS = "speechmatics"
     CAMB = "camb"
     AWS_BEDROCK = "aws_bedrock"
@@ -127,6 +132,12 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.SMALLEST,
         ServiceProviders.XAI,
     ]
+    # Stays required. A vault-backed slot sends an explicit empty string, which
+    # satisfies this and is a different statement from omitting the field: it
+    # says "the key comes from somewhere else", and byok_resolution fills it
+    # from the account's vault at dial time. Defaulting it would have let a
+    # configuration that genuinely forgot a key validate silently, which is the
+    # guard several provider tests rely on.
     api_key: str | list[str]
 
     @field_validator("api_key")
@@ -270,6 +281,14 @@ INWORLD_PROVIDER_MODEL_CONFIG = provider_model_config(
     provider_docs_url="https://docs.inworld.ai/tts/tts",
 )
 SARVAM_PROVIDER_MODEL_CONFIG = provider_model_config("Sarvam")
+RUMIK_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Rumik",
+    description=(
+        "Silk voice models. Hindi and English only, including code-mixed, at "
+        "roughly a third of the price per character of the alternatives."
+    ),
+    provider_docs_url="https://docs.rumik.ai/",
+)
 CAMB_PROVIDER_MODEL_CONFIG = provider_model_config("Camb.ai")
 RIME_PROVIDER_MODEL_CONFIG = provider_model_config("Rime")
 GOOGLE_CLOUD_PROVIDER_MODEL_CONFIG = provider_model_config("Google Cloud")
@@ -444,6 +463,12 @@ class AzureLLMService(BaseLLMConfiguration):
 @register_llm
 class DecibylLLMService(BaseLLMConfiguration):
     model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    # Managed slots carry no key from the customer — that is the entire point
+    # of choosing one. ``managed_resolution`` substitutes our platform key at
+    # resolution time. Inherited as required from the base, which made a
+    # managed slot unsaveable and is the same holdover already documented on
+    # DecibylManagedAIModelConfiguration.
+    api_key: str | list[str] = ""
     provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
     model: str = Field(
         default="default",
@@ -565,10 +590,10 @@ class SarvamLLMConfiguration(BaseLLMConfiguration):
     model_config = SARVAM_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.SARVAM] = ServiceProviders.SARVAM
     model: str = Field(
-        default="sarvam-30b",
+        default="sarvam-105b",
         description=(
-            "Sarvam chat model. Use sarvam-30b for low-latency voice agents; "
-            "sarvam-105b for complex multi-step reasoning."
+            "Sarvam chat model. sarvam-105b is the current generation; "
+            "sarvam-30b was retired by Sarvam and now returns a 400."
         ),
         json_schema_extra={"examples": SARVAM_LLM_MODELS, "allow_custom_input": True},
     )
@@ -617,6 +642,39 @@ class OpenAIRealtimeLLMConfiguration(BaseLLMConfiguration):
             "examples": OPENAI_REALTIME_VOICES,
             "allow_custom_input": True,
         },
+    )
+
+
+DECIBYL_REALTIME_MODELS = ["default"]
+
+
+@register_service(ServiceType.REALTIME)
+class DecibylRealtimeConfiguration(BaseLLMConfiguration):
+    """Speech-to-speech on our key, chosen as a tier rather than a vendor.
+
+    The realtime counterpart of the managed STT/LLM/TTS classes, and it exists
+    for the same reason: a customer picking "managed" is choosing not to hold a
+    key, and without a Decibyl variant in the realtime union that choice was
+    unrepresentable — speech-to-speech was BYOK-only, which is why the old UI
+    listed it beside BYOK as though it were an alternative to it.
+
+    ``voice`` is carried because a realtime model speaks directly; there is no
+    separate TTS section to hold it.
+    """
+
+    model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    # No key from the customer — managed_resolution substitutes ours.
+    api_key: str | list[str] = ""
+    provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
+    model: str = Field(
+        default="default",
+        description="Decibyl speech-to-speech tier.",
+        json_schema_extra={"examples": DECIBYL_REALTIME_MODELS},
+    )
+    voice: str = Field(
+        default="default",
+        description="Voice the model speaks in.",
+        json_schema_extra={"allow_custom_input": True},
     )
 
 
@@ -832,6 +890,7 @@ RealtimeConfig = Annotated[
         GoogleRealtimeLLMConfiguration,
         GoogleVertexRealtimeLLMConfiguration,
         AzureRealtimeLLMConfiguration,
+        DecibylRealtimeConfiguration,
     ],
     Field(discriminator="provider"),
 ]
@@ -978,6 +1037,12 @@ DECIBYL_TTS_MODELS = ["default"]
 @register_tts
 class DecibylTTSService(BaseTTSConfiguration):
     model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    # Managed slots carry no key from the customer — that is the entire point
+    # of choosing one. ``managed_resolution`` substitutes our platform key at
+    # resolution time. Inherited as required from the base, which made a
+    # managed slot unsaveable and is the same holdover already documented on
+    # DecibylManagedAIModelConfiguration.
+    api_key: str | list[str] = ""
     provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
     model: str = Field(
         default="default",
@@ -1062,6 +1127,45 @@ class InworldTTSConfiguration(BaseTTSConfiguration):
             "Controls stability versus expressiveness for inworld-tts-2 "
             "(STABLE, BALANCED, or CREATIVE)."
         ),
+    )
+
+
+@register_tts
+class RumikTTSConfiguration(BaseTTSConfiguration):
+    """Rumik Silk — the cheapest synthesis on the rate card.
+
+    Hindi and English only, including code-mixed. That is narrower than every
+    other Indic option here, so the language field says so rather than offering
+    a list the model will not honour.
+    """
+
+    model_config = RUMIK_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.RUMIK] = ServiceProviders.RUMIK
+    model: str = Field(
+        default="mulberry",
+        description=(
+            "Silk model. mulberry is faster and half the price — use it for "
+            "calls. muga is more expressive and supports tone tags."
+        ),
+        json_schema_extra={"examples": RUMIK_TTS_MODELS},
+    )
+    voice: str = Field(
+        default="ira",
+        description="Preset studio voice.",
+        json_schema_extra={"examples": RUMIK_VOICES},
+    )
+    description: str = Field(
+        default=RUMIK_DEFAULT_DESCRIPTION,
+        description=(
+            "Plain-English description of how the voice should sound. Rumik "
+            "shapes the preset voice with it, so leaving it blank makes every "
+            "agent sound the same."
+        ),
+    )
+    language: str = Field(
+        default="hi-IN",
+        description="Silk speaks Hindi and English only, including code-mixed.",
+        json_schema_extra={"examples": RUMIK_LANGUAGES},
     )
 
 
@@ -1336,6 +1440,7 @@ TTSConfig = Annotated[
         InworldTTSConfiguration,
         DecibylTTSService,
         SarvamTTSConfiguration,
+        RumikTTSConfiguration,
         CambTTSConfiguration,
         RimeTTSConfiguration,
         SpeachesTTSConfiguration,
@@ -1467,6 +1572,12 @@ DECIBYL_MULTILINGUAL_AUTODETECT_LANGUAGES = DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGES
 @register_stt
 class DecibylSTTService(BaseSTTConfiguration):
     model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    # Managed slots carry no key from the customer — that is the entire point
+    # of choosing one. ``managed_resolution`` substitutes our platform key at
+    # resolution time. Inherited as required from the base, which made a
+    # managed slot unsaveable and is the same holdover already documented on
+    # DecibylManagedAIModelConfiguration.
+    api_key: str | list[str] = ""
     provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
     model: str = Field(
         default="default",
@@ -1827,6 +1938,12 @@ DECIBYL_EMBEDDING_MODELS = ["decibyl_embedding_v1"]
 @register_embeddings
 class DecibylEmbeddingsConfiguration(BaseEmbeddingsConfiguration):
     model_config = DECIBYL_PROVIDER_MODEL_CONFIG
+    # Managed slots carry no key from the customer — that is the entire point
+    # of choosing one. ``managed_resolution`` substitutes our platform key at
+    # resolution time. Inherited as required from the base, which made a
+    # managed slot unsaveable and is the same holdover already documented on
+    # DecibylManagedAIModelConfiguration.
+    api_key: str | list[str] = ""
     provider: Literal[ServiceProviders.DECIBYL] = ServiceProviders.DECIBYL
     model: str = Field(
         default="decibyl_embedding_v1",

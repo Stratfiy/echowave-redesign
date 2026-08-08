@@ -30,11 +30,11 @@
           {
             "group": "Build your First Agent",
             "pages": [
-                  "getting-started/first-agent",
-                  "getting-started/trigger-calls-from-your-backend",
-                  "getting-started/send-call-data-with-webhooks",
-                  "getting-started/connect-telephony",
-                  "getting-started/add-tools-and-knowledge-base"
+              "getting-started/first-agent",
+              "getting-started/trigger-calls-from-your-backend",
+              "getting-started/send-call-data-with-webhooks",
+              "getting-started/connect-telephony",
+              "getting-started/add-tools-and-knowledge-base"
             ]
           },
           {
@@ -95,18 +95,22 @@
                   "voice-agent/start-call",
                   "voice-agent/end-call",
                   "voice-agent/agent",
+                  "voice-agent/branch",
+                  "voice-agent/wait",
                   "voice-agent/global",
                   "voice-agent/qa",
                   "voice-agent/api-trigger",
+                  "voice-agent/sms",
                   "voice-agent/webhook"
                 ]
-              },
-              "voice-agent/add-to-website"
+              }
             ]
           },
           {
-            "group": "Telephony",
+            "group": "Channels",
+            "tag": "NEW",
             "pages": [
+              "voice-agent/add-to-website",
               "integrations/telephony/overview",
               "integrations/telephony/inbound",
               "integrations/telephony/twilio",
@@ -167,6 +171,7 @@
               "deployment/docker",
               "deployment/authentication",
               "deployment/custom-domain",
+              "deployment/subdomains",
               "deployment/scaling",
               "deployment/update",
               "deployment/heroku"
@@ -298,7 +303,7 @@
     }
   },
   "banner": {
-    "content": "🎉 **New: MCP Server & SDKs Released** — Drive Decibyl from Claude, Cursor, or your own Python/TypeScript code. [MCP →](/integrations/mcp) · [SDKs →](/sdks/introduction)",
+    "content": "\ud83c\udf89 **Describe an agent in Claude Code and get a working one.** Or put a talk button on your site with one script tag. [Build from Claude Code \u2192](/integrations/mcp) \u00b7 [Web widget \u2192](/voice-agent/add-to-website)",
     "dismissible": true
   },
   "search": {

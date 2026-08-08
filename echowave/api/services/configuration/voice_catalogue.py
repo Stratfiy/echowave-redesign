@@ -24,6 +24,10 @@ from dataclasses import dataclass
 from api.enums import CostComponent
 from api.services.configuration import managed_tiers
 from api.services.configuration.options.google import GOOGLE_TTS_VOICES
+from api.services.configuration.options.rumik import (
+    RUMIK_FEMALE_VOICES,
+    RUMIK_VOICES,
+)
 from api.services.configuration.options.sarvam import (
     SARVAM_V2_VOICES,
     SARVAM_V3_VOICES,
@@ -85,9 +89,33 @@ def _sarvam(model: str | None) -> list[Voice]:
     ]
 
 
+def _rumik(model: str | None) -> list[Voice]:
+    """Silk's preset studio voices.
+
+    Muga takes no preset speaker — it is directed by tone tags in the text — so
+    offering names there would produce a picker whose choices do nothing.
+
+    Naming a voice Rumik does not recognise is not an error at their end: it
+    generates a voice from the description instead. So an out-of-date list here
+    does not fail loudly, it quietly gives the caller a stranger.
+    """
+    if (model or "").strip().lower() == "muga":
+        return []
+    return [
+        Voice(
+            voice_id=name,
+            name=name.title(),
+            gender="female" if name in RUMIK_FEMALE_VOICES else "male",
+            language="hi",  # Hindi and English, code-mixed within one request
+        )
+        for name in RUMIK_VOICES
+    ]
+
+
 #: Providers whose catalogue is fixed and therefore knowable without asking.
 _LOCAL = {
     ServiceProviders.SARVAM.value: _sarvam,
+    ServiceProviders.RUMIK.value: _rumik,
     ServiceProviders.SMALLEST.value: lambda model: [
         Voice(voice_id=v, name=v.title())
         for v in (

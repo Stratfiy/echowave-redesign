@@ -34,6 +34,7 @@ from api.services.privacy import (
     retention,
     subprocessors,
 )
+from api.services.readiness import as_dict
 
 router = APIRouter(prefix="/privacy", tags=["privacy"])
 
@@ -304,23 +305,11 @@ async def privacy_readiness(user: UserModel = Depends(get_user)) -> dict[str, An
     async with db_client.async_session() as session:
         assessment = await readiness.assess(session)
 
-    return {
-        "checks": [
-            {
-                "key": check.key,
-                "title": check.title,
-                "status": check.status,
-                "detail": check.detail,
-                "reference": check.reference,
-                "remedy": check.remedy or None,
-            }
-            for check in assessment.checks
-        ],
-        # Split apart because they are worked differently: one list is a
-        # deployment checklist, the other is a legal to-do that never empties.
-        "action_required": len(assessment.blocking),
-        "needs_a_human": len(assessment.unresolvable),
-    }
+    # Shared with /admin/billing/readiness so the two report in one shape.
+    # action_required and needs_a_human are counted separately because they are
+    # worked differently: one list is a deployment checklist, the other a legal
+    # to-do that never empties.
+    return as_dict(assessment)
 
 
 @router.get("/agreements")

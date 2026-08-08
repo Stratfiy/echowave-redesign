@@ -55,6 +55,7 @@ class WorkflowTemplateClient(BaseDBClient):
         template_id: int,
         template_name: str | None = None,
         template_json: dict | None = None,
+        template_description: str | None = None,
     ) -> WorkflowTemplates:
         """Update an existing workflow template."""
         async with self.async_session() as session:
@@ -72,6 +73,8 @@ class WorkflowTemplateClient(BaseDBClient):
                     template.template_name = template_name
                 if template_json is not None:
                     template.template_json = template_json
+                if template_description is not None:
+                    template.template_description = template_description
 
                 await session.commit()
                 await session.refresh(template)

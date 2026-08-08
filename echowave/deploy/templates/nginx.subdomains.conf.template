@@ -1,0 +1,223 @@
+__DECIBYL_UPSTREAM_BLOCK__
+
+# Subdomain topology, for a deployment that has outgrown one hostname:
+#
+#   decibyl.ai       marketing site      (not served here — see the note below)
+#   app.decibyl.ai   the product UI
+#   api.decibyl.ai   the API, WebSockets, MCP, embed widget
+#   docs.decibyl.ai  Mintlify documentation
+#
+# The single-host template (nginx.remote.conf.template) path-splits one name:
+# /api/v1/ to the API, / to the UI. It still works and is the right choice for
+# a self-hosted install. This one exists because a commercial deployment wants
+# the apex free for marketing, and because api.decibyl.ai is the hostname
+# customers integrate against — it should not move if the app is ever rehosted.
+#
+# **The split makes the browser cross-origin, and that is the one thing that
+# can break.** It is safe here because the UI authenticates with a Bearer token
+# rather than a cookie (see ui/src/lib/apiClient), so there is no SameSite
+# problem to solve. If auth ever moves to cookies, they must be issued on
+# `.decibyl.ai` with SameSite=None, and CORS_ALLOWED_ORIGINS must stop being a
+# wildcard — a wildcard with credentials is rejected by every browser.
+#
+# The apex is deliberately NOT proxied to the app. Redirecting decibyl.ai to
+# app.decibyl.ai would work today and be in the way the moment a marketing site
+# exists. Point the apex at your site host (Vercel, Webflow, S3) in DNS and
+# leave this file out of it.
+
+# ---------------------------------------------------------------------------
+# HTTP: ACME challenges, then redirect. One block for every hostname.
+# ---------------------------------------------------------------------------
+server {
+    listen 80;
+    server_name __DECIBYL_APP_HOST__ __DECIBYL_API_HOST__ __DECIBYL_DOCS_HOST__;
+
+    # Serve Let's Encrypt HTTP-01 challenges out of the certs webroot that
+    # certbot --webroot writes into. Only this path is exposed.
+    location ^~ /.well-known/acme-challenge/ {
+        root /etc/nginx/certs;
+        default_type "text/plain";
+        try_files $uri =404;
+    }
+
+    # In a location block, not a server-level `return`, or it fires before
+    # location matching and hijacks the ACME challenge above.
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# ---------------------------------------------------------------------------
+# app.decibyl.ai — the product
+# ---------------------------------------------------------------------------
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name __DECIBYL_APP_HOST__;
+
+    ssl_certificate     /etc/nginx/certs/local.crt;
+    ssl_certificate_key /etc/nginx/certs/local.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    # The app is a first-party surface and should not be framed by anyone.
+    # The embed widget is served from the API host, so this does not affect it.
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # /api/ keeps working on the app host, deliberately.
+    #
+    # api.decibyl.ai is canonical and is what new integrations should use. But
+    # the MCP endpoint is published as https://app.decibyl.ai/api/v1/mcp/ in
+    # docs/integrations/mcp.mdx and docs/api-reference/overview.mdx, and any
+    # customer who has already run `claude mcp add` has that URL saved in their
+    # own config. Serving only the UI here would break every one of them the
+    # moment DNS changed — silently, since their assistant would just stop
+    # finding the tools.
+    #
+    # Published integration URLs are a contract. Migrating them is a
+    # deprecation with notice, not a side effect of splitting hostnames.
+    location /api/ {
+        proxy_pass http://decibyl_api;
+        proxy_http_version 1.1;
+
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+
+        proxy_buffering off;
+        client_max_body_size 100M;
+    }
+
+    location / {
+        proxy_pass         http://ui:3010;
+        proxy_http_version 1.1;
+
+        # Next.js dev/HMR and any streamed route
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
+
+# ---------------------------------------------------------------------------
+# api.decibyl.ai — API, WebSockets, MCP, recordings
+# ---------------------------------------------------------------------------
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name __DECIBYL_API_HOST__;
+
+    ssl_certificate     /etc/nginx/certs/local.crt;
+    ssl_certificate_key /etc/nginx/certs/local.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Everything the API serves lives under /api/v1, including the MCP server
+    # at /api/v1/mcp and the public embed endpoints the voice widget calls from
+    # a customer's own site.
+    #
+    # CORS is answered by the application, not here. FastAPI already runs a
+    # CORSMiddleware plus a dedicated PublicEmbedCORSMiddleware that reflects
+    # the embed token's allowed origins — adding add_header rules at this layer
+    # would produce two Access-Control-Allow-Origin headers, which browsers
+    # reject outright.
+    location /api/ {
+        proxy_pass http://decibyl_api;
+        proxy_http_version 1.1;
+
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+
+        # Voice runs over WebSockets. Without these the upgrade fails and every
+        # call dies at connect with a 400 that looks like an application bug.
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+
+        # Long-lived audio streams and signalling
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+
+        proxy_buffering off;
+        client_max_body_size 100M;
+    }
+
+    # Recordings and transcripts. On the API host rather than the app host
+    # because they are fetched by presigned URL from the SDK and the dashboard
+    # alike, and the SDK should need exactly one hostname.
+    location /voice-audio/ {
+        proxy_pass http://minio:9000/voice-audio/;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+
+        proxy_buffering off;
+        client_max_body_size 100M;
+    }
+
+    # Anything else on the API host is a mistake — usually someone opening it
+    # in a browser expecting the app. Say so rather than serving the UI, which
+    # would give the product two working hostnames and split every session.
+    location / {
+        return 404 '{"detail":"This is the Decibyl API. The app is at https://__DECIBYL_APP_HOST__ and the docs are at https://__DECIBYL_DOCS_HOST__"}';
+        default_type application/json;
+    }
+}
+
+# ---------------------------------------------------------------------------
+# docs.decibyl.ai — Mintlify
+# ---------------------------------------------------------------------------
+# Two ways to serve this, and the choice is yours:
+#
+#   1. Mintlify hosting (recommended). Point docs.decibyl.ai at Mintlify with a
+#      CNAME and delete this block — nothing proxies through your box, so the
+#      docs stay up when the API does not.
+#   2. Self-host a static export behind this block, with the built site
+#      bind-mounted at /usr/share/nginx/docs.
+#
+# Option 1 is better for the reason that matters during an incident: your
+# documentation should not share a failure domain with your product.
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name __DECIBYL_DOCS_HOST__;
+
+    ssl_certificate     /etc/nginx/certs/local.crt;
+    ssl_certificate_key /etc/nginx/certs/local.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    root /usr/share/nginx/docs;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ $uri.html /index.html;
+    }
+}

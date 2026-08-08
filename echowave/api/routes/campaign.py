@@ -20,7 +20,7 @@ from api.services.campaign.source_sync import CampaignSourceSyncService
 from api.services.campaign.source_sync_factory import get_sync_service
 from api.services.kyc import service as kyc_service
 from api.services.quota_service import authorize_workflow_run_start
-from api.services.reports import generate_campaign_report_csv
+from api.services.reports import campaign_summary, generate_campaign_report_csv
 from api.services.storage import storage_fs
 
 router = APIRouter(prefix="/campaign")
@@ -1030,3 +1030,28 @@ async def download_campaign_report(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/{campaign_id}/summary")
+async def get_campaign_summary(
+    campaign_id: int,
+    user: UserModel = Depends(get_user),
+) -> Dict[str, Any]:
+    """Aggregate campaign performance: rates, retries, languages, daily progress.
+
+    The companion to `/report`, which streams a row per call. A tender asks for
+    connection and completion rates, retry statistics, language distribution and
+    progress by day (Telangana §10), and none of those are answerable from a CSV
+    without the reader re-deriving them — and picking their own denominators
+    while they do it.
+
+    The definitions live in `services/reports/campaign_summary.py` and match the
+    admin dashboard's, so this and `/admin/billing/campaigns` cannot disagree
+    about the same campaign.
+    """
+    campaign = await db_client.get_campaign(campaign_id, user.selected_organization_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    async with db_client.async_session() as session:
+        return await campaign_summary(session, campaign=campaign)

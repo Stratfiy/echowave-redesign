@@ -35,6 +35,9 @@ from loguru import logger
 from api.constants import REDIS_URL
 from api.mcp_server import mcp
 from api.routes.main import router as main_router
+from api.services.configuration.platform_credential_seed import (
+    seed_from_environment as seed_platform_credentials_from_environment,
+)
 from api.services.pipecat.tracing_config import (
     handle_langfuse_sync,
     load_all_org_langfuse_credentials,
@@ -44,6 +47,7 @@ from api.services.worker_sync.manager import (
     set_worker_sync_manager,
 )
 from api.services.worker_sync.protocol import WorkerSyncEventType
+from api.services.workflow.launch_template_seed import seed_launch_templates
 from api.tasks.arq import get_arq_redis
 
 API_PREFIX = "/api/v1"
@@ -56,6 +60,15 @@ async def lifespan(app: FastAPI):
     async with mcp_app.lifespan(app):
         # warmup arq pool
         await get_arq_redis()
+
+        # Install any platform provider keys the environment declares, so a
+        # freshly-deployed box serves managed accounts without someone having
+        # to log in and paste keys into the staff screen first.
+        await seed_platform_credentials_from_environment()
+
+        # Install the four launch templates, so a new account picks a job to be
+        # done rather than being shown an empty canvas.
+        await seed_launch_templates()
 
         # Pre-register all org-specific Langfuse exporters so they're ready
         # before any pipeline runs, without per-call DB lookups.

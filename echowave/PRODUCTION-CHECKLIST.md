@@ -10,6 +10,23 @@ metrics/billing/reporting. All of those were probed.
 **Headline: the platform works. Two configuration mistakes will silently cost
 you money or break GST compliance, and neither raises an error.**
 
+> **Update — both silent failures now have a signal.** They are still
+> misconfigurations you have to fix, and §2 below is still how you fix them.
+> What changed is that you no longer have to know to look:
+> `GET /admin/billing/readiness` (staff-only) reports the supplier identity,
+> the price book, **captured payments carrying no receipt voucher**, and calls
+> costed against a provider with no rate on file. Work it to
+> `action_required: 0` alongside `/privacy/readiness`.
+>
+> `GET /health/workers` answers the question `/health` cannot: whether the ARQ
+> worker is alive. If it dies, costing and invoicing stop while every endpoint
+> keeps returning 200. Alert on it.
+>
+> The Plivo India rate in §3.1 is fixed in the seeder (`$0.003/min`), and
+> `S3_REGION` now defaults to `ap-south-1`. §3.3's aggregate report is built
+> (`GET /campaign/{id}/summary`) and the CSV has a Language column. See
+> `KNOWN_ISSUES.md` entries 15–19.
+
 ---
 
 ## 1. What was tested and what happened

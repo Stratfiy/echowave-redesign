@@ -58,7 +58,7 @@ class WorkflowAIModelConfigurationMigrationResult:
     workflow_ids: list[int] | None = None
 
 
-from api.services.configuration import managed_resolution
+from api.services.configuration import byok_resolution, managed_resolution
 
 
 async def get_resolved_ai_model_configuration(
@@ -104,6 +104,7 @@ async def get_effective_ai_model_configuration_for_workflow(
         effective = compile_ai_model_configuration_v2(
             OrganizationAIModelConfigurationV2.model_validate(v2_override)
         )
+        await byok_resolution.apply(effective, organization_id=organization_id)
         await managed_resolution.apply(effective)
         return effective
 
@@ -114,6 +115,14 @@ async def get_effective_ai_model_configuration_for_workflow(
         resolved_config.effective,
         workflow_configurations.get("model_overrides"),
     )
+    # Two key sources, in this order.
+    #
+    # A section naming a vendor but carrying no key is BYOK with the key in the
+    # account's vault rather than inline. Resolve those first, because after
+    # managed resolution a managed section *also* names a vendor — running this
+    # second would send it to the vault for a key the customer was never asked
+    # for.
+    await byok_resolution.apply(effective, organization_id=organization_id)
     # A section still saying "decibyl" has no vendor and no key. Resolve it to
     # the provider serving that tier, on our platform key, so everything
     # downstream sees an ordinary configured provider. Last, so it applies to

@@ -1,61 +1,134 @@
 ---
-title: "MCP Server"
-description: "Connect Codex, Claude, and other AI assistants to your Decibyl workspace via the Model Context Protocol"
+title: "Build agents from Claude Code"
+description: "Describe the agent you want in plain English and get a working one — Decibyl's MCP server gives your coding assistant the tools and the craft to build it."
 ---
 
-## Overview
+## What this actually is
 
-Decibyl exposes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that lets AI assistants like Codex, Claude Code, Claude Desktop, and Cursor access your workspace and documentation. Once connected, an assistant can list your agents, fetch agent definitions, and search Decibyl docs on your behalf.
+Most MCP servers hand an assistant a REST API and hope for the best. This one
+hands it the job.
 
-## Prerequisites
+Connect Decibyl to Claude Code, Codex, Cursor or Claude Desktop and your
+assistant can **author a complete voice agent** — plan it with you, write it,
+validate it, save it, and review its own work. Not "list my agents." Build one.
 
-- A Decibyl API key. Generate one at [`/api-keys`](https://app.decibyl.ai/api-keys) (or `http://localhost:3010/api-keys` for self-hosted). See [API Keys](/configurations/api-keys).
-- Your Decibyl MCP endpoint:
-  - Hosted: `https://app.decibyl.ai/api/v1/mcp/`
-  - Self-hosted: `<YOUR_BACKEND_URL>/api/v1/mcp/`
+```
+You:     Build me an agent that calls people who abandoned their cart,
+         asks why, and offers a 10% code if the reason was price.
+         Telugu and English.
 
-The endpoint is also shown in **Platform Settings → MCP Server** inside the Decibyl UI.
+Claude:  [reads Decibyl's voice-prompting guide, asks you six questions
+          about persona, escalation and what counts as success]
+         [writes the workflow in TypeScript, validates it, saves it]
+
+         Saved as a draft. Four nodes: greeting → reason capture →
+         discount offer → close. The reason node extracts `churn_reason`
+         so you can segment on it later. Publish when you've listened to
+         a test call.
+```
+
+That loop is the product. It is not something Vapi or Retell offer.
 
 <Note>
-If you deployed Decibyl to a remote server using [`setup_remote.sh`](/deployment/docker#option-2%3A-remote-server-deployment), your endpoint is served with a self-signed SSL certificate. Claude Code will refuse MCP connections to it unless you start the CLI with TLS verification disabled:
-
-```bash
-NODE_TLS_REJECT_UNAUTHORIZED=0 claude
-```
-
-This is only required for self-signed certificates. If you have set up a [custom domain](/deployment/custom-domain) with Let's Encrypt certificates via Certbot, no extra flag is needed.
+**Agent edits always save as a new draft.** Your published agent keeps taking
+calls until you publish the draft yourself from the dashboard. An assistant
+cannot change what your customers hear.
 </Note>
 
-## Claude Code
+## Why the agents come out good
 
-Register Decibyl as an MCP server with the Claude Code CLI:
+An LLM with API access writes a voice agent the way it writes any other code:
+plausibly, and wrong in the ways voice is specifically hard. Turns that never
+hand back to the caller. Prompts that contradict each other three nodes apart.
+No definition of what a successful call was.
 
-```bash
+So the server ships the craft alongside the API. `get_voice_prompting_guide` is
+a tool, and the server's own instructions tell the assistant to call it
+**before** writing prompts — not as documentation it might find, but as a step
+in the loop it is told to run.
+
+| Stage | What the assistant is made to do |
+| --- | --- |
+| **Plan** | Ask you about persona, node order, exit conditions and the tools it will need. Present a plan. **Wait for you to approve it before writing any code.** |
+| **Create** | Pull the guidance for each node type it is about to write, emit TypeScript, and save. |
+| **Review** | Re-read its own work for instruction collision, missing handoff cues and success-criteria gaps. |
+
+Eight topics sit behind that, each one written from a failure mode seen in real
+agents: global-node guidelines, guardrails against fabrication and abuse, call
+flow design, one-tool-one-job discipline, explicit success criteria, end-call
+consolidation, turn-taking, and instruction collision.
+
+The practical effect: the assistant asks before it builds, and what it builds
+holds a conversation.
+
+## What it can do
+
+Agents are stored as JSON and projected to TypeScript against the
+`@decibyl/sdk` package for editing, then parsed back on save. Your assistant
+edits real code — with real type errors, returned as structured feedback it can
+act on rather than a 400 it has to guess at.
+
+| | Tools |
+| --- | --- |
+| **Author agents** | `create_workflow`, `save_workflow`, `get_workflow_code` |
+| **Learn the schema** | `list_node_types`, `get_node_type` |
+| **Get the craft right** | `get_voice_prompting_guide` |
+| **Build custom tools** | `create_tool` — with `list_credentials` for auth |
+| **See the workspace** | `list_workflows`, `get_workflow`, `list_tools`, `list_documents`, `list_recordings` |
+| **Read the manual** | `search_docs`, `read_doc`, `list_docs` |
+
+Everything is scoped to the workspace behind your API key.
+
+## Connect it
+
+You need a Decibyl API key — generate one at
+[app.decibyl.ai/api-keys](https://app.decibyl.ai/api-keys), or `/api-keys` on
+your own deployment. See [API Keys](/configurations/api-keys).
+
+The endpoint is `https://app.decibyl.ai/api/v1/mcp/`, also shown in
+**Platform Settings → MCP Server**. Self-hosted, it is
+`<YOUR_BACKEND_URL>/api/v1/mcp/`.
+
+<Note>
+Deployments that split hostnames also serve this at
+`https://api.decibyl.ai/api/v1/mcp/`. Both work and always will —
+`app.decibyl.ai` is the published address and the one to use, because it is
+what every existing `claude mcp add` config already points at. See
+[Splitting onto subdomains](/deployment/subdomains).
+</Note>
+
+<CodeGroup>
+```bash Claude Code
 claude mcp add --transport http decibyl https://app.decibyl.ai/api/v1/mcp/ \
   --header "X-API-Key: YOUR_API_KEY"
+
+claude mcp list   # verify
 ```
 
-Replace `YOUR_API_KEY` with the key you generated. For self-hosted deployments, swap the URL for your backend.
-
-Verify the server is connected:
-
-```bash
-claude mcp list
-```
-
-## Codex
-
-Open Codex's config file (`~/.codex/config.toml`) and add a `decibyl` MCP server:
-
-```toml
+```toml Codex
+# ~/.codex/config.toml
 [mcp_servers.decibyl]
 url = "https://app.decibyl.ai/api/v1/mcp/"
 http_headers = { "X-API-Key" = "YOUR_API_KEY" }
 ```
 
-Replace `YOUR_API_KEY` with the key you generated. For self-hosted deployments, replace the URL with your backend MCP endpoint.
+```json Claude Desktop
+{
+  "mcpServers": {
+    "decibyl": {
+      "url": "https://app.decibyl.ai/api/v1/mcp/",
+      "headers": { "X-API-Key": "YOUR_API_KEY" }
+    }
+  }
+}
+```
+</CodeGroup>
 
-If you prefer to keep the API key out of `config.toml`, store it in an environment variable instead:
+Restart Claude Desktop after saving. Any client supporting Streamable HTTP
+transport connects with the same URL and header — Cursor included.
+
+To keep the key out of `config.toml` in Codex, use `env_http_headers` instead
+and export it before launching:
 
 ```toml
 [mcp_servers.decibyl]
@@ -63,71 +136,55 @@ url = "https://app.decibyl.ai/api/v1/mcp/"
 env_http_headers = { "X-API-Key" = "DECIBYL_API_KEY" }
 ```
 
-Then set the API key before starting Codex:
-
 ```bash
 export DECIBYL_API_KEY="YOUR_API_KEY"
 codex
 ```
 
-Verify the server is registered:
+Verify with `codex mcp list` and `codex mcp get decibyl`.
 
-```bash
-codex mcp list
-codex mcp get decibyl
-```
+<Note>
+If you deployed with [`setup_remote.sh`](/deployment/docker#option-2%3A-remote-server-deployment)
+you are on a self-signed certificate, and Claude Code will refuse the
+connection until you start it with `NODE_TLS_REJECT_UNAUTHORIZED=0 claude`.
+Not needed once you have a [custom domain](/deployment/custom-domain) with
+Let's Encrypt.
+</Note>
 
-## Claude Desktop
+## Things to ask it
 
-Open Claude Desktop's config file (`claude_desktop_config.json`) and add the `decibyl` entry under `mcpServers`:
+**Build something**
 
-```json
-{
-  "mcpServers": {
-    "decibyl": {
-      "url": "https://app.decibyl.ai/api/v1/mcp/",
-      "headers": {
-        "X-API-Key": "YOUR_API_KEY"
-      }
-    }
-  }
-}
-```
+- "Build me an appointment reminder agent for a dental clinic. Hindi, and it
+  should offer to reschedule if they say no."
+- "Create a lead qualification agent that asks for budget and timeline, and
+  transfers to a human if the budget is over ₹5 lakh."
+- "Make a tool that posts to our CRM webhook, then wire it into *Support Bot*
+  so it logs every resolved ticket."
 
-Restart Claude Desktop after saving. The Decibyl tools should appear in the tool picker.
+**Change something**
 
-## Cursor and other MCP clients
+- "In *Lead Qualifier*, add a node after the greeting that asks for budget,
+  then routes to the existing qualification node."
+- "Rename the *intro* node to *greeting* and fix every edge that referenced it."
+- "Review *Support Bot* for instruction collision and tell me what you'd change
+  before I publish."
 
-Any MCP client that supports Streamable HTTP transport can connect with the same URL and header. Paste the configuration above into your client's MCP settings file and replace `YOUR_API_KEY`.
+**Understand something**
 
-## Example prompts
-
-Once the MCP server is connected, you can drive Decibyl from your coding agent in plain English. A few prompts to try:
-
-**Explore your workspace**
-
-- "List my agents in Decibyl."
-- "Show me the definition of the agent called *Lead Qualifier*."
-- "Which credentials and tools are configured in my Decibyl workspace?"
+- "What node types are there, and what fields does a `knowledge_base` node
+  take?"
+- "Search the docs for how to configure a TURN server."
 - "List the recordings from my most recent agent."
 
-**Edit an agent**
-
-- "In my *Lead Qualifier* agent, add a new agent node after the greeting that asks the caller for their budget, then routes to the existing qualification node."
-- "Add an end-call node to *Support Bot* that triggers when the user says they are done, with a polite goodbye prompt."
-- "Rename the *intro* node in *Lead Qualifier* to *greeting* and update any edges that reference it."
-- "Change the LLM model on all agent nodes in *Support Bot* to `gpt-4o-mini`."
-
-**Learn the platform**
-
-- "Search the Decibyl docs for how to configure a TURN server."
-- "What node types does Decibyl support, and what fields does a `knowledge_base` node take?"
-- "How do I deploy Decibyl on a custom domain with HTTPS?"
-
 <Note>
-Agent edits are saved as a new **draft** version — your published agent keeps serving calls until you explicitly publish the draft from the Decibyl UI.
+The API key decides which workspace the assistant sees, and it can create and
+modify drafts there. Treat it like any other credential: not in source control,
+not in a shared chat.
 </Note>
 
-<Note>
-The API key controls which workspace the assistant sees. Treat it like any other credential — do not commit it to source control or paste it into shared chats.
-</Note>
+## Next
+
+- Put the agent you just built on your website with the
+  [web voice widget](/voice-agent/add-to-website) — no phone number needed.
+- Or give it a phone number: [Telephony](/integrations/telephony/overview).

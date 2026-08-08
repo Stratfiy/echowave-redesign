@@ -2142,6 +2142,86 @@ class PlatformProviderCredentialModel(Base):
     )
 
 
+class OrganizationProviderCredentialModel(Base):
+    """A customer's own API key for a model provider — the BYOK vault.
+
+    The mirror of ``platform_provider_credentials``: same shape, same
+    encryption, scoped to one organization. Together they are the two key
+    sources a stack can draw on, and keeping them structurally identical is
+    what lets a single slot be flipped between managed and BYOK without the
+    pipeline knowing which it got.
+
+    **Why keys moved out of the configuration JSON.** They used to live inline
+    in ``organization_configurations`` alongside model choices, as plaintext
+    within a JSON blob. That had three consequences worth naming, because each
+    one shaped a piece of the old UI:
+
+    1. A key could only be entered where a model was being chosen, so every
+       model screen grew API-key fields and the two concerns became
+       inseparable — you could not store a key you were not immediately using.
+    2. Switching a slot from one provider to another discarded the key you had
+       pasted for the first, because it lived in the branch of the JSON you
+       navigated away from.
+    3. Tenant keys sat in plaintext while ours sat encrypted, which is backwards
+       — a customer's key is *their* liability and deserves at least the care we
+       give our own.
+
+    Scoped by (organization, component, provider) for the same reason the
+    platform table is: one vendor can serve two components on separate keys and
+    separate billing accounts, and Sarvam doing both STT and TTS is the case in
+    front of us.
+    """
+
+    __tablename__ = "organization_provider_credentials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    # stt | llm | tts — see CostComponent. Telephony is deliberately absent:
+    # carrier credentials live on telephony_configurations, which already models
+    # per-account carrier accounts and the KYC that goes with them.
+    component = Column(String(16), nullable=False)
+    provider = Column(String(64), nullable=False)
+    # Ciphertext, Fernet, keyed by PLATFORM_CREDENTIAL_SECRET — the same secret
+    # that protects our own keys. Never returned by any endpoint.
+    encrypted_key = Column(Text, nullable=False)
+    # Last four characters of the plaintext, so a customer can tell which key is
+    # installed without it being readable back.
+    key_last_four = Column(String(8), nullable=False)
+    label = Column(String(128), nullable=True)
+    # A key that has been entered is meant to be used. Deactivating is how you
+    # take a provider out of service without deleting it.
+    is_active = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    set_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+    set_by_user = relationship("UserModel")
+
+    #: One row per account, component and provider. The unique constraint is
+    #: also the lookup index — Postgres backs it with a btree on exactly these
+    #: three columns in this order, which is the order every read here uses. A
+    #: second index on the same tuple was carried alongside it for a while and
+    #: served no query the constraint's own index did not: it only cost a write
+    #: on every key rotation.
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id",
+            "component",
+            "provider",
+            name="uq_organization_provider_credential",
+        ),
+    )
+
+
 class PaymentModel(Base):
     """One attempt by an account to buy credit.
 

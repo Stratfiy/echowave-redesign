@@ -44,6 +44,12 @@ from api.services.auth.depends import (
     get_user,
     get_user_with_selected_organization,
 )
+from api.services.configuration import (
+    byok_resolution,
+    managed_resolution,
+    managed_tiers,
+    organization_credentials,
+)
 from api.services.configuration.ai_model_configuration import (
     check_for_masked_keys_in_ai_model_configuration_v2,
     compile_ai_model_configuration_v2,
@@ -55,7 +61,6 @@ from api.services.configuration.ai_model_configuration import (
     migrate_workflow_model_configurations_to_v2,
     upsert_organization_ai_model_configuration_v2,
 )
-from api.services.configuration import managed_tiers
 from api.services.configuration.check_validity import UserConfigurationValidator
 from api.services.configuration.defaults import DEFAULT_SERVICE_PROVIDERS
 from api.services.configuration.masking import is_mask_of, mask_key, mask_user_config
@@ -229,10 +234,35 @@ def _decibyl_allows_custom_voice() -> bool:
 
 
 def _byok_provider_schemas(service_type: ServiceType) -> dict[str, dict]:
+    """Vendors only — the providers a customer needs a key for.
+
+    Kept excluding ``decibyl`` because this feeds the key-entry screen, and
+    "managed" is precisely the option that needs no key.
+    """
     return {
         provider: model_cls.model_json_schema()
         for provider, model_cls in REGISTRY[service_type].items()
         if provider != ServiceProviders.DECIBYL.value
+    }
+
+
+def _slot_provider_schemas(service_type: ServiceType) -> dict[str, dict]:
+    """Every provider a slot can be set to, managed included.
+
+    ``decibyl`` used to be filtered out of these lists, which was the UI-side
+    twin of the validator that forbade a mixed stack: with managed absent from
+    the dropdown, the only way to offer it was a separate account-wide mode, and
+    that is how "Decibyl" ended up as a tab beside "BYOK" and "Speech to
+    Speech".
+
+    Leaving it in is what turns key-ownership into an ordinary per-slot choice —
+    pick Decibyl for the transcriber and OpenAI for the language model and the
+    stack is half managed, which is the arrangement most Indian accounts
+    actually want.
+    """
+    return {
+        provider: model_cls.model_json_schema()
+        for provider, model_cls in REGISTRY[service_type].items()
     }
 
 
@@ -265,6 +295,14 @@ async def get_model_configuration_v2_defaults(
         for service, provider in DEFAULT_SERVICE_PROVIDERS.items()
         if provider != ServiceProviders.DECIBYL.value
     }
+    async with db_client.async_session() as session:
+        keys_held = await organization_credentials.available_providers(
+            session, organization_id=user.selected_organization_id
+        )
+        # Which slots we can actually serve as managed today. A slot we hold no
+        # platform key for is offered as "coming soon" rather than as a choice
+        # that fails at dial time.
+        managed_available = await managed_resolution.managed_availability(session)
     return {
         "decibyl": {
             "voices": [DECIBYL_DEFAULT_VOICE],
@@ -300,22 +338,36 @@ async def get_model_configuration_v2_defaults(
                     for name in ("stt", "llm", "tts")
                 )
             },
+            # Per-slot: can this be chosen as managed right now? False means we
+            # hold no platform key for the provider the tier resolves to, so
+            # the screen offers it as not yet available. It flips to true on
+            # its own the moment a key is stored — no release, no cache.
+            "available": managed_available,
         },
+        # Named "byok" for the wire shape the screen already reads, but the
+        # lists now include the managed provider so a slot can be set to it
+        # directly. Which slots are managed is a property of the stack, not of
+        # the account — see api/schemas/ai_model_configuration.py.
         "byok": {
             "pipeline": {
-                "llm": _byok_provider_schemas(ServiceType.LLM),
-                "tts": _byok_provider_schemas(ServiceType.TTS),
-                "stt": _byok_provider_schemas(ServiceType.STT),
-                "embeddings": _byok_provider_schemas(ServiceType.EMBEDDINGS),
+                "llm": _slot_provider_schemas(ServiceType.LLM),
+                "tts": _slot_provider_schemas(ServiceType.TTS),
+                "stt": _slot_provider_schemas(ServiceType.STT),
+                "embeddings": _slot_provider_schemas(ServiceType.EMBEDDINGS),
                 "default_providers": byok_default_providers,
             },
             "realtime": {
-                "realtime": _byok_provider_schemas(ServiceType.REALTIME),
-                "llm": _byok_provider_schemas(ServiceType.LLM),
-                "embeddings": _byok_provider_schemas(ServiceType.EMBEDDINGS),
+                "realtime": _slot_provider_schemas(ServiceType.REALTIME),
+                "llm": _slot_provider_schemas(ServiceType.LLM),
+                "embeddings": _slot_provider_schemas(ServiceType.EMBEDDINGS),
                 "default_providers": byok_default_providers,
             },
         },
+        # Which vendors this account holds its own key for, by component. The
+        # picker uses it to say whether a slot set to a vendor will actually
+        # authenticate — offering the choice and failing at dial time is the
+        # version of this that wastes a call.
+        "byok_keys_held": keys_held,
     }
 
 
@@ -343,6 +395,17 @@ async def save_model_configuration_v2(
     try:
         check_for_masked_keys_in_ai_model_configuration_v2(configuration)
         effective = compile_ai_model_configuration_v2(configuration)
+        # Fill BYOK slots from the vault before validating. A slot that names a
+        # vendor and carries no key is the ordinary case now, and validating it
+        # empty would reject the configuration for a key that exists — just not
+        # in the request body. Resolving first also means we validate the key
+        # the call will actually use, rather than one pasted here that may
+        # already have been rotated.
+        #
+        # Deliberately not resolving managed slots: they keep provider=decibyl
+        # and are checked as such, so a customer pressing Save does not send a
+        # request to every vendor we hold a platform key for.
+        await byok_resolution.apply(effective, organization_id=organization_id)
         await UserConfigurationValidator().validate(
             effective,
             organization_id=organization_id,

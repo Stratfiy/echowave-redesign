@@ -1,8 +1,46 @@
 ---
-title: Add to Website
-description: Add your Decibyl voice agent to any website so visitors can talk to it.
+title: Web voice widget
+description: Put a talk button on your website. One script tag, no phone number, no carrier account — visitors click and speak to your agent.
 tag: "NEW"
 ---
+
+Your customers already expect a chat bubble in the corner of your site. This is
+the same thing, except they talk and it talks back.
+
+**It is the fastest way to get a Decibyl agent in front of real people.** A
+phone agent needs a carrier account, a purchased number, and — in India — KYC
+before the first call connects. The web widget needs a script tag. You can have
+an agent taking live conversations on your site this afternoon and add
+telephony later, or never.
+
+<CardGroup cols={3}>
+  <Card title="Floating widget" icon="comment">
+    A pill button in the corner. Paste one snippet, write no JavaScript.
+  </Card>
+  <Card title="Inline component" icon="table-columns">
+    A panel inside a `<div>` you place — hero section, support tab, pricing page.
+  </Card>
+  <Card title="Headless" icon="code">
+    No UI at all. Your buttons, your design system, our audio pipeline.
+  </Card>
+</CardGroup>
+
+## The 60-second version
+
+1. Open your agent, click the gear icon, find **Add to Website → Configure
+   Widget**.
+2. Enable embedding. Add your domain to **Allowed Domains** (leave it empty to
+   allow any).
+3. Pick a mode, copy the snippet, paste it into your page.
+
+That is the whole integration for Floating mode. The rest of this page is the
+detail for the other two and the JavaScript API underneath all three.
+
+<Note>
+**Serve the page over HTTPS or from `http://localhost`.** Browsers refuse
+microphone access on plain HTTP and on `file://`, and the failure looks like a
+broken widget rather than a blocked permission.
+</Note>
 
 ### How to add it
 
@@ -225,3 +263,12 @@ window.DecibylWidget.onCallDisconnected(({ workflowRunId, durationSeconds }) => 
 ```
 
 `onCallConnected` and `onCallDisconnected` only fire when the call actually establishes a media connection — failed-to-connect attempts (e.g. denied mic, network failure) don't trigger them, so analytics stay clean.
+
+## Next
+
+- **Don't have an agent yet?** Describe one to your coding assistant and let it
+  build it — [Build agents from Claude Code](/integrations/mcp).
+- **Want it on the phone too?** The same agent takes calls once you connect a
+  carrier: [Telephony](/integrations/telephony/overview).
+- Calls placed through the widget appear in **Runs** with recordings and
+  transcripts, exactly like phone calls: [Calls and runs](/core-concepts/calls-and-runs).

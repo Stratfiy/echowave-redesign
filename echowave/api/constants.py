@@ -227,6 +227,25 @@ BACKUP_RETENTION_DAYS = int(os.getenv("BACKUP_RETENTION_DAYS", "30"))
 # silently dead worker is caught on the second morning rather than the tenth.
 BACKUP_STALE_AFTER_HOURS = int(os.getenv("BACKUP_STALE_AFTER_HOURS", "36"))
 
+# How often the background worker records that it is alive, and how long
+# without one before it is presumed dead.
+#
+# One container runs uvicorn and the ARQ worker together, so the API keeps
+# answering 200 when the worker dies — and calls silently stop being costed
+# while invoices stop being issued. Nothing else in the system notices, which
+# is what makes this worth its own signal rather than inferring it from the
+# absence of costed calls (a quiet night looks identical).
+#
+# Five minutes tolerates a few missed beats and a restart without alarming,
+# and is short enough that a dead worker is caught inside one business hour
+# rather than at the next invoice run.
+WORKER_HEARTBEAT_INTERVAL_SECONDS = int(
+    os.getenv("WORKER_HEARTBEAT_INTERVAL_SECONDS", "60")
+)
+WORKER_HEARTBEAT_STALE_AFTER_SECONDS = int(
+    os.getenv("WORKER_HEARTBEAT_STALE_AFTER_SECONDS", "300")
+)
+
 # DPDP s13 requires a named, contactable person for data protection grievances,
 # published where a Data Principal can find it. Surfaced through the API so the
 # app and the marketing site cannot drift apart on who it is.
@@ -321,7 +340,12 @@ KYC_BUCKET = os.getenv("KYC_BUCKET", "kyc-documents")
 
 # AWS S3 Configuration
 S3_BUCKET = os.environ.get("S3_BUCKET")
-S3_REGION = os.environ.get("S3_REGION", "us-east-1")
+# ap-south-1 (Mumbai), not us-east-1. This bucket holds call recordings and
+# transcripts — conversations with people in India — and the region is where
+# that personal data comes to rest. Defaulting to Virginia put it offshore for
+# every deployment that never set the variable, and a data-residency mistake of
+# that kind is invisible until someone asks where the recordings live.
+S3_REGION = os.environ.get("S3_REGION", "ap-south-1")
 # Optional overrides for S3-compatible backends (e.g. MinIO, rustfs, Ceph).
 # S3_ENDPOINT_URL: full URL of a custom S3 endpoint (e.g. "https://s3.example.com").
 #   Leave unset to use AWS's default endpoint resolution.

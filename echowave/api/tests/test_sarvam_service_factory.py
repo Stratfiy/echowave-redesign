@@ -23,12 +23,22 @@ class TestSarvamLLMConfiguration:
     def test_default_values(self):
         config = SarvamLLMConfiguration(api_key="test-key")
         assert config.provider == ServiceProviders.SARVAM
-        assert config.model == "sarvam-30b"
+        assert config.model == "sarvam-105b"
         assert config.temperature == 0.5
 
     def test_custom_model(self):
-        config = SarvamLLMConfiguration(api_key="test-key", model="sarvam-105b")
-        assert config.model == "sarvam-105b"
+        # allow_custom_input is on, so a model Sarvam ships after this release
+        # can be typed in without waiting for a registry change.
+        config = SarvamLLMConfiguration(api_key="test-key", model="sarvam-next")
+        assert config.model == "sarvam-next"
+
+    def test_the_retired_model_is_no_longer_offered(self):
+        # sarvam-30b returns a 400 from Sarvam. It was the default, so every
+        # agent built on it failed after the caller had already spoken.
+        from api.services.configuration.options.sarvam import SARVAM_LLM_MODELS
+
+        assert "sarvam-30b" not in SARVAM_LLM_MODELS
+        assert SarvamLLMConfiguration(api_key="k").model != "sarvam-30b"
 
 
 class TestSarvamLLMServiceFactory:
@@ -39,14 +49,14 @@ class TestSarvamLLMServiceFactory:
             mock_service.Settings = RealSarvamLLMService.Settings
             create_llm_service_from_provider(
                 provider=ServiceProviders.SARVAM.value,
-                model="sarvam-30b",
+                model="sarvam-105b",
                 api_key="test-key",
             )
 
         assert mock_service.call_count == 1
         kwargs = mock_service.call_args.kwargs
         assert kwargs["api_key"] == "test-key"
-        assert kwargs["settings"].model == "sarvam-30b"
+        assert kwargs["settings"].model == "sarvam-105b"
         assert kwargs["settings"].temperature == 0.5
 
     def test_create_sarvam_llm_service_passes_user_temperature(self):
@@ -56,7 +66,7 @@ class TestSarvamLLMServiceFactory:
             mock_service.Settings = RealSarvamLLMService.Settings
             create_llm_service_from_provider(
                 provider=ServiceProviders.SARVAM.value,
-                model="sarvam-30b",
+                model="sarvam-105b",
                 api_key="test-key",
                 temperature=0.8,
             )
@@ -68,7 +78,7 @@ class TestSarvamLLMServiceFactory:
         user_config = SimpleNamespace(
             llm=SimpleNamespace(
                 provider=ServiceProviders.SARVAM.value,
-                model="sarvam-30b",
+                model="sarvam-105b",
                 api_key="test-key",
                 temperature=0.7,
             )

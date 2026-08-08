@@ -23,7 +23,11 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import CostComponent
-from api.services.configuration import managed_tiers, platform_credentials
+from api.services.configuration import (
+    managed_language,
+    managed_tiers,
+    platform_credentials,
+)
 from api.services.configuration.registry import ServiceProviders
 
 #: Sections that can be served by a managed tier. Telephony is absent for the
@@ -33,6 +37,10 @@ MANAGED_SECTIONS: tuple[tuple[str, CostComponent | str], ...] = (
     ("stt", CostComponent.STT),
     ("llm", CostComponent.LLM),
     ("tts", CostComponent.TTS),
+    # Speech-to-speech. Metered as LLM usage because that is what the vendor
+    # charges it as, so it authenticates with the LLM credential — see
+    # _credential_component below.
+    ("realtime", managed_tiers.REALTIME_COMPONENT),
     # Emitted by every managed configuration for knowledge-base retrieval.
     # Until this was here the section kept ``provider=decibyl`` all the way to
     # the embeddings factory, which is what put the second "Invalid
@@ -49,7 +57,12 @@ def _credential_component(component: CostComponent | str) -> CostComponent:
     separate slot would mean an admin pasting the same Google key twice and
     the managed pipeline breaking whenever they updated only one of them.
     """
-    if component == managed_tiers.EMBEDDINGS_COMPONENT:
+    if component in (
+        managed_tiers.EMBEDDINGS_COMPONENT,
+        # A realtime model is a language model that happens to speak. The
+        # vendor issues one key for both, and the rate card meters it as LLM.
+        managed_tiers.REALTIME_COMPONENT,
+    ):
         return CostComponent.LLM
     return component  # type: ignore[return-value]
 
@@ -103,12 +116,64 @@ async def apply(effective) -> None:
             section.provider = upstream.provider
             section.model = upstream.model
             section.api_key = api_key
+
+            # The customer's language is in Decibyl's vocabulary, which is not
+            # every vendor's. Translating here rather than in the service
+            # factory keeps it in the one place that knows a section used to be
+            # managed — by the time the factory sees it, it looks like any
+            # other Sarvam config a customer typed themselves.
+            if hasattr(section, "language"):
+                original = getattr(section, "language", None)
+                if name == "stt":
+                    section.language = managed_language.for_stt(
+                        upstream.provider, upstream.model, original
+                    )
+                elif name == "tts":
+                    section.language = managed_language.for_tts(
+                        upstream.provider, upstream.model, original
+                    )
+                if section.language != original:
+                    logger.debug(
+                        "Managed {} language {!r} translated to {!r} for {}.",
+                        name,
+                        original,
+                        section.language,
+                        upstream.provider,
+                    )
+
             logger.info(
                 "Managed {} resolved to {}/{} on a platform key.",
                 name,
                 upstream.provider,
                 upstream.model,
             )
+
+
+async def managed_availability(session) -> dict[str, bool]:
+    """Whether each section can be offered as managed right now.
+
+    A slot is available when we hold an active platform key for whatever
+    provider its default tier resolves to. This is what lets the customer's
+    model picker offer "managed" only where it actually works, and show the
+    rest as not yet available.
+
+    Offering a managed slot we hold no key for is the worst of the three
+    outcomes: the customer picks it, saves, builds an agent, and finds out at
+    dial time. Showing it as unavailable costs a signup nothing and is honest.
+
+    Takes a session rather than opening one, because the caller is a request
+    handler that already has one and this is one query per section.
+    """
+    available: dict[str, bool] = {}
+    for name, component in MANAGED_SECTIONS:
+        upstream = managed_tiers.resolve(component, "default")
+        key = await platform_credentials.resolve_api_key(
+            session,
+            component=_credential_component(component),
+            provider=upstream.provider,
+        )
+        available[name] = bool(key)
+    return available
 
 
 async def missing_platform_keys() -> list[tuple[str, str]]:

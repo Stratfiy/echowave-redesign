@@ -87,7 +87,7 @@ Respond with ONLY "CONVERSATION" if a person answered, or "VOICEMAIL" if it's vo
 // Sidebar navigation items
 const NAV_ITEMS = [
     { id: "general", label: "General", icon: Settings },
-    { id: "models", label: "Model Overrides", icon: Brain },
+    { id: "models", label: "Models", icon: Brain },
     { id: "variables", label: "Template Variables", icon: Variable },
     { id: "dictionary", label: "Dictionary", icon: BookA },
     { id: "voicemail", label: "Voicemail Detection", icon: PhoneOff },
@@ -1247,10 +1247,11 @@ function WorkflowModelOverridesSection({
             <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                     <Brain className="h-4 w-4" />
-                    Model Overrides
+                    Models
                 </CardTitle>
                 <CardDescription>
-                    Override the full organization model configuration for this workflow.{" "}
+                    This agent runs on the organization&apos;s models unless you give it its
+                    own. Each model can be provided by Decibyl or run on your own key.{" "}
                     <a href={SETTINGS_DOCUMENTATION_URLS.modelOverrides} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">Learn more <ExternalLink className="h-3 w-3" /></a>
                 </CardDescription>
             </CardHeader>
@@ -1284,12 +1285,12 @@ function WorkflowModelOverridesSection({
                         <div className="flex items-center justify-between rounded-md border p-4">
                             <div className="space-y-0.5">
                                 <Label htmlFor="workflow-model-v2-override" className="text-sm font-medium">
-                                    Override for this workflow
+                                    Give this agent its own models
                                 </Label>
                                 <p className="text-xs text-muted-foreground">
                                     {overrideEnabled
-                                        ? "This workflow uses its own complete model configuration."
-                                        : "This workflow uses the organization model configuration."}
+                                        ? "This agent has its own stack. Changes to the organization default no longer reach it."
+                                        : "Inheriting the organization default. Turn this on to pick models for this agent alone."}
                                 </p>
                             </div>
                             <Switch

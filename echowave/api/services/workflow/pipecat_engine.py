@@ -23,6 +23,8 @@ from api.constants import (
 from api.db import db_client
 from api.enums import ToolCategory
 from api.services.pipecat.audio_playback import play_audio
+from api.services.workflow.branching import Rule, decide
+from api.services.workflow.dto import NodeType
 from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
 if TYPE_CHECKING:
@@ -35,6 +37,7 @@ if TYPE_CHECKING:
     LLMService = Union[OpenAILLMService, AnthropicLLMService, GoogleLLMService]
 
 import asyncio
+from dataclasses import replace
 
 from loguru import logger
 
@@ -58,6 +61,22 @@ from api.services.workflow.tools.knowledge_base import (
     retrieve_from_knowledge_base,
 )
 from api.utils.template_renderer import render_template
+
+#: How many branch nodes may run back-to-back before the chain is treated as a
+#: cycle. Ten is far past any legitimate flow — three or four consecutive
+#: branches is already an unusual amount of routing between two spoken turns —
+#: and well below anything that would stall a call while it counts.
+BRANCH_HOP_LIMIT = 10
+
+#: Longest a single wait node may hold the line. Mirrors the field's own max, so
+#: a value that reached the engine from a workflow saved before the bound
+#: existed is still clamped rather than obeyed.
+MAX_WAIT_SECONDS = 30.0
+
+#: Total seconds a call may spend in wait nodes. A wait cycle cannot spin the
+#: event loop the way a branch cycle can, but it can hold someone on a silent
+#: line forever — slowly enough to look deliberate.
+MAX_TOTAL_WAIT_SECONDS = 120.0
 
 
 class PipecatEngine:
@@ -108,6 +127,12 @@ class PipecatEngine:
         self._call_disposed = False
         self._current_node: Optional[Node] = None
         self._gathered_context: dict = {}
+        #: Consecutive branch nodes traversed without a conversational node in
+        #: between. Reset by any non-branch node; see BRANCH_HOP_LIMIT.
+        self._branch_hops: int = 0
+        #: Seconds spent in wait nodes across this whole call. Not reset — a
+        #: caller held for two minutes does not care that it was eight nodes.
+        self._waited_seconds: float = 0.0
         self._user_response_timeout_task: Optional[asyncio.Task] = None
         self._pending_extraction_tasks: set[asyncio.Task] = set()
 
@@ -584,6 +609,32 @@ class PipecatEngine:
         if node.name not in nodes_visited:
             nodes_visited.append(node.name)
 
+        # A branch node is passed through, not occupied. It has no prompt, opens
+        # no LLM context and says nothing — it reads its rules, picks an edge and
+        # hands straight on to the next node, which is what makes the routing
+        # deterministic. Handled before the start/end/agent dispatch below
+        # because none of those three describe it.
+        #
+        # The bookkeeping above still runs first, deliberately: the branch
+        # appears in `nodes_visited` and emits a transition event, so the run
+        # timeline shows the decision point rather than an unexplained jump
+        # between two conversational nodes.
+        if node.node_type == NodeType.branch.value:
+            await self._route_branch(node)
+            return
+
+        # A wait node is passed through the same way — it holds the line, then
+        # continues. Unlike a branch it may make a sound, but it still takes no
+        # turn: the caller is not asked anything and no completion is requested.
+        if node.node_type == NodeType.wait.value:
+            await self._hold_and_continue(node)
+            return
+
+        # Any non-branch node ends whatever chain of branches led here, so the
+        # hop budget is per-chain rather than per-call. Two branch nodes early
+        # in a flow and two more later is ordinary; twelve in a row is a cycle.
+        self._branch_hops = 0
+
         # Send node transition event if callback is provided
         if emit_transition_event and self._node_transition_callback:
             try:
@@ -787,6 +838,177 @@ class PipecatEngine:
             return "llm"
 
         return "none"
+
+    async def _route_branch(self, node: Node) -> None:
+        """Evaluate the node's rules and continue down the edge they choose.
+
+        The caller hears nothing. No LLM completion is requested, no function is
+        registered, no speech is queued — the branch resolves between two turns
+        and the conversation continues as though the two conversational nodes
+        were joined directly.
+
+        The decision is written into gathered context because a routing choice
+        nobody can reconstruct afterwards is barely better than a model's. It
+        lands on the run alongside extracted variables, so "why did this call go
+        to the escalation path" is answerable from the record.
+        """
+        # Branches route without consuming a turn, so a cycle between two of
+        # them is an infinite loop with no user input to break it and no LLM
+        # call to make it slow — it would spin the event loop while the caller
+        # listens to silence. Cycles are legal in this graph (the acyclic check
+        # is deliberately disabled, since conversations legitimately loop back),
+        # so the budget is the guard.
+        self._branch_hops += 1
+        if self._branch_hops > BRANCH_HOP_LIMIT:
+            logger.error(
+                "Branch '{}' is the {}th in an unbroken chain — the branch nodes "
+                "form a cycle no rule breaks out of. Ending the call rather than "
+                "spinning. Check for two branches that route into each other.",
+                node.name,
+                self._branch_hops,
+            )
+            self._branch_hops = 0
+            await self.end_call_with_reason(EndTaskReason.PIPELINE_ERROR.value)
+            return
+
+        variables = {**(self._call_context_vars or {}), **self._gathered_context}
+
+        rules = [
+            Rule.from_mapping(rule if isinstance(rule, dict) else rule.model_dump())
+            for rule in (getattr(node.data, "rules", None) or [])
+        ]
+        default_label = getattr(node.data, "default_label", "default")
+
+        decision = decide(rules, variables, default_label=default_label)
+
+        wanted = decision.label.strip().casefold()
+        target_edge = next(
+            (e for e in node.out_edges if (e.label or "").strip().casefold() == wanted),
+            None,
+        )
+
+        # Graph validation rejects a label with no edge, so reaching this means
+        # the workflow was saved before that check existed. Falling back to the
+        # first edge keeps the call alive: an unintended branch is recoverable,
+        # a call that stops mid-conversation because a label was misspelled is
+        # not. The log says exactly what to fix.
+        if target_edge is None:
+            if not node.out_edges:
+                logger.error(
+                    "Branch '{}' has no outgoing edges — ending the call, because "
+                    "there is nowhere to continue to.",
+                    node.name,
+                )
+                await self.end_call_with_reason(EndTaskReason.PIPELINE_ERROR.value)
+                return
+            target_edge = node.out_edges[0]
+            logger.error(
+                "Branch '{}' wanted edge '{}' but no outgoing edge carries that "
+                "label. Taking '{}' instead. Fix the labels on this node — the "
+                "rules and the edges have drifted apart.",
+                node.name,
+                decision.label,
+                target_edge.label,
+            )
+            decision = replace(
+                decision,
+                label=target_edge.label,
+                reason=f"{target_edge.label}: fallback, '{decision.label}' matched no edge",
+            )
+
+        history = self._gathered_context.setdefault("branch_decisions", [])
+        history.append(
+            {
+                "node": node.name,
+                "label": decision.label,
+                "matched": decision.matched,
+                "reason": decision.reason,
+                "rule_index": decision.rule_index,
+            }
+        )
+
+        logger.info(
+            "Branch '{}' routed to '{}' ({}).",
+            node.name,
+            decision.label,
+            decision.reason,
+        )
+
+        await self.set_node(target_edge.target)
+
+    async def _hold_and_continue(self, node: Node) -> None:
+        """Pause, optionally saying something, then carry on down the one edge.
+
+        **The filler is the point, not a decoration.** Silence on a phone line
+        is indistinguishable from a dropped call, and a caller who thinks the
+        line died talks over the agent when it comes back or hangs up before it
+        does. Anything past a beat should say why it is quiet.
+
+        Total waiting is budgeted per call rather than per node: a cycle through
+        a wait node cannot spin the event loop the way a branch cycle can, but it
+        can hold a caller on a silent line indefinitely, which is worse for
+        being slow enough to look intentional.
+        """
+        duration = float(getattr(node.data, "duration_seconds", 2.0) or 0)
+        duration = max(0.0, min(duration, MAX_WAIT_SECONDS))
+
+        self._waited_seconds += duration
+        if self._waited_seconds > MAX_TOTAL_WAIT_SECONDS:
+            logger.error(
+                "Wait '{}' would take this call past {}s of total waiting — the "
+                "wait nodes are in a loop. Ending the call rather than holding "
+                "the line.",
+                node.name,
+                MAX_TOTAL_WAIT_SECONDS,
+            )
+            await self.end_call_with_reason(EndTaskReason.PIPELINE_ERROR.value)
+            return
+
+        filler_type = getattr(node.data, "filler_type", "none")
+        if filler_type == "text":
+            text = self._format_prompt(getattr(node.data, "filler_text", "") or "")
+            if text:
+                self._queued_speech_mute_state = "waiting"
+                await self.task.queue_frame(
+                    TTSSpeakFrame(text, append_to_context=False, persist_to_logs=True)
+                )
+        elif filler_type == "audio":
+            recording_id = getattr(node.data, "filler_recording_id", None)
+            if recording_id and self._fetch_recording_audio:
+                self._queued_speech_mute_state = "waiting"
+                result = await self._fetch_recording_audio(
+                    recording_pk=int(recording_id)
+                )
+                if result:
+                    await play_audio(
+                        result.audio,
+                        sample_rate=self._audio_config.pipeline_sample_rate
+                        if self._audio_config
+                        else 16000,
+                        queue_frame=self._transport_output.queue_frame,
+                        transcript=result.transcript,
+                        persist_to_logs=True,
+                    )
+                else:
+                    logger.warning(
+                        "Wait '{}' could not fetch recording {} — holding silently.",
+                        node.name,
+                        recording_id,
+                    )
+
+        logger.info("Wait '{}' holding for {:.1f}s.", node.name, duration)
+        await asyncio.sleep(duration)
+
+        if not node.out_edges:
+            logger.error(
+                "Wait '{}' has no outgoing edge — ending the call, because "
+                "there is nowhere to continue to.",
+                node.name,
+            )
+            await self.end_call_with_reason(EndTaskReason.PIPELINE_ERROR.value)
+            return
+
+        await self.set_node(node.out_edges[0].target)
 
     async def _handle_end_node(self, node: Node) -> None:
         """Handle end node execution."""

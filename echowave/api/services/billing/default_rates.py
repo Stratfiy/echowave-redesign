@@ -39,7 +39,7 @@ from api.enums import CostComponent, RateUnit
 
 #: When these prices were last checked against vendor pricing pages. A price
 #: book with no date is one nobody can tell is stale.
-AS_OF = "2026-05"
+AS_OF = "2026-08"
 
 #: Share of LLM tokens assumed to be input, for blending a two-sided vendor
 #: price into the single rate this schema carries. Voice agents resend the
@@ -129,20 +129,53 @@ LLM_RATES = (
         "Haiku-class list, blended",
     ),
     DefaultRate(
+        "openai",
+        "gpt-4.1-mini",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(0.40, 1.60),
+        "$0.40/$1.60 per 1M, blended",
+    ),
+    # Provider-wide Google is Flash rather than Flash-Lite: Flash is what the
+    # default managed tier resolves to, and the fallback should not quote a
+    # cheaper model than the one actually running.
+    DefaultRate(
         "google",
         "",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,
-        _blend(0.075, 0.30),
-        "Flash-class list, blended",
+        _blend(0.15, 1.25),
+        "Gemini 2.5 Flash $0.15/$1.25 per 1M, blended",
     ),
+    DefaultRate(
+        "google",
+        "gemini-2.5-flash",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(0.15, 1.25),
+        "$0.15/$1.25 per 1M, blended",
+    ),
+    # Retiring 2026-10-16; Gemini 3.1 Flash-Lite ($0.25/$1.50) replaces it and
+    # is 2.5x dearer, so the fast/lite/zen tiers get materially more expensive
+    # on that date unless they are repointed.
+    DefaultRate(
+        "google",
+        "gemini-2.5-flash-lite",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(0.10, 0.40),
+        "$0.10/$0.40 per 1M, blended. Model retires 2026-10-16.",
+    ),
+    # Sarvam publishes in rupees: ₹4/1M in, ₹16/1M out (₹2.5 cached, which this
+    # single-rate schema cannot express). Roughly a quarter of what the previous
+    # seeded guess assumed.
     DefaultRate(
         "sarvam",
         "",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,
-        _blend(0.10, 0.30),
-        "Indic-model list, blended",
+        _blend(_inr(4.0), _inr(16.0)),
+        "Sarvam-105B — Rs4/Rs16 per 1M published, blended",
     ),
 )
 
@@ -202,13 +235,16 @@ REALTIME_RATES = (
 
 #: Speech to text — unit is a minute of audio.
 STT_RATES = (
+    # Streaming, not batch. A voice agent transcribes live, and Deepgram bills
+    # streaming at nearly twice the batch rate ($0.0077 vs $0.0043) — the
+    # previous row quoted batch, which understated every conversation by ~44%.
     DefaultRate(
         "deepgram",
         "",
         CostComponent.STT,
         RateUnit.MINUTE,
-        0.0043,
-        "Nova streaming, pay-as-you-go",
+        0.0077,
+        "Nova-3 streaming $0.0077/min. Batch is $0.0043 and does not apply here.",
     ),
     DefaultRate(
         "sarvam",
@@ -216,7 +252,15 @@ STT_RATES = (
         CostComponent.STT,
         RateUnit.MINUTE,
         _inr(30.0 / 60),
-        "Saarika — ₹30/hour published. Diarization is ₹45/hour and not this row.",
+        "Saarika — Rs30/hour published. Diarization is Rs45/hour and not this row.",
+    ),
+    DefaultRate(
+        "sarvam",
+        "saarika:v2.5",
+        CostComponent.STT,
+        RateUnit.MINUTE,
+        _inr(30.0 / 60),
+        "Rs30/hour published. The model the default managed tier resolves to.",
     ),
     DefaultRate("elevenlabs", "", CostComponent.STT, RateUnit.MINUTE, 0.0060, "Scribe"),
     DefaultRate(
@@ -239,24 +283,72 @@ TTS_RATES = (
         "",
         CostComponent.TTS,
         RateUnit.THOUSAND_CHARS,
-        0.1000,
-        "Mid-tier plan effective rate — varies most of any line here",
+        0.0500,
+        "Flash v2.5 $0.05/1k chars. Still the line that varies most by plan.",
     ),
     DefaultRate(
         "cartesia",
         "",
         CostComponent.TTS,
         RateUnit.THOUSAND_CHARS,
-        0.0500,
-        "Sonic pay-as-you-go",
+        0.0350,
+        "Sonic 3 — approx $35 per 1M characters",
     ),
+    # Two Bulbul generations at a 2x price difference, so the provider-wide
+    # fallback matters. It is v2, because that is what the default managed tier
+    # resolves to — quoting v3 here made every managed call read twice its real
+    # synthesis cost.
     DefaultRate(
         "sarvam",
         "",
         CostComponent.TTS,
         RateUnit.THOUSAND_CHARS,
+        _inr(1.50),
+        "Bulbul v2 — Rs15 per 10k characters published",
+    ),
+    DefaultRate(
+        "sarvam",
+        "bulbul:v2",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        _inr(1.50),
+        "Rs15 per 10k chars. The model the default managed tier resolves to.",
+    ),
+    DefaultRate(
+        "sarvam",
+        "bulbul:v3",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
         _inr(3.00),
-        "Bulbul v3 — ₹30 per 10k characters published",
+        "Rs30 per 10k chars (v3 beta) — twice v2",
+    ),
+    # Rumik publishes per 1k input characters, which is already this unit.
+    # Mulberry is the cheapest synthesis on this card — a third of Bulbul v2 —
+    # and synthesis is the largest provider line on a call, so the difference
+    # is worth more than it looks.
+    DefaultRate(
+        "rumik",
+        "",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        _inr(0.50),
+        "Silk Mulberry 1.5 — Rs0.50 per 1k chars (launch pricing)",
+    ),
+    DefaultRate(
+        "rumik",
+        "mulberry",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        _inr(0.50),
+        "Rs0.50 per 1k chars published (launch pricing, verify on dashboard)",
+    ),
+    DefaultRate(
+        "rumik",
+        "muga",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        _inr(0.99),
+        "Rs0.99 per 1k chars published — the expressive model, twice Mulberry",
     ),
     DefaultRate(
         "smallest", "", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 0.0200, "Lightning"
@@ -267,11 +359,34 @@ TTS_RATES = (
 #: inbound differ, sometimes by an order of magnitude, and no single row can
 #: express that.
 TELEPHONY_RATES = (
+    # India, not the US, because that is the traffic. Twilio publishes roughly
+    # Rs1.20/min to Indian mobiles and Rs0.65 to landlines; mobile is the row,
+    # since a campaign dials mobiles.
     DefaultRate(
-        "twilio", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 0.0140, "US outbound"
+        "twilio",
+        "",
+        CostComponent.TELEPHONY,
+        RateUnit.MINUTE,
+        _inr(1.20),
+        "India outbound to mobile, approx Rs1.20/min. Landline approx Rs0.65.",
     ),
+    # Plivo publishes Rs0.60/min for India outbound local, and Rs0.34/min over
+    # SIP / Browser SDK. This row is the higher one deliberately: under-reporting
+    # carriage overstates margin, and which of the two applies depends on how
+    # calls are actually placed. Correct it to Rs0.34 once the account is
+    # confirmed to be dialling over SIP.
+    #
+    # Worth flagging against the tender model, which assumed Rs0.25/min: even
+    # the SIP rate is above that, and market benchmarks for outbound-to-mobile
+    # via aggregators run Rs0.80-Rs1.80/min. Telephony is the largest single
+    # cost line in a cheap stack and the easiest to under-budget.
     DefaultRate(
-        "plivo", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 0.0030, "India outbound"
+        "plivo",
+        "",
+        CostComponent.TELEPHONY,
+        RateUnit.MINUTE,
+        _inr(0.60),
+        "India outbound local Rs0.60/min published. SIP / Browser SDK is Rs0.34.",
     ),
     DefaultRate(
         "telnyx", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 0.0070, "US outbound"

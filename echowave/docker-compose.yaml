@@ -220,7 +220,7 @@ services:
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
       AWS_SESSION_TOKEN: "${AWS_SESSION_TOKEN:-}"
       S3_BUCKET: "${S3_BUCKET:-}"
-      S3_REGION: "${S3_REGION:-us-east-1}"
+      S3_REGION: "${S3_REGION:-ap-south-1}"
 
       # For a non-AWS S3-compatible server, also set these in Compose's .env
       # S3_ENDPOINT_URL        e.g. https://s3.example.com

@@ -34,6 +34,8 @@ type NodeStyleVariant =
     | "trigger"
     | "webhook"
     | "qa"
+    | "branch"
+    | "wait"
     | "integration";
 
 const STYLE_VARIANT_BY_SPEC: Record<string, NodeStyleVariant> = {
@@ -44,6 +46,12 @@ const STYLE_VARIANT_BY_SPEC: Record<string, NodeStyleVariant> = {
     trigger: "trigger",
     webhook: "webhook",
     qa: "qa",
+    branch: "branch",
+    wait: "wait",
+    // Grouped with the other post-call integrations (webhook, QA): it is not a
+    // step in the conversation, it is something that happens once the call is
+    // over.
+    sms: "integration",
 };
 
 const HANDLES_BY_SPEC: Record<string, { source: boolean; target: boolean }> = {
@@ -54,6 +62,9 @@ const HANDLES_BY_SPEC: Record<string, { source: boolean; target: boolean }> = {
     trigger: { source: false, target: false },
     webhook: { source: false, target: false },
     qa: { source: false, target: false },
+    branch: { source: true, target: true },
+    wait: { source: true, target: true },
+    sms: { source: false, target: false },
 };
 
 const DOC_URL_BY_SPEC: Record<string, string | undefined> = {
@@ -64,6 +75,9 @@ const DOC_URL_BY_SPEC: Record<string, string | undefined> = {
     trigger: NODE_DOCUMENTATION_URLS.apiTrigger,
     webhook: NODE_DOCUMENTATION_URLS.webhook,
     qa: NODE_DOCUMENTATION_URLS.qaAnalysis,
+    branch: NODE_DOCUMENTATION_URLS.branch,
+    wait: NODE_DOCUMENTATION_URLS.wait,
+    sms: NODE_DOCUMENTATION_URLS.sms,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -160,6 +174,15 @@ function getBadgeForSpec(
             return { label: "Webhook", className: "bg-indigo-500 text-white" };
         case "qa":
             return { label: "QA Analysis", className: "bg-teal-500 text-white" };
+        // Slate rather than a colour of its own: a branch is the one node on
+        // the canvas that never speaks, and reading as machinery rather than
+        // as another conversational step is the correct signal.
+        case "branch":
+            return { label: "Branch", className: "bg-slate-600 text-white" };
+        // Same slate family as Branch: both are flow machinery rather than
+        // conversation, and reading as a pair is the correct signal.
+        case "wait":
+            return { label: "Wait", className: "bg-slate-500 text-white" };
         case "integration":
             return { label: spec.display_name, className: "bg-cyan-600 text-white" };
     }

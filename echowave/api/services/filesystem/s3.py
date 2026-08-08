@@ -13,7 +13,10 @@ class S3FileSystem(BaseFileSystem):
     def __init__(
         self,
         bucket_name: str,
-        region_name: str = "us-east-1",
+        # Matches the S3_REGION default in api/constants.py. The only caller
+        # passes the region explicitly; this keeps a future one from silently
+        # landing recordings in a different jurisdiction than the constant says.
+        region_name: str = "ap-south-1",
         endpoint_url: str | None = None,
         signature_version: str | None = None,
         addressing_style: str | None = None,

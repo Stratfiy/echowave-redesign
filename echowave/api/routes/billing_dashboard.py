@@ -33,11 +33,13 @@ from api.services.billing import (
     fx_source,
     kpis,
     rate_card,
+    readiness,
     realized_rates,
 )
 from api.services.billing.costing import current_balance_paise
 from api.services.billing.rate_card import RateCardError
 from api.services.billing.rollup import IST
+from api.services.readiness import as_dict
 
 router = APIRouter(
     prefix="/admin/billing",
@@ -761,3 +763,21 @@ async def set_account_platform_rate(
             session, organization_id=organization_id
         )
     return {"organization_id": organization_id, "rate_history": history}
+
+
+@router.get("/readiness")
+async def billing_readiness() -> dict[str, Any]:
+    """What would silently cost money or break GST compliance, and how to fix it.
+
+    The mirror of ``/privacy/readiness``, for the money path. Deliberately not
+    account-scoped: these are properties of the deployment — whether the
+    supplier identity is set, whether there is a price book — and the answer is
+    the same for every account on it.
+
+    The check to watch is ``payments_have_vouchers``. It is designed to read
+    zero missing, and any other value is an accrued tax liability rather than a
+    statistic.
+    """
+    async with db_client.async_session() as session:
+        assessment = await readiness.assess(session)
+    return as_dict(assessment)

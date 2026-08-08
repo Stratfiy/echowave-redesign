@@ -177,6 +177,18 @@ export type AwsBedrockLlmConfiguration = {
 };
 
 /**
+ * AcceptAgreementRequest
+ */
+export type AcceptAgreementRequest = {
+    /**
+     * Agreement
+     *
+     * Agreement key, e.g. 'dpa'
+     */
+    agreement: string;
+};
+
+/**
  * ActiveCallsResponse
  */
 export type ActiveCallsResponse = {
@@ -647,7 +659,9 @@ export type ByokRealtimeAiModelConfiguration = {
         provider: 'google_vertex_realtime';
     } & GoogleVertexRealtimeLlmConfiguration) | ({
         provider: 'azure_realtime';
-    } & AzureRealtimeLlmConfiguration);
+    } & AzureRealtimeLlmConfiguration) | ({
+        provider: 'decibyl';
+    } & DecibylRealtimeConfiguration);
     /**
      * Llm
      */
@@ -1951,6 +1965,10 @@ export type DailyUsageBreakdownResponse = {
      * Currency
      */
     currency?: string | null;
+    /**
+     * Pricing Configured
+     */
+    pricing_configured?: boolean;
 };
 
 /**
@@ -1990,7 +2008,7 @@ export type DecibylEmbeddingsConfiguration = {
     /**
      * Api Key
      */
-    api_key: string | Array<string>;
+    api_key?: string | Array<string>;
     /**
      * Model
      *
@@ -2010,7 +2028,7 @@ export type DecibylLlmService = {
     /**
      * Api Key
      */
-    api_key: string | Array<string>;
+    api_key?: string | Array<string>;
     /**
      * Model
      *
@@ -2021,12 +2039,24 @@ export type DecibylLlmService = {
 
 /**
  * DecibylManagedAIModelConfiguration
+ *
+ * Managed mode: we hold the vendor keys, the customer holds none.
+ *
+ * ``api_key`` is deliberately optional and empty by default. This field is a
+ * holdover from when "Decibyl" meant a hosted service the customer received a
+ * service key for; it now means *we* pay for the inference on our platform
+ * keys, which ``services/configuration/managed_resolution`` substitutes at
+ * runtime. Requiring a key here made managed mode impossible to save — the
+ * entire point of choosing it is not having one.
+ *
+ * It is kept rather than deleted so a stored configuration written by the old
+ * UI still loads. Nothing reads it.
  */
 export type DecibylManagedAiModelConfiguration = {
     /**
      * Api Key
      */
-    api_key: string;
+    api_key?: string;
     /**
      * Voice
      */
@@ -2043,6 +2073,43 @@ export type DecibylManagedAiModelConfiguration = {
 
 /**
  * Decibyl
+ *
+ * Speech-to-speech on our key, chosen as a tier rather than a vendor.
+ *
+ * The realtime counterpart of the managed STT/LLM/TTS classes, and it exists
+ * for the same reason: a customer picking "managed" is choosing not to hold a
+ * key, and without a Decibyl variant in the realtime union that choice was
+ * unrepresentable — speech-to-speech was BYOK-only, which is why the old UI
+ * listed it beside BYOK as though it were an alternative to it.
+ *
+ * ``voice`` is carried because a realtime model speaks directly; there is no
+ * separate TTS section to hold it.
+ */
+export type DecibylRealtimeConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'decibyl';
+    /**
+     * Api Key
+     */
+    api_key?: string | Array<string>;
+    /**
+     * Model
+     *
+     * Decibyl speech-to-speech tier.
+     */
+    model?: string;
+    /**
+     * Voice
+     *
+     * Voice the model speaks in.
+     */
+    voice?: string;
+};
+
+/**
+ * Decibyl
  */
 export type DecibylSttService = {
     /**
@@ -2052,7 +2119,7 @@ export type DecibylSttService = {
     /**
      * Api Key
      */
-    api_key: string | Array<string>;
+    api_key?: string | Array<string>;
     /**
      * Model
      *
@@ -2078,7 +2145,7 @@ export type DecibylTtsService = {
     /**
      * Api Key
      */
-    api_key: string | Array<string>;
+    api_key?: string | Array<string>;
     /**
      * Model
      *
@@ -3598,6 +3665,10 @@ export type LoginRequest = {
      * Password
      */
     password: string;
+    /**
+     * Mfa Code
+     */
+    mfa_code?: string | null;
 };
 
 /**
@@ -3694,6 +3765,55 @@ export type McpToolDefinition = {
      * MCP server configuration.
      */
     config: McpToolConfig;
+};
+
+/**
+ * MfaDisableRequest
+ *
+ * Disabling needs the password as well as a current code. Otherwise a
+ * stolen session alone is enough to strip the second factor off.
+ */
+export type MfaDisableRequest = {
+    /**
+     * Password
+     */
+    password: string;
+    /**
+     * Code
+     */
+    code: string;
+};
+
+/**
+ * MfaEnrollResponse
+ *
+ * Shown exactly once. The secret is never retrievable afterwards — a
+ * support flow that can read it back is an account takeover waiting to be
+ * socially engineered.
+ */
+export type MfaEnrollResponse = {
+    /**
+     * Secret
+     */
+    secret: string;
+    /**
+     * Uri
+     */
+    uri: string;
+    /**
+     * Recovery Codes
+     */
+    recovery_codes: Array<string>;
+};
+
+/**
+ * MfaVerifyRequest
+ */
+export type MfaVerifyRequest = {
+    /**
+     * Code
+     */
+    code: string;
 };
 
 /**
@@ -6917,6 +7037,36 @@ export type VonageConfigurationResponse = {
 export type WebhookCredentialType = 'none' | 'api_key' | 'bearer_token' | 'basic_auth' | 'custom_header';
 
 /**
+ * WorkerHealthResponse
+ */
+export type WorkerHealthResponse = {
+    /**
+     * Alive
+     */
+    alive?: boolean | null;
+    /**
+     * Last Seen
+     */
+    last_seen?: string | null;
+    /**
+     * Age Seconds
+     */
+    age_seconds?: number | null;
+    /**
+     * Stale After Seconds
+     */
+    stale_after_seconds: number;
+    /**
+     * Interval Seconds
+     */
+    interval_seconds?: number | null;
+    /**
+     * Detail
+     */
+    detail: string;
+};
+
+/**
  * WorkflowConfigurationDefaults
  */
 export type WorkflowConfigurationDefaults = {
@@ -8902,6 +9052,49 @@ export type GetRateCardApiV1AdminBillingRateCardGetResponses = {
 
 export type GetRateCardApiV1AdminBillingRateCardGetResponse = GetRateCardApiV1AdminBillingRateCardGetResponses[keyof GetRateCardApiV1AdminBillingRateCardGetResponses];
 
+export type RefreshExchangeRateApiV1AdminBillingRateCardExchangeRateRefreshPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/rate-card/exchange-rate/refresh';
+};
+
+export type RefreshExchangeRateApiV1AdminBillingRateCardExchangeRateRefreshPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshExchangeRateApiV1AdminBillingRateCardExchangeRateRefreshPostError = RefreshExchangeRateApiV1AdminBillingRateCardExchangeRateRefreshPostErrors[keyof RefreshExchangeRateApiV1AdminBillingRateCardExchangeRateRefreshPostErrors];
+
+export type RefreshExchangeRateApiV1AdminBillingRateCardExchangeRateRefreshPostResponses = {
+    /**
+     * Response Refresh Exchange Rate Api V1 Admin Billing Rate Card Exchange Rate Refresh Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RefreshExchangeRateApiV1AdminBillingRateCardExchangeRateRefreshPostResponse = RefreshExchangeRateApiV1AdminBillingRateCardExchangeRateRefreshPostResponses[keyof RefreshExchangeRateApiV1AdminBillingRateCardExchangeRateRefreshPostResponses];
+
 export type SetGlobalPlatformRateApiV1AdminBillingRateCardPlatformPutData = {
     body: PlatformPriceRequest;
     headers?: {
@@ -9225,6 +9418,49 @@ export type SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatfor
 };
 
 export type SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponse = SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponses[keyof SetAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePutResponses];
+
+export type BillingReadinessApiV1AdminBillingReadinessGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/readiness';
+};
+
+export type BillingReadinessApiV1AdminBillingReadinessGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BillingReadinessApiV1AdminBillingReadinessGetError = BillingReadinessApiV1AdminBillingReadinessGetErrors[keyof BillingReadinessApiV1AdminBillingReadinessGetErrors];
+
+export type BillingReadinessApiV1AdminBillingReadinessGetResponses = {
+    /**
+     * Response Billing Readiness Api V1 Admin Billing Readiness Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type BillingReadinessApiV1AdminBillingReadinessGetResponse = BillingReadinessApiV1AdminBillingReadinessGetResponses[keyof BillingReadinessApiV1AdminBillingReadinessGetResponses];
 
 export type GetCostPerMinuteApiV1CostEstimatePerMinutePostData = {
     body: CostEstimateRequest;
@@ -9995,6 +10231,187 @@ export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses = {
 
 export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponse = SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses[keyof SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses];
 
+export type DeleteProviderKeyApiV1ProviderKeysDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Component
+         */
+        component: string;
+        /**
+         * Provider
+         */
+        provider: string;
+    };
+    url: '/api/v1/provider-keys';
+};
+
+export type DeleteProviderKeyApiV1ProviderKeysDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteProviderKeyApiV1ProviderKeysDeleteError = DeleteProviderKeyApiV1ProviderKeysDeleteErrors[keyof DeleteProviderKeyApiV1ProviderKeysDeleteErrors];
+
+export type DeleteProviderKeyApiV1ProviderKeysDeleteResponses = {
+    /**
+     * Response Delete Provider Key Api V1 Provider Keys Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DeleteProviderKeyApiV1ProviderKeysDeleteResponse = DeleteProviderKeyApiV1ProviderKeysDeleteResponses[keyof DeleteProviderKeyApiV1ProviderKeysDeleteResponses];
+
+export type ListProviderKeysApiV1ProviderKeysGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/provider-keys';
+};
+
+export type ListProviderKeysApiV1ProviderKeysGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListProviderKeysApiV1ProviderKeysGetError = ListProviderKeysApiV1ProviderKeysGetErrors[keyof ListProviderKeysApiV1ProviderKeysGetErrors];
+
+export type ListProviderKeysApiV1ProviderKeysGetResponses = {
+    /**
+     * Response List Provider Keys Api V1 Provider Keys Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListProviderKeysApiV1ProviderKeysGetResponse = ListProviderKeysApiV1ProviderKeysGetResponses[keyof ListProviderKeysApiV1ProviderKeysGetResponses];
+
+export type SetProviderKeyApiV1ProviderKeysPutData = {
+    body: SetCredentialRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/provider-keys';
+};
+
+export type SetProviderKeyApiV1ProviderKeysPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetProviderKeyApiV1ProviderKeysPutError = SetProviderKeyApiV1ProviderKeysPutErrors[keyof SetProviderKeyApiV1ProviderKeysPutErrors];
+
+export type SetProviderKeyApiV1ProviderKeysPutResponses = {
+    /**
+     * Response Set Provider Key Api V1 Provider Keys Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetProviderKeyApiV1ProviderKeysPutResponse = SetProviderKeyApiV1ProviderKeysPutResponses[keyof SetProviderKeyApiV1ProviderKeysPutResponses];
+
+export type SetProviderKeyActiveApiV1ProviderKeysActivePostData = {
+    body: ActiveRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/provider-keys/active';
+};
+
+export type SetProviderKeyActiveApiV1ProviderKeysActivePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetProviderKeyActiveApiV1ProviderKeysActivePostError = SetProviderKeyActiveApiV1ProviderKeysActivePostErrors[keyof SetProviderKeyActiveApiV1ProviderKeysActivePostErrors];
+
+export type SetProviderKeyActiveApiV1ProviderKeysActivePostResponses = {
+    /**
+     * Response Set Provider Key Active Api V1 Provider Keys Active Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetProviderKeyActiveApiV1ProviderKeysActivePostResponse = SetProviderKeyActiveApiV1ProviderKeysActivePostResponses[keyof SetProviderKeyActiveApiV1ProviderKeysActivePostResponses];
+
 export type GetBalanceApiV1BillingBalanceGetData = {
     body?: never;
     headers?: {
@@ -10712,6 +11129,135 @@ export type PrivacyMetricsApiV1PrivacyMetricsGetResponses = {
 };
 
 export type PrivacyMetricsApiV1PrivacyMetricsGetResponse = PrivacyMetricsApiV1PrivacyMetricsGetResponses[keyof PrivacyMetricsApiV1PrivacyMetricsGetResponses];
+
+export type PrivacyReadinessApiV1PrivacyReadinessGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/privacy/readiness';
+};
+
+export type PrivacyReadinessApiV1PrivacyReadinessGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PrivacyReadinessApiV1PrivacyReadinessGetError = PrivacyReadinessApiV1PrivacyReadinessGetErrors[keyof PrivacyReadinessApiV1PrivacyReadinessGetErrors];
+
+export type PrivacyReadinessApiV1PrivacyReadinessGetResponses = {
+    /**
+     * Response Privacy Readiness Api V1 Privacy Readiness Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PrivacyReadinessApiV1PrivacyReadinessGetResponse = PrivacyReadinessApiV1PrivacyReadinessGetResponses[keyof PrivacyReadinessApiV1PrivacyReadinessGetResponses];
+
+export type ListAgreementsApiV1PrivacyAgreementsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/privacy/agreements';
+};
+
+export type ListAgreementsApiV1PrivacyAgreementsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAgreementsApiV1PrivacyAgreementsGetError = ListAgreementsApiV1PrivacyAgreementsGetErrors[keyof ListAgreementsApiV1PrivacyAgreementsGetErrors];
+
+export type ListAgreementsApiV1PrivacyAgreementsGetResponses = {
+    /**
+     * Response List Agreements Api V1 Privacy Agreements Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListAgreementsApiV1PrivacyAgreementsGetResponse = ListAgreementsApiV1PrivacyAgreementsGetResponses[keyof ListAgreementsApiV1PrivacyAgreementsGetResponses];
+
+export type AcceptAgreementApiV1PrivacyAgreementsAcceptPostData = {
+    body: AcceptAgreementRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/privacy/agreements/accept';
+};
+
+export type AcceptAgreementApiV1PrivacyAgreementsAcceptPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AcceptAgreementApiV1PrivacyAgreementsAcceptPostError = AcceptAgreementApiV1PrivacyAgreementsAcceptPostErrors[keyof AcceptAgreementApiV1PrivacyAgreementsAcceptPostErrors];
+
+export type AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponses = {
+    /**
+     * Response Accept Agreement Api V1 Privacy Agreements Accept Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponse = AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponses[keyof AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponses];
 
 export type ValidateWorkflowApiV1WorkflowWorkflowIdValidatePostData = {
     body?: never;
@@ -12903,6 +13449,54 @@ export type DownloadCampaignReportApiV1CampaignCampaignIdReportGetResponses = {
      */
     200: unknown;
 };
+
+export type GetCampaignSummaryApiV1CampaignCampaignIdSummaryGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/v1/campaign/{campaign_id}/summary';
+};
+
+export type GetCampaignSummaryApiV1CampaignCampaignIdSummaryGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCampaignSummaryApiV1CampaignCampaignIdSummaryGetError = GetCampaignSummaryApiV1CampaignCampaignIdSummaryGetErrors[keyof GetCampaignSummaryApiV1CampaignCampaignIdSummaryGetErrors];
+
+export type GetCampaignSummaryApiV1CampaignCampaignIdSummaryGetResponses = {
+    /**
+     * Response Get Campaign Summary Api V1 Campaign  Campaign Id  Summary Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCampaignSummaryApiV1CampaignCampaignIdSummaryGetResponse = GetCampaignSummaryApiV1CampaignCampaignIdSummaryGetResponses[keyof GetCampaignSummaryApiV1CampaignCampaignIdSummaryGetResponses];
 
 export type ListCredentialsApiV1CredentialsGetData = {
     body?: never;
@@ -16674,6 +17268,131 @@ export type GetCurrentUserApiV1AuthMeGetResponses = {
 
 export type GetCurrentUserApiV1AuthMeGetResponse = GetCurrentUserApiV1AuthMeGetResponses[keyof GetCurrentUserApiV1AuthMeGetResponses];
 
+export type EnrollMfaApiV1AuthMfaEnrollPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/mfa/enroll';
+};
+
+export type EnrollMfaApiV1AuthMfaEnrollPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EnrollMfaApiV1AuthMfaEnrollPostError = EnrollMfaApiV1AuthMfaEnrollPostErrors[keyof EnrollMfaApiV1AuthMfaEnrollPostErrors];
+
+export type EnrollMfaApiV1AuthMfaEnrollPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MfaEnrollResponse;
+};
+
+export type EnrollMfaApiV1AuthMfaEnrollPostResponse = EnrollMfaApiV1AuthMfaEnrollPostResponses[keyof EnrollMfaApiV1AuthMfaEnrollPostResponses];
+
+export type VerifyMfaApiV1AuthMfaVerifyPostData = {
+    body: MfaVerifyRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/mfa/verify';
+};
+
+export type VerifyMfaApiV1AuthMfaVerifyPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type VerifyMfaApiV1AuthMfaVerifyPostError = VerifyMfaApiV1AuthMfaVerifyPostErrors[keyof VerifyMfaApiV1AuthMfaVerifyPostErrors];
+
+export type VerifyMfaApiV1AuthMfaVerifyPostResponses = {
+    /**
+     * Response Verify Mfa Api V1 Auth Mfa Verify Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type VerifyMfaApiV1AuthMfaVerifyPostResponse = VerifyMfaApiV1AuthMfaVerifyPostResponses[keyof VerifyMfaApiV1AuthMfaVerifyPostResponses];
+
+export type DisableMfaApiV1AuthMfaDisablePostData = {
+    body: MfaDisableRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/mfa/disable';
+};
+
+export type DisableMfaApiV1AuthMfaDisablePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DisableMfaApiV1AuthMfaDisablePostError = DisableMfaApiV1AuthMfaDisablePostErrors[keyof DisableMfaApiV1AuthMfaDisablePostErrors];
+
+export type DisableMfaApiV1AuthMfaDisablePostResponses = {
+    /**
+     * Response Disable Mfa Api V1 Auth Mfa Disable Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DisableMfaApiV1AuthMfaDisablePostResponse = DisableMfaApiV1AuthMfaDisablePostResponses[keyof DisableMfaApiV1AuthMfaDisablePostResponses];
+
 export type ListNodeTypesApiV1NodeTypesGetData = {
     body?: never;
     headers?: {
@@ -16814,3 +17533,38 @@ export type ActiveCallsApiV1HealthActiveCallsGetResponses = {
 };
 
 export type ActiveCallsApiV1HealthActiveCallsGetResponse = ActiveCallsApiV1HealthActiveCallsGetResponses[keyof ActiveCallsApiV1HealthActiveCallsGetResponses];
+
+export type WorkerHealthCheckApiV1HealthWorkersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Decibyl-Devops-Secret
+         */
+        'X-Decibyl-Devops-Secret'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/health/workers';
+};
+
+export type WorkerHealthCheckApiV1HealthWorkersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WorkerHealthCheckApiV1HealthWorkersGetError = WorkerHealthCheckApiV1HealthWorkersGetErrors[keyof WorkerHealthCheckApiV1HealthWorkersGetErrors];
+
+export type WorkerHealthCheckApiV1HealthWorkersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkerHealthResponse;
+};
+
+export type WorkerHealthCheckApiV1HealthWorkersGetResponse = WorkerHealthCheckApiV1HealthWorkersGetResponses[keyof WorkerHealthCheckApiV1HealthWorkersGetResponses];
