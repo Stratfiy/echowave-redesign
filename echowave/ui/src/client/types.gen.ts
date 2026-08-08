@@ -1690,7 +1690,7 @@ export type CreateToolRequest = {
      *
      * Tool category. Must match definition.type.
      */
-    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp';
+    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'google_calendar';
     /**
      * Icon
      *
@@ -1718,7 +1718,9 @@ export type CreateToolRequest = {
         type: 'calculator';
     } & CalculatorToolDefinition) | ({
         type: 'mcp';
-    } & McpToolDefinition);
+    } & McpToolDefinition) | ({
+        type: 'google_calendar';
+    } & GoogleCalendarToolDefinition);
 };
 
 /**
@@ -2843,6 +2845,28 @@ export type GladiaSttConfiguration = {
      * ISO 639-1 language code.
      */
     language?: string;
+};
+
+/**
+ * GoogleCalendarToolDefinition
+ *
+ * Tool definition for creating an event on the organization's connected
+ * Google Calendar. No config: unlike an HTTP API tool there is no URL,
+ * auth, or parameter builder to fill in.
+ */
+export type GoogleCalendarToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'google_calendar';
 };
 
 /**
@@ -6572,7 +6596,9 @@ export type UpdateToolRequest = {
         type: 'calculator';
     } & CalculatorToolDefinition) | ({
         type: 'mcp';
-    } & McpToolDefinition) | null;
+    } & McpToolDefinition) | ({
+        type: 'google_calendar';
+    } & GoogleCalendarToolDefinition) | null;
     /**
      * Status
      */

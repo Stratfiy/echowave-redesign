@@ -158,6 +158,15 @@ total split the wrong way, which is a filing correction rather than a bug.
 `SENTRY_ORG` and `SENTRY_PROJECT` enable source-map upload so stack traces are
 readable. Errors are reported either way.
 
+`GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` enable the
+**Google Calendar** tool's "Connect Google Calendar" flow — register an OAuth
+2.0 Web application client in Google Cloud Console with redirect URI
+`https://<your-host>/api/v1/integrations/google-calendar/callback`, and enable
+the Google Calendar API on that project. Left unset, the tool category is
+simply unavailable to create; nothing else depends on it.
+`GOOGLE_CALENDAR_DEFAULT_TIMEZONE` (default `Asia/Kolkata`) is the single
+timezone every event is created in.
+
 ---
 
 ## 2. Database
