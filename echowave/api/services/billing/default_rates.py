@@ -322,6 +322,34 @@ TTS_RATES = (
         _inr(3.00),
         "Rs30 per 10k chars (v3 beta) — twice v2",
     ),
+    # Rumik publishes per 1k input characters, which is already this unit.
+    # Mulberry is the cheapest synthesis on this card — a third of Bulbul v2 —
+    # and synthesis is the largest provider line on a call, so the difference
+    # is worth more than it looks.
+    DefaultRate(
+        "rumik",
+        "",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        _inr(0.50),
+        "Silk Mulberry 1.5 — Rs0.50 per 1k chars (launch pricing)",
+    ),
+    DefaultRate(
+        "rumik",
+        "mulberry",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        _inr(0.50),
+        "Rs0.50 per 1k chars published (launch pricing, verify on dashboard)",
+    ),
+    DefaultRate(
+        "rumik",
+        "muga",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        _inr(0.99),
+        "Rs0.99 per 1k chars published — the expressive model, twice Mulberry",
+    ),
     DefaultRate(
         "smallest", "", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 0.0200, "Lightning"
     ),

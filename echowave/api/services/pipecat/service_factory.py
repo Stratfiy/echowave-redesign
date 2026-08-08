@@ -9,6 +9,8 @@ from api.constants import MPS_API_URL
 from api.services.configuration.options import (
     DEEPGRAM_FLUX_MODELS,
     DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
+    RUMIK_DEFAULT_DESCRIPTION,
+    RUMIK_GATEWAY_URL,
 )
 from api.services.configuration.registry import ServiceProviders
 from api.services.pipecat.gemini_json_schema_adapter import (
@@ -731,6 +733,35 @@ def create_tts_service(
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,
+        )
+    elif user_config.tts.provider == ServiceProviders.RUMIK.value:
+        # Rumik ships its own pipecat service, so there is no client to write
+        # here — only the mapping from our configuration to theirs.
+        from pipecat_rumik import RumikTTSService
+
+        model = getattr(user_config.tts, "model", None) or "mulberry"
+        voice = (getattr(user_config.tts, "voice", None) or "").strip().lower()
+        description = (
+            getattr(user_config.tts, "description", None) or ""
+        ).strip() or RUMIK_DEFAULT_DESCRIPTION
+
+        rumik_settings: dict[str, Any] = {
+            "model": model,
+            "description": description,
+            "language": getattr(user_config.tts, "language", None) or "hi-IN",
+        }
+        # Muga takes no preset voice — it is directed by tone tags in the text.
+        # Sending one would be ignored at best and generate an unrelated voice
+        # at worst, since Rumik treats an unknown speaker as a description hint.
+        if voice and model != "muga":
+            rumik_settings["voice"] = voice
+
+        return RumikTTSService(
+            api_key=user_config.tts.api_key,
+            gateway_url=RUMIK_GATEWAY_URL,
+            settings=RumikTTSService.Settings(**rumik_settings),
+            text_filters=[xml_function_tag_filter],
+            skip_aggregator_types=["recording_router", "recording"],
         )
     elif user_config.tts.provider == ServiceProviders.MINIMAX.value:
         group_id = getattr(user_config.tts, "group_id", None)

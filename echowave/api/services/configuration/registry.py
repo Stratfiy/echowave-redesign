@@ -38,6 +38,10 @@ from api.services.configuration.options import (
     GOOGLE_VERTEX_REALTIME_LANGUAGES,
     GOOGLE_VERTEX_REALTIME_MODELS,
     GOOGLE_VERTEX_REALTIME_VOICES,
+    RUMIK_DEFAULT_DESCRIPTION,
+    RUMIK_LANGUAGES,
+    RUMIK_TTS_MODELS,
+    RUMIK_VOICES,
     SARVAM_LANGUAGES,
     SARVAM_LLM_MODELS,
     SARVAM_STT_LANGUAGES_V3,
@@ -77,6 +81,7 @@ class ServiceProviders(str, Enum):
     AZURE_SPEECH = "azure_speech"
     DECIBYL = "decibyl"
     SARVAM = "sarvam"
+    RUMIK = "rumik"
     SPEECHMATICS = "speechmatics"
     CAMB = "camb"
     AWS_BEDROCK = "aws_bedrock"
@@ -276,6 +281,14 @@ INWORLD_PROVIDER_MODEL_CONFIG = provider_model_config(
     provider_docs_url="https://docs.inworld.ai/tts/tts",
 )
 SARVAM_PROVIDER_MODEL_CONFIG = provider_model_config("Sarvam")
+RUMIK_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Rumik",
+    description=(
+        "Silk voice models. Hindi and English only, including code-mixed, at "
+        "roughly a third of the price per character of the alternatives."
+    ),
+    provider_docs_url="https://docs.rumik.ai/",
+)
 CAMB_PROVIDER_MODEL_CONFIG = provider_model_config("Camb.ai")
 RIME_PROVIDER_MODEL_CONFIG = provider_model_config("Rime")
 GOOGLE_CLOUD_PROVIDER_MODEL_CONFIG = provider_model_config("Google Cloud")
@@ -1114,6 +1127,45 @@ class InworldTTSConfiguration(BaseTTSConfiguration):
             "Controls stability versus expressiveness for inworld-tts-2 "
             "(STABLE, BALANCED, or CREATIVE)."
         ),
+    )
+
+
+@register_tts
+class RumikTTSConfiguration(BaseTTSConfiguration):
+    """Rumik Silk — the cheapest synthesis on the rate card.
+
+    Hindi and English only, including code-mixed. That is narrower than every
+    other Indic option here, so the language field says so rather than offering
+    a list the model will not honour.
+    """
+
+    model_config = RUMIK_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.RUMIK] = ServiceProviders.RUMIK
+    model: str = Field(
+        default="mulberry",
+        description=(
+            "Silk model. mulberry is faster and half the price — use it for "
+            "calls. muga is more expressive and supports tone tags."
+        ),
+        json_schema_extra={"examples": RUMIK_TTS_MODELS},
+    )
+    voice: str = Field(
+        default="ira",
+        description="Preset studio voice.",
+        json_schema_extra={"examples": RUMIK_VOICES},
+    )
+    description: str = Field(
+        default=RUMIK_DEFAULT_DESCRIPTION,
+        description=(
+            "Plain-English description of how the voice should sound. Rumik "
+            "shapes the preset voice with it, so leaving it blank makes every "
+            "agent sound the same."
+        ),
+    )
+    language: str = Field(
+        default="hi-IN",
+        description="Silk speaks Hindi and English only, including code-mixed.",
+        json_schema_extra={"examples": RUMIK_LANGUAGES},
     )
 
 
