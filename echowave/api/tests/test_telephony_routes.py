@@ -5,6 +5,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from api.db.workflow_run_client import WorkflowRunStateConflictError
 from api.enums import WorkflowRunMode, WorkflowRunState
 from api.errors.telephony_errors import TelephonyError
 from api.routes.telephony import _handle_telephony_websocket, handle_inbound_run, router
@@ -421,3 +422,56 @@ async def test_smallwebrtc_run_reaching_telephony_websocket_closes_without_runni
     assert mock_db.update_workflow_run.await_count == 0
     assert provider_lookup.await_count == 0
     mock_concurrency.unregister_active_call.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_telephony_websocket_closes_when_state_changes_after_initial_read():
+    """The initial ``state == INITIALIZED`` read can go stale across the
+    awaits before the run is flipped to RUNNING (e.g. a terminal status
+    callback landing in that window). The initialized -> running write must
+    re-check the state atomically and refuse to start the pipeline if it has
+    since moved on -- otherwise a picked-up call gets a media stream that
+    never starts talking and immediately ends.
+    """
+    websocket = AsyncMock()
+    workflow_run = SimpleNamespace(
+        id=501,
+        workflow_id=33,
+        mode="phone",
+        state=WorkflowRunState.INITIALIZED.value,
+        initial_context={"provider": "twilio"},
+        gathered_context={},
+    )
+    workflow = SimpleNamespace(id=33, organization_id=11, user_id=99)
+    provider = SimpleNamespace(
+        PROVIDER_NAME="twilio",
+        handle_websocket=AsyncMock(),
+    )
+
+    with (
+        patch("api.routes.telephony.db_client") as mock_db,
+        patch(
+            "api.routes.telephony.get_telephony_provider_for_run",
+            new=AsyncMock(return_value=provider),
+        ),
+    ):
+        mock_db.get_workflow_run = AsyncMock(return_value=workflow_run)
+        mock_db.get_workflow = AsyncMock(return_value=workflow)
+        mock_db.update_workflow_run = AsyncMock(
+            side_effect=WorkflowRunStateConflictError(
+                expected_state=WorkflowRunState.INITIALIZED.value,
+                actual_state=WorkflowRunState.COMPLETED.value,
+            )
+        )
+
+        await _handle_telephony_websocket(websocket, 33, 11, 501)
+
+    mock_db.update_workflow_run.assert_awaited_once_with(
+        run_id=501,
+        state=WorkflowRunState.RUNNING.value,
+        expected_state=WorkflowRunState.INITIALIZED.value,
+    )
+    websocket.close.assert_awaited_once_with(
+        code=4409, reason="Workflow run not available for connection"
+    )
+    provider.handle_websocket.assert_not_awaited()

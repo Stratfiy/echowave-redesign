@@ -21,6 +21,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from api.db import db_client
 from api.db.models import UserModel
+from api.db.workflow_run_client import WorkflowRunStateConflictError
 from api.enums import CallType, WorkflowRunMode, WorkflowRunState
 from api.errors.telephony_errors import TelephonyError
 from api.sdk_expose import sdk_expose
@@ -600,9 +601,7 @@ async def _handle_telephony_websocket(
     signature check, and the id triple is a guessable bearer capability.
     Scoping the lookups below by it prevents an accidental cross-org mismatch,
     not a deliberate one. The real fix is a one-shot capability token minted at
-    run creation and redeemed here through an atomic
-    ``initialized -> running`` compare-and-swap, which would also close the
-    read-then-write race on the state check further down.
+    run creation and redeemed here.
     """
     try:
         # Set the run context
@@ -703,10 +702,26 @@ async def _handle_telephony_websocket(
             await websocket.close(code=4400, reason="Provider mismatch")
             return
 
-        # Set workflow run state to 'running' before starting the pipeline
-        await db_client.update_workflow_run(
-            run_id=workflow_run_id, state=WorkflowRunState.RUNNING.value
-        )
+        # Set workflow run state to 'running' before starting the pipeline.
+        # ``expected_state`` makes this the authoritative check: the plain
+        # read above can go stale across the awaits since (e.g. a terminal
+        # status callback landing in that window), so the transition is only
+        # safe once it's verified atomically under the row lock at write time.
+        try:
+            await db_client.update_workflow_run(
+                run_id=workflow_run_id,
+                state=WorkflowRunState.RUNNING.value,
+                expected_state=WorkflowRunState.INITIALIZED.value,
+            )
+        except WorkflowRunStateConflictError as e:
+            logger.warning(
+                f"Workflow run {workflow_run_id} not in initialized state at "
+                f"transition time: {e.actual_state}"
+            )
+            await websocket.close(
+                code=4409, reason="Workflow run not available for connection"
+            )
+            return
 
         logger.info(
             f"[run {workflow_run_id}] Set workflow run state to 'running' for {provider_type} provider"
