@@ -21,6 +21,24 @@ from api.services.workflow.run_usage_response import format_public_cost_info
 from api.utils.recording_artifacts import get_recording_storage_key
 
 
+class WorkflowRunStateConflictError(Exception):
+    """Raised when ``update_workflow_run`` is called with ``expected_state``
+    and the row's current state (read under the row lock) doesn't match.
+
+    Callers use this to make a read-then-write state transition atomic
+    instead of racing a separate ``get`` against a later ``update`` — see
+    the telephony websocket handler's initialized -> running transition.
+    """
+
+    def __init__(self, expected_state: str, actual_state: str):
+        self.expected_state = expected_state
+        self.actual_state = actual_state
+        super().__init__(
+            f"Workflow run state conflict: expected {expected_state!r}, "
+            f"found {actual_state!r}"
+        )
+
+
 class WorkflowRunClient(BaseDBClient):
     async def create_workflow_run(
         self,
@@ -363,6 +381,7 @@ class WorkflowRunClient(BaseDBClient):
         answered_at: datetime | None = None,
         ended_at: datetime | None = None,
         language: str | None = None,
+        expected_state: str | None = None,
     ) -> WorkflowRunModel:
         async with self.async_session() as session:
             # Use SELECT FOR UPDATE to lock the row during the update
@@ -374,6 +393,8 @@ class WorkflowRunClient(BaseDBClient):
             run = result.scalars().first()
             if not run:
                 raise ValueError(f"Workflow run with ID {run_id} not found")
+            if expected_state is not None and run.state != expected_state:
+                raise WorkflowRunStateConflictError(expected_state, run.state)
             if recording_url:
                 run.recording_url = recording_url
             if transcript_url:
