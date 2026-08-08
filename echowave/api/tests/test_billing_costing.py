@@ -160,6 +160,52 @@ class TestUsageExtraction:
         assert usage_items_from_usage_info({"llm": "not-a-dict"}) == ()
         assert usage_items_from_usage_info({"tts": {"k": "abc"}}) == ()
 
+    def test_a_byok_component_produces_no_usage_item(self):
+        """The core BYOK guarantee: measured usage exists, but the component
+        it was measured on ran on the account's own key, so it must not
+        become a billable line."""
+        items = usage_items_from_usage_info(
+            {
+                "tts": {"SarvamTTSService|||bulbul:v3": 4000},
+                "key_sources": {"tts": "byok"},
+            }
+        )
+        assert items == ()
+
+    def test_a_managed_component_is_unaffected_by_an_unrelated_byok_entry(self):
+        items = usage_items_from_usage_info(
+            {
+                "llm": {
+                    "OpenAILLMService|||gpt-4": {
+                        "prompt_tokens": 100,
+                        "completion_tokens": 100,
+                    }
+                },
+                "key_sources": {"tts": "byok"},  # llm untouched
+            }
+        )
+        assert len(items) == 1
+        assert items[0].component is CostComponent.LLM
+
+    def test_a_run_with_no_key_sources_at_all_is_charged_as_managed(self):
+        """Calls costed before key_sources existed must keep being charged --
+        an absent entry is not license to discount usage no one confirmed was
+        BYOK."""
+        items = usage_items_from_usage_info(
+            {"tts": {"SarvamTTSService|||bulbul:v3": 4000}}
+        )
+        assert len(items) == 1
+
+    def test_an_unrecognised_key_source_value_is_ignored(self):
+        """Anything other than the two known values is treated as absent,
+        not trusted -- future-proofing against a typo or a schema drift
+        rather than silently granting a free ride."""
+        from api.services.billing.usage import key_sources_from_usage_info
+
+        assert key_sources_from_usage_info(
+            {"key_sources": {"tts": "free", "llm": "managed"}}
+        ) == {"llm": "managed"}
+
 
 @pytest.mark.asyncio
 class TestCostWorkflowRun:
@@ -342,6 +388,121 @@ class TestCostWorkflowRun:
             )
         ).all()
         assert [i.component for i in items] == ["platform"]
+
+    async def test_a_component_run_on_the_accounts_own_key_is_not_charged(
+        self, async_session
+    ):
+        """Real, measured usage on a BYOK component must produce no provider
+        line -- the account already paid that vendor directly. Before
+        key_sources existed, this case was priced exactly like a managed
+        component and double-charged."""
+        _org, workflow = await _org_with_workflow(async_session, "byok-measured")
+        async_session.add(
+            ProviderRateModel(
+                provider="sarvam",
+                component=CostComponent.TTS.value,
+                unit=RateUnit.THOUSAND_CHARS.value,
+                rate_mpaise=500_000,
+                effective_from=datetime(2020, 1, 1, tzinfo=UTC),
+            )
+        )
+        run = await _run(
+            async_session,
+            workflow,
+            usage_info={
+                "tts": {"SarvamTTSService|||bulbul:v3": 4000},
+                "call_duration_seconds": 60,
+                "key_sources": {"tts": "byok"},
+            },
+        )
+
+        cost = await cost_workflow_run(async_session, run.id)
+
+        assert cost.total_provider_cost_paise == 0
+        assert cost.total_charged_paise == 192  # platform fee only, 1 min @ ₹1.92
+        assert cost.uncosted == ()  # not "we don't know the price" -- not billed at all
+        items = (
+            await async_session.scalars(
+                select(CallCostItemModel).where(
+                    CallCostItemModel.workflow_run_id == run.id
+                )
+            )
+        ).all()
+        assert [i.component for i in items] == ["platform"]
+
+    async def test_a_mixed_call_charges_only_the_managed_component(self, async_session):
+        """One call, one BYOK component and one managed component -- only the
+        managed one produces a pass-through line."""
+        _org, workflow = await _org_with_workflow(async_session, "byok-mixed")
+        async_session.add(
+            ProviderRateModel(
+                provider="openai",
+                component=CostComponent.LLM.value,
+                unit=RateUnit.THOUSAND_TOKENS.value,
+                rate_mpaise=12_000,
+                effective_from=datetime(2020, 1, 1, tzinfo=UTC),
+            )
+        )
+        async_session.add(
+            ProviderRateModel(
+                provider="sarvam",
+                component=CostComponent.STT.value,
+                unit=RateUnit.MINUTE.value,
+                rate_mpaise=100_000,
+                effective_from=datetime(2020, 1, 1, tzinfo=UTC),
+            )
+        )
+        run = await _run(
+            async_session,
+            workflow,
+            usage_info={
+                "llm": {
+                    "OpenAILLMService|||gpt-4": {
+                        "prompt_tokens": 500,
+                        "completion_tokens": 500,
+                    }
+                },
+                "stt": {"SarvamSTTService|||saarika:v2.5": 60},
+                "call_duration_seconds": 60,
+                "key_sources": {"llm": "managed", "stt": "byok"},
+            },
+        )
+
+        cost = await cost_workflow_run(async_session, run.id)
+
+        components = {i.component for i in cost.line_items}
+        assert components == {"llm", "platform"}
+        assert cost.total_provider_cost_paise == 12  # only the LLM line
+
+    async def test_telephony_is_always_charged_regardless_of_key_source(
+        self, async_session
+    ):
+        """Telephony has no key-ownership concept -- Decibyl always fronts the
+        carrier cost, so a key_sources entry (which telephony never has) can't
+        suppress it."""
+        _org, workflow = await _org_with_workflow(async_session, "byok-telephony")
+        async_session.add(
+            ProviderRateModel(
+                provider="twilio",
+                model="",
+                component=CostComponent.TELEPHONY.value,
+                unit=RateUnit.MINUTE.value,
+                rate_mpaise=55_000,
+                effective_from=datetime(2020, 1, 1, tzinfo=UTC),
+            )
+        )
+        run = await _run(
+            async_session,
+            workflow,
+            usage_info={
+                "telephony": {"twilio": 60},
+                "call_duration_seconds": 60,
+                "key_sources": {"llm": "byok", "stt": "byok", "tts": "byok"},
+            },
+        )
+
+        cost = await cost_workflow_run(async_session, run.id)
+        assert cost.total_provider_cost_paise == 55
 
     async def test_uses_the_account_rate_in_force_at_call_time(self, async_session):
         """A rate raised after the call must not change what the call cost."""

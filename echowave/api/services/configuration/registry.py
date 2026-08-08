@@ -2,7 +2,14 @@ import random
 from enum import Enum, auto
 from typing import Annotated, Dict, Literal, Type, TypeVar, Union
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    computed_field,
+    field_validator,
+)
 
 from api.services.configuration.options import (
     AZURE_EMBEDDING_MODELS,
@@ -139,6 +146,25 @@ class BaseServiceConfiguration(BaseModel):
     # configuration that genuinely forgot a key validate silently, which is the
     # guard several provider tests rely on.
     api_key: str | list[str]
+
+    # Stamped by byok_resolution.apply() before either resolver mutates
+    # ``provider``/``api_key`` -- the only place left that can still tell a
+    # BYOK section from a managed one, since both resolvers converge on the
+    # same shape (real vendor name, real key) afterward. A PrivateAttr rather
+    # than a Field: a Field's ``exclude=True`` keeps it out of
+    # ``.model_dump()`` but still puts it in the generated JSON Schema, which
+    # is what FastAPI serves as this provider's form definition -- it would
+    # have rendered as a mystery input on every provider's config screen.
+    # PrivateAttr is invisible to both.
+    _key_source: str | None = PrivateAttr(default=None)
+
+    @property
+    def key_source(self) -> str | None:
+        return self._key_source
+
+    @key_source.setter
+    def key_source(self, value: str | None) -> None:
+        self._key_source = value
 
     @field_validator("api_key")
     @classmethod
@@ -473,7 +499,11 @@ class DecibylLLMService(BaseLLMConfiguration):
     model: str = Field(
         default="default",
         description="Decibyl-hosted model tier.",
-        json_schema_extra={"examples": DECIBYL_LLM_MODELS, "allow_custom_input": True},
+        # No custom input: the dropdown already lists every tier
+        # managed_tiers.resolve() understands. Anything else typed here
+        # silently falls back to "default" with no error shown -- offering
+        # the text box only invites that footgun.
+        json_schema_extra={"examples": DECIBYL_LLM_MODELS},
     )
 
 

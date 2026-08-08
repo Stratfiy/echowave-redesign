@@ -105,6 +105,19 @@ async def apply(effective, *, organization_id: int | None) -> list[str]:
     — the caller owns the object and every consumer reads it by attribute, so a
     second representation would only create a way to use the wrong one.
     """
+    # Stamped for every present section, managed or not, before anything else
+    # runs -- this is the only point where a section's own ``provider`` value
+    # still says who it belongs to. ``managed_resolution`` overwrites it to a
+    # real vendor name a moment later, and from then on a managed section and
+    # a BYOK one are indistinguishable by inspection. Billing reads this back
+    # off ``usage_info`` at the end of the call to decide whether a component
+    # was ours to charge for or the account's to have paid the vendor for
+    # directly -- see ``api/services/billing/usage.py``.
+    for name, _component in BYOK_SECTIONS:
+        section = getattr(effective, name, None)
+        if section is not None:
+            section.key_source = "managed" if _is_managed(section) else "byok"
+
     if organization_id is None:
         return []
 
