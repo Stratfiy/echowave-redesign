@@ -1440,6 +1440,7 @@ TTSConfig = Annotated[
         InworldTTSConfiguration,
         DecibylTTSService,
         SarvamTTSConfiguration,
+        RumikTTSConfiguration,
         CambTTSConfiguration,
         RimeTTSConfiguration,
         SpeachesTTSConfiguration,
