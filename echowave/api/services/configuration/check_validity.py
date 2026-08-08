@@ -45,6 +45,7 @@ class UserConfigurationValidator:
             ServiceProviders.CARTESIA.value: self._check_cartesia_api_key,
             ServiceProviders.DECIBYL.value: self._check_decibyl_api_key,
             ServiceProviders.SARVAM.value: self._check_sarvam_api_key,
+            ServiceProviders.RUMIK.value: self._check_rumik_api_key,
             ServiceProviders.SPEECHMATICS.value: self._check_speechmatics_api_key,
             ServiceProviders.CAMB.value: self._check_camb_api_key,
             ServiceProviders.AWS_BEDROCK.value: self._check_aws_bedrock_api_key,
@@ -345,6 +346,13 @@ class UserConfigurationValidator:
         return True
 
     def _check_sarvam_api_key(self, model: str, api_key: str) -> bool:
+        return True
+
+    def _check_rumik_api_key(self, model: str, api_key: str) -> bool:
+        # Rumik exposes no cheap "is this key good" endpoint, and spending a
+        # synthesis request to find out would bill the customer for pressing
+        # Save. Presence is what is checked here; a bad key surfaces on the
+        # first call with Rumik's own message, which is more useful anyway.
         return True
 
     def _check_openrouter_api_key(self, model: str, api_key: str) -> bool:
