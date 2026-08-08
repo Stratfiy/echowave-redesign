@@ -34,6 +34,16 @@ def _build_section_from_override(service_type: ServiceType, override: dict):
 _SECRET_FIELDS = ("api_key", "credentials", "aws_access_key", "aws_secret_key")
 
 
+#: Which credential component authenticates each override section. Realtime is
+#: metered and keyed as LLM — the vendor issues one key for both.
+_SECTION_CREDENTIAL_COMPONENT: dict[str, str] = {
+    "llm": "llm",
+    "tts": "tts",
+    "stt": "stt",
+    "realtime": "llm",
+}
+
+
 def enrich_overrides_with_api_keys(
     model_overrides: dict,
     user_config: EffectiveAIModelConfiguration,
@@ -45,6 +55,14 @@ def enrich_overrides_with_api_keys(
     config later switches to a different provider. This function stamps the
     global provider's API key (and other secret fields) into the override at
     save time so the override is self-contained.
+
+    **Only covers the case where the override names the same provider as the
+    global config.** An override that picks a *different* vendor — the whole
+    point of a per-agent override — gets no key from here, because the global
+    section does not hold one. That case is served by
+    :func:`enrich_overrides_from_vault`, which reads the account's own stored
+    keys. Both are needed: this one keeps an override working when the global
+    config later moves, the other makes a divergent override work at all.
     """
     result = copy.deepcopy(model_overrides)
     for section_key in _SECTION_MAP:
@@ -70,6 +88,49 @@ def enrich_overrides_with_api_keys(
                 global_value = getattr(global_section, field, None)
                 if global_value is not None:
                     override[field] = global_value
+    return result
+
+
+async def enrich_overrides_from_vault(
+    session,
+    model_overrides: dict,
+    *,
+    organization_id: int,
+) -> dict:
+    """Fill an override's missing API key from the account's own key vault.
+
+    A per-agent override exists so one agent can run on a different vendor from
+    the rest of the account. That is exactly the case
+    :func:`enrich_overrides_with_api_keys` cannot serve — it copies from the
+    global config section, which holds a key for the *global* provider and
+    nothing for the one the override picked. The result was an override that
+    saved cleanly, showed the vendor's own "missing credentials" error on the
+    settings screen, and would have failed at dial time.
+
+    The key comes from the same vault the Provider Keys screen writes to, so a
+    key the customer can see listed is a key their override can use. A provider
+    they hold no key for is left alone: the slot is then genuinely
+    unconfigured, and saying so beats inventing a credential.
+    """
+    from api.services.configuration import organization_credentials
+
+    result = copy.deepcopy(model_overrides)
+    for section_key, component in _SECTION_CREDENTIAL_COMPONENT.items():
+        override = result.get(section_key)
+        if not isinstance(override, dict):
+            continue
+        provider = override.get("provider")
+        if not provider or override.get("api_key"):
+            continue
+
+        key = await organization_credentials.resolve_api_key(
+            session,
+            organization_id=organization_id,
+            component=component,
+            provider=provider,
+        )
+        if key:
+            override["api_key"] = key
     return result
 
 

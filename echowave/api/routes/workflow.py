@@ -37,6 +37,7 @@ from api.services.configuration.masking import (
 )
 from api.services.configuration.merge import merge_workflow_configuration_secrets
 from api.services.configuration.resolve import (
+    enrich_overrides_from_vault,
     enrich_overrides_with_api_keys,
     resolve_effective_config,
 )
@@ -1141,6 +1142,17 @@ async def update_workflow(
                     workflow_configurations["model_overrides"],
                     effective_config,
                 )
+                # An override that picks a different vendor from the account's
+                # global stack gets nothing from the step above — the global
+                # section holds no key for a provider it does not use. Fill it
+                # from the account's own vault, which is where the customer
+                # stored it and where they can see it listed.
+                async with db_client.async_session() as session:
+                    enriched_overrides = await enrich_overrides_from_vault(
+                        session,
+                        enriched_overrides,
+                        organization_id=user.selected_organization_id,
+                    )
                 effective = resolve_effective_config(
                     effective_config, enriched_overrides
                 )
