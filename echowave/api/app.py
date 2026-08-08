@@ -47,6 +47,7 @@ from api.services.worker_sync.manager import (
     set_worker_sync_manager,
 )
 from api.services.worker_sync.protocol import WorkerSyncEventType
+from api.services.workflow.launch_template_seed import seed_launch_templates
 from api.tasks.arq import get_arq_redis
 
 API_PREFIX = "/api/v1"
@@ -64,6 +65,10 @@ async def lifespan(app: FastAPI):
         # freshly-deployed box serves managed accounts without someone having
         # to log in and paste keys into the staff screen first.
         await seed_platform_credentials_from_environment()
+
+        # Install the four launch templates, so a new account picks a job to be
+        # done rather than being shown an empty canvas.
+        await seed_launch_templates()
 
         # Pre-register all org-specific Langfuse exporters so they're ready
         # before any pipeline runs, without per-call DB lookups.
