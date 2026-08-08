@@ -9,6 +9,7 @@ The pipeline writes ``workflow_runs.usage_info`` in the shape produced by
       "stt": {"<processor>|||<model>": <seconds>},
       "telephony": {"<provider>": <connected seconds>},
       "call_duration_seconds": <seconds>,
+      "key_sources": {"llm"|"stt"|"tts": "byok"|"managed"},
     }
 
 All four cost components are measured: LLM tokens and TTS characters from the
@@ -18,6 +19,12 @@ transcription frames, and telephony seconds from the provider status callback.
 A component the pipeline did not record simply produces no line. That is
 deliberate — the cost engine reports usage it cannot price rather than
 inventing a number.
+
+``key_sources`` records, per component, whether the call ran on the account's
+own provider key. A "byok" component produces no line at all here (see
+``usage_items_from_usage_info``) — the account already paid that vendor
+directly, so a Decibyl receipt for the same usage would be a double charge.
+Telephony has no key-ownership concept and always produces a line regardless.
 """
 
 from __future__ import annotations
@@ -96,6 +103,24 @@ def _as_mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def key_sources_from_usage_info(usage_info: dict[str, Any] | None) -> dict[str, str]:
+    """Which components on this run used the account's own key.
+
+    ``{"llm"|"stt"|"tts": "byok"|"managed"}``, as recorded by the pipeline at
+    call start (see ``PipelineMetricsAggregator.register_key_sources``). A
+    component absent from this mapping -- calls made before this was tracked,
+    or telephony, which has no key-ownership concept -- is treated as managed
+    everywhere it's consulted below. That is the safe default: it reproduces
+    the old behaviour of charging for it rather than silently discounting
+    usage no one confirmed was BYOK.
+    """
+    return {
+        k: v
+        for k, v in _as_mapping(_as_mapping(usage_info).get("key_sources")).items()
+        if v in ("byok", "managed")
+    }
+
+
 def usage_items_from_usage_info(
     usage_info: dict[str, Any] | None,
 ) -> tuple[UsageItem, ...]:
@@ -104,55 +129,64 @@ def usage_items_from_usage_info(
     LLM quantity is total tokens (prompt + completion); TTS is characters; STT
     is seconds. Zero-quantity entries are dropped — a line item costing nothing
     only adds noise to a receipt.
+
+    A component the account ran on its own key produces no line at all: it
+    already paid the vendor directly, so pricing it again here would charge
+    twice for the same usage. See ``key_sources_from_usage_info``.
     """
     usage_info = usage_info or {}
+    key_sources = key_sources_from_usage_info(usage_info)
     items: list[UsageItem] = []
 
-    for key, value in _as_mapping(usage_info.get("llm")).items():
-        if not isinstance(value, dict):
-            continue
-        processor, model = _split_key(key)
-        tokens = _as_int(value.get("prompt_tokens")) + _as_int(
-            value.get("completion_tokens")
-        )
-        if tokens:
-            items.append(
-                UsageItem(
-                    component=CostComponent.LLM,
-                    provider=provider_from_processor(processor),
-                    model=model,
-                    quantity=tokens,
-                )
+    if key_sources.get("llm") != "byok":
+        for key, value in _as_mapping(usage_info.get("llm")).items():
+            if not isinstance(value, dict):
+                continue
+            processor, model = _split_key(key)
+            tokens = _as_int(value.get("prompt_tokens")) + _as_int(
+                value.get("completion_tokens")
             )
+            if tokens:
+                items.append(
+                    UsageItem(
+                        component=CostComponent.LLM,
+                        provider=provider_from_processor(processor),
+                        model=model,
+                        quantity=tokens,
+                    )
+                )
 
-    for key, value in _as_mapping(usage_info.get("tts")).items():
-        processor, model = _split_key(key)
-        characters = _as_int(value)
-        if characters:
-            items.append(
-                UsageItem(
-                    component=CostComponent.TTS,
-                    provider=provider_from_processor(processor),
-                    model=model,
-                    quantity=characters,
+    if key_sources.get("tts") != "byok":
+        for key, value in _as_mapping(usage_info.get("tts")).items():
+            processor, model = _split_key(key)
+            characters = _as_int(value)
+            if characters:
+                items.append(
+                    UsageItem(
+                        component=CostComponent.TTS,
+                        provider=provider_from_processor(processor),
+                        model=model,
+                        quantity=characters,
+                    )
                 )
-            )
 
-    for key, value in _as_mapping(usage_info.get("stt")).items():
-        processor, model = _split_key(key)
-        seconds = _as_int(value)
-        if seconds:
-            items.append(
-                UsageItem(
-                    component=CostComponent.STT,
-                    provider=provider_from_processor(processor),
-                    model=model,
-                    quantity=seconds,
+    if key_sources.get("stt") != "byok":
+        for key, value in _as_mapping(usage_info.get("stt")).items():
+            processor, model = _split_key(key)
+            seconds = _as_int(value)
+            if seconds:
+                items.append(
+                    UsageItem(
+                        component=CostComponent.STT,
+                        provider=provider_from_processor(processor),
+                        model=model,
+                        quantity=seconds,
+                    )
                 )
-            )
 
     # Telephony is recorded by the status callback as connected seconds, keyed
-    # by provider — there is no model dimension to a phone call.
+    # by provider — there is no model dimension to a phone call, and no BYOK
+    # concept either: Decibyl always fronts the telephony cost.
     for key, value in _as_mapping(usage_info.get("telephony")).items():
         processor, _ = _split_key(key)
         seconds = _as_int(value)

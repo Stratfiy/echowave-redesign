@@ -935,6 +935,19 @@ async def _run_pipeline_impl(
     # or speech-to-text drops out of provider cost. `stt` is None on realtime
     # speech-to-speech pipelines, which correctly have no separate STT charge.
     pipeline_metrics_aggregator.register_stt_service(stt)
+    # Tell billing which components ran on the account's own key. A realtime
+    # pipeline has no separate stt/tts stage, so only its single "llm" bucket
+    # (backed by the realtime section) carries a key_source.
+    llm_section = user_config.realtime if is_realtime else getattr(user_config, "llm", None)
+    key_sources: dict[str, str] = {}
+    if llm_section is not None:
+        key_sources["llm"] = getattr(llm_section, "key_source", None) or "managed"
+    if not is_realtime:
+        if getattr(user_config, "stt", None) is not None:
+            key_sources["stt"] = getattr(user_config.stt, "key_source", None) or "managed"
+        if getattr(user_config, "tts", None) is not None:
+            key_sources["tts"] = getattr(user_config.tts, "key_source", None) or "managed"
+    pipeline_metrics_aggregator.register_key_sources(key_sources)
 
     user_context_aggregator = context_aggregator.user()
     assistant_context_aggregator = context_aggregator.assistant()

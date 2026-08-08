@@ -140,6 +140,15 @@ class BaseServiceConfiguration(BaseModel):
     # guard several provider tests rely on.
     api_key: str | list[str]
 
+    # Stamped by byok_resolution.apply() before either resolver mutates
+    # ``provider``/``api_key`` -- the only place left that can still tell a
+    # BYOK section from a managed one, since both resolvers converge on the
+    # same shape (real vendor name, real key) afterward. Never set by a
+    # customer and never round-tripped through a save: excluded from
+    # serialization so it can't leak into a stored configuration or a
+    # dynamically-rendered form field.
+    key_source: str | None = Field(default=None, exclude=True)
+
     @field_validator("api_key")
     @classmethod
     def validate_api_key(cls, v):
@@ -473,7 +482,11 @@ class DecibylLLMService(BaseLLMConfiguration):
     model: str = Field(
         default="default",
         description="Decibyl-hosted model tier.",
-        json_schema_extra={"examples": DECIBYL_LLM_MODELS, "allow_custom_input": True},
+        # No custom input: the dropdown already lists every tier
+        # managed_tiers.resolve() understands. Anything else typed here
+        # silently falls back to "default" with no error shown -- offering
+        # the text box only invites that footgun.
+        json_schema_extra={"examples": DECIBYL_LLM_MODELS},
     )
 
 

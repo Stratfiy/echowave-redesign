@@ -37,6 +37,11 @@ class PipelineMetricsAggregator(FrameProcessor):
         # there is one. Set by run_pipeline; see register_stt_service.
         self._stt_key: Optional[str] = None
 
+        # {"llm"|"stt"|"tts": "byok"|"managed"}, one entry per component this
+        # pipeline actually used. Set by run_pipeline/text_chat_runner from the
+        # resolved configuration's key_source; see register_key_sources.
+        self._key_sources: Dict[str, str] = {}
+
         # Per-turn latency instrumentation. TTFB arrives continuously as
         # MetricsFrames; the turn is only *closed* when the latency observer
         # reports a measured user-to-bot latency, so these accumulate against
@@ -235,6 +240,19 @@ class PipelineMetricsAggregator(FrameProcessor):
         model = getattr(getattr(stt, "_settings", None), "model", "") or ""
         self._stt_key = f"{stt.name}|||{model if isinstance(model, str) else ''}"
 
+    def register_key_sources(self, key_sources: Dict[str, Optional[str]]) -> None:
+        """Record which components on this call ran on the account's own key.
+
+        Read back off ``usage_info`` by billing at cost time to decide whether
+        a component's usage was ours to charge for. A missing or unrecognised
+        entry is simply not stored -- billing treats an absent key means
+        "managed" (charge as before), never "byok" (which would silently stop
+        charging for usage no one confirmed was BYOK).
+        """
+        for component, source in (key_sources or {}).items():
+            if source in ("byok", "managed"):
+                self._key_sources[component] = source
+
     def get_llm_usage_metrics(self) -> Dict[str, LLMTokenUsage]:
         """Get the aggregated LLM usage metrics grouped by processor|||model."""
         return self._llm_usage_metrics
@@ -286,6 +304,7 @@ class PipelineMetricsAggregator(FrameProcessor):
             "tts": dict(self._tts_usage_metrics),
             "stt": stt,
             "call_duration_seconds": call_duration,
+            "key_sources": dict(self._key_sources),
         }
 
     def reset_metrics(self):
@@ -293,6 +312,7 @@ class PipelineMetricsAggregator(FrameProcessor):
         self._llm_usage_metrics.clear()
         self._tts_usage_metrics.clear()
         self._stt_usage_metrics.clear()
+        self._key_sources.clear()
         self._turn_stage_ttfb.clear()
         self._turns.clear()
         self._start_time = None
