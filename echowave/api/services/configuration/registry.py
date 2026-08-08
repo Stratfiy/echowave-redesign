@@ -2,7 +2,14 @@ import random
 from enum import Enum, auto
 from typing import Annotated, Dict, Literal, Type, TypeVar, Union
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    computed_field,
+    field_validator,
+)
 
 from api.services.configuration.options import (
     AZURE_EMBEDDING_MODELS,
@@ -143,11 +150,21 @@ class BaseServiceConfiguration(BaseModel):
     # Stamped by byok_resolution.apply() before either resolver mutates
     # ``provider``/``api_key`` -- the only place left that can still tell a
     # BYOK section from a managed one, since both resolvers converge on the
-    # same shape (real vendor name, real key) afterward. Never set by a
-    # customer and never round-tripped through a save: excluded from
-    # serialization so it can't leak into a stored configuration or a
-    # dynamically-rendered form field.
-    key_source: str | None = Field(default=None, exclude=True)
+    # same shape (real vendor name, real key) afterward. A PrivateAttr rather
+    # than a Field: a Field's ``exclude=True`` keeps it out of
+    # ``.model_dump()`` but still puts it in the generated JSON Schema, which
+    # is what FastAPI serves as this provider's form definition -- it would
+    # have rendered as a mystery input on every provider's config screen.
+    # PrivateAttr is invisible to both.
+    _key_source: str | None = PrivateAttr(default=None)
+
+    @property
+    def key_source(self) -> str | None:
+        return self._key_source
+
+    @key_source.setter
+    def key_source(self, value: str | None) -> None:
+        self._key_source = value
 
     @field_validator("api_key")
     @classmethod
