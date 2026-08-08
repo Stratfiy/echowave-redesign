@@ -10,6 +10,7 @@ corrections rather than bugs you can quietly patch out.
 """
 
 import asyncio
+import calendar
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
@@ -47,6 +48,18 @@ def supplier_configured(monkeypatch):
     monkeypatch.setattr(documents, "SUPPLIER_GSTIN", "29AAAAA0000A1Z5")
     monkeypatch.setattr(documents, "SUPPLIER_STATE_CODE", OUR_STATE)
     monkeypatch.setattr(documents, "SUPPLIER_HAS_LUT", True)
+
+
+def _month_end(d: date) -> date:
+    """The real last day of d's month.
+
+    A fixed `.replace(day=28)` is wrong on the ~3 days a month where
+    `datetime.now(UTC) - timedelta(days=40)` lands on the 29th-31st: the
+    costed run then sits outside its own invoicing period and the invoice
+    silently comes back None. `day=28` exists in every month, which is
+    exactly what made this pass on 27 days out of 30 and never get noticed.
+    """
+    return d.replace(day=calendar.monthrange(d.year, d.month)[1])
 
 
 async def _org(async_session, slug: str, *, state=OUR_STATE, country="IN"):
@@ -242,7 +255,7 @@ class TestTaxInvoices:
             async_session,
             organization_id=org.id,
             period_start=when.date().replace(day=1),
-            period_end=when.date().replace(day=28),
+            period_end=_month_end(when.date()),
         )
 
         assert invoice is not None
@@ -271,7 +284,7 @@ class TestTaxInvoices:
         when = datetime.now(UTC) - timedelta(days=40)
         await self._costed_run(async_session, org, charged_paise=20_000, when=when)
         start = when.date().replace(day=1)
-        end = when.date().replace(day=28)
+        end = _month_end(when.date())
 
         first = await documents.issue_tax_invoice(
             async_session, organization_id=org.id, period_start=start, period_end=end
