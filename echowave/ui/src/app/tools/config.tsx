@@ -113,7 +113,7 @@ export const TOOL_CATEGORIES: ToolCategoryConfig[] = [
         iconColor: "#0F9D58",
         autoFill: {
             name: "Book Appointment",
-            description: "Use this to book the appointment, but only after the caller has confirmed the name, date and time out loud. Do not call this while still gathering information.",
+            description: "Use this to book the appointment, but only after the caller has confirmed the name, date and time out loud. Do not call this while still gathering information. If the tool reports the slot is already booked, tell the caller and ask for a different date or time.",
         },
     },
     {

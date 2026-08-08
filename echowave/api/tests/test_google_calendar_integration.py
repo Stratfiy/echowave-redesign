@@ -563,6 +563,166 @@ class TestExecuteGoogleCalendarTool:
 
         assert result["status"] == "error"
 
+    async def test_a_conflicting_event_blocks_the_booking_and_names_it(self):
+        """Two callers asking for the same slot must not both get an event --
+        the tool has to refuse the second one rather than silently double-book."""
+        tool = SimpleNamespace(name="Book", tool_uuid="u8")
+
+        with (
+            patch(
+                "api.services.integrations.google_calendar.client.get_valid_access_token",
+                new=AsyncMock(return_value="access-token-xyz"),
+            ),
+            patch(
+                "api.services.integrations.google_calendar.client.get_status",
+                new=AsyncMock(
+                    return_value=gcal_oauth.ConnectionStatus(
+                        connected=True,
+                        connected_email=None,
+                        calendar_id="primary",
+                        updated_at=None,
+                    )
+                ),
+            ),
+            patch(
+                "api.services.integrations.google_calendar.client.db_client"
+            ) as mock_db,
+            patch(
+                "api.services.integrations.google_calendar.client.httpx.AsyncClient"
+            ) as mock_cls,
+        ):
+            mock_db.async_session.return_value.__aenter__.return_value = AsyncMock()
+            mock_client = AsyncMock()
+            mock_client.get.return_value = _mock_response(
+                200,
+                {
+                    "items": [
+                        {
+                            "status": "confirmed",
+                            "summary": "Demo call with Nitesh (Reliance)",
+                        }
+                    ]
+                },
+            )
+            mock_cls.return_value.__aenter__.return_value = mock_client
+
+            result = await gcal_client.execute_google_calendar_tool(
+                tool,
+                {
+                    "summary": "Demo call with Nitish",
+                    "start_date": "2026-08-10",
+                    "start_time": "12:00",
+                },
+                organization_id=7,
+            )
+
+        assert result["status"] == "error"
+        assert "Demo call with Nitesh (Reliance)" in result["error"]
+        mock_client.post.assert_not_called()  # never creates the double-booking
+
+    async def test_a_cancelled_event_at_the_same_time_is_not_a_conflict(self):
+        tool = SimpleNamespace(name="Book", tool_uuid="u9")
+
+        with (
+            patch(
+                "api.services.integrations.google_calendar.client.get_valid_access_token",
+                new=AsyncMock(return_value="access-token-xyz"),
+            ),
+            patch(
+                "api.services.integrations.google_calendar.client.get_status",
+                new=AsyncMock(
+                    return_value=gcal_oauth.ConnectionStatus(
+                        connected=True,
+                        connected_email=None,
+                        calendar_id="primary",
+                        updated_at=None,
+                    )
+                ),
+            ),
+            patch(
+                "api.services.integrations.google_calendar.client.db_client"
+            ) as mock_db,
+            patch(
+                "api.services.integrations.google_calendar.client.httpx.AsyncClient"
+            ) as mock_cls,
+        ):
+            mock_db.async_session.return_value.__aenter__.return_value = AsyncMock()
+            mock_client = AsyncMock()
+            mock_client.get.return_value = _mock_response(
+                200, {"items": [{"status": "cancelled", "summary": "Old demo"}]}
+            )
+            mock_client.post.return_value = _mock_response(
+                200, {"id": "evt-2", "htmlLink": "https://calendar.google.com/evt-2"}
+            )
+            mock_cls.return_value.__aenter__.return_value = mock_client
+
+            result = await gcal_client.execute_google_calendar_tool(
+                tool,
+                {
+                    "summary": "New demo",
+                    "start_date": "2026-08-10",
+                    "start_time": "12:00",
+                },
+                organization_id=7,
+            )
+
+        assert result["status"] == "success"
+
+    async def test_an_availability_check_failure_does_not_block_booking(self):
+        """A broken read must not turn into no bookings getting made at all --
+        the write is what matters, same trade-off as the receipt-voucher path."""
+        tool = SimpleNamespace(name="Book", tool_uuid="u10")
+
+        with (
+            patch(
+                "api.services.integrations.google_calendar.client.get_valid_access_token",
+                new=AsyncMock(return_value="access-token-xyz"),
+            ),
+            patch(
+                "api.services.integrations.google_calendar.client.get_status",
+                new=AsyncMock(
+                    return_value=gcal_oauth.ConnectionStatus(
+                        connected=True,
+                        connected_email=None,
+                        calendar_id="primary",
+                        updated_at=None,
+                    )
+                ),
+            ),
+            patch(
+                "api.services.integrations.google_calendar.client.db_client"
+            ) as mock_db,
+            patch(
+                "api.services.integrations.google_calendar.client.httpx.AsyncClient"
+            ) as mock_cls,
+        ):
+            mock_db.async_session.return_value.__aenter__.return_value = AsyncMock()
+            mock_client = AsyncMock()
+            mock_client.get.return_value = _mock_response(500, {"error": "boom"})
+            mock_client.post.return_value = _mock_response(
+                200, {"id": "evt-3", "htmlLink": "https://calendar.google.com/evt-3"}
+            )
+            mock_cls.return_value.__aenter__.return_value = mock_client
+
+            result = await gcal_client.execute_google_calendar_tool(
+                tool,
+                {
+                    "summary": "New demo",
+                    "start_date": "2026-08-10",
+                    "start_time": "12:00",
+                },
+                organization_id=7,
+            )
+
+        assert result["status"] == "success"
+
+
+class TestLocalize:
+    def test_attaches_the_deployment_calendar_timezone(self):
+        localized = gcal_client._localize("2026-08-10T12:00:00")
+        assert localized.startswith("2026-08-10T12:00:00")
+        assert localized != "2026-08-10T12:00:00"  # an offset was actually added
+
 
 class TestToolCreationSchema:
     """The Pydantic contract used by the /tools REST route and the MCP
