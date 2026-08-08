@@ -164,6 +164,13 @@ COPY --chown=decibyl:decibyl ./api ./api
 # that flag, and on a Docker install there is no other copy of the repository to
 # run it from. Without it in the image, a fresh deployment has no route to its
 # own admin panel except hand-editing the database.
+#
+# seed_provider_rates.py ships for the same reason, and its absence was quieter:
+# without provider rates every call is recorded as *uncosted* rather than free,
+# so margin reads as 100% and the model picker shows the same number whatever
+# you choose. The script documents `docker compose exec api python -m
+# scripts.seed_provider_rates` in its own docstring, which failed with "No
+# module named scripts.seed_provider_rates" until it was on this list.
 COPY --chown=decibyl:decibyl \
      ./scripts/start_services_docker.sh \
      ./scripts/run_migrate.sh \
@@ -172,6 +179,7 @@ COPY --chown=decibyl:decibyl \
      ./scripts/run_ari_manager.sh \
      ./scripts/run_campaign_orchestrator.sh \
      ./scripts/grant_superuser.py \
+     ./scripts/seed_provider_rates.py \
      ./scripts/
 
 # ts_validator Node deps (built in ts-deps stage with full node:22-slim image).
