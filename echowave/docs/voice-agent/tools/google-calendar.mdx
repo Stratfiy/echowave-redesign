@@ -1,0 +1,101 @@
+---
+title: "Google Calendar"
+description: "Let your AI agent create real events on a connected Google Calendar during a live call — no API key, sign in with Google."
+---
+
+The Google Calendar tool lets your AI agent book, on a real Google Calendar, while talking to a caller — appointments, demos, consultations, anything with a name, a date, and a time.
+
+Unlike an HTTP API tool, there is no URL, authentication, or parameter form to fill in. Connect a Google account once for your organization, add the tool to a node, and the agent can start booking.
+
+## Connect Google Calendar
+
+Before the tool can be used, your organization needs to connect a Google account.
+
+1. Go to **Provider Keys** in the sidebar.
+2. Click **Connect Google Calendar**.
+3. Sign in with the Google account whose calendar should receive the bookings, and approve the consent screen.
+4. You're redirected back with a "Connected as `you@example.com`" status.
+
+That's it — no API key ever touches your organization's configuration. The connection is per-organization: one connected calendar, shared by every workflow that uses the tool. Connecting a different account replaces the existing connection.
+
+<Note>
+If **Connect Google Calendar** isn't available, the deployment hasn't been configured with a Google OAuth client yet. That's an administrator task — see `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` in `DEPLOY.md`.
+</Note>
+
+## Adding the tool
+
+Create a tool with category **Google Calendar** — it appears alongside Call Transfer and End Call as a built-in, not under Custom Tools. Give it a name and a description; the description is what the LLM reads to decide *when* to call it, so be explicit:
+
+> "Use this tool to actually book the appointment, but only after the caller has confirmed the name, date, and time out loud. Do not call this while still gathering information."
+
+Attach it to whichever node handles booking, same as any other tool.
+
+## Parameters
+
+The parameter shape is fixed — this is the entire contract the agent works with:
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `summary` | string | yes | Short event title, e.g. "Demo call with Rahul (Acme Corp)" |
+| `start_date` | string | yes | `YYYY-MM-DD`, e.g. `2026-08-15` |
+| `start_time` | string | yes | 24-hour `HH:MM`, e.g. `15:00` for 3pm |
+| `description` | string | no | Notes for the event |
+| `duration_minutes` | number | no | Defaults to 30 |
+| `attendee_email` | string | no | If given, Google emails this address a calendar invite |
+
+`start_date` and `start_time` are interpreted in the timezone configured for the deployment (`GOOGLE_CALENDAR_DEFAULT_TIMEZONE`, `Asia/Kolkata` by default).
+
+## Prompting for a reliable booking
+
+The tool only works as well as the LLM's discipline about *when* to call it. In your node prompt:
+
+- Have the agent read the date and time back to the caller and get explicit confirmation before calling the tool — never book off a first guess.
+- Ask for date and time as separate, simple values ("what date works?" / "what time?") rather than trusting the model to parse something like "next Tuesday afternoon" into `YYYY-MM-DD` / `HH:MM` correctly.
+- If the caller gives a phone number as part of booking, have the agent read it back digit by digit before confirming — speech-to-text on spoken digit sequences is the most error-prone part of a booking call.
+
+Example node prompt:
+
+```text
+When the caller wants to book:
+1. Ask for their name.
+2. Ask their preferred date and time.
+3. Read the details back: "So that's [name], on [date] at [time] — is that right?"
+4. Only after they confirm, call the Google Calendar tool.
+5. Confirm the booking is done.
+```
+
+## What the agent gets back
+
+On success, the tool result includes the created event's id and link:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "event_id": "abc123",
+    "html_link": "https://calendar.google.com/event?eid=...",
+    "start": "2026-08-15T15:00:00",
+    "end": "2026-08-15T15:30:00"
+  }
+}
+```
+
+On failure, `status` is `"error"` with a plain-English `error` message the agent can react to — for example, telling the caller a human will follow up instead of claiming a booking that didn't happen.
+
+## Troubleshooting
+
+### The tool reports Google Calendar isn't connected
+
+The organization-level connection was never completed, or was disconnected. Reconnect from **Provider Keys**.
+
+### Booking fails after previously working
+
+The most common cause is the connected Google account revoking access (Google Account → Security → Third-party access) rather than disconnecting through Decibyl. Reconnect from **Provider Keys**.
+
+### The agent books before confirming details
+
+This is a prompting issue, not a platform one — see [Prompting for a reliable booking](#prompting-for-a-reliable-booking). Make the confirmation step explicit and non-optional in the node prompt.
+
+### Events appear at the wrong time
+
+Check `GOOGLE_CALENDAR_DEFAULT_TIMEZONE`. Every event is created in that single deployment-wide timezone; there is no per-call or per-organization override.

@@ -28,6 +28,7 @@ ToolCategoryValue = Literal[
     "native",
     "integration",
     "mcp",
+    "google_calendar",
 ]
 
 
@@ -373,6 +374,18 @@ class McpToolDefinition(BaseModel):
     config: McpToolConfig = Field(description="MCP server configuration.")
 
 
+class GoogleCalendarToolDefinition(BaseModel):
+    """Tool definition for creating an event on the organization's connected
+    Google Calendar. No config: unlike an HTTP API tool there is no URL,
+    auth, or parameter builder to fill in — the parameter shape is fixed
+    (see api/services/integrations/google_calendar/client.py) and which
+    calendar it writes to is decided once, org-wide, by the Connect Google
+    Calendar flow, not per-tool."""
+
+    schema_version: int = Field(default=1, description="Schema version.")
+    type: Literal["google_calendar"] = Field(description="Tool type.")
+
+
 ToolDefinition = Annotated[
     Union[
         HttpApiToolDefinition,
@@ -380,6 +393,7 @@ ToolDefinition = Annotated[
         TransferCallToolDefinition,
         CalculatorToolDefinition,
         McpToolDefinition,
+        GoogleCalendarToolDefinition,
     ],
     Field(discriminator="type"),
 ]

@@ -171,8 +171,11 @@ class ToolCategory(Enum):
     TRANSFER_CALL = "transfer_call"  # Transfer call to phone number (Twilio only)
     CALCULATOR = "calculator"  # Built-in calculator tool
     NATIVE = "native"  # Built-in integrations (future: dtmf_input)
-    INTEGRATION = "integration"  # Third-party integrations (future: Google Calendar, Salesforce, etc.)
+    INTEGRATION = "integration"  # Reserved: third-party integrations with no dedicated category yet
     MCP = "mcp"  # Customer-provided MCP server exposing a tool catalog
+    GOOGLE_CALENDAR = (
+        "google_calendar"  # Create events on a connected Google Calendar (implemented)
+    )
 
 
 class ToolStatus(Enum):

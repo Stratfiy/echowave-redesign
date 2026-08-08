@@ -260,6 +260,8 @@ export default function ToolDetailPage() {
                 setMcpCredentialUuid("");
                 setMcpToolsFilter("");
             }
+        } else if (tool.category === "google_calendar") {
+            // Built-in tool: name/description above is the whole form.
         } else {
             // Populate HTTP API specific fields
             const config = tool.definition?.config as HttpApiToolDefinition["config"] | undefined;
@@ -339,7 +341,7 @@ export default function ToolDetailPage() {
         const normalizedTransferDestination = transferDestination.trim();
 
         // Validation based on tool type
-        if (tool.category === "calculator") {
+        if (tool.category === "calculator" || tool.category === "google_calendar") {
             // No validation needed for built-in tools
         } else if (tool.category === "transfer_call") {
             if (transferDestinationSource === "static" && !normalizedTransferDestination) {
@@ -432,6 +434,18 @@ export default function ToolDetailPage() {
                     definition: {
                         schema_version: 1,
                         type: "calculator",
+                    },
+                };
+            } else if (tool.category === "google_calendar") {
+                // Built-in tool - only name/description, no config. Which
+                // calendar it writes to is decided once, org-wide, by the
+                // Connect Google Calendar flow on the Provider Keys screen.
+                requestBody = {
+                    name,
+                    description: description || undefined,
+                    definition: {
+                        schema_version: 1,
+                        type: "google_calendar",
                     },
                 };
             } else if (tool.category === "end_call") {
@@ -681,6 +695,7 @@ const data = await response.json();`;
     const isTransferCallTool = tool.category === "transfer_call";
     const isBuiltinTool = tool.category === "calculator";
     const isMcpTool = tool.category === "mcp";
+    const isGoogleCalendarTool = tool.category === "google_calendar";
     const categoryConfig = getCategoryConfig(tool.category as ToolCategory);
 
     return (
@@ -716,7 +731,7 @@ const data = await response.json();`;
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            {!isEndCallTool && !isTransferCallTool && !isBuiltinTool && !isMcpTool && (
+                            {!isEndCallTool && !isTransferCallTool && !isBuiltinTool && !isMcpTool && !isGoogleCalendarTool && (
                                 <Button
                                     variant="outline"
                                     onClick={() => setShowCodeDialog(true)}
@@ -747,6 +762,15 @@ const data = await response.json();`;
                             onDescriptionChange={setDescription}
                             title="Calculator Configuration"
                             subtitle="Built-in calculator for arithmetic operations. No additional configuration needed."
+                        />
+                    ) : isGoogleCalendarTool ? (
+                        <BuiltinToolConfig
+                            name={name}
+                            onNameChange={setName}
+                            description={description}
+                            onDescriptionChange={setDescription}
+                            title="Google Calendar Configuration"
+                            subtitle="Creates an event on your connected Google Calendar. Connect a Google account under Provider Keys — no per-tool configuration needed here."
                         />
                     ) : isEndCallTool ? (
                         <EndCallToolConfig
