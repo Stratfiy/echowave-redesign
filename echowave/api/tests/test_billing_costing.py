@@ -430,9 +430,7 @@ class TestCostWorkflowRun:
         ).all()
         assert [i.component for i in items] == ["platform"]
 
-    async def test_a_mixed_call_charges_only_the_managed_component(
-        self, async_session
-    ):
+    async def test_a_mixed_call_charges_only_the_managed_component(self, async_session):
         """One call, one BYOK component and one managed component -- only the
         managed one produces a pass-through line."""
         _org, workflow = await _org_with_workflow(async_session, "byok-mixed")
