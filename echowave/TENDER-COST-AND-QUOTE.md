@@ -463,7 +463,7 @@ are external processes and should begin at award.
 ### 11. Contact
 
 NAUTOMATION LABS PRIVATE LIMITED
-No.86/18, Papanna Thottam, Brindhavan Nagar, TNHB PH-7, Hosur – 635109,
+No.86/16, Papanna Thottam, Brindhavan Nagar, TNHB PH-7, Hosur – 635109,
 Krishnagiri District, Tamil Nadu
 GSTIN 33AALCN7211L1ZB
 

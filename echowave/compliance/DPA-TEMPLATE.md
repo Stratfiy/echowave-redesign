@@ -39,7 +39,7 @@ conversation.
 This Data Processing Agreement (**"DPA"**) forms part of the Agreement between:
 
 **NAUTOMATION LABS PRIVATE LIMITED**, a company incorporated under the
-Companies Act, 2013, having its registered office at No.86/18, Papanna Thottam,
+Companies Act, 2013, having its registered office at No.86/16, Papanna Thottam,
 Brindhavan Nagar, TNHB PH-7, Hosur – 635109, Krishnagiri District, Tamil Nadu,
 India, operating the Decibyl platform (**"Decibyl"**, **"we"**, **"Processor"**),
 
@@ -377,7 +377,7 @@ the omission rather than by a sentence.
 |---|---|
 | Grievance Officer | `[TO CONFIRM — name]` |
 | Email | privacy@decibyl.ai |
-| Postal | No.86/18, Papanna Thottam, Brindhavan Nagar, TNHB PH-7, Hosur – 635109, Krishnagiri District, Tamil Nadu, India |
+| Postal | No.86/16, Papanna Thottam, Brindhavan Nagar, TNHB PH-7, Hosur – 635109, Krishnagiri District, Tamil Nadu, India |
 | Security contact | security@decibyl.ai |
 
 The current Grievance Officer details are also served live at
