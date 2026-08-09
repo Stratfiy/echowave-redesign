@@ -72,6 +72,9 @@ export interface ModelConfigurationDefaultsV2 {
     // Which vendors this account holds its own key for, by component. Used to
     // warn before a slot is pointed at a vendor we cannot authenticate to.
     byok_keys_held?: Record<string, string[]>;
+    // Which real providers each slot can run on Decibyl's key -- the catalog
+    // counterpart to decibyl.available's tier-shaped answer.
+    platform_key_providers?: Record<string, string[]>;
 }
 
 interface AIModelConfigurationV2EditorProps {
@@ -169,6 +172,17 @@ function isManaged(config: Record<string, unknown>, slot: string): boolean {
     return providerOf(config, slot) === MANAGED_PROVIDER;
 }
 
+// Broader than isManaged: also true for a real provider chosen directly and
+// run on Decibyl's key (use_platform_key). For describing what's currently
+// running only -- the legacy wire-format collapse below must keep using the
+// narrower isManaged, or a stack fully on the new direct mechanism would be
+// mis-saved as a fixed-tier "decibyl" configuration and lose its specific
+// provider/model choices.
+function isManagedOnAnyKey(config: Record<string, unknown>, slot: string): boolean {
+    if (isManaged(config, slot)) return true;
+    return Boolean(asRecord(config[slot])?.use_platform_key);
+}
+
 function requireSlot(
     config: Record<string, unknown>,
     slot: string,
@@ -238,9 +252,9 @@ export function AIModelConfigurationV2Editor({
             ? ["realtime", "llm"]
             : ["stt", "llm", "tts"];
         return {
-            managed: slots.filter((slot) => isManaged(flattened, slot)),
+            managed: slots.filter((slot) => isManagedOnAnyKey(flattened, slot)),
             byok: slots.filter(
-                (slot) => providerOf(flattened, slot) && !isManaged(flattened, slot),
+                (slot) => providerOf(flattened, slot) && !isManagedOnAnyKey(flattened, slot),
             ),
         };
     }, [configuration, effectiveConfiguration]);
@@ -402,6 +416,7 @@ export function AIModelConfigurationV2Editor({
                     submitLabel={submitLabel}
                     managedUpstream={upstream}
                     managedAvailable={managedAvailable}
+                    platformKeyProviders={defaults.platform_key_providers}
                     keysFromVault
                     keysHeld={defaults.byok_keys_held}
                     onSave={save}

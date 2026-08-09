@@ -128,6 +128,17 @@ export interface ServiceConfigurationFormProps {
      */
     managedAvailable?: Record<string, boolean>;
     /**
+     * Real providers each slot can run on Decibyl's key, as
+     * `{ llm: ["openai", "google"], stt: ["sarvam"] }`.
+     *
+     * The catalog counterpart to `managedAvailable`/`managedUpstream`: instead
+     * of a fixed tier, a customer picks the exact vendor and model BYOK would
+     * offer, authenticated with our key instead of theirs. An empty list means
+     * nothing to offer yet for that slot, and the toggle falls back to the
+     * tier system above.
+     */
+    platformKeyProviders?: Record<string, string[]>;
+    /**
      * Take keys from the organization's vault instead of rendering key inputs.
      *
      * When set, each slot gets an explicit "Decibyl provides it / My own key"
@@ -239,6 +250,7 @@ export function ServiceConfigurationForm({
     forceRealtime,
     managedUpstream,
     managedAvailable,
+    platformKeyProviders,
     keysFromVault,
     keysHeld,
 }: ServiceConfigurationFormProps) {
@@ -276,6 +288,17 @@ export function ServiceConfigurationForm({
         stt: "",
         embeddings: "",
         realtime: "",
+    });
+    // Whether each slot runs its real provider on Decibyl's key rather than
+    // the account's. Kept as its own piece of state, same as serviceProviders,
+    // rather than a registered form field -- it's never rendered as a generic
+    // input, only driven by the "Who provides this model" toggle below.
+    const [usePlatformKey, setUsePlatformKey] = useState<Record<ServiceSegment, boolean>>({
+        llm: false,
+        tts: false,
+        stt: false,
+        embeddings: false,
+        realtime: false,
     });
     const [apiKeys, setApiKeys] = useState<Record<ServiceSegment, string[]>>({
         llm: [""],
@@ -375,6 +398,14 @@ export function ServiceConfigurationForm({
                 selectedProviders.realtime = realtimeProviderKeys[0];
             }
 
+            const selectedUsePlatformKey: Record<ServiceSegment, boolean> = {
+                llm: false,
+                tts: false,
+                stt: false,
+                embeddings: false,
+                realtime: false,
+            };
+
             const loadedApiKeys: Record<ServiceSegment, string[]> = {
                 llm: [""],
                 tts: [""],
@@ -420,6 +451,7 @@ export function ServiceConfigurationForm({
                         }
                     });
                     selectedProviders[service] = src.provider as string;
+                    selectedUsePlatformKey[service] = Boolean(src.use_platform_key);
                     const properties = schemaSource?.[selectedProviders[service]]?.properties as Record<string, SchemaProperty>;
                     if (properties) {
                         Object.entries(properties).forEach(([field, schema]) => {
@@ -488,6 +520,7 @@ export function ServiceConfigurationForm({
             reset(defaultValues);
             setApiKeys(loadedApiKeys);
             setServiceProviders(selectedProviders);
+            setUsePlatformKey(selectedUsePlatformKey);
             setIsCustomInput(detectedCustomInput);
         };
         fetchConfigurations();
@@ -559,8 +592,9 @@ export function ServiceConfigurationForm({
     };
 
     const buildServiceConfig = (service: ServiceSegment, data: FormValues) => {
-        const config: Record<string, string | number | string[]> = {
+        const config: Record<string, string | number | string[] | boolean> = {
             provider: serviceProviders[service],
+            use_platform_key: usePlatformKey[service],
         };
         // In vault mode the key is deliberately absent from the saved
         // configuration: byok_resolution looks it up at dial time, and an
@@ -644,8 +678,10 @@ export function ServiceConfigurationForm({
         const currentProvider = serviceProviders[service];
         const providerSchema = schemas?.[service]?.[currentProvider];
         if (!providerSchema) return [];
+        // use_platform_key is driven entirely by the "Who provides this
+        // model" toggle, never rendered as a generic input.
         return Object.keys(providerSchema.properties).filter(
-            field => field !== "provider" && field !== "api_key"
+            field => field !== "provider" && field !== "api_key" && field !== "use_platform_key"
         );
     };
 
@@ -660,15 +696,38 @@ export function ServiceConfigurationForm({
             ? allProviders.filter((p) => p !== MANAGED)
             : allProviders;
         const configFields = getConfigFields(service);
-        const managed = currentProvider === MANAGED;
-        const canBeManaged = keysFromVault && Boolean(schemas?.[service]?.[MANAGED]);
-        // Absent means available: a defaults response that predates this field
-        // should keep behaving as it did rather than locking every slot.
-        const managedReady = managedAvailable?.[service] !== false;
-        // Already selected but no longer servable — the key was removed or the
-        // tier was moved to a provider we do not hold. Say so instead of
+
+        // Two ways a slot ends up on Decibyl's key: the older fixed tier
+        // (provider="decibyl", model is a tier name), or a real vendor+model
+        // chosen directly, same as BYOK, with use_platform_key=true. A slot
+        // can only be in one of the two -- see managed_resolution.apply for
+        // the backend side of this split.
+        const legacyManaged = currentProvider === MANAGED;
+        const directManaged = usePlatformKey[service] === true && !legacyManaged;
+        const managed = legacyManaged || directManaged;
+
+        const platformProviders = platformKeyProviders?.[service] ?? [];
+        const hasDirectCatalog = platformProviders.length > 0;
+        const hasLegacyTier = Boolean(schemas?.[service]?.[MANAGED]);
+        const canBeManaged = keysFromVault && (hasDirectCatalog || hasLegacyTier);
+        // On the direct path, only vendors we actually hold a platform key for
+        // are offered — picking one we don't would save cleanly and fail at
+        // dial time, the same trade-off the tier system already avoids.
+        const directProviderOptions = availableProviders.filter((p) =>
+            platformProviders.includes(p)
+        );
+
+        // Ready to click, independent of which mechanism it lands on. Absent
+        // legacy availability means available: a defaults response that
+        // predates that field should keep behaving as it did.
+        const managedReady = hasDirectCatalog || managedAvailable?.[service] !== false;
+        // Already selected but no longer servable — the key was removed, or
+        // (direct path) the provider fell out of the catalog, or (tier path)
+        // the tier moved to a provider we no longer hold. Say so instead of
         // letting it fail at dial time.
-        const managedStranded = managed && !managedReady;
+        const managedStranded =
+            (legacyManaged && managedAvailable?.[service] === false) ||
+            (directManaged && !platformProviders.includes(currentProvider));
 
         return (
             <div className="space-y-6">
@@ -682,7 +741,24 @@ export function ServiceConfigurationForm({
                                 aria-disabled={!managedReady}
                                 onClick={() => {
                                     if (!managedReady) return;
-                                    handleProviderChange(service, MANAGED);
+                                    if (hasDirectCatalog) {
+                                        setUsePlatformKey((prev) => ({ ...prev, [service]: true }));
+                                        const fallback = platformProviders.includes(currentProvider)
+                                            ? currentProvider
+                                            : (configurationDefaults?.default_providers?.[service] &&
+                                                  platformProviders.includes(
+                                                      configurationDefaults.default_providers[service]!,
+                                                  )
+                                                ? configurationDefaults.default_providers[service]!
+                                                : platformProviders[0]);
+                                        if (fallback && fallback !== currentProvider) {
+                                            handleProviderChange(service, fallback);
+                                        }
+                                    } else {
+                                        // No platform-held provider for this slot yet — fall
+                                        // back to the tier system, unchanged from before.
+                                        handleProviderChange(service, MANAGED);
+                                    }
                                 }}
                                 className={`rounded-md border px-3 py-2.5 text-left text-sm transition ${
                                     !managedReady
@@ -710,10 +786,16 @@ export function ServiceConfigurationForm({
                                 type="button"
                                 onClick={() => {
                                     if (!managed) return;
-                                    const fallback =
-                                        configurationDefaults?.default_providers?.[service] ||
-                                        availableProviders[0];
-                                    if (fallback) handleProviderChange(service, fallback);
+                                    setUsePlatformKey((prev) => ({ ...prev, [service]: false }));
+                                    if (legacyManaged) {
+                                        const fallback =
+                                            configurationDefaults?.default_providers?.[service] ||
+                                            availableProviders[0];
+                                        if (fallback) handleProviderChange(service, fallback);
+                                    }
+                                    // On the direct path the provider is already a real
+                                    // vendor — flipping the flag is enough, the same
+                                    // dropdown value just now needs its own key.
                                 }}
                                 className={`rounded-md border px-3 py-2.5 text-left text-sm transition ${
                                     !managed
@@ -738,9 +820,9 @@ export function ServiceConfigurationForm({
                 )}
 
                 <div className="grid grid-cols-2 gap-4">
-                    <div className={`space-y-2 ${managed && keysFromVault ? "col-span-2" : ""}`}>
-                        <Label>{managed && keysFromVault ? "Tier" : "Provider"}</Label>
-                        {managed && keysFromVault ? (
+                    <div className={`space-y-2 ${legacyManaged && keysFromVault ? "col-span-2" : ""}`}>
+                        <Label>{legacyManaged && keysFromVault ? "Tier" : "Provider"}</Label>
+                        {legacyManaged && keysFromVault ? (
                             <p className="rounded-md border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
                                 Decibyl picks the vendor for this tier and can move it without
                                 changing your agents.
@@ -756,7 +838,7 @@ export function ServiceConfigurationForm({
                                 <SelectValue placeholder="Select provider" />
                             </SelectTrigger>
                             <SelectContent>
-                                {availableProviders.map((provider) => (
+                                {(directManaged ? directProviderOptions : availableProviders).map((provider) => (
                                     <SelectItem key={provider} value={provider}>
                                         {getProviderDisplayName(provider, schemas?.[service]?.[provider])}
                                     </SelectItem>

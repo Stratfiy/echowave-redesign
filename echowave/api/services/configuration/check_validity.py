@@ -114,6 +114,15 @@ class UserConfigurationValidator:
 
         provider = service_config.provider
 
+        # use_platform_key on a real provider has the same "no customer key to
+        # validate" shape as provider=decibyl (see _check_decibyl_api_key) --
+        # api_key is deliberately empty, and byok_resolution/managed_resolution
+        # skip this section entirely for vault lookup, so there is nothing here
+        # to check yet. Without this, a fresh platform-key section would fail
+        # validation against its real vendor's key-check with an empty string.
+        if getattr(service_config, "use_platform_key", False):
+            return []
+
         for url_field in ("base_url", "endpoint"):
             url = getattr(service_config, url_field, None)
             if url:

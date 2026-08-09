@@ -81,8 +81,13 @@ class _Section:
         self.provider = "decibyl"
         self.model = None
         self.api_key = None
+        self.use_platform_key = False
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+    @property
+    def is_managed(self) -> bool:
+        return self.provider == "decibyl" or bool(self.use_platform_key)
 
 
 class _Effective:

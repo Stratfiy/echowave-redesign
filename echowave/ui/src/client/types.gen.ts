@@ -151,6 +151,12 @@ export type AwsBedrockLlmConfiguration = {
      */
     api_key?: string | Array<string> | null;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Bedrock model ID — include the region inference-profile prefix (e.g. 'us.').
@@ -300,6 +306,12 @@ export type AssemblyAisttConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * AssemblyAI realtime STT model.
@@ -351,6 +363,12 @@ export type AzureLlmService = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Azure deployment name (not the upstream OpenAI model id).
@@ -376,6 +394,12 @@ export type AzureOpenAiEmbeddingsConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -410,6 +434,12 @@ export type AzureRealtimeLlmConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -451,6 +481,12 @@ export type AzureSpeechSttConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Azure Speech recognition model (use 'latest_long' for continuous recognition).
@@ -484,6 +520,12 @@ export type AzureSpeechTtsConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -580,6 +622,8 @@ export type ByokPipelineAiModelConfiguration = {
     } & DecibylTtsService) | ({
         provider: 'sarvam';
     } & SarvamTtsConfiguration) | ({
+        provider: 'rumik';
+    } & RumikTtsConfiguration) | ({
         provider: 'camb';
     } & CambTtsConfiguration) | ({
         provider: 'rime';
@@ -904,6 +948,12 @@ export type CambTtsConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Camb.ai TTS model.
@@ -1203,6 +1253,12 @@ export type CartesiaSttConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Cartesia STT model.
@@ -1228,6 +1284,12 @@ export type CartesiaTtsConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -2012,6 +2074,12 @@ export type DecibylEmbeddingsConfiguration = {
      */
     api_key?: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Decibyl-managed embedding model.
@@ -2031,6 +2099,12 @@ export type DecibylLlmService = {
      * Api Key
      */
     api_key?: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -2097,6 +2171,12 @@ export type DecibylRealtimeConfiguration = {
      */
     api_key?: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Decibyl speech-to-speech tier.
@@ -2123,6 +2203,12 @@ export type DecibylSttService = {
      */
     api_key?: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Decibyl STT tier.
@@ -2148,6 +2234,12 @@ export type DecibylTtsService = {
      * Api Key
      */
     api_key?: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -2181,6 +2273,12 @@ export type DeepgramSttConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Deepgram STT model.
@@ -2206,6 +2304,12 @@ export type DeepgramTtsConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Voice
      *
@@ -2486,6 +2590,12 @@ export type ElevenlabsSttConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * ElevenLabs realtime STT model.
@@ -2517,6 +2627,12 @@ export type ElevenlabsTtsConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Voice
      *
@@ -2834,6 +2950,12 @@ export type GladiaSttConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Gladia STT model.
@@ -2852,7 +2974,10 @@ export type GladiaSttConfiguration = {
  *
  * Tool definition for creating an event on the organization's connected
  * Google Calendar. No config: unlike an HTTP API tool there is no URL,
- * auth, or parameter builder to fill in.
+ * auth, or parameter builder to fill in — the parameter shape is fixed
+ * (see api/services/integrations/google_calendar/client.py) and which
+ * calendar it writes to is decided once, org-wide, by the Connect Google
+ * Calendar flow, not per-tool.
  */
 export type GoogleCalendarToolDefinition = {
     /**
@@ -2882,6 +3007,12 @@ export type GoogleLlmService = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Gemini model on Google AI Studio (not Vertex).
@@ -2901,6 +3032,12 @@ export type GoogleRealtimeLlmConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -2935,6 +3072,12 @@ export type GoogleSttConfiguration = {
      * Not used for Google Cloud STT. Leave blank.
      */
     api_key?: string | Array<string> | null;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -2975,6 +3118,12 @@ export type GoogleTtsConfiguration = {
      * Not used for Google Cloud TTS. Leave blank.
      */
     api_key?: string | Array<string> | null;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -3028,6 +3177,12 @@ export type GoogleVertexLlmConfiguration = {
      */
     api_key?: string | Array<string> | null;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Gemini model on Vertex AI.
@@ -3067,6 +3222,12 @@ export type GoogleVertexRealtimeLlmConfiguration = {
      * Not used for Vertex AI — authentication is via the service account in `credentials` (or ADC). Leave blank.
      */
     api_key?: string | Array<string> | null;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -3150,6 +3311,12 @@ export type GrokRealtimeLlmConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Grok realtime voice-agent model.
@@ -3175,6 +3342,12 @@ export type GroqLlmService = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -3410,6 +3583,12 @@ export type HuggingFaceLlmConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Hugging Face chat-completion model identifier, optionally with provider suffix.
@@ -3443,6 +3622,12 @@ export type HuggingFaceSttConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -3587,6 +3772,12 @@ export type InworldTtsConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -3853,6 +4044,12 @@ export type MiniMaxLlmConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * MiniMax chat model.
@@ -3884,6 +4081,12 @@ export type MiniMaxTtsConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -4105,6 +4308,12 @@ export type OpenAiEmbeddingsConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * OpenAI embedding model.
@@ -4124,6 +4333,12 @@ export type OpenAillmService = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -4151,6 +4366,12 @@ export type OpenAiRealtimeLlmConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * OpenAI realtime (speech-to-speech) model.
@@ -4177,6 +4398,12 @@ export type OpenAisttConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * OpenAI transcription model.
@@ -4202,6 +4429,12 @@ export type OpenAittsService = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -4235,6 +4468,12 @@ export type OpenRouterEmbeddingsConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * OpenRouter-hosted embedding model slug.
@@ -4260,6 +4499,12 @@ export type OpenRouterLlmConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -5259,6 +5504,12 @@ export type RimeTtsConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Rime TTS model.
@@ -5280,6 +5531,52 @@ export type RimeTtsConfiguration = {
      * Language
      *
      * ISO 639-1 language code.
+     */
+    language?: string;
+};
+
+/**
+ * Rumik
+ *
+ * Silk voice models. Hindi and English only, including code-mixed, at roughly a third of the price per character of the alternatives.
+ */
+export type RumikTtsConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'rumik';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
+     * Model
+     *
+     * Silk model. mulberry is faster and half the price — use it for calls. muga is more expressive and supports tone tags.
+     */
+    model?: string;
+    /**
+     * Voice
+     *
+     * Preset studio voice.
+     */
+    voice?: string;
+    /**
+     * Description
+     *
+     * Plain-English description of how the voice should sound. Rumik shapes the preset voice with it, so leaving it blank makes every agent sound the same.
+     */
+    description?: string;
+    /**
+     * Language
+     *
+     * Silk speaks Hindi and English only, including code-mixed.
      */
     language?: string;
 };
@@ -5311,9 +5608,15 @@ export type SarvamLlmConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
-     * Sarvam chat model. Use sarvam-30b for low-latency voice agents; sarvam-105b for complex multi-step reasoning.
+     * Sarvam chat model. sarvam-105b is the current generation; sarvam-30b was retired by Sarvam and now returns a 400.
      */
     model?: string;
     /**
@@ -5336,6 +5639,12 @@ export type SarvamSttConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -5362,6 +5671,12 @@ export type SarvamTtsConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -5523,6 +5838,12 @@ export type SmallestAisttConfiguration = {
      */
     api_key: string | Array<string>;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Smallest AI STT model. Supports 38 languages with real-time streaming.
@@ -5550,6 +5871,12 @@ export type SmallestAittsConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -5593,6 +5920,12 @@ export type SpeachesLlmConfiguration = {
      */
     api_key?: string | Array<string> | null;
     /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
      * Model
      *
      * Model name as exposed by your OpenAI-compatible server.
@@ -5622,6 +5955,12 @@ export type SpeachesSttConfiguration = {
      * Usually not required for self-hosted STT. Leave blank unless enforced.
      */
     api_key?: string | Array<string> | null;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -5658,6 +5997,12 @@ export type SpeachesTtsConfiguration = {
      * Usually not required for self-hosted TTS. Leave blank unless enforced.
      */
     api_key?: string | Array<string> | null;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -5696,6 +6041,12 @@ export type SpeechmaticsSttConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -6497,6 +6848,12 @@ export type UltravoxRealtimeLlmConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Model
      *
@@ -7743,6 +8100,12 @@ export type XaittsConfiguration = {
      * Api Key
      */
     api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
     /**
      * Voice
      *
@@ -17501,6 +17864,135 @@ export type GetNodeTypeApiV1NodeTypesNameGetResponses = {
 };
 
 export type GetNodeTypeApiV1NodeTypesNameGetResponse = GetNodeTypeApiV1NodeTypesNameGetResponses[keyof GetNodeTypeApiV1NodeTypesNameGetResponses];
+
+export type AuthorizeUrlApiV1IntegrationsGoogleCalendarAuthorizeUrlGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/integrations/google-calendar/authorize-url';
+};
+
+export type AuthorizeUrlApiV1IntegrationsGoogleCalendarAuthorizeUrlGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthorizeUrlApiV1IntegrationsGoogleCalendarAuthorizeUrlGetError = AuthorizeUrlApiV1IntegrationsGoogleCalendarAuthorizeUrlGetErrors[keyof AuthorizeUrlApiV1IntegrationsGoogleCalendarAuthorizeUrlGetErrors];
+
+export type AuthorizeUrlApiV1IntegrationsGoogleCalendarAuthorizeUrlGetResponses = {
+    /**
+     * Response Authorize Url Api V1 Integrations Google Calendar Authorize Url Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AuthorizeUrlApiV1IntegrationsGoogleCalendarAuthorizeUrlGetResponse = AuthorizeUrlApiV1IntegrationsGoogleCalendarAuthorizeUrlGetResponses[keyof AuthorizeUrlApiV1IntegrationsGoogleCalendarAuthorizeUrlGetResponses];
+
+export type StatusApiV1IntegrationsGoogleCalendarStatusGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/integrations/google-calendar/status';
+};
+
+export type StatusApiV1IntegrationsGoogleCalendarStatusGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StatusApiV1IntegrationsGoogleCalendarStatusGetError = StatusApiV1IntegrationsGoogleCalendarStatusGetErrors[keyof StatusApiV1IntegrationsGoogleCalendarStatusGetErrors];
+
+export type StatusApiV1IntegrationsGoogleCalendarStatusGetResponses = {
+    /**
+     * Response Status Api V1 Integrations Google Calendar Status Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type StatusApiV1IntegrationsGoogleCalendarStatusGetResponse = StatusApiV1IntegrationsGoogleCalendarStatusGetResponses[keyof StatusApiV1IntegrationsGoogleCalendarStatusGetResponses];
+
+export type DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/integrations/google-calendar/disconnect';
+};
+
+export type DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostError = DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostErrors[keyof DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostErrors];
+
+export type DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostResponses = {
+    /**
+     * Response Disconnect Api V1 Integrations Google Calendar Disconnect Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostResponse = DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostResponses[keyof DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostResponses];
 
 export type HealthApiV1HealthGetData = {
     body?: never;
