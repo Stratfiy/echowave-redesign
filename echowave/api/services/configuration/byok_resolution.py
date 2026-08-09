@@ -34,7 +34,6 @@ from api.db import db_client
 from api.enums import CostComponent
 from api.services.configuration import organization_credentials
 from api.services.configuration.masking import MASK_MARKER
-from api.services.configuration.registry import ServiceProviders
 
 #: Sections that can run on a customer key, and which credential authenticates
 #: them. Embeddings deliberately resolve against the LLM credential: a vendor
@@ -52,10 +51,7 @@ BYOK_SECTIONS: tuple[tuple[str, CostComponent], ...] = (
 
 
 def _is_managed(section) -> bool:
-    return section is not None and getattr(section, "provider", None) in (
-        ServiceProviders.DECIBYL,
-        ServiceProviders.DECIBYL.value,
-    )
+    return section is not None and section.is_managed
 
 
 def _is_usable(key) -> bool:

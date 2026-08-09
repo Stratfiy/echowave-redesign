@@ -62,6 +62,42 @@ class TestNoCustomerKeyIsRequired:
         assert validator._check_decibyl_api_key("default", "") is True
         assert validator._check_decibyl_api_key("default", "anything") is True
 
+    def test_a_real_provider_on_use_platform_key_needs_no_customer_key_either(self):
+        """The direct path (a real vendor, run on Decibyl's key) has the same
+        'no customer key to validate' shape as provider=decibyl. Without the
+        bypass, this would hit that vendor's own validator against an empty
+        string and fail -- exactly the bug this whole file exists to pin."""
+        from api.services.configuration.registry import OpenAILLMService
+
+        validator = UserConfigurationValidator()
+        section = OpenAILLMService(model="gpt-4o", api_key="", use_platform_key=True)
+        assert validator._validate_service(section, "llm") == []
+
+    def test_a_real_provider_without_the_flag_is_still_validated_normally(
+        self, monkeypatch
+    ):
+        """Confirms the bypass is scoped to use_platform_key and does not
+        accidentally swallow validation for an ordinary BYOK section. Patched
+        before construction: _validator_map captures a bound method at
+        __init__ time, so patching the instance afterward would not affect
+        the reference already stored in the map."""
+        from api.services.configuration.registry import OpenAILLMService
+
+        called = {}
+
+        def fake_openai_check(self, provider, api_key, service_config=None):
+            called["ran"] = True
+            return False
+
+        monkeypatch.setattr(
+            UserConfigurationValidator, "_check_openai_api_key", fake_openai_check
+        )
+        validator = UserConfigurationValidator()
+        section = OpenAILLMService(model="gpt-4o", api_key="sk-bad")
+        result = validator._validate_service(section, "llm")
+        assert called.get("ran") is True
+        assert result and "Invalid" in result[0]["message"]
+
 
 class TestTheScreenCanPriceIt:
     """The estimator is keyed by real provider and model. "decibyl" is

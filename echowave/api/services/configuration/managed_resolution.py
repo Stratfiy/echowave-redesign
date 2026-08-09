@@ -68,14 +68,28 @@ def _credential_component(component: CostComponent | str) -> CostComponent:
 
 
 def _is_managed(section) -> bool:
-    return (
-        section is not None
-        and getattr(section, "provider", None) == ServiceProviders.DECIBYL.value
-    )
+    return section is not None and section.is_managed
+
+
+def _provider_value(section) -> str:
+    provider = getattr(section, "provider", None)
+    return provider.value if hasattr(provider, "value") else str(provider or "")
 
 
 async def apply(effective) -> None:
     """Rewrite every managed section in place to a real provider and key.
+
+    Two paths converge here, both ending at the same "real vendor, real
+    model, our key" shape:
+
+    * ``provider="decibyl"`` — the tier path. ``model`` is a tier name
+      ("fast", "accurate", ...), translated to a vendor+model by
+      ``managed_tiers``. This is the only shape a saved configuration could
+      have before ``use_platform_key`` existed, so it stays exactly as it was.
+    * a real provider with ``use_platform_key=True`` — the direct path. The
+      customer already picked the exact vendor and model, the same choice
+      BYOK offers; there is no tier to translate, only a key to source from
+      the platform vault instead of the account's.
 
     Mutates rather than returning a copy because the caller already owns the
     object and every consumer reads it by attribute; threading a second config
@@ -93,14 +107,23 @@ async def apply(effective) -> None:
     async with db_client.async_session() as session:
         for name, component in managed:
             section = getattr(effective, name)
-            # The customer's "model" on a managed section is the tier they
-            # picked — "fast", "accurate" — not a vendor model name.
-            upstream = managed_tiers.resolve(component, getattr(section, "model", None))
+            is_tier = _provider_value(section) == ServiceProviders.DECIBYL.value
+
+            if is_tier:
+                # The customer's "model" on a managed section is the tier
+                # they picked — "fast", "accurate" — not a vendor model name.
+                upstream = managed_tiers.resolve(
+                    component, getattr(section, "model", None)
+                )
+                upstream_provider, upstream_model = upstream.provider, upstream.model
+            else:
+                upstream_provider = _provider_value(section)
+                upstream_model = getattr(section, "model", None) or ""
 
             api_key = await platform_credentials.resolve_api_key(
                 session,
                 component=_credential_component(component),
-                provider=upstream.provider,
+                provider=upstream_provider,
             )
             if not api_key:
                 logger.error(
@@ -108,29 +131,56 @@ async def apply(effective) -> None:
                     "Add one at /superadmin/provider-keys — this call will fail "
                     "in the {} branch with that vendor's own error.",
                     name,
-                    upstream.provider,
-                    upstream.provider,
+                    upstream_provider,
+                    upstream_provider,
                 )
                 continue
 
-            section.provider = upstream.provider
-            section.model = upstream.model
+            section.provider = upstream_provider
+            section.model = upstream_model
             section.api_key = api_key
 
-            # The customer's language is in Decibyl's vocabulary, which is not
-            # every vendor's. Translating here rather than in the service
-            # factory keeps it in the one place that knows a section used to be
-            # managed — by the time the factory sees it, it looks like any
-            # other Sarvam config a customer typed themselves.
-            if hasattr(section, "language"):
+            # A customer-pointed endpoint exists so BYOK can run their own key
+            # against a proxy or self-hosted OpenAI-compatible server -- their
+            # key, their choice of destination. On a platform-key section that
+            # destination would receive *our* key instead of theirs, so any
+            # override is discarded back to the vendor's real endpoint rather
+            # than trusted. This is not reachable through the tier classes
+            # (they carry no such field), only through the direct path, but it
+            # is cheap enough to apply unconditionally rather than branch on it.
+            for endpoint_field in ("base_url", "endpoint"):
+                if not hasattr(section, endpoint_field):
+                    continue
+                field_info = type(section).model_fields.get(endpoint_field)
+                default = field_info.default if field_info is not None else ""
+                if getattr(section, endpoint_field) != default:
+                    logger.warning(
+                        "Managed {} ({}) had a custom {} set while running on "
+                        "Decibyl's key; ignoring it for the vendor's real "
+                        "endpoint. A customer-chosen endpoint must never "
+                        "receive our platform key.",
+                        name,
+                        upstream_provider,
+                        endpoint_field,
+                    )
+                setattr(section, endpoint_field, default)
+
+            # The customer's language is in Decibyl's vocabulary on the tier
+            # path, which is not every vendor's, so it needs translating here
+            # — by the time the factory sees it, it looks like any other
+            # Sarvam config a customer typed themselves. On the direct path
+            # the customer picked a real provider's own form (the same one
+            # BYOK renders), so whatever language they chose is already in
+            # that vendor's native vocabulary and must be left alone.
+            if is_tier and hasattr(section, "language"):
                 original = getattr(section, "language", None)
                 if name == "stt":
                     section.language = managed_language.for_stt(
-                        upstream.provider, upstream.model, original
+                        upstream_provider, upstream_model, original
                     )
                 elif name == "tts":
                     section.language = managed_language.for_tts(
-                        upstream.provider, upstream.model, original
+                        upstream_provider, upstream_model, original
                     )
                 if section.language != original:
                     logger.debug(
@@ -138,14 +188,14 @@ async def apply(effective) -> None:
                         name,
                         original,
                         section.language,
-                        upstream.provider,
+                        upstream_provider,
                     )
 
             logger.info(
                 "Managed {} resolved to {}/{} on a platform key.",
                 name,
-                upstream.provider,
-                upstream.model,
+                upstream_provider,
+                upstream_model,
             )
 
 
@@ -174,6 +224,29 @@ async def managed_availability(session) -> dict[str, bool]:
         )
         available[name] = bool(key)
     return available
+
+
+async def platform_provider_catalog(session) -> dict[str, list[str]]:
+    """Which real providers each section can run on ``use_platform_key`` right
+    now — the direct-path counterpart to ``managed_availability``'s per-tier
+    answer.
+
+    Keyed by section name, not credential component: ``realtime`` and
+    ``embeddings`` both authenticate against the LLM credential slot (see
+    ``_credential_component``), so both get the same provider list as
+    ``llm`` here even though there is only one underlying set of rows.
+    """
+    by_component = await platform_credentials.managed_providers(session)
+    catalog: dict[str, list[str]] = {}
+    for name, component in MANAGED_SECTIONS:
+        credential_component = _credential_component(component)
+        key = (
+            credential_component.value
+            if hasattr(credential_component, "value")
+            else str(credential_component)
+        )
+        catalog[name] = by_component.get(key, [])
+    return catalog
 
 
 async def missing_platform_keys() -> list[tuple[str, str]]:

@@ -303,6 +303,15 @@ async def get_model_configuration_v2_defaults(
         # platform key for is offered as "coming soon" rather than as a choice
         # that fails at dial time.
         managed_available = await managed_resolution.managed_availability(session)
+        # Which real providers each slot can run on Decibyl's key, for the
+        # full-catalog picker -- a customer chooses the exact vendor+model
+        # BYOK would offer, authenticated with our key instead of theirs. This
+        # is orthogonal to the tier system above: a slot can be offered both
+        # ways, and which one a customer picks is use_platform_key, not a
+        # different provider literal.
+        platform_key_providers = await managed_resolution.platform_provider_catalog(
+            session
+        )
     return {
         "decibyl": {
             "voices": [DECIBYL_DEFAULT_VOICE],
@@ -368,6 +377,10 @@ async def get_model_configuration_v2_defaults(
         # authenticate — offering the choice and failing at dial time is the
         # version of this that wastes a call.
         "byok_keys_held": keys_held,
+        # Which real providers each slot can run on Decibyl's key. Empty list
+        # means "Decibyl provides it" has nothing to offer for that slot yet —
+        # the picker falls back to the tier system above.
+        "platform_key_providers": platform_key_providers,
     }
 
 

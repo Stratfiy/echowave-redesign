@@ -147,6 +147,24 @@ class BaseServiceConfiguration(BaseModel):
     # guard several provider tests rely on.
     api_key: str | list[str]
 
+    # A real, customer-chosen provider and model (e.g. provider=openai,
+    # model=gpt-4o), authenticated with *our* platform key instead of the
+    # account's own. The older way to get a Decibyl-billed section is
+    # provider=decibyl with model as a tier name ("fast"/"accurate"/...),
+    # resolved to a real vendor by managed_tiers -- that path is untouched
+    # and still works for existing saved configurations. This is the newer,
+    # additive path: a genuine vendor and model chosen directly, with no tier
+    # translation, for accounts that want the same model catalog BYOK offers
+    # without holding their own key. See BaseServiceConfiguration.is_managed
+    # and managed_resolution.apply.
+    use_platform_key: bool = Field(
+        default=False,
+        description=(
+            "Run this section on Decibyl's own key for the chosen provider, "
+            "rather than the account's."
+        ),
+    )
+
     # Stamped by byok_resolution.apply() before either resolver mutates
     # ``provider``/``api_key`` -- the only place left that can still tell a
     # BYOK section from a managed one, since both resolvers converge on the
@@ -165,6 +183,22 @@ class BaseServiceConfiguration(BaseModel):
     @key_source.setter
     def key_source(self, value: str | None) -> None:
         self._key_source = value
+
+    @property
+    def is_managed(self) -> bool:
+        """Whether this section runs on a Decibyl-held key rather than the
+        account's own -- true for both the tier path (``provider="decibyl"``)
+        and the direct path (a real provider with ``use_platform_key=True``).
+
+        The one place this question gets asked, shared by byok_resolution and
+        managed_resolution so the two definitions cannot drift apart -- see
+        the ``key_source`` docstring above for why that matters.
+        """
+        provider = getattr(self, "provider", None)
+        provider_value = provider.value if hasattr(provider, "value") else provider
+        return provider_value == ServiceProviders.DECIBYL.value or bool(
+            getattr(self, "use_platform_key", False)
+        )
 
     @field_validator("api_key")
     @classmethod
