@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { listAccountsApiV1AdminBillingAccountsGet } from "@/client/sdk.gen";
+import { PanelMessage, useAuthReady } from "@/components/charts/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -34,8 +35,6 @@ import {
     formatRateMpaise,
 } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
-
-import { PanelMessage, useAuthReady } from "../_components/primitives";
 
 /** Flag thresholds. Each renders with an icon and a label, never colour alone. */
 const LOW_BALANCE_PAISE = 100_000; // ₹1,000

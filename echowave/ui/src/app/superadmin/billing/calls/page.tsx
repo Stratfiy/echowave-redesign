@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { listCallsApiV1AdminBillingCallsGet } from "@/client/sdk.gen";
+import { PanelMessage, useAuthReady } from "@/components/charts/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,8 +33,6 @@ import {
     formatNumber,
     formatPaise,
 } from "@/lib/billing/format";
-
-import { PanelMessage, useAuthReady } from "../_components/primitives";
 
 const LANGUAGES = ["en-IN", "hi-IN", "kn-IN", "ta-IN", "mr-IN"];
 

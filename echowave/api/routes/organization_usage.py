@@ -438,3 +438,58 @@ async def get_spend_breakdown(
             "days_remaining": days_remaining,
         },
     }
+
+
+@router.get("/usage/calls")
+async def get_call_analytics(
+    days: int = Query(30, ge=1, le=365),
+    user: UserModel = Depends(get_user),
+) -> Dict[str, Any]:
+    """The shape of this account's call traffic, not just its total.
+
+    The runs table below already answers "which calls happened". What it cannot
+    answer is the set of questions that decide whether an agent is working:
+    what fraction connect, how long they run, which agent carries the volume,
+    and what hour of the day the phone actually rings.
+
+    ``daily`` comes off the rollup and stays cheap at any volume; the
+    breakdowns are grouped queries over the runs in the range.
+    """
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    from api.db import billing_dashboard_client as dash
+
+    start, end = _range(days)
+    async with db_client.async_session() as session:
+        analytics = await dash.call_analytics(
+            session,
+            start=start,
+            end=end,
+            organization_id=user.selected_organization_id,
+        )
+        daily = await dash.daily_series(
+            session,
+            start=start,
+            end=end,
+            organization_id=user.selected_organization_id,
+        )
+
+    return {
+        "range": {"start": start.isoformat(), "end": end.isoformat()},
+        # Re-projected, not passed through. `daily_series` is a staff query and
+        # carries `provider_cost_paise` and `margin_paise` — what the vendors
+        # charged us and what we kept. Handing a customer those two columns
+        # publishes our markup on every account, permanently, and nothing in the
+        # UI would have to render them for it to be readable in the response.
+        "daily": [
+            {
+                "day": row["day"],
+                "calls": row["calls"],
+                "billable_minutes": row["billable_minutes"],
+                "charged_paise": row["charged_paise"],
+            }
+            for row in daily
+        ],
+        **analytics,
+    }

@@ -20,6 +20,16 @@ import {
 } from "recharts";
 
 import { getOverviewApiV1AdminBillingOverviewGet } from "@/client/sdk.gen";
+import { COST_COMPONENTS, LATENCY_TARGET_MS, seriesColor } from "@/components/charts/chartTheme";
+import {
+    axisProps,
+    ChartCard,
+    ChartTooltip,
+    gridStroke,
+    StatTile,
+    useAuthReady,
+    useChartMode,
+} from "@/components/charts/primitives";
 import { detailFromError } from "@/lib/apiError";
 import {
     changeRatio,
@@ -30,17 +40,6 @@ import {
     formatPaiseCompact,
     formatPercent,
 } from "@/lib/billing/format";
-
-import { COST_COMPONENTS, LATENCY_TARGET_MS, seriesColor } from "./_components/chartTheme";
-import {
-    axisProps,
-    ChartCard,
-    ChartTooltip,
-    gridStroke,
-    StatTile,
-    useAuthReady,
-    useChartMode,
-} from "./_components/primitives";
 
 type Overview = Awaited<
     ReturnType<typeof getOverviewApiV1AdminBillingOverviewGet>

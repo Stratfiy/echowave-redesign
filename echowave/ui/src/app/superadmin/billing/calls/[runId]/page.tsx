@@ -16,6 +16,19 @@ import {
 } from "recharts";
 
 import { getCallApiV1AdminBillingCallsWorkflowRunIdGet } from "@/client/sdk.gen";
+import { seriesColor } from "@/components/charts/chartTheme";
+import {
+    axisProps,
+    ChartCard,
+    ChartTooltip,
+    gridStroke,
+    LoadingBlock,
+    OrderedLegend,
+    PanelMessage,
+    StatTile,
+    useAuthReady,
+    useChartMode,
+} from "@/components/charts/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -35,20 +48,6 @@ import {
     formatPaise,
     formatRateMpaise,
 } from "@/lib/billing/format";
-
-import { seriesColor } from "../../_components/chartTheme";
-import {
-    axisProps,
-    ChartCard,
-    ChartTooltip,
-    gridStroke,
-    LoadingBlock,
-    OrderedLegend,
-    PanelMessage,
-    StatTile,
-    useAuthReady,
-    useChartMode,
-} from "../../_components/primitives";
 
 /** The four pipeline stages that make up a turn's perceived latency. */
 const STAGES = [

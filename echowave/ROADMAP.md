@@ -86,8 +86,8 @@ order, and general payments work (invoice PDF, credit notes) stays last.
 | # | Item | Est | State |
 |---|---|---|---|
 | 1 | Admin route for `is_platform_managed` | 0.5d | ✅ done |
-| 2 | Customer token & spend dashboard | 1.5d | 🔶 API done, UI next |
-| 3 | Call-log graphs and metrics | 1d | ☐ |
+| 2 | Customer token & spend dashboard | 1.5d | ✅ done |
+| 3 | Call-log graphs and metrics | 1d | ✅ done |
 | 4 | Provider markup (the 1.3×) | 1d | ✅ done |
 | 5 | **Autopay mandate, gating number issue** | 3–4d | ☐ ← moved up |
 | 6 | Number provisioning UI (incl. the mandate step) | 1.5d | ☐ |
@@ -286,3 +286,41 @@ Verified: 16 new tests in `test_provider_markup.py`; full suite **2647 passed,
 6 failed** — the same six known failures listed in §0.
 
 Next: item 2's UI page, then item 3.
+
+### 2026-08-10 — items 2 and 3 done: an Analytics section the account owns
+
+`/analytics`, three tabs, in the order the questions get asked.
+
+**Calls** is new work, not a re-skin. `call_analytics()` in
+`billing_dashboard_client.py` is five grouped queries over the runs in range:
+outcome, direction, duration distribution, hour of day, and the busiest agents.
+Answer rate leads the page because it is the one number that moves for reasons
+outside the agent — a bad list, a blocked caller ID, a carrier problem — and a
+team tuning prompts while the answer rate collapses is debugging the wrong
+thing.
+
+**Tokens** and **Spend** render the routes built earlier the same day.
+
+Three decisions worth carrying forward:
+
+- **The daily series is re-projected, not passed through.** `daily_series` is a
+  staff query and carries `provider_cost_paise` and `margin_paise` — what the
+  vendors charged us and what we kept. Handing a customer those two columns
+  publishes our markup on every account, permanently, and no UI has to render
+  them for it to be readable in the response. There is a test for it.
+- **The range lives in the URL** (`?days=`), so switching tabs keeps the window
+  and a link to "last 90 days" is a link someone can send.
+- **Empty ranges report null, not zero.** A zero average call length reads as
+  "every call was instant", which is a very different alarm from "there were no
+  calls".
+
+`primitives.tsx` and `chartTheme.ts` moved out of
+`app/superadmin/billing/_components/` to `components/charts/` — they are no
+longer staff-only. All 11 superadmin importers were updated; nothing else
+changed in them.
+
+Verified: 16 new tests in `test_call_analytics.py`, 29 across both analytics
+files; `tsc --noEmit` clean, eslint clean, `next build` clean with all three
+routes emitted.
+
+Next: item 5, the autopay mandate that gates issuing a number.

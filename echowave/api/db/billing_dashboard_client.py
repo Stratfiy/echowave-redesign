@@ -9,8 +9,11 @@ Percentiles are computed in SQL with ``percentile_cont`` over raw
 ``call_turn_metrics`` rows — never averaged from pre-aggregated buckets, which
 would give wrong answers.
 
-Every query here is cross-account by design: this module is only reachable from
-staff-gated routes.
+Queries default to cross-account, which is safe because the staff routes are
+the only ones that call them without an ``organization_id``. Several also take
+an optional ``organization_id`` and are reused by the customer-facing usage
+routes — those **force** the id from the authenticated user and ignore any id
+in the request, so a customer can only ever read their own account.
 """
 
 from __future__ import annotations
@@ -1557,4 +1560,219 @@ async def context_growth_by_turn(
         "cache_hit_rate": (
             round(cached_total / prompt_total, 3) if prompt_total else None
         ),
+    }
+
+
+# Duration bands for the "how long are my calls" histogram. Chosen around the
+# shapes that mean different things on a voice agent: under 30s is usually a
+# hang-up or a wrong number, 30s–2m is a completed short task, and anything past
+# five minutes is where language-model spend starts compounding.
+_DURATION_BUCKETS: tuple[tuple[str, int, int | None], ...] = (
+    ("0–30s", 0, 30),
+    ("30–60s", 30, 60),
+    ("1–2m", 60, 120),
+    ("2–5m", 120, 300),
+    ("5–10m", 300, 600),
+    ("10m+", 600, None),
+)
+
+
+def _duration_bucket_expr():
+    """A CASE mapping billable_seconds onto the labels above.
+
+    Bucketing in SQL rather than in Python because the alternative is loading
+    every run in the range into memory to count them, which stops working at
+    exactly the volume that makes the chart interesting.
+    """
+    seconds = func.coalesce(WorkflowRunModel.billable_seconds, 0)
+    branches = [
+        (seconds < upper, label)
+        for label, _lower, upper in _DURATION_BUCKETS
+        if upper is not None
+    ]
+    return case(*branches, else_=_DURATION_BUCKETS[-1][0])
+
+
+async def call_analytics(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    organization_id: int | None = None,
+) -> dict:
+    """The shape of an account's calls: outcome, direction, length, hour, agent.
+
+    Every figure here is a ``GROUP BY`` over ``workflow_runs`` bounded to the
+    range, so the whole panel is five small queries rather than a page scan.
+
+    Deliberately *not* served from ``daily_organization_rollup``: the rollup
+    stores per-day totals and knows nothing about disposition, direction or
+    duration, which is the entire question this answers. The daily counts a
+    caller wants alongside it come from :func:`daily_series`, which is on the
+    rollup and stays cheap.
+    """
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+
+    conditions = [
+        WorkflowRunModel.created_at >= start_utc,
+        WorkflowRunModel.created_at < end_utc,
+    ]
+    if organization_id is not None:
+        conditions.append(WorkflowModel.organization_id == organization_id)
+
+    def _scoped(*columns):
+        return (
+            select(*columns)
+            .select_from(WorkflowRunModel)
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(*conditions)
+        )
+
+    answered = func.count(WorkflowRunModel.answered_at)
+    seconds = _sum(WorkflowRunModel.billable_seconds)
+    charged = _sum(WorkflowRunModel.total_charged_paise)
+
+    totals_row = (
+        await session.execute(
+            _scoped(
+                func.count(WorkflowRunModel.id).label("calls"),
+                answered.label("answered"),
+                seconds.label("billable_seconds"),
+                charged.label("charged_paise"),
+            )
+        )
+    ).one()
+
+    calls = int(totals_row.calls or 0)
+    answered_calls = int(totals_row.answered or 0)
+    billable_seconds = int(totals_row.billable_seconds or 0)
+
+    # `gathered_context` is a JSON column, so the disposition is read with ->>
+    # rather than a typed accessor. Runs that never reached a disposition come
+    # back as NULL and are reported as such — collapsing them into "unknown"
+    # here would hide the difference between a call that ended without one and
+    # a call the pipeline never finished writing.
+    disposition = WorkflowRunModel.gathered_context.op("->>")(
+        "mapped_call_disposition"
+    )
+    by_disposition = [
+        {
+            "disposition": row.disposition,
+            "calls": int(row.calls or 0),
+            "billable_seconds": int(row.billable_seconds or 0),
+        }
+        for row in (
+            await session.execute(
+                _scoped(
+                    disposition.label("disposition"),
+                    func.count(WorkflowRunModel.id).label("calls"),
+                    seconds.label("billable_seconds"),
+                )
+                .group_by(disposition)
+                .order_by(desc(func.count(WorkflowRunModel.id)))
+            )
+        ).all()
+    ]
+
+    by_direction = [
+        {
+            "direction": row.direction,
+            "calls": int(row.calls or 0),
+            "answered": int(row.answered or 0),
+            "billable_seconds": int(row.billable_seconds or 0),
+        }
+        for row in (
+            await session.execute(
+                _scoped(
+                    WorkflowRunModel.call_type.label("direction"),
+                    func.count(WorkflowRunModel.id).label("calls"),
+                    answered.label("answered"),
+                    seconds.label("billable_seconds"),
+                ).group_by(WorkflowRunModel.call_type)
+            )
+        ).all()
+    ]
+
+    bucket = _duration_bucket_expr()
+    counted = {
+        row.bucket: int(row.calls or 0)
+        for row in (
+            await session.execute(
+                _scoped(
+                    bucket.label("bucket"),
+                    func.count(WorkflowRunModel.id).label("calls"),
+                ).group_by(bucket)
+            )
+        ).all()
+    }
+    # Emitted in band order with the empty bands kept, so the histogram reads
+    # as a distribution rather than rearranging itself as data arrives.
+    by_duration = [
+        {"bucket": label, "calls": counted.get(label, 0)}
+        for label, _lower, _upper in _DURATION_BUCKETS
+    ]
+
+    # Local hour, not UTC: "when do people call us" is a question about the
+    # caller's day, and IST is 5:30 off the hour, so a UTC bucket would smear
+    # every peak across two of them.
+    hour_expr = func.extract(
+        "hour", func.timezone("Asia/Kolkata", WorkflowRunModel.created_at)
+    )
+    hourly = {
+        int(row.hour): int(row.calls or 0)
+        for row in (
+            await session.execute(
+                _scoped(
+                    hour_expr.label("hour"),
+                    func.count(WorkflowRunModel.id).label("calls"),
+                ).group_by(hour_expr)
+            )
+        ).all()
+    }
+    by_hour = [{"hour": hour, "calls": hourly.get(hour, 0)} for hour in range(24)]
+
+    by_agent = [
+        {
+            "workflow_id": int(row.workflow_id),
+            "name": row.name,
+            "calls": int(row.calls or 0),
+            "billable_seconds": int(row.billable_seconds or 0),
+            "charged_paise": int(row.charged_paise or 0),
+        }
+        for row in (
+            await session.execute(
+                _scoped(
+                    WorkflowModel.id.label("workflow_id"),
+                    WorkflowModel.name.label("name"),
+                    func.count(WorkflowRunModel.id).label("calls"),
+                    seconds.label("billable_seconds"),
+                    charged.label("charged_paise"),
+                )
+                .group_by(WorkflowModel.id, WorkflowModel.name)
+                .order_by(desc(func.count(WorkflowRunModel.id)))
+                .limit(10)
+            )
+        ).all()
+    ]
+
+    return {
+        "totals": {
+            "calls": calls,
+            "answered": answered_calls,
+            "billable_seconds": billable_seconds,
+            "charged_paise": int(totals_row.charged_paise or 0),
+            # None rather than 0 on an empty range: "no calls" and "calls that
+            # averaged nothing" are different answers and only one of them is
+            # a problem.
+            "average_seconds": (
+                round(billable_seconds / calls, 1) if calls else None
+            ),
+            "answer_rate": round(answered_calls / calls, 3) if calls else None,
+        },
+        "by_disposition": by_disposition,
+        "by_direction": by_direction,
+        "by_duration": by_duration,
+        "by_hour": by_hour,
+        "by_agent": by_agent,
     }

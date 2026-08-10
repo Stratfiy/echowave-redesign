@@ -898,6 +898,26 @@ export type BusinessDetailsRequest = {
      * Gstin
      */
     gstin?: string | null;
+    /**
+     * Address Line1
+     */
+    address_line1?: string | null;
+    /**
+     * Address Line2
+     */
+    address_line2?: string | null;
+    /**
+     * City
+     */
+    city?: string | null;
+    /**
+     * Region
+     */
+    region?: string | null;
+    /**
+     * Postal Code
+     */
+    postal_code?: string | null;
 };
 
 /**
@@ -4241,6 +4261,36 @@ export type NumberInputOptions = {
 };
 
 /**
+ * NumberSearchRequest
+ */
+export type NumberSearchRequest = {
+    /**
+     * Telephony Configuration Id
+     */
+    telephony_configuration_id: number;
+    /**
+     * Country Iso
+     */
+    country_iso?: string;
+    /**
+     * Number Type
+     */
+    number_type?: string;
+    /**
+     * City
+     */
+    city?: string | null;
+    /**
+     * Pattern
+     */
+    pattern?: string | null;
+    /**
+     * Limit
+     */
+    limit?: number;
+};
+
+/**
  * OnboardingState
  *
  * Per-user onboarding state, stored under UserConfigurationKey.ONBOARDING.
@@ -4761,6 +4811,16 @@ export type PhoneNumberUpdateRequest = {
 };
 
 /**
+ * PlatformManagedRequest
+ */
+export type PlatformManagedRequest = {
+    /**
+     * Managed
+     */
+    managed?: boolean;
+};
+
+/**
  * PlatformPriceRequest
  *
  * A platform price in exactly one currency, with an optional pulse.
@@ -5161,6 +5221,32 @@ export type ProviderSyncStatus = {
 };
 
 /**
+ * ProvisionRequest
+ */
+export type ProvisionRequest = {
+    /**
+     * Telephony Configuration Id
+     */
+    telephony_configuration_id: number;
+    /**
+     * Address
+     */
+    address: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Inbound Workflow Id
+     */
+    inbound_workflow_id?: number | null;
+    /**
+     * Country Code
+     */
+    country_code?: string;
+};
+
+/**
  * RealtimeEstimateRequest
  *
  * The call to price. Defaults describe a typical Indian outbound call —
@@ -5397,6 +5483,22 @@ export type RejectRequest = {
      * Reason
      */
     reason: string;
+};
+
+/**
+ * ReleaseRequest
+ */
+export type ReleaseRequest = {
+    /**
+     * Reason
+     *
+     * Why this number is being released. Required: release is irreversible and the number may be printed on the customer's signage.
+     */
+    reason: string;
+    /**
+     * Force
+     */
+    force?: boolean;
 };
 
 /**
@@ -8657,6 +8759,102 @@ export type HandleVonageEventsWithoutRunApiV1TelephonyVonageEventsPostResponses 
     200: unknown;
 };
 
+export type ListPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+    };
+    url: '/api/v1/admin/telephony/configurations';
+};
+
+export type ListPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGetError = ListPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGetErrors[keyof ListPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGetErrors];
+
+export type ListPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGetResponses = {
+    /**
+     * Response List Platform Managed Configurations Api V1 Admin Telephony Configurations Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGetResponse = ListPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGetResponses[keyof ListPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGetResponses];
+
+export type SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutData = {
+    body: PlatformManagedRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Config Id
+         */
+        config_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/telephony/configurations/{config_id}/platform-managed';
+};
+
+export type SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutError = SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutErrors[keyof SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutErrors];
+
+export type SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponses = {
+    /**
+     * Response Set Platform Managed Api V1 Admin Telephony Configurations  Config Id  Platform Managed Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponse = SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponses[keyof SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponses];
+
 export type ImpersonateApiV1SuperuserImpersonatePostData = {
     body: ImpersonateRequest;
     headers?: {
@@ -10157,6 +10355,33 @@ export type SubmitKycApiV1KycSubmitPostResponses = {
 
 export type SubmitKycApiV1KycSubmitPostResponse = SubmitKycApiV1KycSubmitPostResponses[keyof SubmitKycApiV1KycSubmitPostResponses];
 
+export type CarrierCallbackApiV1KycCarrierCallbackPostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/kyc/carrier-callback';
+};
+
+export type CarrierCallbackApiV1KycCarrierCallbackPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type CarrierCallbackApiV1KycCarrierCallbackPostResponses = {
+    /**
+     * Response Carrier Callback Api V1 Kyc Carrier Callback Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CarrierCallbackApiV1KycCarrierCallbackPostResponse = CarrierCallbackApiV1KycCarrierCallbackPostResponses[keyof CarrierCallbackApiV1KycCarrierCallbackPostResponses];
+
 export type ReviewQueueApiV1AdminKycQueueGetData = {
     body?: never;
     headers?: {
@@ -10438,6 +10663,140 @@ export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses
 };
 
 export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponse = CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses[keyof CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses];
+
+export type SearchNumbersApiV1ManagedNumbersSearchPostData = {
+    body: NumberSearchRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/managed-numbers/search';
+};
+
+export type SearchNumbersApiV1ManagedNumbersSearchPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchNumbersApiV1ManagedNumbersSearchPostError = SearchNumbersApiV1ManagedNumbersSearchPostErrors[keyof SearchNumbersApiV1ManagedNumbersSearchPostErrors];
+
+export type SearchNumbersApiV1ManagedNumbersSearchPostResponses = {
+    /**
+     * Response Search Numbers Api V1 Managed Numbers Search Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SearchNumbersApiV1ManagedNumbersSearchPostResponse = SearchNumbersApiV1ManagedNumbersSearchPostResponses[keyof SearchNumbersApiV1ManagedNumbersSearchPostResponses];
+
+export type ProvisionNumberApiV1ManagedNumbersPostData = {
+    body: ProvisionRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/managed-numbers';
+};
+
+export type ProvisionNumberApiV1ManagedNumbersPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProvisionNumberApiV1ManagedNumbersPostError = ProvisionNumberApiV1ManagedNumbersPostErrors[keyof ProvisionNumberApiV1ManagedNumbersPostErrors];
+
+export type ProvisionNumberApiV1ManagedNumbersPostResponses = {
+    /**
+     * Response Provision Number Api V1 Managed Numbers Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ProvisionNumberApiV1ManagedNumbersPostResponse = ProvisionNumberApiV1ManagedNumbersPostResponses[keyof ProvisionNumberApiV1ManagedNumbersPostResponses];
+
+export type ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostData = {
+    body: ReleaseRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Phone Number Id
+         */
+        phone_number_id: number;
+    };
+    query?: never;
+    url: '/api/v1/managed-numbers/{phone_number_id}/release';
+};
+
+export type ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostError = ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostErrors[keyof ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostErrors];
+
+export type ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostResponses = {
+    /**
+     * Response Release Number Api V1 Managed Numbers  Phone Number Id  Release Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostResponse = ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostResponses[keyof ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostResponses];
 
 export type DeleteProviderKeyApiV1AdminProviderKeysDeleteData = {
     body?: never;
@@ -16144,6 +16503,154 @@ export type GetDailyUsageBreakdownApiV1OrganizationsUsageDailyBreakdownGetRespon
 };
 
 export type GetDailyUsageBreakdownApiV1OrganizationsUsageDailyBreakdownGetResponse = GetDailyUsageBreakdownApiV1OrganizationsUsageDailyBreakdownGetResponses[keyof GetDailyUsageBreakdownApiV1OrganizationsUsageDailyBreakdownGetResponses];
+
+export type GetTokenUsageApiV1OrganizationsUsageTokensGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+        /**
+         * Granularity
+         */
+        granularity?: string;
+    };
+    url: '/api/v1/organizations/usage/tokens';
+};
+
+export type GetTokenUsageApiV1OrganizationsUsageTokensGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTokenUsageApiV1OrganizationsUsageTokensGetError = GetTokenUsageApiV1OrganizationsUsageTokensGetErrors[keyof GetTokenUsageApiV1OrganizationsUsageTokensGetErrors];
+
+export type GetTokenUsageApiV1OrganizationsUsageTokensGetResponses = {
+    /**
+     * Response Get Token Usage Api V1 Organizations Usage Tokens Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetTokenUsageApiV1OrganizationsUsageTokensGetResponse = GetTokenUsageApiV1OrganizationsUsageTokensGetResponses[keyof GetTokenUsageApiV1OrganizationsUsageTokensGetResponses];
+
+export type GetSpendBreakdownApiV1OrganizationsUsageSpendGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/organizations/usage/spend';
+};
+
+export type GetSpendBreakdownApiV1OrganizationsUsageSpendGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetSpendBreakdownApiV1OrganizationsUsageSpendGetError = GetSpendBreakdownApiV1OrganizationsUsageSpendGetErrors[keyof GetSpendBreakdownApiV1OrganizationsUsageSpendGetErrors];
+
+export type GetSpendBreakdownApiV1OrganizationsUsageSpendGetResponses = {
+    /**
+     * Response Get Spend Breakdown Api V1 Organizations Usage Spend Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetSpendBreakdownApiV1OrganizationsUsageSpendGetResponse = GetSpendBreakdownApiV1OrganizationsUsageSpendGetResponses[keyof GetSpendBreakdownApiV1OrganizationsUsageSpendGetResponses];
+
+export type GetCallAnalyticsApiV1OrganizationsUsageCallsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/organizations/usage/calls';
+};
+
+export type GetCallAnalyticsApiV1OrganizationsUsageCallsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCallAnalyticsApiV1OrganizationsUsageCallsGetError = GetCallAnalyticsApiV1OrganizationsUsageCallsGetErrors[keyof GetCallAnalyticsApiV1OrganizationsUsageCallsGetErrors];
+
+export type GetCallAnalyticsApiV1OrganizationsUsageCallsGetResponses = {
+    /**
+     * Response Get Call Analytics Api V1 Organizations Usage Calls Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCallAnalyticsApiV1OrganizationsUsageCallsGetResponse = GetCallAnalyticsApiV1OrganizationsUsageCallsGetResponses[keyof GetCallAnalyticsApiV1OrganizationsUsageCallsGetResponses];
 
 export type GetDailyReportApiV1OrganizationsReportsDailyGetData = {
     body?: never;

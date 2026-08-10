@@ -1,5 +1,5 @@
 /**
- * Chart palette and chrome for the admin billing dashboard.
+ * Chart palette and chrome for every dashboard in the app.
  *
  * The categorical slots are assigned in fixed order and never cycled. Both
  * modes are selected sets validated against this app's real surfaces (light
