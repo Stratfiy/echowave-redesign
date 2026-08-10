@@ -102,6 +102,13 @@ services:
       TURN_HOST: "${TURN_HOST:-}"
       TURN_SECRET: "${TURN_SECRET:-}"
       FASTAPI_WORKERS: "${FASTAPI_WORKERS:-1}"
+      # Set these to split one hostname into four. Leaving DECIBYL_APP_HOST
+      # empty keeps the single-host config, which is right for a self-hosted
+      # install on one name.
+      DECIBYL_ROOT_HOST: "${DECIBYL_ROOT_HOST:-}"
+      DECIBYL_APP_HOST: "${DECIBYL_APP_HOST:-}"
+      DECIBYL_API_HOST: "${DECIBYL_API_HOST:-}"
+      DECIBYL_DOCS_HOST: "${DECIBYL_DOCS_HOST:-}"
     volumes:
       - ./scripts:/workspace/scripts:ro
       - ./deploy:/workspace/deploy:ro
@@ -131,6 +138,10 @@ services:
       # `npm run build` in docs/ — nginx then answers 404 there, which is the
       # honest outcome for a docs host with no docs.
       - ./docs/dist:/usr/share/nginx/docs:ro
+      # The apex. Empty until a landing site exists — nginx answers 404 with a
+      # pointer to the app, and starts serving the moment an index.html lands
+      # here, with no config change.
+      - ./landing:/usr/share/nginx/landing:ro
     networks:
       - app-network
 

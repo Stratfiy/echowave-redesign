@@ -27,31 +27,46 @@ origin on a credentialed request.
 
 ## 1. DNS
 
-Four records. The apex is deliberately **not** pointed at this box — send it
-wherever the marketing site lives.
+Four records.
 
 | Type | Name | Value |
 |---|---|---|
 | A | `app` | your Elastic IP |
 | A | `api` | your Elastic IP |
-| CNAME | `docs` | `cname.mintlify.app` (or your Elastic IP as an A record if self-hosting) |
-| A / CNAME | `@` | your marketing host — Vercel, Webflow, wherever |
+| A | `docs` | your Elastic IP |
+| A / CNAME | `@` | your Elastic IP, **or** your marketing host once one exists |
 
-Wait for them to resolve before going further. Certificate issuance fails
-against a name that does not resolve, and the failure message points at the
-wrong thing:
+The apex has two supported answers and you can change your mind later without
+touching nginx:
+
+- **Point it here.** It is served empty — a 404 with a pointer to the app —
+  until you drop a built site into `/usr/share/nginx/landing`. This is the
+  right choice while the marketing site does not exist yet, because the name
+  still resolves and still gets a certificate.
+- **Point it at a site host** (Vercel, Webflow, S3). The apex block then never
+  sees a request.
+
+What the apex must **not** do is redirect to `app.`. It works today and is in
+the way the moment there is a landing page to put there.
+
+Wait for the records to resolve before going further. Certificate issuance
+fails against a name that does not resolve, and the failure message points at
+the wrong thing:
 
 ```bash
-dig +short app.decibyl.ai api.decibyl.ai docs.decibyl.ai
+dig +short decibyl.ai app.decibyl.ai api.decibyl.ai docs.decibyl.ai
 ```
 
 ## 2. Certificates
 
-One certificate covering both names this box serves:
+One certificate covering every name this box answers on. Miss one and that
+hostname fails with a certificate error before nginx gets to route it, which
+looks nothing like a routing problem and sends you looking in the wrong place.
 
 ```bash
 sudo certbot certonly --webroot -w ./certs \
-  -d app.decibyl.ai -d api.decibyl.ai \
+  -d decibyl.ai -d www.decibyl.ai \
+  -d app.decibyl.ai -d api.decibyl.ai -d docs.decibyl.ai \
   --email you@decibyl.ai --agree-tos --no-eff-email
 
 # nginx reads these paths; point them at the issued certificate
@@ -59,7 +74,9 @@ sudo ln -sf /etc/letsencrypt/live/app.decibyl.ai/fullchain.pem ./certs/local.crt
 sudo ln -sf /etc/letsencrypt/live/app.decibyl.ai/privkey.pem   ./certs/local.key
 ```
 
-Add `docs.decibyl.ai` to the `-d` list only if you are self-hosting the docs.
+Drop `-d decibyl.ai -d www.decibyl.ai` if the apex points at a marketing host
+rather than at this box, and drop `-d docs.decibyl.ai` if the docs are hosted
+elsewhere. Everything else is required.
 
 ## 3. Configuration
 
@@ -106,23 +123,42 @@ cd ..
 
 Skip this only if you are not serving docs from this box.
 
-## 5. Render the subdomain config
+## 5. Name the hosts
 
-`deploy/templates/nginx.subdomains.conf.template` replaces the single-host
-template. `scripts/render_subdomain_nginx.sh` substitutes the three hostnames
-and builds the upstream block:
+Add these to `.env`. Setting `DECIBYL_APP_HOST` is what switches the
+deployment from one hostname to four — `decibyl-init` renders the subdomain
+config on the next `docker compose up`, so there is no separate command to
+remember and no way to deploy having forgotten it.
 
 ```bash
-DECIBYL_APP_HOST=app.decibyl.ai \
-DECIBYL_API_HOST=api.decibyl.ai \
-DECIBYL_DOCS_HOST=docs.decibyl.ai \
-FASTAPI_WORKERS=3 \
-  ./scripts/render_subdomain_nginx.sh > /path/to/conf.d/decibyl.conf
+DECIBYL_ROOT_HOST=decibyl.ai        # optional; derived from the app host
+DECIBYL_APP_HOST=app.decibyl.ai
+DECIBYL_API_HOST=api.decibyl.ai
+DECIBYL_DOCS_HOST=docs.decibyl.ai
+```
 
+```bash
 docker compose build ui        # picks up NEXT_PUBLIC_BACKEND_URL
 docker compose up -d
 docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
 ```
+
+Leave `DECIBYL_APP_HOST` unset and you keep the single-host config, which is
+still the right choice for a self-hosted install on one name.
+
+### What each hostname answers
+
+| Host | Serves |
+|---|---|
+| `decibyl.ai` | **Nothing.** 404 with a pointer to the app, until you put a landing site in `/usr/share/nginx/landing` or move the apex to a site host in DNS |
+| `app.decibyl.ai` | The product |
+| `api.decibyl.ai` | API, WebSockets, MCP, the embed widget |
+| `docs.decibyl.ai` | Static documentation |
+| anything else | Connection closed (444) |
+
+That last row matters more than it looks. nginx serves the *first* block on a
+port to any hostname it does not recognise, so without an explicit catch-all
+the app answers for every name anyone points at your IP.
 
 <Warning>
 Until this is rendered, **every hostname resolves to the same default server
@@ -157,6 +193,9 @@ curl -si https://api.decibyl.ai/api/v1/health \
 #    dashboard's login redirect
 curl -sI https://docs.decibyl.ai/getting-started | head -1
 curl -so /dev/null -w "%{http_code}\n" https://docs.decibyl.ai/not-a-page
+
+# 6. The apex is empty, and does NOT serve the app
+curl -s https://decibyl.ai/ | jq -r .detail
 ```
 
 <Note>

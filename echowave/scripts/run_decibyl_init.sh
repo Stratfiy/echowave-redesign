@@ -22,7 +22,16 @@ if [[ "${ENVIRONMENT:-local}" == "production" ]]; then
     [[ -f "$CERTS_DIR/local.key" ]] || decibyl_fail "certs/local.key not found"
 
     export TURN_EXTERNAL_IP="$SERVER_IP"
-    decibyl_render_remote_nginx_conf "$WORKSPACE_DIR" "$NGINX_OUTPUT_DIR/default.conf"
+
+    # Subdomain topology when the operator has named the hosts, single-host
+    # otherwise. Keyed on DECIBYL_APP_HOST because that is the value you cannot
+    # have set by accident — a deployment that names its app host has decided
+    # to split.
+    if [[ -n "${DECIBYL_APP_HOST:-}" ]]; then
+        decibyl_render_subdomain_nginx_conf "$WORKSPACE_DIR" "$NGINX_OUTPUT_DIR/default.conf"
+    else
+        decibyl_render_remote_nginx_conf "$WORKSPACE_DIR" "$NGINX_OUTPUT_DIR/default.conf"
+    fi
     decibyl_render_remote_turn_conf "$WORKSPACE_DIR" "$COTURN_OUTPUT_DIR/turnserver.conf"
     decibyl_success "✓ decibyl-init rendered remote nginx and coturn config"
     exit 0

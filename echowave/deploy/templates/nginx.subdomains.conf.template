@@ -30,7 +30,8 @@ __DECIBYL_UPSTREAM_BLOCK__
 # ---------------------------------------------------------------------------
 server {
     listen 80;
-    server_name __DECIBYL_APP_HOST__ __DECIBYL_API_HOST__ __DECIBYL_DOCS_HOST__;
+    server_name __DECIBYL_APP_HOST__ __DECIBYL_API_HOST__ __DECIBYL_DOCS_HOST__
+                __DECIBYL_ROOT_HOST__ www.__DECIBYL_ROOT_HOST__;
 
     # Serve Let's Encrypt HTTP-01 challenges out of the certs webroot that
     # certbot --webroot writes into. Only this path is exposed.
@@ -44,6 +45,71 @@ server {
     # location matching and hijacks the ACME challenge above.
     location / {
         return 301 https://$host$request_uri;
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Unmatched hostnames — must be the FIRST 443 block in this file
+# ---------------------------------------------------------------------------
+# nginx uses the first block on a port as the default for any Host it does not
+# recognise. Without this one that role fell to the app, which is how every
+# hostname pointed at this IP — the apex, the docs subdomain, and anything a
+# stranger chooses to point here — ended up serving the dashboard and
+# redirecting to a login page.
+#
+# 444 closes the connection without a response. There is nothing useful to say
+# to a request for a hostname we do not serve, and saying nothing is also the
+# cheapest answer to someone scanning the IP.
+server {
+    listen 443 ssl default_server;
+    http2 on;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/certs/local.crt;
+    ssl_certificate_key /etc/nginx/certs/local.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    return 444;
+}
+
+# ---------------------------------------------------------------------------
+# decibyl.ai — the apex. Deliberately empty.
+# ---------------------------------------------------------------------------
+# The apex is reserved for a marketing site that does not exist yet. It is NOT
+# proxied to the app: redirecting the apex to app.decibyl.ai would work today
+# and be in the way the moment there is a landing page to put here.
+#
+# Two ways to fill it later, and this block accommodates both without an nginx
+# change:
+#
+#   1. Point the apex at a site host (Vercel, Webflow, S3) in DNS. This block
+#      then never sees a request and can be deleted.
+#   2. Drop a built static site into the landing directory below.
+#
+# Until then a visitor gets a 404 with a pointer to the product, which is more
+# use than a default nginx page and does not pretend to be marketing.
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name __DECIBYL_ROOT_HOST__ www.__DECIBYL_ROOT_HOST__;
+
+    ssl_certificate     /etc/nginx/certs/local.crt;
+    ssl_certificate_key /etc/nginx/certs/local.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    root /usr/share/nginx/landing;
+    index index.html;
+
+    location / {
+        try_files $uri $uri.html $uri/index.html @empty;
+    }
+
+    location @empty {
+        return 404 '{"detail":"Nothing here yet. The product is at https://__DECIBYL_APP_HOST__ and the docs are at https://__DECIBYL_DOCS_HOST__"}';
+        default_type application/json;
     }
 }
 
