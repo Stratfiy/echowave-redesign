@@ -13,6 +13,12 @@ from api.mcp_server.tools.docs_search import list_docs, read_doc, search_docs
 from api.mcp_server.tools.get_workflow_code import get_workflow_code
 from api.mcp_server.tools.node_types import get_node_type, list_node_types
 from api.mcp_server.tools.save_workflow import save_workflow
+from api.mcp_server.tools.telephony_status import (
+    get_billing_summary,
+    get_telephony_verification,
+    list_phone_numbers,
+    search_available_numbers,
+)
 from api.mcp_server.tools.tool_creation import create_tool
 from api.mcp_server.tools.voice_prompting_guide import get_voice_prompting_guide
 from api.mcp_server.tools.workflows import get_workflow, list_workflows
@@ -53,3 +59,27 @@ _DOCS_TOOL_ANNOTATIONS = ToolAnnotations(
 
 for _tool in (list_docs, read_doc, search_docs):
     mcp.tool(_tool, annotations=_DOCS_TOOL_ANNOTATIONS)
+
+# Telephony status. Read-only and annotated as such, so a client that respects
+# hints knows none of these change anything.
+#
+# Provisioning and release are deliberately absent from this list. Buying a
+# number spends money every month and a retry buys a second one; releasing one
+# is irreversible at the carrier and the number may be printed on the
+# customer's signage. Both stay behind the REST API, where a person makes the
+# call. Reading is the part that is safe to automate.
+_TELEPHONY_TOOL_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=True,
+    idempotentHint=True,
+    destructiveHint=False,
+    # search_available_numbers reaches the carrier, so this set is not closed.
+    openWorldHint=True,
+)
+
+for _tool in (
+    get_telephony_verification,
+    list_phone_numbers,
+    search_available_numbers,
+    get_billing_summary,
+):
+    mcp.tool(_tool, annotations=_TELEPHONY_TOOL_ANNOTATIONS)

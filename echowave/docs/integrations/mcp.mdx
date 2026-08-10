@@ -75,9 +75,25 @@ act on rather than a 400 it has to guess at.
 | **Get the craft right** | `get_voice_prompting_guide` |
 | **Build custom tools** | `create_tool` — with `list_credentials` for auth |
 | **See the workspace** | `list_workflows`, `get_workflow`, `list_tools`, `list_documents`, `list_recordings` |
+| **Check telephony** | `get_telephony_verification`, `list_phone_numbers`, `search_available_numbers`, `get_billing_summary` |
 | **Read the manual** | `search_docs`, `read_doc`, `list_docs` |
 
 Everything is scoped to the workspace behind your API key.
+
+### What it deliberately cannot do
+
+Buying a phone number and releasing one are **not** available over MCP, and
+that is on purpose rather than unfinished.
+
+Buying spends money every month, and an assistant that retries a request it
+thinks failed can end up renting two numbers where you wanted one. Releasing is
+irreversible at the carrier — the number goes back to the pool and may be
+issued to someone else the same day, and it may be the number printed on your
+storefront.
+
+So the assistant can tell you what is available and what you are paying, and
+the decision to spend or to give up a number stays with a person, over the
+[REST API](/integrations/telephony/managed-numbers) or the dashboard.
 
 ## Connect it
 
@@ -169,6 +185,13 @@ Let's Encrypt.
 - "Rename the *intro* node to *greeting* and fix every edge that referenced it."
 - "Review *Support Bot* for instruction collision and tell me what you'd change
   before I publish."
+
+**Check on telephony and billing**
+
+- "Why can't my agent make phone calls?"
+- "What phone numbers do I have, and which agent answers each one?"
+- "What am I paying in monthly number rental, and is anything overdue?"
+- "Are there any local numbers available in Hyderabad?"
 
 **Understand something**
 
