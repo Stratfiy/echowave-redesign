@@ -1804,7 +1804,17 @@ class CallCostItemModel(Base):
     model = Column(String(128), nullable=True)
     units = Column(BigInteger, nullable=False, default=0)
     unit_rate_mpaise = Column(Integer, nullable=False, default=0)
+    # What the customer was charged for this line.
     cost_paise = Column(BigInteger, nullable=False, default=0)
+    # What the vendor charged *us* for it, before the managed markup. Equal to
+    # cost_paise on a platform line and on every row written before the markup
+    # existed, which is what the backfill sets.
+    #
+    # Stored rather than derived from today's multiplier: recomputing an old
+    # receipt against a rate that has since changed would rewrite what a
+    # customer was actually charged.
+    provider_cost_paise = Column(BigInteger, nullable=False, default=0,
+                                 server_default="0")
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     workflow_run = relationship("WorkflowRunModel", back_populates="cost_items")

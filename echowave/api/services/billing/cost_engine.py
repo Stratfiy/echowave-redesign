@@ -24,9 +24,22 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from api.enums import CostComponent, RateUnit
+
+#: Components the managed markup applies to — the model services a customer
+#: would otherwise bring their own API key for. Telephony is deliberately
+#: absent: it is priced directly in the rate card, so the figure an operator
+#: sets there is the figure a customer pays.
+MARKED_UP_COMPONENTS = frozenset(
+    {
+        CostComponent.STT.value,
+        CostComponent.LLM.value,
+        CostComponent.TTS.value,
+    }
+)
 from api.services.billing.money import (
     DEFAULT_PULSE_SECONDS,
     cost_paise,
+    round_half_up_div,
 )
 from api.services.billing.money import (
     billable_minutes as to_billable_minutes,
@@ -71,10 +84,19 @@ class CostLine:
     provider: str | None
     units: int
     unit_rate_mpaise: int
+    #: What the customer is charged for this line — the vendor's price with the
+    #: managed markup applied. This is the figure that sums to the invoice.
     cost_paise: int
     # The model this line was priced against, so a receipt can say which one
     # was actually billed rather than only naming the provider.
     model: str | None = None
+    #: What the vendor charges *us* for the same line, before markup. Equal to
+    #: ``cost_paise`` on a platform line and whenever the markup is 1.0.
+    #:
+    #: Stored rather than derived because the markup is a setting that changes:
+    #: recomputing an old receipt against today's multiplier would rewrite what
+    #: a customer was actually charged last March.
+    provider_cost_paise: int = 0
 
 
 @dataclass(frozen=True)
@@ -100,6 +122,7 @@ def compute_call_cost(
     *,
     billable_seconds: int,
     platform_rate_mpaise: int,
+    markup_bps: int = 10_000,
     pulse_seconds: int = DEFAULT_PULSE_SECONDS,
     usage: tuple[UsageItem, ...] | list[UsageItem] = (),
     provider_rates: Mapping[tuple[str, str], RateSpec] | None = None,
@@ -141,6 +164,23 @@ def compute_call_cost(
         if spec is None:
             uncosted.append(item)
             continue
+        vendor_cost = cost_paise(
+            quantity=item.quantity,
+            rate_mpaise=spec.rate_mpaise,
+            unit=spec.unit,
+        )
+        # The markup covers model services bought on our keys — the thing a
+        # customer would otherwise hold their own API key for. Telephony is
+        # excluded: its rate card holds the price we sell a minute at, set
+        # directly, so marking it up again would mean the number an operator
+        # types is not the number a customer pays.
+        #
+        # Marked up per line rather than on the total, so each line on a
+        # receipt adds up to the figure printed beside it. Rounding once per
+        # line is the same rule the rest of this module follows.
+        line_markup = (
+            markup_bps if component_value in MARKED_UP_COMPONENTS else 10_000
+        )
         lines.append(
             CostLine(
                 component=component_value,
@@ -148,15 +188,12 @@ def compute_call_cost(
                 model=item.model or None,
                 units=item.quantity,
                 unit_rate_mpaise=spec.rate_mpaise,
-                cost_paise=cost_paise(
-                    quantity=item.quantity,
-                    rate_mpaise=spec.rate_mpaise,
-                    unit=spec.unit,
-                ),
+                cost_paise=round_half_up_div(vendor_cost * line_markup, 10_000),
+                provider_cost_paise=vendor_cost,
             )
         )
 
-    provider_total = sum(line.cost_paise for line in lines)
+    provider_total = sum(line.provider_cost_paise for line in lines)
 
     # The rate is quoted per minute and the quantity is in seconds, which is
     # exactly the contract cost_paise already implements for a per-minute rate.
@@ -167,6 +204,9 @@ def compute_call_cost(
         rate_mpaise=platform_rate_mpaise,
         unit=RateUnit.MINUTE,
     )
+    # The platform fee is ours, not a vendor's, so it is never marked up and
+    # its provider cost is zero. Marking it up would be charging a margin on a
+    # margin.
     lines.append(
         CostLine(
             component=CostComponent.PLATFORM.value,
@@ -174,6 +214,7 @@ def compute_call_cost(
             units=billed,
             unit_rate_mpaise=platform_rate_mpaise,
             cost_paise=fee,
+            provider_cost_paise=0,
         )
     )
 

@@ -88,7 +88,7 @@ order, and general payments work (invoice PDF, credit notes) stays last.
 | 1 | Admin route for `is_platform_managed` | 0.5d | ✅ done |
 | 2 | Customer token & spend dashboard | 1.5d | 🔶 API done, UI next |
 | 3 | Call-log graphs and metrics | 1d | ☐ |
-| 4 | Provider markup (the 1.3×) | 1d | ☐ |
+| 4 | Provider markup (the 1.3×) | 1d | ✅ done |
 | 5 | **Autopay mandate, gating number issue** | 3–4d | ☐ ← moved up |
 | 6 | Number provisioning UI (incl. the mandate step) | 1.5d | ☐ |
 | 7 | Low-balance email | 0.5d | ☐ |
@@ -256,3 +256,33 @@ double-charge fix (947325c), Google Calendar conflict checking (864da35), the
 managed model catalog (e874a78), the supplier address correction (32aeac6).
 The remaining `claude/*` branches are the merged PR branches, not unmerged
 work. Nothing of theirs is waiting to be picked up.
+
+### 2026-08-10 — item 4 done: provider usage is marked up, and both numbers survive
+
+Usage bought with our keys is charged at **1.3×** what the vendor charged us
+(`MANAGED_PROVIDER_MARKUP_BPS=13000`, in basis points so the arithmetic stays
+integer — 1.3 as a float is 1.2999999999999998 and reconciles differently
+depending on the order lines are summed).
+
+Two decisions worth knowing:
+
+**The markup covers STT, LLM and TTS only.** Telephony is deliberately excluded
+(`MARKED_UP_COMPONENTS` in `cost_engine.py`). The 1.3× is for provider API keys
+we resell; the telephony price is set in the rate card and marking it up too
+would apply the multiplier twice to a number that was already retail.
+
+**Both figures are stored.** `call_cost_items.provider_cost_paise` holds what
+the vendor charged, `cost_paise` what the customer paid. The alternative —
+baking 1.3 into the rate card — needs no code and destroys every margin report:
+`provider_rates` would hold retail, and unit economics would read zero margin on
+a call that earned 30%. Migration `d3f5a81c62b7` backfills the new column from
+`cost_paise`, which is correct for history charged at cost.
+
+The platform fee is never marked up (it is already our margin), and a **BYOK**
+component produces no line at all — the customer paid the vendor directly, so
+there is nothing to mark up.
+
+Verified: 16 new tests in `test_provider_markup.py`; full suite **2647 passed,
+6 failed** — the same six known failures listed in §0.
+
+Next: item 2's UI page, then item 3.

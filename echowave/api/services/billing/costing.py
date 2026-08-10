@@ -23,6 +23,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
+from api.constants import MANAGED_PROVIDER_MARKUP_BPS
 from api.enums import CreditLedgerKind
 from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_cost
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
@@ -123,6 +124,10 @@ async def cost_workflow_run(
         pulse_seconds=platform.pulse_seconds,
         usage=usage,
         provider_rates=provider_rates,
+        # Only managed usage reaches here — a BYOK component produced no usage
+        # item at all (services/billing/usage.py), so there is nothing of the
+        # customer's own spend to mark up.
+        markup_bps=MANAGED_PROVIDER_MARKUP_BPS,
     )
 
     uncosted_labels = [
@@ -155,6 +160,7 @@ async def cost_workflow_run(
                 units=line.units,
                 unit_rate_mpaise=line.unit_rate_mpaise,
                 cost_paise=line.cost_paise,
+                provider_cost_paise=line.provider_cost_paise,
             )
         )
 

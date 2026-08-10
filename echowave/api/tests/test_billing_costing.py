@@ -242,8 +242,11 @@ class TestCostWorkflowRun:
         assert cost.billed_seconds == 90
         assert cost.pulse_seconds == 15
         assert cost.platform_fee_paise == 288  # 1.5 min @ ₹1.92 ($0.02 at ₹96)
+        # Model usage on our keys is sold at MANAGED_PROVIDER_MARKUP_BPS —
+        # 1.3x by default — so the vendor's 12 paise is charged at 16. Both
+        # figures survive on the receipt, which is what keeps margin visible.
         assert cost.total_provider_cost_paise == 12  # 1k tokens @ 12_000 mpaise
-        assert cost.total_charged_paise == 300
+        assert cost.total_charged_paise == 288 + 16
 
         items = (
             await async_session.scalars(
@@ -317,13 +320,17 @@ class TestCostWorkflowRun:
         dear_llm = next(l for l in dear.line_items if l.component == "llm")
 
         # 10k tokens: mini at 700 mpaise/1k = 7 paise; gpt-4o falls back to the
-        # provider rate of 12000 mpaise/1k = 120 paise.
+        # provider rate of 12000 mpaise/1k = 120 paise. Both are then sold at
+        # the 1.3x managed markup — the point of this test is which *rate* was
+        # selected, which provider_cost_paise shows before any markup.
         assert cheap_llm.unit_rate_mpaise == 700
-        assert cheap_llm.cost_paise == 7
+        assert cheap_llm.provider_cost_paise == 7
+        assert cheap_llm.cost_paise == 9  # 7 x 1.3, rounded half up
         assert cheap_llm.model == "gpt-4o-mini"
 
         assert dear_llm.unit_rate_mpaise == 12_000
-        assert dear_llm.cost_paise == 120
+        assert dear_llm.provider_cost_paise == 120
+        assert dear_llm.cost_paise == 156  # 120 x 1.3
 
         # And the receipt records which model it billed.
         rows = (

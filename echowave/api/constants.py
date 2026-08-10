@@ -90,6 +90,24 @@ PLATFORM_PLIVO_APPLICATION_ID = os.getenv("PLATFORM_PLIVO_APPLICATION_ID") or No
 NUMBER_RENTAL_COST_PAISE = int(os.getenv("NUMBER_RENTAL_COST_PAISE", "25000"))
 NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "34900"))
 
+# What we charge for provider usage on *our* keys, as basis points of what the
+# vendor charges us. 13000 = 1.30x; 10000 would be at cost.
+#
+# In basis points rather than a float because every other money path in this
+# codebase is integer arithmetic, and a 1.3 that is really 1.2999999999999998
+# reconciles differently depending on the order lines are summed.
+#
+# It applies only to managed components. A customer on their own key is charged
+# nothing for provider usage at all — they already paid the vendor — which is
+# enforced upstream in services/billing/usage.py, where a BYOK component
+# produces no line to mark up.
+#
+# The vendor's true cost is stored alongside the marked-up figure rather than
+# replaced by it. Baking the markup into the rate card instead would have made
+# provider_rates hold retail, and every margin figure on the unit-economics
+# screen would silently read zero.
+MANAGED_PROVIDER_MARKUP_BPS = int(os.getenv("MANAGED_PROVIDER_MARKUP_BPS", "13000"))
+
 # Whether customers can start telephony verification at all.
 #
 # The flow depends on an ISV/reseller arrangement with the carrier — subaccounts
