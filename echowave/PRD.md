@@ -210,7 +210,8 @@ efficiency, context growth, tool timings.
 
 | Item | Why |
 |---|---|
-| **Number provisioning** | KYC gate is built and dormant; nothing sets `is_platform_managed` |
+| **Managed numbers, admin route** | Provisioning, compliance and rental billing are built; nothing sets `is_platform_managed`, so the path is reachable only by hand |
+| **Managed numbers, live proving** | Never run against Plivo's live Compliance API — no application filed, no number bought |
 | **Credit notes** | Refunds are currently manual ledger adjustments |
 | **Interruption rate** | Best remaining quality signal; needs pipeline capture |
 | **Cost per outcome** | Cost per *booking*, not per call — the number that closes deals |

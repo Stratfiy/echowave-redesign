@@ -443,7 +443,9 @@ Honest list. Priorities are mine; argue with them.
 
 | Gap | Note |
 |---|---|
-| **Number provisioning not built** | `is_platform_managed` is the flag the KYC gate keys on and nothing sets it. The gate is correct but dormant. |
+| **No admin route for `is_platform_managed`** | Provisioning, Plivo compliance and rental billing are built (`services/telephony/provisioning.py`, `services/billing/rentals.py`, `services/kyc/carrier.py`). The flag the gate keys on still has no setter, so managed numbers need a hand-written `UPDATE` to reach. Half a day, and it blocks everything else. |
+| **Managed numbers unproven against live Plivo** | Endpoint shapes match the published Compliance API and encoding is unit-tested; no application has been filed and no number bought. |
+| **Number rental cost is an estimate** | `NUMBER_RENTAL_COST_PAISE` defaults to ₹250/month from the launch plan, not a Plivo quote. Every rental margin figure rests on it. |
 | **No recost script** | `cost_workflow_run(recost=True)` exists; nothing exposes it. Calls placed before rates existed stay uncosted. |
 | **Role model is one boolean** | `is_superuser`. There is no matrix. |
 

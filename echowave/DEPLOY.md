@@ -44,6 +44,11 @@ cat deploy/decibyl.env.template | sudo tee -a .env >/dev/null
 sudo nano .env          # replace every CHANGE ME
 
 sudo ./remote_up.sh --build
+
+# 4. The documentation, if you are serving it from this box. It is static
+#    HTML built from the .mdx tree; nothing builds it for you, and an unbuilt
+#    docs/dist means the docs hostname answers 404.
+cd docs && npm ci && npm run build && npm run check-links && cd ..
 ```
 
 **`REPO_SOURCE=existing` is not optional here.** The script decides whether to
@@ -167,6 +172,40 @@ simply unavailable to create; nothing else depends on it.
 `GOOGLE_CALENDAR_DEFAULT_TIMEZONE` (default `Asia/Kolkata`) is the single
 timezone every event is created in.
 
+### Managed phone numbers
+
+Only if you are selling numbers rather than having customers bring their own
+carrier account. Leaving these unset changes nothing for a bring-your-own
+deployment.
+
+| Variable | Consequence |
+|---|---|
+| `PLATFORM_PLIVO_AUTH_ID`, `PLATFORM_PLIVO_AUTH_TOKEN` | Decibyl's *own* Plivo account — compliance applications are filed and numbers bought under it, never a customer's. Unset, forwarding a KYC application raises rather than quietly falling back to "a human will handle it" |
+| `PLATFORM_PLIVO_APPLICATION_ID` | The Plivo Application whose `answer_url` is the inbound dispatcher. Numbers are bought with this `app_id` set, so there is no console step and no window where a number is rented but answers nowhere |
+| `NUMBER_RENTAL_COST_PAISE` | What the carrier charges us, per number per month. Default 25000 (₹250) — an estimate, see the bottom of this file |
+| `NUMBER_RENTAL_PRICE_PAISE` | What the customer pays. Default 39900 (₹399). Stored alongside the cost so margin figures stop ignoring rental |
+| `MANAGED_TELEPHONY_ENABLED=true` | Opens telephony verification to customers. Leave false until the Plivo reseller arrangement is approved — it gates document upload, and collecting identity records you cannot forward takes on DPDP custody for nothing |
+
+### Hostnames
+
+Set these to split one hostname into four. Leaving `DECIBYL_APP_HOST` unset
+keeps the single-host config, which is right for a self-hosted install on one
+name.
+
+| Variable | Serves |
+|---|---|
+| `DECIBYL_APP_HOST` | The product. **Setting this is what switches the deployment to subdomain mode** — `decibyl-init` renders the config on the next `up` |
+| `DECIBYL_API_HOST` | API, WebSockets, MCP, the embed widget. The hostname customers integrate against, so it should not move later |
+| `DECIBYL_DOCS_HOST` | Static documentation, served off disk |
+| `DECIBYL_ROOT_HOST` | The apex. Optional — derived from the app host. Served **empty**: a 404 with a pointer to the app until a built site lands in `./landing` |
+
+<!-- markdownlint-disable-next-line -->
+> nginx serves the *first* block on a port to any hostname it does not
+> recognise. Before this existed that role fell to the app, so every name
+> pointed at the box — the apex, the docs subdomain, anything a stranger points
+> at your IP — served the dashboard and redirected to a login page. There is now
+> an explicit catch-all that closes the connection.
+
 ---
 
 ## 2. Database
@@ -253,6 +292,18 @@ overstated until you fill it in.
   provider you expect.
 * Check that the MinIO endpoint is **not** reachable from the internet, or that
   you are on S3 (`ENABLE_AWS_S3=true`).
+* If you split hostnames, check each one answers as itself. All four resolving
+  to the same box is normal; all four *serving the same thing* means nginx
+  never matched a `server_name` and fell through to the app:
+
+  ```bash
+  curl -s  https://api.<domain>/api/v1/health | jq -r .status   # ok
+  curl -sI https://app.<domain>/            | head -1           # 307 to login
+  curl -sI https://docs.<domain>/getting-started | head -1      # 200
+  curl -s  https://<domain>/ | jq -r .detail                    # the pointer
+  ```
+
+  A `307` to `/auth/login` from the docs or apex host is the tell.
 * Backups run nightly on their own (`BACKUP_ENABLED`, on by default). Check one
   has appeared, then rehearse the restore once —
   `./scripts/rehearse_restore.sh <backup-file>` builds a scratch database,
@@ -269,6 +320,10 @@ Pull and rebuild in place:
 cd <your-repo>/echowave
 git pull --recurse-submodules
 sudo ./remote_up.sh --build
+
+# Docs are a build artifact, not a container. A pull that changed .mdx files
+# changes nothing on the docs host until this runs.
+cd docs && npm ci && npm run build && cd ..
 ```
 
 **Do not use `scripts/update_remote.sh`.** It hardcodes `decibyl-hq/decibyl` and
@@ -295,8 +350,19 @@ Listed here rather than discovered later:
   reflected with a staff credit adjustment.
 * **No low-balance email.** The Billing screen warns in amber and a refused run
   says what the fix is, but nobody is emailed.
-* **Number provisioning is not built.** `is_platform_managed` is the flag the
-  KYC gate keys on and nothing sets it yet, so the gate is correct but dormant.
+* **Nothing sets `is_platform_managed`.** Number provisioning, carrier
+  compliance and rental billing are built (see below), but the flag the KYC
+  gate keys on still has no admin route — putting an organization on the
+  managed path takes a hand-written `UPDATE`. That is the one remaining gap
+  between "built" and "sellable".
+* **Managed numbers have never run against Plivo's live API.** The endpoint
+  shapes match the published Compliance API and the encoding is unit-tested,
+  but no compliance application has been filed and no number bought for real.
+  Budget for the first one going wrong.
+* **`NUMBER_RENTAL_COST_PAISE` is an estimate, not a quote.** It defaults to
+  ₹250/month from the launch plan. Confirm it against Plivo's live India price
+  list before quoting anyone a margin — it is the input every rental margin
+  figure rests on.
 
 See `KNOWN_ISSUES.md` for anything open, and `DASHBOARD.md` for how a call is
 priced and what every billing number means.

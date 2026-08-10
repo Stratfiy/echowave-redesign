@@ -606,7 +606,10 @@ is money).
   IRP. E-invoicing becomes mandatory above ₹5 crore aggregate turnover.
 * **Credit notes.** A refund is issued from the Razorpay dashboard and reflected
   with a staff credit adjustment; no credit note document is produced.
-* **Number provisioning.** `telephony_configurations.is_platform_managed` is
-  the flag the KYC gate keys on, and nothing sets it yet — buying and assigning
-  numbers under our own carrier account does not exist, so the gate is correct
-  but dormant.
+* **An admin route for `is_platform_managed`.** Buying, billing and releasing
+  numbers under our own carrier account is built —
+  `api/services/telephony/provisioning.py` and
+  `api/services/billing/rentals.py` — but nothing sets the flag the KYC gate
+  keys on, so the whole path is reachable only by a hand-written `UPDATE`.
+  Rental margin is visible per number (`recurring_charge_periods` records our
+  cost alongside the customer's price); it is not yet on any dashboard.
