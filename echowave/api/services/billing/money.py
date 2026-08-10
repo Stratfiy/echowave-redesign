@@ -67,6 +67,13 @@ DEFAULT_PLATFORM_RATE_MPAISE = 200_000
 #   MINUTE          → quantity is supplied in seconds
 #   1k_chars        → quantity is supplied in characters
 #   1k_tokens       → quantity is supplied in tokens
+#: How many raw measured units make up one billing unit.
+#:
+#: ``RateUnit.MONTH`` is deliberately absent. A recurring rental is not derived
+#: from anything a call measures, so there is no quantity to divide — and
+#: ``quantity_per_rate_unit`` raising for it is the guard that stops a monthly
+#: rate ever being multiplied by seconds and landing on a call receipt.
+#: Rentals are priced in ``api/services/billing/rentals.py`` instead.
 _QUANTITY_PER_RATE_UNIT: dict[RateUnit, int] = {
     RateUnit.MINUTE: 60,
     RateUnit.THOUSAND_CHARS: 1000,

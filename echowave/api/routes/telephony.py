@@ -32,6 +32,7 @@ from api.services.call_concurrency import (
     call_concurrency,
 )
 from api.services.kyc import service as kyc_service
+from api.services.telephony import number_lifecycle
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.factory import (
@@ -140,6 +141,17 @@ async def initiate_call(
             await kyc_service.assert_configuration_may_place_calls(configuration)
         except kyc_service.TelephonyNotVerified as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+        # Verified is not the same as paid for. A number whose rental is
+        # overdue past the suspension threshold stops carrying calls while
+        # still being held at the carrier, so this is a separate check from
+        # the KYC one above and fails with a different sentence.
+        try:
+            await number_lifecycle.assert_configuration_may_serve(
+                telephony_configuration_id
+            )
+        except number_lifecycle.NumberSuspended as exc:
+            raise HTTPException(status_code=402, detail=str(exc)) from exc
 
     phone_number = request.phone_number or preferences.test_phone_number
 
@@ -812,6 +824,21 @@ async def handle_inbound_run(request: Request):
 
         config, phone_row = match
         telephony_configuration_id = config.id
+
+        # A suspended or released number must not reach an agent, even though
+        # the carrier still routes to us — we stopped being paid for it. The
+        # caller hears the provider's rejection rather than a working agent on
+        # a number that is no longer being paid for.
+        try:
+            number_lifecycle.assert_number_may_serve(phone_row)
+        except number_lifecycle.NumberSuspended as exc:
+            logger.warning(
+                f"/inbound/run: number {normalized_data.to_number} is "
+                f"{exc.status}; rejecting the call"
+            )
+            return provider_class.generate_validation_error_response(
+                TelephonyError.PHONE_NUMBER_NOT_CONFIGURED
+            )
 
         if not phone_row.inbound_workflow_id:
             logger.warning(

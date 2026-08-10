@@ -336,6 +336,27 @@ class TelephonyPhoneNumberModel(Base):
     is_active = Column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )
+    # active | suspended | released — see PhoneNumberStatus. Distinct from
+    # is_active, which is the customer's own switch: a number can be switched
+    # on by its owner and still suspended by us for non-payment.
+    #
+    # A released number keeps its row. The row is the only record that we ever
+    # held the number, and the number itself may be printed on the customer's
+    # signage — deleting it is how an orphaned carrier rental becomes
+    # untraceable.
+    status = Column(
+        String(16), nullable=False, default="active", server_default="active"
+    )
+    # Set when we bought this number on the customer's behalf. NULL for a
+    # number on the customer's own carrier account, which we neither bought nor
+    # may release.
+    carrier_number_id = Column(String(64), nullable=True)
+    provisioned_at = Column(DateTime(timezone=True), nullable=True)
+    released_at = Column(DateTime(timezone=True), nullable=True)
+    released_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    release_reason = Column(Text, nullable=True)
     is_default_caller_id = Column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
@@ -1891,6 +1912,17 @@ class OrganizationKycModel(Base):
     legal_name = Column(String(255), nullable=True)
     gstin = Column(String(20), nullable=True)
 
+    # The registered address, required on a Plivo compliance application's
+    # end_user. Held here rather than on organizations because it is the
+    # address on the incorporation certificate, which is not necessarily where
+    # the account's users sit.
+    address_line1 = Column(String(255), nullable=True)
+    address_line2 = Column(String(255), nullable=True)
+    city = Column(String(128), nullable=True)
+    region = Column(String(128), nullable=True)
+    postal_code = Column(String(16), nullable=True)
+    country_iso = Column(String(2), nullable=False, default="IN", server_default="IN")
+
     submitted_at = Column(DateTime(timezone=True), nullable=True)
 
     # Our review. Who signed off matters for compliance, so it is recorded
@@ -1959,6 +1991,11 @@ class KycDocumentModel(Base):
     filename = Column(String(255), nullable=False)
     content_type = Column(String(128), nullable=True)
     size_bytes = Column(BigInteger, nullable=True)
+    # SHA-256 of the bytes. Stored so pre-submit validation can catch the same
+    # file uploaded into two slots without reading both objects back out of the
+    # bucket — one of the two most common causes of a carrier rejection, and
+    # one the customer cannot diagnose from Plivo's reply.
+    content_sha256 = Column(String(64), nullable=True)
 
     uploaded_by = Column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -1968,6 +2005,144 @@ class KycDocumentModel(Base):
     kyc = relationship("OrganizationKycModel", back_populates="documents")
 
     __table_args__ = (Index("ix_kyc_documents_kyc", "organization_kyc_id"),)
+
+
+class RecurringChargeModel(Base):
+    """A charge that accrues for holding a resource, not for using one.
+
+    Deliberately not a ``CallCostItem``. A call cost item is a line on a
+    receipt for a workflow run: it has a run behind it, it is computed from
+    measured usage, and it exists only because somebody dialled. A number
+    rental has none of those properties — it accrues while the account sleeps,
+    and folding it into the per-call path would have meant inventing a fake run
+    to hang it off, and would have shown customers a charge for calls they
+    never made.
+
+    ``cost_paise`` and ``price_paise`` are both stored because storing only the
+    price is how a margin figure starts lying. The dashboard's per-call margin
+    already ignored number rental entirely; recording our own cost next to the
+    customer's price is what lets that be fixed rather than re-estimated.
+
+    Idempotency is the partial unique index on
+    ``(recurring_charge_id, period_start)``: a monthly cron that runs twice, or
+    a worker that dies after debiting and before committing its bookkeeping,
+    must not bill a customer for the same month twice. This is the same shape
+    as the ledger's ``uq_credit_ledger_usage_ref``.
+    """
+
+    __tablename__ = "recurring_charges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    # number_rental — see RecurringChargeType.
+    charge_type = Column(String(32), nullable=False)
+    # What is being rented. For number_rental this is a
+    # telephony_phone_numbers.id, held as a plain integer rather than an FK so
+    # a future charge type can point at something else entirely.
+    resource_id = Column(Integer, nullable=False)
+
+    # active | past_due | suspended | pending_release | released | cancelled.
+    status = Column(
+        String(24), nullable=False, default="active", server_default="active"
+    )
+
+    # What we pay the carrier, and what the customer pays us. Both per period.
+    cost_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+    price_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+
+    started_at = Column(DateTime(timezone=True), nullable=False)
+    # The period this charge has been billed through. NULL until the first
+    # (prorated) charge lands.
+    current_period_start = Column(DateTime(timezone=True), nullable=True)
+    current_period_end = Column(DateTime(timezone=True), nullable=True)
+    next_charge_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Dunning. first_failed_at anchors every deadline in the policy, so it is
+    # cleared the moment a charge succeeds — a customer who pays late starts
+    # from zero rather than carrying a clock from three months ago.
+    first_failed_at = Column(DateTime(timezone=True), nullable=True)
+    last_attempt_at = Column(DateTime(timezone=True), nullable=True)
+    failure_count = Column(Integer, nullable=False, default=0, server_default="0")
+    last_failure_reason = Column(Text, nullable=True)
+
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+    periods = relationship(
+        "RecurringChargePeriodModel",
+        back_populates="charge",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("ix_recurring_charges_org", "organization_id"),
+        Index("ix_recurring_charges_due", "status", "next_charge_at"),
+        # One live charge per resource. Without this a retried provisioning
+        # would bill the same number twice a month, for ever, and the second
+        # row would look as legitimate as the first.
+        Index(
+            "uq_recurring_charges_live_resource",
+            "charge_type",
+            "resource_id",
+            unique=True,
+            postgresql_where=text(
+                "status NOT IN ('released', 'cancelled')"
+            ),
+        ),
+    )
+
+
+class RecurringChargePeriodModel(Base):
+    """One billed month of a recurring charge.
+
+    Exists so "have we billed this month yet?" is a unique-constraint question
+    rather than a date comparison. Date arithmetic run twice at a month
+    boundary can disagree with itself; a unique index cannot.
+    """
+
+    __tablename__ = "recurring_charge_periods"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recurring_charge_id = Column(
+        Integer,
+        ForeignKey("recurring_charges.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    period_start = Column(DateTime(timezone=True), nullable=False)
+    period_end = Column(DateTime(timezone=True), nullable=False)
+    # What was actually charged, after proration. Kept alongside the charge's
+    # price_paise because a prorated first month differs from it and a
+    # statement has to show what was billed, not what the list price was.
+    charged_paise = Column(BigInteger, nullable=False)
+    cost_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+    prorated = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    charged_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    charge = relationship("RecurringChargeModel", back_populates="periods")
+
+    __table_args__ = (
+        # The idempotency guarantee. A double-run of the monthly cron collides
+        # here and the second attempt is rolled back.
+        UniqueConstraint(
+            "recurring_charge_id",
+            "period_start",
+            name="uq_recurring_charge_period",
+        ),
+        Index("ix_recurring_charge_periods_org", "organization_id", "charged_at"),
+    )
 
 
 class CreditLedgerModel(Base):
@@ -2037,6 +2212,18 @@ class CreditLedgerModel(Base):
             "ix_credit_ledger_reservation_open",
             "created_at",
             postgresql_where=text("kind = 'reservation'"),
+        ),
+        # A rental period debits at most once. recurring_charge_periods already
+        # refuses a duplicate period row, but the debit and that row are two
+        # writes: this is what makes the ledger side safe on its own, so a
+        # retry that got as far as the debit cannot charge twice.
+        Index(
+            "uq_credit_ledger_rental_ref",
+            "organization_id",
+            "ref_type",
+            "ref_id",
+            unique=True,
+            postgresql_where=text("kind = 'rental' AND ref_id IS NOT NULL"),
         ),
     )
 

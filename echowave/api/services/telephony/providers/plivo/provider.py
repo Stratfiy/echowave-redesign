@@ -17,8 +17,10 @@ from loguru import logger
 from api.db import db_client
 from api.enums import TelephonyCallStatus, WorkflowRunMode
 from api.services.telephony.base import (
+    AvailableNumber,
     CallInitiationResult,
     NormalizedInboundData,
+    NumberPurchaseResult,
     ProviderSyncResult,
     TelephonyProvider,
 )
@@ -484,6 +486,227 @@ class PlivoProvider(TelephonyProvider):
             f"(triggered by address {address})"
         )
         return ProviderSyncResult(ok=True)
+
+    # -- number inventory --------------------------------------------------
+
+    def supports_number_management(self) -> bool:
+        return True
+
+    def _numbers_auth(self) -> aiohttp.BasicAuth:
+        return aiohttp.BasicAuth(self.auth_id, self.auth_token)
+
+    async def search_available_numbers(
+        self,
+        *,
+        country_iso: str = "IN",
+        number_type: str = "local",
+        pattern: Optional[str] = None,
+        city: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[AvailableNumber]:
+        """Numbers Plivo currently has for sale in this country.
+
+        Plivo's India inventory is thin and moves, so an empty result is a
+        normal answer rather than a fault — the caller shows "none available
+        right now" and does not retry in a loop.
+        """
+        if not self.validate_config():
+            raise ValueError("Plivo provider not properly configured")
+
+        params: Dict[str, Any] = {
+            "country_iso": country_iso,
+            "type": number_type,
+            "limit": min(max(limit, 1), 20),
+        }
+        if pattern:
+            params["pattern"] = pattern
+        if city:
+            params["city"] = city
+
+        endpoint = f"{self.base_url}/PhoneNumber/"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                endpoint, params=params, auth=self._numbers_auth()
+            ) as response:
+                body = await response.text()
+                if response.status >= 400:
+                    logger.error(
+                        f"Plivo number search failed: {response.status} {body}"
+                    )
+                    raise ValueError(f"Plivo number search failed: {body[:300]}")
+                payload = json.loads(body) if body else {}
+
+        results = []
+        for entry in payload.get("objects", []) or []:
+            results.append(
+                AvailableNumber(
+                    number=str(entry.get("number") or ""),
+                    country_iso=country_iso,
+                    number_type=str(entry.get("type") or number_type),
+                    city=entry.get("city"),
+                    region=entry.get("region"),
+                    monthly_rental=entry.get("monthly_rental_rate"),
+                    setup_price=entry.get("setup_rate"),
+                    raw=entry,
+                )
+            )
+        return [r for r in results if r.number]
+
+    async def buy_number(
+        self,
+        number: str,
+        *,
+        app_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> NumberPurchaseResult:
+        """Rent a number, binding it to our application in the same request.
+
+        ``app_id`` is sent with the purchase so the number is attached to the
+        application whose ``answer_url`` is our inbound dispatcher from the
+        moment it exists. Attaching afterwards leaves a window where the number
+        is rented, billing, and answers nowhere — and if the second call fails
+        that window never closes.
+
+        Plivo has no idempotency-key header on this endpoint, so ``buy`` is not
+        inherently safe to retry. The key is echoed in the response for the
+        caller's own bookkeeping; the actual protection against double
+        purchase is the caller reserving the number in our database first —
+        see ``api/services/telephony/provisioning.py``.
+        """
+        if not self.validate_config():
+            raise ValueError("Plivo provider not properly configured")
+
+        bare = number.lstrip("+")
+        endpoint = f"{self.base_url}/PhoneNumber/{bare}/"
+        data: Dict[str, Any] = {}
+        if app_id or self.application_id:
+            data["app_id"] = app_id or self.application_id
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    endpoint, json=data, auth=self._numbers_auth()
+                ) as response:
+                    body = await response.text()
+                    if response.status not in (200, 201, 202):
+                        logger.error(
+                            f"Plivo number purchase failed for {number}: "
+                            f"{response.status} {body}"
+                        )
+                        return NumberPurchaseResult(
+                            ok=False,
+                            number=number,
+                            message=f"Plivo {response.status}: {body[:300]}",
+                        )
+                    payload = json.loads(body) if body else {}
+        except Exception as e:
+            logger.error(f"Plivo number purchase raised for {number}: {e}")
+            return NumberPurchaseResult(
+                ok=False, number=number, message=f"Purchase failed: {e}"
+            )
+
+        logger.info(
+            f"Bought Plivo number {number} "
+            f"(app {data.get('app_id') or 'none'}, key {idempotency_key})"
+        )
+        return NumberPurchaseResult(
+            ok=True,
+            number=number,
+            carrier_number_id=str(
+                payload.get("number_id") or payload.get("id") or bare
+            ),
+            raw=payload,
+        )
+
+    async def release_number(self, number: str) -> ProviderSyncResult:
+        """Hand a number back to Plivo. Irreversible.
+
+        A 404 counts as success: the number is not on our account, which is the
+        state the caller wanted. Treating it as a failure would make a
+        reconciliation job retry for ever on a number nobody holds.
+        """
+        if not self.validate_config():
+            return ProviderSyncResult(
+                ok=False, message="Plivo provider not properly configured"
+            )
+
+        endpoint = f"{self.base_url}/Number/{number.lstrip('+')}/"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.delete(
+                    endpoint, auth=self._numbers_auth()
+                ) as response:
+                    if response.status == 404:
+                        logger.warning(
+                            f"Plivo release: {number} is not on this account; "
+                            f"treating as already released"
+                        )
+                        return ProviderSyncResult(
+                            ok=True, message="Number was not on the account."
+                        )
+                    if response.status not in (200, 202, 204):
+                        body = await response.text()
+                        logger.error(
+                            f"Plivo release failed for {number}: "
+                            f"{response.status} {body}"
+                        )
+                        return ProviderSyncResult(
+                            ok=False,
+                            message=f"Plivo {response.status}: {body[:300]}",
+                        )
+        except Exception as e:
+            logger.error(f"Plivo release raised for {number}: {e}")
+            return ProviderSyncResult(ok=False, message=f"Release failed: {e}")
+
+        logger.info(f"Released Plivo number {number}")
+        return ProviderSyncResult(ok=True)
+
+    async def list_owned_numbers(self) -> List[str]:
+        """Every number rented on this Plivo account, paged to the end.
+
+        Paged fully on purpose: a reconciliation that reads only the first page
+        reports every number beyond it as missing from the carrier, which is
+        the opposite of the truth and would drive a release.
+        """
+        if not self.validate_config():
+            raise ValueError("Plivo provider not properly configured")
+
+        numbers: List[str] = []
+        offset = 0
+        page_size = 20
+        endpoint = f"{self.base_url}/Number/"
+
+        async with aiohttp.ClientSession() as session:
+            while True:
+                async with session.get(
+                    endpoint,
+                    params={"limit": page_size, "offset": offset},
+                    auth=self._numbers_auth(),
+                ) as response:
+                    body = await response.text()
+                    if response.status >= 400:
+                        raise ValueError(
+                            f"Plivo number listing failed: "
+                            f"{response.status} {body[:300]}"
+                        )
+                    payload = json.loads(body) if body else {}
+
+                page = payload.get("objects", []) or []
+                for entry in page:
+                    value = entry.get("number")
+                    if value:
+                        numbers.append(str(value))
+
+                if len(page) < page_size:
+                    return numbers
+                offset += page_size
+                if offset > 10_000:
+                    # A guard against a carrier that never shortens a page.
+                    logger.warning(
+                        "Plivo number listing exceeded 10,000 entries; "
+                        "stopping to avoid an unbounded loop"
+                    )
+                    return numbers
 
     async def start_inbound_stream(
         self,

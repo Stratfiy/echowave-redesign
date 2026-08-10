@@ -1,5 +1,13 @@
 # Managed Telephony / Plivo Subaccount — Audit
 
+> **Status: largely superseded.** This was a read-only audit taken at `e874a78`.
+> Most of what it reports as ABSENT has since been built — Plivo Compliance API
+> integration, number provisioning with a compensating release, recurring rental
+> billing, the dunning schedule, release, and nightly reconciliation. See
+> **[What changed since this audit](#what-changed-since-this-audit)** at the
+> bottom for the current state, item by item. The findings below are preserved
+> as the record of what was true when the decision to build was taken.
+
 Read-only audit. No code was changed. Line references are against `claude/pricing-correctness` at `e874a78`.
 
 **Headline:** managed telephony does not exist as a product path. What exists is a KYC document-collection flow with a manual carrier step, and a phone-number table that records numbers a human typed in. There is no provisioning, no subaccount, no release, no reconciliation, and — the expensive one — **no recurring billing of any kind**. A customer who rents a number and never calls is billed ₹0 while we pay the carrier every month.
@@ -187,3 +195,51 @@ Ranked by money protected per day of work, not by build order. Sequencing note f
 2. **Orphaned numbers after any delete.** Three paths, no reconciliation, and the delete removes the evidence. This grows monotonically and is invisible until someone audits a carrier invoice by hand.
 3. **Overstated margins on every managed account.** Rental is absent from the cost engine, so the dashboard shows a per-call margin that ignores a real fixed cost. Decisions made on that number — pricing, discounting, tender bids — will be wrong in the same direction every time.
 4. **Churned accounts keeping their numbers.** Balance enforcement stops their calls, which stops the only thing that was generating revenue, while the rent continues. The current design fails in the exact direction that costs the most.
+
+---
+
+## What changed since this audit
+
+Built on `claude/pricing-correctness`. Every item below was ABSENT or PARTIAL above.
+
+| Item | Was | Now | Where |
+|---|---|---|---|
+| Plivo Compliance API — requirements, submit, amend, status | ABSENT (stub raised) | **BUILT** | `services/kyc/plivo_compliance.py`, `services/kyc/carrier.py` |
+| `document_type_id` resolved, never hardcoded | — | **BUILT** | `carrier.resolve_document_type_id` |
+| Udyam accepted for the Registration Certificate slot | — | **BUILT** | `_PLIVO_DOCUMENT_CANDIDATES` |
+| KYC states for `suspended` / `expired`; approval no longer terminal | ABSENT | **BUILT** | `services/kyc/state.py` |
+| Compliance callback, signature-verified and idempotent | ABSENT | **BUILT** | `routes/kyc.py`, `services/kyc/callback.py` |
+| Status poll | existed | **DELETED** — callbacks replace it | `tasks/kyc_carrier_poll.py` removed |
+| Pre-submit validation (name match, duplicate file, address) | ABSENT | **BUILT** | `services/kyc/validation.py` |
+| Search available India numbers | ABSENT | **BUILT** | `plivo/provider.search_available_numbers` |
+| Purchase with `app_id` set at purchase | ABSENT | **BUILT** | `plivo/provider.buy_number` |
+| Link compliance application to number | ABSENT | **BUILT** | `plivo_compliance.link` |
+| Compensating release on half-failed provisioning | ABSENT | **BUILT** | `services/telephony/provisioning.py` |
+| Recurring monthly charge mechanism | **ABSENT** | **BUILT** | `services/billing/rentals.py`, `RecurringChargeModel` |
+| Cost recorded alongside price | ABSENT | **BUILT** | `recurring_charge_periods.cost_paise` |
+| Per-month rate unit | ABSENT | **BUILT** | `RateUnit.MONTH` |
+| Scheduled job charging monthly fees | ABSENT | **BUILT** | `tasks/rental_billing.py` (daily cron) |
+| Proration of the first period | — | **BUILT** | `rentals.prorated_amount` |
+| Dunning schedule (7 / 15 / 25 / 45 days) | ABSENT | **BUILT** | `services/billing/dunning.py` |
+| `release_number()` on the provider protocol | ABSENT | **BUILT** | `services/telephony/base.py` |
+| Release with grace assertion, actor, reason, soft delete | ABSENT | **BUILT** | `services/telephony/number_lifecycle.py` |
+| Carrier ↔ DB reconciliation, both directions | ABSENT | **BUILT** | `number_lifecycle.reconcile_all`, nightly cron |
+| Suspension gate on both call legs | ABSENT | **BUILT** | `routes/telephony.py` |
+
+### Still open
+
+- **Subaccount per organization.** Not built. Compliance applications are filed
+  under the parent account and numbers are bought there. Inbound routing already
+  keys on the account id in the config's credentials, so moving to subaccounts is
+  a matter of storing the subaccount pair per organization — but until that
+  happens, cost attribution across managed customers is at the parent level only.
+- **`set_platform_managed` still has no admin route.** It remains the hard
+  blocker called out in the estimate: nothing can put an organization onto the
+  managed path except a hand-written `UPDATE`.
+- **The rental figures are estimates.** `NUMBER_RENTAL_COST_PAISE` defaults to
+  ₹250/month, which came from the launch plan, not from Plivo's price list.
+  Confirm it before quoting a margin.
+- **No provisioning UI.** The API is there; the dashboard is not.
+- **Nothing has run against Plivo's live API.** The endpoint shapes match the
+  published documentation and the encoding is unit-tested, but no compliance
+  application has been filed and no number bought for real.

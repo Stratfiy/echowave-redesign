@@ -94,6 +94,25 @@ class TelephonyPhoneNumberClient(BaseDBClient):
             )
             return result.scalars().first()
 
+    async def get_phone_number_for_org(
+        self, phone_number_id: int, organization_id: int
+    ) -> Optional[TelephonyPhoneNumberModel]:
+        """One number, scoped to its owning organization.
+
+        The release path needs this rather than the config-scoped lookup: a
+        caller asking to release a number knows the number's id but not
+        necessarily which configuration holds it, and resolving through the
+        config first would mean trusting an id pair the caller supplied.
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(TelephonyPhoneNumberModel).where(
+                    TelephonyPhoneNumberModel.id == phone_number_id,
+                    TelephonyPhoneNumberModel.organization_id == organization_id,
+                )
+            )
+            return result.scalars().first()
+
     async def find_active_phone_number_for_inbound(
         self,
         organization_id: int,
@@ -232,6 +251,8 @@ class TelephonyPhoneNumberClient(BaseDBClient):
         is_active: bool = True,
         is_default_caller_id: bool = False,
         extra_metadata: Optional[Dict[str, Any]] = None,
+        status: str = "active",
+        carrier_number_id: Optional[str] = None,
     ) -> TelephonyPhoneNumberModel:
         normalized = normalize_telephony_address(address, country_hint=country_code)
 
@@ -251,6 +272,8 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                 is_active=is_active,
                 is_default_caller_id=is_default_caller_id,
                 extra_metadata=extra_metadata or {},
+                status=status,
+                carrier_number_id=carrier_number_id,
             )
             session.add(row)
             try:
@@ -271,6 +294,9 @@ class TelephonyPhoneNumberClient(BaseDBClient):
         country_code: Optional[str] = None,
         extra_metadata: Optional[Dict[str, Any]] = None,
         clear_inbound_workflow: bool = False,
+        status: Optional[str] = None,
+        carrier_number_id: Optional[str] = None,
+        provisioned_at=None,
     ) -> Optional[TelephonyPhoneNumberModel]:
         """Partial update. ``address`` is intentionally immutable — create a new
         row instead. Set ``clear_inbound_workflow=True`` to null out the FK."""
@@ -291,6 +317,12 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                 row.country_code = country_code
             if extra_metadata is not None:
                 row.extra_metadata = extra_metadata
+            if status is not None:
+                row.status = status
+            if carrier_number_id is not None:
+                row.carrier_number_id = carrier_number_id
+            if provisioned_at is not None:
+                row.provisioned_at = provisioned_at
 
             await session.commit()
             await session.refresh(row)

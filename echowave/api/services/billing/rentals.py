@@ -1,0 +1,544 @@
+"""Monthly rental charges for resources we hold on a customer's behalf.
+
+This is the money side of managed numbers, and it is deliberately **not** part
+of the per-call costing path. A call receipt is computed from measured usage on
+a workflow run; a rental accrues because a month passed. Sharing the code would
+have meant inventing a fake run to hang a rental off, and would have shown
+customers a line item for calls they never made.
+
+Two invariants hold everything together.
+
+**A period is billed at most once.** ``recurring_charge_periods`` has a unique
+constraint on ``(recurring_charge_id, period_start)`` and the ledger has a
+partial unique index on rental refs. Both are needed: the period row and the
+ledger debit are two writes, and a crash between them must not let a retry
+charge twice. The cron is therefore safe to run twice, safe to run late, and
+safe to re-run over a month it already processed.
+
+**Cost and price are both recorded.** Every period stores what the customer was
+charged and what the carrier charges us. Recording only the price is precisely
+how the platform's margin figures came to ignore number rental entirely — the
+number looked healthy because a real fixed cost was invisible to it.
+
+Proration: the first period runs from purchase to the end of that calendar
+month and is charged pro rata by whole days. Every period after is a full
+month. A number bought on the 28th does not pay for the 27 days before it
+existed.
+"""
+
+from __future__ import annotations
+
+import calendar
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+
+from loguru import logger
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.db import db_client
+from api.db.models import (
+    CreditLedgerModel,
+    RecurringChargeModel,
+    RecurringChargePeriodModel,
+    TelephonyPhoneNumberModel,
+)
+from api.enums import (
+    CreditLedgerKind,
+    PhoneNumberStatus,
+    RecurringChargeStatus,
+    RecurringChargeType,
+)
+from api.services.billing import dunning
+from api.services.billing.costing import current_balance_paise
+from api.services.billing.money import round_half_up_div
+
+
+@dataclass(frozen=True)
+class ChargeOutcome:
+    """What one attempt to bill one period did."""
+
+    charge_id: int
+    charged: bool
+    amount_paise: int = 0
+    prorated: bool = False
+    reason: str = ""
+
+
+def month_end(moment: datetime) -> datetime:
+    """Midnight UTC on the first day of the following month."""
+    if moment.month == 12:
+        return moment.replace(
+            year=moment.year + 1,
+            month=1,
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+    return moment.replace(
+        month=moment.month + 1,
+        day=1,
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+
+
+def month_start(moment: datetime) -> datetime:
+    return moment.replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+
+
+def prorated_amount(
+    *, full_price_paise: int, period_start: datetime, period_end: datetime
+) -> int:
+    """A partial month's price, by whole days.
+
+    Days rather than seconds because a customer can check days against a
+    calendar, and the difference between the two is a few paise on a ₹399
+    rental. ``round_half_up_div`` for the same reason it is used everywhere
+    else in billing: banker's rounding would make a half-paise land differently
+    depending on which day of the month it was.
+
+    Always at least one day, so a number bought at 23:55 on the last of the
+    month is not free.
+    """
+    days_in_month = calendar.monthrange(period_start.year, period_start.month)[1]
+    used_days = max(1, (period_end - period_start).days)
+    if used_days >= days_in_month:
+        return full_price_paise
+    return round_half_up_div(full_price_paise * used_days, days_in_month)
+
+
+async def open_number_rental(
+    *,
+    organization_id: int,
+    phone_number_id: int,
+    cost_paise: int,
+    price_paise: int,
+    now: datetime | None = None,
+) -> RecurringChargeModel | None:
+    """Start charging rent for a number that has just been provisioned.
+
+    Returns the existing charge rather than raising if one is already open —
+    a provisioning retry that got as far as the purchase should converge on one
+    charge, not fail because it half-succeeded before.
+    """
+    now = now or datetime.now(UTC)
+
+    async with db_client.async_session() as session:
+        existing = await session.scalar(
+            select(RecurringChargeModel).where(
+                RecurringChargeModel.charge_type
+                == RecurringChargeType.NUMBER_RENTAL.value,
+                RecurringChargeModel.resource_id == phone_number_id,
+                RecurringChargeModel.status.notin_(
+                    [
+                        RecurringChargeStatus.RELEASED.value,
+                        RecurringChargeStatus.CANCELLED.value,
+                    ]
+                ),
+            )
+        )
+        if existing is not None:
+            logger.debug(
+                "Rental charge {} already open for number {}",
+                existing.id,
+                phone_number_id,
+            )
+            return existing
+
+        charge = RecurringChargeModel(
+            organization_id=organization_id,
+            charge_type=RecurringChargeType.NUMBER_RENTAL.value,
+            resource_id=phone_number_id,
+            status=RecurringChargeStatus.ACTIVE.value,
+            cost_paise=cost_paise,
+            price_paise=price_paise,
+            started_at=now,
+            # Due immediately: the first period is the remainder of this month,
+            # charged pro rata by the next cron tick.
+            next_charge_at=now,
+        )
+        session.add(charge)
+        try:
+            await session.commit()
+        except IntegrityError:
+            # The partial unique index caught a concurrent open. Whoever won is
+            # the one true charge.
+            await session.rollback()
+            return await session.scalar(
+                select(RecurringChargeModel).where(
+                    RecurringChargeModel.charge_type
+                    == RecurringChargeType.NUMBER_RENTAL.value,
+                    RecurringChargeModel.resource_id == phone_number_id,
+                    RecurringChargeModel.status.notin_(
+                        [
+                            RecurringChargeStatus.RELEASED.value,
+                            RecurringChargeStatus.CANCELLED.value,
+                        ]
+                    ),
+                )
+            )
+        await session.refresh(charge)
+        logger.info(
+            "Opened rental charge {} for number {} at {} paise/month",
+            charge.id,
+            phone_number_id,
+            price_paise,
+        )
+        return charge
+
+
+async def due_charges(*, now: datetime | None = None, limit: int = 500):
+    """Charges whose next billing date has arrived.
+
+    Excludes released and cancelled charges. Includes past-due and suspended
+    ones: a suspended charge is still retried daily, and collecting it is what
+    lifts the suspension.
+    """
+    now = now or datetime.now(UTC)
+    async with db_client.async_session() as session:
+        return list(
+            (
+                await session.scalars(
+                    select(RecurringChargeModel)
+                    .where(
+                        RecurringChargeModel.status.notin_(
+                            [
+                                RecurringChargeStatus.RELEASED.value,
+                                RecurringChargeStatus.CANCELLED.value,
+                            ]
+                        ),
+                        RecurringChargeModel.next_charge_at.isnot(None),
+                        RecurringChargeModel.next_charge_at <= now,
+                    )
+                    .order_by(RecurringChargeModel.next_charge_at)
+                    .limit(limit)
+                )
+            ).all()
+        )
+
+
+async def charge_period(
+    charge_id: int, *, now: datetime | None = None
+) -> ChargeOutcome:
+    """Bill one period of one charge, exactly once.
+
+    The period boundaries are derived from what has already been billed, not
+    from the clock: a cron that missed a month bills the month it missed rather
+    than skipping it, and a cron that runs twice on the same day finds the
+    period already recorded and does nothing.
+    """
+    now = now or datetime.now(UTC)
+
+    async with db_client.async_session() as session:
+        charge = await session.get(RecurringChargeModel, charge_id)
+        if charge is None:
+            return ChargeOutcome(charge_id=charge_id, charged=False, reason="missing")
+        if charge.status in (
+            RecurringChargeStatus.RELEASED.value,
+            RecurringChargeStatus.CANCELLED.value,
+        ):
+            return ChargeOutcome(charge_id=charge_id, charged=False, reason="closed")
+
+        period_start, period_end, prorated = _next_period(charge, now=now)
+        # Strictly greater: a period becomes due *at* its start, so a tick that
+        # lands exactly on a month boundary bills that month rather than
+        # deferring it to the next run. With >= here, a cron firing at
+        # midnight on the first would find every charge "not due".
+        if period_start > now and charge.current_period_end is not None:
+            return ChargeOutcome(
+                charge_id=charge_id, charged=False, reason="not_due"
+            )
+
+        amount = (
+            prorated_amount(
+                full_price_paise=charge.price_paise,
+                period_start=period_start,
+                period_end=period_end,
+            )
+            if prorated
+            else charge.price_paise
+        )
+        cost = (
+            prorated_amount(
+                full_price_paise=charge.cost_paise,
+                period_start=period_start,
+                period_end=period_end,
+            )
+            if prorated
+            else charge.cost_paise
+        )
+
+        balance = await current_balance_paise(
+            session, organization_id=charge.organization_id
+        )
+        if balance < amount:
+            await _record_failure(
+                session,
+                charge,
+                now=now,
+                reason=(
+                    f"Balance {balance} paise is short of the "
+                    f"{amount} paise rental."
+                ),
+            )
+            await session.commit()
+            return ChargeOutcome(
+                charge_id=charge_id,
+                charged=False,
+                amount_paise=amount,
+                reason="insufficient_balance",
+            )
+
+        period = RecurringChargePeriodModel(
+            recurring_charge_id=charge.id,
+            organization_id=charge.organization_id,
+            period_start=period_start,
+            period_end=period_end,
+            charged_paise=amount,
+            cost_paise=cost,
+            prorated=prorated,
+        )
+        session.add(period)
+        try:
+            # Flushed before the ledger write so a duplicate period is caught
+            # here, before any money moves.
+            await session.flush()
+        except IntegrityError:
+            await session.rollback()
+            logger.debug(
+                "Rental period {} for charge {} already billed",
+                period_start,
+                charge_id,
+            )
+            return ChargeOutcome(
+                charge_id=charge_id, charged=False, reason="already_billed"
+            )
+
+        session.add(
+            CreditLedgerModel(
+                organization_id=charge.organization_id,
+                delta_paise=-amount,
+                kind=CreditLedgerKind.RENTAL.value,
+                ref_type="recurring_charge_period",
+                ref_id=str(period.id),
+                balance_after_paise=balance - amount,
+                note=f"Number rental {period_start:%b %Y}"
+                + (" (prorated)" if prorated else ""),
+            )
+        )
+
+        charge.current_period_start = period_start
+        charge.current_period_end = period_end
+        charge.next_charge_at = period_end
+        charge.last_attempt_at = now
+        # Collected: the dunning clock resets completely. A customer who pays
+        # late starts from zero rather than carrying a clock from an earlier
+        # lapse.
+        charge.first_failed_at = None
+        charge.failure_count = 0
+        charge.last_failure_reason = None
+        if charge.status in (
+            RecurringChargeStatus.PAST_DUE.value,
+            RecurringChargeStatus.SUSPENDED.value,
+            RecurringChargeStatus.PENDING_RELEASE.value,
+        ):
+            charge.status = RecurringChargeStatus.ACTIVE.value
+            await _set_number_status(
+                session, charge, PhoneNumberStatus.ACTIVE.value
+            )
+            logger.info(
+                "Rental charge {} collected; number {} restored",
+                charge.id,
+                charge.resource_id,
+            )
+
+        try:
+            await session.commit()
+        except IntegrityError:
+            # The ledger's rental uniqueness index. Someone else billed this
+            # period between our flush and our commit.
+            await session.rollback()
+            return ChargeOutcome(
+                charge_id=charge_id, charged=False, reason="already_billed"
+            )
+
+        return ChargeOutcome(
+            charge_id=charge_id,
+            charged=True,
+            amount_paise=amount,
+            prorated=prorated,
+        )
+
+
+def _next_period(
+    charge: RecurringChargeModel, *, now: datetime
+) -> tuple[datetime, datetime, bool]:
+    """The period this charge owes next, and whether it is prorated.
+
+    Derived from ``current_period_end`` rather than from ``now`` so a cron that
+    did not run for six weeks bills the month it missed first, and catches up
+    one period per tick instead of silently forgiving it.
+    """
+    if charge.current_period_end is None:
+        start = charge.started_at
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=UTC)
+        end = month_end(start)
+        return start, end, True
+
+    start = charge.current_period_end
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=UTC)
+    return start, month_end(start), False
+
+
+async def _record_failure(
+    session: AsyncSession,
+    charge: RecurringChargeModel,
+    *,
+    now: datetime,
+    reason: str,
+) -> None:
+    """Apply the dunning policy to a charge that could not be collected."""
+    if charge.first_failed_at is None:
+        charge.first_failed_at = now
+    charge.failure_count = (charge.failure_count or 0) + 1
+    charge.last_attempt_at = now
+    charge.last_failure_reason = reason[:2000]
+    charge.next_charge_at = dunning.next_retry_at(now)
+
+    first_failed = charge.first_failed_at
+    if first_failed.tzinfo is None:
+        first_failed = first_failed.replace(tzinfo=UTC)
+
+    state = dunning.evaluate(
+        first_failed_at=first_failed, current_status=charge.status, now=now
+    )
+    charge.status = state.status.value
+
+    if state.should_suspend:
+        await _set_number_status(
+            session, charge, PhoneNumberStatus.SUSPENDED.value
+        )
+
+    logger.warning(
+        "Rental charge {} for org {} is {} day(s) overdue ({}); status {}",
+        charge.id,
+        charge.organization_id,
+        state.days_overdue,
+        reason,
+        state.status.value,
+    )
+
+
+async def _set_number_status(
+    session: AsyncSession, charge: RecurringChargeModel, status: str
+) -> None:
+    """Mirror a charge's state onto the number it pays for.
+
+    Only for number rentals, and never touching ``is_active``: that is the
+    customer's own switch, and a suspension that flipped it would silently
+    turn the number off for good when they later paid.
+    """
+    if charge.charge_type != RecurringChargeType.NUMBER_RENTAL.value:
+        return
+    number = await session.get(TelephonyPhoneNumberModel, charge.resource_id)
+    if number is None:
+        logger.error(
+            "Rental charge {} points at phone number {}, which does not exist",
+            charge.id,
+            charge.resource_id,
+        )
+        return
+    if number.status == PhoneNumberStatus.RELEASED.value:
+        # Released is terminal. Nothing brings a number back.
+        return
+    number.status = status
+
+
+async def run_due_charges(*, now: datetime | None = None) -> dict[str, int]:
+    """Bill everything that is due. Safe to run repeatedly.
+
+    One charge failing must not stop the rest: a customer with no balance is
+    the normal case this loop exists to handle, and an exception escaping here
+    would leave every later charge unbilled until the next tick.
+    """
+    now = now or datetime.now(UTC)
+    charges = await due_charges(now=now)
+    counters = {"considered": len(charges), "charged": 0, "failed": 0}
+
+    for charge in charges:
+        try:
+            outcome = await charge_period(charge.id, now=now)
+        except Exception:
+            logger.exception("Rental charge {} could not be processed", charge.id)
+            counters["failed"] += 1
+            continue
+        if outcome.charged:
+            counters["charged"] += 1
+        elif outcome.reason == "insufficient_balance":
+            counters["failed"] += 1
+
+    logger.info(
+        "Rental billing: {considered} due, {charged} charged, {failed} unpaid",
+        **counters,
+    )
+    return counters
+
+
+async def close_rental(
+    *,
+    phone_number_id: int,
+    status: RecurringChargeStatus,
+    now: datetime | None = None,
+) -> None:
+    """Stop billing for a number, on release or on a clean cancellation.
+
+    Called by the release path. Ending the charge is what makes the money stop;
+    forgetting it is how a customer keeps paying for a number they gave back.
+    """
+    now = now or datetime.now(UTC)
+    async with db_client.async_session() as session:
+        charge = await session.scalar(
+            select(RecurringChargeModel).where(
+                RecurringChargeModel.charge_type
+                == RecurringChargeType.NUMBER_RENTAL.value,
+                RecurringChargeModel.resource_id == phone_number_id,
+                RecurringChargeModel.status.notin_(
+                    [
+                        RecurringChargeStatus.RELEASED.value,
+                        RecurringChargeStatus.CANCELLED.value,
+                    ]
+                ),
+            )
+        )
+        if charge is None:
+            return
+        charge.status = status.value
+        charge.ended_at = now
+        charge.next_charge_at = None
+        await session.commit()
+        logger.info(
+            "Closed rental charge {} for number {} as {}",
+            charge.id,
+            phone_number_id,
+            status.value,
+        )
+
+
+def monthly_margin_paise(price_paise: int, cost_paise: int) -> int:
+    """What a rental actually earns.
+
+    Trivial, and here rather than inline so the dashboard and the reports call
+    the same thing. The whole reason this module records cost alongside price
+    is that this number was previously unobtainable.
+    """
+    return price_paise - cost_paise

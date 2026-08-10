@@ -57,6 +57,27 @@ DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)
 MPS_API_URL = os.getenv("MPS_API_URL", "https://services.decibyl.ai")
 DECIBYL_DEVOPS_SECRET = os.getenv("DECIBYL_DEVOPS_SECRET") or None
 
+# Decibyl's own Plivo account — the parent under which managed numbers are
+# bought and compliance applications are filed on customers' behalf. Distinct
+# from the per-organization credentials on telephony_configurations, which are
+# a customer's own carrier account and are never used for this.
+#
+# PLATFORM_PLIVO_APPLICATION_ID is the Plivo Application whose answer_url
+# points at our inbound dispatcher. Numbers are bought with this app_id set, so
+# the number-to-application link needs no console step.
+PLATFORM_PLIVO_AUTH_ID = os.getenv("PLATFORM_PLIVO_AUTH_ID") or None
+PLATFORM_PLIVO_AUTH_TOKEN = os.getenv("PLATFORM_PLIVO_AUTH_TOKEN") or None
+PLATFORM_PLIVO_APPLICATION_ID = os.getenv("PLATFORM_PLIVO_APPLICATION_ID") or None
+
+# What we pay the carrier per number per month, and what we charge for it, both
+# in paise. Recorded as two separate numbers because recording only the retail
+# price is how a margin figure starts lying — see api/services/billing/rentals.py.
+#
+# Defaults are the India local-DID figures the launch plan was costed on.
+# Confirm against Plivo's live price list before relying on the margin.
+NUMBER_RENTAL_COST_PAISE = int(os.getenv("NUMBER_RENTAL_COST_PAISE", "25000"))
+NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "39900"))
+
 # Whether customers can start telephony verification at all.
 #
 # The flow depends on an ISV/reseller arrangement with the carrier — subaccounts

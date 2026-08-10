@@ -70,6 +70,29 @@ class KycClient(BaseDBClient):
             await session.commit()
             return await session.scalar(_loaded(organization_id))
 
+    async def get_kyc_by_carrier_reference(
+        self, carrier_reference: str
+    ) -> OrganizationKycModel | None:
+        """The account holding this carrier application id.
+
+        The one lookup here that is not scoped to an organization, because it
+        is what *resolves* the organization: a carrier callback knows its own
+        application id and nothing about our tenancy. Safe precisely because
+        the application id is ours — we recorded it when we filed — rather
+        than something a caller supplies about an account it names.
+        """
+        if not carrier_reference:
+            return None
+        async with self.async_session() as session:
+            record = await session.scalar(
+                select(OrganizationKycModel).where(
+                    OrganizationKycModel.carrier_reference == carrier_reference
+                )
+            )
+            if record is None:
+                return None
+            return await session.scalar(_loaded(record.organization_id))
+
     async def update_kyc(
         self, organization_id: int, **fields
     ) -> OrganizationKycModel | None:
@@ -106,6 +129,7 @@ class KycClient(BaseDBClient):
         content_type: str | None,
         size_bytes: int,
         uploaded_by: int | None,
+        content_sha256: str | None = None,
     ) -> KycDocumentModel:
         """Record an uploaded document.
 
@@ -123,6 +147,7 @@ class KycClient(BaseDBClient):
                 content_type=content_type,
                 size_bytes=size_bytes,
                 uploaded_by=uploaded_by,
+                content_sha256=content_sha256,
             )
             session.add(document)
             await session.commit()

@@ -41,6 +41,41 @@ class ProviderSyncResult:
 
 
 @dataclass
+class AvailableNumber:
+    """One number a carrier is offering for sale."""
+
+    number: str  # E.164
+    country_iso: str
+    number_type: str  # local | mobile | tollfree
+    city: Optional[str] = None
+    region: Optional[str] = None
+    #: Monthly rental as the carrier quotes it, in the carrier's own currency
+    #: units. Surfaced so a purchase screen can show what a number costs before
+    #: it is bought, rather than after it appears on an invoice.
+    monthly_rental: Optional[str] = None
+    setup_price: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class NumberPurchaseResult:
+    """The outcome of buying a number.
+
+    ``carrier_number_id`` is the handle the carrier knows this number by, and
+    is what a later release quotes. Without it stored, a number we bought can
+    only be released by searching the carrier's inventory for its address —
+    which is exactly the reconciliation problem that keeps orphaned rentals
+    invisible.
+    """
+
+    ok: bool
+    number: str
+    carrier_number_id: Optional[str] = None
+    message: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class NormalizedInboundData:
     """Standardized inbound call data across all providers."""
 
@@ -388,6 +423,81 @@ class TelephonyProvider(ABC):
         don't support programmatic webhook configuration (e.g. ARI).
         """
         return ProviderSyncResult(ok=True)
+
+    # -- number inventory --------------------------------------------------
+    #
+    # Concrete rather than abstract, defaulting to "this carrier cannot do it".
+    # Seven providers are registered here and only one is a reseller channel we
+    # buy numbers through; making these abstract would force six
+    # implementations whose entire body is a raise, and would break every
+    # third-party provider outside this repo on upgrade.
+
+    def supports_number_management(self) -> bool:
+        """Whether we can search, buy and release numbers on this carrier.
+
+        Checked before offering a managed number for sale. False for a provider
+        we only ever dial out through with credentials a customer supplied.
+        """
+        return False
+
+    async def search_available_numbers(
+        self,
+        *,
+        country_iso: str = "IN",
+        number_type: str = "local",
+        pattern: Optional[str] = None,
+        city: Optional[str] = None,
+        limit: int = 20,
+    ) -> List["AvailableNumber"]:
+        """Numbers the carrier currently has for sale matching these filters."""
+        raise NotImplementedError(
+            f"Number search not supported for provider {self.PROVIDER_NAME}"
+        )
+
+    async def buy_number(
+        self,
+        number: str,
+        *,
+        app_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> "NumberPurchaseResult":
+        """Rent ``number`` from the carrier.
+
+        ``app_id`` is set **at purchase** where the carrier supports it, so the
+        number is bound to the application serving our inbound webhook the
+        moment it exists. Binding afterwards leaves a window in which the
+        number is rented, billable, and routes nowhere.
+
+        ``idempotency_key`` must make a retry safe. A network timeout on this
+        call is indistinguishable from a failure, and retrying without one is
+        how an account ends up renting two numbers and knowing about one.
+        """
+        raise NotImplementedError(
+            f"Number purchase not supported for provider {self.PROVIDER_NAME}"
+        )
+
+    async def release_number(self, number: str) -> ProviderSyncResult:
+        """Give ``number`` back to the carrier and stop paying for it.
+
+        Irreversible. The number returns to the carrier's pool and may be
+        reissued to someone else, so callers must have established that release
+        is intended — see ``api/services/billing/dunning.py`` for the policy
+        that decides when it is.
+        """
+        raise NotImplementedError(
+            f"Number release not supported for provider {self.PROVIDER_NAME}"
+        )
+
+    async def list_owned_numbers(self) -> List[str]:
+        """Every number this account currently rents, in E.164.
+
+        The carrier's side of reconciliation. Distinct from
+        ``get_available_phone_numbers``, which answers "what may this
+        configuration dial out as" and is satisfied by a configured list.
+        """
+        raise NotImplementedError(
+            f"Number inventory not supported for provider {self.PROVIDER_NAME}"
+        )
 
     @staticmethod
     @abstractmethod

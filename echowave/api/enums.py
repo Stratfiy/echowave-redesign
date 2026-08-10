@@ -233,6 +233,12 @@ class RateUnit(str, Enum):
     MINUTE = "minute"
     THOUSAND_CHARS = "1k_chars"
     THOUSAND_TOKENS = "1k_tokens"
+    #: A recurring charge for holding a resource, quoted per calendar month.
+    #: Unlike every other unit here this is not measured from a call — nothing
+    #: on a receipt multiplies it, and ``compute_call_cost`` never sees it. It
+    #: exists so a number rental can be expressed as a rate at all; see
+    #: ``api/services/billing/rentals.py``.
+    MONTH = "month"
 
 
 class CreditLedgerKind(str, Enum):
@@ -246,6 +252,12 @@ class CreditLedgerKind(str, Enum):
     # against the balance immediately so concurrent calls cannot each spend the
     # same rupee.
     RESERVATION = "reservation"
+    # A recurring charge for a resource held between calls — today, a rented
+    # phone number. Kept distinct from USAGE because it is not a call receipt:
+    # it has no workflow run behind it, it accrues whether or not the account
+    # dials, and a statement that folded it into usage would tell a customer
+    # they were charged for calls they never made.
+    RENTAL = "rental"
 
 
 class BillingAuditAction(str, Enum):
@@ -283,6 +295,15 @@ class KycStatus(str, Enum):
     CARRIER_REJECTED = "carrier_rejected"
     #: The licensee has verified the account. The only state that permits calls.
     CARRIER_APPROVED = "carrier_approved"
+    #: The licensee has suspended a previously approved application. Plivo
+    #: suspends for cause — a document that no longer holds, an unanswered
+    #: query — and can reinstate, so this is not the end of the road. Calling
+    #: stops immediately; the numbers stay held.
+    SUSPENDED = "suspended"
+    #: The application lapsed. Plivo expires applications whose documents have
+    #: aged out, and an expired one cannot be amended — the account has to
+    #: build a new application from scratch.
+    EXPIRED = "expired"
 
 
 class KycBusinessType(str, Enum):
@@ -290,6 +311,55 @@ class KycBusinessType(str, Enum):
 
     INDIVIDUAL = "individual"
     COMPANY = "company"
+
+
+class RecurringChargeType(str, Enum):
+    """What a recurring charge is for."""
+
+    #: Monthly rental on a phone number held at the carrier.
+    NUMBER_RENTAL = "number_rental"
+
+
+class RecurringChargeStatus(str, Enum):
+    """Where a recurring charge sits in the dunning cycle.
+
+    The order here is the order a charge moves through, and the day thresholds
+    live in ``api/services/billing/dunning.py`` rather than being scattered
+    across the states — a policy that decides when someone loses a phone number
+    should be readable in one place.
+    """
+
+    #: Billing normally. The only state in which the resource works fully.
+    ACTIVE = "active"
+    #: A charge failed for want of balance. Retried daily; calls still work.
+    PAST_DUE = "past_due"
+    #: Calls are blocked, but the number is still held at the carrier and can
+    #: be recovered in full by topping up.
+    SUSPENDED = "suspended"
+    #: Long enough past due that release is permitted. Nothing releases
+    #: automatically from here — see ``dunning.py``.
+    PENDING_RELEASE = "pending_release"
+    #: The resource is gone. Terminal, and irreversible at the carrier.
+    RELEASED = "released"
+    #: Ended cleanly at the customer's request, with nothing outstanding.
+    CANCELLED = "cancelled"
+
+
+class PhoneNumberStatus(str, Enum):
+    """Lifecycle of a number we hold at a carrier on a customer's behalf.
+
+    Distinct from ``is_active``, which is the customer's own on/off switch. A
+    number can be ``is_active=True`` and ``SUSPENDED`` here — the customer
+    wants it working, and it is not, because they have not paid.
+    """
+
+    #: Bought and linked; routing works.
+    ACTIVE = "active"
+    #: Held at the carrier, calls blocked. Recoverable.
+    SUSPENDED = "suspended"
+    #: Released at the carrier. The row survives as the record that we once
+    #: held it; nothing may route to it again.
+    RELEASED = "released"
 
 
 class KycDocumentKind(str, Enum):

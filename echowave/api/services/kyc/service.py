@@ -17,6 +17,7 @@ from api.db import db_client
 from api.db.models import KycDocumentModel, OrganizationKycModel
 from api.enums import KycBusinessType, KycDocumentKind, KycStatus
 from api.services.kyc import documents as document_store
+from api.services.kyc import validation
 from api.services.kyc.carrier import CarrierVerdict, get_carrier
 from api.services.kyc.state import (
     KycTransitionError,
@@ -25,6 +26,7 @@ from api.services.kyc.state import (
     missing_documents,
     required_documents,
 )
+from api.utils.common import get_backend_endpoints
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,83 @@ def _document_summary(document: KycDocumentModel) -> dict:
     }
 
 
+class KycValidationError(ValueError):
+    """Pre-submit checks failed. Carries every problem, not just the first.
+
+    A route turns ``problems`` into a field-keyed response so the form can mark
+    each input; ``str(exc)`` stays readable for logs and for callers that only
+    want a sentence.
+    """
+
+    def __init__(self, problems):
+        self.problems = list(problems)
+        super().__init__(" ".join(p.message for p in self.problems))
+
+
+def build_end_user(record: OrganizationKycModel) -> dict:
+    """The ``end_user`` object on a Plivo compliance application.
+
+    ``name`` is the registered legal name and nothing else. It is compared
+    character for character against the registration certificate at the
+    carrier, which is why ``validation.check_name_match`` runs before anything
+    reaches here — by this point a mismatch is already a rejection in waiting.
+    """
+    return {
+        "name": (record.legal_name or "").strip(),
+        "last_name": "",
+        "user_type": "business"
+        if record.business_type == KycBusinessType.COMPANY.value
+        else "individual",
+        "country_iso": record.country_iso or "IN",
+        "address": " ".join(
+            part
+            for part in [
+                (record.address_line1 or "").strip(),
+                (record.address_line2 or "").strip(),
+            ]
+            if part
+        ),
+        "city": (record.city or "").strip(),
+        "region": (record.region or "").strip(),
+        "postal_code": (record.postal_code or "").strip(),
+        # Plivo takes the tax id as part of the end user for Indian business
+        # applications. Absent for an individual, which is legitimate.
+        "business_id_number": (record.gstin or "").strip(),
+    }
+
+
+async def compliance_callback_url() -> str:
+    """Where Plivo posts compliance status changes.
+
+    Resolved at call time rather than held in a constant because the backend
+    endpoint is discovered (tunnel URLs in development), and a callback URL
+    baked in at import would point at a tunnel that has since moved.
+    """
+    backend_endpoint, _ = await get_backend_endpoints()
+    return f"{backend_endpoint}/api/v1/kyc/carrier-callback"
+
+
+async def _carrier_documents(record: OrganizationKycModel) -> list[dict]:
+    """Document metadata **and bytes**, as a carrier submission needs them.
+
+    The summaries shown to reviewers deliberately omit the storage key; a
+    carrier needs the file itself, so this is the one place that reads the
+    objects back out of the bucket.
+    """
+    payload = []
+    for document in record.documents or []:
+        content = await document_store.read_document(document.storage_key)
+        payload.append(
+            {
+                "kind": document.kind,
+                "filename": document.filename,
+                "content_type": document.content_type,
+                "content": content,
+            }
+        )
+    return payload
+
+
 def build_view(record: OrganizationKycModel) -> KycView:
     """Shape a record for display, including what is still outstanding."""
     supplied = {d.kind for d in (record.documents or [])}
@@ -91,6 +170,11 @@ def build_view(record: OrganizationKycModel) -> KycView:
                 KycStatus.NOT_STARTED.value,
                 KycStatus.REJECTED.value,
                 KycStatus.CARRIER_REJECTED.value,
+                # An expired application cannot be amended, so the only way
+                # back is a fresh submission. Suspension is absent: only the
+                # licensee lifts one, and inviting a resubmission would have
+                # the customer re-uploading documents that will change nothing.
+                KycStatus.EXPIRED.value,
             }
         ),
         telephony_enabled=may_place_telephony_calls(record.status),
@@ -108,8 +192,18 @@ async def set_business_details(
     business_type: str,
     legal_name: str,
     gstin: str | None,
+    address_line1: str | None = None,
+    address_line2: str | None = None,
+    city: str | None = None,
+    region: str | None = None,
+    postal_code: str | None = None,
 ) -> KycView:
-    """Record who the customer is. Decides which documents are required."""
+    """Record who the customer is. Decides which documents are required.
+
+    The address is part of this rather than a second form because the carrier
+    needs it on the same application, and splitting it across two screens is
+    how half of it ends up unfilled.
+    """
     try:
         KycBusinessType(business_type)
     except ValueError as exc:
@@ -119,8 +213,17 @@ async def set_business_details(
     record = await db_client.update_kyc(
         organization_id,
         business_type=business_type,
+        # Kept exactly as typed apart from surrounding whitespace. The carrier
+        # compares this against the registration certificate character for
+        # character, so normalising case or punctuation here would silently
+        # change what we submit.
         legal_name=(legal_name or "").strip() or None,
         gstin=(gstin or "").strip() or None,
+        address_line1=(address_line1 or "").strip() or None,
+        address_line2=(address_line2 or "").strip() or None,
+        city=(city or "").strip() or None,
+        region=(region or "").strip() or None,
+        postal_code=(postal_code or "").strip() or None,
     )
     return build_view(record)
 
@@ -171,6 +274,10 @@ async def upload_document(
         content_type=content_type,
         size_bytes=len(content),
         uploaded_by=uploaded_by,
+        # Recorded now, while the bytes are in hand. Computing it at submission
+        # time would mean pulling every document back out of the bucket to
+        # answer a question we could have answered here for free.
+        content_sha256=validation.content_digest(content),
     )
 
     # Delete the row first: an orphaned object costs storage, but a row
@@ -219,6 +326,13 @@ async def submit(organization_id: int) -> KycView:
     if missing:
         readable = ", ".join(sorted(k.value.replace("_", " ") for k in missing))
         raise ValueError(f"Still needed: {readable}.")
+
+    # Everything the carrier will reject for, caught while the customer is
+    # still on the page. Reported together rather than one at a time — three
+    # rejections spaced days apart is how a signup is abandoned.
+    problems = validation.validate_for_submission(record)
+    if problems:
+        raise KycValidationError(problems)
 
     target = assert_transition(record.status, KycStatus.SUBMITTED)
 
@@ -275,6 +389,29 @@ _BLOCKED_MESSAGES = {
         "The telecom operator did not approve your verification. See the reason "
         "on your verification page and submit again."
     ),
+    KycStatus.SUSPENDED.value: (
+        "The telecom operator has suspended your verification, so phone calls "
+        "are paused. Your numbers are still yours. See the reason on your "
+        "verification page — most suspensions are lifted once the document in "
+        "question is updated."
+    ),
+    KycStatus.EXPIRED.value: (
+        "Your telephony verification has expired and needs to be done again. "
+        "Your numbers are still yours — upload current documents on your "
+        "verification page to restore calling."
+    ),
+}
+
+#: Carrier verdicts, mapped to the status each one puts an account into. A
+#: table rather than a conditional because there are now five verdicts and
+#: three of them are failures that mean different things: rejected is "fix and
+#: resubmit", suspended is "reversible, we are paused", expired is "start
+#: again". Collapsing them loses the sentence the customer needs.
+_VERDICT_TO_STATUS: dict[CarrierVerdict, KycStatus] = {
+    CarrierVerdict.APPROVED: KycStatus.CARRIER_APPROVED,
+    CarrierVerdict.REJECTED: KycStatus.CARRIER_REJECTED,
+    CarrierVerdict.SUSPENDED: KycStatus.SUSPENDED,
+    CarrierVerdict.EXPIRED: KycStatus.EXPIRED,
 }
 
 
@@ -435,18 +572,48 @@ async def approve_and_forward(
         readable = ", ".join(sorted(k.value.replace("_", " ") for k in missing))
         raise ValueError(f"Cannot forward — still missing: {readable}.")
 
+    problems = validation.validate_for_submission(record)
+    if problems:
+        raise KycValidationError(problems)
+
     # Validate before calling out, so a rejected transition does not leave an
     # application sitting at the carrier with no record on our side.
     target = assert_transition(record.status, KycStatus.FORWARDED)
 
     carrier = get_carrier(carrier_name)
-    submission = await carrier.submit(
-        organization_id=organization_id,
-        business_type=record.business_type or "",
-        legal_name=record.legal_name,
-        gstin=record.gstin,
-        documents=[_document_summary(d) for d in (record.documents or [])],
+    payload = await _carrier_documents(record)
+    end_user = build_end_user(record)
+    callback_url = await compliance_callback_url()
+
+    # A previously rejected application is amended in place rather than filed
+    # again. Plivo keeps the id and the history; filing a second application
+    # for the same customer leaves two open and the carrier acting on whichever
+    # it sees first.
+    amendable = (
+        record.status == KycStatus.CARRIER_REJECTED.value
+        and record.carrier_reference
+        and record.carrier == carrier.name
+        and hasattr(carrier, "update")
     )
+    if amendable:
+        submission = await carrier.update(
+            reference=record.carrier_reference,
+            organization_id=organization_id,
+            documents=payload,
+            business_type=record.business_type or "",
+            end_user=end_user,
+            callback_url=callback_url,
+        )
+    else:
+        submission = await carrier.submit(
+            organization_id=organization_id,
+            business_type=record.business_type or "",
+            legal_name=record.legal_name,
+            gstin=record.gstin,
+            documents=payload,
+            end_user=end_user,
+            callback_url=callback_url,
+        )
 
     updated = await db_client.update_kyc(
         organization_id,
@@ -491,11 +658,25 @@ async def record_carrier_verdict(
         )
         return None
 
-    target = (
-        KycStatus.CARRIER_APPROVED
-        if verdict is CarrierVerdict.APPROVED
-        else KycStatus.CARRIER_REJECTED
-    )
+    target = _VERDICT_TO_STATUS[verdict]
+
+    # An idempotent no-op, not an error. Plivo re-delivers callbacks, and a
+    # second delivery of a verdict we already recorded must not raise — the
+    # state machine would refuse carrier_approved -> carrier_approved, and a
+    # 500 back to Plivo earns another redelivery.
+    if record.status == target.value:
+        await db_client.update_kyc(
+            organization_id,
+            carrier_status=raw_status,
+            carrier_checked_at=datetime.now(UTC),
+        )
+        logger.debug(
+            "Carrier verdict {} for org {} already recorded; ignoring repeat",
+            verdict.value,
+            organization_id,
+        )
+        return None
+
     assert_transition(record.status, target)
 
     fields = {
@@ -507,6 +688,9 @@ async def record_carrier_verdict(
         fields["carrier_approved_at"] = datetime.now(UTC)
         fields["carrier_rejection_reason"] = None
     else:
+        # Suspension and expiry carry a reason too, and it is the sentence the
+        # customer needs — "your GST certificate has lapsed" rather than a bare
+        # status word on a dashboard.
         fields["carrier_rejection_reason"] = rejection_reason
 
     updated = await db_client.update_kyc(organization_id, **fields)
