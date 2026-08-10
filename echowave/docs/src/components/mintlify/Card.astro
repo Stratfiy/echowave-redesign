@@ -1,0 +1,17 @@
+---
+// Mintlify <Card> -> Starlight's Card, or LinkCard when it has an href.
+// Starlight's LinkCard renders the whole card as one hit target, which is what
+// a card with a destination should be.
+import { Card as StarlightCard, LinkCard } from "@astrojs/starlight/components";
+const { title, icon, href } = Astro.props;
+---
+
+{
+  href ? (
+    <LinkCard title={title} href={href} />
+  ) : (
+    <StarlightCard title={title} icon={icon}>
+      <slot />
+    </StarlightCard>
+  )
+}

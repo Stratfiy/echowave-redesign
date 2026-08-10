@@ -90,19 +90,49 @@ and restarting does nothing — the old value is inside the built JavaScript.
 Rebuild the UI image.
 </Warning>
 
-## 4. Render the subdomain config
+## 4. Build the docs
 
-`deploy/templates/nginx.subdomains.conf.template` replaces the single-host
-template. Substitute the three hostnames and the upstream block, write the
-result where nginx reads its config, and reload:
+The docs subdomain serves static HTML off disk. Nothing builds it for you, and
+an unbuilt `docs/dist/` means `docs.decibyl.ai` answers 404 — so do this before
+rendering nginx, not after.
 
 ```bash
+cd docs
+npm ci
+npm run build          # -> docs/dist
+npm run check-links    # fails the deploy on a broken internal link
+cd ..
+```
+
+Skip this only if you are not serving docs from this box.
+
+## 5. Render the subdomain config
+
+`deploy/templates/nginx.subdomains.conf.template` replaces the single-host
+template. `scripts/render_subdomain_nginx.sh` substitutes the three hostnames
+and builds the upstream block:
+
+```bash
+DECIBYL_APP_HOST=app.decibyl.ai \
+DECIBYL_API_HOST=api.decibyl.ai \
+DECIBYL_DOCS_HOST=docs.decibyl.ai \
+FASTAPI_WORKERS=3 \
+  ./scripts/render_subdomain_nginx.sh > /path/to/conf.d/decibyl.conf
+
 docker compose build ui        # picks up NEXT_PUBLIC_BACKEND_URL
 docker compose up -d
 docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
 ```
 
-## 5. Check it, in this order
+<Warning>
+Until this is rendered, **every hostname resolves to the same default server
+block** — whichever one nginx loads first. The symptom is subtle: `docs.` and
+`api.` both serve the dashboard, so the docs host redirects to a login page and
+looks like an auth bug rather than a routing one. `nginx -T | grep server_name`
+tells you what is actually loaded.
+</Warning>
+
+## 6. Check it, in this order
 
 Each step tells you something the previous one could not.
 
@@ -122,12 +152,22 @@ curl -si -X OPTIONS https://api.decibyl.ai/api/v1/health \
 # 4. WebSockets upgrade — this is what carries voice
 curl -si https://api.decibyl.ai/api/v1/health \
   -H "Connection: Upgrade" -H "Upgrade: websocket" | head -1
+
+# 5. Docs are served, and a missing page is a real 404 rather than the
+#    dashboard's login redirect
+curl -sI https://docs.decibyl.ai/getting-started | head -1
+curl -so /dev/null -w "%{http_code}\n" https://docs.decibyl.ai/not-a-page
 ```
+
+<Note>
+A `307` to `/auth/login` from any of these means nginx never matched a
+`server_name` and fell through to the app. Re-run step 5.
+</Note>
 
 Then log in at `https://app.decibyl.ai` and place one test call. Nothing above
 proves audio works; only a call does.
 
-## 6. Repoint the things that hold your old URL
+## 7. Repoint the things that hold your old URL
 
 Splitting hostnames silently invalidates anything that stored the old one:
 

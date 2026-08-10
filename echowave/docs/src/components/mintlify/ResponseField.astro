@@ -1,0 +1,12 @@
+---
+const { name, type, required } = Astro.props;
+---
+
+<div class="ml-param">
+  <p class="ml-param-head">
+    <code>{name}</code>
+    {type && <span class="ml-param-type">{type}</span>}
+    {required && <span class="ml-param-required">required</span>}
+  </p>
+  <div class="ml-param-body"><slot /></div>
+</div>

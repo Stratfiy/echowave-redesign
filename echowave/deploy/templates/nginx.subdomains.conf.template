@@ -217,7 +217,25 @@ server {
     root /usr/share/nginx/docs;
     index index.html;
 
+    # Order matters, and the obvious order is wrong.
+    #
+    # The site is built with `format: "file"`, so /deployment/docker is
+    # `deployment/docker.html` — and there is *also* a `deployment/` directory
+    # holding its siblings. Trying `$uri/` before `$uri.html` matches the
+    # directory first, and nginx answers with a 301 to `/deployment/docker/`
+    # that then has no index to serve. Checking the file before the directory
+    # is what makes extension-less URLs resolve.
+    #
+    # `=404` rather than a fallback to /index.html: serving the home page with
+    # a 200 for every missing URL tells search engines that every typo is a
+    # real page, and tells a reader with a stale link that they arrived
+    # somewhere valid.
     location / {
-        try_files $uri $uri/ $uri.html /index.html;
+        try_files $uri $uri.html $uri/index.html =404;
+    }
+
+    error_page 404 /404.html;
+    location = /404.html {
+        internal;
     }
 }

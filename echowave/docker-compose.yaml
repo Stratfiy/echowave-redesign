@@ -126,6 +126,11 @@ services:
     volumes:
       - nginx-generated:/etc/nginx/conf.d:ro
       - ./certs:/etc/nginx/certs:ro
+      # The built documentation, served straight off disk on the docs
+      # subdomain. Read-only, and absent on a deployment that has not run
+      # `npm run build` in docs/ — nginx then answers 404 there, which is the
+      # honest outcome for a docs host with no docs.
+      - ./docs/dist:/usr/share/nginx/docs:ro
     networks:
       - app-network
 

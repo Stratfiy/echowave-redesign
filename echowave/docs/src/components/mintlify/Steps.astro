@@ -1,0 +1,10 @@
+---
+// Mintlify <Steps> -> Starlight's Steps, which expects an ordered list. Each
+// child <Step> renders the <li>, so the numbering is the browser's rather than
+// something we maintain.
+import { Steps as StarlightSteps } from "@astrojs/starlight/components";
+---
+
+<StarlightSteps>
+  <ol><slot /></ol>
+</StarlightSteps>

@@ -1,0 +1,11 @@
+---
+// Mintlify <Accordion> -> a native <details>. No JavaScript: disclosure is a
+// platform primitive, and a docs page that needs a bundle to expand a section
+// is a docs page that breaks when the bundle fails.
+const { title, defaultOpen } = Astro.props;
+---
+
+<details class="ml-accordion" open={defaultOpen}>
+  <summary>{title}</summary>
+  <div class="ml-accordion-body"><slot /></div>
+</details>
