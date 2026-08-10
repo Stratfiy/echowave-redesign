@@ -81,7 +81,7 @@ waits on them.
 | # | Item | Est | State |
 |---|---|---|---|
 | 1 | Admin route for `is_platform_managed` | 0.5d | ✅ done |
-| 2 | Customer token & spend dashboard | 1.5d | ☐ |
+| 2 | Customer token & spend dashboard | 1.5d | 🔶 API done, UI next |
 | 3 | Call-log graphs and metrics | 1d | ☐ |
 | 4 | Provider markup (the 1.3×) | 1d | ☐ |
 | 5 | Number provisioning UI | 1.5d | ☐ |
@@ -157,3 +157,35 @@ Next: item 2, the customer token and spend dashboard. The backend is largely
 there — `dash.token_usage_series` and `token_usage_by_model` already accept an
 `organization_id`; what is missing is a customer-scoped route (the existing one
 is superadmin-only) and a page.
+
+### 2026-08-10 — item 2, backend half: customers can read their own numbers
+
+Two routes on `api/routes/organization_usage.py`:
+
+- `GET /organizations/usage/tokens` — series, **by model**, context growth
+- `GET /organizations/usage/spend` — daily cost split by component, plus
+  balance and a days-remaining projection
+
+Thin by design. The aggregation already existed for the superadmin screens and
+already accepted an `organization_id`; the only real work was scoping it
+safely.
+
+**The security property is the whole point and is tested first.** The
+superadmin equivalents take an `organization_id` parameter. These force it from
+the authenticated user and ignore one in the query — a test passes another
+org's id and asserts their spend does not appear.
+
+Two bugs caught while writing it, both of the silent kind:
+
+- summing spend by `key.endswith("_paise")` totals **zero**, because
+  composition rows are `{"day":…, "stt": n, "llm": n}` with plain ints. The
+  burn rate would have read "no spend" on a spending account.
+- days-remaining divides by the daily average, so a zero-spend account needs to
+  return `null` rather than raise.
+
+Verified: 12 tests. 511 pass across usage, billing, organization and telephony.
+
+Next: the **UI page** for these two endpoints, then item 3 (call-log graphs).
+`recharts` is installed; reusable chart primitives are at
+`ui/src/app/superadmin/billing/_components/primitives.tsx`, and the customer
+page to extend is `ui/src/app/usage/page.tsx`.

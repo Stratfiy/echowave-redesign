@@ -1,4 +1,5 @@
 import json
+from datetime import date as date_cls
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -307,3 +308,133 @@ async def get_daily_usage_breakdown(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Spend and token analytics, for the account that owns them
+#
+# The aggregation behind these already existed — it powers the superadmin
+# screens — and it already accepted an ``organization_id``. What did not exist
+# was any way for a *customer* to see their own numbers: their usage page was
+# a table of runs and a single token total, while staff had spend composition,
+# per-model breakdown and context growth.
+#
+# So these routes are deliberately thin. They force the organization from the
+# authenticated user and never read it from the request, which is the whole
+# security difference between them and the superadmin equivalents.
+# ---------------------------------------------------------------------------
+
+
+def _range(days: int) -> tuple[date_cls, date_cls]:
+    """A start/end date pair covering the last ``days`` days inclusive."""
+    end = datetime.now().date()
+    return end - timedelta(days=max(1, min(days, 365)) - 1), end
+
+
+@router.get("/usage/tokens")
+async def get_token_usage(
+    days: int = Query(30, ge=1, le=365),
+    granularity: str = Query("day", pattern="^(day|week|month)$"),
+    user: UserModel = Depends(get_user),
+) -> Dict[str, Any]:
+    """Token consumption over time and by model, for this account.
+
+    ``by_model`` is the half customers ask for and could not previously get:
+    a total tells you spend went up, the split tells you which model did it and
+    whether a cheaper one would serve.
+
+    ``context_growth`` is the shape a per-call total cannot show. A voice agent
+    resends the whole conversation every turn, so language-model spend grows
+    with the square of call length — the fix for which is structural and never
+    appears as a line item.
+    """
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    from api.db import billing_dashboard_client as dash
+
+    start, end = _range(days)
+    async with db_client.async_session() as session:
+        return {
+            "range": {"start": start.isoformat(), "end": end.isoformat()},
+            "granularity": granularity,
+            "series": await dash.token_usage_series(
+                session,
+                start=start,
+                end=end,
+                granularity=granularity,
+                organization_id=user.selected_organization_id,
+            ),
+            "by_model": await dash.token_usage_by_model(
+                session,
+                start=start,
+                end=end,
+                organization_id=user.selected_organization_id,
+            ),
+            "context_growth": await dash.context_growth_by_turn(
+                session,
+                start=start,
+                end=end,
+                organization_id=user.selected_organization_id,
+            ),
+        }
+
+
+@router.get("/usage/spend")
+async def get_spend_breakdown(
+    days: int = Query(30, ge=1, le=365),
+    user: UserModel = Depends(get_user),
+) -> Dict[str, Any]:
+    """Daily spend split by component, plus the current balance.
+
+    The split is the point. A single total answers "how much" and nothing else;
+    the breakdown is what tells a customer whether their bill is speech,
+    language or carriage — and those have completely different fixes.
+
+    ``balance_paise`` and ``burn`` are returned alongside because the question
+    that follows a spend chart is always "how long does my credit last".
+    """
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    from api.db import billing_dashboard_client as dash
+    from api.services.billing.costing import current_balance_paise
+
+    start, end = _range(days)
+    async with db_client.async_session() as session:
+        composition = await dash.cost_composition_series(
+            session,
+            start=start,
+            end=end,
+            organization_id=user.selected_organization_id,
+        )
+        balance = await current_balance_paise(
+            session, organization_id=user.selected_organization_id
+        )
+
+    # Summed over the component keys by name rather than by a suffix. The rows
+    # are shaped {"day": ..., "stt": n, "llm": n, ...} with plain integers, so
+    # a "anything ending in _paise" rule silently totals zero and the burn rate
+    # reads as "no spend" on an account that is spending.
+    spent = sum(
+        int(row.get(component) or 0)
+        for row in composition
+        for component in ("stt", "llm", "tts", "telephony", "platform")
+    )
+    # Averaged over the window rather than over days that had traffic: a
+    # customer who calls on weekdays only still runs out on a Sunday, and a
+    # projection that ignores the quiet days is optimistic in the direction
+    # that hurts.
+    daily = spent / max(1, len(composition)) if composition else 0
+    days_remaining = int(balance / daily) if daily > 0 else None
+
+    return {
+        "range": {"start": start.isoformat(), "end": end.isoformat()},
+        "series": composition,
+        "balance_paise": balance,
+        "spent_paise": spent,
+        "burn": {
+            "daily_average_paise": int(daily),
+            "days_remaining": days_remaining,
+        },
+    }
