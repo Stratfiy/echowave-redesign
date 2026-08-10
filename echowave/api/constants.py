@@ -36,7 +36,19 @@ PUBLIC_HOST = os.getenv("PUBLIC_HOST") or None
 BACKEND_API_ENDPOINT = (
     os.getenv("BACKEND_API_ENDPOINT") or PUBLIC_BASE_URL or "http://localhost:8000"
 )
-UI_APP_URL = os.getenv("UI_APP_URL", "http://localhost:3010")
+# Where the browser reaches the *app*, as distinct from the API. Used to build
+# the embed widget's script URL, which is copied into a customer's own website
+# — so a wrong value here ships a broken snippet to their visitors rather than
+# failing anywhere we would notice.
+#
+# Derived from DECIBYL_APP_HOST when the deployment has split hostnames, so
+# naming the app host once fixes this too. The localhost default is correct for
+# local development and dangerous anywhere else, which is why it is last.
+UI_APP_URL = (
+    os.getenv("UI_APP_URL")
+    or (f"https://{os.getenv('DECIBYL_APP_HOST')}" if os.getenv("DECIBYL_APP_HOST") else None)
+    or "http://localhost:3010"
+)
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 REDIS_URL = os.environ["REDIS_URL"]

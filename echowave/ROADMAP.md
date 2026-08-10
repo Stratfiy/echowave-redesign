@@ -78,16 +78,45 @@ Ordered by what unblocks the most. **Payments and autopay are deliberately
 last** — prepaid plus the dunning schedule already works, and nothing else
 waits on them.
 
+**Revised.** Autopay moved out of "later": the number purchase flow is now
+*documents → approved → search → select → **mandate** → number issued*, so the
+mandate gates issuing rather than following it. Everything else keeps its
+order, and general payments work (invoice PDF, credit notes) stays last.
+
 | # | Item | Est | State |
 |---|---|---|---|
 | 1 | Admin route for `is_platform_managed` | 0.5d | ✅ done |
 | 2 | Customer token & spend dashboard | 1.5d | 🔶 API done, UI next |
 | 3 | Call-log graphs and metrics | 1d | ☐ |
 | 4 | Provider markup (the 1.3×) | 1d | ☐ |
-| 5 | Number provisioning UI | 1.5d | ☐ |
-| 6 | Low-balance email | 0.5d | ☐ |
-| 7 | *(later)* Razorpay autopay / e-mandate | 3–4d | ☐ |
-| 8 | *(later)* Invoice PDF | 1d | ☐ |
+| 5 | **Autopay mandate, gating number issue** | 3–4d | ☐ ← moved up |
+| 6 | Number provisioning UI (incl. the mandate step) | 1.5d | ☐ |
+| 7 | Low-balance email | 0.5d | ☐ |
+| 8 | *(later)* Invoice PDF, credit notes | 1d | ☐ |
+
+### What item 5 actually involves
+
+Razorpay **Subscriptions / UPI e-mandate**, not the one-off order flow that
+exists today. Concretely:
+
+1. Activate Subscriptions on the Razorpay account — **their approval, not our
+   code, and it can take days.** Start this before writing anything.
+2. A `plan` for the ₹349 rental.
+3. `POST /subscriptions` at the point of purchase; the customer authorises the
+   mandate (UPI Autopay / card / eNACH).
+4. Webhook events none of which are handled today —
+   `subscription.activated`, `subscription.charged`, `subscription.halted`,
+   `subscription.pending`, `mandate.revoked`. `payments.py:296` currently
+   acknowledges subscription events and acts on none.
+5. **Provisioning waits on `subscription.activated`.** A number issued against
+   an unauthorised mandate is a number we pay for and cannot collect on.
+6. Reconcile with the existing rental charge: a mandate-collected month must
+   not *also* be debited from the prepaid balance. The idempotency is already
+   there (`uq_recurring_charge_period`); what changes is which side collects.
+
+The dunning schedule stays as the fallback for a revoked or failed mandate —
+day 7 suspend, day 45 release-eligible — because a mandate that stops working
+is exactly the situation it was written for.
 
 Each item is done only when it is **built, tested, and verified against a real
 request** — not when it compiles.
@@ -189,3 +218,41 @@ Next: the **UI page** for these two endpoints, then item 3 (call-log graphs).
 `recharts` is installed; reusable chart primitives are at
 `ui/src/app/superadmin/billing/_components/primitives.tsx`, and the customer
 page to extend is `ui/src/app/usage/page.tsx`.
+
+### 2026-08-10 — cross-origin audit for the app/api split
+
+Asked whether the code holds up once the app is on `app.decibyl.ai` and the API
+on `api.decibyl.ai`. Checked the places a split usually breaks.
+
+**Fine:**
+
+- **CORS.** `DEPLOYMENT_MODE=oss` allows any origin without credentials, which
+  is correct because the UI authenticates with a Bearer token rather than a
+  cookie. No SameSite problem to solve. (If auth ever moves to cookies, this
+  becomes a real change — see the note in the nginx template.)
+- **The UI's backend URL.** `NEXT_PUBLIC_BACKEND_URL` is not set anywhere, so
+  the UI resolves the API at runtime from `/health` → `backendApiEndpoint` →
+  `PUBLIC_BASE_URL`. **No UI rebuild is needed for the hostname change**, which
+  also makes it reversible in one restart.
+- **Razorpay.** The webhook is inbound to the API host; there is no
+  callback/redirect URL built anywhere in the payment flow.
+- **Google Calendar OAuth.** Redirect is
+  `{BACKEND_API_ENDPOINT}/api/v1/integrations/google-calendar/callback` — on
+  the API host, which is where it should be. Confirmed working in production.
+
+**Broken, now fixed:** `UI_APP_URL` defaulted to `http://localhost:3010`, was
+absent from the env template, and is what builds the **embed widget snippet**.
+Every customer who copied that snippet into their own site got a script tag
+pointing at localhost — silently doing nothing on their visitors' machines, and
+failing nowhere we would ever see it. It now derives from `DECIBYL_APP_HOST`,
+so naming the app host once fixes this too.
+
+Verified: 513 tests pass across embed, telephony, usage and billing.
+
+### Other agent's work — reviewed
+
+All of it is merged into `origin/main` and already in this branch: the BYOK
+double-charge fix (947325c), Google Calendar conflict checking (864da35), the
+managed model catalog (e874a78), the supplier address correction (32aeac6).
+The remaining `claude/*` branches are the merged PR branches, not unmerged
+work. Nothing of theirs is waiting to be picked up.
