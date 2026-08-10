@@ -219,6 +219,23 @@ class TelephonyConfigurationClient(BaseDBClient):
             await session.refresh(row)
             return row
 
+    async def list_platform_managed_configurations(
+        self,
+    ) -> List[TelephonyConfigurationModel]:
+        """Every configuration running on Decibyl's own carrier account.
+
+        Deliberately not organization-scoped: this is the staff view of what we
+        are administering and paying rent for, across all customers. The route
+        that exposes it is behind the superuser gate.
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(TelephonyConfigurationModel)
+                .where(TelephonyConfigurationModel.is_platform_managed.is_(True))
+                .order_by(TelephonyConfigurationModel.organization_id)
+            )
+            return list(result.scalars().all())
+
     async def set_platform_managed(
         self, config_id: int, *, managed: bool = True
     ) -> Optional[TelephonyConfigurationModel]:
