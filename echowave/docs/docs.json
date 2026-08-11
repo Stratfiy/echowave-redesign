@@ -134,6 +134,14 @@
               "integrations/tuner",
               "integrations/paygent"
             ]
+          },
+          {
+            "group": "Account",
+            "pages": [
+              "account/roles-and-permissions",
+              "account/tax-documents",
+              "account/usage-metrics"
+            ]
           }
         ]
       },
@@ -175,6 +183,7 @@
               "deployment/subdomains",
               "deployment/scaling",
               "deployment/update",
+              "deployment/recosting-calls",
               "deployment/heroku"
             ]
           }

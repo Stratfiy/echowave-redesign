@@ -1,0 +1,75 @@
+---
+title: "Roles and Permissions"
+sidebarTitle: "Roles & Permissions"
+description: "Who can do what, within an organization and across the platform"
+---
+
+Decibyl has two independent role systems. **Organization roles** describe your standing inside one account and are what almost every customer cares about. **Staff roles** are a Decibyl-internal tier for people who support accounts they don't belong to.
+
+They are separate on purpose: being an Owner of your own organization gives you no reach into anyone else's, and a Decibyl support engineer needs cross-account reach without being a member of every account.
+
+## Organization roles
+
+Every membership carries exactly one role. They are ordered, and permission checks ask "is this member **at least** this role" — so an Owner passes any check an Admin would.
+
+| Role | Rank | What it means |
+|---|---|---|
+| `member` | 0 | Full use of the product — build workflows, run campaigns, place calls, read usage. |
+| `admin` | 1 | A reserved middle tier. See the note below. |
+| `owner` | 2 | Everything a member can do, plus managing who else is in the organization. |
+
+<Note>
+**`admin` does not currently gate anything.** The tier exists in the model and in the ranking, so it is safe to assign, but no endpoint requires it today — an Admin has the same effective access as a Member. It is there so that permissions can be split later without another migration. Assign it if it reflects how you think about your team; don't assign it expecting it to restrict anything yet.
+</Note>
+
+### What Owner-only actually covers
+
+Today, exactly one area is Owner-gated: **membership management**.
+
+- `GET /organizations/members` — list members and their roles (any member may call this)
+- `PATCH /organizations/members/{user_id}` — promote or demote — **Owner only**
+- `DELETE /organizations/members/{user_id}` — remove a member — **Owner only**
+
+Everything else in the product — workflows, agents, campaigns, telephony, API keys, usage — is available to any member of the organization.
+
+### The last Owner is protected
+
+An organization can never be left with zero Owners. Both demotion and removal refuse if the target is the only Owner remaining:
+
+```json
+{ "detail": "Cannot demote the last owner. Promote someone else first." }
+```
+
+This is a deliberate dead-end guard. An account with no Owner would have nobody able to manage membership, and no way to recover through the API.
+
+To hand over an account: promote the new Owner first, then demote or remove yourself.
+
+## Staff roles
+
+Staff roles are set by Decibyl, not by customers, and are independent of organization membership. A user with no staff role — which is almost everyone — is simply not staff.
+
+| Role | Rank | Reach |
+|---|---|---|
+| `support` | 0 | KYC document review across accounts. Read-and-review, no further reach. |
+| `superadmin` | 1 | Everything `support` can do, plus the billing dashboard, platform provider credentials, and superuser operations. |
+
+The split exists because the staff surfaces are not equivalent in risk. Reviewing a KYC document is cross-account but bounded. Changing billing rates, reading platform provider keys, or acting as another account can move money or expose secrets — so those need the higher tier.
+
+Because the tiers are ranked, `superadmin` passes every `support` check without needing a separate grant.
+
+## What happened to your existing team on upgrade
+
+If you had an account before roles existed, nothing about your access changed.
+
+- **Every existing member became an `owner`.** Before this feature, all members of an organization had identical, unrestricted access. Backfilling anyone to a lower role would have silently taken away something they could do the day before, so everyone was placed at the top tier.
+- **Every existing superuser became a `superadmin`** — the top staff tier, matching the single all-or-nothing flag they had before.
+
+New members joining after the upgrade default to `member`. An Owner promotes from there.
+
+<Warning>
+Because every pre-existing member is now an Owner, your organization may have more Owners than you intend — each able to remove the others. Review your member list and demote anyone who shouldn't be managing membership. The last-Owner guard means you cannot lock yourself out by doing so.
+</Warning>
+
+## Checking your own role
+
+The authenticated-user response includes your role in your currently selected organization, so the UI can show or hide member-management controls without a second request.
