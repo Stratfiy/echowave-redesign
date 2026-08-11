@@ -326,6 +326,51 @@ sudo ./remote_up.sh --build
 cd docs && npm ci && npm run build && cd ..
 ```
 
+### Migrations do not run themselves on this path
+
+Only the Helm chart runs `alembic upgrade head` as a hook. On the Docker/EC2
+path above **nothing migrates the database for you** — the containers come up
+against whatever schema is already there, and the failures that produces are
+confusing rather than loud. Run it yourself, from the host, after the pull:
+
+```bash
+set -a && source api/.env && set +a
+alembic -c api/alembic.ini upgrade head
+alembic -c api/alembic.ini check     # must print "No new upgrade operations detected"
+```
+
+### Coming from a box that predates managed numbers
+
+Four migrations land in one go, and they are additive — new tables and nullable
+columns, no data rewritten, no column dropped:
+
+| Revision | What it adds |
+|---|---|
+| `c7a1f4e93b28` | managed numbers, recurring charges, rental periods |
+| `d3f5a81c62b7` | `call_cost_items.provider_cost_paise`, backfilled from `cost_paise` |
+| `e5b27c0a91d4` | `payment_mandates`, plus the autopay columns on charges and periods |
+| `f18a4d3c07e9` | `notifications`, the dedupe record behind the low-balance email |
+
+The backfill in `d3f5a81c62b7` sets provider cost equal to what was charged for
+every existing line, which is correct for history: everything billed before the
+markup existed *was* billed at cost. Margin figures for those calls will
+therefore read zero, and that is the truth rather than a gap.
+
+Two settings change behaviour the moment this is deployed, so decide both
+before you run it rather than after:
+
+* **`REQUIRE_MANDATE_FOR_NUMBERS` defaults to `true`.** Every number purchase is
+  refused with a 403 until Razorpay Subscriptions is activated and the customer
+  has authorised a mandate. Set it `false` to keep the old prepaid-balance
+  behaviour while you wait for that approval.
+* **`MANAGED_PROVIDER_MARKUP_BPS` defaults to `13000`** — a 1.3x markup on STT,
+  LLM and TTS bought with our keys, applied to calls from the moment it is
+  deployed. `10000` charges at cost, exactly as before.
+
+The UI gained pages (`/analytics`, `/numbers`), so it needs the rebuild that
+`remote_up.sh --build` does. The API hostname is resolved at runtime rather than
+baked in, so no rebuild is needed for a hostname change.
+
 **Do not use `scripts/update_remote.sh`.** It hardcodes `decibyl-hq/decibyl` and
 fetches a compose file and tagged images from there — an upstream that is not
 yours. Its whole purpose is upgrading an install that tracks upstream releases,
@@ -342,19 +387,25 @@ never is, and the fallback never fires.
 
 Listed here rather than discovered later:
 
-* **No PDF for tax documents.** They are issued, numbered and readable through
-  the API; a customer cannot download one.
+* **No generated PDF for tax documents.** They are issued, numbered, and
+  readable as a printable page at `/billing` — a browser saves that as a PDF.
+  What is missing is a PDF *byte stream*, which is what emailing one as an
+  attachment would need.
 * **No e-invoicing (IRN via the IRP).** Mandatory above ₹5 crore aggregate
   turnover.
 * **No credit notes.** A refund is issued from the Razorpay dashboard and
-  reflected with a staff credit adjustment.
-* **No low-balance email.** The Billing screen warns in amber and a refused run
-  says what the fix is, but nobody is emailed.
-* **Nothing sets `is_platform_managed`.** Number provisioning, carrier
-  compliance and rental billing are built (see below), but the flag the KYC
-  gate keys on still has no admin route — putting an organization on the
-  managed path takes a hand-written `UPDATE`. That is the one remaining gap
-  between "built" and "sellable".
+  reflected with a staff credit adjustment. A credit note adjusts an invoice
+  already filed, so it needs its own serial series and a decision about the GST
+  already declared — not something to improvise under time pressure.
+* **Low-balance email needs SMTP configured to do anything.** The job runs
+  daily at 09:00 IST and logs one line saying it is off when `SMTP_HOST` is
+  unset. Without it the dunning schedule suspends numbers in silence, which is
+  the failure the email exists to prevent.
+* **Autopay needs Razorpay Subscriptions activated.** That is their approval,
+  not our configuration, and it can take days. **`REQUIRE_MANDATE_FOR_NUMBERS`
+  defaults to `true`, so until Subscriptions is live every number purchase is
+  refused with a 403.** Set it false to fall back to the prepaid balance and
+  the dunning schedule while you wait.
 * **Managed numbers have never run against Plivo's live API.** The endpoint
   shapes match the published Compliance API and the encoding is unit-tested,
   but no compliance application has been filed and no number bought for real.
