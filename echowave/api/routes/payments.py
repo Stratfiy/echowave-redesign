@@ -29,7 +29,6 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.billing import billing_profile, documents, payments
-from api.services.billing.document_pdf import render_document_pdf
 from api.services.billing.tax import TaxError
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -295,6 +294,13 @@ async def get_tax_document_pdf(
         )
         if document is None:
             raise HTTPException(status_code=404, detail="Document not found")
+        # Deferred, like the one in tasks/email_tax_document.py: this router is
+        # on the API's import path, and document_pdf builds its styles from
+        # reportlab at import time. A module-level import would let a missing
+        # or broken PDF library stop the whole API from starting rather than
+        # just failing this one download.
+        from api.services.billing.document_pdf import render_document_pdf
+
         pdf_bytes = render_document_pdf(document)
         filename = document.number.replace("/", "-")
 

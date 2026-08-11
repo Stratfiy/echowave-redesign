@@ -17,7 +17,6 @@ from loguru import logger
 
 from api.db import db_client
 from api.db.models import TaxDocumentModel
-from api.services.billing.document_pdf import render_document_pdf
 from api.services.messaging.email import email_is_configured, send_email
 
 _KIND_TITLES = {
@@ -49,6 +48,14 @@ async def email_tax_document(_ctx, document_id: int) -> None:
                 document.organization_id,
             )
             return
+
+        # Imported here, not at module scope. This task is reachable from
+        # tasks/arq.py, which routes/campaign.py imports, which puts it on the
+        # import path of the entire API. document_pdf builds its styles from
+        # reportlab at import time, so a module-level import here means a
+        # broken or missing PDF library stops the API from booting at all --
+        # telephony included. Deferring it keeps a PDF problem a PDF problem.
+        from api.services.billing.document_pdf import render_document_pdf
 
         pdf_bytes = render_document_pdf(document)
 
