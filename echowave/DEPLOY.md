@@ -26,11 +26,18 @@ and the balance gate can be switched off entirely.
 Run this **on the server**, as root. Everything below is one path that works;
 the traps it avoids are named underneath.
 
+**Two directories, and mixing them up is the commonest slip.** `.git` is at the
+repository root (`echowave-redesign/`); `docker-compose.yaml`, `remote_up.sh`
+and `api/` are one level down in `echowave/`. So **git commands run in the outer
+directory and deploy commands run in the inner one.** Pulling from inside
+`echowave/` works, but `cd echowave` first and then reaching for `git pull` is
+how you end up rebuilding the code you already had.
+
 ```bash
-# 1. The code. Clone your own repo — not upstream's.
+# 1. The code. This repository — not upstream's.
 git clone --recurse-submodules -b <your-branch> \
-    https://github.com/<you>/<your-repo>.git
-cd <your-repo>/echowave
+    https://github.com/Stratfiy/echowave-redesign.git
+cd echowave-redesign/echowave
 
 # 2. Setup: writes .env, a bootstrap certificate, the build override, and
 #    brings the stack up. Both variables matter — see below.
@@ -317,8 +324,12 @@ overstated until you fill it in.
 Pull and rebuild in place:
 
 ```bash
-cd <your-repo>/echowave
+# git in the OUTER directory, where .git is
+cd echowave-redesign
 git pull --recurse-submodules
+
+# deploy from the INNER one, where the compose file is
+cd echowave
 sudo ./remote_up.sh --build
 
 # Docs are a build artifact, not a container. A pull that changed .mdx files
