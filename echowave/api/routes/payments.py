@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -241,47 +242,83 @@ async def list_tax_documents(user: UserModel = Depends(get_user)) -> dict[str, A
     }
 
 
-@router.get("/documents/{document_id}")
-async def get_tax_document(
-    document_id: int, user: UserModel = Depends(get_user)
-) -> dict[str, Any]:
-    """One document in full, including both parties as of issue.
+def _document_view(document) -> dict[str, Any]:
+    """One issued document as a dict.
 
-    Org-scoped: a document id is a small integer, and an invoice names a legal
-    entity and states what it spends.
+    Shared by the JSON route and the printable one so there is a single
+    description of what a document contains — two would drift, and the pair
+    that must never disagree is the one a customer reads and the one they file.
+    """
+    return {
+        "id": document.id,
+        "kind": document.kind,
+        "number": document.number,
+        "financial_year": document.financial_year,
+        "issued_at": document.issued_at.isoformat() if document.issued_at else None,
+        "period_start": (
+            document.period_start.isoformat() if document.period_start else None
+        ),
+        "period_end": (
+            document.period_end.isoformat() if document.period_end else None
+        ),
+        "taxable_paise": int(document.taxable_paise),
+        "cgst_paise": int(document.cgst_paise or 0),
+        "sgst_paise": int(document.sgst_paise or 0),
+        "igst_paise": int(document.igst_paise or 0),
+        "total_paise": int(document.total_paise),
+        "supply_type": document.supply_type,
+        "place_of_supply": document.place_of_supply,
+        "rate_basis_points": document.rate_basis_points,
+        "supplier": document.supplier_snapshot,
+        "customer": document.customer_snapshot,
+        "line_items": document.line_items,
+    }
+
+
+async def _load_document(document_id: int, user: UserModel):
+    """Fetch one document for its owner, or 404.
+
+    Org-scoped deliberately: a document id is a small integer, and an invoice
+    names a legal entity and states what it spends.
     """
     organization_id = _organization_id(user)
     async with db_client.async_session() as session:
         document = await documents.get_document(
             session, organization_id=organization_id, document_id=document_id
         )
-        if document is None:
-            raise HTTPException(status_code=404, detail="Document not found")
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return document
 
-        return {
-            "id": document.id,
-            "kind": document.kind,
-            "number": document.number,
-            "financial_year": document.financial_year,
-            "issued_at": document.issued_at.isoformat() if document.issued_at else None,
-            "period_start": (
-                document.period_start.isoformat() if document.period_start else None
-            ),
-            "period_end": (
-                document.period_end.isoformat() if document.period_end else None
-            ),
-            "taxable_paise": int(document.taxable_paise),
-            "cgst_paise": int(document.cgst_paise or 0),
-            "sgst_paise": int(document.sgst_paise or 0),
-            "igst_paise": int(document.igst_paise or 0),
-            "total_paise": int(document.total_paise),
-            "supply_type": document.supply_type,
-            "place_of_supply": document.place_of_supply,
-            "rate_basis_points": document.rate_basis_points,
-            "supplier": document.supplier_snapshot,
-            "customer": document.customer_snapshot,
-            "line_items": document.line_items,
-        }
+
+@router.get("/documents/{document_id}")
+async def get_tax_document(
+    document_id: int, user: UserModel = Depends(get_user)
+) -> dict[str, Any]:
+    """One document in full, including both parties as of issue."""
+    return _document_view(await _load_document(document_id, user))
+
+
+@router.get("/documents/{document_id}/print", response_class=HTMLResponse)
+async def print_tax_document(
+    document_id: int, user: UserModel = Depends(get_user)
+) -> HTMLResponse:
+    """The same document as a page a customer can print or save as a PDF.
+
+    HTML rather than a generated PDF: a server-side PDF needs a rendering
+    dependency in the image, and what it buys over this is a file extension —
+    every browser prints this page, and the template sets A4 with real margins
+    so the output is a document rather than a screenshot of a web page. The
+    point to add that dependency is when a PDF *byte stream* is needed, such as
+    attaching one to an email.
+
+    Every figure comes from the snapshot frozen onto the row at issue, never
+    recomputed, so a customer moving office does not rewrite their old invoices.
+    """
+    from api.services.billing.document_render import render_html
+
+    document = await _load_document(document_id, user)
+    return HTMLResponse(render_html(_document_view(document)))
 
 
 @router.get("/payments")

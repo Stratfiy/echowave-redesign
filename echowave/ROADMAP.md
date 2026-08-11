@@ -92,7 +92,7 @@ order, and general payments work (invoice PDF, credit notes) stays last.
 | 5 | **Autopay mandate, gating number issue** | 3–4d | ✅ code done, waiting on Razorpay activation |
 | 6 | Number provisioning UI (incl. the mandate step) | 1.5d | ✅ done |
 | 7 | Low-balance email | 0.5d | ✅ done |
-| 8 | *(later)* Invoice PDF, credit notes | 1d | ☐ |
+| 8 | *(later)* Invoice PDF, credit notes | 1d | 🔶 printable invoice done; credit notes not started |
 
 ### What item 5 actually involves
 
@@ -421,3 +421,39 @@ Verified: 23 tests. Migration `f18a4d3c07e9` round-trips.
 Next: item 8 (invoice PDF, credit notes) is the only roadmap item left, and it
 was always the deferred one. The real blocker to launch is now external —
 Razorpay Subscriptions activation, and Plivo's reseller approval.
+
+### 2026-08-11 — item 8, first half: an invoice a customer can actually keep
+
+`GET /api/v1/billing/documents/{id}/print` renders an issued document as a
+self-contained page, and the billing screen opens it in a new tab.
+
+**HTML, not a server-side PDF, and that is the decision to revisit rather than
+regret.** A generated PDF needs a rendering dependency (reportlab, weasyprint)
+added to the image, and what it buys over this is a file extension: every
+browser prints this page, and the template sets A4 with real margins so the
+output is a document rather than a screenshot of a web page. The point to add
+that dependency is when a PDF *byte stream* is genuinely needed — attaching one
+to an email — and this template is what it should render.
+
+Three things the tests pin down:
+
+- **Every figure comes from the snapshot frozen onto the row.** Nothing is
+  recomputed. A customer moving office must not rewrite their old invoices, and
+  a rewritten invoice looks exactly as authoritative as the original.
+- **Only the taxes that apply are printed.** A zero IGST line beside real CGST
+  and SGST invites the reader to conclude the split is wrong; a zero-rated
+  export prints its LUT number, because "no tax" without the authority for it
+  reads as an omission.
+- **Everything interpolated is escaped.** A legal name is customer input and
+  this page is served from our own origin against a session.
+
+One thing worth knowing for the UI: the route is Bearer-authenticated, so a
+plain `window.open` would show a 401. The page fetches the HTML through the API
+client and hands it to the new tab as a blob.
+
+Still open on item 8: **credit notes**. They are a different problem — a credit
+note adjusts an invoice that has already been filed, so it needs its own serial
+series, a reference to the document it adjusts, and a decision about what
+happens to the GST already declared. Not something to improvise.
+
+Verified: 19 tests in `test_document_render.py`.

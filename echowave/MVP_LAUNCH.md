@@ -42,7 +42,7 @@ Every step a paying customer takes, in order.
 | 16 | See token usage | ✅ Built | `/analytics/tokens` — totals, per model, context growth |
 | 17 | See spend by model / component | ✅ Built | `/analytics/spend` — daily composition, balance, days remaining |
 | 18 | Get warned before credit runs out | ✅ Built | Daily job, 09:00 IST. Needs SMTP configured |
-| 19 | Download invoice | ⚠️ Partial | Issued and numbered; **no PDF** |
+| 19 | Download invoice | ✅ Built | Printable page at `/billing`; save-as-PDF from the browser. Credit notes still to do |
 
 ---
 

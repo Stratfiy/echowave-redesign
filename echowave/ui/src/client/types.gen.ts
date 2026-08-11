@@ -11427,6 +11427,50 @@ export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses = {
 
 export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponse = GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses[keyof GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses];
 
+export type PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: number;
+    };
+    query?: never;
+    url: '/api/v1/billing/documents/{document_id}/print';
+};
+
+export type PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetError = PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetErrors[keyof PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetErrors];
+
+export type PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: string;
+};
+
+export type PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetResponse = PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetResponses[keyof PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetResponses];
+
 export type ListPaymentsApiV1BillingPaymentsGetData = {
     body?: never;
     headers?: {

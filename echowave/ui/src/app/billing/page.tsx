@@ -22,10 +22,12 @@ import {
     CheckCircle2,
     Clock,
     Loader2,
+    Printer,
     Wallet,
     XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import {
     createTopupApiV1BillingTopupPost,
@@ -33,6 +35,7 @@ import {
     getBillingProfileApiV1BillingProfileGet,
     listPaymentsApiV1BillingPaymentsGet,
     listTaxDocumentsApiV1BillingDocumentsGet,
+    printTaxDocumentApiV1BillingDocumentsDocumentIdPrintGet,
     saveBillingProfileApiV1BillingProfilePut,
 } from "@/client/sdk.gen";
 import { Button } from "@/components/ui/button";
@@ -219,6 +222,42 @@ export default function BillingPage() {
     const [profileComplete, setProfileComplete] = useState(true);
     const [savingProfile, setSavingProfile] = useState(false);
     const [documents, setDocuments] = useState<TaxDocument[]>([]);
+    const [openingDocumentId, setOpeningDocumentId] = useState<number | null>(null);
+
+    /**
+     * Open an issued document in a new tab, ready to print.
+     *
+     * Fetched through the API client rather than linked to directly: the route
+     * is authenticated with a Bearer token, and a plain `window.open` sends no
+     * Authorization header — the tab would show a 401. So the HTML is fetched
+     * with the token attached and handed to the new tab as a blob.
+     */
+    const openDocument = useCallback(async (documentId: number) => {
+        setOpeningDocumentId(documentId);
+        try {
+            const response =
+                await printTaxDocumentApiV1BillingDocumentsDocumentIdPrintGet({
+                    path: { document_id: documentId },
+                    parseAs: "text",
+                });
+            if (response.error || typeof response.data !== "string") {
+                toast.error(
+                    detailFromError(response.error, "Could not open that document"),
+                );
+                return;
+            }
+            const url = URL.createObjectURL(
+                new Blob([response.data], { type: "text/html" }),
+            );
+            window.open(url, "_blank", "noopener");
+            // Revoked on a delay rather than immediately: the new tab has to
+            // finish loading from the URL first, and revoking synchronously
+            // races it to a blank page.
+            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        } finally {
+            setOpeningDocumentId(null);
+        }
+    }, []);
 
     const refresh = useCallback(async () => {
         const [balanceResponse, paymentsResponse, profileResponse, documentsResponse] =
@@ -806,6 +845,7 @@ export default function BillingPage() {
                                     <TableHead className="text-right">Taxable</TableHead>
                                     <TableHead className="text-right">GST</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
+                                    <TableHead className="text-right"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -837,6 +877,17 @@ export default function BillingPage() {
                                             </TableCell>
                                             <TableCell className="text-right tabular-nums">
                                                 {formatPaise(doc.total_paise)}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    disabled={openingDocumentId === doc.id}
+                                                    onClick={() => openDocument(doc.id)}
+                                                >
+                                                    <Printer className="mr-1.5 h-3.5 w-3.5" />
+                                                    Open
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     );
