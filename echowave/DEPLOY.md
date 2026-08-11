@@ -201,7 +201,7 @@ Signup must still be open for this step.
    predates the fix that ships it — grant the flag directly and rebuild later:
    ```bash
    docker compose exec postgres psql -U postgres \
-     -c "UPDATE users SET is_superuser = true WHERE email = 'you@yourdomain.com';"
+     -c "UPDATE users SET staff_role = 'superadmin' WHERE email = 'you@yourdomain.com';"
    ```
 3. Open `/superadmin`. It is deliberately absent from the sidebar — the whole
    area is gated at router level, so a customer who guesses the URL gets

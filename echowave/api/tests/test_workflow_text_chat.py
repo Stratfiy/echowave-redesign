@@ -7,9 +7,9 @@ from pipecat.processors.aggregators.llm_context import LLMSpecificMessage
 
 from api.db.models import (
     CreditLedgerModel,
+    OrganizationMembershipModel,
     OrganizationModel,
     UserModel,
-    organization_users_association,
 )
 from api.enums import CreditLedgerKind, OrganizationConfigurationKey
 from api.schemas.ai_model_configuration import EffectiveAIModelConfiguration
@@ -106,12 +106,10 @@ async def _create_user_and_workflow(
     )
     async_session.add(user)
     await async_session.flush()
-    await async_session.execute(
-        organization_users_association.insert().values(
-            user_id=user.id,
-            organization_id=org.id,
-        )
+    async_session.add(
+        OrganizationMembershipModel(user_id=user.id, organization_id=org.id)
     )
+    await async_session.flush()
 
     user_configuration = EffectiveAIModelConfiguration.model_validate(
         USER_CONFIGURATION
@@ -1114,12 +1112,10 @@ async def test_text_chat_session_creation_requires_selected_org_scope(
     )
     async_session.add(user)
     await async_session.flush()
-    await async_session.execute(
-        organization_users_association.insert().values(
-            user_id=user.id,
-            organization_id=org_a.id,
-        )
+    async_session.add(
+        OrganizationMembershipModel(user_id=user.id, organization_id=org_a.id)
     )
+    await async_session.flush()
 
     user_configuration = EffectiveAIModelConfiguration.model_validate(
         USER_CONFIGURATION

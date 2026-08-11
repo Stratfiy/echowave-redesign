@@ -174,10 +174,11 @@ Everything is mounted under `/api/v1`.
 endpoint added to `routes/billing_dashboard.py` is gated by default rather than
 by the author remembering. Keep it that way.
 
-Staff access is the `users.is_superuser` flag, granted by
+Staff access is `users.staff_role` — `support` or `superadmin` (see
+`StaffRole` in `api/enums.py`); this router needs `superadmin`. Granted by
 `python -m scripts.grant_superuser <email>` (in Docker:
-`docker compose exec api python -m scripts.grant_superuser <email>`). Nothing in
-the signup flow sets it.
+`docker compose exec api python -m scripts.grant_superuser <email>`; add
+`--role support` for the narrower tier). Nothing in the signup flow sets it.
 
 #### Overview and accounts
 
@@ -443,7 +444,6 @@ Honest list. Priorities are mine; argue with them.
 | Gap | Note |
 |---|---|
 | **Number provisioning not built** | `is_platform_managed` is the flag the KYC gate keys on and nothing sets it. The gate is correct but dormant. |
-| **Role model is one boolean** | `is_superuser`. There is no matrix. |
 
 ### Built since this list was written
 
@@ -456,6 +456,7 @@ Honest list. Priorities are mine; argue with them.
 | No recost script | `scripts/recost_uncosted_calls.py` — finds runs whose receipt recorded usage with no rate on file and re-costs them once the rate is seeded. `--confirm` gate; dry-run by default. |
 | No PDF for tax documents | `GET /billing/documents/{id}/pdf` renders the same document the JSON endpoint returns, via `services/billing/document_pdf.py` (reportlab). Downloadable from the billing screen. |
 | No outbound email | `services/messaging/email.py` — plain SMTP, configured or not the same way Razorpay/Google OAuth are (env vars, `email_is_configured()` gate, unconfigured is a normal no-op). Receipt vouchers and tax invoices now email their PDF to the billing contact on issue, best-effort via an ARQ job (`tasks/email_tax_document.py`) so a mail server timeout never blocks or rolls back the document. |
+| Role model is one boolean | Two independent matrices now. Org-level: `OrganizationRole` (member/admin/owner) on `organization_memberships`, replacing the roleless `organization_users` table — an Owner manages who else is in the account via `GET/PATCH/DELETE /organizations/members`. Staff-level: `StaffRole` (support/superadmin) replacing `users.is_superuser` — KYC review only needs `support`; billing, platform keys, and impersonation still need `superadmin`. Existing superusers and existing org members were backfilled to the top of each matrix, so nothing regressed on upgrade. |
 
 ### Metrics not yet built
 

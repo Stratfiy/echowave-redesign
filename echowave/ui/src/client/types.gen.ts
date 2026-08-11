@@ -345,9 +345,13 @@ export type AuthUserResponse = {
      */
     id: number;
     /**
-     * Is Superuser
+     * Staff Role
      */
-    is_superuser: boolean;
+    staff_role: string | null;
+    /**
+     * Organization Role
+     */
+    organization_role: string | null;
 };
 
 /**
@@ -4573,6 +4577,36 @@ export type OrganizationContextResponse = {
 };
 
 /**
+ * OrganizationMemberResponse
+ *
+ * One member of the current organization, as the team-management screen shows them.
+ */
+export type OrganizationMemberResponse = {
+    /**
+     * User Id
+     */
+    user_id: number;
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
+     * Role
+     */
+    role: string;
+};
+
+/**
+ * OrganizationMembersListResponse
+ */
+export type OrganizationMembersListResponse = {
+    /**
+     * Members
+     */
+    members: Array<OrganizationMemberResponse>;
+};
+
+/**
  * OrganizationModelServicesContext
  */
 export type OrganizationModelServicesContext = {
@@ -4607,6 +4641,21 @@ export type OrganizationPreferences = {
      */
     timezone?: string | null;
 };
+
+/**
+ * OrganizationRole
+ *
+ * A member's standing within one organization.
+ *
+ * Every existing member had identical access before this existed, so the
+ * migration that introduced this column backfilled everyone as OWNER —
+ * nothing regresses on upgrade. New members joining afterwards default to
+ * MEMBER; an existing Owner promotes from there.
+ *
+ * Ordered least to most privileged; ``ORGANIZATION_ROLE_RANK`` below is the
+ * ordering a permission check compares against.
+ */
+export type OrganizationRole = 'member' | 'admin' | 'owner';
 
 /**
  * PhoneNumberCreateRequest
@@ -6916,6 +6965,16 @@ export type UpdateFolderRequest = {
      * Name
      */
     name: string;
+};
+
+/**
+ * UpdateMemberRoleRequest
+ */
+export type UpdateMemberRoleRequest = {
+    /**
+     * The member's new role: member, admin, or owner.
+     */
+    role: OrganizationRole;
 };
 
 /**
@@ -10438,6 +10497,137 @@ export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses
 };
 
 export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponse = CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses[keyof CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses];
+
+export type ListMembersApiV1OrganizationsMembersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/members';
+};
+
+export type ListMembersApiV1OrganizationsMembersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListMembersApiV1OrganizationsMembersGetError = ListMembersApiV1OrganizationsMembersGetErrors[keyof ListMembersApiV1OrganizationsMembersGetErrors];
+
+export type ListMembersApiV1OrganizationsMembersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationMembersListResponse;
+};
+
+export type ListMembersApiV1OrganizationsMembersGetResponse = ListMembersApiV1OrganizationsMembersGetResponses[keyof ListMembersApiV1OrganizationsMembersGetResponses];
+
+export type RemoveMemberApiV1OrganizationsMembersUserIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/v1/organizations/members/{user_id}';
+};
+
+export type RemoveMemberApiV1OrganizationsMembersUserIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveMemberApiV1OrganizationsMembersUserIdDeleteError = RemoveMemberApiV1OrganizationsMembersUserIdDeleteErrors[keyof RemoveMemberApiV1OrganizationsMembersUserIdDeleteErrors];
+
+export type RemoveMemberApiV1OrganizationsMembersUserIdDeleteResponses = {
+    /**
+     * Response Remove Member Api V1 Organizations Members  User Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: string;
+    };
+};
+
+export type RemoveMemberApiV1OrganizationsMembersUserIdDeleteResponse = RemoveMemberApiV1OrganizationsMembersUserIdDeleteResponses[keyof RemoveMemberApiV1OrganizationsMembersUserIdDeleteResponses];
+
+export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchData = {
+    body: UpdateMemberRoleRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/v1/organizations/members/{user_id}';
+};
+
+export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchError = UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchErrors[keyof UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchErrors];
+
+export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationMemberResponse;
+};
+
+export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponse = UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponses[keyof UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponses];
 
 export type DeleteProviderKeyApiV1AdminProviderKeysDeleteData = {
     body?: never;

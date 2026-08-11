@@ -25,7 +25,7 @@ If the script is missing from the image, the fallback is direct SQL:
 
 ```bash
 docker compose exec postgres psql -U postgres -c \
-  "UPDATE users SET is_superuser = true WHERE lower(email) = 'you@yourdomain.com';"
+  "UPDATE users SET staff_role = 'superadmin' WHERE lower(email) = 'you@yourdomain.com';"
 ```
 
 Sign out and back in — the flag is read at login.

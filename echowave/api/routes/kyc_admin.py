@@ -2,8 +2,9 @@
 
 Cross-account by definition — a reviewer looks at other organizations'
 incorporation and identity documents — so the whole router is behind the
-superuser gate, declared once at router level so a new endpoint added here is
-gated by default rather than by remembering.
+staff gate (support tier or above; it doesn't need superadmin's reach into
+billing, platform keys, or impersonation), declared once at router level so
+a new endpoint added here is gated by default rather than by remembering.
 
 Documents are streamed through this API rather than handed out as URLs. That
 keeps every view authenticated and attributable, and does not depend on the
@@ -17,7 +18,7 @@ from pydantic import BaseModel
 
 from api.db import db_client
 from api.db.models import UserModel
-from api.services.auth.depends import get_superuser
+from api.services.auth.depends import get_staff
 from api.services.kyc import service as kyc_service
 from api.services.kyc.carrier import CarrierNotConfigured, CarrierVerdict
 from api.services.kyc.documents import read_document
@@ -26,7 +27,7 @@ from api.services.kyc.state import KycTransitionError
 router = APIRouter(
     prefix="/admin/kyc",
     tags=["admin-kyc"],
-    dependencies=[Depends(get_superuser)],
+    dependencies=[Depends(get_staff)],
 )
 
 
@@ -123,7 +124,7 @@ async def get_document(document_id: int) -> Response:
 
 @router.post("/{organization_id}/claim")
 async def claim(
-    organization_id: int, user: UserModel = Depends(get_superuser)
+    organization_id: int, user: UserModel = Depends(get_staff)
 ) -> dict[str, Any]:
     try:
         view = await kyc_service.claim_for_review(
@@ -138,7 +139,7 @@ async def claim(
 async def reject(
     organization_id: int,
     payload: RejectRequest,
-    user: UserModel = Depends(get_superuser),
+    user: UserModel = Depends(get_staff),
 ) -> dict[str, Any]:
     try:
         view = await kyc_service.reject(
@@ -157,7 +158,7 @@ async def reject(
 async def approve(
     organization_id: int,
     payload: ForwardRequest,
-    user: UserModel = Depends(get_superuser),
+    user: UserModel = Depends(get_staff),
 ) -> dict[str, Any]:
     """Accept the documents and forward them to the carrier.
 

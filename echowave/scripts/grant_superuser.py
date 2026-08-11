@@ -1,10 +1,18 @@
 """Grant (or revoke) staff access for an account.
 
-The admin billing dashboard sits behind `is_superuser`, and nothing in the
-normal signup flow ever sets that flag — so a fresh install has no way to reach
-it. This is that way.
+The admin billing dashboard and platform-key management sit behind the
+superadmin tier, and nothing in the normal signup flow ever sets it — so a
+fresh install has no way to reach them. This is that way.
+
+Two tiers exist (see StaffRole in api/enums.py): SUPPORT can review KYC
+documents and nothing else; SUPERADMIN can do that plus everything else
+staff-gated (billing, platform provider keys, impersonation). Bare
+``python -m scripts.grant_superuser <email>`` grants SUPERADMIN, matching
+what this script has always done — pass ``--role support`` for the narrower
+tier.
 
     python -m scripts.grant_superuser you@example.com
+    python -m scripts.grant_superuser you@example.com --role support
     python -m scripts.grant_superuser you@example.com --revoke
     python -m scripts.grant_superuser --list
 
@@ -30,6 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from api.db import db_client  # noqa: E402
 from api.db.models import UserModel  # noqa: E402
+from api.enums import StaffRole  # noqa: E402
 
 
 async def list_users(session: AsyncSession) -> None:
@@ -38,15 +47,14 @@ async def list_users(session: AsyncSession) -> None:
         print("No users yet. Sign up through the UI first.")
         return
 
-    print(f"{'id':>4}  {'staff':<6}  email")
+    print(f"{'id':>4}  {'staff':<10}  email")
     for user in users:
-        print(
-            f"{user.id:>4}  {'yes' if user.is_superuser else 'no':<6}  "
-            f"{user.email or '(no email)'}"
-        )
+        print(f"{user.id:>4}  {user.staff_role or 'no':<10}  {user.email or '(no email)'}")
 
 
-async def set_superuser(session: AsyncSession, email: str, *, grant: bool) -> int:
+async def set_staff_role(
+    session: AsyncSession, email: str, *, role: str | None
+) -> int:
     user = await session.scalar(select(UserModel).where(UserModel.email == email))
     if user is None:
         print(f"No account with email {email!r}.")
@@ -54,16 +62,17 @@ async def set_superuser(session: AsyncSession, email: str, *, grant: bool) -> in
         await list_users(session)
         return 1
 
-    if user.is_superuser == grant:
-        print(f"{email} is already {'staff' if grant else 'not staff'}; nothing to do.")
+    if user.staff_role == role:
+        label = role or "not staff"
+        print(f"{email} is already {label}; nothing to do.")
         return 0
 
-    user.is_superuser = grant
+    user.staff_role = role
     await session.commit()
 
-    if grant:
-        print(f"{email} is now staff.")
-        print("Open /superadmin/billing to reach the admin dashboard.")
+    if role:
+        print(f"{email} is now {role}.")
+        print("Open /superadmin to reach the admin dashboard.")
     else:
         print(f"{email} is no longer staff.")
     return 0
@@ -74,6 +83,12 @@ async def main() -> int:
         description="Grant or revoke admin dashboard access for an account."
     )
     parser.add_argument("email", nargs="?", help="Account email address.")
+    parser.add_argument(
+        "--role",
+        choices=[r.value for r in StaffRole],
+        default=StaffRole.SUPERADMIN.value,
+        help="Staff tier to grant. Ignored with --revoke. Default: superadmin.",
+    )
     parser.add_argument(
         "--revoke",
         action="store_true",
@@ -94,7 +109,9 @@ async def main() -> int:
         if args.list_only:
             await list_users(session)
             return 0
-        return await set_superuser(session, args.email, grant=not args.revoke)
+        return await set_staff_role(
+            session, args.email, role=None if args.revoke else args.role
+        )
 
 
 if __name__ == "__main__":

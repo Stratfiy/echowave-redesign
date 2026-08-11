@@ -3,6 +3,7 @@
 import { ExternalLink } from "lucide-react";
 
 import { MCPSection } from "@/components/MCPSection";
+import { OrganizationMembersSection } from "@/components/OrganizationMembersSection";
 import { OrganizationPreferencesSection } from "@/components/OrganizationPreferencesSection";
 import { TelemetrySection } from "@/components/TelemetrySection";
 import {
@@ -34,6 +35,18 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <OrganizationPreferencesSection />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Team</CardTitle>
+            <CardDescription>
+              Who has access to this organization, and what they can do.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <OrganizationMembersSection />
           </CardContent>
         </Card>
 

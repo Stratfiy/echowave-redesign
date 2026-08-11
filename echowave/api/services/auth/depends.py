@@ -8,7 +8,13 @@ from pydantic import ValidationError
 from api.constants import AUTH_PROVIDER, DECIBYL_MPS_SECRET_KEY, MPS_API_URL
 from api.db import db_client
 from api.db.models import UserModel
-from api.enums import PostHogEvent
+from api.enums import (
+    ORGANIZATION_ROLE_RANK,
+    STAFF_ROLE_RANK,
+    OrganizationRole,
+    PostHogEvent,
+    StaffRole,
+)
 from api.schemas.ai_model_configuration import EffectiveAIModelConfiguration
 from api.services.auth.stack_auth import stackauth
 from api.services.configuration.registry import ServiceProviders
@@ -118,7 +124,21 @@ async def get_user(
 
         # Check if user's selected organization differs from the current organization
         if user_model.selected_organization_id != organization.id:
-            await db_client.add_user_to_organization(user_model.id, organization.id)
+            # The user who triggers an org's first-ever sync into this
+            # database is, by definition, its first known member here —
+            # Stack Auth is authoritative on the org itself, but we have no
+            # visibility into per-team roles there, so treat "org just
+            # discovered" as "this user founded it" and everyone who joins
+            # afterwards as MEMBER (add_user_to_organization's default).
+            await db_client.add_user_to_organization(
+                user_model.id,
+                organization.id,
+                role=(
+                    OrganizationRole.OWNER.value
+                    if org_was_created
+                    else OrganizationRole.MEMBER.value
+                ),
+            )
 
             # Update user's selected organization
             await db_client.update_user_selected_organization(
@@ -418,22 +438,70 @@ async def create_user_configuration_with_mps_key(
             )
 
 
-async def get_superuser(
-    authorization: Annotated[str | None, Header()] = None,
-    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
-) -> UserModel:
-    """
-    Dependency to check if the authenticated user is a superuser.
-    Raises HTTPException if user is not authenticated or not a superuser.
-    """
-    user = await get_user(authorization, x_api_key)
+def _require_staff_role(minimum: StaffRole):
+    """Build a dependency that requires at least ``minimum`` staff tier.
 
-    if not user.is_superuser:
-        raise HTTPException(
-            status_code=403, detail="Access denied. Superuser privileges required."
+    A rank comparison rather than an equality check, so SUPERADMIN — which
+    implies everything SUPPORT can do — passes a SUPPORT-gated route without
+    needing a second, wider grant.
+    """
+
+    async def _dependency(
+        authorization: Annotated[str | None, Header()] = None,
+        x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    ) -> UserModel:
+        user = await get_user(authorization, x_api_key)
+        rank = STAFF_ROLE_RANK.get(user.staff_role or "", -1)
+        if rank < STAFF_ROLE_RANK[minimum.value]:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Access denied. {minimum.value.capitalize()} privileges required.",
+            )
+        return user
+
+    return _dependency
+
+
+#: Any staff tier (support or superadmin) — cross-account document review
+#: with no further reach, e.g. KYC review.
+get_staff = _require_staff_role(StaffRole.SUPPORT)
+
+#: The top tier only. Kept under its original name: every router that was
+#: gated on the old single-tier ``is_superuser`` boolean (billing, platform
+#: provider keys, impersonation) needs the same access it always required —
+#: introducing SUPPORT did not widen any of those, only KYC review moved to
+#: ``get_staff``.
+get_superuser = _require_staff_role(StaffRole.SUPERADMIN)
+
+
+def require_organization_role(minimum: OrganizationRole):
+    """Build a dependency that requires at least ``minimum`` role in the
+    caller's selected organization.
+
+    403s (rather than 400) when the caller has no membership row there at
+    all — an org-scoped route wouldn't normally reach this state, but an API
+    key whose creator has since left the organization is a real edge case,
+    and "no role" correctly ranks below every tier without special-casing it.
+    """
+
+    async def _dependency(
+        user: Annotated[UserModel, Depends(get_user_with_selected_organization)],
+    ) -> UserModel:
+        membership = await db_client.get_membership(
+            user.id, user.selected_organization_id
         )
+        rank = ORGANIZATION_ROLE_RANK.get(membership.role if membership else "", -1)
+        if rank < ORGANIZATION_ROLE_RANK[minimum.value]:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"Access denied. {minimum.value.capitalize()} role required "
+                    "in this organization."
+                ),
+            )
+        return user
 
-    return user
+    return _dependency
 
 
 async def get_user_ws(
