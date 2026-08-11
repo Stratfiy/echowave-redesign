@@ -102,6 +102,23 @@ say "Starting"
 # credential change never reaches coturn.
 docker compose --profile remote up -d
 
+# nginx has to be restarted explicitly, and nothing about the deploy makes that
+# obvious.
+#
+# decibyl-init renders the config into the nginx-generated volume. nginx is
+# already running, with the same image and the same compose spec, so compose
+# has no reason to recreate it — and nginx only reads conf.d at startup. The
+# freshly rendered config therefore sits in the volume, unread, while the
+# deploy reports success. This is the layer under the profile bug: even once
+# decibyl-init runs, nothing tells nginx to look.
+#
+# remote_up.sh gets away without it by passing --force-recreate, which
+# recreates everything. Doing that here would restart api and ui on every
+# deploy for the sake of a config file, so the restart is targeted. Cheap and
+# idempotent — nginx re-reads conf.d on start.
+say "Reloading nginx"
+docker compose --profile remote restart nginx
+
 # Migrations after the containers are up, because the api image is what carries
 # alembic. Failing here rolls back the checkout but NOT the schema: a migration
 # that half-applied needs a human, and pretending otherwise would turn one bad
