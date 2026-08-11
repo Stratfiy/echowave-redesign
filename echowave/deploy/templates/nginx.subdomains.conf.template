@@ -296,6 +296,24 @@ server {
     # a 200 for every missing URL tells search engines that every typo is a
     # real page, and tells a reader with a stale link that they arrived
     # somewhere valid.
+    # A trailing slash on a page URL is a 404 without this, and it is the
+    # form people actually type and paste.
+    #
+    # The site builds with `format: "file"`: /getting-started is
+    # getting-started.html, while getting-started/ is a directory holding its
+    # children and no index. So try_files below finds nothing for
+    # /getting-started/ — not the directory (no index), not $uri.html
+    # (/getting-started/.html), not $uri/index.html. A permanent redirect to
+    # the canonical form fixes the typed URL, the pasted link, and anything
+    # still pointing at the old Mintlify paths, and keeps one URL per page for
+    # search engines.
+    #
+    # `.+` rather than `.*` so `/` itself does not match and redirect to
+    # nothing.
+    location ~ ^/(.+)/$ {
+        return 301 /$1;
+    }
+
     location / {
         try_files $uri $uri.html $uri/index.html =404;
     }

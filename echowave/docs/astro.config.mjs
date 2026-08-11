@@ -84,8 +84,13 @@ export default defineConfig({
   // The tree has no page at `/` — Mintlify served `getting-started/index`
   // there. Without this, docs.decibyl.ai returns the 404 page, which is a
   // worse first impression than any missing content.
+  // No trailing slash. The site builds with `format: "file"`, so the page is
+  // `getting-started.html` and `getting-started/` is a directory of its
+  // children with no index in it. Redirecting the root to the slash form sent
+  // every first-time visitor to a URL that does not exist — the home page
+  // 404ed while every other page worked.
   redirects: {
-    "/": "/getting-started/",
+    "/": "/getting-started",
   },
   markdown: {
     remarkPlugins: [injectDocComponents],
