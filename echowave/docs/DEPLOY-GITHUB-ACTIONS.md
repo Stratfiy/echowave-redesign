@@ -76,6 +76,17 @@ aws iam create-open-id-connect-provider \
 **Scope the trust to this repository, and to the branch you deploy from.** A
 wildcard here means any workflow in any repo you own can deploy production.
 
+> **The `sub` claim is not just `repo:owner/repo:...`.** GitHub stamps the
+> owner's and repository's immutable numeric IDs into the subject —
+> `repo:owner@<owner_id>/repo@<repo_id>:environment:production` — so a
+> plain-name `StringLike` pattern never matches and every run fails at
+> "Authenticate to AWS" with `Not authorized to perform
+> sts:AssumeRoleWithWebIdentity`, no matter how correct the rest of the trust
+> policy is. The pattern below wildcards past that. Confirm the exact `sub`
+> a real run presented via CloudTrail (Event history, filtered to
+> `AssumeRoleWithWebIdentity` — the `userIdentity.userName` field) if this
+> ever needs re-diagnosing; the IAM console alone won't show it.
+
 `trust.json` — replace the account id and the owner/repo:
 
 ```json
@@ -91,8 +102,8 @@ wildcard here means any workflow in any repo you own can deploy production.
       },
       "StringLike": {
         "token.actions.githubusercontent.com:sub": [
-          "repo:Stratfiy/echowave-redesign:ref:refs/heads/main",
-          "repo:Stratfiy/echowave-redesign:environment:production"
+          "repo:Stratfiy*/echowave-redesign*:ref:refs/heads/main",
+          "repo:Stratfiy*/echowave-redesign*:environment:production"
         ]
       }
     }

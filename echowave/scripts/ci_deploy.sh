@@ -26,6 +26,12 @@ HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
 #: ownership restore.
 RUN_AS="${RUN_AS:-ubuntu}"
 
+# SSM always runs this as root, but the checkout is owned by $RUN_AS. Git's
+# ownership check (since 2.35.2) refuses to operate on a directory it doesn't
+# own unless told it's safe — and that check runs before the first `git`
+# command below, so it has to be set before `cd` even happens.
+git config --global --add safe.directory '*'
+
 cd "$PROJECT_DIR"
 
 say() { printf '\n=== %s ===\n' "$1"; }
