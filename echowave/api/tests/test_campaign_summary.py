@@ -400,6 +400,44 @@ class TestDailyProgress:
 
 
 @pytest.mark.asyncio
+class TestCircuitBreakerTrips:
+    async def test_trips_are_counted_from_the_campaign_log(
+        self, async_session, db_session
+    ):
+        """A trip is an entry in `logs`, written the way the real breaker
+        writes it (services/campaign/circuit_breaker.py), not a hand-crafted
+        row — so this exercises the same JSON shape production produces."""
+        campaign, _ = await _campaign(async_session, "trips")
+
+        await db_session.append_campaign_log(
+            campaign.id,
+            "warning",
+            "circuit_breaker_tripped",
+            "Circuit breaker tripped",
+            details={"failure_rate": 0.6},
+        )
+        await db_session.append_campaign_log(
+            campaign.id,
+            "warning",
+            "circuit_breaker_tripped",
+            "Circuit breaker tripped again",
+            details={"failure_rate": 0.7},
+        )
+        await db_session.append_campaign_log(
+            campaign.id, "info", "campaign_started", "Campaign started"
+        )
+
+        summary = await campaign_summary(async_session, campaign=campaign)
+        assert summary["totals"]["circuit_breaker_trips"] == 2
+
+    async def test_a_campaign_with_no_trips_reports_zero(self, async_session):
+        campaign, _ = await _campaign(async_session, "no-trips")
+
+        summary = await campaign_summary(async_session, campaign=campaign)
+        assert summary["totals"]["circuit_breaker_trips"] == 0
+
+
+@pytest.mark.asyncio
 class TestScoping:
     async def test_another_campaigns_calls_are_not_counted(self, async_session):
         """Every aggregate here filters on campaign_id. A leak would inflate a

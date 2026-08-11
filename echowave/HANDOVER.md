@@ -465,14 +465,21 @@ instrumentation; the rest are queries over data already stored.
 
 1. **Interruption / barge-in rate** — rising rate means the agent is too slow or
    too verbose. Needs capture.
-2. **Cost per completed outcome** — cost per *booking*, not per call. The number
-   that decides whether the product pays.
-3. **Agent vs user talk ratio**, **dead-air ratio** — quality signals.
-4. **ASR (answer-seizure ratio)** — carriers judge you on it.
-5. **Provider error / retry / circuit-breaker trip counts** — the breaker exists,
-   nothing counts its trips.
-6. **MOS, jitter, packet loss, post-dial delay** — carrier-side, needs telephony
+2. **Agent vs user talk ratio**, **dead-air ratio** — quality signals. Needs capture.
+3. **Provider (LLM/STT/TTS) error and retry counts** — no capture point exists
+   anywhere in the pipeline today (the campaign-dial circuit breaker below is a
+   different thing — it doesn't see individual provider calls). Needs new
+   instrumentation, not a query.
+4. **MOS, jitter, packet loss, post-dial delay** — carrier-side, needs telephony
    webhooks.
+
+### Built since this list was written (metrics)
+
+| Was missing | Now |
+|---|---|
+| Cost per completed outcome | There is no fixed "booking" taxonomy across accounts — every workflow's own disposition strings show up. `GET /organizations/usage/outcomes` reports cost per call for every outcome an account's calls actually produced (`services/reports/org_metrics.py:cost_by_outcome`); a customer reads whichever row is their own success outcome. Shown on the usage screen. |
+| ASR (answer-seizure ratio) | Same endpoint, `answer_seizure_ratio` — `answered_at IS NOT NULL` over attempted, org-wide, date-windowed. Per-campaign version (`connection_rate`) already existed in `campaign_summary.py`; this is the org-wide equivalent. |
+| Circuit-breaker trip counts | Partial — only the campaign-dial breaker (`services/campaign/circuit_breaker.py`) persists trips today, as entries in each campaign's `logs` JSON. `GET /campaign/{id}/summary` now counts them (`totals.circuit_breaker_trips`). Provider-level (LLM/STT/TTS) trips are the item above that still needs new capture. |
 
 ### Compliance
 
