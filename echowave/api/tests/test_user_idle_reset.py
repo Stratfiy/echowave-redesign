@@ -63,6 +63,43 @@ class TestTheEscalation:
         )
 
 
+class TestTheFirstNudgeCannotHangUp:
+    """The contract is two strikes, and the code has to enforce both halves.
+
+    The first nudge runs a full LLM generation with the node's tools still
+    advertised — `end_call` among them on any node with an end edge. A model
+    told "the user has been quiet" and handed a hang-up tool will sometimes
+    use it, which collapses the escalation into one strike and disconnects a
+    caller roughly ten seconds after the greeting. Observed in the greeting
+    integration trace: idle attempt 1, then end_call, 10.0s after the bot
+    stopped speaking.
+    """
+
+    async def test_the_first_prompt_forbids_ending_the_call(
+        self, engine, aggregator
+    ):
+        handler = UserIdleHandler(engine)
+
+        await handler.handle_idle(aggregator)
+
+        frame = aggregator.push_frame.await_args.args[0]
+        content = frame.messages[0]["content"].lower()
+        assert "do not end the call" in content
+        assert "do not call any tool" in content
+
+    async def test_the_second_prompt_is_the_one_that_announces_it(
+        self, engine, aggregator
+    ):
+        handler = UserIdleHandler(engine)
+
+        await handler.handle_idle(aggregator)
+        await handler.handle_idle(aggregator)
+
+        frame = aggregator.push_frame.await_args.args[0]
+        content = frame.messages[0]["content"].lower()
+        assert "disconnecting" in content
+
+
 class TestTheReset:
     async def test_a_reset_between_timeouts_saves_the_call(self, engine, aggregator):
         """A caller who speaks after the "are you still there" prompt must get

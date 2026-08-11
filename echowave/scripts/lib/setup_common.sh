@@ -355,13 +355,30 @@ decibyl_render_subdomain_nginx_conf() {
     local api_host="${DECIBYL_API_HOST:-}"
     local docs_host="${DECIBYL_DOCS_HOST:-}"
 
-    [[ -n "$app_host" ]] || decibyl_fail "DECIBYL_APP_HOST is required for subdomain mode"
-    [[ -n "$api_host" ]] || decibyl_fail "DECIBYL_API_HOST is required for subdomain mode"
-    [[ -n "$docs_host" ]] || decibyl_fail "DECIBYL_DOCS_HOST is required for subdomain mode"
-    # The apex is derived rather than required: it is whatever the app host
-    # sits under, and asking an operator to state it twice is a way to have
-    # them disagree.
-    [[ -n "$root_host" ]] || root_host="${app_host#*.}"
+    # Every host is derived from whichever one the operator actually named.
+    #
+    # These three used to be hard requirements, which made naming only the
+    # docs host — the obvious thing to do when a docs subdomain is all you
+    # want — either fail the deploy or, before that, silently fall back to the
+    # single-host config and serve the app's login page at docs.<domain>.
+    #
+    # The apex is whatever the named host sits under, and the rest are the
+    # conventional names beneath it. An operator who wants something else
+    # still states it; an operator who wants the obvious thing states one.
+    if [[ -z "$root_host" ]]; then
+        local named="${app_host:-${api_host:-${docs_host:-}}}"
+        [[ -n "$named" ]] || decibyl_fail "subdomain mode needs at least one DECIBYL_*_HOST"
+        # Strip one label. A bare apex (decibyl.ai) has no subdomain to strip,
+        # so keep it as-is rather than reducing it to the public suffix.
+        if [[ "$(printf '%s' "$named" | tr -cd '.' | wc -c)" -ge 2 ]]; then
+            root_host="${named#*.}"
+        else
+            root_host="$named"
+        fi
+    fi
+    [[ -n "$app_host" ]] || app_host="app.$root_host"
+    [[ -n "$api_host" ]] || api_host="api.$root_host"
+    [[ -n "$docs_host" ]] || docs_host="docs.$root_host"
 
     template="$(decibyl_template_path "nginx.subdomains.conf.template")"
     tmp_upstream="$(mktemp)"
