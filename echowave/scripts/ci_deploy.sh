@@ -79,7 +79,7 @@ rollback() {
     say "DEPLOY FAILED — rolling back to $PREVIOUS_SHA"
     git -C "$GIT_DIR" checkout --detach "$PREVIOUS_SHA" || true
     git -C "$GIT_DIR" submodule update --init --recursive || true
-    docker compose up -d --build || true
+    docker compose --profile remote up -d --build || true
     say "Rolled back. The stack is on the previous commit."
 }
 trap rollback ERR
@@ -88,7 +88,19 @@ say "Building"
 docker compose build api ui
 
 say "Starting"
-docker compose up -d
+# --profile remote is not optional, and leaving it off fails silently.
+#
+# nginx, coturn and decibyl-init are all declared under profiles: ["remote"].
+# A bare `docker compose up -d` starts postgres, redis, minio, api and ui and
+# reports success, while leaving nginx running on whatever configuration was
+# last rendered — by a human running remote_up.sh, possibly months ago.
+#
+# That is why changing the hostname variables and deploying appeared to do
+# nothing: decibyl-init never ran, so the nginx config was never re-rendered,
+# so docs.<domain> kept falling through to the app and answering a login page
+# after a deploy that said it succeeded. The same omission means a TURN
+# credential change never reaches coturn.
+docker compose --profile remote up -d
 
 # Migrations after the containers are up, because the api image is what carries
 # alembic. Failing here rolls back the checkout but NOT the schema: a migration
