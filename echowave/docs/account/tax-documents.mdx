@@ -1,0 +1,49 @@
+---
+title: "Tax Documents"
+sidebarTitle: "Tax Documents"
+description: "Receipt vouchers and tax invoices, as PDFs and by email"
+---
+
+Decibyl issues two kinds of tax document: a **receipt voucher** when you top up, and a **tax invoice** for usage. Each is available as JSON and as a PDF, and each is emailed to you automatically when it is issued.
+
+## Documents are statements about a moment
+
+A document is frozen at the point of issue. It carries its own snapshot of both parties — your billing details and Decibyl's — and its own line items, rather than pointing at whatever your account looks like today.
+
+This matters more than it sounds. If you change your registered address or GSTIN next month, **documents already issued keep the details they were issued with.** That is what makes them usable as evidence: a receipt is a statement about a transaction that happened, not a view that quietly rewrites itself.
+
+The PDF renders from those same frozen fields, so it can never disagree with the JSON for the same document.
+
+## Endpoints
+
+```
+GET /api/v1/billing/documents
+GET /api/v1/billing/documents/{document_id}
+GET /api/v1/billing/documents/{document_id}/pdf
+```
+
+The PDF response is `application/pdf`, sent as an attachment with the document number as the filename. Forward slashes in the number are replaced with hyphens so the filename is valid on every platform.
+
+All three are scoped to your currently selected organization — a document id from another account returns `404`, not `403`, so ids cannot be probed.
+
+## Automatic email on issue
+
+When a document is issued, Decibyl emails the PDF to the billing address on the document.
+
+The send is **asynchronous and best-effort, by design.** Issuing the document is the part that must not fail — it is evidence that a payment or a month of usage happened — so it commits in its own transaction and the email is queued afterwards. A mail server being slow or unreachable can never roll back a receipt voucher.
+
+Three things cause no email to be sent, none of which affects the document itself:
+
+| Condition | Behaviour |
+|---|---|
+| No mail server configured on the deployment | Nothing is sent, silently |
+| No billing email on the document's customer snapshot | Nothing is sent; logged with the document number |
+| Document not found when the job runs | Logged as a warning; no retry storm |
+
+In all three cases the document exists and is downloadable through the API. **If you were expecting an email and didn't get one, check that a billing email is set on your account** — and note that the address used is the one captured on the document at issue, not the address on your account now.
+
+Duplicate sends are collapsed: the job id is derived from the document id, so issuing-then-enqueueing twice results in one email rather than two.
+
+## Self-hosted deployments
+
+Email requires a configured mail server. Without one, PDF generation and download work normally and only the automatic send is skipped — see [Environment Variables](/developer/environment-variables) for the mail settings.

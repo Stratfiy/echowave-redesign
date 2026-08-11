@@ -1,0 +1,83 @@
+---
+title: "Usage Metrics"
+sidebarTitle: "Usage Metrics"
+description: "Answer rate, cost per outcome, and circuit-breaker trips"
+---
+
+Three metrics answer the two questions that matter about a voice agent in production: **is it connecting to people**, and **what does each result cost you**.
+
+## Answer rate (ASR)
+
+Answer-seizure ratio is the share of attempted calls that were actually answered.
+
+```
+asr = connected / attempted
+```
+
+- **attempted** — every run started in the window
+- **connected** — those that reached an answered state
+- **asr** — the ratio, or `null` when nothing was attempted
+
+<Note>
+`asr` is deliberately `null` rather than `0.0` on an account with no calls yet. Zero would read as "every call went unanswered", which is a very different and much more alarming statement than "no calls have been placed."
+</Note>
+
+A low answer rate is almost always a telephony or list-quality problem — wrong numbers, bad caller ID reputation, or dialling outside the hours people pick up — not an agent problem. Check it before tuning prompts.
+
+This is the organization-wide counterpart to the per-campaign connection rate in campaign reports; both use the same definition, so the numbers are comparable.
+
+## Cost by outcome
+
+For every outcome your calls actually produced, this reports how many calls, what they cost in total, and the cost per call.
+
+| Field | Meaning |
+|---|---|
+| `disposition` | The outcome string, taken from the call's `mapped_call_disposition` |
+| `calls` | How many calls ended with that disposition |
+| `total_charged_paise` | Total charged across those calls |
+| `cost_per_call_paise` | Total divided by call count |
+
+### Why there is no "cost per booking"
+
+There is deliberately **no universal success metric** here, and this surprises people, so it is worth being explicit.
+
+Decibyl has no fixed, cross-account taxonomy of outcomes. Every workflow defines its own disposition strings — through its End Call tool or its prompt — so one account's success is `appointment_booked`, another's is `qualified_lead`, another's is `payment_promised`. A platform-level "cost per booking" would have to either invent a category that doesn't match how you actually classify calls, or silently guess which of your dispositions counts as success.
+
+Instead, every disposition your calls produced gets its own row. **Read whichever row is your success outcome** — that row's `cost_per_call_paise` is your true cost per result.
+
+Calls whose disposition was never set appear as `unknown`. A large `unknown` row usually means a workflow path that ends without setting a disposition, which is worth fixing — it is the one thing that makes this report hard to read.
+
+### Reading it
+
+```json
+{
+  "answer_seizure_ratio": { "attempted": 420, "connected": 231, "asr": 0.55 },
+  "cost_by_outcome": [
+    { "disposition": "appointment_booked", "calls": 38, "total_charged_paise": 152000, "cost_per_call_paise": 4000 },
+    { "disposition": "not_interested",     "calls": 141, "total_charged_paise": 282000, "cost_per_call_paise": 2000 },
+    { "disposition": "unknown",            "calls": 52, "total_charged_paise": 78000,  "cost_per_call_paise": 1500 }
+  ]
+}
+```
+
+Here the real number to act on is ₹40.00 per appointment booked — not the ₹20.00 average across all answered calls, which flatters the agent by counting cheap early hang-ups as if they were results.
+
+## Endpoint
+
+```
+GET /api/v1/organizations/usage/outcomes?days=7
+```
+
+| Parameter | Default | Range | Notes |
+|---|---|---|---|
+| `days` | `7` | 1–90 | Whole days, bounded to IST day boundaries |
+
+Both metrics cover the same window, scoped to your currently selected organization. Days are counted as IST calendar days, so a range always starts and ends at local midnight rather than a rolling 24-hour offset from whenever you happened to call the API.
+
+## Circuit-breaker trips
+
+Campaign reports include a count of how many times that campaign's circuit breaker paused it.
+
+The breaker pauses a campaign automatically when calls are failing at a rate that suggests something systemic — a telephony outage, an expired credential, an unreachable number range — rather than letting it burn through a contact list producing nothing. Each pause is recorded on the campaign.
+
+**A non-zero trip count on a campaign that otherwise looks finished is worth investigating.** It means the campaign spent time stopped, and its results cover less of your contact list than the totals suggest.

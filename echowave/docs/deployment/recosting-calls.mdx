@@ -1,0 +1,90 @@
+---
+title: "Recosting Calls"
+sidebarTitle: "Recosting Calls"
+description: "Fixing receipts for calls that recorded usage with no rate on file"
+---
+
+When a call is costed and some component has no rate in the price book, Decibyl still bills the platform fee and records the unpriced component on the run rather than failing the receipt. The call is charged, but **that provider cost is missing from the receipt, and margin reads overstated for exactly that call.**
+
+Adding the missing rate afterwards does not fix the receipts already written. Nothing revisits them on its own. `scripts/recost_uncosted_calls.py` is what does.
+
+<Warning>
+**This moves real money on real accounts.** Recosting replaces a receipt's line items and its ledger debit with corrected ones, so the balance impact can go either way — adding a rate that had been undercounting usage charges the account *more*, one that had been overcounting charges *less*. Nothing is written without `--confirm`.
+</Warning>
+
+## When to run it
+
+After adding a rate to the price book that was previously missing. The typical sequence:
+
+1. A call is costed; a provider component has no rate; the gap is recorded on the run.
+2. Someone notices margin looks wrong, or the gap is caught in review.
+3. The missing rate is added to the price book.
+4. **You run this script** to correct the receipts written during the gap.
+
+Without step 4 the price book is right going forward and the historical receipts stay wrong.
+
+## Usage
+
+It runs in dry-run mode by default. Always look at the candidates before confirming.
+
+```bash
+# Show what would be recosted. Changes nothing.
+python -m scripts.recost_uncosted_calls
+
+# Actually recost.
+python -m scripts.recost_uncosted_calls --confirm
+
+# Recost one specific run.
+python -m scripts.recost_uncosted_calls --confirm --workflow-run-id 123
+```
+
+Like every repo-owned script it needs `DATABASE_URL`:
+
+```bash
+set -a && source api/.env && set +a && python -m scripts.recost_uncosted_calls
+```
+
+In Docker, where there is no checkout to run from:
+
+```bash
+docker compose exec api python -m scripts.recost_uncosted_calls --confirm
+```
+
+## What it reports
+
+The dry run lists each candidate with what it was charged so far and which components were missing a rate:
+
+```
+3 run(s) with usage that had no rate on file:
+
+  run 1841: charged ₹12.40 so far, missing tts_elevenlabs
+  run 1902: charged ₹8.10 so far, missing tts_elevenlabs
+  run 1955: charged ₹15.00 so far, missing stt_deepgram
+
+3 run(s) would be recosted. Nothing changed -- re-run with --confirm.
+```
+
+With `--confirm`, it prints the balance delta per run and a summary:
+
+```
+  run 1841: +₹3.20
+  run 1902: +₹2.05
+  run 1955: -₹0.75
+
+Recosted 3 run(s). 0 still have usage with no rate on file.
+```
+
+**A non-zero "still have usage with no rate on file" means you have not added every missing rate yet.** Those runs were recosted against the current price book and still came up short. Add the remaining rates and run it again.
+
+## Scope is deliberately narrow
+
+The script only touches runs that were **flagged** — where a costing pass explicitly recorded a non-empty list of components it could not price.
+
+Runs predating that column entirely are not touched. Recosting every call ever placed on the chance an old one had a silent gap is a much riskier operation than correcting the ones already known to be wrong, and this script does not do it.
+
+## Safety characteristics
+
+- **Dry run by default.** No `--confirm`, no writes.
+- **Single transaction.** All recosts commit together, or none do.
+- **Concurrency-tolerant.** A run recosted by another job between selection and processing is skipped rather than double-counted.
+- **Re-runnable.** Once a run has no unpriced components left it stops being a candidate, so running it twice does not charge twice.
