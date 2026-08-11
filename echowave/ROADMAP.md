@@ -89,9 +89,9 @@ order, and general payments work (invoice PDF, credit notes) stays last.
 | 2 | Customer token & spend dashboard | 1.5d | ✅ done |
 | 3 | Call-log graphs and metrics | 1d | ✅ done |
 | 4 | Provider markup (the 1.3×) | 1d | ✅ done |
-| 5 | **Autopay mandate, gating number issue** | 3–4d | ☐ ← moved up |
-| 6 | Number provisioning UI (incl. the mandate step) | 1.5d | ☐ |
-| 7 | Low-balance email | 0.5d | ☐ |
+| 5 | **Autopay mandate, gating number issue** | 3–4d | ✅ code done, waiting on Razorpay activation |
+| 6 | Number provisioning UI (incl. the mandate step) | 1.5d | ✅ done |
+| 7 | Low-balance email | 0.5d | ✅ done |
 | 8 | *(later)* Invoice PDF, credit notes | 1d | ☐ |
 
 ### What item 5 actually involves
@@ -324,3 +324,100 @@ files; `tsc --noEmit` clean, eslint clean, `next build` clean with all three
 routes emitted.
 
 Next: item 5, the autopay mandate that gates issuing a number.
+
+### 2026-08-10 — items 5 and 6: autopay, and the purchase flow that uses it
+
+The purchase order is now **documents → approved → search → select → mandate →
+number**, enforced in code rather than only in the UI.
+
+`api/services/billing/mandates.py` owns the standing authorisation. It creates
+the Razorpay subscription, tracks its state from webhooks, and answers one
+question for provisioning — *may we hand this account a number?* The collection
+that happens under it is recorded by `rentals.record_mandate_collection`.
+
+**Where the gate sits is the design.** `search()` needs verification only;
+`provision()` also needs an authorised mandate. Asking someone to authorise a
+standing instruction before they have seen what is available is the wrong order;
+handing over the number before they have is a bill we pay and cannot collect on.
+
+Four things worth carrying forward:
+
+- **Only the signature-verified webhook authorises a mandate.** There is no "I
+  have authorised it" button, for the same reason there is no "I have paid"
+  button. `payments.handle_webhook` routes `subscription.*` events into
+  `apply_subscription_event`; the browser cannot reach that state machine.
+- **A terminal mandate is never revived.** Webhooks arrive out of order, and a
+  late `activated` after a `cancelled` would otherwise resurrect an
+  authorisation the customer's bank has already withdrawn.
+- **The idempotency key for a collection is the provider's payment id, not the
+  period.** A test caught this: recording a collection advances the charge to
+  the next period, so a redelivered `subscription.charged` computed a *different*
+  `period_start`, missed the existing unique constraint entirely, and billed a
+  month forward. New partial unique index on `provider_payment_id`.
+- **A mandate collection writes no ledger entry.** The prepaid ledger tracks
+  credit the customer bought from us; rent collected from their bank never became
+  credit, and debiting it there takes the rent twice.
+
+`charge_period` now returns `mandate_collects` and does nothing when an
+authorised mandate is attached — and resumes debiting the balance the moment the
+mandate stops being authorised, which is what makes revocation a fallback rather
+than a hole. This does forgo the prorated first part-month when a mandate is
+collecting: the mandate's first cycle charges a full month, and losing part of
+one month is the right direction to err when the alternative is billing a month
+twice.
+
+`REQUIRE_MANDATE_FOR_NUMBERS` defaults **true**. Set it false only while Razorpay
+Subscriptions activation is pending — that activation is their approval and can
+take days, and it is the one remaining thing between this and a real purchase.
+
+UI: `/numbers` is a four-step purchase screen; the autopay step reads its state
+back from the server and has no way to mark itself done. `/analytics` and
+`/numbers` both build clean.
+
+Verified: 25 tests in `test_autopay_mandates.py`, 108 across provisioning,
+rentals, payments and mandates. Migration `e5b27c0a91d4` round-trips.
+
+Next: item 7, the low-balance email.
+
+### 2026-08-10 — item 7 done: the warning that makes dunning humane
+
+The dunning schedule suspends a number seven days after a rental it could not
+collect. That policy is right and it was **silent**, which made the experience
+wrong: the money was almost always there and nobody said it was needed.
+
+Three pieces:
+
+- `api/services/notifications/email.py` — a deliberately small SMTP sender.
+  There was **no email infrastructure in this codebase at all** before this, so
+  it uses the standard library over `asyncio.to_thread` rather than adding an
+  async SMTP dependency to a path that has to work on a box we cannot easily
+  test against.
+- `api/services/billing/low_balance.py` — pure policy, in one place like the
+  dunning schedule it complements. Two ways to qualify: **days of runway**
+  (balance ÷ recent daily burn, the number a customer can act on and the one
+  that scales across account sizes) and an **absolute floor** for accounts with
+  no measurable burn rate, because "infinite days" on ₹120 of credit is not a
+  useful answer.
+- `api/tasks/low_balance.py` — the daily job, 03:30 UTC / 09:00 IST so a warning
+  arrives when somebody can act on it, and deliberately *after* the nightly
+  rental run so the balance quoted is the one they have now.
+
+Two properties carry it:
+
+- **The dedupe row is claimed before the send**, not after, so two workers
+  racing produce one email and a re-run produces none. That is what makes this
+  job safe to re-run, which is what makes a missed cron harmless.
+- **Email being unconfigured is never an error.** `send()` returns False rather
+  than raising, because every caller is a billing job whose real work is
+  billing. A rental must not fail because a courtesy could not be sent. The job
+  logs one line a day when SMTP is off.
+
+Severity earns a repeat, repetition does not: one notice per account per day per
+level, and a second the same day only if the account crossed from low into
+critical.
+
+Verified: 23 tests. Migration `f18a4d3c07e9` round-trips.
+
+Next: item 8 (invoice PDF, credit notes) is the only roadmap item left, and it
+was always the deferred one. The real blocker to launch is now external —
+Razorpay Subscriptions activation, and Plivo's reseller approval.

@@ -51,6 +51,7 @@ from api.tasks.data_retention import purge_expired_call_data
 from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
+from api.tasks.low_balance import notify_low_balances
 from api.tasks.rental_billing import (
     charge_recurring_rentals,
     reconcile_carrier_numbers,
@@ -186,6 +187,18 @@ class WorkerSettings:
         cron(
             reconcile_carrier_numbers,
             hour={19},
+            minute={30},
+            second=0,
+            run_at_startup=False,
+        ),
+        # 03:30 UTC is 09:00 IST — the start of the working day, so a warning
+        # arrives when somebody can act on it rather than overnight. Deliberately
+        # *after* the rental run rather than before: an account that was going
+        # to be charged last night should be warned about the balance it has now,
+        # not the one it had before the rent came out.
+        cron(
+            notify_low_balances,
+            hour={3},
             minute={30},
             second=0,
             run_at_startup=False,

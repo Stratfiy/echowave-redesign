@@ -10,6 +10,12 @@ automatically, and cannot be put on the managed path at all because one flag
 has no setter. Roughly **9–10 dev-days** to a sellable MVP, and the single
 half-day item blocks more than anything else on the list.
 
+> **Update, 2026-08-10.** Everything in §2 below is now built except the
+> invoice PDF. The remaining blockers are **external, not code**: Plivo's
+> reseller approval, and Razorpay Subscriptions activation. See `ROADMAP.md`
+> for what was built and how each piece was verified. The tables below are kept
+> as written so the estimates can be checked against what actually happened.
+
 ---
 
 ## 1. The journey, step by step
@@ -19,22 +25,24 @@ Every step a paying customer takes, in order.
 | # | Step | Status | Gap |
 |---|---|---|---|
 | 1 | Sign up, land in the app | ✅ Works | Local auth only — Google sign-in needs a Stack Auth migration |
-| 2 | Add credit (Razorpay) | ✅ Works | One-off top-ups only. **No autopay** — see §4 |
+| 2 | Add credit (Razorpay) | ✅ Works | One-off top-ups, plus an autopay mandate for the number rental (step 11) |
 | 3 | Build an agent in the UI | ✅ Works | |
 | 4 | Build an agent from Claude Code (MCP) | ✅ Works | 20 tools; connect with an API key |
 | 5 | Use Decibyl's model keys | ✅ Works | Seeded from `PLATFORM_KEY_*`; per-slot managed/BYOK |
 | 6 | Test the agent over the browser | ✅ Works | No phone number needed |
 | 7 | Submit telephony verification | ⚠️ Built, gated | `MANAGED_TELEPHONY_ENABLED=false` until Plivo reseller is approved |
 | 8 | Carrier approves | ⚠️ Built, unproven | Never run against Plivo's live Compliance API |
-| 9 | **Be put on the managed path** | ❌ **Blocked** | `is_platform_managed` has no setter. **This blocks 10–13.** 0.5d |
-| 10 | Search available numbers | ✅ API + MCP | No UI. 1.5d |
-| 11 | Buy a number | ✅ API | No UI. Included above |
-| 12 | Number bills monthly | ✅ Works | Prorated, dunning, suspension, release |
-| 13 | Attach agent to the number, take a call | ✅ Works | |
-| 14 | See call logs | ✅ Works | Table only — **no graphs**. 1d |
-| 15 | **See token usage** | ❌ **Missing for customers** | Superadmin has it; customers see one number. 1.5d |
-| 16 | See spend by model / component | ❌ **Missing for customers** | Same |
-| 17 | Download invoice | ⚠️ Partial | Issued and numbered; **no PDF** |
+| 9 | Be put on the managed path | ✅ Built | `POST /api/v1/admin/telephony/configurations/{id}/platform-managed`, staff-gated |
+| 10 | Search available numbers | ✅ API + MCP + UI | `/numbers` |
+| 11 | **Authorise autopay** | ✅ Built | Gates 12. Needs Razorpay Subscriptions activation to run for real |
+| 12 | Buy a number | ✅ API + UI | Refused with 403 until the mandate is authorised |
+| 13 | Number bills monthly | ✅ Works | By mandate where there is one, prepaid balance where there is not; prorated, dunning, suspension, release |
+| 14 | Attach agent to the number, take a call | ✅ Works | |
+| 15 | See call logs | ✅ Works | Table, plus graphs at `/analytics` |
+| 16 | See token usage | ✅ Built | `/analytics/tokens` — totals, per model, context growth |
+| 17 | See spend by model / component | ✅ Built | `/analytics/spend` — daily composition, balance, days remaining |
+| 18 | Get warned before credit runs out | ✅ Built | Daily job, 09:00 IST. Needs SMTP configured |
+| 19 | Download invoice | ⚠️ Partial | Issued and numbered; **no PDF** |
 
 ---
 
