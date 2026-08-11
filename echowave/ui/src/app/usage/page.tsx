@@ -12,6 +12,7 @@ import { CallTypeCell } from '@/components/CallTypeCell';
 import { DailyUsageTable } from '@/components/DailyUsageTable';
 import { FilterBuilder } from '@/components/filters/FilterBuilder';
 import { MediaPreviewButton, MediaPreviewDialog } from '@/components/MediaPreviewDialog';
+import { OutcomesSummary } from '@/components/OutcomesSummary';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -509,6 +510,8 @@ export default function UsagePage() {
                         />
                     </div>
                 )}
+
+                <OutcomesSummary />
 
                 {/* Filter Builder */}
                 <div className="mb-6 space-y-3">

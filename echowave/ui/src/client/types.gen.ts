@@ -280,6 +280,24 @@ export type AmbientNoiseUploadResponse = {
 };
 
 /**
+ * AnswerSeizureRatioResponse
+ */
+export type AnswerSeizureRatioResponse = {
+    /**
+     * Attempted
+     */
+    attempted: number;
+    /**
+     * Connected
+     */
+    connected: number;
+    /**
+     * Asr
+     */
+    asr?: number | null;
+};
+
+/**
  * AppendTextChatMessageRequest
  */
 export type AppendTextChatMessageRequest = {
@@ -1530,6 +1548,28 @@ export type CloudonixConfigurationResponse = {
      * From Numbers
      */
     from_numbers: Array<string>;
+};
+
+/**
+ * CostByOutcomeItem
+ */
+export type CostByOutcomeItem = {
+    /**
+     * Disposition
+     */
+    disposition: string;
+    /**
+     * Calls
+     */
+    calls: number;
+    /**
+     * Total Charged Paise
+     */
+    total_charged_paise: number;
+    /**
+     * Cost Per Call Paise
+     */
+    cost_per_call_paise?: number | null;
 };
 
 /**
@@ -4656,6 +4696,17 @@ export type OrganizationPreferences = {
  * ordering a permission check compares against.
  */
 export type OrganizationRole = 'member' | 'admin' | 'owner';
+
+/**
+ * OutcomesResponse
+ */
+export type OutcomesResponse = {
+    answer_seizure_ratio: AnswerSeizureRatioResponse;
+    /**
+     * Cost By Outcome
+     */
+    cost_by_outcome: Array<CostByOutcomeItem>;
+};
 
 /**
  * PhoneNumberCreateRequest
@@ -16127,6 +16178,52 @@ export type ReactivateServiceKeyApiV1UserServiceKeysServiceKeyIdReactivatePutRes
      */
     200: unknown;
 };
+
+export type GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         *
+         * Number of days to include
+         */
+        days?: number;
+    };
+    url: '/api/v1/organizations/usage/outcomes';
+};
+
+export type GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetError = GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetErrors[keyof GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetErrors];
+
+export type GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OutcomesResponse;
+};
+
+export type GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetResponse = GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetResponses[keyof GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetResponses];
 
 export type GetCurrentPeriodUsageApiV1OrganizationsUsageCurrentPeriodGetData = {
     body?: never;

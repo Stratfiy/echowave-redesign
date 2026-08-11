@@ -9,7 +9,11 @@ from pydantic import BaseModel, Field
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
-from api.services.reports import generate_usage_runs_report_csv
+from api.services.reports import (
+    answer_seizure_ratio,
+    cost_by_outcome,
+    generate_usage_runs_report_csv,
+)
 from api.utils.artifacts import artifact_url
 from api.utils.recording_artifacts import has_recording_track
 
@@ -89,6 +93,56 @@ class DailyUsageBreakdownResponse(BaseModel):
     # "no data yet"; the flag lets the caller tell "not priced yet" apart from
     # "priced, but nobody has called".
     pricing_configured: bool = True
+
+
+class AnswerSeizureRatioResponse(BaseModel):
+    attempted: int
+    connected: int
+    # None rather than 0.0 when nothing was attempted — a fresh account with
+    # no calls yet should not read as "every call went unanswered".
+    asr: Optional[float] = None
+
+
+class CostByOutcomeItem(BaseModel):
+    disposition: str
+    calls: int
+    total_charged_paise: int
+    cost_per_call_paise: Optional[int] = None
+
+
+class OutcomesResponse(BaseModel):
+    answer_seizure_ratio: AnswerSeizureRatioResponse
+    cost_by_outcome: List[CostByOutcomeItem]
+
+
+@router.get("/usage/outcomes", response_model=OutcomesResponse)
+async def get_usage_outcomes(
+    days: int = Query(7, ge=1, le=90, description="Number of days to include"),
+    user: UserModel = Depends(get_user),
+):
+    """Answer rate, and cost per call for every outcome the account's calls
+    actually produced.
+
+    There is no fixed "booking" taxonomy across accounts — each workflow's
+    own disposition strings show up in ``cost_by_outcome``, and a customer
+    reads whichever row is their own success outcome. See
+    ``services/reports/org_metrics.py`` for the definitions.
+    """
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    async with db_client.async_session() as session:
+        asr = await answer_seizure_ratio(
+            session, organization_id=user.selected_organization_id, days=days
+        )
+        outcomes = await cost_by_outcome(
+            session, organization_id=user.selected_organization_id, days=days
+        )
+
+    return OutcomesResponse(
+        answer_seizure_ratio=AnswerSeizureRatioResponse(**asr),
+        cost_by_outcome=[CostByOutcomeItem(**o) for o in outcomes],
+    )
 
 
 @router.get("/usage/current-period", response_model=CurrentUsageResponse)
