@@ -101,6 +101,31 @@ say "Migrations"
 # Same invocation as scripts/migrate.sh.
 docker compose exec -T api python -m alembic -c api/alembic.ini upgrade head
 
+# The documentation is a build artifact, not a container. nginx mounts
+# ./docs/dist read-only and serves it off disk, so a deploy that does not build
+# it leaves the docs host answering whatever was last built by hand — or 404,
+# if nobody ever did. That was the state this script shipped in.
+#
+# Built in a container rather than on the host: node is not installed on the
+# box, and adding a host dependency to a deploy that otherwise only needs
+# docker is a new way for the deploy to break. Same major version as the UI
+# image builds with.
+#
+# Not fatal. A docs build failure must not roll back an API deploy that is
+# otherwise healthy — the previous dist stays mounted and the failure is
+# visible in the log.
+say "Documentation"
+if docker run --rm \
+        -v "$PWD/docs:/docs" \
+        -w /docs \
+        --entrypoint sh \
+        node:22-alpine \
+        -c "npm ci --no-audit --no-fund && npm run build"; then
+    say "Documentation built"
+else
+    say "WARNING: documentation build failed; the previously built docs/dist is still being served"
+fi
+
 say "Health"
 for i in $(seq 1 "$HEALTH_RETRIES"); do
     if curl -fsS "$HEALTH_URL" -o /dev/null; then
