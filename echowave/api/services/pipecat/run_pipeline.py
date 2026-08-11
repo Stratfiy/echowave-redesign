@@ -969,6 +969,25 @@ async def _run_pipeline_impl(
     async def on_user_turn_started(aggregator, strategy):
         user_idle_handler.reset()
 
+    # Reset on the *message* as well as the turn, because the second idle
+    # timeout hangs the call up and on_user_turn_started does not always fire.
+    #
+    # A realtime speech-to-speech service (Gemini Live, Nova Sonic, Ultravox)
+    # emits no user-turn frames at all — pipecat says so itself in
+    # llm_response_universal.py, where the transcript path seeds the turn
+    # timestamp precisely because `_on_user_turn_started` never fires in that
+    # mode. With only the handler above, the retry count on such a call never
+    # returns to zero: it reaches one, the agent asks "are you still there",
+    # reaches two, and the call is disconnected — **while the caller is
+    # talking**, roughly twenty seconds in, every time.
+    #
+    # on_user_turn_message_added fires whenever a user message is written to
+    # the context, which is the honest definition of "this caller is not idle"
+    # and is true in both cascade and realtime pipelines.
+    @user_context_aggregator.event_handler("on_user_turn_message_added")
+    async def on_user_turn_message_added(aggregator, message):
+        user_idle_handler.reset()
+
     voicemail_detector = None
     recording_router = None
 
