@@ -481,8 +481,25 @@ decibyl_preflight_remote_init_render() {
     nginx_workers=$(awk '/^[[:space:]]*server api:[0-9]+/ { count += 1 } END { print count + 0 }' "$nginx_conf")
     [[ "$nginx_workers" -eq "$FASTAPI_WORKERS" ]] || decibyl_fail "FASTAPI_WORKERS=$FASTAPI_WORKERS but nginx.conf has $nginx_workers upstream servers"
 
-    rendered_server_name="$(awk '/^[[:space:]]*server_name / { print $2; exit }' "$nginx_conf" | sed 's/;$//')"
-    [[ "$rendered_server_name" == "$PUBLIC_HOST" ]] || decibyl_fail "nginx.conf server_name ($rendered_server_name) does not match PUBLIC_HOST ($PUBLIC_HOST)"
+    # Which assertion is right depends on the topology, and asserting the
+    # single-host one against a subdomain render is what made subdomain mode
+    # undeployable: the first server_name there belongs to the port-80 ACME
+    # block and lists every hostname, so `$2` is the app host, which only
+    # equals PUBLIC_HOST by coincidence. An operator with PUBLIC_HOST at the
+    # apex got "server_name (app.example.com) does not match PUBLIC_HOST
+    # (example.com)" and no way forward.
+    if [[ -n "${DECIBYL_APP_HOST:-}${DECIBYL_API_HOST:-}${DECIBYL_DOCS_HOST:-}${DECIBYL_ROOT_HOST:-}" ]]; then
+        # Subdomain mode: several blocks, several names. What has to hold is
+        # that PUBLIC_HOST is one of the names nginx actually answers on —
+        # otherwise the app publishes a base URL for a hostname its own web
+        # server does not serve.
+        if ! awk '/^[[:space:]]*server_name /' "$nginx_conf" | tr -s ' ;' '\n\n' | grep -qx "$PUBLIC_HOST"; then
+            decibyl_fail "PUBLIC_HOST ($PUBLIC_HOST) is not served by any block in the rendered nginx.conf"
+        fi
+    else
+        rendered_server_name="$(awk '/^[[:space:]]*server_name / { print $2; exit }' "$nginx_conf" | sed 's/;$//')"
+        [[ "$rendered_server_name" == "$PUBLIC_HOST" ]] || decibyl_fail "nginx.conf server_name ($rendered_server_name) does not match PUBLIC_HOST ($PUBLIC_HOST)"
+    fi
 
     rendered_secret="$(sed -n 's/^static-auth-secret=//p' "$turn_conf" | head -1)"
     [[ "$rendered_secret" == "$TURN_SECRET" ]] || decibyl_fail "TURN_SECRET in .env does not match turnserver.conf"

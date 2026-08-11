@@ -79,7 +79,7 @@ rollback() {
     say "DEPLOY FAILED — rolling back to $PREVIOUS_SHA"
     git -C "$GIT_DIR" checkout --detach "$PREVIOUS_SHA" || true
     git -C "$GIT_DIR" submodule update --init --recursive || true
-    docker compose up -d --build || true
+    docker compose --profile remote up -d --build || true
     say "Rolled back. The stack is on the previous commit."
 }
 trap rollback ERR
@@ -88,7 +88,19 @@ say "Building"
 docker compose build api ui
 
 say "Starting"
-docker compose up -d
+# --profile remote is not optional, and leaving it off fails silently.
+#
+# nginx, coturn and decibyl-init are all declared under profiles: ["remote"].
+# A bare `docker compose up -d` starts postgres, redis, minio, api and ui and
+# reports success, while leaving nginx running on whatever configuration was
+# last rendered — by a human running remote_up.sh, possibly months ago.
+#
+# That is why changing the hostname variables and deploying appeared to do
+# nothing: decibyl-init never ran, so the nginx config was never re-rendered,
+# so docs.<domain> kept falling through to the app and answering a login page
+# after a deploy that said it succeeded. The same omission means a TURN
+# credential change never reaches coturn.
+docker compose --profile remote up -d
 
 # Migrations after the containers are up, because the api image is what carries
 # alembic. Failing here rolls back the checkout but NOT the schema: a migration
@@ -100,6 +112,31 @@ say "Migrations"
 # in configuration", which reads like a broken config rather than a wrong path.
 # Same invocation as scripts/migrate.sh.
 docker compose exec -T api python -m alembic -c api/alembic.ini upgrade head
+
+# The documentation is a build artifact, not a container. nginx mounts
+# ./docs/dist read-only and serves it off disk, so a deploy that does not build
+# it leaves the docs host answering whatever was last built by hand — or 404,
+# if nobody ever did. That was the state this script shipped in.
+#
+# Built in a container rather than on the host: node is not installed on the
+# box, and adding a host dependency to a deploy that otherwise only needs
+# docker is a new way for the deploy to break. Same major version as the UI
+# image builds with.
+#
+# Not fatal. A docs build failure must not roll back an API deploy that is
+# otherwise healthy — the previous dist stays mounted and the failure is
+# visible in the log.
+say "Documentation"
+if docker run --rm \
+        -v "$PWD/docs:/docs" \
+        -w /docs \
+        --entrypoint sh \
+        node:22-alpine \
+        -c "npm ci --no-audit --no-fund && npm run build"; then
+    say "Documentation built"
+else
+    say "WARNING: documentation build failed; the previously built docs/dist is still being served"
+fi
 
 say "Health"
 for i in $(seq 1 "$HEALTH_RETRIES"); do
