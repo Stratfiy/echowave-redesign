@@ -21,21 +21,20 @@ import {
     ArrowUpRight,
     CheckCircle2,
     Clock,
+    Download,
     Loader2,
-    Printer,
     Wallet,
     XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import {
     createTopupApiV1BillingTopupPost,
     getBalanceApiV1BillingBalanceGet,
     getBillingProfileApiV1BillingProfileGet,
+    getTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGet,
     listPaymentsApiV1BillingPaymentsGet,
     listTaxDocumentsApiV1BillingDocumentsGet,
-    printTaxDocumentApiV1BillingDocumentsDocumentIdPrintGet,
     saveBillingProfileApiV1BillingProfilePut,
 } from "@/client/sdk.gen";
 import { Button } from "@/components/ui/button";
@@ -222,42 +221,9 @@ export default function BillingPage() {
     const [profileComplete, setProfileComplete] = useState(true);
     const [savingProfile, setSavingProfile] = useState(false);
     const [documents, setDocuments] = useState<TaxDocument[]>([]);
-    const [openingDocumentId, setOpeningDocumentId] = useState<number | null>(null);
-
-    /**
-     * Open an issued document in a new tab, ready to print.
-     *
-     * Fetched through the API client rather than linked to directly: the route
-     * is authenticated with a Bearer token, and a plain `window.open` sends no
-     * Authorization header — the tab would show a 401. So the HTML is fetched
-     * with the token attached and handed to the new tab as a blob.
-     */
-    const openDocument = useCallback(async (documentId: number) => {
-        setOpeningDocumentId(documentId);
-        try {
-            const response =
-                await printTaxDocumentApiV1BillingDocumentsDocumentIdPrintGet({
-                    path: { document_id: documentId },
-                    parseAs: "text",
-                });
-            if (response.error || typeof response.data !== "string") {
-                toast.error(
-                    detailFromError(response.error, "Could not open that document"),
-                );
-                return;
-            }
-            const url = URL.createObjectURL(
-                new Blob([response.data], { type: "text/html" }),
-            );
-            window.open(url, "_blank", "noopener");
-            // Revoked on a delay rather than immediately: the new tab has to
-            // finish loading from the URL first, and revoking synchronously
-            // races it to a blank page.
-            setTimeout(() => URL.revokeObjectURL(url), 60_000);
-        } finally {
-            setOpeningDocumentId(null);
-        }
-    }, []);
+    const [downloadingDocumentId, setDownloadingDocumentId] = useState<number | null>(
+        null,
+    );
 
     const refresh = useCallback(async () => {
         const [balanceResponse, paymentsResponse, profileResponse, documentsResponse] =
@@ -345,6 +311,32 @@ export default function BillingPage() {
             setSavingProfile(false);
         }
     }, [profile, refresh]);
+
+    const downloadDocument = useCallback(async (doc: TaxDocument) => {
+        setError(null);
+        setDownloadingDocumentId(doc.id);
+        try {
+            const response = await getTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGet({
+                path: { document_id: doc.id },
+                parseAs: "blob",
+            });
+            if (response.error || !response.data) {
+                setError(detailFromError(response.error, "Could not download the PDF"));
+                return;
+            }
+            const blob = response.data as Blob;
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${doc.number.replace(/\//g, "-")}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } finally {
+            setDownloadingDocumentId(null);
+        }
+    }, []);
 
     useEffect(() => {
         if (authLoading || !user || hasFetched.current) return;
@@ -881,12 +873,17 @@ export default function BillingPage() {
                                             <TableCell className="text-right">
                                                 <Button
                                                     variant="ghost"
-                                                    size="sm"
-                                                    disabled={openingDocumentId === doc.id}
-                                                    onClick={() => openDocument(doc.id)}
+                                                    size="icon"
+                                                    className="h-8 w-8"
+                                                    disabled={downloadingDocumentId === doc.id}
+                                                    onClick={() => void downloadDocument(doc)}
+                                                    aria-label={`Download ${doc.number}`}
                                                 >
-                                                    <Printer className="mr-1.5 h-3.5 w-3.5" />
-                                                    Open
+                                                    {downloadingDocumentId === doc.id ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Download className="h-4 w-4" />
+                                                    )}
                                                 </Button>
                                             </TableCell>
                                         </TableRow>

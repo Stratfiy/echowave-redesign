@@ -280,6 +280,24 @@ export type AmbientNoiseUploadResponse = {
 };
 
 /**
+ * AnswerSeizureRatioResponse
+ */
+export type AnswerSeizureRatioResponse = {
+    /**
+     * Attempted
+     */
+    attempted: number;
+    /**
+     * Connected
+     */
+    connected: number;
+    /**
+     * Asr
+     */
+    asr?: number | null;
+};
+
+/**
  * AppendTextChatMessageRequest
  */
 export type AppendTextChatMessageRequest = {
@@ -345,9 +363,13 @@ export type AuthUserResponse = {
      */
     id: number;
     /**
-     * Is Superuser
+     * Staff Role
      */
-    is_superuser: boolean;
+    staff_role: string | null;
+    /**
+     * Organization Role
+     */
+    organization_role: string | null;
 };
 
 /**
@@ -1546,6 +1568,28 @@ export type CloudonixConfigurationResponse = {
      * From Numbers
      */
     from_numbers: Array<string>;
+};
+
+/**
+ * CostByOutcomeItem
+ */
+export type CostByOutcomeItem = {
+    /**
+     * Disposition
+     */
+    disposition: string;
+    /**
+     * Calls
+     */
+    calls: number;
+    /**
+     * Total Charged Paise
+     */
+    total_charged_paise: number;
+    /**
+     * Cost Per Call Paise
+     */
+    cost_per_call_paise?: number | null;
 };
 
 /**
@@ -4623,6 +4667,36 @@ export type OrganizationContextResponse = {
 };
 
 /**
+ * OrganizationMemberResponse
+ *
+ * One member of the current organization, as the team-management screen shows them.
+ */
+export type OrganizationMemberResponse = {
+    /**
+     * User Id
+     */
+    user_id: number;
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
+     * Role
+     */
+    role: string;
+};
+
+/**
+ * OrganizationMembersListResponse
+ */
+export type OrganizationMembersListResponse = {
+    /**
+     * Members
+     */
+    members: Array<OrganizationMemberResponse>;
+};
+
+/**
  * OrganizationModelServicesContext
  */
 export type OrganizationModelServicesContext = {
@@ -4656,6 +4730,32 @@ export type OrganizationPreferences = {
      * Timezone
      */
     timezone?: string | null;
+};
+
+/**
+ * OrganizationRole
+ *
+ * A member's standing within one organization.
+ *
+ * Every existing member had identical access before this existed, so the
+ * migration that introduced this column backfilled everyone as OWNER —
+ * nothing regresses on upgrade. New members joining afterwards default to
+ * MEMBER; an existing Owner promotes from there.
+ *
+ * Ordered least to most privileged; ``ORGANIZATION_ROLE_RANK`` below is the
+ * ordering a permission check compares against.
+ */
+export type OrganizationRole = 'member' | 'admin' | 'owner';
+
+/**
+ * OutcomesResponse
+ */
+export type OutcomesResponse = {
+    answer_seizure_ratio: AnswerSeizureRatioResponse;
+    /**
+     * Cost By Outcome
+     */
+    cost_by_outcome: Array<CostByOutcomeItem>;
 };
 
 /**
@@ -7022,6 +7122,16 @@ export type UpdateFolderRequest = {
      * Name
      */
     name: string;
+};
+
+/**
+ * UpdateMemberRoleRequest
+ */
+export type UpdateMemberRoleRequest = {
+    /**
+     * The member's new role: member, admin, or owner.
+     */
+    role: OrganizationRole;
 };
 
 /**
@@ -10802,6 +10912,137 @@ export type ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostResponses = 
 
 export type ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostResponse = ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostResponses[keyof ReleaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePostResponses];
 
+export type ListMembersApiV1OrganizationsMembersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/members';
+};
+
+export type ListMembersApiV1OrganizationsMembersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListMembersApiV1OrganizationsMembersGetError = ListMembersApiV1OrganizationsMembersGetErrors[keyof ListMembersApiV1OrganizationsMembersGetErrors];
+
+export type ListMembersApiV1OrganizationsMembersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationMembersListResponse;
+};
+
+export type ListMembersApiV1OrganizationsMembersGetResponse = ListMembersApiV1OrganizationsMembersGetResponses[keyof ListMembersApiV1OrganizationsMembersGetResponses];
+
+export type RemoveMemberApiV1OrganizationsMembersUserIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/v1/organizations/members/{user_id}';
+};
+
+export type RemoveMemberApiV1OrganizationsMembersUserIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveMemberApiV1OrganizationsMembersUserIdDeleteError = RemoveMemberApiV1OrganizationsMembersUserIdDeleteErrors[keyof RemoveMemberApiV1OrganizationsMembersUserIdDeleteErrors];
+
+export type RemoveMemberApiV1OrganizationsMembersUserIdDeleteResponses = {
+    /**
+     * Response Remove Member Api V1 Organizations Members  User Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: string;
+    };
+};
+
+export type RemoveMemberApiV1OrganizationsMembersUserIdDeleteResponse = RemoveMemberApiV1OrganizationsMembersUserIdDeleteResponses[keyof RemoveMemberApiV1OrganizationsMembersUserIdDeleteResponses];
+
+export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchData = {
+    body: UpdateMemberRoleRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/v1/organizations/members/{user_id}';
+};
+
+export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchError = UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchErrors[keyof UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchErrors];
+
+export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationMemberResponse;
+};
+
+export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponse = UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponses[keyof UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponses];
+
 export type DeleteProviderKeyApiV1AdminProviderKeysDeleteData = {
     body?: never;
     headers?: {
@@ -11427,7 +11668,7 @@ export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses = {
 
 export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponse = GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses[keyof GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses];
 
-export type PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetData = {
+export type GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetData = {
     body?: never;
     headers?: {
         /**
@@ -11446,10 +11687,10 @@ export type PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetData = {
         document_id: number;
     };
     query?: never;
-    url: '/api/v1/billing/documents/{document_id}/print';
+    url: '/api/v1/billing/documents/{document_id}/pdf';
 };
 
-export type PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetErrors = {
+export type GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetErrors = {
     /**
      * Not found
      */
@@ -11460,16 +11701,14 @@ export type PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetErrors = {
     422: HttpValidationError;
 };
 
-export type PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetError = PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetErrors[keyof PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetErrors];
+export type GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetError = GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetErrors[keyof GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetErrors];
 
-export type PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetResponses = {
+export type GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetResponses = {
     /**
      * Successful Response
      */
-    200: string;
+    200: unknown;
 };
-
-export type PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetResponse = PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetResponses[keyof PrintTaxDocumentApiV1BillingDocumentsDocumentIdPrintGetResponses];
 
 export type ListPaymentsApiV1BillingPaymentsGetData = {
     body?: never;
@@ -16431,6 +16670,52 @@ export type ReactivateServiceKeyApiV1UserServiceKeysServiceKeyIdReactivatePutRes
      */
     200: unknown;
 };
+
+export type GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         *
+         * Number of days to include
+         */
+        days?: number;
+    };
+    url: '/api/v1/organizations/usage/outcomes';
+};
+
+export type GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetError = GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetErrors[keyof GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetErrors];
+
+export type GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OutcomesResponse;
+};
+
+export type GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetResponse = GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetResponses[keyof GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetResponses];
 
 export type GetCurrentPeriodUsageApiV1OrganizationsUsageCurrentPeriodGetData = {
     body?: never;

@@ -336,27 +336,6 @@ WORKER_HEARTBEAT_STALE_AFTER_SECONDS = int(
 # published where a Data Principal can find it. Surfaced through the API so the
 # app and the marketing site cannot drift apart on who it is.
 GRIEVANCE_OFFICER_NAME = os.getenv("GRIEVANCE_OFFICER_NAME", "")
-# ─── Outbound email ─────────────────────────────────────────────────────────
-#
-# Used for operational notices the customer cannot get any other way — chiefly
-# "your balance is about to run out", which is the difference between a
-# customer topping up and a customer discovering their number was suspended.
-#
-# Unset means email is simply off. Nothing raises for want of it: a missing SMTP
-# host must never stop a billing job, because the job's real work is billing and
-# the notice is a courtesy on top of it.
-SMTP_HOST = os.getenv("SMTP_HOST") or None
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME") or None
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD") or None
-# STARTTLS on the submission port is the near-universal arrangement. Set
-# SMTP_USE_TLS=true for implicit TLS (port 465) instead.
-SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() != "false"
-SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "false").lower() == "true"
-EMAIL_FROM = os.getenv("EMAIL_FROM") or "billing@decibyl.ai"
-EMAIL_FROM_NAME = os.getenv("EMAIL_FROM_NAME") or "Decibyl"
-EMAIL_REPLY_TO = os.getenv("EMAIL_REPLY_TO") or None
-
 GRIEVANCE_OFFICER_EMAIL = os.getenv("GRIEVANCE_OFFICER_EMAIL", "privacy@decibyl.ai")
 GRIEVANCE_OFFICER_ADDRESS = os.getenv("GRIEVANCE_OFFICER_ADDRESS", "")
 
@@ -399,6 +378,22 @@ SUPPLIER_LUT_NUMBER = os.getenv("SUPPLIER_LUT_NUMBER", "")
 # "INV/26-27/000001" is exactly 16.
 INVOICE_NUMBER_PREFIX = os.getenv("INVOICE_NUMBER_PREFIX", "INV")
 RECEIPT_NUMBER_PREFIX = os.getenv("RECEIPT_NUMBER_PREFIX", "RV")
+
+# --- Outbound email ------------------------------------------------------------
+#
+# SMTP rather than a named provider's API: every provider that matters (SES,
+# Sendgrid, Mailgun, Postmark, or a plain Gmail/Workspace account) speaks SMTP,
+# so one client works everywhere and switching providers is a credential change,
+# not a code change. There is no default host — mail is off until an operator
+# points it somewhere, the same posture as Razorpay and Google OAuth.
+SMTP_HOST = os.getenv("SMTP_HOST") or None
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME") or None
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD") or None
+# STARTTLS on an explicit connection (587) vs. implicit TLS from connect (465).
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
+EMAIL_FROM_ADDRESS = os.getenv("EMAIL_FROM_ADDRESS") or None
+EMAIL_FROM_NAME = os.getenv("EMAIL_FROM_NAME", "Decibyl")
 
 # Fernet key encrypting the platform's own provider API keys at rest. Generate
 # with: python -c "from cryptography.fernet import Fernet;

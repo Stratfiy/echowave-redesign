@@ -37,7 +37,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Integer, case, func, select
+from sqlalchemy import Integer, case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import CampaignModel, QueuedRunModel, WorkflowRunModel
@@ -122,6 +122,28 @@ async def _totals(session: AsyncSession, *, campaign_id: int) -> dict[str, Any]:
         "completion_rate": _rate(completed, connected),
         "talk_minutes": round(seconds / 60, 2),
     }
+
+
+async def _circuit_breaker_trips(session: AsyncSession, *, campaign_id: int) -> int:
+    """How many times this campaign's circuit breaker paused it.
+
+    A trip is not a dedicated column — it's an entry inside the campaign's
+    own append-only ``logs`` JSON array (see
+    ``services/campaign/circuit_breaker.py``). Counted in SQL with
+    ``jsonb_array_elements`` rather than loading the array into Python: a
+    long-running campaign's log can run to hundreds of entries, and this
+    avoids pulling all of them over the wire just to count one event type.
+    """
+    result = await session.execute(
+        text(
+            "SELECT count(*) FROM campaigns, "
+            "jsonb_array_elements(logs::jsonb) AS entry "
+            "WHERE campaigns.id = :campaign_id "
+            "AND entry->>'event' = 'circuit_breaker_tripped'"
+        ),
+        {"campaign_id": campaign_id},
+    )
+    return int(result.scalar() or 0)
 
 
 async def _retries(session: AsyncSession, *, campaign_id: int) -> dict[str, Any]:
@@ -299,6 +321,9 @@ async def campaign_summary(
             # Reach against the list we were given, rather than against the
             # dials we made. This is the number a reach target is written in.
             "contact_connection_rate": _rate(totals["connected"], contacts_total or 0),
+            "circuit_breaker_trips": await _circuit_breaker_trips(
+                session, campaign_id=campaign.id
+            ),
         },
         "retries": await _retries(session, campaign_id=campaign.id),
         "languages": await _languages(session, campaign_id=campaign.id),

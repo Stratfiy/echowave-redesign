@@ -32,13 +32,11 @@ from api.db.models import (
     NotificationModel,
     OrganizationModel,
     RecurringChargeModel,
-    UserModel,
-    organization_users_association,
 )
 from api.enums import RecurringChargeStatus
 from api.services.billing import low_balance
 from api.services.billing.costing import current_balance_paise
-from api.services.notifications import email
+from api.services.messaging import email
 
 #: How much history the burn rate is averaged over. Long enough that one busy
 #: Tuesday does not produce a panic email, short enough to notice a campaign
@@ -80,22 +78,21 @@ async def _daily_burn_paise(session, *, organization_id: int, since: date) -> in
     return int(total or 0) // BURN_WINDOW_DAYS
 
 
-async def _recipients(session, *, organization_id: int) -> list[str]:
-    rows = await session.execute(
-        select(UserModel.email)
-        .join(
-            organization_users_association,
-            organization_users_association.c.user_id == UserModel.id,
-        )
-        .where(
-            organization_users_association.c.organization_id == organization_id,
-            UserModel.email.isnot(None),
-        )
+async def _recipients(*, organization_id: int) -> list[str]:
+    """Every member's address, deduplicated.
+
+    Through ``db_client`` rather than a join written here: organization
+    membership moved from a plain association table to a roles table, and a
+    second hand-rolled join is a second place to update the next time it moves.
+
+    Lowercased and deduplicated because the same person can appear twice
+    through two provider identities, and sending them the same warning twice is
+    exactly what this job is trying not to do.
+    """
+    members = await db_client.get_organization_users(organization_id)
+    return sorted(
+        {(m.email or "").strip().lower() for m in members if (m.email or "").strip()}
     )
-    # Deduplicated and lowercased: the same person can appear twice through two
-    # provider identities, and sending them the same warning twice is exactly
-    # the thing this job is trying not to do.
-    return sorted({(row[0] or "").strip().lower() for row in rows if row[0]})
 
 
 async def _has_numbers(session, *, organization_id: int) -> bool:
@@ -127,7 +124,7 @@ async def notify_low_balances(ctx=None, *, now: datetime | None = None) -> dict:
 
     counters = {"considered": 0, "warned": 0, "skipped": 0, "failed": 0}
 
-    if not email.is_configured():
+    if not email.email_is_configured():
         # Not an error, and not silent either. A deployment with no SMTP host
         # has a dunning schedule that suspends numbers without warning, and
         # that is worth one log line a day.
@@ -171,7 +168,7 @@ async def _notify_one(organization_id: int, *, today: date, since: date, counter
             counters["skipped"] += 1
             return
 
-        recipients = await _recipients(session, organization_id=organization_id)
+        recipients = await _recipients(organization_id=organization_id)
         if not recipients:
             logger.debug(
                 "Organization {} needs a low-balance warning but has no email "
@@ -216,14 +213,23 @@ async def _notify_one(organization_id: int, *, today: date, since: date, counter
             counters["skipped"] += 1
             return
 
-    sent = await email.send(to=recipients, subject=subject, text=body)
+    # One message per recipient. The shared sender takes a single `to`, and a
+    # billing notice has no reason to publish one member's address to another.
+    results = [
+        await email.send_email(to=address, subject=subject, body_text=body)
+        for address in recipients
+    ]
+    sent = any(result.ok for result in results)
+    failure = next(
+        (result.error for result in results if not result.ok and result.error), None
+    )
 
     async with db_client.async_session() as session:
         stored = await session.get(NotificationModel, record.id)
         if stored is not None:
             stored.sent = sent
             if not sent:
-                stored.error = "SMTP send failed; see worker logs"
+                stored.error = failure or "SMTP send failed; see worker logs"
             await session.commit()
 
     if sent:

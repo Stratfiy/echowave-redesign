@@ -439,6 +439,7 @@ async def handle_webhook(
         "status": "credited",
         "order_id": order_id,
         "credited_paise": credited,
+        "receipt_voucher_id": voucher.id if voucher else None,
     }
 
 

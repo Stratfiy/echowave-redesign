@@ -1,19 +1,29 @@
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
 from loguru import logger
-from sqlalchemy import exists
+from sqlalchemy import exists, func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.future import select
 
 from api.db.base_client import BaseDBClient
 from api.db.models import (
     APIKeyModel,
+    OrganizationMembershipModel,
     OrganizationModel,
     UserModel,
-    organization_users_association,
 )
+from api.enums import OrganizationRole
 from api.utils.api_key import generate_api_key
+
+
+@dataclass(frozen=True)
+class OrganizationMember:
+    """A member as the org's team-management screen shows them."""
+
+    user: UserModel
+    role: str
 
 
 class OrganizationClient(BaseDBClient):
@@ -28,20 +38,50 @@ class OrganizationClient(BaseDBClient):
             return result.scalars().first()
 
     async def get_organization_users(self, organization_id: int) -> list[UserModel]:
-        """Get all users linked to an organization (many-to-many)."""
+        """Get all users linked to an organization, regardless of role."""
         async with self.async_session() as session:
             result = await session.execute(
                 select(UserModel)
                 .join(
-                    organization_users_association,
-                    organization_users_association.c.user_id == UserModel.id,
+                    OrganizationMembershipModel,
+                    OrganizationMembershipModel.user_id == UserModel.id,
                 )
-                .where(
-                    organization_users_association.c.organization_id == organization_id
-                )
+                .where(OrganizationMembershipModel.organization_id == organization_id)
                 .order_by(UserModel.id)
             )
             return list(result.scalars().all())
+
+    async def list_organization_members(
+        self, organization_id: int
+    ) -> list[OrganizationMember]:
+        """Members with their role — what a team-management screen shows."""
+        async with self.async_session() as session:
+            rows = (
+                await session.execute(
+                    select(UserModel, OrganizationMembershipModel.role)
+                    .join(
+                        OrganizationMembershipModel,
+                        OrganizationMembershipModel.user_id == UserModel.id,
+                    )
+                    .where(
+                        OrganizationMembershipModel.organization_id == organization_id
+                    )
+                    .order_by(UserModel.id)
+                )
+            ).all()
+            return [OrganizationMember(user=user, role=role) for user, role in rows]
+
+    async def get_membership(
+        self, user_id: int, organization_id: int
+    ) -> Optional[OrganizationMembershipModel]:
+        """One user's membership row in one organization, or None."""
+        async with self.async_session() as session:
+            return await session.scalar(
+                select(OrganizationMembershipModel).where(
+                    OrganizationMembershipModel.user_id == user_id,
+                    OrganizationMembershipModel.organization_id == organization_id,
+                )
+            )
 
     async def get_or_create_organization_by_provider_id(
         self, org_provider_id: str, user_id: int
@@ -146,9 +186,9 @@ class OrganizationClient(BaseDBClient):
             result = await session.execute(
                 select(
                     exists().where(
-                        (organization_users_association.c.user_id == user_id)
+                        (OrganizationMembershipModel.user_id == user_id)
                         & (
-                            organization_users_association.c.organization_id
+                            OrganizationMembershipModel.organization_id
                             == organization_id
                         )
                     )
@@ -157,23 +197,75 @@ class OrganizationClient(BaseDBClient):
             return bool(result.scalar())
 
     async def add_user_to_organization(
-        self, user_id: int, organization_id: int
+        self,
+        user_id: int,
+        organization_id: int,
+        role: str = OrganizationRole.MEMBER.value,
     ) -> None:
-        """Ensure that a user is linked to an organization (many-to-many).
+        """Ensure that a user has a membership row in an organization.
 
-        The association is created only if it does not already exist.
-        Uses INSERT ... ON CONFLICT DO NOTHING to handle race conditions.
+        Created only if it does not already exist — an existing membership's
+        role is left untouched (use ``update_member_role`` to change it), so a
+        re-sync (e.g. Stack Auth login re-confirming team membership) can
+        never quietly reset someone back to MEMBER.
         """
         async with self.async_session() as session:
-            # Use PostgreSQL's INSERT ... ON CONFLICT DO NOTHING
-            # This handles race conditions at the database level
-
-            stmt = insert(organization_users_association).values(
-                user_id=user_id, organization_id=organization_id
+            stmt = insert(OrganizationMembershipModel).values(
+                user_id=user_id, organization_id=organization_id, role=role
             )
-            # ON CONFLICT DO NOTHING - if another request already inserted, this becomes a no-op
-            # The primary key constraint on (user_id, organization_id) will trigger the conflict
-            stmt = stmt.on_conflict_do_nothing()
-
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=["user_id", "organization_id"]
+            )
             await session.execute(stmt)
             await session.commit()
+
+    async def update_member_role(
+        self, user_id: int, organization_id: int, role: str
+    ) -> Optional[OrganizationMembershipModel]:
+        """Change a member's role. Returns None if they aren't a member."""
+        async with self.async_session() as session:
+            membership = await session.scalar(
+                select(OrganizationMembershipModel).where(
+                    OrganizationMembershipModel.user_id == user_id,
+                    OrganizationMembershipModel.organization_id == organization_id,
+                )
+            )
+            if membership is None:
+                return None
+            membership.role = role
+            await session.commit()
+            await session.refresh(membership)
+            return membership
+
+    async def remove_user_from_organization(
+        self, user_id: int, organization_id: int
+    ) -> bool:
+        """Remove a member. Returns False if they weren't a member."""
+        async with self.async_session() as session:
+            membership = await session.scalar(
+                select(OrganizationMembershipModel).where(
+                    OrganizationMembershipModel.user_id == user_id,
+                    OrganizationMembershipModel.organization_id == organization_id,
+                )
+            )
+            if membership is None:
+                return False
+            await session.delete(membership)
+            await session.commit()
+            return True
+
+    async def count_organization_owners(self, organization_id: int) -> int:
+        """How many Owners an organization has.
+
+        Used to refuse demoting or removing the last one — an organization
+        with no Owner has no one able to manage membership or restore an
+        Owner, which is a dead end this API should never produce.
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(func.count(OrganizationMembershipModel.id)).where(
+                    OrganizationMembershipModel.organization_id == organization_id,
+                    OrganizationMembershipModel.role == OrganizationRole.OWNER.value,
+                )
+            )
+            return int(result.scalar() or 0)

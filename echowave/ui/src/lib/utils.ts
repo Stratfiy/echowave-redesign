@@ -53,11 +53,11 @@ export async function getRedirectUrl(token: string, permissions: { id: string }[
     });
     console.log('[getRedirectUrl] Auth user response:', {
       hasData: !!authUser.data,
-      isSuperuser: authUser.data?.is_superuser,
+      staffRole: authUser.data?.staff_role,
       userId: authUser.data?.id
     });
-    if (authUser.data?.is_superuser) {
-      console.log('[getRedirectUrl] User is superuser, redirecting to /superadmin');
+    if (authUser.data?.staff_role) {
+      console.log('[getRedirectUrl] User is staff, redirecting to /superadmin');
       return "/superadmin";
     }
 

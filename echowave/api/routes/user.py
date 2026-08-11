@@ -45,7 +45,10 @@ router = APIRouter(prefix="/user")
 
 class AuthUserResponse(TypedDict):
     id: int
-    is_superuser: bool
+    staff_role: str | None
+    #: This user's role in their currently-selected organization, or None if
+    #: no org is selected or they have no membership row there.
+    organization_role: str | None
 
 
 class DefaultConfigurationsResponse(BaseModel):
@@ -91,9 +94,17 @@ async def get_default_configurations() -> DefaultConfigurationsResponse:
 async def get_auth_user(
     user: UserModel = Depends(get_user),
 ) -> AuthUserResponse:
+    organization_role = None
+    if user.selected_organization_id:
+        membership = await db_client.get_membership(
+            user.id, user.selected_organization_id
+        )
+        organization_role = membership.role if membership else None
+
     return {
         "id": user.id,
-        "is_superuser": user.is_superuser,
+        "staff_role": user.staff_role,
+        "organization_role": organization_role,
     }
 
 

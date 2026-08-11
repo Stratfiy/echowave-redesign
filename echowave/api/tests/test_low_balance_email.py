@@ -25,11 +25,11 @@ from api.db.models import (
     CreditLedgerModel,
     DailyOrganizationRollupModel,
     NotificationModel,
+    OrganizationMembershipModel,
     OrganizationModel,
     UserModel,
-    organization_users_association,
 )
-from api.enums import CreditLedgerKind
+from api.enums import CreditLedgerKind, OrganizationRole
 from api.services.billing import low_balance
 from api.tasks import low_balance as job
 
@@ -39,9 +39,11 @@ async def _account(session, slug: str, *, balance_paise: int, email: str | None)
     user = UserModel(provider_id=f"user-{slug}", email=email)
     session.add_all([org, user])
     await session.flush()
-    await session.execute(
-        organization_users_association.insert().values(
-            organization_id=org.id, user_id=user.id
+    session.add(
+        OrganizationMembershipModel(
+            organization_id=org.id,
+            user_id=user.id,
+            role=OrganizationRole.OWNER.value,
         )
     )
     session.add(
@@ -192,14 +194,16 @@ class TestTheMessage:
 @pytest.fixture
 def captured_email(monkeypatch):
     """Intercept sends. Nothing in this suite may open a socket."""
+    from api.services.messaging.email import SendResult
+
     sent: list[dict] = []
 
-    async def _send(*, to, subject, text, html=None):
-        sent.append({"to": to, "subject": subject, "text": text})
-        return True
+    async def _send(*, to, subject, body_text, **kwargs):
+        sent.append({"to": [to], "subject": subject, "text": body_text})
+        return SendResult(ok=True)
 
-    monkeypatch.setattr(job.email, "send", _send)
-    monkeypatch.setattr(job.email, "is_configured", lambda: True)
+    monkeypatch.setattr(job.email, "send_email", _send)
+    monkeypatch.setattr(job.email, "email_is_configured", lambda: True)
     return sent
 
 
@@ -305,11 +309,13 @@ class TestTheJob:
     async def test_a_failed_send_is_recorded_not_retried_into_a_second_email(
         self, db_session, async_session, monkeypatch
     ):
-        async def _fail(*, to, subject, text, html=None):
-            return False
+        from api.services.messaging.email import SendResult
 
-        monkeypatch.setattr(job.email, "send", _fail)
-        monkeypatch.setattr(job.email, "is_configured", lambda: True)
+        async def _fail(*, to, subject, body_text, **kwargs):
+            return SendResult(ok=False, error="mail server said no")
+
+        monkeypatch.setattr(job.email, "send_email", _fail)
+        monkeypatch.setattr(job.email, "email_is_configured", lambda: True)
 
         org = await _account(
             async_session, "lb-failed", balance_paise=50_000, email="e@acme.test"
@@ -338,7 +344,7 @@ class TestTheJob:
     ):
         """A billing worker must not fail because a courtesy could not be
         sent."""
-        monkeypatch.setattr(job.email, "is_configured", lambda: False)
+        monkeypatch.setattr(job.email, "email_is_configured", lambda: False)
 
         org = await _account(
             async_session, "lb-nosmtp", balance_paise=50_000, email="f@acme.test"
@@ -353,27 +359,3 @@ class TestTheJob:
             "skipped": 0,
             "failed": 0,
         }
-
-
-class TestTheSender:
-    def test_several_recipients_go_in_bcc(self):
-        """Colleagues, but their addresses are still personal data and a
-        billing notice has no reason to publish them to each other."""
-        from api.services.notifications import email as sender
-
-        message = sender._build(
-            to=["a@x.test", "b@x.test"], subject="s", text="t"
-        )
-        assert message["Bcc"] == "a@x.test, b@x.test"
-        assert "a@x.test" not in (message["To"] or "")
-
-    def test_a_single_recipient_goes_in_to(self):
-        from api.services.notifications import email as sender
-
-        message = sender._build(to=["a@x.test"], subject="s", text="t")
-        assert message["To"] == "a@x.test"
-
-    async def test_send_with_no_recipients_is_false_not_an_exception(self):
-        from api.services.notifications import email as sender
-
-        assert await sender.send(to=[], subject="s", text="t") is False

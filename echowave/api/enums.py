@@ -417,3 +417,53 @@ class AccountType(str, Enum):
     CLINIC = "clinic"
     AGENCY = "agency"
     ENTERPRISE = "enterprise"
+
+
+class OrganizationRole(str, Enum):
+    """A member's standing within one organization.
+
+    Every existing member had identical access before this existed, so the
+    migration that introduced this column backfilled everyone as OWNER —
+    nothing regresses on upgrade. New members joining afterwards default to
+    MEMBER; an existing Owner promotes from there.
+
+    Ordered least to most privileged; ``ORGANIZATION_ROLE_RANK`` below is the
+    ordering a permission check compares against.
+    """
+
+    MEMBER = "member"
+    ADMIN = "admin"
+    OWNER = "owner"
+
+
+#: Rank for "at least this role" checks. Higher is more privileged.
+ORGANIZATION_ROLE_RANK: dict[str, int] = {
+    OrganizationRole.MEMBER.value: 0,
+    OrganizationRole.ADMIN.value: 1,
+    OrganizationRole.OWNER.value: 2,
+}
+
+
+class StaffRole(str, Enum):
+    """Decibyl-staff privilege tier, independent of any organization.
+
+    Two tiers because the staff-only surfaces are not one thing: KYC review
+    is cross-account document review with no further reach, while billing
+    rate changes, platform provider keys, and account impersonation can move
+    money or expose secrets. SUPPORT covers the former; SUPERADMIN is
+    required for the latter and implies everything SUPPORT can do.
+
+    Stored as a nullable VARCHAR on ``UserModel`` (``None`` = not staff)
+    rather than a Postgres ENUM, so a future tier needs no migration — same
+    convention as ``OrganizationModel.account_type``.
+    """
+
+    SUPPORT = "support"
+    SUPERADMIN = "superadmin"
+
+
+#: Rank for "at least this tier" checks. Higher is more privileged.
+STAFF_ROLE_RANK: dict[str, int] = {
+    StaffRole.SUPPORT.value: 0,
+    StaffRole.SUPERADMIN.value: 1,
+}

@@ -36,7 +36,7 @@ implemented
 | Access to recordings, transcripts, KYC documents and exports recorded | ✅ | `data_access_log` — the act of access, not the outcome |
 | Audit logging cannot block the operation it observes | ✅ | By design: a failed audit write is logged loudly and the request proceeds |
 | Billing changes recorded with actor | ✅ | `billing_audit_log` |
-| Role separation between customer users and platform staff | ⚠️ | `is_superuser` is a single boolean. There are two roles, not a matrix. |
+| Role separation between customer users and platform staff | ✅ | `StaffRole` (support/superadmin) separates platform staff from customer accounts entirely; `OrganizationRole` (member/admin/owner) separates standing within a customer account. |
 | Backups | ⚠️ | [TO CONFIRM — schedule, retention, and the last time a restore was actually tested. An untested backup is a hypothesis.] |
 | Documented disaster recovery with RTO/RPO | ❌ | [TO CONFIRM] |
 | Multi-region redundancy | ❌ | Single region. |

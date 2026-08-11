@@ -200,9 +200,7 @@ efficiency, context growth, tool timings.
 
 | Item | Why |
 |---|---|
-| **PDF tax invoices** | A customer cannot download an invoice. This blocks the first real sale. |
-| **Low-balance email** | Prepaid without a warning email means silent service loss and churn |
-| **Recost script** | Calls placed before the price book existed report 100% margin. Your own numbers are currently wrong. |
+| **Low-balance email** | Prepaid without a warning email means silent service loss and churn — outbound email exists now (PDF tax invoices use it); this is wiring it to the balance check |
 | **Verify the price book** | Especially ElevenLabs — it is the largest cost line and the most plan-dependent |
 | **Pricing decision** | §4. Do not sign a customer onto a rate you intend to change. |
 
@@ -215,7 +213,6 @@ efficiency, context growth, tool timings.
 | **Credit notes** | Refunds are currently manual ledger adjustments |
 | **Interruption rate** | Best remaining quality signal; needs pipeline capture |
 | **Cost per outcome** | Cost per *booking*, not per call — the number that closes deals |
-| **Role model** | `is_superuser` is one boolean. Agencies will need more. |
 
 ### P2 — scale (quarter)
 

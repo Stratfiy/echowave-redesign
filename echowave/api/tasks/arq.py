@@ -48,6 +48,7 @@ from api.tasks.campaign_tasks import (
 )
 from api.tasks.credit_reservations import sweep_credit_reservations
 from api.tasks.data_retention import purge_expired_call_data
+from api.tasks.email_tax_document import email_tax_document
 from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
@@ -70,6 +71,7 @@ class WorkerSettings:
         process_campaign_batch,
         process_knowledge_base_document,
         deliver_webhook,
+        email_tax_document,
         refresh_billing_rollups,
         sweep_credit_reservations,
         issue_monthly_tax_invoices,

@@ -171,6 +171,11 @@ COPY --chown=decibyl:decibyl ./api ./api
 # you choose. The script documents `docker compose exec api python -m
 # scripts.seed_provider_rates` in its own docstring, which failed with "No
 # module named scripts.seed_provider_rates" until it was on this list.
+#
+# recost_uncosted_calls.py is the follow-up to seed_provider_rates.py: adding
+# a missing rate fixes every *future* call, but does nothing for the ones
+# already billed against the gap. Without this script in the image, there is
+# no way to revisit them on a Docker install either.
 COPY --chown=decibyl:decibyl \
      ./scripts/start_services_docker.sh \
      ./scripts/run_migrate.sh \
@@ -180,6 +185,7 @@ COPY --chown=decibyl:decibyl \
      ./scripts/run_campaign_orchestrator.sh \
      ./scripts/grant_superuser.py \
      ./scripts/seed_provider_rates.py \
+     ./scripts/recost_uncosted_calls.py \
      ./scripts/
 
 # ts_validator Node deps (built in ts-deps stage with full node:22-slim image).

@@ -147,7 +147,7 @@ flexibility.
 | **No-code builder polish** | Synthflow's visual flow builder for non-technical teams | Ours is developer-shaped |
 | **Self-hosted / custom model endpoints** | Vapi supports arbitrary and self-hosted LLM endpoints | We have Speaches and HuggingFace but not a general custom-endpoint story |
 | **Tax document PDFs, e-invoicing, credit notes** | — | Already on the revenue-blocking list in `HANDOVER.md` §10 |
-| **Role model** | — | One `is_superuser` boolean; no matrix |
+| **Role model** | — | Built: `OrganizationRole` (member/admin/owner) + `StaffRole` (support/superadmin). See `HANDOVER.md` §10. |
 
 ### What to build next, in order
 

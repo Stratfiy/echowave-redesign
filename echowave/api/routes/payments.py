@@ -20,8 +20,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -299,26 +298,31 @@ async def get_tax_document(
     return _document_view(await _load_document(document_id, user))
 
 
-@router.get("/documents/{document_id}/print", response_class=HTMLResponse)
-async def print_tax_document(
+@router.get("/documents/{document_id}/pdf")
+async def get_tax_document_pdf(
     document_id: int, user: UserModel = Depends(get_user)
-) -> HTMLResponse:
-    """The same document as a page a customer can print or save as a PDF.
+) -> Response:
+    """The same document as :func:`get_tax_document`, rendered to PDF.
 
-    HTML rather than a generated PDF: a server-side PDF needs a rendering
-    dependency in the image, and what it buys over this is a file extension —
-    every browser prints this page, and the template sets A4 with real margins
-    so the output is a document rather than a screenshot of a web page. The
-    point to add that dependency is when a PDF *byte stream* is needed, such as
-    attaching one to an email.
-
-    Every figure comes from the snapshot frozen onto the row at issue, never
-    recomputed, so a customer moving office does not rewrite their old invoices.
+    Org-scoped the same way — a document id is a small integer.
     """
-    from api.services.billing.document_render import render_html
-
     document = await _load_document(document_id, user)
-    return HTMLResponse(render_html(_document_view(document)))
+
+    # Deferred, like the one in tasks/email_tax_document.py: this router is on
+    # the API's import path, and document_pdf builds its styles from reportlab
+    # at import time. A module-level import would let a missing or broken PDF
+    # library stop the whole API from starting rather than just failing this
+    # one download.
+    from api.services.billing.document_pdf import render_document_pdf
+
+    pdf_bytes = render_document_pdf(document)
+    filename = document.number.replace("/", "-")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}.pdf"'},
+    )
 
 
 @router.get("/payments")
@@ -467,5 +471,21 @@ async def razorpay_webhook(
             # which part of the request to change next.
             raise HTTPException(status_code=400, detail="Invalid webhook") from exc
         await session.commit()
+
+    voucher_id = result.get("receipt_voucher_id")
+    if voucher_id is not None:
+        # After commit, not inside the transaction: an enqueue must not survive
+        # a rollback of the payment it is about, and the reverse (a committed
+        # voucher whose email never got enqueued because Redis hiccupped) is a
+        # missing email, not a missing receipt -- the acceptable failure mode.
+        from api.tasks.arq import enqueue_job
+        from api.tasks.email_tax_document import email_tax_document_job_id
+        from api.tasks.function_names import FunctionNames
+
+        await enqueue_job(
+            FunctionNames.EMAIL_TAX_DOCUMENT,
+            voucher_id,
+            _job_id=email_tax_document_job_id(voucher_id),
+        )
 
     return result

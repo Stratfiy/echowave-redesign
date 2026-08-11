@@ -23,7 +23,7 @@ from api.db.models import (
     TelephonyPhoneNumberModel,
     UserModel,
 )
-from api.enums import PhoneNumberStatus
+from api.enums import PhoneNumberStatus, StaffRole
 
 
 async def _org_and_config(session, slug: str, *, managed: bool = False):
@@ -43,7 +43,12 @@ async def _org_and_config(session, slug: str, *, managed: bool = False):
 
 
 async def _staff(session, slug: str) -> UserModel:
-    user = UserModel(provider_id=f"staff-{slug}", is_superuser=True)
+    # SUPERADMIN rather than SUPPORT: this router can put an organization on
+    # the managed path, which is a decision about who we bill and who we owe a
+    # carrier — the same tier the billing surfaces sit behind.
+    user = UserModel(
+        provider_id=f"staff-{slug}", staff_role=StaffRole.SUPERADMIN.value
+    )
     session.add(user)
     await session.flush()
     return user

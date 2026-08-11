@@ -26,6 +26,25 @@ HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
 #: ownership restore.
 RUN_AS="${RUN_AS:-ubuntu}"
 
+# git reads global config on every invocation, whatever level is being written,
+# so with HOME unset *every* git command below fails with "fatal: $HOME not set"
+# and exit 128 -- not just the config line, but the fetch and the checkout too.
+# SSM does not guarantee HOME for root, so it is set here before any git runs.
+export HOME="${HOME:-/root}"
+
+# SSM always runs this as root, but the checkout is owned by $RUN_AS. Git's
+# ownership check (since 2.35.2) refuses to operate on a directory it doesn't
+# own unless told it's safe — and that check runs before the first `git`
+# command below, so it has to be set before `cd` even happens.
+#
+# --replace-all, not --add: this runs on every deploy, and --add would append a
+# duplicate line to the config file each time, forever. --system first because
+# it is deterministic for root; the global fallback is for a human running this
+# by hand as a non-root user, who cannot write /etc/gitconfig.
+git config --system --replace-all safe.directory '*' 2>/dev/null \
+  || git config --global --replace-all safe.directory '*' 2>/dev/null \
+  || true
+
 cd "$PROJECT_DIR"
 
 say() { printf '\n=== %s ===\n' "$1"; }

@@ -3,14 +3,14 @@
 The property these tests exist to protect is that our approval and the
 carrier's approval are different things. Staff sign-off forwards an application;
 only the licensee's verdict lets an account place calls. Everything else here —
-queue ordering, rejection reasons, the superuser gate — is in service of that.
+queue ordering, rejection reasons, the staff gate — is in service of that.
 """
 
 import pytest
 
 from api.db import db_client
 from api.db.models import OrganizationModel, UserModel
-from api.enums import KycBusinessType, KycDocumentKind, KycStatus
+from api.enums import KycBusinessType, KycDocumentKind, KycStatus, StaffRole
 from api.services.kyc import documents as document_store
 from api.services.kyc import service as kyc_service
 from api.services.kyc.carrier import (
@@ -92,7 +92,7 @@ async def _org(session, slug: str) -> tuple[int, int]:
 
 
 async def _staff(session, slug: str) -> UserModel:
-    user = UserModel(provider_id=f"staff-{slug}", is_superuser=True)
+    user = UserModel(provider_id=f"staff-{slug}", staff_role=StaffRole.SUPPORT.value)
     session.add(user)
     await session.flush()
     return user
@@ -475,21 +475,21 @@ class TestTheStaffGate:
         from httpx import ASGITransport, AsyncClient
 
         from api.app import app
-        from api.services.auth.depends import get_superuser
+        from api.services.auth.depends import get_staff
 
         @asynccontextmanager
         async def _ctx():
             async def _override():
                 return user
 
-            app.dependency_overrides[get_superuser] = _override
+            app.dependency_overrides[get_staff] = _override
             try:
                 async with AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     yield client
             finally:
-                app.dependency_overrides.pop(get_superuser, None)
+                app.dependency_overrides.pop(get_staff, None)
 
         return _ctx()
 
