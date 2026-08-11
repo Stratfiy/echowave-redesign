@@ -333,7 +333,7 @@ export interface components {
              * @default http_api
              * @enum {string}
              */
-            category: "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp";
+            category: "http_api" | "end_call" | "transfer_call" | "calculator" | "native" | "integration" | "mcp" | "google_calendar";
             /**
              * Icon
              * @description Lucide icon identifier.
@@ -350,7 +350,7 @@ export interface components {
              * Definition
              * @description Typed tool definition.
              */
-            definition: components["schemas"]["HttpApiToolDefinition"] | components["schemas"]["EndCallToolDefinition"] | components["schemas"]["TransferCallToolDefinition"] | components["schemas"]["CalculatorToolDefinition"] | components["schemas"]["McpToolDefinition"];
+            definition: components["schemas"]["HttpApiToolDefinition"] | components["schemas"]["EndCallToolDefinition"] | components["schemas"]["TransferCallToolDefinition"] | components["schemas"]["CalculatorToolDefinition"] | components["schemas"]["McpToolDefinition"] | components["schemas"]["GoogleCalendarToolDefinition"];
         };
         /** CreateWorkflowRequest */
         CreateWorkflowRequest: {
@@ -537,6 +537,28 @@ export interface components {
             type: "end_call";
             /** @description End Call configuration. */
             config: components["schemas"]["EndCallConfig"];
+        };
+        /**
+         * GoogleCalendarToolDefinition
+         * @description Tool definition for creating an event on the organization's connected
+         *     Google Calendar. No config: unlike an HTTP API tool there is no URL,
+         *     auth, or parameter builder to fill in — the parameter shape is fixed
+         *     (see api/services/integrations/google_calendar/client.py) and which
+         *     calendar it writes to is decided once, org-wide, by the Connect Google
+         *     Calendar flow, not per-tool.
+         */
+        GoogleCalendarToolDefinition: {
+            /**
+             * Schema Version
+             * @description Schema version.
+             * @default 1
+             */
+            schema_version: number;
+            /**
+             * @description Tool type. (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            type: "google_calendar";
         };
         /**
          * GraphConstraints
@@ -1312,6 +1334,7 @@ export type DocumentListResponseSchema = components['schemas']['DocumentListResp
 export type DocumentResponseSchema = components['schemas']['DocumentResponseSchema'];
 export type EndCallConfig = components['schemas']['EndCallConfig'];
 export type EndCallToolDefinition = components['schemas']['EndCallToolDefinition'];
+export type GoogleCalendarToolDefinition = components['schemas']['GoogleCalendarToolDefinition'];
 export type GraphConstraints = components['schemas']['GraphConstraints'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
 export type HttpApiConfig = components['schemas']['HttpApiConfig'];

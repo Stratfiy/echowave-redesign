@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -29,6 +29,7 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.billing import billing_profile, documents, payments
+from api.services.billing.document_pdf import render_document_pdf
 from api.services.billing.tax import TaxError
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -279,6 +280,31 @@ async def get_tax_document(
         }
 
 
+@router.get("/documents/{document_id}/pdf")
+async def get_tax_document_pdf(
+    document_id: int, user: UserModel = Depends(get_user)
+) -> Response:
+    """The same document as :func:`get_tax_document`, rendered to PDF.
+
+    Org-scoped the same way — a document id is a small integer.
+    """
+    organization_id = _organization_id(user)
+    async with db_client.async_session() as session:
+        document = await documents.get_document(
+            session, organization_id=organization_id, document_id=document_id
+        )
+        if document is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        pdf_bytes = render_document_pdf(document)
+        filename = document.number.replace("/", "-")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}.pdf"'},
+    )
+
+
 @router.get("/payments")
 async def list_payments(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     """This account's top-up history."""
@@ -315,5 +341,21 @@ async def razorpay_webhook(
             # which part of the request to change next.
             raise HTTPException(status_code=400, detail="Invalid webhook") from exc
         await session.commit()
+
+    voucher_id = result.get("receipt_voucher_id")
+    if voucher_id is not None:
+        # After commit, not inside the transaction: an enqueue must not survive
+        # a rollback of the payment it is about, and the reverse (a committed
+        # voucher whose email never got enqueued because Redis hiccupped) is a
+        # missing email, not a missing receipt -- the acceptable failure mode.
+        from api.tasks.arq import enqueue_job
+        from api.tasks.email_tax_document import email_tax_document_job_id
+        from api.tasks.function_names import FunctionNames
+
+        await enqueue_job(
+            FunctionNames.EMAIL_TAX_DOCUMENT,
+            voucher_id,
+            _job_id=email_tax_document_job_id(voucher_id),
+        )
 
     return result

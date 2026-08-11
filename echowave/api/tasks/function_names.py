@@ -5,3 +5,4 @@ class FunctionNames:
     PROCESS_CAMPAIGN_BATCH = "process_campaign_batch"
     PROCESS_KNOWLEDGE_BASE_DOCUMENT = "process_knowledge_base_document"
     DELIVER_WEBHOOK = "deliver_webhook"
+    EMAIL_TAX_DOCUMENT = "email_tax_document"

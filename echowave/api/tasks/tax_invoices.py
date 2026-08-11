@@ -29,6 +29,8 @@ from api.services.billing.documents import (
     supplier_is_configured,
 )
 from api.services.billing.rollup import IST
+from api.tasks.email_tax_document import email_tax_document_job_id
+from api.tasks.function_names import FunctionNames
 
 
 def previous_month(today: date) -> tuple[date, date]:
@@ -84,6 +86,17 @@ async def issue_monthly_tax_invoices(_ctx, *, for_month: date | None = None) -> 
                     continue
                 await session.commit()
                 issued += 1
+
+            # After commit, not inside the transaction that issued the invoice:
+            # a lost enqueue (Redis hiccup) should cost a missing email, never a
+            # rolled-back invoice.
+            from api.tasks.arq import enqueue_job  # lazy import avoids circular import
+
+            await enqueue_job(
+                FunctionNames.EMAIL_TAX_DOCUMENT,
+                document.id,
+                _job_id=email_tax_document_job_id(document.id),
+            )
         except (DocumentError, ValueError) as exc:
             # Most likely an export account with no LUT on file, or a profile
             # whose country and GSTIN disagree. Logged per account and carried

@@ -22,3 +22,4 @@ tuner-pipecat-sdk==0.2.4
 pipecat-rumik==0.1.4
 PyNaCl==1.6.2
 pyotp==2.10.0
+reportlab==4.4.4

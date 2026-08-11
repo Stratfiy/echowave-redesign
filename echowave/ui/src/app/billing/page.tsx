@@ -21,6 +21,7 @@ import {
     ArrowUpRight,
     CheckCircle2,
     Clock,
+    Download,
     Loader2,
     Wallet,
     XCircle,
@@ -31,6 +32,7 @@ import {
     createTopupApiV1BillingTopupPost,
     getBalanceApiV1BillingBalanceGet,
     getBillingProfileApiV1BillingProfileGet,
+    getTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGet,
     listPaymentsApiV1BillingPaymentsGet,
     listTaxDocumentsApiV1BillingDocumentsGet,
     saveBillingProfileApiV1BillingProfilePut,
@@ -219,6 +221,9 @@ export default function BillingPage() {
     const [profileComplete, setProfileComplete] = useState(true);
     const [savingProfile, setSavingProfile] = useState(false);
     const [documents, setDocuments] = useState<TaxDocument[]>([]);
+    const [downloadingDocumentId, setDownloadingDocumentId] = useState<number | null>(
+        null,
+    );
 
     const refresh = useCallback(async () => {
         const [balanceResponse, paymentsResponse, profileResponse, documentsResponse] =
@@ -306,6 +311,32 @@ export default function BillingPage() {
             setSavingProfile(false);
         }
     }, [profile, refresh]);
+
+    const downloadDocument = useCallback(async (doc: TaxDocument) => {
+        setError(null);
+        setDownloadingDocumentId(doc.id);
+        try {
+            const response = await getTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGet({
+                path: { document_id: doc.id },
+                parseAs: "blob",
+            });
+            if (response.error || !response.data) {
+                setError(detailFromError(response.error, "Could not download the PDF"));
+                return;
+            }
+            const blob = response.data as Blob;
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${doc.number.replace(/\//g, "-")}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } finally {
+            setDownloadingDocumentId(null);
+        }
+    }, []);
 
     useEffect(() => {
         if (authLoading || !user || hasFetched.current) return;
@@ -806,6 +837,7 @@ export default function BillingPage() {
                                     <TableHead className="text-right">Taxable</TableHead>
                                     <TableHead className="text-right">GST</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
+                                    <TableHead className="text-right"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -837,6 +869,22 @@ export default function BillingPage() {
                                             </TableCell>
                                             <TableCell className="text-right tabular-nums">
                                                 {formatPaise(doc.total_paise)}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8"
+                                                    disabled={downloadingDocumentId === doc.id}
+                                                    onClick={() => void downloadDocument(doc)}
+                                                    aria-label={`Download ${doc.number}`}
+                                                >
+                                                    {downloadingDocumentId === doc.id ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Download className="h-4 w-4" />
+                                                    )}
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     );
