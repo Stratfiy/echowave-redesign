@@ -17,6 +17,7 @@ from api.routes.kyc import router as kyc_router
 from api.routes.kyc_admin import router as kyc_admin_router
 from api.routes.node_types import router as node_types_router
 from api.routes.organization import router as organization_router
+from api.routes.organization_members import router as organization_members_router
 from api.routes.organization_usage import router as organization_usage_router
 from api.routes.payments import router as payments_router
 from api.routes.platform_credentials import router as platform_credentials_router
@@ -51,6 +52,7 @@ router.include_router(billing_dashboard_router)
 router.include_router(cost_estimate_router)
 router.include_router(kyc_router)
 router.include_router(kyc_admin_router)
+router.include_router(organization_members_router)
 router.include_router(platform_credentials_router)
 router.include_router(provider_keys_router)
 router.include_router(payments_router)

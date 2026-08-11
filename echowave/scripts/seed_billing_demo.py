@@ -41,15 +41,21 @@ from api.db.models import (  # noqa: E402
     CampaignModel,
     CreditLedgerModel,
     DailyOrganizationRollupModel,
+    OrganizationMembershipModel,
     OrganizationModel,
     OrganizationRateHistoryModel,
     ProviderRateModel,
     UserModel,
     WorkflowModel,
     WorkflowRunModel,
-    organization_users_association,
 )
-from api.enums import CostComponent, CreditLedgerKind, RateUnit  # noqa: E402
+from api.enums import (  # noqa: E402
+    CostComponent,
+    CreditLedgerKind,
+    OrganizationRole,
+    RateUnit,
+    StaffRole,
+)
 from api.services.billing.costing import cost_workflow_run  # noqa: E402
 from api.services.billing.rollup import IST, refresh_daily_rollup  # noqa: E402
 
@@ -167,12 +173,11 @@ async def reset(session: AsyncSession) -> None:
             await session.execute(
                 delete(model).where(model.organization_id.in_(org_ids))
             )
-        # The membership rows first: the association table's FK has no cascade,
-        # so deleting the organizations while a staff user is still attached
-        # fails the whole reset.
+        # The membership rows first: deleting the organizations while a staff
+        # user is still attached fails the whole reset otherwise.
         await session.execute(
-            organization_users_association.delete().where(
-                organization_users_association.c.organization_id.in_(org_ids)
+            delete(OrganizationMembershipModel).where(
+                OrganizationMembershipModel.organization_id.in_(org_ids)
             )
         )
         await session.execute(
@@ -220,7 +225,7 @@ async def seed(session: AsyncSession) -> None:
     staff = UserModel(
         provider_id=f"{SEED_PREFIX}staff",
         email="ops@decibyl.example",
-        is_superuser=True,
+        staff_role=StaffRole.SUPERADMIN.value,
     )
     session.add(staff)
     await session.flush()
@@ -239,12 +244,14 @@ async def seed(session: AsyncSession) -> None:
         )
         session.add(org)
         await session.flush()
-        # Explicit insert rather than org.users.append(): appending to the
-        # relationship lazy-loads it, which raises MissingGreenlet on an
+        # Explicit insert rather than org.memberships.append(): appending to
+        # the relationship lazy-loads it, which raises MissingGreenlet on an
         # async session.
-        await session.execute(
-            organization_users_association.insert().values(
-                user_id=staff.id, organization_id=org.id
+        session.add(
+            OrganizationMembershipModel(
+                user_id=staff.id,
+                organization_id=org.id,
+                role=OrganizationRole.OWNER.value,
             )
         )
 

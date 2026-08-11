@@ -16,7 +16,6 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
-    Table,
     Text,
     UniqueConstraint,
     and_,
@@ -30,6 +29,7 @@ from api.constants import DEFAULT_CAMPAIGN_RETRY_CONFIG
 from ..enums import (
     CallType,
     IntegrationAction,
+    OrganizationRole,
     ToolCategory,
     ToolStatus,
     TriggerState,
@@ -44,17 +44,6 @@ Base = declarative_base()
 # TODO: remove workflow_defintion after migration, remove nullable workflow_defintion_id from Workflow and Workflowrun
 
 
-# Association table for many-to-many relationship between users and organizations
-organization_users_association = Table(
-    "organization_users",
-    Base.metadata,
-    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
-    Column(
-        "organization_id", Integer, ForeignKey("organizations.id"), primary_key=True
-    ),
-)
-
-
 class UserModel(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -64,13 +53,16 @@ class UserModel(Base):
     selected_organization_id = Column(
         Integer, ForeignKey("organizations.id"), nullable=True
     )
-    selected_organization = relationship("OrganizationModel", back_populates="users")
-    organizations = relationship(
-        "OrganizationModel",
-        secondary=organization_users_association,
-        back_populates="users",
+    selected_organization = relationship("OrganizationModel")
+    memberships = relationship(
+        "OrganizationMembershipModel",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
-    is_superuser = Column(Boolean, default=False)
+    # Decibyl-staff privilege tier: None | "support" | "superadmin". See
+    # StaffRole in api/enums.py. Nullable rather than a Postgres ENUM so a
+    # future tier needs no migration — same convention as account_type below.
+    staff_role = Column(String(16), nullable=True)
     email = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)
 
@@ -190,10 +182,10 @@ class OrganizationModel(Base):
     )
 
     # Relationships
-    users = relationship(
-        "UserModel",
-        secondary=organization_users_association,
-        back_populates="organizations",
+    memberships = relationship(
+        "OrganizationMembershipModel",
+        back_populates="organization",
+        cascade="all, delete-orphan",
     )
     integrations = relationship("IntegrationModel", back_populates="organization")
     usage_cycles = relationship(
@@ -203,6 +195,47 @@ class OrganizationModel(Base):
         "OrganizationConfigurationModel", back_populates="organization"
     )
     api_keys = relationship("APIKeyModel", back_populates="organization")
+
+
+class OrganizationMembershipModel(Base):
+    """A user's standing within one organization.
+
+    Replaces the old roleless ``organization_users`` many-to-many table.
+    Every row that existed before this model was introduced was backfilled
+    as OWNER — before this, every member had identical access, so that is
+    the only backfill that doesn't silently take access away from someone on
+    upgrade. New memberships default to MEMBER (see ``add_user_to_organization``
+    in api/db/organization_client.py for where that default is applied).
+    """
+
+    __tablename__ = "organization_memberships"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    # See OrganizationRole in api/enums.py. VARCHAR rather than a Postgres
+    # ENUM for the same reason as account_type: a future role needs no
+    # migration.
+    role = Column(
+        String(16),
+        nullable=False,
+        default=OrganizationRole.MEMBER.value,
+        server_default=text(f"'{OrganizationRole.MEMBER.value}'"),
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    user = relationship("UserModel", back_populates="memberships")
+    organization = relationship("OrganizationModel", back_populates="memberships")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "organization_id", name="_organization_membership_uc"
+        ),
+    )
 
 
 class APIKeyModel(Base):

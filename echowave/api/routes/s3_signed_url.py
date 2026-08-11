@@ -9,9 +9,13 @@ from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
 from api.db import db_client
-from api.enums import StorageBackend
+from api.enums import StaffRole, StorageBackend
 from api.services.auth.depends import get_user
 from api.services.storage import get_storage_for_backend, storage_fs
+
+
+def _is_superadmin(user) -> bool:
+    return getattr(user, "staff_role", None) == StaffRole.SUPERADMIN.value
 
 
 class S3SignedUrlResponse(TypedDict):
@@ -141,7 +145,7 @@ async def _authorize_and_get_workflow_run(
         return None
 
     workflow_run = None
-    if not user.is_superuser:
+    if not _is_superadmin(user):
         # Regular users: Use organization_id to check access (security constraint)
         workflow_run = await db_client.get_workflow_run(
             run_id, organization_id=user.selected_organization_id
@@ -194,7 +198,7 @@ async def get_signed_url(
     org_id = _extract_org_id_from_key(key)
     if org_id is not None:
         # Generic org-based auth
-        if not user.is_superuser and org_id != user.selected_organization_id:
+        if not _is_superadmin(user) and org_id != user.selected_organization_id:
             raise HTTPException(status_code=403, detail="Access denied")
     else:
         # Legacy workflow-run-based auth
@@ -396,9 +400,7 @@ async def _record_signed_url_access(
                 resource_id=key,
                 workflow_run_id=getattr(workflow_run, "id", None),
                 action="signed_url",
-                actor_kind="staff"
-                if getattr(user, "is_superuser", False)
-                else "session",
+                actor_kind="staff" if _is_superadmin(user) else "session",
             )
             await session.commit()
     except Exception as exc:  # noqa: BLE001 - auditing must not break access
