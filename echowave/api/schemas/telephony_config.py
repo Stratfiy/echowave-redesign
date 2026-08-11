@@ -110,6 +110,11 @@ class TelephonyConfigurationListItem(BaseModel):
     name: str
     provider: str
     is_default_outbound: bool
+    # Whether this configuration is one *we* administer, on our carrier
+    # account. It is what decides whether a customer can buy a number through
+    # us at all, so the purchase screen needs it to avoid offering a choice
+    # that the provisioning route would refuse.
+    is_platform_managed: bool = False
     phone_number_count: int = 0
     created_at: datetime
     updated_at: datetime

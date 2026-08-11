@@ -26,12 +26,16 @@ exists and cannot be skipped.
 
 | | |
 |---|---|
-| Monthly rental | ₹399 per number |
-| Billed | Monthly, from your prepaid credit balance |
+| Monthly rental | ₹349 per number |
+| Billed | Monthly by autopay, from the bank account you authorise |
 | First month | Prorated by day from the day you buy |
 
 The rental accrues whether or not you place a single call. It is a separate
 line from per-call charges — a quiet month still costs the rental.
+
+If autopay is ever revoked, the rental falls back to your prepaid credit
+balance and the unpaid schedule below applies. Nothing is released because you
+turned autopay off.
 
 ## Before you can buy a number
 
@@ -118,7 +122,32 @@ curl -X POST https://api.decibyl.ai/api/v1/managed-numbers/search \
 An empty list is a normal answer. Indian local inventory is thin and moves
 during the day — try a different city, or try again later.
 
-Then buy one:
+### Authorise autopay first
+
+A number is monthly rent from the day it is issued, so a standing instruction
+has to be in place before one is handed over. Start it once per account:
+
+```bash
+curl -X POST https://api.decibyl.ai/api/v1/billing/mandate \
+  -H "X-API-Key: $DECIBYL_API_KEY"
+```
+
+The response carries an `authorisation_url` — a Razorpay-hosted page where the
+authorisation actually happens (UPI Autopay, card, or eNACH). Open it in a
+browser and complete it there.
+
+<Note>
+Completing that page does not immediately make the mandate usable. The
+authorisation is confirmed by your bank, and Decibyl only treats it as valid
+once the payment provider tells us so. Poll `GET /billing/mandate` until
+`authorised` is `true` — usually seconds, occasionally longer.
+</Note>
+
+Buying before the mandate is authorised is refused with **403** and a message
+saying so. That is deliberate: a number issued against an unauthorised mandate
+is rent nobody has agreed to pay.
+
+### Then buy one
 
 ```bash
 curl -X POST https://api.decibyl.ai/api/v1/managed-numbers \
@@ -142,7 +171,10 @@ later, but a number with no agent rejects inbound calls.
 
 ## When a rental goes unpaid
 
-Number rental comes out of your prepaid credit balance. If the balance is
+With autopay authorised, the rental is collected from your bank on the monthly
+cycle and never touches your prepaid credit. If the mandate is revoked, halted
+by your bank, or was never set up, collection falls back to that balance —
+which is where the schedule below starts. If the balance is
 short, here is exactly what happens — no step is skipped and nothing happens
 sooner than stated:
 
@@ -152,6 +184,11 @@ sooner than stated:
 | 7 | Calls on that number are paused. **The number is still yours** |
 | 15, 25 | Reminders |
 | 45 | The number becomes *eligible* for release |
+
+You are emailed before any of this bites, not after: a warning goes out when
+your balance drops below about ten days of your recent usage, and a more urgent
+one under three. The address used is every account member's, so keep at least
+one that somebody reads.
 
 Two things worth being clear about:
 

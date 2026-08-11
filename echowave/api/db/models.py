@@ -2078,6 +2078,15 @@ class RecurringChargeModel(Base):
     last_failure_reason = Column(Text, nullable=True)
 
     ended_at = Column(DateTime(timezone=True), nullable=True)
+
+    # The autopay mandate collecting for this charge, if there is one. Nullable
+    # because a charge can outlive its mandate: a revoked mandate leaves the
+    # link in place and the charge falls back to the prepaid balance and the
+    # dunning schedule, which is exactly the situation dunning was written for.
+    mandate_id = Column(
+        Integer, ForeignKey("payment_mandates.id", ondelete="SET NULL"), nullable=True
+    )
+
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at = Column(
         DateTime(timezone=True),
@@ -2086,6 +2095,7 @@ class RecurringChargeModel(Base):
     )
 
     organization = relationship("OrganizationModel")
+    mandate = relationship("PaymentMandateModel")
     periods = relationship(
         "RecurringChargePeriodModel",
         back_populates="charge",
@@ -2139,6 +2149,22 @@ class RecurringChargePeriodModel(Base):
     prorated = Column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    # Where the money came from: the prepaid balance, or the customer's bank
+    # under an autopay mandate. Recorded because the two are collected by
+    # completely different code paths and a statement that cannot tell them
+    # apart makes a double-collection impossible to spot.
+    collected_via = Column(
+        String(16), nullable=False, default="balance", server_default="balance"
+    )
+    # The provider's payment id, for a period the customer's bank paid.
+    #
+    # This is the idempotency key for a mandate collection, and it has to be:
+    # the period-start key below cannot serve, because recording a collection
+    # advances the charge to the next period, so a redelivered webhook computes
+    # a *different* period_start and bills a month forward instead of colliding.
+    # The provider's payment id is the same on every redelivery of the same
+    # collection, which is the property that makes at-least-once delivery safe.
+    provider_payment_id = Column(String(64), nullable=True)
     charged_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     charge = relationship("RecurringChargeModel", back_populates="periods")
@@ -2151,7 +2177,163 @@ class RecurringChargePeriodModel(Base):
             "period_start",
             name="uq_recurring_charge_period",
         ),
+        # One period per provider collection. Partial, because balance-collected
+        # periods have no payment id and must not all collide on NULL.
+        Index(
+            "uq_recurring_charge_period_payment",
+            "provider_payment_id",
+            unique=True,
+            postgresql_where=text("provider_payment_id IS NOT NULL"),
+        ),
         Index("ix_recurring_charge_periods_org", "organization_id", "charged_at"),
+    )
+
+
+class NotificationModel(Base):
+    """One operational notice, sent or attempted.
+
+    Exists for one reason: **so a notice is not sent twice.** The jobs that send
+    these are safe to re-run by design — that is what makes a missed cron
+    harmless — and without a record, "safe to re-run" would mean a customer with
+    a low balance gets the same warning every time the worker restarts.
+
+    ``dedupe_key`` is the caller's statement of what makes two notices the same
+    thing. For the low-balance warning it is the severity and the day, so an
+    account gets one warning a day and a second one only if it gets worse.
+
+    Failures are recorded rather than retried. A notice that did not send is
+    worth seeing in a table; a retry loop around an SMTP server is a way to send
+    the same warning four times when the server was merely slow.
+    """
+
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    # low_balance | ... — a plain string so a new notice needs no migration.
+    kind = Column(String(48), nullable=False)
+    dedupe_key = Column(String(128), nullable=False)
+    channel = Column(
+        String(16), nullable=False, default="email", server_default="email"
+    )
+    # Who it went to, joined, for the record. Not used to send anything.
+    recipients = Column(Text, nullable=True)
+    subject = Column(Text, nullable=True)
+    sent = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        # The whole point of the table. Claimed *before* the send, so two
+        # workers racing on the same account produce one email rather than two.
+        UniqueConstraint(
+            "organization_id",
+            "kind",
+            "dedupe_key",
+            name="uq_notification_dedupe",
+        ),
+        Index("ix_notifications_org", "organization_id", "created_at"),
+    )
+
+
+class PaymentMandateModel(Base):
+    """A customer's standing authorisation for us to collect, on file.
+
+    Distinct from ``PaymentModel``, which is one collected top-up. A mandate is
+    the *permission* — a UPI Autopay / eNACH / card authorisation held at the
+    provider — and it has a life of its own: it is created before any money
+    moves, it can be revoked by the customer's bank without telling us first,
+    and it survives every individual collection made under it.
+
+    It exists because a monthly number rental collected out of a prepaid
+    balance stops the moment the balance does, and the failure mode is a number
+    we keep paying a carrier for. With a mandate the collection is pushed to the
+    customer's bank on a schedule instead of pulled from a balance they may have
+    forgotten to top up.
+
+    ``status`` mirrors the provider's own subscription states rather than a
+    private vocabulary, so a row can be reconciled against their dashboard
+    without a translation table. Only the states in
+    :meth:`MandateStatus.authorised` mean we may hand over a number.
+    """
+
+    __tablename__ = "payment_mandates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    provider = Column(
+        String(32), nullable=False, default="razorpay", server_default="razorpay"
+    )
+    # What the mandate is for. Today only number_rental, held as a string so a
+    # second recurring product does not need a migration to coexist with it.
+    purpose = Column(
+        String(32),
+        nullable=False,
+        default="number_rental",
+        server_default="number_rental",
+    )
+
+    # The provider's identifiers. subscription_id is what every webhook keys
+    # off, so it is the one that must be unique.
+    subscription_id = Column(String(64), nullable=True)
+    plan_id = Column(String(64), nullable=True)
+    customer_id = Column(String(64), nullable=True)
+
+    status = Column(
+        String(24), nullable=False, default="created", server_default="created"
+    )
+    # Where the customer authorises. Provider-hosted, short-lived, and the only
+    # thing the purchase flow needs to hand back to the browser.
+    short_url = Column(Text, nullable=True)
+
+    price_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+
+    authorised_at = Column(DateTime(timezone=True), nullable=True)
+    cancelled_at = Column(DateTime(timezone=True), nullable=True)
+    last_charged_at = Column(DateTime(timezone=True), nullable=True)
+    last_failure_reason = Column(Text, nullable=True)
+
+    provider_payload = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index("ix_payment_mandates_org", "organization_id", "status"),
+        # One provider subscription maps to exactly one row. Webhooks arrive at
+        # least once and out of order; without this a redelivery during a race
+        # writes a second row and half the events then update the wrong one.
+        Index(
+            "uq_payment_mandates_subscription",
+            "provider",
+            "subscription_id",
+            unique=True,
+            postgresql_where=text("subscription_id IS NOT NULL"),
+        ),
+        # One live mandate per account per purpose. A customer who abandons an
+        # authorisation and starts again must not end up with two banks
+        # collecting for the same number.
+        Index(
+            "uq_payment_mandates_live",
+            "organization_id",
+            "purpose",
+            unique=True,
+            postgresql_where=text(
+                "status NOT IN ('cancelled', 'completed', 'expired')"
+            ),
+        ),
     )
 
 

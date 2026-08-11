@@ -24,7 +24,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from api.constants import GST_RATE_BASIS_POINTS, MAX_TOPUP_PAISE, MIN_TOPUP_PAISE
+from api.constants import (
+    GST_RATE_BASIS_POINTS,
+    MAX_TOPUP_PAISE,
+    MIN_TOPUP_PAISE,
+    REQUIRE_MANDATE_FOR_NUMBERS,
+)
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
@@ -286,6 +291,116 @@ async def list_payments(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     async with db_client.async_session() as session:
         rows = await payments.list_payments(session, organization_id=organization_id)
     return {"payments": rows}
+
+
+# ---------------------------------------------------------------------------
+# Autopay
+#
+# The mandate is the standing authorisation the monthly number rental is
+# collected under. These routes create it and report on it; nothing here moves
+# money, and nothing here can mark a mandate authorised — only the
+# signature-verified webhook does that, because the state is the difference
+# between a number we can bill for and one we cannot.
+# ---------------------------------------------------------------------------
+
+
+def _mandate_view(mandate) -> dict[str, Any] | None:
+    if mandate is None:
+        return None
+    from api.enums import MandateStatus
+
+    return {
+        "id": mandate.id,
+        "status": mandate.status,
+        "authorised": mandate.status in MandateStatus.authorised(),
+        # Where the customer completes the authorisation. Provider-hosted and
+        # short-lived, so it is returned every time rather than cached anywhere.
+        "authorisation_url": mandate.short_url,
+        "price_paise": mandate.price_paise,
+        "authorised_at": (
+            mandate.authorised_at.isoformat() if mandate.authorised_at else None
+        ),
+        "last_charged_at": (
+            mandate.last_charged_at.isoformat() if mandate.last_charged_at else None
+        ),
+        "last_failure_reason": mandate.last_failure_reason,
+    }
+
+
+@router.get("/mandate")
+async def get_mandate(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+    """This account's autopay mandate, if it has one.
+
+    Returns ``mandate: null`` rather than a 404 for an account that has never
+    started one: "you have no mandate" is the normal state before a first
+    number, not an error.
+    """
+    organization_id = _organization_id(user)
+    from api.services.billing import mandates as mandate_service
+
+    async with db_client.async_session() as session:
+        mandate = await mandate_service.get_mandate(
+            session, organization_id=organization_id
+        )
+    return {
+        "mandate": _mandate_view(mandate),
+        "required_for_numbers": REQUIRE_MANDATE_FOR_NUMBERS,
+        "configured": mandate_service.is_configured(),
+    }
+
+
+@router.post("/mandate")
+async def create_mandate(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+    """Start autopay, and hand back the link where it is authorised.
+
+    Idempotent: an account that already has a live mandate gets that one back
+    rather than a second. A customer who closes the authorisation page and
+    comes back must not end up with two banks collecting for the same number.
+    """
+    organization_id = _organization_id(user)
+    from api.services.billing import mandates as mandate_service
+
+    async with db_client.async_session() as session:
+        try:
+            mandate = await mandate_service.create_rental_mandate(
+                session, organization_id=organization_id
+            )
+        except mandate_service.MandateNotConfigured as exc:
+            # 503, not 400: nothing the customer did is wrong, and the
+            # distinction is what stops a support conversation starting with
+            # "your card was declined".
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except mandate_service.MandateError as exc:
+            logger.error("Could not create a mandate for org {}: {}", organization_id, exc)
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        await session.commit()
+        return {"mandate": _mandate_view(mandate)}
+
+
+@router.post("/mandate/cancel")
+async def cancel_mandate(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+    """Withdraw the standing authorisation.
+
+    The number is not released here and the rental does not stop — the charge
+    falls back to the prepaid balance and the dunning schedule, which is
+    exactly what that schedule was written for. Releasing a number because
+    someone turned autopay off would be a far worse surprise than a low-balance
+    warning.
+    """
+    organization_id = _organization_id(user)
+    from api.services.billing import mandates as mandate_service
+
+    async with db_client.async_session() as session:
+        try:
+            mandate = await mandate_service.cancel_mandate(
+                session, organization_id=organization_id
+            )
+        except mandate_service.MandateError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        await session.commit()
+    if mandate is None:
+        raise HTTPException(status_code=404, detail="No autopay mandate to cancel")
+    return {"mandate": _mandate_view(mandate)}
 
 
 @router.post("/razorpay/webhook", include_in_schema=False)

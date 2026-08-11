@@ -37,10 +37,35 @@ async def get_telephony_verification() -> dict:
     A status of `suspended` means the licensee paused a previously approved
     account — the numbers are still held and it is usually reversible.
     `expired` means the application lapsed and a fresh one is needed.
+
+    `autopay` is the **second** gate and is reported here because being
+    approved and still unable to buy a number is otherwise baffling. A number
+    is monthly rent from the day it is issued, so the account has to have
+    authorised a standing instruction before one is handed over. It reports
+    whether autopay is `required`, whether it is `authorised`, and the
+    `status` the payment provider last told us — but not the authorisation
+    link, which belongs to a browser session rather than to an agent.
     """
     user = await authenticate_mcp_request()
     view = await kyc_service.get_view(user.selected_organization_id)
+
+    from api.constants import REQUIRE_MANDATE_FOR_NUMBERS
+    from api.services.billing import mandates as mandate_service
+
+    async with db_client.async_session() as session:
+        mandate = await mandate_service.get_mandate(
+            session, organization_id=user.selected_organization_id
+        )
+
     return {
+        "autopay": {
+            "required": REQUIRE_MANDATE_FOR_NUMBERS,
+            "authorised": mandate_service.is_authorised(mandate),
+            "status": mandate.status if mandate else "not_started",
+            "last_failure_reason": (
+                mandate.last_failure_reason if mandate else None
+            ),
+        },
         "status": view.status,
         "telephony_enabled": view.telephony_enabled,
         "business_type": view.business_type,

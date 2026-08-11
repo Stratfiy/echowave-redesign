@@ -17,6 +17,7 @@ import {
   type LucideIcon,
   Megaphone,
   Phone,
+  PhoneOutgoing,
   Settings,
   Shield,
   ShieldCheck,
@@ -128,6 +129,13 @@ const NAV_SECTIONS: SidebarNavSection[] = [
         title: "Verification",
         url: "/verification",
         icon: ShieldCheck,
+      },
+      // Directly under Verification: approval is the first gate on this flow,
+      // so the thing it unlocks belongs next to it.
+      {
+        title: "Get a number",
+        url: "/numbers",
+        icon: PhoneOutgoing,
       },
       {
         title: "Tools",

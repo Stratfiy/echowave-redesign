@@ -6387,6 +6387,10 @@ export type TelephonyConfigurationListItem = {
      */
     is_default_outbound: boolean;
     /**
+     * Is Platform Managed
+     */
+    is_platform_managed?: boolean;
+    /**
      * Phone Number Count
      */
     phone_number_count?: number;
@@ -11465,6 +11469,135 @@ export type ListPaymentsApiV1BillingPaymentsGetResponses = {
 };
 
 export type ListPaymentsApiV1BillingPaymentsGetResponse = ListPaymentsApiV1BillingPaymentsGetResponses[keyof ListPaymentsApiV1BillingPaymentsGetResponses];
+
+export type GetMandateApiV1BillingMandateGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/mandate';
+};
+
+export type GetMandateApiV1BillingMandateGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetMandateApiV1BillingMandateGetError = GetMandateApiV1BillingMandateGetErrors[keyof GetMandateApiV1BillingMandateGetErrors];
+
+export type GetMandateApiV1BillingMandateGetResponses = {
+    /**
+     * Response Get Mandate Api V1 Billing Mandate Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetMandateApiV1BillingMandateGetResponse = GetMandateApiV1BillingMandateGetResponses[keyof GetMandateApiV1BillingMandateGetResponses];
+
+export type CreateMandateApiV1BillingMandatePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/mandate';
+};
+
+export type CreateMandateApiV1BillingMandatePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateMandateApiV1BillingMandatePostError = CreateMandateApiV1BillingMandatePostErrors[keyof CreateMandateApiV1BillingMandatePostErrors];
+
+export type CreateMandateApiV1BillingMandatePostResponses = {
+    /**
+     * Response Create Mandate Api V1 Billing Mandate Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateMandateApiV1BillingMandatePostResponse = CreateMandateApiV1BillingMandatePostResponses[keyof CreateMandateApiV1BillingMandatePostResponses];
+
+export type CancelMandateApiV1BillingMandateCancelPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/mandate/cancel';
+};
+
+export type CancelMandateApiV1BillingMandateCancelPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelMandateApiV1BillingMandateCancelPostError = CancelMandateApiV1BillingMandateCancelPostErrors[keyof CancelMandateApiV1BillingMandateCancelPostErrors];
+
+export type CancelMandateApiV1BillingMandateCancelPostResponses = {
+    /**
+     * Response Cancel Mandate Api V1 Billing Mandate Cancel Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CancelMandateApiV1BillingMandateCancelPostResponse = CancelMandateApiV1BillingMandateCancelPostResponses[keyof CancelMandateApiV1BillingMandateCancelPostResponses];
 
 export type GetRetentionApiV1PrivacyRetentionGetData = {
     body?: never;

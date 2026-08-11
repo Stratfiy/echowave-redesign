@@ -292,10 +292,29 @@ async def handle_webhook(
     payment_id = entity.get("id")
     order_id = entity.get("order_id")
 
+    if event_type.startswith("subscription."):
+        # Autopay. Routed rather than handled here: this module credits an
+        # account, and a mandate moves no money — it is the standing permission
+        # the monthly rental is collected under. Signature verification has
+        # already happened above, which is the only thing that may change a
+        # mandate's state.
+        from api.services.billing.mandates import apply_subscription_event
+        from api.services.billing.rentals import record_mandate_collection
+
+        outcome = await apply_subscription_event(session, event=event)
+        if outcome.get("charged"):
+            # The bank collected. Recording the period here is what stops the
+            # monthly cron debiting the prepaid balance for the same month —
+            # two collection paths for one period is a double charge, and it is
+            # the kind that looks correct in both ledgers separately.
+            outcome["period"] = await record_mandate_collection(
+                session, mandate_id=outcome["mandate_id"], event=event
+            )
+        return outcome
+
     if event_type not in {"payment.captured", "payment.failed"}:
-        # Acknowledged, not acted on. Subscriptions, refunds, settlement events
-        # all arrive here; treating them as errors would have Razorpay retry
-        # them indefinitely.
+        # Acknowledged, not acted on. Refunds and settlement events arrive here;
+        # treating them as errors would have Razorpay retry them indefinitely.
         return {"status": "ignored", "event": event_type}
 
     if not payment_id or not order_id:

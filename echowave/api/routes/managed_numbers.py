@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
+from api.services.billing.mandates import MandateNotAuthorised
 from api.services.kyc.plivo_compliance import PlivoComplianceError
 from api.services.telephony import number_lifecycle, provisioning
 
@@ -147,6 +148,11 @@ async def provision_number(
             country_code=request.country_code,
         )
     except provisioning.NotVerified as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except MandateNotAuthorised as exc:
+        # 403 and not 402: the account is not being asked to pay anything right
+        # now, it is being asked to authorise a standing instruction. A payment
+        # status here would send the UI to a top-up screen that fixes nothing.
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except provisioning.ProvisioningError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

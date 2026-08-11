@@ -345,6 +345,45 @@ class RecurringChargeStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class MandateStatus(str, Enum):
+    """Where an autopay mandate sits with the payment provider.
+
+    Mirrors Razorpay's subscription states rather than inventing our own, so a
+    row can be reconciled against their dashboard without a translation table.
+    Only ``ACTIVE`` and ``AUTHENTICATED`` mean the customer has actually
+    authorised us to collect.
+    """
+
+    #: Created by us; the customer has not opened the authorisation link yet.
+    CREATED = "created"
+    #: The customer authorised the mandate. Collection starts at the first
+    #: cycle.
+    AUTHENTICATED = "authenticated"
+    #: Authorised and collecting.
+    ACTIVE = "active"
+    #: A collection failed and the provider stopped trying. The mandate still
+    #: exists and can be resumed, but nothing is being collected.
+    HALTED = "halted"
+    #: Awaiting a retry after a failed charge. Still authorised.
+    PENDING = "pending"
+    #: The customer or their bank revoked it. Terminal.
+    CANCELLED = "cancelled"
+    #: Ran to the end of its cycles. Terminal.
+    COMPLETED = "completed"
+    #: The authorisation link expired before it was used. Terminal.
+    EXPIRED = "expired"
+
+    @classmethod
+    def authorised(cls) -> frozenset[str]:
+        """The states in which we may hand over a number.
+
+        Written as a set rather than a comparison because "is this mandate good
+        enough to provision against" is asked from three places, and three
+        copies of the same tuple is how they drift apart.
+        """
+        return frozenset({cls.AUTHENTICATED.value, cls.ACTIVE.value})
+
+
 class PhoneNumberStatus(str, Enum):
     """Lifecycle of a number we hold at a carrier on a customer's behalf.
 

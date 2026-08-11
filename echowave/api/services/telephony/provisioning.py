@@ -5,14 +5,20 @@ one:
 
 1. the compliance application must already be **accepted**
 2. search
-3. buy, with our application id set in the same request
-4. link the compliance application to the number
-5. only now write our database row and open the rental charge
+3. an autopay mandate must already be **authorised**
+4. buy, with our application id set in the same request
+5. link the compliance application to the number
+6. only now write our database row and open the rental charge
 
 Compliance first because a compliance application does not need a number, but a
 number cannot be linked until one is accepted. Renting first and waiting would
 mean paying carrier rent through a review that takes days and may end in a
 rejection — a cost the customer has not agreed to and we could not bill for.
+
+Autopay after search and before purchase, deliberately. Asking someone to
+authorise a standing instruction before they have seen what is available is a
+worse experience; handing them the number before they have authorised it is a
+number we pay a carrier for every month with nothing standing behind the rent.
 
 Buy before link because Plivo will not link an application to a number the
 account does not own. That ordering is forced, and it is what creates the only
@@ -98,6 +104,23 @@ async def assert_may_provision(organization_id: int) -> str:
     return record.carrier_reference
 
 
+async def _assert_autopay(organization_id: int) -> int | None:
+    """Refuse to hand over a number without a standing instruction behind it.
+
+    Returns the mandate id to attach to the rental charge, or ``None`` when the
+    requirement is switched off — the caller does not branch on which, so a
+    deployment still waiting on the provider to activate Subscriptions runs the
+    same code path and simply bills the prepaid balance.
+    """
+    from api.services.billing.mandates import assert_mandate_authorised
+
+    async with db_client.async_session() as session:
+        mandate = await assert_mandate_authorised(
+            session, organization_id=organization_id
+        )
+        return mandate.id if mandate else None
+
+
 async def search(
     *,
     organization_id: int,
@@ -146,6 +169,13 @@ async def provision(
     numbers bought and one recorded.
     """
     compliance_id = await assert_may_provision(organization_id)
+    # Autopay is checked here and not in `search`, because the purchase flow is
+    # documents -> approved -> search -> select -> mandate -> number. Showing a
+    # customer the numbers on offer before asking them to authorise a standing
+    # instruction is the right order; handing over the number before they have
+    # is not. A number issued against an unauthorised mandate is a number we pay
+    # a carrier for and cannot collect on.
+    mandate_id = await _assert_autopay(organization_id)
     provider = await _provider(telephony_configuration_id, organization_id)
 
     if not provider.supports_number_management():
@@ -218,6 +248,7 @@ async def provision(
             phone_number_id=placeholder.id,
             cost_paise=NUMBER_RENTAL_COST_PAISE,
             price_paise=NUMBER_RENTAL_PRICE_PAISE,
+            mandate_id=mandate_id,
         )
     except Exception as exc:
         await _compensate(
@@ -228,7 +259,7 @@ async def provision(
             bought=bought,
             cause=exc,
         )
-        if isinstance(exc, (ProvisioningError, NotVerified)):
+        if isinstance(exc, (ProvisioningError, NotVerified, PermissionError)):
             raise
         raise ProvisioningError(f"Could not provision {address}: {exc}") from exc
 

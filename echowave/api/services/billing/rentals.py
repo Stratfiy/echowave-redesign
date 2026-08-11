@@ -121,6 +121,7 @@ async def open_number_rental(
     phone_number_id: int,
     cost_paise: int,
     price_paise: int,
+    mandate_id: int | None = None,
     now: datetime | None = None,
 ) -> RecurringChargeModel | None:
     """Start charging rent for a number that has just been provisioned.
@@ -160,6 +161,7 @@ async def open_number_rental(
             status=RecurringChargeStatus.ACTIVE.value,
             cost_paise=cost_paise,
             price_paise=price_paise,
+            mandate_id=mandate_id,
             started_at=now,
             # Due immediately: the first period is the remainder of this month,
             # charged pro rata by the next cron tick.
@@ -246,6 +248,21 @@ async def charge_period(
             RecurringChargeStatus.CANCELLED.value,
         ):
             return ChargeOutcome(charge_id=charge_id, charged=False, reason="closed")
+
+        if await _mandate_collects(session, charge):
+            # The bank collects for this charge, so the balance must not. Two
+            # collection paths for one period is a double charge, and it is the
+            # kind that looks correct in both ledgers separately. The period row
+            # is written when the provider tells us it collected, in
+            # record_mandate_collection.
+            #
+            # This does forgo the prorated first part-month: the mandate's first
+            # cycle charges a full month and our part-month is never billed
+            # separately. Losing part of one month is the right direction to err
+            # when the alternative is billing the same month twice.
+            return ChargeOutcome(
+                charge_id=charge_id, charged=False, reason="mandate_collects"
+            )
 
         period_start, period_end, prorated = _next_period(charge, now=now)
         # Strictly greater: a period becomes due *at* its start, so a tick that
@@ -376,6 +393,172 @@ async def charge_period(
             amount_paise=amount,
             prorated=prorated,
         )
+
+
+async def _mandate_collects(
+    session: AsyncSession, charge: RecurringChargeModel
+) -> bool:
+    """Whether an authorised autopay mandate is collecting for this charge.
+
+    Re-read every time rather than cached on the charge, because the state that
+    matters is the bank's and it changes without us doing anything — a customer
+    revokes a mandate in their UPI app and the next tick has to notice and fall
+    back to the balance.
+    """
+    if not charge.mandate_id:
+        return False
+
+    from api.db.models import PaymentMandateModel
+    from api.enums import MandateStatus
+
+    mandate = await session.get(PaymentMandateModel, charge.mandate_id)
+    return bool(mandate and mandate.status in MandateStatus.authorised())
+
+
+async def record_mandate_collection(
+    session: AsyncSession,
+    *,
+    mandate_id: int,
+    event: dict,
+    now: datetime | None = None,
+) -> dict:
+    """Record a period the customer's bank paid for, under an autopay mandate.
+
+    Called from the verified webhook, so the money has already moved. This
+    writes the bookkeeping and **no ledger entry**: the prepaid ledger tracks
+    credit the customer bought from us, and a rental collected directly from
+    their bank never became credit. Debiting it here would take the rent twice —
+    once at the bank, once from a balance that was never topped up for it.
+
+    The amount is the provider's, the period is ours. What the bank actually
+    took is a fact about the collection; which month it covers is a fact about
+    our schedule, and deriving it from ``_next_period`` keeps one definition of
+    a period rather than two that drift at month ends.
+
+    Idempotency keys off the **provider's payment id**, not the period. It has
+    to: recording a collection advances the charge to the next period, so a
+    redelivered webhook would compute a different ``period_start``, miss the
+    period unique constraint entirely, and bill a month forward. The payment id
+    is identical on every redelivery of the same collection, which is the
+    property that makes at-least-once delivery safe.
+    """
+    now = now or datetime.now(UTC)
+
+    charge = await session.scalar(
+        select(RecurringChargeModel).where(
+            RecurringChargeModel.mandate_id == mandate_id,
+            RecurringChargeModel.status.notin_(
+                [
+                    RecurringChargeStatus.RELEASED.value,
+                    RecurringChargeStatus.CANCELLED.value,
+                ]
+            ),
+        )
+    )
+    if charge is None:
+        # A collection with nothing to apply it to. Loud, because the customer
+        # has been debited and we are holding money against no resource — the
+        # mirror image of the orphaned-rental failure reconciliation catches.
+        logger.error(
+            "Mandate {} collected but has no open recurring charge; the customer "
+            "has been debited with nothing to apply it to",
+            mandate_id,
+        )
+        return {"status": "no_charge", "mandate_id": mandate_id}
+
+    payment = ((event.get("payload") or {}).get("payment") or {}).get("entity") or {}
+    payment_id = payment.get("id")
+    amount = int(payment.get("amount") or charge.price_paise)
+    cost = charge.cost_paise
+
+    if payment_id:
+        # Checked before the insert as well as relied on afterwards. The index
+        # is what guarantees correctness under a race; this makes the common
+        # redelivery a read rather than a rolled-back transaction.
+        seen = await session.scalar(
+            select(RecurringChargePeriodModel).where(
+                RecurringChargePeriodModel.provider_payment_id == payment_id
+            )
+        )
+        if seen is not None:
+            logger.debug(
+                "Mandate collection {} already recorded as period {}",
+                payment_id,
+                seen.id,
+            )
+            return {
+                "status": "already_recorded",
+                "charge_id": charge.id,
+                "period_id": seen.id,
+            }
+
+    period_start, period_end, prorated = _next_period(charge, now=now)
+
+    period = RecurringChargePeriodModel(
+        recurring_charge_id=charge.id,
+        organization_id=charge.organization_id,
+        period_start=period_start,
+        period_end=period_end,
+        charged_paise=amount,
+        cost_paise=cost,
+        prorated=prorated,
+        collected_via="mandate",
+        provider_payment_id=payment_id,
+    )
+    # Inserted inside a SAVEPOINT so a collision rolls back the insert and
+    # nothing else. A plain rollback here would also discard the mandate state
+    # change the caller has already applied in this same transaction, and the
+    # webhook would return "already recorded" having quietly forgotten that the
+    # subscription is now active.
+    try:
+        async with session.begin_nested():
+            session.add(period)
+            await session.flush()
+    except IntegrityError:
+        # Razorpay delivers at least once. The unique index on
+        # provider_payment_id is what makes a redelivery a no-op rather than a
+        # second month of rent.
+        logger.debug(
+            "Mandate collection for charge {} period {} already recorded",
+            charge.id,
+            period_start,
+        )
+        return {"status": "already_recorded", "charge_id": charge.id}
+
+    charge.current_period_start = period_start
+    charge.current_period_end = period_end
+    charge.next_charge_at = period_end
+    charge.last_attempt_at = now
+    charge.first_failed_at = None
+    charge.failure_count = 0
+    charge.last_failure_reason = None
+    if charge.status in (
+        RecurringChargeStatus.PAST_DUE.value,
+        RecurringChargeStatus.SUSPENDED.value,
+        RecurringChargeStatus.PENDING_RELEASE.value,
+    ):
+        charge.status = RecurringChargeStatus.ACTIVE.value
+        await _set_number_status(session, charge, PhoneNumberStatus.ACTIVE.value)
+        logger.info(
+            "Mandate collected for charge {}; number {} restored",
+            charge.id,
+            charge.resource_id,
+        )
+    await session.flush()
+
+    logger.info(
+        "Recorded {} paise collected by mandate {} for charge {} period {:%b %Y}",
+        amount,
+        mandate_id,
+        charge.id,
+        period_start,
+    )
+    return {
+        "status": "recorded",
+        "charge_id": charge.id,
+        "period_id": period.id,
+        "charged_paise": amount,
+    }
 
 
 def _next_period(

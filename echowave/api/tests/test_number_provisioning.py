@@ -23,6 +23,7 @@ from api.db.models import (
     CreditLedgerModel,
     OrganizationKycModel,
     OrganizationModel,
+    PaymentMandateModel,
     RecurringChargeModel,
     TelephonyConfigurationModel,
     TelephonyPhoneNumberModel,
@@ -31,6 +32,7 @@ from api.db.models import (
 from api.enums import (
     CreditLedgerKind,
     KycStatus,
+    MandateStatus,
     PhoneNumberStatus,
     RecurringChargeStatus,
 )
@@ -131,7 +133,15 @@ def fake_provider(monkeypatch):
     return provider
 
 
-async def _approved_org(session, slug: str, *, status=KycStatus.CARRIER_APPROVED):
+async def _approved_org(
+    session, slug: str, *, status=KycStatus.CARRIER_APPROVED, autopay=True
+):
+    """An account that may buy a number: verified, and with autopay authorised.
+
+    ``autopay`` is a parameter rather than always-on because the two gates are
+    independent — an account can be approved by the carrier and still have no
+    standing instruction behind the rent, which is its own refusal.
+    """
     org = OrganizationModel(provider_id=f"org-{slug}", quota_decibyl_tokens=0)
     user = UserModel(provider_id=f"user-{slug}")
     session.add_all([org, user])
@@ -144,6 +154,18 @@ async def _approved_org(session, slug: str, *, status=KycStatus.CARRIER_APPROVED
             carrier_reference="app-approved",
         )
     )
+    if autopay:
+        session.add(
+            PaymentMandateModel(
+                organization_id=org.id,
+                provider="razorpay",
+                purpose="number_rental",
+                subscription_id=f"sub-{slug}",
+                plan_id="plan-rental",
+                status=MandateStatus.ACTIVE.value,
+                price_paise=34900,
+            )
+        )
     config = TelephonyConfigurationModel(
         organization_id=org.id,
         name=f"cfg-{slug}",
@@ -154,6 +176,70 @@ async def _approved_org(session, slug: str, *, status=KycStatus.CARRIER_APPROVED
     session.add(config)
     await session.flush()
     return org.id, user.id, config.id
+
+
+class TestAutopayGate:
+    """The second gate, and the one that decides whether the rent gets paid.
+
+    Verification says the carrier will sell us a number for this customer.
+    Autopay says the customer has authorised us to collect for it every month.
+    A number issued on the first without the second is a number we pay a
+    carrier for and cannot collect on.
+    """
+
+    async def test_an_account_with_no_mandate_cannot_buy(
+        self, db_session, async_session, fake_provider
+    ):
+        from api.services.billing.mandates import MandateNotAuthorised
+
+        org_id, _, config_id = await _approved_org(
+            async_session, "no-mandate", autopay=False
+        )
+
+        with pytest.raises(MandateNotAuthorised):
+            await provisioning.provision(
+                organization_id=org_id,
+                telephony_configuration_id=config_id,
+                address=NUMBER,
+            )
+        # Nothing was bought. The gate is before the purchase, so there is no
+        # compensating release to get wrong.
+        assert fake_provider.bought == []
+
+    async def test_searching_does_not_need_a_mandate(
+        self, db_session, async_session, fake_provider
+    ):
+        """The flow is documents -> approved -> search -> select -> mandate ->
+        number. Asking someone to authorise a standing instruction before they
+        have seen what is on offer is the wrong order."""
+        org_id, _, config_id = await _approved_org(
+            async_session, "search-no-mandate", autopay=False
+        )
+
+        found = await provisioning.search(
+            organization_id=org_id, telephony_configuration_id=config_id
+        )
+        assert found
+
+    async def test_the_rental_records_which_mandate_backs_it(
+        self, db_session, async_session, fake_provider
+    ):
+        org_id, _, config_id = await _approved_org(async_session, "mandate-linked")
+
+        result = await provisioning.provision(
+            organization_id=org_id,
+            telephony_configuration_id=config_id,
+            address=NUMBER,
+            compliance_client=FakeComplianceClient(),
+        )
+
+        async with db_client.async_session() as session:
+            charge = await session.get(
+                RecurringChargeModel, result.recurring_charge_id
+            )
+            mandate = await session.get(PaymentMandateModel, charge.mandate_id)
+        assert mandate is not None
+        assert mandate.organization_id == org_id
 
 
 class TestVerificationGate:

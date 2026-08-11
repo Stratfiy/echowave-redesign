@@ -135,6 +135,26 @@ RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET") or None
 RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET") or None
 RAZORPAY_API_BASE = os.getenv("RAZORPAY_API_BASE", "https://api.razorpay.com/v1")
 
+# Autopay for the monthly number rental. Razorpay Subscriptions is a separate
+# product from the one-off order flow above and needs its own activation on the
+# account — their approval, not our configuration.
+#
+# The plan is created once and reused. Pin its id here after creating it, or
+# leave unset and let the first mandate create one; pinning is preferable
+# because a plan created per environment quietly fragments the reporting.
+RAZORPAY_RENTAL_PLAN_ID = os.getenv("RAZORPAY_RENTAL_PLAN_ID") or None
+
+# Whether a number may only be issued against an authorised mandate.
+#
+# On by default, because the alternative is the failure this whole path exists
+# to prevent: a number we pay a carrier for every month, attached to an account
+# whose prepaid balance ran out, with nothing standing behind the rent. Set it
+# false only while Subscriptions activation is still pending — with it false the
+# rental falls back to the prepaid balance and the dunning schedule.
+REQUIRE_MANDATE_FOR_NUMBERS = (
+    os.getenv("REQUIRE_MANDATE_FOR_NUMBERS", "true").lower() != "false"
+)
+
 # Google OAuth, for the google_calendar tool's "Connect Google Calendar" flow.
 # This is our OAuth app's identity, not a per-organization secret — every
 # organization that connects a calendar authorizes against the same client,
@@ -316,6 +336,27 @@ WORKER_HEARTBEAT_STALE_AFTER_SECONDS = int(
 # published where a Data Principal can find it. Surfaced through the API so the
 # app and the marketing site cannot drift apart on who it is.
 GRIEVANCE_OFFICER_NAME = os.getenv("GRIEVANCE_OFFICER_NAME", "")
+# ─── Outbound email ─────────────────────────────────────────────────────────
+#
+# Used for operational notices the customer cannot get any other way — chiefly
+# "your balance is about to run out", which is the difference between a
+# customer topping up and a customer discovering their number was suspended.
+#
+# Unset means email is simply off. Nothing raises for want of it: a missing SMTP
+# host must never stop a billing job, because the job's real work is billing and
+# the notice is a courtesy on top of it.
+SMTP_HOST = os.getenv("SMTP_HOST") or None
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME") or None
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD") or None
+# STARTTLS on the submission port is the near-universal arrangement. Set
+# SMTP_USE_TLS=true for implicit TLS (port 465) instead.
+SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() != "false"
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "false").lower() == "true"
+EMAIL_FROM = os.getenv("EMAIL_FROM") or "billing@decibyl.ai"
+EMAIL_FROM_NAME = os.getenv("EMAIL_FROM_NAME") or "Decibyl"
+EMAIL_REPLY_TO = os.getenv("EMAIL_REPLY_TO") or None
+
 GRIEVANCE_OFFICER_EMAIL = os.getenv("GRIEVANCE_OFFICER_EMAIL", "privacy@decibyl.ai")
 GRIEVANCE_OFFICER_ADDRESS = os.getenv("GRIEVANCE_OFFICER_ADDRESS", "")
 
