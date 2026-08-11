@@ -132,7 +132,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
-    # /api/ keeps working on the app host, deliberately.
+    # /api/v1/ keeps working on the app host, deliberately.
     #
     # api.decibyl.ai is canonical and is what new integrations should use. But
     # the MCP endpoint is published as https://app.decibyl.ai/api/v1/mcp/ in
@@ -144,7 +144,19 @@ server {
     #
     # Published integration URLs are a contract. Migrating them is a
     # deprecation with notice, not a side effect of splitting hostnames.
-    location /api/ {
+    #
+    # It must be /api/v1/ and not /api/, which is what this block shipped with.
+    # The UI is a Next.js app that serves its OWN routes under /api/ —
+    # /api/auth/session, /api/auth/oss, /api/auth/logout and /api/config/* —
+    # and a /api/ prefix here hands all of them to FastAPI, which has never
+    # heard of them and answers {"detail":"Not Found"}. That is not a cosmetic
+    # loss: /api/auth/* is the login flow and /api/config/version is the health
+    # banner, so the app host came up showing "Backend connection failed" over
+    # a login form that could not have worked. The single-host template
+    # (nginx.remote.conf.template) has always scoped this to /api/v1/; this is
+    # the same rule, and everything the backend serves lives under /api/v1
+    # anyway — MCP included, so the contract above is kept intact.
+    location /api/v1/ {
         proxy_pass http://decibyl_api;
         proxy_http_version 1.1;
 

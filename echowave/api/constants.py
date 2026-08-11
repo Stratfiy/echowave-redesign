@@ -28,13 +28,31 @@ LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL") or None
 PUBLIC_HOST = os.getenv("PUBLIC_HOST") or None
 
+# Where the API is reached, as distinct from where the deployment is rooted.
+#
+# Derived from DECIBYL_API_HOST before PUBLIC_BASE_URL, because on a split-
+# hostname install those are not the same place and PUBLIC_BASE_URL is the
+# wrong one. The root host serves a 404 pointer and nothing else — no /api/,
+# no /voice-audio/ — so falling back to it here published an address that
+# answers nothing. That value is not cosmetic: it is what /health reports to
+# the browser as "the backend is at", and what telephony webhooks, embed
+# snippets and OAuth redirect URIs are built from. Every one of those pointed
+# at a dead host.
+_SUBDOMAIN_API_BASE_URL = (
+    f"https://{os.getenv('DECIBYL_API_HOST')}" if os.getenv("DECIBYL_API_HOST") else None
+)
+
 # Public URL the backend builds webhook/callback/embed links from. Derives from
-# PUBLIC_BASE_URL (public IP / domain), falling back to localhost for local dev.
+# DECIBYL_API_HOST, then PUBLIC_BASE_URL (public IP / domain), falling back to
+# localhost for local dev.
 # When this is a non-public address (localhost or a private/reserved IP) the host
 # isn't reachable from the internet, so get_backend_endpoints() resolves a running
 # Cloudflare tunnel's URL at runtime instead (see api/utils/common.py).
 BACKEND_API_ENDPOINT = (
-    os.getenv("BACKEND_API_ENDPOINT") or PUBLIC_BASE_URL or "http://localhost:8000"
+    os.getenv("BACKEND_API_ENDPOINT")
+    or _SUBDOMAIN_API_BASE_URL
+    or PUBLIC_BASE_URL
+    or "http://localhost:8000"
 )
 # Where the browser reaches the *app*, as distinct from the API. Used to build
 # the embed widget's script URL, which is copied into a customer's own website
@@ -411,10 +429,19 @@ ENABLE_AWS_S3 = os.getenv("ENABLE_AWS_S3", "false").lower() == "true"
 # MinIO Configuration
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
 # Full URL (scheme + host) browsers use to reach object storage. Derives from
-# PUBLIC_BASE_URL (remote nginx proxies /voice-audio/ to MinIO); set explicitly
-# only to point object storage at a separate origin.
+# DECIBYL_API_HOST, then PUBLIC_BASE_URL (remote nginx proxies /voice-audio/ to
+# MinIO); set explicitly only to point object storage at a separate origin.
+#
+# The API host, not the app host: on a split-hostname install nginx proxies
+# /voice-audio/ from the API host alone, deliberately, so the SDK and the
+# dashboard both fetch recordings from exactly one name. Deriving this from
+# PUBLIC_BASE_URL pointed every presigned recording URL at the root host, where
+# there is no /voice-audio/ location at all.
 MINIO_PUBLIC_ENDPOINT = (
-    os.getenv("MINIO_PUBLIC_ENDPOINT") or PUBLIC_BASE_URL or "http://localhost:9000"
+    os.getenv("MINIO_PUBLIC_ENDPOINT")
+    or _SUBDOMAIN_API_BASE_URL
+    or PUBLIC_BASE_URL
+    or "http://localhost:9000"
 )
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
