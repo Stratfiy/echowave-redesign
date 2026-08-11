@@ -30,7 +30,14 @@ RUN_AS="${RUN_AS:-ubuntu}"
 # ownership check (since 2.35.2) refuses to operate on a directory it doesn't
 # own unless told it's safe — and that check runs before the first `git`
 # command below, so it has to be set before `cd` even happens.
-git config --global --add safe.directory '*'
+#
+# --replace-all, not --add: this runs on every deploy, and --add would append a
+# duplicate line to the config file each time, forever. --system rather than
+# --global because SSM does not guarantee a sensible HOME for root; the global
+# fallback is for a human running this by hand as a non-root user.
+git config --system --replace-all safe.directory '*' 2>/dev/null \
+  || git config --global --replace-all safe.directory '*' 2>/dev/null \
+  || true
 
 cd "$PROJECT_DIR"
 
