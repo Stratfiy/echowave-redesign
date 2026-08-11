@@ -195,16 +195,31 @@ deployment.
 
 ### Hostnames
 
-Set these to split one hostname into four. Leaving `DECIBYL_APP_HOST` unset
-keeps the single-host config, which is right for a self-hosted install on one
-name.
+Set these to split one hostname into four. Setting **any one of them** switches
+the deployment to subdomain mode; the rest are derived from whichever you
+named, so in practice one line is enough:
+
+```bash
+DECIBYL_APP_HOST=app.decibyl.ai   # api., docs. and the apex follow from this
+```
+
+Leaving all four unset keeps the single-host config, which is right for a
+self-hosted install on one name.
 
 | Variable | Serves |
 |---|---|
-| `DECIBYL_APP_HOST` | The product. **Setting this is what switches the deployment to subdomain mode** — `decibyl-init` renders the config on the next `up` |
+| `DECIBYL_APP_HOST` | The product |
 | `DECIBYL_API_HOST` | API, WebSockets, MCP, the embed widget. The hostname customers integrate against, so it should not move later |
 | `DECIBYL_DOCS_HOST` | Static documentation, served off disk |
-| `DECIBYL_ROOT_HOST` | The apex. Optional — derived from the app host. Served **empty**: a 404 with a pointer to the app until a built site lands in `./landing` |
+| `DECIBYL_ROOT_HOST` | The apex. Served **empty**: a 404 with a pointer to the app until a built site lands in `./landing` |
+
+**If the documentation site is showing a login page, this is why.** With none
+of these set, every hostname lands on the single default server block, which
+proxies to the app, whose middleware redirects anything unauthenticated to
+`/auth/login`. The docs build, the DNS record and the certificate can all be
+correct and you still get a login form. One `DECIBYL_APP_HOST` line and a
+`remote_up.sh` fixes it; `decibyl-init` now also warns when it finds a built
+`docs/dist` and no host set.
 
 <!-- markdownlint-disable-next-line -->
 > nginx serves the *first* block on a port to any hostname it does not
