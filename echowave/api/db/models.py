@@ -369,6 +369,27 @@ class TelephonyPhoneNumberModel(Base):
     is_active = Column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )
+    # active | suspended | released — see PhoneNumberStatus. Distinct from
+    # is_active, which is the customer's own switch: a number can be switched
+    # on by its owner and still suspended by us for non-payment.
+    #
+    # A released number keeps its row. The row is the only record that we ever
+    # held the number, and the number itself may be printed on the customer's
+    # signage — deleting it is how an orphaned carrier rental becomes
+    # untraceable.
+    status = Column(
+        String(16), nullable=False, default="active", server_default="active"
+    )
+    # Set when we bought this number on the customer's behalf. NULL for a
+    # number on the customer's own carrier account, which we neither bought nor
+    # may release.
+    carrier_number_id = Column(String(64), nullable=True)
+    provisioned_at = Column(DateTime(timezone=True), nullable=True)
+    released_at = Column(DateTime(timezone=True), nullable=True)
+    released_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    release_reason = Column(Text, nullable=True)
     is_default_caller_id = Column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
@@ -1816,7 +1837,17 @@ class CallCostItemModel(Base):
     model = Column(String(128), nullable=True)
     units = Column(BigInteger, nullable=False, default=0)
     unit_rate_mpaise = Column(Integer, nullable=False, default=0)
+    # What the customer was charged for this line.
     cost_paise = Column(BigInteger, nullable=False, default=0)
+    # What the vendor charged *us* for it, before the managed markup. Equal to
+    # cost_paise on a platform line and on every row written before the markup
+    # existed, which is what the backfill sets.
+    #
+    # Stored rather than derived from today's multiplier: recomputing an old
+    # receipt against a rate that has since changed would rewrite what a
+    # customer was actually charged.
+    provider_cost_paise = Column(BigInteger, nullable=False, default=0,
+                                 server_default="0")
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     workflow_run = relationship("WorkflowRunModel", back_populates="cost_items")
@@ -1924,6 +1955,17 @@ class OrganizationKycModel(Base):
     legal_name = Column(String(255), nullable=True)
     gstin = Column(String(20), nullable=True)
 
+    # The registered address, required on a Plivo compliance application's
+    # end_user. Held here rather than on organizations because it is the
+    # address on the incorporation certificate, which is not necessarily where
+    # the account's users sit.
+    address_line1 = Column(String(255), nullable=True)
+    address_line2 = Column(String(255), nullable=True)
+    city = Column(String(128), nullable=True)
+    region = Column(String(128), nullable=True)
+    postal_code = Column(String(16), nullable=True)
+    country_iso = Column(String(2), nullable=False, default="IN", server_default="IN")
+
     submitted_at = Column(DateTime(timezone=True), nullable=True)
 
     # Our review. Who signed off matters for compliance, so it is recorded
@@ -1992,6 +2034,11 @@ class KycDocumentModel(Base):
     filename = Column(String(255), nullable=False)
     content_type = Column(String(128), nullable=True)
     size_bytes = Column(BigInteger, nullable=True)
+    # SHA-256 of the bytes. Stored so pre-submit validation can catch the same
+    # file uploaded into two slots without reading both objects back out of the
+    # bucket — one of the two most common causes of a carrier rejection, and
+    # one the customer cannot diagnose from Plivo's reply.
+    content_sha256 = Column(String(64), nullable=True)
 
     uploaded_by = Column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -2001,6 +2048,326 @@ class KycDocumentModel(Base):
     kyc = relationship("OrganizationKycModel", back_populates="documents")
 
     __table_args__ = (Index("ix_kyc_documents_kyc", "organization_kyc_id"),)
+
+
+class RecurringChargeModel(Base):
+    """A charge that accrues for holding a resource, not for using one.
+
+    Deliberately not a ``CallCostItem``. A call cost item is a line on a
+    receipt for a workflow run: it has a run behind it, it is computed from
+    measured usage, and it exists only because somebody dialled. A number
+    rental has none of those properties — it accrues while the account sleeps,
+    and folding it into the per-call path would have meant inventing a fake run
+    to hang it off, and would have shown customers a charge for calls they
+    never made.
+
+    ``cost_paise`` and ``price_paise`` are both stored because storing only the
+    price is how a margin figure starts lying. The dashboard's per-call margin
+    already ignored number rental entirely; recording our own cost next to the
+    customer's price is what lets that be fixed rather than re-estimated.
+
+    Idempotency is the partial unique index on
+    ``(recurring_charge_id, period_start)``: a monthly cron that runs twice, or
+    a worker that dies after debiting and before committing its bookkeeping,
+    must not bill a customer for the same month twice. This is the same shape
+    as the ledger's ``uq_credit_ledger_usage_ref``.
+    """
+
+    __tablename__ = "recurring_charges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    # number_rental — see RecurringChargeType.
+    charge_type = Column(String(32), nullable=False)
+    # What is being rented. For number_rental this is a
+    # telephony_phone_numbers.id, held as a plain integer rather than an FK so
+    # a future charge type can point at something else entirely.
+    resource_id = Column(Integer, nullable=False)
+
+    # active | past_due | suspended | pending_release | released | cancelled.
+    status = Column(
+        String(24), nullable=False, default="active", server_default="active"
+    )
+
+    # What we pay the carrier, and what the customer pays us. Both per period.
+    cost_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+    price_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+
+    started_at = Column(DateTime(timezone=True), nullable=False)
+    # The period this charge has been billed through. NULL until the first
+    # (prorated) charge lands.
+    current_period_start = Column(DateTime(timezone=True), nullable=True)
+    current_period_end = Column(DateTime(timezone=True), nullable=True)
+    next_charge_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Dunning. first_failed_at anchors every deadline in the policy, so it is
+    # cleared the moment a charge succeeds — a customer who pays late starts
+    # from zero rather than carrying a clock from three months ago.
+    first_failed_at = Column(DateTime(timezone=True), nullable=True)
+    last_attempt_at = Column(DateTime(timezone=True), nullable=True)
+    failure_count = Column(Integer, nullable=False, default=0, server_default="0")
+    last_failure_reason = Column(Text, nullable=True)
+
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+
+    # The autopay mandate collecting for this charge, if there is one. Nullable
+    # because a charge can outlive its mandate: a revoked mandate leaves the
+    # link in place and the charge falls back to the prepaid balance and the
+    # dunning schedule, which is exactly the situation dunning was written for.
+    mandate_id = Column(
+        Integer, ForeignKey("payment_mandates.id", ondelete="SET NULL"), nullable=True
+    )
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+    mandate = relationship("PaymentMandateModel")
+    periods = relationship(
+        "RecurringChargePeriodModel",
+        back_populates="charge",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("ix_recurring_charges_org", "organization_id"),
+        Index("ix_recurring_charges_due", "status", "next_charge_at"),
+        # One live charge per resource. Without this a retried provisioning
+        # would bill the same number twice a month, for ever, and the second
+        # row would look as legitimate as the first.
+        Index(
+            "uq_recurring_charges_live_resource",
+            "charge_type",
+            "resource_id",
+            unique=True,
+            postgresql_where=text(
+                "status NOT IN ('released', 'cancelled')"
+            ),
+        ),
+    )
+
+
+class RecurringChargePeriodModel(Base):
+    """One billed month of a recurring charge.
+
+    Exists so "have we billed this month yet?" is a unique-constraint question
+    rather than a date comparison. Date arithmetic run twice at a month
+    boundary can disagree with itself; a unique index cannot.
+    """
+
+    __tablename__ = "recurring_charge_periods"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recurring_charge_id = Column(
+        Integer,
+        ForeignKey("recurring_charges.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    period_start = Column(DateTime(timezone=True), nullable=False)
+    period_end = Column(DateTime(timezone=True), nullable=False)
+    # What was actually charged, after proration. Kept alongside the charge's
+    # price_paise because a prorated first month differs from it and a
+    # statement has to show what was billed, not what the list price was.
+    charged_paise = Column(BigInteger, nullable=False)
+    cost_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+    prorated = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    # Where the money came from: the prepaid balance, or the customer's bank
+    # under an autopay mandate. Recorded because the two are collected by
+    # completely different code paths and a statement that cannot tell them
+    # apart makes a double-collection impossible to spot.
+    collected_via = Column(
+        String(16), nullable=False, default="balance", server_default="balance"
+    )
+    # The provider's payment id, for a period the customer's bank paid.
+    #
+    # This is the idempotency key for a mandate collection, and it has to be:
+    # the period-start key below cannot serve, because recording a collection
+    # advances the charge to the next period, so a redelivered webhook computes
+    # a *different* period_start and bills a month forward instead of colliding.
+    # The provider's payment id is the same on every redelivery of the same
+    # collection, which is the property that makes at-least-once delivery safe.
+    provider_payment_id = Column(String(64), nullable=True)
+    charged_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    charge = relationship("RecurringChargeModel", back_populates="periods")
+
+    __table_args__ = (
+        # The idempotency guarantee. A double-run of the monthly cron collides
+        # here and the second attempt is rolled back.
+        UniqueConstraint(
+            "recurring_charge_id",
+            "period_start",
+            name="uq_recurring_charge_period",
+        ),
+        # One period per provider collection. Partial, because balance-collected
+        # periods have no payment id and must not all collide on NULL.
+        Index(
+            "uq_recurring_charge_period_payment",
+            "provider_payment_id",
+            unique=True,
+            postgresql_where=text("provider_payment_id IS NOT NULL"),
+        ),
+        Index("ix_recurring_charge_periods_org", "organization_id", "charged_at"),
+    )
+
+
+class NotificationModel(Base):
+    """One operational notice, sent or attempted.
+
+    Exists for one reason: **so a notice is not sent twice.** The jobs that send
+    these are safe to re-run by design — that is what makes a missed cron
+    harmless — and without a record, "safe to re-run" would mean a customer with
+    a low balance gets the same warning every time the worker restarts.
+
+    ``dedupe_key`` is the caller's statement of what makes two notices the same
+    thing. For the low-balance warning it is the severity and the day, so an
+    account gets one warning a day and a second one only if it gets worse.
+
+    Failures are recorded rather than retried. A notice that did not send is
+    worth seeing in a table; a retry loop around an SMTP server is a way to send
+    the same warning four times when the server was merely slow.
+    """
+
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    # low_balance | ... — a plain string so a new notice needs no migration.
+    kind = Column(String(48), nullable=False)
+    dedupe_key = Column(String(128), nullable=False)
+    channel = Column(
+        String(16), nullable=False, default="email", server_default="email"
+    )
+    # Who it went to, joined, for the record. Not used to send anything.
+    recipients = Column(Text, nullable=True)
+    subject = Column(Text, nullable=True)
+    sent = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        # The whole point of the table. Claimed *before* the send, so two
+        # workers racing on the same account produce one email rather than two.
+        UniqueConstraint(
+            "organization_id",
+            "kind",
+            "dedupe_key",
+            name="uq_notification_dedupe",
+        ),
+        Index("ix_notifications_org", "organization_id", "created_at"),
+    )
+
+
+class PaymentMandateModel(Base):
+    """A customer's standing authorisation for us to collect, on file.
+
+    Distinct from ``PaymentModel``, which is one collected top-up. A mandate is
+    the *permission* — a UPI Autopay / eNACH / card authorisation held at the
+    provider — and it has a life of its own: it is created before any money
+    moves, it can be revoked by the customer's bank without telling us first,
+    and it survives every individual collection made under it.
+
+    It exists because a monthly number rental collected out of a prepaid
+    balance stops the moment the balance does, and the failure mode is a number
+    we keep paying a carrier for. With a mandate the collection is pushed to the
+    customer's bank on a schedule instead of pulled from a balance they may have
+    forgotten to top up.
+
+    ``status`` mirrors the provider's own subscription states rather than a
+    private vocabulary, so a row can be reconciled against their dashboard
+    without a translation table. Only the states in
+    :meth:`MandateStatus.authorised` mean we may hand over a number.
+    """
+
+    __tablename__ = "payment_mandates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    provider = Column(
+        String(32), nullable=False, default="razorpay", server_default="razorpay"
+    )
+    # What the mandate is for. Today only number_rental, held as a string so a
+    # second recurring product does not need a migration to coexist with it.
+    purpose = Column(
+        String(32),
+        nullable=False,
+        default="number_rental",
+        server_default="number_rental",
+    )
+
+    # The provider's identifiers. subscription_id is what every webhook keys
+    # off, so it is the one that must be unique.
+    subscription_id = Column(String(64), nullable=True)
+    plan_id = Column(String(64), nullable=True)
+    customer_id = Column(String(64), nullable=True)
+
+    status = Column(
+        String(24), nullable=False, default="created", server_default="created"
+    )
+    # Where the customer authorises. Provider-hosted, short-lived, and the only
+    # thing the purchase flow needs to hand back to the browser.
+    short_url = Column(Text, nullable=True)
+
+    price_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+
+    authorised_at = Column(DateTime(timezone=True), nullable=True)
+    cancelled_at = Column(DateTime(timezone=True), nullable=True)
+    last_charged_at = Column(DateTime(timezone=True), nullable=True)
+    last_failure_reason = Column(Text, nullable=True)
+
+    provider_payload = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index("ix_payment_mandates_org", "organization_id", "status"),
+        # One provider subscription maps to exactly one row. Webhooks arrive at
+        # least once and out of order; without this a redelivery during a race
+        # writes a second row and half the events then update the wrong one.
+        Index(
+            "uq_payment_mandates_subscription",
+            "provider",
+            "subscription_id",
+            unique=True,
+            postgresql_where=text("subscription_id IS NOT NULL"),
+        ),
+        # One live mandate per account per purpose. A customer who abandons an
+        # authorisation and starts again must not end up with two banks
+        # collecting for the same number.
+        Index(
+            "uq_payment_mandates_live",
+            "organization_id",
+            "purpose",
+            unique=True,
+            postgresql_where=text(
+                "status NOT IN ('cancelled', 'completed', 'expired')"
+            ),
+        ),
+    )
 
 
 class CreditLedgerModel(Base):
@@ -2070,6 +2437,18 @@ class CreditLedgerModel(Base):
             "ix_credit_ledger_reservation_open",
             "created_at",
             postgresql_where=text("kind = 'reservation'"),
+        ),
+        # A rental period debits at most once. recurring_charge_periods already
+        # refuses a duplicate period row, but the debit and that row are two
+        # writes: this is what makes the ledger side safe on its own, so a
+        # retry that got as far as the debit cannot charge twice.
+        Index(
+            "uq_credit_ledger_rental_ref",
+            "organization_id",
+            "ref_type",
+            "ref_id",
+            unique=True,
+            postgresql_where=text("kind = 'rental' AND ref_id IS NOT NULL"),
         ),
     )
 

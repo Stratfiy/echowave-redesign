@@ -26,14 +26,33 @@ _TRANSITIONS: dict[KycStatus, frozenset[KycStatus]] = {
     KycStatus.UNDER_REVIEW: frozenset({KycStatus.REJECTED, KycStatus.FORWARDED}),
     # A rejected account fixes its documents and submits again.
     KycStatus.REJECTED: frozenset({KycStatus.SUBMITTED}),
+    # Suspension and expiry are reachable from here, not only from approval:
+    # Plivo's statuses live on the application, and an application still in
+    # ``submitted`` can lapse to ``expired`` when its documents age out during
+    # review. Without these two the callback carrying that news would be
+    # discarded as an illegal transition and the account would sit in
+    # FORWARDED for ever, waiting on a verdict that is never coming.
     KycStatus.FORWARDED: frozenset(
-        {KycStatus.CARRIER_APPROVED, KycStatus.CARRIER_REJECTED}
+        {
+            KycStatus.CARRIER_APPROVED,
+            KycStatus.CARRIER_REJECTED,
+            KycStatus.SUSPENDED,
+            KycStatus.EXPIRED,
+        }
     ),
     KycStatus.CARRIER_REJECTED: frozenset({KycStatus.SUBMITTED}),
-    # Approval is terminal. Revocation is a carrier-side action we would learn
-    # about through a status poll, and it is not modelled as a transition
-    # anyone here can make.
-    KycStatus.CARRIER_APPROVED: frozenset(),
+    # Approval is no longer terminal. Plivo suspends an approved application
+    # for cause and expires one whose documents have aged out, and both arrive
+    # unannounced on the compliance callback. Refusing those transitions would
+    # leave an account we know is suspended still able to dial.
+    KycStatus.CARRIER_APPROVED: frozenset({KycStatus.SUSPENDED, KycStatus.EXPIRED}),
+    # A suspension is reversible: the licensee reinstates once whatever caused
+    # it is resolved. It can also lapse into expiry while unresolved.
+    KycStatus.SUSPENDED: frozenset({KycStatus.CARRIER_APPROVED, KycStatus.EXPIRED}),
+    # An expired application cannot be amended — PATCH is rejected once it
+    # lapses — so the only way forward is a fresh submission, which re-enters
+    # our own review first.
+    KycStatus.EXPIRED: frozenset({KycStatus.SUBMITTED}),
 }
 
 #: Documents each business type must supply before we will forward.

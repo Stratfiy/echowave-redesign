@@ -9,7 +9,7 @@ echowave/
 ├── api/              # Backend - FastAPI application
 ├── ui/               # Frontend - Next.js application
 ├── scripts/          # Helper scripts for local development
-├── docs/             # Mintlify documentation
+├── docs/             # Documentation (MDX, rendered by Astro Starlight)
 ├── pipecat/          # Pipecat framework (git submodule)
 ├── docker-compose.yaml       # Production/OSS deployment
 ├── docker-compose-local.yaml # Local development services

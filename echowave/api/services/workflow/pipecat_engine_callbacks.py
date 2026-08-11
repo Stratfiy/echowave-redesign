@@ -40,14 +40,27 @@ class UserIdleHandler:
         self._retry_count = 0
 
     async def handle_idle(self, aggregator):
-        """Handle user idle event with escalating prompts."""
+        """Handle user idle event with escalating prompts.
+
+        The contract is two strikes: the first asks whether the caller is
+        still there, the second disconnects. Only the second may end the call
+        — see the instruction on the first message for why that has to be said
+        out loud.
+        """
         self._retry_count += 1
         logger.debug(f"Handling user_idle, attempt: {self._retry_count}")
 
         if self._retry_count == 1:
             message = {
                 "role": "user",
-                "content": "The user has been quiet. Politely and briefly ask if they're still there in the language that the user has been speaking so far.",
+                "content": (
+                    "The user has been quiet. Politely and briefly ask if "
+                    "they're still there in the language that the user has "
+                    "been speaking so far. Do not end the call and do not "
+                    "call any tool — say the words and nothing else. They may "
+                    "simply be thinking, and hanging up on someone who is "
+                    "about to speak is worse than waiting."
+                ),
             }
             await aggregator.push_frame(LLMMessagesAppendFrame([message], run_llm=True))
             return

@@ -22,7 +22,32 @@ if [[ "${ENVIRONMENT:-local}" == "production" ]]; then
     [[ -f "$CERTS_DIR/local.key" ]] || decibyl_fail "certs/local.key not found"
 
     export TURN_EXTERNAL_IP="$SERVER_IP"
-    decibyl_render_remote_nginx_conf "$WORKSPACE_DIR" "$NGINX_OUTPUT_DIR/default.conf"
+
+    # Subdomain topology when the operator has named *any* of the hosts,
+    # single-host otherwise.
+    #
+    # This used to key on DECIBYL_APP_HOST alone, and the failure that caused
+    # is the reason it no longer does. Naming only DECIBYL_DOCS_HOST — the
+    # obvious thing to do when all you want is a docs subdomain — left the
+    # single-host config in place, so docs.<domain> hit the one default server
+    # block, which proxies to the app, whose middleware redirects anything
+    # unauthenticated to /auth/login. The documentation site answered with a
+    # login page and nothing anywhere said why.
+    #
+    # Any one of these being set is a deployment saying it has split hosts.
+    # The template fills the unnamed ones in from the defaults.
+    if [[ -n "${DECIBYL_APP_HOST:-}${DECIBYL_API_HOST:-}${DECIBYL_DOCS_HOST:-}${DECIBYL_ROOT_HOST:-}" ]]; then
+        decibyl_render_subdomain_nginx_conf "$WORKSPACE_DIR" "$NGINX_OUTPUT_DIR/default.conf"
+    else
+        decibyl_render_remote_nginx_conf "$WORKSPACE_DIR" "$NGINX_OUTPUT_DIR/default.conf"
+        # Built docs with no split-host config is the exact shape of the
+        # failure above: the files exist, the hostname resolves, and every
+        # request lands on the login page. Say so rather than let it be
+        # discovered by a customer following a documentation link.
+        if [[ -d "$WORKSPACE_DIR/docs/dist" ]]; then
+            decibyl_warn "docs/dist exists but no DECIBYL_*_HOST is set — the docs hostname will serve the app's login page. Set DECIBYL_APP_HOST and DECIBYL_DOCS_HOST in .env."
+        fi
+    fi
     decibyl_render_remote_turn_conf "$WORKSPACE_DIR" "$COTURN_OUTPUT_DIR/turnserver.conf"
     decibyl_success "✓ decibyl-init rendered remote nginx and coturn config"
     exit 0

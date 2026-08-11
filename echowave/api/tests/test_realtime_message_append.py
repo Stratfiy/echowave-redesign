@@ -51,9 +51,13 @@ async def test_user_idle_handler_uses_realtime_append_path():
     frame = aggregator.push_frame.await_args.args[0]
     assert isinstance(frame, LLMMessagesAppendFrame)
     assert frame.run_llm is True
-    assert frame.messages == [
-        {
-            "role": "user",
-            "content": "The user has been quiet. Politely and briefly ask if they're still there in the language that the user has been speaking so far.",
-        }
-    ]
+    # The path is the point, not the prose. This used to assert the prompt
+    # verbatim, which made it fail the moment the wording changed — including
+    # for the fix that stops the first nudge hanging the call up. Assert the
+    # shape it has to have, and the one instruction that has to survive an
+    # edit.
+    assert len(frame.messages) == 1
+    message = frame.messages[0]
+    assert message["role"] == "user"
+    assert "still there" in message["content"]
+    assert "do not end the call" in message["content"].lower()

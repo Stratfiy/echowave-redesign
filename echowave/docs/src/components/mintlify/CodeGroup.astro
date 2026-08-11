@@ -1,0 +1,9 @@
+---
+// Mintlify <CodeGroup> tabs sibling fenced code blocks by their `title` meta.
+// Astro cannot read those titles from here — the children arrive already
+// rendered — so this stacks them in a labelled container instead of silently
+// dropping any. Every snippet stays visible and copyable, which is the part
+// that matters; only the tabbing is lost.
+---
+
+<div class="ml-code-group"><slot /></div>

@@ -24,6 +24,18 @@ import {
     getAccountApiV1AdminBillingAccountsOrganizationIdGet,
     setAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePut,
 } from "@/client/sdk.gen";
+import { COST_COMPONENTS, seriesColor } from "@/components/charts/chartTheme";
+import {
+    axisProps,
+    ChartCard,
+    ChartTooltip,
+    gridStroke,
+    LoadingBlock,
+    PanelMessage,
+    StatTile,
+    useAuthReady,
+    useChartMode,
+} from "@/components/charts/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,19 +68,6 @@ import {
     formatRateMpaise,
 } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
-
-import { COST_COMPONENTS, seriesColor } from "../../_components/chartTheme";
-import {
-    axisProps,
-    ChartCard,
-    ChartTooltip,
-    gridStroke,
-    LoadingBlock,
-    PanelMessage,
-    StatTile,
-    useAuthReady,
-    useChartMode,
-} from "../../_components/primitives";
 
 export default function AccountDetailPage() {
     const params = useParams<{ organizationId: string }>();

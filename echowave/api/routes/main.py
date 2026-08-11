@@ -15,6 +15,7 @@ from api.routes.folder import router as folder_router
 from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.kyc import router as kyc_router
 from api.routes.kyc_admin import router as kyc_admin_router
+from api.routes.managed_numbers import router as managed_numbers_router
 from api.routes.node_types import router as node_types_router
 from api.routes.organization import router as organization_router
 from api.routes.organization_members import router as organization_members_router
@@ -31,6 +32,7 @@ from api.routes.s3_signed_url import router as s3_router
 from api.routes.service_keys import router as service_keys_router
 from api.routes.superuser import router as superuser_router
 from api.routes.telephony import router as telephony_router
+from api.routes.telephony_admin import router as telephony_admin_router
 from api.routes.tool import router as tool_router
 from api.routes.turn_credentials import router as turn_credentials_router
 from api.routes.user import router as user_router
@@ -47,11 +49,13 @@ router = APIRouter(
 )
 
 router.include_router(telephony_router)
+router.include_router(telephony_admin_router)
 router.include_router(superuser_router)
 router.include_router(billing_dashboard_router)
 router.include_router(cost_estimate_router)
 router.include_router(kyc_router)
 router.include_router(kyc_admin_router)
+router.include_router(managed_numbers_router)
 router.include_router(organization_members_router)
 router.include_router(platform_credentials_router)
 router.include_router(provider_keys_router)

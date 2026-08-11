@@ -5,6 +5,7 @@ import {
   ArrowUpCircle,
   AudioLines,
   Brain,
+  ChartColumnBig,
   ChevronLeft,
   ChevronRight,
   Database,
@@ -16,6 +17,7 @@ import {
   type LucideIcon,
   Megaphone,
   Phone,
+  PhoneOutgoing,
   Settings,
   Shield,
   ShieldCheck,
@@ -128,6 +130,13 @@ const NAV_SECTIONS: SidebarNavSection[] = [
         url: "/verification",
         icon: ShieldCheck,
       },
+      // Directly under Verification: approval is the first gate on this flow,
+      // so the thing it unlocks belongs next to it.
+      {
+        title: "Get a number",
+        url: "/numbers",
+        icon: PhoneOutgoing,
+      },
       {
         title: "Tools",
         url: "/tools",
@@ -153,6 +162,14 @@ const NAV_SECTIONS: SidebarNavSection[] = [
   {
     label: "MANAGE",
     items: [
+      // Above the runs table because it answers the question people arrive
+      // with — is this working, and what is it costing — where the table only
+      // answers which calls happened.
+      {
+        title: "Analytics",
+        url: "/analytics",
+        icon: ChartColumnBig,
+      },
       {
         title: "Agent Runs",
         url: "/usage",

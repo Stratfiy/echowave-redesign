@@ -263,8 +263,8 @@ export function gridStroke(mode: Mode) {
  *
  * The auth interceptor that attaches the Bearer token is only registered once
  * auth has finished loading. Fetching before that sends an unauthenticated
- * request, which on these staff-gated routes fails silently as a 403 — so
- * every fetch on this dashboard waits for this to be true.
+ * request, which on an org-scoped route fails silently as a 401 or 403 — so
+ * every fetch on a dashboard waits for this to be true.
  */
 export function useAuthReady(): boolean {
     const { user, loading } = useAuth();

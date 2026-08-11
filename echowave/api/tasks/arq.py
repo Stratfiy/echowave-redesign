@@ -52,7 +52,11 @@ from api.tasks.email_tax_document import email_tax_document
 from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
-from api.tasks.kyc_carrier_poll import poll_kyc_carrier_status
+from api.tasks.low_balance import notify_low_balances
+from api.tasks.rental_billing import (
+    charge_recurring_rentals,
+    reconcile_carrier_numbers,
+)
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
@@ -69,13 +73,14 @@ class WorkerSettings:
         deliver_webhook,
         email_tax_document,
         refresh_billing_rollups,
-        poll_kyc_carrier_status,
         sweep_credit_reservations,
         issue_monthly_tax_invoices,
         purge_expired_call_data,
         run_database_backup,
         refresh_exchange_rate,
         record_worker_heartbeat,
+        charge_recurring_rentals,
+        reconcile_carrier_numbers,
     ]
     cron_jobs = [
         # Every minute, and at startup so a deployment is not indistinguishable
@@ -107,17 +112,12 @@ class WorkerSettings:
             second=30,
             run_at_startup=True,
         ),
-        # Carriers do not call back when a compliance application is decided,
-        # so an approved account would sit blocked until someone happened to
-        # open the admin queue. Fifteen minutes is well inside the hours-to-days
-        # these decisions actually take, and the poll is read-only on our side
-        # unless the verdict changed.
-        cron(
-            poll_kyc_carrier_status,
-            minute={0, 15, 30, 45},
-            second=15,
-            run_at_startup=False,
-        ),
+        # The KYC carrier poll used to run here. Plivo posts a compliance
+        # callback on every status change (routes/kyc.py), so polling asked a
+        # question we are already told the answer to — against the tighter of
+        # Plivo's two rate limits, and with up to fifteen minutes of latency on
+        # every approval.
+        #
         # A call that dies with a worker leaves its funds held forever, and the
         # customer sees a balance lower than what they bought with nothing able
         # to explain it. Every five minutes so the leak stays small; at startup
@@ -168,6 +168,39 @@ class WorkerSettings:
             issue_monthly_tax_invoices,
             day={1},
             hour={20},
+            minute={30},
+            second=0,
+            run_at_startup=False,
+        ),
+        # 19:00 UTC is 00:30 IST. Daily rather than monthly: the period
+        # arithmetic bills by period boundary, so a daily tick that finds
+        # nothing due does almost no work, and a tick after an outage bills the
+        # month that was missed instead of forgiving it. A monthly job that
+        # fails has a month of silence before anyone notices.
+        cron(
+            charge_recurring_rentals,
+            hour={19},
+            minute={0},
+            second=0,
+            run_at_startup=False,
+        ),
+        # 19:30 UTC, after billing has settled. Reports drift between our
+        # number inventory and the carrier's; releases nothing itself.
+        cron(
+            reconcile_carrier_numbers,
+            hour={19},
+            minute={30},
+            second=0,
+            run_at_startup=False,
+        ),
+        # 03:30 UTC is 09:00 IST — the start of the working day, so a warning
+        # arrives when somebody can act on it rather than overnight. Deliberately
+        # *after* the rental run rather than before: an account that was going
+        # to be charged last night should be warned about the balance it has now,
+        # not the one it had before the rent came out.
+        cron(
+            notify_low_balances,
+            hour={3},
             minute={30},
             second=0,
             run_at_startup=False,

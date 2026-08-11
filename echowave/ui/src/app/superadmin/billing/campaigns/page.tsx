@@ -19,17 +19,7 @@ import {
     getCampaignConcurrencyApiV1AdminBillingCampaignsCampaignIdConcurrencyGet,
     listCampaignsApiV1AdminBillingCampaignsGet,
 } from "@/client/sdk.gen";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { detailFromError } from "@/lib/apiError";
-import {
-    formatNumber,
-    formatPaise,
-    formatPercent,
-} from "@/lib/billing/format";
-import { cn } from "@/lib/utils";
-
-import { seriesColor } from "../_components/chartTheme";
+import { seriesColor } from "@/components/charts/chartTheme";
 import {
     axisProps,
     ChartCard,
@@ -40,7 +30,16 @@ import {
     StatTile,
     useAuthReady,
     useChartMode,
-} from "../_components/primitives";
+} from "@/components/charts/primitives";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { detailFromError } from "@/lib/apiError";
+import {
+    formatNumber,
+    formatPaise,
+    formatPercent,
+} from "@/lib/billing/format";
+import { cn } from "@/lib/utils";
 
 type Campaign = {
     campaign_id: number;

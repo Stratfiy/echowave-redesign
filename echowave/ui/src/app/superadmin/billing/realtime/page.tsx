@@ -34,6 +34,18 @@ import {
 } from "recharts";
 
 import { compareRealtimeApiV1CostEstimateRealtimePost } from "@/client/sdk.gen";
+import { seriesColor } from "@/components/charts/chartTheme";
+import {
+  axisProps,
+  ChartCard,
+  ChartTooltip,
+  gridStroke,
+  LoadingBlock,
+  PanelMessage,
+  StatTile,
+  useAuthReady,
+  useChartMode,
+} from "@/components/charts/primitives";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
@@ -54,19 +66,6 @@ import {
 } from "@/components/ui/table";
 import { detailFromError } from "@/lib/apiError";
 import { formatMicrosUsd } from "@/lib/billing/format";
-
-import { seriesColor } from "../_components/chartTheme";
-import {
-  axisProps,
-  ChartCard,
-  ChartTooltip,
-  gridStroke,
-  LoadingBlock,
-  PanelMessage,
-  StatTile,
-  useAuthReady,
-  useChartMode,
-} from "../_components/primitives";
 
 /** Call lengths worth comparing. The spread is the point of the control. */
 const DURATIONS = [

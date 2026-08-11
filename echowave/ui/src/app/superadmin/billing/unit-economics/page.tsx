@@ -23,6 +23,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { getUnitEconomicsApiV1AdminBillingUnitEconomicsGet } from "@/client/sdk.gen";
+import { ChartCard, PanelMessage, StatTile, useAuthReady } from "@/components/charts/primitives";
 import { Badge } from "@/components/ui/badge";
 import {
     Table,
@@ -44,8 +45,6 @@ import {
     formatSecondsCompact,
 } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
-
-import { ChartCard, PanelMessage, StatTile, useAuthReady } from "../_components/primitives";
 
 type ComponentRow = {
     component: string;

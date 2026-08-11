@@ -114,6 +114,7 @@
               "voice-agent/add-to-website",
               "integrations/telephony/overview",
               "integrations/telephony/inbound",
+              "integrations/telephony/managed-numbers",
               "integrations/telephony/twilio",
               "integrations/telephony/vonage",
               "integrations/telephony/plivo",

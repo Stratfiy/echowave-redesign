@@ -10,12 +10,14 @@ Staff review lives in ``routes/kyc_admin.py`` behind the superuser gate.
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from loguru import logger
 from pydantic import BaseModel
 
 from api.constants import MANAGED_TELEPHONY_ENABLED
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
+from api.services.kyc import callback as kyc_callback
 from api.services.kyc import service as kyc_service
 from api.services.kyc.documents import MAX_DOCUMENT_BYTES, KycDocumentError
 from api.services.kyc.state import KycTransitionError
@@ -27,6 +29,27 @@ class BusinessDetailsRequest(BaseModel):
     business_type: str
     legal_name: str
     gstin: str | None = None
+    # The registered address, which a compliance application needs and the
+    # business-details form is the only place to collect.
+    address_line1: str | None = None
+    address_line2: str | None = None
+    city: str | None = None
+    region: str | None = None
+    postal_code: str | None = None
+
+
+def _validation_detail(exc: kyc_service.KycValidationError) -> dict[str, Any]:
+    """Field-keyed problems, so the form can mark each input.
+
+    Shaped as an object rather than FastAPI's default string so the UI does not
+    have to parse sentences out of a single ``detail``.
+    """
+    return {
+        "message": "Fix these before submitting for verification.",
+        "problems": [
+            {"field": p.field, "message": p.message} for p in exc.problems
+        ],
+    }
 
 
 def _organization_id(user: UserModel) -> int:
@@ -77,6 +100,11 @@ async def set_business_details(
             business_type=payload.business_type,
             legal_name=payload.legal_name,
             gstin=payload.gstin,
+            address_line1=payload.address_line1,
+            address_line2=payload.address_line2,
+            city=payload.city,
+            region=payload.region,
+            postal_code=payload.postal_code,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -138,8 +166,61 @@ async def submit_kyc(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     """Hand the documents to us for review."""
     try:
         view = await kyc_service.submit(_organization_id(user))
+    except kyc_service.KycValidationError as exc:
+        # Before the bare ValueError clause: KycValidationError is one, and the
+        # field-keyed body is the whole point of raising it.
+        raise HTTPException(
+            status_code=422, detail=_validation_detail(exc)
+        ) from exc
     except KycTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _view_response(view)
+
+
+@router.post("/carrier-callback")
+async def carrier_callback(request: Request) -> dict[str, Any]:
+    """Plivo's compliance status callback.
+
+    Unauthenticated by necessity — Plivo cannot present a bearer token — so the
+    signature *is* the authentication. An unsigned or badly signed request is
+    refused before anything is read out of the body, because this endpoint can
+    open telephony for an account.
+
+    Always 200 once the signature holds, including for a payload we could not
+    act on. Plivo redelivers on any non-2xx, and redelivering something we have
+    already decided we cannot use only produces the same outcome more slowly.
+    """
+    raw_body = await request.body()
+    try:
+        payload = await request.json() if raw_body else {}
+    except ValueError:
+        # Form-encoded rather than JSON. Plivo has sent both shapes.
+        payload = dict(await request.form())
+
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Unexpected callback body.")
+
+    signature_params = payload if request.headers.get(
+        "content-type", ""
+    ).startswith("application/x-www-form-urlencoded") else {}
+
+    if not kyc_callback.verify_signature(
+        url=str(request.url),
+        params=signature_params,
+        signature=request.headers.get("x-plivo-signature-v3"),
+        nonce=request.headers.get("x-plivo-signature-v3-nonce"),
+    ):
+        logger.warning(
+            "Rejected an unsigned or mis-signed Plivo compliance callback from {}",
+            request.client.host if request.client else "unknown",
+        )
+        raise HTTPException(status_code=403, detail="Invalid signature.")
+
+    outcome = await kyc_callback.handle(payload)
+    return {
+        "handled": outcome.handled,
+        "status": outcome.status,
+        "detail": outcome.detail,
+    }

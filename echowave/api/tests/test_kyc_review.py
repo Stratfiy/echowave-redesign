@@ -36,6 +36,26 @@ def verification_open(monkeypatch):
     monkeypatch.setattr(kyc_service, "MANAGED_TELEPHONY_ENABLED", True)
 
 
+@pytest.fixture(autouse=True)
+def offline_carrier(monkeypatch):
+    """Forward through the manual carrier unless a test names another.
+
+    The default is Plivo now, and Plivo raises without platform credentials —
+    correctly, since a silent downgrade to "a human will handle it" is how
+    applications sit unsent. These tests are about our own review, not about
+    which licensee took the application, so they use the fallback that needs no
+    network. ``TestCarrierSeam`` is where the Plivo default is asserted.
+    """
+    from api.services.kyc import carrier as carrier_module
+
+    monkeypatch.setattr(carrier_module, "DEFAULT_CARRIER", "manual")
+
+    async def _callback_url():
+        return "https://test.decibyl.ai/api/v1/kyc/carrier-callback"
+
+    monkeypatch.setattr(kyc_service, "compliance_callback_url", _callback_url)
+
+
 @pytest.fixture
 def stub_storage(monkeypatch):
     """Record what would have been stored, without needing MinIO."""
@@ -52,8 +72,14 @@ def stub_storage(monkeypatch):
         stored.pop(key, None)
         return True
 
+    async def _read(key):
+        # Forwarding reads the bytes back to build the carrier submission, so
+        # the stub needs a read side as well as a write side.
+        return stored[key]
+
     monkeypatch.setattr(kyc_service.document_store, "store_document", _store)
     monkeypatch.setattr(kyc_service.document_store, "delete_document", _delete)
+    monkeypatch.setattr(kyc_service.document_store, "read_document", _read)
     return stored
 
 
@@ -80,6 +106,10 @@ async def _submitted(session, slug: str) -> tuple[int, int]:
         business_type=KycBusinessType.COMPANY.value,
         legal_name=f"{slug} Pvt Ltd",
         gstin="29ABCDE1234F1Z5",
+        address_line1="1 Banjara Hills Road",
+        city="Hyderabad",
+        region="Telangana",
+        postal_code="500034",
     )
     for kind in (
         KycDocumentKind.CERTIFICATE_OF_INCORPORATION,
@@ -90,7 +120,10 @@ async def _submitted(session, slug: str) -> tuple[int, int]:
             uploaded_by=user_id,
             kind=kind.value,
             filename=f"{kind.value}.pdf",
-            content=PDF,
+            # Distinct bytes per kind. The same file in two slots is a carrier
+            # rejection, and pre-submit validation now refuses it — see
+            # services/kyc/validation.py.
+            content=PDF + kind.value.encode(),
             content_type="application/pdf",
         )
     await kyc_service.submit(org_id)

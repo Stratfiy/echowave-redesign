@@ -19,6 +19,19 @@ import {
 } from "recharts";
 
 import { getLatencyApiV1AdminBillingLatencyGet } from "@/client/sdk.gen";
+import { LATENCY_TARGET_MS, seriesColor } from "@/components/charts/chartTheme";
+import {
+    axisProps,
+    ChartCard,
+    ChartTooltip,
+    gridStroke,
+    LoadingBlock,
+    OrderedLegend,
+    PanelMessage,
+    StatTile,
+    useAuthReady,
+    useChartMode,
+} from "@/components/charts/primitives";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     Select,
@@ -38,20 +51,6 @@ import {
 import { detailFromError } from "@/lib/apiError";
 import { formatDateIST, formatDateTimeIST, formatMs, formatNumber } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
-
-import { LATENCY_TARGET_MS, seriesColor } from "../_components/chartTheme";
-import {
-    axisProps,
-    ChartCard,
-    ChartTooltip,
-    gridStroke,
-    LoadingBlock,
-    OrderedLegend,
-    PanelMessage,
-    StatTile,
-    useAuthReady,
-    useChartMode,
-} from "../_components/primitives";
 
 /** Median duration of each pipeline stage, in the order a turn flows through. */
 const STAGES = [

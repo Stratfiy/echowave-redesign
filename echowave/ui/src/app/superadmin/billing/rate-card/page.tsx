@@ -29,6 +29,7 @@ import {
     setProviderRateApiV1AdminBillingRateCardProvidersPut,
     setVolumeTierApiV1AdminBillingRateCardTiersPut,
 } from "@/client/sdk.gen";
+import { useAuthReady } from "@/components/charts/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,8 +59,6 @@ import {
     formatRateMpaise,
 } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
-
-import { useAuthReady } from "../_components/primitives";
 
 type Tier = {
     id: number;

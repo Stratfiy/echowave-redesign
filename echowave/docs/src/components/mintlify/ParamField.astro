@@ -1,0 +1,16 @@
+---
+// An API parameter row. Mintlify accepts several spellings of the name
+// attribute depending on where the param lives, so all of them are read.
+const { path, query, body, header, type, required, default: defaultValue } = Astro.props;
+const name = path || query || body || header;
+---
+
+<div class="ml-param">
+  <p class="ml-param-head">
+    <code>{name}</code>
+    {type && <span class="ml-param-type">{type}</span>}
+    {required && <span class="ml-param-required">required</span>}
+    {defaultValue !== undefined && <span class="ml-param-default">default: {String(defaultValue)}</span>}
+  </p>
+  <div class="ml-param-body"><slot /></div>
+</div>

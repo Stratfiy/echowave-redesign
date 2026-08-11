@@ -1,0 +1,259 @@
+---
+title: "Managed Numbers"
+description: "Rent an Indian phone number from Decibyl, with verification and billing handled for you"
+---
+
+## Overview
+
+A managed number is a phone number Decibyl rents from the carrier on your
+behalf. You get a number without opening a carrier account, and we handle the
+telecom compliance application, the number-to-application wiring, and the
+monthly rental.
+
+The alternative is bring-your-own: you open a Plivo (or Twilio, Telnyx,
+Vonage…) account yourself and add its credentials under
+[Telephony Configurations](/integrations/telephony/overview). That path is
+unchanged and needs none of what follows — your numbers sit under your own
+carrier account, verified in your own name.
+
+<Note>
+Managed numbers are India-only today. Indian numbers require the telecom
+licensee to verify each end customer, which is why the verification step below
+exists and cannot be skipped.
+</Note>
+
+## What it costs
+
+| | |
+|---|---|
+| Monthly rental | ₹349 per number |
+| Billed | Monthly by autopay, from the bank account you authorise |
+| First month | Prorated by day from the day you buy |
+
+The rental accrues whether or not you place a single call. It is a separate
+line from per-call charges — a quiet month still costs the rental.
+
+If autopay is ever revoked, the rental falls back to your prepaid credit
+balance and the unpaid schedule below applies. Nothing is released because you
+turned autopay off.
+
+## Before you can buy a number
+
+Your account has to be verified by the telecom licensee. This is a real
+regulatory requirement under the DoT directive of June 2025, not a Decibyl
+policy, and no amount of configuration works around it.
+
+<Steps>
+  <Step title="Enter your business details">
+    Go to **Verification** and enter your legal entity name, GSTIN and
+    registered address.
+
+    <Warning>
+    The business name must match your registration certificate **character for
+    character**, including suffixes like "Pvt Ltd" and any punctuation. The
+    carrier compares them exactly. A name that differs by a suffix is the
+    single most common cause of rejection, and the rejection message will not
+    tell you that is what happened.
+    </Warning>
+  </Step>
+
+  <Step title="Upload your documents">
+    For a company:
+
+    - **Registration certificate** — a Certificate of Incorporation **or** a
+      Udyam (MSME) registration. Either is accepted; many small businesses have
+      only the latter.
+    - **GST certificate**
+
+    For an individual: an authorised signatory ID and an address proof.
+
+    <Warning>
+    Upload a **different file to each slot**. A single PDF containing several
+    certificates looks complete on screen and is rejected by the carrier as a
+    missing document. We block this before submission, but it is worth knowing
+    why.
+    </Warning>
+
+    Files must be PDF, JPEG or PNG, and under 5MB.
+  </Step>
+
+  <Step title="Submit for verification">
+    We check the documents are complete and legible, then forward them to the
+    carrier. **Our approval does not enable calling** — it is a pre-screen so
+    that a carrier round trip is not wasted on a blurry scan.
+
+    The carrier's decision is the one that opens telephony. It usually takes a
+    few working days.
+  </Step>
+</Steps>
+
+### Verification states
+
+| Status | What it means | What to do |
+|---|---|---|
+| `not_started` | Nothing uploaded yet | Upload documents |
+| `submitted` / `under_review` | With our team | Wait. Keep building and testing over the browser meanwhile |
+| `rejected` | We sent it back | Read the reason, fix, resubmit |
+| `forwarded` | With the telecom operator | Wait |
+| `carrier_approved` | **Verified.** You can buy numbers and place calls | — |
+| `carrier_rejected` | The operator declined | Read the reason, fix, resubmit |
+| `suspended` | The operator paused a previously approved account | Read the reason. Your numbers are still yours; most suspensions lift once the document in question is updated |
+| `expired` | The application lapsed | Upload current documents and submit again |
+
+While you are unverified you can still build agents and test them over the
+browser — WebRTC involves no phone number and no licensee.
+
+## Buying a number
+
+Search what the carrier has available:
+
+```bash
+curl -X POST https://api.decibyl.ai/api/v1/managed-numbers/search \
+  -H "X-API-Key: $DECIBYL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "telephony_configuration_id": 1,
+    "country_iso": "IN",
+    "number_type": "local",
+    "city": "Hyderabad"
+  }'
+```
+
+An empty list is a normal answer. Indian local inventory is thin and moves
+during the day — try a different city, or try again later.
+
+### Authorise autopay first
+
+A number is monthly rent from the day it is issued, so a standing instruction
+has to be in place before one is handed over. Start it once per account:
+
+```bash
+curl -X POST https://api.decibyl.ai/api/v1/billing/mandate \
+  -H "X-API-Key: $DECIBYL_API_KEY"
+```
+
+The response carries an `authorisation_url` — a Razorpay-hosted page where the
+authorisation actually happens (UPI Autopay, card, or eNACH). Open it in a
+browser and complete it there.
+
+<Note>
+Completing that page does not immediately make the mandate usable. The
+authorisation is confirmed by your bank, and Decibyl only treats it as valid
+once the payment provider tells us so. Poll `GET /billing/mandate` until
+`authorised` is `true` — usually seconds, occasionally longer.
+</Note>
+
+Buying before the mandate is authorised is refused with **403** and a message
+saying so. That is deliberate: a number issued against an unauthorised mandate
+is rent nobody has agreed to pay.
+
+### Then buy one
+
+```bash
+curl -X POST https://api.decibyl.ai/api/v1/managed-numbers \
+  -H "X-API-Key: $DECIBYL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "telephony_configuration_id": 1,
+    "address": "+918041234567",
+    "label": "Support line",
+    "inbound_workflow_id": 42
+  }'
+```
+
+Buying does three things at once: rents the number, binds it to the
+application that routes inbound calls to your agent, and links your compliance
+application to it. If any step fails, the number is released back to the
+carrier — you are never left paying for a number that does not work.
+
+Set `inbound_workflow_id` to the agent that should answer. You can attach one
+later, but a number with no agent rejects inbound calls.
+
+## When a rental goes unpaid
+
+With autopay authorised, the rental is collected from your bank on the monthly
+cycle and never touches your prepaid credit. If the mandate is revoked, halted
+by your bank, or was never set up, collection falls back to that balance —
+which is where the schedule below starts. If the balance is
+short, here is exactly what happens — no step is skipped and nothing happens
+sooner than stated:
+
+| Day | What happens |
+|---|---|
+| 0 | The charge fails. We retry daily. **Calls still work** |
+| 7 | Calls on that number are paused. **The number is still yours** |
+| 15, 25 | Reminders |
+| 45 | The number becomes *eligible* for release |
+
+You are emailed before any of this bites, not after: a warning goes out when
+your balance drops below about ten days of your recent usage, and a more urgent
+one under three. The address used is every account member's, so keep at least
+one that somebody reads.
+
+Two things worth being clear about:
+
+- **Topping up restores everything immediately.** A suspended number is fully
+  recoverable — the number is still held at the carrier, and the next
+  successful charge reactivates it and resets the clock.
+- **Nothing is released automatically.** Day 45 is when release becomes
+  permitted, not when it happens. Releasing a number is irreversible — it goes
+  back to the carrier's pool and may be issued to someone else — so it always
+  takes a deliberate action.
+
+## Giving a number up
+
+```bash
+curl -X POST https://api.decibyl.ai/api/v1/managed-numbers/{id}/release \
+  -H "X-API-Key: $DECIBYL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "no longer needed", "force": true}'
+```
+
+<Warning>
+Release is permanent. The number returns to the carrier's pool and can be
+issued to someone else the same day. If it is printed on your signage,
+vehicles or invoices, you will not get it back. A reason is required.
+</Warning>
+
+Billing stops when the number is released. We keep the record that you held it.
+
+## Checking status
+
+Ask Claude, if you have the [MCP server](/integrations/mcp) connected:
+
+> "Why can't my agent make calls?"
+> "What phone numbers do I have and what's answering on each?"
+> "What am I paying monthly?"
+
+Or over the API: `GET /api/v1/kyc` for verification, and the telephony
+configuration endpoints for numbers.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="The carrier rejected my application">
+    Read `carrier_rejection_reason` on the verification page. The two most
+    common causes are a business name that does not match the registration
+    certificate exactly, and the same file uploaded to two document slots. Fix
+    and submit again — we amend the existing application rather than filing a
+    second one.
+  </Accordion>
+
+  <Accordion title="Search returns no numbers">
+    Normal. Indian local inventory is thin. Try another city, or try again
+    later. Retrying in a tight loop will not help and may hit the carrier's
+    rate limit.
+  </Accordion>
+
+  <Accordion title="Inbound calls to my number are rejected">
+    Either no agent is attached (`inbound_workflow_id` is null) or the number
+    is suspended for non-payment. Check the number's `status` — `active` means
+    routing is fine, `suspended` means the rental is unpaid.
+  </Accordion>
+
+  <Accordion title="My account was approved and now says suspended">
+    The licensee paused it, usually because a document lapsed. Your numbers are
+    still held and calls resume when it is reinstated. The reason is on the
+    verification page.
+  </Accordion>
+</AccordionGroup>

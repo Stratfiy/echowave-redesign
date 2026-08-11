@@ -36,7 +36,19 @@ PUBLIC_HOST = os.getenv("PUBLIC_HOST") or None
 BACKEND_API_ENDPOINT = (
     os.getenv("BACKEND_API_ENDPOINT") or PUBLIC_BASE_URL or "http://localhost:8000"
 )
-UI_APP_URL = os.getenv("UI_APP_URL", "http://localhost:3010")
+# Where the browser reaches the *app*, as distinct from the API. Used to build
+# the embed widget's script URL, which is copied into a customer's own website
+# — so a wrong value here ships a broken snippet to their visitors rather than
+# failing anywhere we would notice.
+#
+# Derived from DECIBYL_APP_HOST when the deployment has split hostnames, so
+# naming the app host once fixes this too. The localhost default is correct for
+# local development and dangerous anywhere else, which is why it is last.
+UI_APP_URL = (
+    os.getenv("UI_APP_URL")
+    or (f"https://{os.getenv('DECIBYL_APP_HOST')}" if os.getenv("DECIBYL_APP_HOST") else None)
+    or "http://localhost:3010"
+)
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 REDIS_URL = os.environ["REDIS_URL"]
@@ -56,6 +68,45 @@ STACK_PUBLISHABLE_CLIENT_KEY = os.getenv("STACK_PUBLISHABLE_CLIENT_KEY")
 DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)
 MPS_API_URL = os.getenv("MPS_API_URL", "https://services.decibyl.ai")
 DECIBYL_DEVOPS_SECRET = os.getenv("DECIBYL_DEVOPS_SECRET") or None
+
+# Decibyl's own Plivo account — the parent under which managed numbers are
+# bought and compliance applications are filed on customers' behalf. Distinct
+# from the per-organization credentials on telephony_configurations, which are
+# a customer's own carrier account and are never used for this.
+#
+# PLATFORM_PLIVO_APPLICATION_ID is the Plivo Application whose answer_url
+# points at our inbound dispatcher. Numbers are bought with this app_id set, so
+# the number-to-application link needs no console step.
+PLATFORM_PLIVO_AUTH_ID = os.getenv("PLATFORM_PLIVO_AUTH_ID") or None
+PLATFORM_PLIVO_AUTH_TOKEN = os.getenv("PLATFORM_PLIVO_AUTH_TOKEN") or None
+PLATFORM_PLIVO_APPLICATION_ID = os.getenv("PLATFORM_PLIVO_APPLICATION_ID") or None
+
+# What we pay the carrier per number per month, and what we charge for it, both
+# in paise. Recorded as two separate numbers because recording only the retail
+# price is how a margin figure starts lying — see api/services/billing/rentals.py.
+#
+# Defaults are the India local-DID figures the launch plan was costed on.
+# Confirm against Plivo's live price list before relying on the margin.
+NUMBER_RENTAL_COST_PAISE = int(os.getenv("NUMBER_RENTAL_COST_PAISE", "25000"))
+NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "34900"))
+
+# What we charge for provider usage on *our* keys, as basis points of what the
+# vendor charges us. 13000 = 1.30x; 10000 would be at cost.
+#
+# In basis points rather than a float because every other money path in this
+# codebase is integer arithmetic, and a 1.3 that is really 1.2999999999999998
+# reconciles differently depending on the order lines are summed.
+#
+# It applies only to managed components. A customer on their own key is charged
+# nothing for provider usage at all — they already paid the vendor — which is
+# enforced upstream in services/billing/usage.py, where a BYOK component
+# produces no line to mark up.
+#
+# The vendor's true cost is stored alongside the marked-up figure rather than
+# replaced by it. Baking the markup into the rate card instead would have made
+# provider_rates hold retail, and every margin figure on the unit-economics
+# screen would silently read zero.
+MANAGED_PROVIDER_MARKUP_BPS = int(os.getenv("MANAGED_PROVIDER_MARKUP_BPS", "13000"))
 
 # Whether customers can start telephony verification at all.
 #
@@ -83,6 +134,26 @@ RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID") or None
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET") or None
 RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET") or None
 RAZORPAY_API_BASE = os.getenv("RAZORPAY_API_BASE", "https://api.razorpay.com/v1")
+
+# Autopay for the monthly number rental. Razorpay Subscriptions is a separate
+# product from the one-off order flow above and needs its own activation on the
+# account — their approval, not our configuration.
+#
+# The plan is created once and reused. Pin its id here after creating it, or
+# leave unset and let the first mandate create one; pinning is preferable
+# because a plan created per environment quietly fragments the reporting.
+RAZORPAY_RENTAL_PLAN_ID = os.getenv("RAZORPAY_RENTAL_PLAN_ID") or None
+
+# Whether a number may only be issued against an authorised mandate.
+#
+# On by default, because the alternative is the failure this whole path exists
+# to prevent: a number we pay a carrier for every month, attached to an account
+# whose prepaid balance ran out, with nothing standing behind the rent. Set it
+# false only while Subscriptions activation is still pending — with it false the
+# rental falls back to the prepaid balance and the dunning schedule.
+REQUIRE_MANDATE_FOR_NUMBERS = (
+    os.getenv("REQUIRE_MANDATE_FOR_NUMBERS", "true").lower() != "false"
+)
 
 # Google OAuth, for the google_calendar tool's "Connect Google Calendar" flow.
 # This is our OAuth app's identity, not a per-organization secret — every

@@ -51,10 +51,17 @@ def stub_storage(monkeypatch):
         stored.pop(key, None)
         return True
 
+    async def _read(key):
+        # Forwarding to a carrier reads the bytes back, so the stub needs a
+        # read side as well as a write side.
+        return stored[key]
+
     monkeypatch.setattr(document_store, "store_document", _store)
     monkeypatch.setattr(document_store, "delete_document", _delete)
+    monkeypatch.setattr(document_store, "read_document", _read)
     monkeypatch.setattr(kyc_service.document_store, "store_document", _store)
     monkeypatch.setattr(kyc_service.document_store, "delete_document", _delete)
+    monkeypatch.setattr(kyc_service.document_store, "read_document", _read)
     return {"stored": stored, "deleted": deleted}
 
 
@@ -73,6 +80,10 @@ async def _company_with_docs(session, slug: str) -> int:
         business_type=KycBusinessType.COMPANY.value,
         legal_name=f"{slug} Pvt Ltd",
         gstin="29ABCDE1234F1Z5",
+        address_line1="1 Banjara Hills Road",
+        city="Hyderabad",
+        region="Telangana",
+        postal_code="500034",
     )
     for kind in (
         KycDocumentKind.CERTIFICATE_OF_INCORPORATION,
@@ -83,7 +94,9 @@ async def _company_with_docs(session, slug: str) -> int:
             uploaded_by=user_id,
             kind=kind.value,
             filename=f"{kind.value}.pdf",
-            content=PDF,
+            # Distinct per kind: the same file in two slots is a carrier
+            # rejection, and pre-submit validation refuses it.
+            content=PDF + kind.value.encode(),
             content_type="application/pdf",
         )
     return org_id

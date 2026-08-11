@@ -1,4 +1,4 @@
-# Mintlify documentation
+# Documentation
 
 ## Working relationship
 
@@ -9,8 +9,39 @@
 ## Project context
 
 - Format: MDX files with YAML frontmatter
-- Config: docs.json for navigation, theme, settings
-- Components: Mintlify components
+- Config: `docs.json` for navigation. Still the single source of truth: it
+  drives the rendered sidebar *and* the MCP docs tools
+  (`api/mcp_server/tools/docs_search.py`), which resolve the docs root by
+  finding this file. Add a page to `docs.json` or it appears in neither.
+- Rendered by: Astro Starlight, to static HTML in `dist/`. The pages were
+  authored for Mintlify and the component vocabulary is unchanged — `<Note>`,
+  `<Card>`, `<Steps>` and the rest are shimmed in `src/components/mintlify/`
+  and injected into every page by `src/remark/inject-components.mjs`, so no
+  page needs an import line.
+- Files stay where they are. They are deliberately *not* under Starlight's
+  conventional `src/content/docs/`, because moving them would break every
+  `read_doc` path the MCP tools serve.
+
+## Building
+
+```bash
+cd docs
+npm install
+npm run dev          # local preview
+npm run build        # static HTML into docs/dist/
+npm run check-links  # fails on any broken internal link
+```
+
+`npm run check-links` runs against `dist/`, so build first. It only checks
+internal links — external ones fail for reasons that have nothing to do with
+this repo.
+
+## Adding a component
+
+If you use a component that is not in `src/components/mintlify/index.ts`, the
+build fails with an unresolved reference rather than rendering a blank. Add the
+component *and* its name to the list in `src/remark/inject-components.mjs` —
+the two lists are the same list.
 
 ## Content strategy
 

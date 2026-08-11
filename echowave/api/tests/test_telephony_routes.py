@@ -59,6 +59,13 @@ def test_initiate_call_executes_as_workflow_owner_for_shared_org_workflow():
     with (
         patch("api.routes.telephony.db_client") as mock_db,
         patch("api.routes.telephony.call_concurrency") as mock_concurrency,
+        # The rental-suspension gate reads the config's default caller ID.
+        # These tests mock every dependency of the route so nothing touches a
+        # real database; this is one more of them.
+        patch(
+            "api.routes.telephony.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
         patch(
             "api.routes.telephony.authorize_workflow_run_start",
             new=quota_mock,
@@ -151,6 +158,13 @@ def test_initiate_call_uses_organization_preference_phone_number():
     with (
         patch("api.routes.telephony.db_client") as mock_db,
         patch("api.routes.telephony.call_concurrency") as mock_concurrency,
+        # The rental-suspension gate reads the config's default caller ID.
+        # These tests mock every dependency of the route so nothing touches a
+        # real database; this is one more of them.
+        patch(
+            "api.routes.telephony.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
         patch(
             "api.routes.telephony.authorize_workflow_run_start",
             new=quota_mock,
@@ -216,6 +230,13 @@ def test_initiate_call_rejects_existing_run_for_different_workflow():
     with (
         patch("api.routes.telephony.db_client") as mock_db,
         patch("api.routes.telephony.call_concurrency") as mock_concurrency,
+        # The rental-suspension gate reads the config's default caller ID.
+        # These tests mock every dependency of the route so nothing touches a
+        # real database; this is one more of them.
+        patch(
+            "api.routes.telephony.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
         patch(
             "api.routes.telephony.authorize_workflow_run_start",
             new=quota_mock,
@@ -278,6 +299,13 @@ def test_initiate_call_rejects_when_concurrency_limit_reached():
     with (
         patch("api.routes.telephony.db_client") as mock_db,
         patch("api.routes.telephony.call_concurrency") as mock_concurrency,
+        # The rental-suspension gate reads the config's default caller ID.
+        # These tests mock every dependency of the route so nothing touches a
+        # real database; this is one more of them.
+        patch(
+            "api.routes.telephony.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
         patch(
             "api.routes.telephony.get_default_telephony_provider",
             new=AsyncMock(return_value=provider),
@@ -398,6 +426,13 @@ async def test_smallwebrtc_run_reaching_telephony_websocket_closes_without_runni
     with (
         patch("api.routes.telephony.db_client") as mock_db,
         patch("api.routes.telephony.call_concurrency") as mock_concurrency,
+        # The rental-suspension gate reads the config's default caller ID.
+        # These tests mock every dependency of the route so nothing touches a
+        # real database; this is one more of them.
+        patch(
+            "api.routes.telephony.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
         patch(
             "api.routes.telephony.get_telephony_provider_for_run",
             new=provider_lookup,

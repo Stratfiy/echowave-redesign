@@ -1,0 +1,11 @@
+---
+// Mintlify <Warning> -> Starlight's aside. Starlight already styles these for
+// both themes and gives them the right ARIA role, so the shim is a rename
+// rather than a reimplementation.
+import { Aside } from "@astrojs/starlight/components";
+const { title } = Astro.props;
+---
+
+<Aside type="caution" title={title}>
+  <slot />
+</Aside>

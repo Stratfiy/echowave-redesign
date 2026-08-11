@@ -33,6 +33,18 @@ import {
 } from "recharts";
 
 import { getTokensApiV1AdminBillingTokensGet } from "@/client/sdk.gen";
+import { seriesColor } from "@/components/charts/chartTheme";
+import {
+    axisProps,
+    ChartCard,
+    ChartTooltip,
+    gridStroke,
+    LoadingBlock,
+    PanelMessage,
+    StatTile,
+    useAuthReady,
+    useChartMode,
+} from "@/components/charts/primitives";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     Select,
@@ -51,19 +63,6 @@ import {
 } from "@/components/ui/table";
 import { detailFromError } from "@/lib/apiError";
 import { formatDateIST, formatNumber, formatPaise } from "@/lib/billing/format";
-
-import { seriesColor } from "../_components/chartTheme";
-import {
-    axisProps,
-    ChartCard,
-    ChartTooltip,
-    gridStroke,
-    LoadingBlock,
-    PanelMessage,
-    StatTile,
-    useAuthReady,
-    useChartMode,
-} from "../_components/primitives";
 
 const GRANULARITIES = [
     { key: "day", label: "Daily" },

@@ -174,11 +174,10 @@ Everything is mounted under `/api/v1`.
 endpoint added to `routes/billing_dashboard.py` is gated by default rather than
 by the author remembering. Keep it that way.
 
-Staff access is `users.staff_role` — `support` or `superadmin` (see
-`StaffRole` in `api/enums.py`); this router needs `superadmin`. Granted by
+Staff access is the `users.is_superuser` flag, granted by
 `python -m scripts.grant_superuser <email>` (in Docker:
-`docker compose exec api python -m scripts.grant_superuser <email>`; add
-`--role support` for the narrower tier). Nothing in the signup flow sets it.
+`docker compose exec api python -m scripts.grant_superuser <email>`). Nothing in
+the signup flow sets it.
 
 #### Overview and accounts
 
@@ -435,15 +434,20 @@ Honest list. Priorities are mine; argue with them.
 
 | Gap | Note |
 |---|---|
+| **No PDF for tax documents** | Issued, numbered and readable via API; a customer cannot download one |
 | **No e-invoicing (IRN via IRP)** | Mandatory above ₹5 crore aggregate turnover |
 | **No credit notes** | A refund is issued in the Razorpay dashboard and reflected with a staff credit adjustment |
-| **No low-balance email** | The screen warns in amber and a refused run says why, but nobody is emailed. Outbound email now exists (see below) — this is a matter of calling it from the balance check, not building new infrastructure. |
+| **No low-balance email** | The screen warns in amber and a refused run says why, but nobody is emailed |
 
 ### Product
 
 | Gap | Note |
 |---|---|
-| **Number provisioning not built** | `is_platform_managed` is the flag the KYC gate keys on and nothing sets it. The gate is correct but dormant. |
+| **No admin route for `is_platform_managed`** | Provisioning, Plivo compliance and rental billing are built (`services/telephony/provisioning.py`, `services/billing/rentals.py`, `services/kyc/carrier.py`). The flag the gate keys on still has no setter, so managed numbers need a hand-written `UPDATE` to reach. Half a day, and it blocks everything else. |
+| **Managed numbers unproven against live Plivo** | Endpoint shapes match the published Compliance API and encoding is unit-tested; no application has been filed and no number bought. |
+| **Number rental cost is an estimate** | `NUMBER_RENTAL_COST_PAISE` defaults to ₹250/month from the launch plan, not a Plivo quote. Every rental margin figure rests on it. |
+| **No recost script** | `cost_workflow_run(recost=True)` exists; nothing exposes it. Calls placed before rates existed stay uncosted. |
+| **Role model is one boolean** | `is_superuser`. There is no matrix. |
 
 ### Built since this list was written
 
@@ -453,10 +457,6 @@ Honest list. Priorities are mine; argue with them.
 | Language on the run CSV | Added. The column was never selected; the data was always there. |
 | Any signal for the two silent billing failures | `GET /admin/billing/readiness` |
 | Any signal for a dead ARQ worker | `GET /health/workers` |
-| No recost script | `scripts/recost_uncosted_calls.py` — finds runs whose receipt recorded usage with no rate on file and re-costs them once the rate is seeded. `--confirm` gate; dry-run by default. |
-| No PDF for tax documents | `GET /billing/documents/{id}/pdf` renders the same document the JSON endpoint returns, via `services/billing/document_pdf.py` (reportlab). Downloadable from the billing screen. |
-| No outbound email | `services/messaging/email.py` — plain SMTP, configured or not the same way Razorpay/Google OAuth are (env vars, `email_is_configured()` gate, unconfigured is a normal no-op). Receipt vouchers and tax invoices now email their PDF to the billing contact on issue, best-effort via an ARQ job (`tasks/email_tax_document.py`) so a mail server timeout never blocks or rolls back the document. |
-| Role model is one boolean | Two independent matrices now. Org-level: `OrganizationRole` (member/admin/owner) on `organization_memberships`, replacing the roleless `organization_users` table — an Owner manages who else is in the account via `GET/PATCH/DELETE /organizations/members`. Staff-level: `StaffRole` (support/superadmin) replacing `users.is_superuser` — KYC review only needs `support`; billing, platform keys, and impersonation still need `superadmin`. Existing superusers and existing org members were backfilled to the top of each matrix, so nothing regressed on upgrade. |
 
 ### Metrics not yet built
 
@@ -465,21 +465,14 @@ instrumentation; the rest are queries over data already stored.
 
 1. **Interruption / barge-in rate** — rising rate means the agent is too slow or
    too verbose. Needs capture.
-2. **Agent vs user talk ratio**, **dead-air ratio** — quality signals. Needs capture.
-3. **Provider (LLM/STT/TTS) error and retry counts** — no capture point exists
-   anywhere in the pipeline today (the campaign-dial circuit breaker below is a
-   different thing — it doesn't see individual provider calls). Needs new
-   instrumentation, not a query.
-4. **MOS, jitter, packet loss, post-dial delay** — carrier-side, needs telephony
+2. **Cost per completed outcome** — cost per *booking*, not per call. The number
+   that decides whether the product pays.
+3. **Agent vs user talk ratio**, **dead-air ratio** — quality signals.
+4. **ASR (answer-seizure ratio)** — carriers judge you on it.
+5. **Provider error / retry / circuit-breaker trip counts** — the breaker exists,
+   nothing counts its trips.
+6. **MOS, jitter, packet loss, post-dial delay** — carrier-side, needs telephony
    webhooks.
-
-### Built since this list was written (metrics)
-
-| Was missing | Now |
-|---|---|
-| Cost per completed outcome | There is no fixed "booking" taxonomy across accounts — every workflow's own disposition strings show up. `GET /organizations/usage/outcomes` reports cost per call for every outcome an account's calls actually produced (`services/reports/org_metrics.py:cost_by_outcome`); a customer reads whichever row is their own success outcome. Shown on the usage screen. |
-| ASR (answer-seizure ratio) | Same endpoint, `answer_seizure_ratio` — `answered_at IS NOT NULL` over attempted, org-wide, date-windowed. Per-campaign version (`connection_rate`) already existed in `campaign_summary.py`; this is the org-wide equivalent. |
-| Circuit-breaker trip counts | Partial — only the campaign-dial breaker (`services/campaign/circuit_breaker.py`) persists trips today, as entries in each campaign's `logs` JSON. `GET /campaign/{id}/summary` now counts them (`totals.circuit_breaker_trips`). Provider-level (LLM/STT/TTS) trips are the item above that still needs new capture. |
 
 ### Compliance
 

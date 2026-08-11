@@ -1,0 +1,8 @@
+---
+// Mintlify <CardGroup cols={n}> -> Starlight's CardGrid. `cols` is dropped
+// deliberately: CardGrid is responsive, and honouring a fixed column count
+// would reintroduce the horizontal scroll it exists to avoid on phones.
+import { CardGrid } from "@astrojs/starlight/components";
+---
+
+<CardGrid><slot /></CardGrid>

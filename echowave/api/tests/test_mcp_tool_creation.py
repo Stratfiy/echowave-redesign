@@ -5,7 +5,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi.openapi.utils import get_openapi
 
 from api.app import app
 from api.mcp_server.server import mcp
@@ -113,13 +112,21 @@ async def test_mcp_create_tool_rejects_unknown_credential(authed_user: MagicMock
 
 
 def test_sdk_openapi_exposes_create_tool_schema_and_llm_hints():
-    sdk_routes = [
-        r
-        for r in app.routes
-        if getattr(r, "openapi_extra", None)
-        and "x-sdk-method" in (r.openapi_extra or {})
-    ]
-    spec = get_openapi(title=app.title, version=app.version, routes=sdk_routes)
+    """The SDK generator walks the published spec for `x-sdk-method`, so that
+    is what this asserts against.
+
+    It used to filter `app.routes` for routes carrying `openapi_extra` and
+    build a spec from those. That stopped finding anything in FastAPI 0.141,
+    which no longer flattens included routers into `app.routes` — the whole API
+    is one lazy `_IncludedRouter` object, so the filter matched zero routes and
+    the assertion failed against an empty spec while the real one was correct
+    all along.
+
+    Reading `app.openapi()` is also closer to the thing that matters: the
+    generator consumes the published document, not FastAPI's internal route
+    objects, so a change that broke the SDK would now break this test too.
+    """
+    spec = app.openapi()
     operations = [
         op
         for path_item in spec["paths"].values()

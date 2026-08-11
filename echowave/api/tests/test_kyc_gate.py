@@ -1,4 +1,4 @@
-"""The telephony gate, and the carrier status poll that opens it.
+"""The telephony gate: who may place a call on a managed number.
 
 Two properties worth holding onto:
 
@@ -7,6 +7,12 @@ Two properties worth holding onto:
 * A bring-your-own telephony configuration is never gated. Those numbers sit
   under the customer's own carrier account, verified in their own name; a
   self-hosted deployment must keep working exactly as before.
+
+The carrier-poll tests that used to live here went with the poll itself. Plivo
+posts a compliance callback on every status change, so what used to be tested
+as "did we ask, and did we believe the answer" is now tested in
+``test_kyc_carrier_callback.py`` as "did we verify who asked, and is a repeat
+harmless".
 """
 
 import pytest
@@ -18,8 +24,6 @@ from api.db.models import (
 )
 from api.enums import KycStatus
 from api.services.kyc import service as kyc_service
-from api.services.kyc.carrier import CarrierStatus, CarrierVerdict
-from api.tasks.kyc_carrier_poll import poll_kyc_carrier_status
 
 
 async def _org(session, slug: str) -> int:
@@ -115,134 +119,3 @@ class TestTheGate:
             await kyc_service.assert_may_place_calls(org_id)
         # And says something the customer can act on, not just "denied".
         assert len(str(raised.value)) > 20
-
-
-class TestCarrierPoll:
-    async def test_an_approval_from_the_carrier_opens_telephony(
-        self, db_session, async_session, monkeypatch
-    ):
-        org_id = await _at_status(async_session, "poll-ok", KycStatus.FORWARDED)
-        await db_client.update_kyc(org_id, carrier="fake", carrier_reference="app-1")
-
-        class FakeCarrier:
-            name = "fake"
-            pollable = True
-
-            async def check(self, reference):
-                assert reference == "app-1"
-                return CarrierStatus(
-                    verdict=CarrierVerdict.APPROVED, raw_status="approved"
-                )
-
-        monkeypatch.setitem(
-            kyc_service.get_carrier.__globals__["_CARRIERS"], "fake", FakeCarrier()
-        )
-
-        await poll_kyc_carrier_status(None)
-
-        record = await db_client.get_kyc(org_id)
-        assert record.status == KycStatus.CARRIER_APPROVED.value
-        assert record.carrier_approved_at is not None
-
-    async def test_a_pending_application_stays_put(
-        self, db_session, async_session, monkeypatch
-    ):
-        org_id = await _at_status(async_session, "poll-wait", KycStatus.FORWARDED)
-        await db_client.update_kyc(org_id, carrier="fake", carrier_reference="app-2")
-
-        class FakeCarrier:
-            name = "fake"
-            pollable = True
-
-            async def check(self, reference):
-                return CarrierStatus(
-                    verdict=CarrierVerdict.PENDING, raw_status="in_review"
-                )
-
-        monkeypatch.setitem(
-            kyc_service.get_carrier.__globals__["_CARRIERS"], "fake", FakeCarrier()
-        )
-
-        await poll_kyc_carrier_status(None)
-
-        record = await db_client.get_kyc(org_id)
-        assert record.status == KycStatus.FORWARDED.value
-        assert record.carrier_status == "in_review"
-        assert record.carrier_checked_at is not None
-
-    async def test_one_carrier_failing_does_not_strand_the_others(
-        self, db_session, async_session, monkeypatch
-    ):
-        """A compliance API returning 500 for one application is not a reason to
-        leave every other customer waiting until the next tick."""
-        broken = await _at_status(async_session, "poll-broken", KycStatus.FORWARDED)
-        await db_client.update_kyc(broken, carrier="broken", carrier_reference="app-3")
-        healthy = await _at_status(async_session, "poll-healthy", KycStatus.FORWARDED)
-        await db_client.update_kyc(healthy, carrier="fake", carrier_reference="app-4")
-
-        class BrokenCarrier:
-            name = "broken"
-            pollable = True
-
-            async def check(self, reference):
-                raise RuntimeError("compliance API is down")
-
-        class FakeCarrier:
-            name = "fake"
-            pollable = True
-
-            async def check(self, reference):
-                return CarrierStatus(verdict=CarrierVerdict.APPROVED)
-
-        carriers = kyc_service.get_carrier.__globals__["_CARRIERS"]
-        monkeypatch.setitem(carriers, "broken", BrokenCarrier())
-        monkeypatch.setitem(carriers, "fake", FakeCarrier())
-
-        await poll_kyc_carrier_status(None)
-
-        assert (await db_client.get_kyc(broken)).status == KycStatus.FORWARDED.value
-        assert (
-            await db_client.get_kyc(healthy)
-        ).status == KycStatus.CARRIER_APPROVED.value
-
-    async def test_a_manually_forwarded_application_is_left_alone(
-        self, db_session, async_session
-    ):
-        """Refreshing carrier_checked_at on a schedule would imply we asked the
-        licensee when nobody did."""
-        org_id = await _at_status(async_session, "poll-manual", KycStatus.FORWARDED)
-        await db_client.update_kyc(
-            org_id, carrier="manual", carrier_reference=f"manual:{org_id}"
-        )
-
-        await poll_kyc_carrier_status(None)
-
-        record = await db_client.get_kyc(org_id)
-        assert record.status == KycStatus.FORWARDED.value
-        assert record.carrier_checked_at is None
-
-    async def test_an_application_we_never_forwarded_is_not_polled(
-        self, db_session, async_session, monkeypatch
-    ):
-        """Only records with a carrier reference are outstanding; polling a
-        submitted one would be asking about an application nobody has."""
-        org_id = await _at_status(async_session, "poll-submitted", KycStatus.SUBMITTED)
-
-        calls: list[str] = []
-
-        class FakeCarrier:
-            name = "fake"
-            pollable = True
-
-            async def check(self, reference):
-                calls.append(reference)
-                return CarrierStatus(verdict=CarrierVerdict.APPROVED)
-
-        monkeypatch.setitem(
-            kyc_service.get_carrier.__globals__["_CARRIERS"], "fake", FakeCarrier()
-        )
-
-        await poll_kyc_carrier_status(None)
-
-        assert calls == []
-        assert (await db_client.get_kyc(org_id)).status == KycStatus.SUBMITTED.value
