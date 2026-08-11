@@ -98,12 +98,20 @@ jobs:
           # the commit that contains it. This file is read from the repository
           # at dispatch time rather than from the instance, so putting it here
           # makes the deploy self-healing on any box, however stale.
+          #
+          # HOME first, and unconditionally. SSM does not guarantee it, and git
+          # reads global config on every invocation whatever level you are
+          # writing to, so with HOME unset *every* git command dies with
+          # "fatal: $HOME not set" (exit 128) — including the safe.directory
+          # line below and every command in ci_deploy.sh. Setting it is the
+          # difference between the deploy running and not running at all.
           jq -n \
             --arg dir "$PROJECT_DIR" \
             --arg ref "$DEPLOY_REF" \
             --arg user "$RUN_AS" \
             '{commands: [
                "set -euo pipefail",
+               "export HOME=\"${HOME:-/root}\"",
                "git config --system --replace-all safe.directory \"*\" || true",
                "cd \($dir)",
                "REF=\($ref) PROJECT_DIR=\($dir) RUN_AS=\($user) bash \($dir)/scripts/ci_deploy.sh"
