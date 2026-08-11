@@ -11064,6 +11064,48 @@ export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses = {
 
 export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponse = GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses[keyof GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses];
 
+export type GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: number;
+    };
+    query?: never;
+    url: '/api/v1/billing/documents/{document_id}/pdf';
+};
+
+export type GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetError = GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetErrors[keyof GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetErrors];
+
+export type GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type ListPaymentsApiV1BillingPaymentsGetData = {
     body?: never;
     headers?: {

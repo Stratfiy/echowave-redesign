@@ -434,17 +434,15 @@ Honest list. Priorities are mine; argue with them.
 
 | Gap | Note |
 |---|---|
-| **No PDF for tax documents** | Issued, numbered and readable via API; a customer cannot download one |
 | **No e-invoicing (IRN via IRP)** | Mandatory above ₹5 crore aggregate turnover |
 | **No credit notes** | A refund is issued in the Razorpay dashboard and reflected with a staff credit adjustment |
-| **No low-balance email** | The screen warns in amber and a refused run says why, but nobody is emailed |
+| **No low-balance email** | The screen warns in amber and a refused run says why, but nobody is emailed. Outbound email now exists (see below) — this is a matter of calling it from the balance check, not building new infrastructure. |
 
 ### Product
 
 | Gap | Note |
 |---|---|
 | **Number provisioning not built** | `is_platform_managed` is the flag the KYC gate keys on and nothing sets it. The gate is correct but dormant. |
-| **No recost script** | `cost_workflow_run(recost=True)` exists; nothing exposes it. Calls placed before rates existed stay uncosted. |
 | **Role model is one boolean** | `is_superuser`. There is no matrix. |
 
 ### Built since this list was written
@@ -455,6 +453,9 @@ Honest list. Priorities are mine; argue with them.
 | Language on the run CSV | Added. The column was never selected; the data was always there. |
 | Any signal for the two silent billing failures | `GET /admin/billing/readiness` |
 | Any signal for a dead ARQ worker | `GET /health/workers` |
+| No recost script | `scripts/recost_uncosted_calls.py` — finds runs whose receipt recorded usage with no rate on file and re-costs them once the rate is seeded. `--confirm` gate; dry-run by default. |
+| No PDF for tax documents | `GET /billing/documents/{id}/pdf` renders the same document the JSON endpoint returns, via `services/billing/document_pdf.py` (reportlab). Downloadable from the billing screen. |
+| No outbound email | `services/messaging/email.py` — plain SMTP, configured or not the same way Razorpay/Google OAuth are (env vars, `email_is_configured()` gate, unconfigured is a normal no-op). Receipt vouchers and tax invoices now email their PDF to the billing contact on issue, best-effort via an ARQ job (`tasks/email_tax_document.py`) so a mail server timeout never blocks or rolls back the document. |
 
 ### Metrics not yet built
 
