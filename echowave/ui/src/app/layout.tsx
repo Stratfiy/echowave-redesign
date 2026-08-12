@@ -1,7 +1,7 @@
 import "./globals.css";
 
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Figtree, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 
 import ChatwootWidget from "@/components/ChatwootWidget";
@@ -18,13 +18,24 @@ import { TelephonyConfigWarningsProvider } from "@/context/TelephonyConfigWarnin
 import { AuthProvider } from "@/lib/auth";
 
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Figtree, self-hosted by next/font at build time rather than fetched from a
+// CDN at runtime — a restricted deployment has no egress to fonts.gstatic.com,
+// and a missing webfont silently falls back to the system stack.
+//
+// The variable must also be *consumed*: a previous attempt set the font here
+// and mapped it under `@theme inline`, which does not emit `--font-sans` as a
+// custom property, so `--default-font-family` fell through to its own fallback
+// and every element kept rendering in the system font. globals.css now sets
+// font-family on html explicitly. Verify with getComputedStyle, not by reading.
+const appSans = Figtree({
+  variable: "--font-app-sans",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const appMono = Geist_Mono({
+  variable: "--font-app-mono",
   subsets: ["latin"],
 });
 
@@ -40,30 +51,22 @@ export default function RootLayout({
 }) {
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    // The font variables go on <html>, not <body>. globals.css sets
+    // font-family on html, and a var() referenced on an element that does not
+    // carry it resolves to nothing — which makes the whole declaration invalid
+    // and drops the element to the browser default serif. That failure looks
+    // like a font bug and is actually a scoping bug.
+    <html lang="en" className={`${appSans.variable} ${appMono.variable}`} suppressHydrationWarning>
       <head>
-        {/* Inline script to prevent flash of wrong theme - runs before React hydrates.
-            Light is the default brand mode; stored 'dark' opts in. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var theme = localStorage.getItem('theme');
-                  if (theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                  } else {
-                    document.documentElement.classList.remove('dark');
-                  }
-                } catch (e) {}
-              })();
-            `,
-          }}
-        />
+        {/* The anti-flash script that used to live here restored a stored 'dark'
+            class before hydration. The app is light-only now, so it would only
+            reintroduce a theme nothing styles — and a stale localStorage entry
+            from a previous visit would have kept doing so indefinitely. */}
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+      <body className="antialiased">
+        {/* forcedTheme keeps the provider mounted — every consumer of useTheme
+            still resolves — while guaranteeing the .dark class is never set. */}
+        <ThemeProvider attribute="class" forcedTheme="light" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           <SentryErrorBoundary>
             <AuthProvider>
               <AppConfigProvider>

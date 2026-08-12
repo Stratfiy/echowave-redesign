@@ -1,34 +1,16 @@
 "use client";
 
-import { AlertTriangle, Menu, RefreshCw } from "lucide-react";
-import Link from "next/link";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { usePathname } from "next/navigation";
 import React, { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useAppConfig } from "@/context/AppConfigContext";
 import { LeadFormsProvider } from "@/context/LeadFormsContext";
 
 import { AppSidebar } from "./AppSidebar";
-
-function AppHeader() {
-  const { toggleSidebar } = useSidebar();
-
-  return (
-    // Mobile-only: this bar now carries nothing but the drawer toggle and the
-    // wordmark, both of which are md:hidden. Leaving it mounted on desktop
-    // would render an empty 40px rule above every page.
-    <header className="sticky top-0 z-50 flex items-center justify-between border-b border-border/60 bg-background/70 px-4 py-2 backdrop-blur-md supports-[backdrop-filter]:bg-background/55 md:hidden">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={toggleSidebar} aria-label="Open menu" className="md:hidden">
-          <Menu className="h-5 w-5" />
-        </Button>
-        <Link href="/" className="text-lg font-bold md:hidden">Decibyl</Link>
-      </div>
-    </header>
-  );
-}
+import { TopBar } from "./TopBar";
 
 function BackendStatusBanner() {
   const { config, loading, refresh } = useAppConfig();
@@ -100,25 +82,23 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             <AppSidebar />
             <SidebarInset className="flex-1">
               <BackendStatusBanner />
-              {!isWorkflowEditor && <AppHeader />}
+              {/* The workflow editor is the one full-bleed canvas in the app —
+                  it needs the whole viewport, so it opts out of the top bar. */}
+              {!isWorkflowEditor && <TopBar />}
               {/* Optional header area for specific pages */}
               {headerActions && (
-                <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/70 backdrop-blur-md supports-[backdrop-filter]:bg-background/55">
-                  <div className="container mx-auto px-4 py-4">
-                    <div className="flex items-center justify-center">
-                      {headerActions}
-                    </div>
+                <header className="w-full border-b border-border bg-card">
+                  <div className="flex items-center justify-between px-6 py-3">
+                    {headerActions}
                   </div>
                 </header>
               )}
 
               {/* Optional sticky tabs */}
               {stickyTabs && (
-                <div className="sticky top-0 z-40 bg-[#2a2e39] border-b border-gray-700">
-                  <div className="container mx-auto px-4">
-                    <div className="flex items-center justify-center py-2">
-                      {stickyTabs}
-                    </div>
+                <div className="sticky top-14 z-30 border-b border-border bg-card">
+                  <div className="flex items-center px-6">
+                    {stickyTabs}
                   </div>
                 </div>
               )}

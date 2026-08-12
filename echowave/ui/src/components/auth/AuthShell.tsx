@@ -9,7 +9,6 @@
 import type { ReactNode } from "react";
 
 import { BrandLogo } from "@/components/BrandLogo";
-import ThemeToggle from "@/components/ThemeSwitcher";
 
 const HIGHLIGHTS = [
   "Speech-to-speech",
@@ -88,11 +87,10 @@ export function AuthShell({
       </aside>
 
       {/* Form column (RIGHT) — scrolls and stays centered so tall forms never
-          clip. Carries the giant faded "decibyl" imprint along its bottom. */}
+          clip. The theme toggle that sat in the top-right corner is gone with
+          the dark theme: under forcedTheme="light" it rendered a control that
+          changed nothing, which is worse than no control. */}
       <main className="auth-imprint relative flex min-h-screen flex-col overflow-y-auto">
-        <div className="absolute right-6 top-6 z-10">
-          <ThemeToggle data-testid="auth-theme-toggle" />
-        </div>
         <div className="flex min-h-full items-center justify-center p-6 sm:p-10">
           <div className="w-full max-w-md space-y-6">
             {/* Mobile-only wordmark (brand panel is hidden) */}

@@ -2,6 +2,7 @@
 
 import { ExternalLink } from "lucide-react";
 
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { MCPSection } from "@/components/MCPSection";
 import { OrganizationMembersSection } from "@/components/OrganizationMembersSection";
 import { OrganizationPreferencesSection } from "@/components/OrganizationPreferencesSection";
@@ -16,15 +17,15 @@ import {
 
 export default function SettingsPage() {
   return (
-    <div className="flex justify-center py-12 px-4">
-      <div className="w-full max-w-2xl space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Platform Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your platform configuration and integrations.
-          </p>
-        </div>
-
+    <>
+      <PageHeader
+        title="Platform Settings"
+        description="Manage your platform configuration and integrations."
+      />
+      {/* Two columns from lg up. As a single max-w-2xl column this page put a
+          670px stack of cards in the middle of a 1190px content area and left
+          the rest empty; the cards are short and independent, so they tile. */}
+      <PageBody className="grid items-start gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Preferences</CardTitle>
@@ -90,7 +91,7 @@ export default function SettingsPage() {
             <TelemetrySection />
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </PageBody>
+    </>
   );
 }

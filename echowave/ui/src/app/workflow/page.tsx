@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 
 import { getWorkflowsApiV1WorkflowFetchGet, listFoldersApiV1FolderGet } from '@/client/sdk.gen';
 import type { FolderResponse, WorkflowListResponse } from '@/client/types.gen';
+import { PageBody, PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { CreateWorkflowButton } from "@/components/workflow/CreateWorkflowButton";
 import { AgentFolderView } from '@/components/workflow/folders/AgentFolderView';
@@ -110,20 +111,20 @@ async function PageContent() {
     const workflowList = await WorkflowList();
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            {/* Your Workflows Section */}
-            <div className="mb-6">
-                <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-2xl font-bold">Your Agents</h1>
-                    <div className="flex gap-2">
+        <>
+            <PageHeader
+                title="Voice Agents"
+                description="Design a conversation, publish it, and point a number at it."
+                actions={
+                    <>
                         <UploadWorkflowButton />
                         <CreateFolderButton />
                         <CreateWorkflowButton />
-                    </div>
-                </div>
-                {workflowList}
-            </div>
-        </div>
+                    </>
+                }
+            />
+            <PageBody>{workflowList}</PageBody>
+        </>
     );
 }
 
