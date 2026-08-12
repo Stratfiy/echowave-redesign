@@ -57,33 +57,56 @@
 :root {
   --radius: 0.75rem;
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0.02 250);
+  --card-foreground: oklch(0.219 0.016 45.2);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0.02 250);
-  --primary: oklch(0.62 0.16 235);
+  --popover-foreground: oklch(0.219 0.016 45.2);
+  --primary: oklch(0.634 0.215 33.6);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.97 0.01 235);
-  --secondary-foreground: oklch(0.22 0.02 250);
-  --muted: oklch(0.97 0.005 235);
-  --muted-foreground: oklch(0.5 0.02 250);
-  --accent: oklch(0.96 0.02 235);
-  --accent-foreground: oklch(0.22 0.02 250);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.01 235);
-  --input: oklch(0.94 0.01 235);
-  --ring: oklch(0.62 0.16 235);
-  /* Decibyl brand tokens — nAutomation Labs signature blue */
-  --brand-blue: #28B3F0;
-  --brand-blue-hover: #0A6BC7;
-  --brand-blue-soft: rgba(40, 179, 240, 0.18);
-  --brand-blue-glow: rgba(30, 136, 229, 0.22);
-  --brand-panel: linear-gradient(160deg, #F1F8FE 0%, #E6F3FC 50%, #DCEEFB 100%);
-  --brand-heading: #0B1E33;
-  --brand-body: #4B6076;
+  --secondary: oklch(0.97 0.012 45);
+  --secondary-foreground: oklch(0.24 0.02 40);
+  --muted: oklch(0.97 0.008 55);
+  --muted-foreground: oklch(0.52 0.02 45);
+  --accent: oklch(0.96 0.024 45);
+  --accent-foreground: oklch(0.24 0.02 40);
+  /* Danger has to survive an orange brand. At its old hue (27.3) it sat four
+     degrees from the new primary (33.6) — a delete button and a save button
+     would have been the same colour, which is how people delete things. Pushed
+     to a deep crimson and away from the flame. */
+  --destructive: oklch(0.52 0.22 12);
+  --border: oklch(0.92 0.012 45);
+  --input: oklch(0.94 0.012 45);
+  --ring: oklch(0.634 0.215 33.6);
+
+  /* ── Decibyl brand ────────────────────────────────────────────────────
+     Taken from the marketing site's own stylesheet rather than sampled by
+     eye, so app, docs and decibyl.ai cannot drift: #F0431C primary, #C42D0E
+     pressed, #FF7A2F/#FFB627 the headline gradient, #211814 the ink.
+
+     The ink is the detail that does the most work. It is a warm, brown-biased
+     near-black, not a neutral one — carrying it across is most of what makes
+     the app feel like that landing page instead of "the old app with orange
+     buttons". */
+  --brand-flame: #F0431C;
+  --brand-ember: #C42D0E;
+  --brand-glow-mid: #FF7A2F;
+  --brand-ink: #211814;
+
+  /* Legacy aliases. Sixty-eight call sites still say "blue"; pointing them at
+     the new values keeps the rebrand to this file instead of a sixty-eight
+     file diff whose only purpose is renaming. New code should use the names
+     above. */
+  --brand-blue: var(--brand-flame);
+  --brand-blue-hover: var(--brand-ember);
+  --brand-blue-soft: rgba(240, 67, 28, 0.16);
+  --brand-blue-glow: rgba(240, 67, 28, 0.2);
+  --brand-panel: linear-gradient(160deg, #FFF6F0 0%, #FFEDE3 50%, #FFE4D6 100%);
+  --brand-heading: #211814;
+  --brand-body: #6B564D;
   --brand-chip: rgba(255, 255, 255, 0.6);
-  --brand-chip-border: rgba(20, 90, 150, 0.14);
-  --brand-chip-fg: #1D3A54;
+  --brand-chip-border: rgba(196, 45, 14, 0.16);
+  --brand-chip-fg: #7A3320;
   --brand-card: rgba(255, 255, 255, 0.72);
+
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -98,10 +121,10 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --foreground: oklch(0.219 0.016 45.2);
   /* Single restrained warm accent — used only on primary CTAs + focus rings. */
-  --cta: oklch(0.72 0.15 65);
-  --cta-foreground: oklch(0.16 0.02 60);
+  --cta: oklch(0.824 0.163 77.8);
+  --cta-foreground: oklch(0.219 0.016 45.2);
   /* Giant faded "decibyl" wordmark (authentic Proxima Nova letterforms traced
      from the brand logo PNG — the font is commercial, so the lettering ships
      as static artwork in /public; fill + 0.9% opacity are baked into the
@@ -110,10 +133,10 @@
 
   /* Liquid-glass tokens (see @layer components). The warm accent that pairs
      with --brand-blue; same hue family the charts use in categorical slot 2. */
-  --brand-amber: #FF801E;
-  --glass-glow-blue: rgba(40, 179, 240, 0.46);
-  --glass-glow-amber: rgba(255, 128, 30, 0.30);
-  --glass-glow-deep: rgba(10, 107, 199, 0.20);
+  --brand-amber: #FFB627;
+  --glass-glow-blue: rgba(240, 67, 28, 0.34);
+  --glass-glow-amber: rgba(255, 182, 39, 0.30);
+  --glass-glow-deep: rgba(196, 45, 14, 0.18);
   --glass-fill: rgba(255, 255, 255, 0.62);
   --glass-fill-strong: rgba(255, 255, 255, 0.74);
   --glass-edge: rgba(255, 255, 255, 0.75);
@@ -121,24 +144,24 @@
      that survives against a light backdrop where the blur alone would not. */
   --glass-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.85),
-    0 1px 2px 0 rgba(11, 30, 51, 0.04),
-    0 10px 30px -12px rgba(11, 30, 51, 0.16),
-    0 0 0 1px rgba(11, 30, 51, 0.045);
+    0 1px 2px 0 rgba(33, 24, 20, 0.04),
+    0 10px 30px -12px rgba(33, 24, 20, 0.16),
+    0 0 0 1px rgba(33, 24, 20, 0.045);
   --glass-shadow-clay:
     inset 0 2px 3px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -2px 6px 0 rgba(11, 30, 51, 0.045),
-    0 14px 34px -14px rgba(11, 30, 51, 0.20),
-    0 0 0 1px rgba(11, 30, 51, 0.045);
+    inset 0 -2px 6px 0 rgba(33, 24, 20, 0.045),
+    0 14px 34px -14px rgba(33, 24, 20, 0.20),
+    0 0 0 1px rgba(33, 24, 20, 0.045);
   --glass-shadow-clay-hover:
     inset 0 2px 3px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -2px 6px 0 rgba(11, 30, 51, 0.05),
-    0 20px 44px -16px rgba(11, 30, 51, 0.24),
-    0 0 0 1px rgba(11, 30, 51, 0.06);
-  --glass-accent-fill: rgba(10, 107, 199, 0.92);
+    inset 0 -2px 6px 0 rgba(33, 24, 20, 0.05),
+    0 20px 44px -16px rgba(33, 24, 20, 0.24),
+    0 0 0 1px rgba(33, 24, 20, 0.06);
+  --glass-accent-fill: rgba(240, 67, 28, 0.92);
   --glass-accent-fg: #ffffff;
-  --glass-amber-fill: rgba(255, 128, 30, 0.14);
-  --glass-amber-edge: rgba(255, 128, 30, 0.30);
-  --glass-amber-fg: #9A4A05;
+  --glass-amber-fill: rgba(255, 182, 39, 0.16);
+  --glass-amber-edge: rgba(255, 182, 39, 0.34);
+  --glass-amber-fg: #8A5206;
 }
 
 .dark {
@@ -156,22 +179,31 @@
   --muted-foreground: oklch(0.72 0.02 235);
   --accent: oklch(0.28 0.03 235);
   --accent-foreground: oklch(0.98 0.01 235);
-  --destructive: oklch(0.704 0.191 22.216);
+  --destructive: oklch(0.63 0.21 10);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.72 0.17 232);
-  /* Decibyl brand tokens — dark variant */
-  --brand-blue: #5CC8FF;
-  --brand-blue-hover: #28B3F0;
-  --brand-blue-soft: rgba(92, 200, 255, 0.22);
-  --brand-blue-glow: rgba(40, 179, 240, 0.26);
-  --brand-panel: linear-gradient(160deg, #0A1A2E 0%, #0E2540 50%, #123256 100%);
-  --brand-heading: #F1F8FE;
-  --brand-body: #A6B8CC;
+  --ring: oklch(0.7 0.19 36);
+  /* Decibyl brand tokens — dark variant.
+     Lifted, not inverted: #F0431C on a near-black ground is dense enough to
+     vibrate against text, so the dark theme runs a lighter, slightly less
+     saturated flame and lets the amber carry the warmth. */
+  --brand-flame: #FF6A3D;
+  --brand-ember: #F0431C;
+  --brand-glow-mid: #FF9057;
+  --brand-ink: #FCEFE9;
+
+  --brand-blue: var(--brand-flame);
+  --brand-blue-hover: var(--brand-ember);
+  --brand-blue-soft: rgba(255, 106, 61, 0.2);
+  --brand-blue-glow: rgba(255, 106, 61, 0.24);
+  --brand-panel: linear-gradient(160deg, #1C1210 0%, #2A1A14 50%, #34211A 100%);
+  --brand-heading: #FCEFE9;
+  --brand-body: #C4AA9E;
   --brand-chip: rgba(255, 255, 255, 0.06);
-  --brand-chip-border: rgba(92, 200, 255, 0.22);
-  --brand-chip-fg: #DDEEFA;
-  --brand-card: rgba(20, 40, 70, 0.5);
+  --brand-chip-border: rgba(255, 106, 61, 0.24);
+  --brand-chip-fg: #FFD9C8;
+  --brand-card: rgba(52, 33, 26, 0.5);
+
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -194,11 +226,11 @@
      black: glass is defined by what shows through it, and a black tint over a
      near-black surface reads as a hole, not a pane. */
   --brand-amber: #FFA24D;
-  --glass-glow-blue: rgba(40, 179, 240, 0.24);
-  --glass-glow-amber: rgba(255, 128, 30, 0.12);
-  --glass-glow-deep: rgba(10, 107, 199, 0.22);
-  --glass-fill: rgba(14, 26, 35, 0.62);
-  --glass-fill-strong: rgba(14, 26, 35, 0.52);
+  --glass-glow-blue: rgba(255, 106, 61, 0.22);
+  --glass-glow-amber: rgba(255, 195, 82, 0.13);
+  --glass-glow-deep: rgba(196, 45, 14, 0.24);
+  --glass-fill: rgba(28, 18, 16, 0.62);
+  --glass-fill-strong: rgba(28, 18, 16, 0.52);
   --glass-edge: rgba(255, 255, 255, 0.11);
   --glass-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.11),
@@ -214,11 +246,11 @@
     0 22px 46px -16px rgba(0, 0, 0, 0.68);
   /* Bright blue on a dark surface takes dark text, mirroring how the app's
      own --primary / --primary-foreground pair resolves in this theme. */
-  --glass-accent-fill: rgba(40, 179, 240, 0.88);
-  --glass-accent-fg: #06182B;
-  --glass-amber-fill: rgba(255, 162, 77, 0.16);
-  --glass-amber-edge: rgba(255, 162, 77, 0.32);
-  --glass-amber-fg: #FFC08A;
+  --glass-accent-fill: rgba(255, 106, 61, 0.9);
+  --glass-accent-fg: #2A1008;
+  --glass-amber-fill: rgba(255, 195, 82, 0.16);
+  --glass-amber-edge: rgba(255, 195, 82, 0.32);
+  --glass-amber-fg: #FFD9A0;
 }
 
 @layer base {

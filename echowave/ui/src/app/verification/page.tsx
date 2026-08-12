@@ -266,7 +266,7 @@ export default function VerificationPage() {
     );
 
     return (
-        <div className="glass-canvas min-h-full">
+        <div className="min-h-full">
             <div className="mx-auto w-full max-w-3xl px-6 pb-12 pt-8">
                 <header className="mb-6">
                     <h1 className="text-[2.125rem] font-semibold leading-[1.1] tracking-[-0.045em] text-foreground">

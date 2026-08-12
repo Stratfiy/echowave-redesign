@@ -8,8 +8,8 @@
 <svg width="132" height="30" viewBox="0 0 132 30" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Decibyl AI">
   <defs>
     <linearGradient id="dcb-mark-dark" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#28B3F0"/>
-      <stop offset="1" stop-color="#0A6BC7"/>
+      <stop offset="0" stop-color="#F0431C"/>
+      <stop offset="1" stop-color="#C42D0E"/>
     </linearGradient>
   </defs>
   <rect x="1" y="4" width="22" height="22" rx="6.6" fill="url(#dcb-mark-dark)"/>
@@ -21,5 +21,5 @@
     <line x1="16.4" y1="9.5" x2="16.4" y2="20.5"/>
     <line x1="19.15" y1="12.25" x2="19.15" y2="17.75"/>
   </g>
-  <text x="30" y="21" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="17" font-weight="650" letter-spacing="-0.3" fill="#F2F6FA">Decibyl</text>
+  <text x="30" y="21" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="17" font-weight="650" letter-spacing="-0.3" fill="#FCEFE9">Decibyl</text>
 </svg>
