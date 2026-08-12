@@ -5,7 +5,6 @@ description: "Fetch customer data from your CRM or ERP before the call starts, s
 
 Pre-Call Data Fetch allows you to enrich the call context with external data before the voice agent starts speaking. When enabled on the [**Start Call**](/voice-agent/start-call) node, Decibyl sends an HTTP request to your API as soon as a call is initiated. While the response is loading, the caller hears a ring-back tone. Once the data arrives, it is merged into the call's [initial context](/core-concepts/context-and-variables#initial_context) and becomes available as template variables in your prompts and greetings.
 
-
 ## How It Works
 
 1. A call arrives (inbound) or is initiated (outbound).
@@ -115,13 +114,6 @@ Access in prompts as `{{customer.name}}` and `{{customer.address.city}}`.
 The request has a **10-second timeout**. If your API does not respond within this window, the call proceeds without the fetched data. Design your endpoint to respond as quickly as possible to minimize the ring-back tone duration.
 
 ## Testing with Test Calls
-
-<iframe
-  src="https://www.tella.tv/video/vid_cmnrnu19v011z04l1hvwiezaz/embed?b=0&title=0&a=1&loop=0&autoPlay=false&t=0&wt=0"
-  allowFullScreen
-  allowTransparency
-  style={{ width: "100%", aspectRatio: "16/9", border: "none", borderRadius: "12px" }}
-/>
 
 When a real phone call comes in, the `caller_number` and `called_number` context variables are automatically set by the telephony provider and included in the pre-call data fetch request as `from_number` and `to_number`. However, when you make a test call — either a **web call** (WebRTC) or a **phone test call** from the workflow editor — these variables are not available by default.
 
