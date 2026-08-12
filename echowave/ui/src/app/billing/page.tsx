@@ -491,6 +491,32 @@ export default function BillingPage() {
     const setProfileField = (field: keyof BillingProfileFields, value: string) =>
         setProfile((current) => ({ ...current, [field]: value }));
 
+    // A GSTIN's first two digits *are* the state code, and the server rejects a
+    // profile where the two disagree — correctly, since one of them would be
+    // wrong and the choice decides CGST+SGST versus IGST.
+    //
+    // Left to the operator those two fields are an invitation to contradict
+    // yourself: the state field is placeheld "29" while the helper text says
+    // "the first two digits of your GSTIN", so a GSTIN starting 33 beside a
+    // typed-in 29 is the obvious mistake to make. It then fails with a
+    // validation message about state codes on a form where both fields look
+    // filled in correctly.
+    //
+    // So the GSTIN fills the state in, the way the server already does when the
+    // state is left blank. Typing a GSTIN is the more specific act, and the
+    // field stays editable for anyone who genuinely needs to differ.
+    const setGstin = (value: string) =>
+        setProfile((current) => {
+            const derived = value.length >= 2 && /^\d{2}$/.test(value.slice(0, 2))
+                ? value.slice(0, 2)
+                : null;
+            return {
+                ...current,
+                gstin: value,
+                state_code: derived ?? current.state_code,
+            };
+        });
+
     return (
         <div className="mx-auto max-w-4xl space-y-8 p-6">
             <div>
@@ -691,9 +717,7 @@ export default function BillingPage() {
                         <Input
                             id="gstin"
                             value={profile.gstin ?? ""}
-                            onChange={(e) =>
-                                setProfileField("gstin", e.target.value.toUpperCase())
-                            }
+                            onChange={(e) => setGstin(e.target.value.toUpperCase())}
                             placeholder="29ABCDE1234F1Z5"
                             maxLength={15}
                             className="mt-1.5 font-mono"
