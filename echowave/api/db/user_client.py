@@ -221,9 +221,16 @@ class UserClient(BaseDBClient):
             return result.scalars().first()
 
     async def create_user_with_email(
-        self, email: str, password_hash: str, name: str | None = None
+        self, email: str, password_hash: str | None = None, name: str | None = None
     ) -> UserModel:
-        """Create a new user with email and password hash."""
+        """Create a new user with an email, and optionally a password.
+
+        ``password_hash`` is optional because a user who arrived through Google
+        has no password here and must not be given a placeholder one: ``login``
+        refuses any account whose ``password_hash`` is falsy, which is what
+        keeps a Google-only account from being reachable by guessing at a
+        password we invented for it.
+        """
         async with self.async_session() as session:
             user = UserModel(
                 provider_id=f"oss_{int(datetime.now(UTC).timestamp())}_{uuid.uuid4()}",

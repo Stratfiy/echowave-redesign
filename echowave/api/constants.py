@@ -108,6 +108,12 @@ ENABLE_SIGNUP = os.getenv("ENABLE_SIGNUP", "true").lower() == "true"
 # needs them baked into the bundle at build time.
 STACK_AUTH_PROJECT_ID = os.getenv("STACK_AUTH_PROJECT_ID")
 STACK_PUBLISHABLE_CLIENT_KEY = os.getenv("STACK_PUBLISHABLE_CLIENT_KEY")
+# Sign in with Google, layered on top of local auth rather than replacing it.
+# Unset on a deployment that cannot reach Google — an air-gapped install, or
+# one that simply does not want it — and the button never renders and the
+# routes refuse; nothing else about authentication changes.
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)
 MPS_API_URL = os.getenv("MPS_API_URL", "https://services.decibyl.ai")
 DECIBYL_DEVOPS_SECRET = os.getenv("DECIBYL_DEVOPS_SECRET") or None

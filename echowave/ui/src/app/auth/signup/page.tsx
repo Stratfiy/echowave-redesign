@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { signupApiV1AuthSignupPost } from "@/client/sdk.gen";
 import { AuthEnterpriseCTA } from "@/components/auth/AuthEnterpriseCTA";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,6 +65,8 @@ export default function SignupPage() {
         <h1 className="text-2xl font-semibold tracking-tight" data-testid="signup-title">Create your account</h1>
         <p className="text-sm text-muted-foreground">Start building voice agents in minutes — no credit card required.</p>
       </div>
+
+      <GoogleSignInButton label="Sign up with Google" />
 
       <form onSubmit={handleSubmit} className="space-y-4" data-testid="signup-form">
         <div className="space-y-2">
