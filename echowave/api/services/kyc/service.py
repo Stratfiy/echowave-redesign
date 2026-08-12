@@ -37,6 +37,14 @@ class KycView:
     business_type: str | None
     legal_name: str | None
     gstin: str | None
+    # The registered address. Returned so the form can show back what was
+    # saved -- without it a reload presents empty inputs, and saving again
+    # writes those blanks over an address the customer had already given.
+    address_line1: str | None
+    address_line2: str | None
+    city: str | None
+    region: str | None
+    postal_code: str | None
     submitted_at: datetime | None
     rejection_reason: str | None
     carrier_rejection_reason: str | None
@@ -152,6 +160,11 @@ def build_view(record: OrganizationKycModel) -> KycView:
         business_type=record.business_type,
         legal_name=record.legal_name,
         gstin=record.gstin,
+        address_line1=record.address_line1,
+        address_line2=record.address_line2,
+        city=record.city,
+        region=record.region,
+        postal_code=record.postal_code,
         submitted_at=record.submitted_at,
         rejection_reason=record.rejection_reason,
         carrier_rejection_reason=record.carrier_rejection_reason,
