@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { loginApiV1AuthLoginPost } from "@/client/sdk.gen";
 import { AuthEnterpriseCTA } from "@/components/auth/AuthEnterpriseCTA";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,6 +55,8 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
           Sign in to your Decibyl workspace.
         </p>
       </div>
+
+      <GoogleSignInButton label="Sign in with Google" />
 
       <form onSubmit={handleSubmit} className="space-y-4" data-testid="login-form">
         <div className="space-y-2">

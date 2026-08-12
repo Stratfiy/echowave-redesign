@@ -1,10 +1,13 @@
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import RedirectResponse
 from loguru import logger
 
-from api.constants import ENABLE_SIGNUP
+from api.constants import BACKEND_API_ENDPOINT, ENABLE_SIGNUP, UI_APP_URL
 from api.db import db_client
 from api.db.models import UserModel
-from api.enums import OrganizationConfigurationKey, PostHogEvent
+from api.enums import PostHogEvent
 from api.schemas.auth import (
     AuthResponse,
     LoginRequest,
@@ -14,15 +17,12 @@ from api.schemas.auth import (
     SignupRequest,
     UserResponse,
 )
-from api.services.auth import mfa
+from api.services.auth import google_oauth, mfa
 from api.services.auth.depends import (
-    create_user_configuration_with_mps_key,
     get_user,
     require_local_auth,
 )
-from api.services.configuration.ai_model_configuration import (
-    convert_legacy_ai_model_configuration_to_v2,
-)
+from api.services.auth.provisioning import provision_new_account
 from api.services.posthog_client import capture_event
 from api.utils.auth import create_jwt_token, hash_password, verify_password
 
@@ -54,33 +54,9 @@ async def signup(request: SignupRequest):
         name=request.name,
     )
 
-    # Create organization for the user
-    org_provider_id = f"org_{user.provider_id}"
-    organization, _ = await db_client.get_or_create_organization_by_provider_id(
-        org_provider_id=org_provider_id, user_id=user.id
-    )
-
-    # Link user to organization
-    await db_client.add_user_to_organization(user.id, organization.id)
-    await db_client.update_user_selected_organization(user.id, organization.id)
-
-    # Create default service configuration
-    try:
-        mps_config = await create_user_configuration_with_mps_key(
-            user.id, organization.id, user.provider_id
-        )
-        if mps_config:
-            await db_client.update_user_configuration(user.id, mps_config)
-            model_config_v2 = convert_legacy_ai_model_configuration_to_v2(mps_config)
-            await db_client.upsert_configuration(
-                organization.id,
-                OrganizationConfigurationKey.MODEL_CONFIGURATION_V2.value,
-                model_config_v2.model_dump(mode="json", exclude_none=True),
-            )
-    except Exception:
-        logger.warning(
-            "Failed to create default configuration for OSS user", exc_info=True
-        )
+    # Organization, membership and default configuration. Shared with the
+    # Google callback so both doors produce an identically-provisioned account.
+    organization = await provision_new_account(user)
 
     # Create JWT token
     token = create_jwt_token(user.id, request.email)
@@ -270,3 +246,106 @@ async def disable_mfa(
     )
     logger.info("MFA disabled for user {}", user.id)
     return {"mfa_enabled": False}
+
+
+# ── Sign in with Google ──────────────────────────────────────────────────
+#
+# Two routes, both gated on local auth: this is an additional door into a
+# local-auth account, not a second identity system. A deployment running Stack
+# Auth already has social login and does not go through here.
+
+
+def _redirect_uri() -> str:
+    """Where Google sends the browser back.
+
+    Derived rather than configured so it cannot disagree with the URL the app
+    is actually served from — a mismatch here fails at Google with an error the
+    user cannot act on, and it is the single most common way this integration
+    is misconfigured.
+    """
+    return f"{BACKEND_API_ENDPOINT}/api/v1/auth/google/callback"
+
+
+@router.get("/google/start", dependencies=[Depends(require_local_auth)])
+async def google_start(next: str | None = None) -> dict:
+    """Begin sign-in. Returns the URL to send the browser to."""
+    try:
+        return {
+            "authorization_url": google_oauth.build_authorization_url(
+                redirect_uri=_redirect_uri(), next_path=next
+            )
+        }
+    except google_oauth.GoogleAuthError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get("/google/callback", dependencies=[Depends(require_local_auth)])
+async def google_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+) -> RedirectResponse:
+    """Complete sign-in and hand the browser back to the app with a token.
+
+    Always a redirect, never JSON: the browser arrives here from Google, so a
+    JSON body would leave the user staring at raw text. Failures go back to the
+    login page carrying a message it can render.
+    """
+    if error or not code or not state:
+        # `error` is Google's own — most often the user pressing Cancel, which
+        # is not a failure worth alarming them about.
+        return _google_failure("Sign-in was cancelled." if error == "access_denied" else "Sign-in could not be completed.")
+
+    try:
+        identity, next_path = await google_oauth.complete_sign_in(
+            code=code, state=state, redirect_uri=_redirect_uri()
+        )
+    except google_oauth.GoogleAuthError as exc:
+        return _google_failure(str(exc))
+
+    user = await db_client.get_user_by_email(identity.email)
+    if user is None:
+        if not ENABLE_SIGNUP:
+            return _google_failure("Signup is disabled on this deployment.")
+        user = await db_client.create_user_with_email(
+            email=identity.email, password_hash=None, name=identity.name
+        )
+        organization = await provision_new_account(user)
+        event = PostHogEvent.SIGNED_UP
+    else:
+        # Linking to an existing account, which is only safe because
+        # complete_sign_in has already refused any unverified email — see the
+        # module docstring in services/auth/google_oauth.py. An account with a
+        # password keeps it; this adds a way in rather than replacing one.
+        # A returning account already has its organization selected. Only an
+        # account that never finished provisioning — a signup that failed
+        # part-way — needs it built now, and doing it here is what stops that
+        # user being permanently stuck at a login that succeeds into nothing.
+        organization = (
+            await db_client.get_organization_by_id(user.selected_organization_id)
+            if user.selected_organization_id
+            else None
+        )
+        if organization is None:
+            organization = await provision_new_account(user)
+        event = PostHogEvent.SIGNED_IN
+
+    token = create_jwt_token(user.id, identity.email)
+    capture_event(
+        distinct_id=str(user.provider_id),
+        event=event,
+        properties={"organization_id": organization.id, "auth_provider": "google"},
+    )
+    logger.info("Google sign-in for user {} ({})", user.id, identity.email)
+
+    return RedirectResponse(
+        url=f"{UI_APP_URL}/auth/google?token={quote(token)}"
+        + (f"&next={quote(next_path)}" if next_path else ""),
+        status_code=303,
+    )
+
+
+def _google_failure(message: str) -> RedirectResponse:
+    return RedirectResponse(
+        url=f"{UI_APP_URL}/auth/login?error={quote(message)}", status_code=303
+    )
