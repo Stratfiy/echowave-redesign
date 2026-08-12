@@ -3,47 +3,18 @@
 import {
   AlertTriangle,
   ArrowUpCircle,
-  AudioLines,
-  Brain,
-  ChartColumnBig,
   ChevronLeft,
   ChevronRight,
-  Database,
-  FileText,
-  Home,
-  Key,
-  KeyRound,
-  LogOut,
-  type LucideIcon,
-  Megaphone,
-  Phone,
-  PhoneOutgoing,
-  Settings,
-  Shield,
-  ShieldCheck,
-  TrendingUp,
   UserRound,
-  Wallet,
-  Workflow,
-  Wrench,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 import { getAuthUserApiV1UserAuthUserGet } from "@/client/sdk.gen";
 import { BrandLogo } from "@/components/BrandLogo";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
-import ThemeToggle from "@/components/ThemeSwitcher";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -63,167 +34,21 @@ import { useAppConfig } from "@/context/AppConfigContext";
 import { useLeadForms } from "@/context/LeadFormsContext";
 import { useTelephonyConfigWarnings } from "@/context/TelephonyConfigWarningsContext";
 import { useLatestReleaseVersion } from "@/hooks/useLatestReleaseVersion";
-import type { LocalUser } from "@/lib/auth";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
-type SidebarNavItem = {
-  title: string;
-  url: string;
-  icon: LucideIcon;
-  showsTelephonyWarning?: boolean;
-};
-
-type SidebarNavSection = {
-  label?: string;
-  items: SidebarNavItem[];
-};
+import {
+  NAV_SECTIONS,
+  type SidebarNavItem,
+  STAFF_SECTION,
+} from "./navigation";
 
 const TELEPHONY_WARNING_COPY = "Action required";
 
-// Shown only to staff. The review queue, the platform key vault and the
-// cross-account run list are reached from here.
-//
-// It was previously reachable only by typing /superadmin into the address bar:
-// nothing in the product linked to it, so a reviewer had to be told the URL by
-// somebody who already knew it. A queue whose promise is turnaround cannot
-// depend on that.
-const STAFF_SECTION: SidebarNavSection = {
-  label: "STAFF",
-  items: [
-    {
-      title: "Review queue",
-      url: "/superadmin",
-      icon: ShieldCheck,
-    },
-  ],
-};
-
-const NAV_SECTIONS: SidebarNavSection[] = [
-  {
-    items: [
-      {
-        title: "Overview",
-        url: "/overview",
-        icon: Home,
-      },
-    ],
-  },
-  {
-    label: "BUILD",
-    items: [
-      {
-        title: "Voice Agents",
-        url: "/workflow",
-        icon: Workflow,
-      },
-      {
-        title: "Campaigns",
-        url: "/campaigns",
-        icon: Megaphone,
-      },
-      {
-        title: "Models",
-        url: "/model-configurations",
-        icon: Brain,
-      },
-      // Sits under Models because that is where someone discovers they want it:
-      // a slot in the model picker offers "your own key", and this is where the
-      // key goes. Storing keys and choosing models are separate jobs, which is
-      // why they are separate screens.
-      {
-        title: "Provider Keys",
-        url: "/provider-keys",
-        icon: KeyRound,
-      },
-      {
-        title: "Telephony",
-        url: "/telephony-configurations",
-        icon: Phone,
-        showsTelephonyWarning: true,
-      },
-      // Sits beside Telephony because that is where someone discovers they
-      // need it — a phone number is the only thing verification gates.
-      {
-        title: "Verification",
-        url: "/verification",
-        icon: ShieldCheck,
-      },
-      // Directly under Verification: approval is the first gate on this flow,
-      // so the thing it unlocks belongs next to it.
-      {
-        title: "Get a number",
-        url: "/numbers",
-        icon: PhoneOutgoing,
-      },
-      {
-        title: "Tools",
-        url: "/tools",
-        icon: Wrench,
-      },
-      {
-        title: "Files",
-        url: "/files",
-        icon: Database,
-      },
-      {
-        title: "Recordings",
-        url: "/recordings",
-        icon: AudioLines,
-      },
-      {
-        title: "Developers",
-        url: "/api-keys",
-        icon: Key,
-      },
-    ],
-  },
-  {
-    label: "MANAGE",
-    items: [
-      // Above the runs table because it answers the question people arrive
-      // with — is this working, and what is it costing — where the table only
-      // answers which calls happened.
-      {
-        title: "Analytics",
-        url: "/analytics",
-        icon: ChartColumnBig,
-      },
-      {
-        title: "Agent Runs",
-        url: "/usage",
-        icon: TrendingUp,
-      },
-      {
-        title: "Reports",
-        url: "/reports",
-        icon: FileText,
-      },
-      // Under MANAGE rather than its own section: on a prepaid account this is
-      // where someone looks when calls stop, so it belongs next to the usage
-      // that drained the balance.
-      {
-        title: "Billing",
-        url: "/billing",
-        icon: Wallet,
-      },
-      // Retention, erasure and export are obligations the account holder owes
-      // the people they called, so they belong where an account is managed
-      // rather than buried in Settings beside integration toggles.
-      {
-        title: "Privacy",
-        url: "/privacy",
-        icon: Shield,
-      },
-    ],
-  },
-];
-
 export function AppSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { state, isMobile, setOpenMobile } = useSidebar();
-  const { provider, logout, user } = useAuth();
+  const { provider, user } = useAuth();
   const { config } = useAppConfig();
   const { openHireExpert } = useLeadForms();
   const {
@@ -301,10 +126,15 @@ export function AppSidebar() {
       <SidebarMenuButton
         asChild
         tooltip={tooltip}
+        // Selected state: a pale tint of the accent with the icon in full
+        // accent, which is the one place besides a primary button where the
+        // orange is allowed to appear. The previous treatment stacked a tinted
+        // fill, a left bar AND a 6px glow behind the icon on the same item —
+        // three signals to say the one thing a fill already says.
         className={cn(
-          "rounded-xl transition-colors hover:bg-accent hover:text-accent-foreground",
+          "rounded-md transition-colors hover:bg-accent hover:text-accent-foreground",
           isItemActive &&
-            "bg-cta/15 font-semibold text-foreground hover:bg-cta/20 hover:text-foreground"
+            "bg-primary/10 font-medium text-foreground hover:bg-primary/15 hover:text-foreground"
         )}
       >
         <Link
@@ -313,16 +143,10 @@ export function AppSidebar() {
           className={cn("relative", isCollapsed && "justify-center")}
           translate="no"
         >
-          {isItemActive && !isCollapsed && (
-            <span
-              className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-cta"
-              aria-hidden
-            />
-          )}
           <Icon
             className={cn(
               "h-4 w-4 shrink-0",
-              isItemActive && "text-cta drop-shadow-[0_0_6px_rgba(240,170,70,0.8)]"
+              isItemActive ? "text-primary" : "text-muted-foreground"
             )}
           />
           <span
@@ -350,33 +174,8 @@ export function AppSidebar() {
     );
   };
 
-  // Footer identity trigger: avatar initials only (no name), in a subtle
-  // bordered circle. Same treatment expanded and collapsed.
-  const displayIdentity =
-    user?.displayName ||
-    (user as { primaryEmail?: string } | undefined)?.primaryEmail ||
-    (user as LocalUser | undefined)?.email ||
-    "";
-  const userInitials =
-    displayIdentity
-      .split(/[\s@]/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((s: string) => s[0]?.toUpperCase())
-      .join("") || "U";
-
-  const userChipTrigger = (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="h-7 w-7 shrink-0 cursor-pointer rounded-full border border-border/80 bg-muted/40 hover:bg-muted/60"
-    >
-      <span className="text-xs font-medium">{userInitials}</span>
-    </Button>
-  );
-
-  // "Hire an Expert" CTA, rendered INSIDE the shared footer pill next to the
-  // profile icon. Expanded: label pill filling the row. Collapsed: icon-only.
+  // "Hire an Expert" is now the only thing in the footer. Expanded: a labelled
+  // pill filling the row. Collapsed: icon-only.
   const hireExpertButton = isCollapsed ? (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -405,7 +204,7 @@ export function AppSidebar() {
   );
 
   return (
-    <Sidebar collapsible="icon" variant="floating" className="app-sidebar-dock py-4">
+    <Sidebar collapsible="icon" variant="sidebar" className="app-sidebar-dock">
       <SidebarHeader className="px-2 py-3 notranslate" translate="no">
         <div className="flex items-center justify-between">
           <div className={cn("flex items-center gap-2", isCollapsed && "hidden")}>
@@ -504,97 +303,8 @@ export function AppSidebar() {
         className={cn("p-3 notranslate", isCollapsed && "p-2")}
         translate="no"
       >
-        <div className="space-y-2">
-          {provider !== "stack" && (
-            <div
-              className={cn(
-                "flex items-center justify-between gap-1 rounded-full border border-border/60 bg-muted/30 p-1",
-                isCollapsed && "flex-col"
-              )}
-            >
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  {userChipTrigger}
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="top" align="start" className="w-56">
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      {(user as LocalUser | undefined)?.email && (
-                        <p className="text-xs text-muted-foreground">{(user as LocalUser).email}</p>
-                      )}
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => router.push("/settings")} className="cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Platform Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {hireExpertButton}
-            </div>
-          )}
-
-          {provider === "stack" && (
-            <div
-              className={cn(
-                "flex items-center justify-between gap-1 rounded-full border border-border/60 bg-muted/30 p-1",
-                isCollapsed && "flex-col"
-              )}
-            >
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  {userChipTrigger}
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="top" align="start" className="w-56">
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      {user?.displayName && (
-                        <p className="text-sm font-medium">{user.displayName}</p>
-                      )}
-                      {(user as { primaryEmail?: string })?.primaryEmail && (
-                        <p className="text-xs text-muted-foreground">{(user as { primaryEmail?: string }).primaryEmail}</p>
-                      )}
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => router.push("/handler/account-settings")} className="cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Account settings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/settings")} className="cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Platform Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {hireExpertButton}
-            </div>
-          )}
-
-          <div className="mt-1 flex justify-center">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="notranslate" translate="no">
-                  <ThemeToggle
-                    showLabel={false}
-                    className="rounded-full hover:bg-accent hover:text-accent-foreground"
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side={isCollapsed ? "right" : "top"}>
-                <p>Toggle theme</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
+        <div className={cn("flex", isCollapsed ? "justify-center" : "justify-stretch [&>button]:w-full")}>
+          {hireExpertButton}
         </div>
       </SidebarFooter>
       <SidebarRail />

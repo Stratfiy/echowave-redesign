@@ -7,8 +7,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-app-sans);
+  --font-mono: var(--font-app-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -54,180 +54,171 @@
   --color-brand-card: var(--brand-card);
 }
 
+/* ---------------------------------------------------------------------------
+   Decibyl app palette — monday.com's structure, Decibyl's orange.
+   ---------------------------------------------------------------------------
+   The rule that governs this whole file: ONE saturated accent, used sparingly,
+   on a near-white canvas. monday's violet covers perhaps 5% of their pixels.
+   A previous attempt applied #F0431C at full strength to primary, panel
+   gradients, chips and glass glows simultaneously; applied everywhere at once
+   it stops reading as a brand and starts reading as an alarm.
+
+   So: --primary is the orange, and it belongs on primary CTAs and active
+   states. Surfaces are white on a #f5f6f8 floor. Tints are for surfaces only —
+   never text, borders or icons.
+
+   Light only. There is no .dark block, by request.
+--------------------------------------------------------------------------- */
 :root {
-  --radius: 0.75rem;
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0.02 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0.02 250);
-  --primary: oklch(0.62 0.16 235);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.97 0.01 235);
-  --secondary-foreground: oklch(0.22 0.02 250);
-  --muted: oklch(0.97 0.005 235);
-  --muted-foreground: oklch(0.5 0.02 250);
-  --accent: oklch(0.96 0.02 235);
-  --accent-foreground: oklch(0.22 0.02 250);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.01 235);
-  --input: oklch(0.94 0.01 235);
-  --ring: oklch(0.62 0.16 235);
-  /* Decibyl brand tokens — nAutomation Labs signature blue */
-  --brand-blue: #28B3F0;
-  --brand-blue-hover: #0A6BC7;
-  --brand-blue-soft: rgba(40, 179, 240, 0.18);
-  --brand-blue-glow: rgba(30, 136, 229, 0.22);
-  --brand-panel: linear-gradient(160deg, #F1F8FE 0%, #E6F3FC 50%, #DCEEFB 100%);
-  --brand-heading: #0B1E33;
-  --brand-body: #4B6076;
-  --brand-chip: rgba(255, 255, 255, 0.6);
-  --brand-chip-border: rgba(20, 90, 150, 0.14);
-  --brand-chip-fg: #1D3A54;
-  --brand-card: rgba(255, 255, 255, 0.72);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  /* Single restrained warm accent — used only on primary CTAs + focus rings. */
-  --cta: oklch(0.72 0.15 65);
-  --cta-foreground: oklch(0.16 0.02 60);
-  /* Giant faded "decibyl" wordmark (authentic Proxima Nova letterforms traced
-     from the brand logo PNG — the font is commercial, so the lettering ships
-     as static artwork in /public; fill + 0.9% opacity are baked into the
-     files). Theme-switched here; consumed by .app-surface and .auth-imprint. */
-  --brand-imprint: url("/brand-imprint-light.svg");
+  /* Cards 24px, inputs/badges 6px. --radius is the card value because that is
+     what shadcn's Card inherits; the small controls opt down explicitly. */
+  --radius: 1.5rem;
+  --radius-control: 0.375rem;
+  --radius-pill: 10rem;
 
-  /* Liquid-glass tokens (see @layer components). The warm accent that pairs
-     with --brand-blue; same hue family the charts use in categorical slot 2. */
-  --brand-amber: #FF801E;
-  --glass-glow-blue: rgba(40, 179, 240, 0.46);
-  --glass-glow-amber: rgba(255, 128, 30, 0.30);
-  --glass-glow-deep: rgba(10, 107, 199, 0.20);
-  --glass-fill: rgba(255, 255, 255, 0.62);
-  --glass-fill-strong: rgba(255, 255, 255, 0.74);
-  --glass-edge: rgba(255, 255, 255, 0.75);
-  /* Layered: lit top edge, contact shadow, ambient lift, then a hairline ring
-     that survives against a light backdrop where the blur alone would not. */
-  --glass-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.85),
-    0 1px 2px 0 rgba(11, 30, 51, 0.04),
-    0 10px 30px -12px rgba(11, 30, 51, 0.16),
-    0 0 0 1px rgba(11, 30, 51, 0.045);
-  --glass-shadow-clay:
-    inset 0 2px 3px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -2px 6px 0 rgba(11, 30, 51, 0.045),
-    0 14px 34px -14px rgba(11, 30, 51, 0.20),
-    0 0 0 1px rgba(11, 30, 51, 0.045);
-  --glass-shadow-clay-hover:
-    inset 0 2px 3px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -2px 6px 0 rgba(11, 30, 51, 0.05),
-    0 20px 44px -16px rgba(11, 30, 51, 0.24),
-    0 0 0 1px rgba(11, 30, 51, 0.06);
-  --glass-accent-fill: rgba(10, 107, 199, 0.92);
+  /* Canvas: grey floor, white cards. The contrast between the two is what
+     makes a card read as a card without needing a heavy border. */
+  --background: #f5f6f8;
+  --foreground: #211814;
+  --card: #ffffff;
+  --card-foreground: #211814;
+  --popover: #ffffff;
+  --popover-foreground: #211814;
+
+  /* The accent. #F0431C, from decibyl.ai's own stylesheet. */
+  --primary: oklch(0.634 0.215 33.6);
+  --primary-foreground: #ffffff;
+  --primary-pressed: oklch(0.537 0.191 32.7);
+
+  --secondary: #eef0f4;
+  --secondary-foreground: #33302e;
+  --muted: #f1f2f5;
+  --muted-foreground: #676879;
+  /* Hover/selected rows and nav items. Warm grey, not orange — an item you
+     merely hovered should not look like the one you selected. */
+  --accent: #f1f2f5;
+  --accent-foreground: #211814;
+
+  /* Deep crimson, deliberately far from the primary's hue 33.6. At the stock
+     shadcn value of 27.3 a delete button and a save button were four degrees
+     apart, which is to say indistinguishable. Keep this separation. */
+  --destructive: oklch(0.505 0.208 18);
+  --warning: oklch(0.75 0.155 70);
+  --success: oklch(0.63 0.145 152);
+
+  --border: #e3e5ec;
+  --input: #d9dce4;
+  --ring: oklch(0.634 0.215 33.6);
+
+  /* --brand-* are consumed by ~68 call sites written when the brand was blue.
+     They are aliases onto the correct tokens, NOT a second palette. Renaming
+     them would be a 68-file diff whose only content is the rename, so the
+     names stay and the values move. */
+  --brand-blue: #F0431C;
+  --brand-blue-hover: #C42D0E;
+  --brand-blue-soft: rgba(240, 67, 28, 0.10);
+  --brand-blue-glow: rgba(240, 67, 28, 0.14);
+  --brand-panel: #ffffff;
+  --brand-heading: #211814;
+  --brand-body: #676879;
+  --brand-chip: #f1f2f5;
+  --brand-chip-border: #e3e5ec;
+  --brand-chip-fg: #33302e;
+  --brand-card: #ffffff;
+  --brand-amber: #FFB627;
+
+  /* Pastel surface tints for feature/stat cards, derived warm so they sit with
+     the orange rather than fighting it. Surfaces only. */
+  --tint-flame: #FFE4D6;
+  --tint-amber: #FFF1DC;
+  --tint-sand: #F6F0E8;
+  --tint-slate: #EEF0F4;
+
+  --chart-1: oklch(0.634 0.215 33.6);
+  --chart-2: oklch(0.824 0.163 77.8);
+  --chart-3: oklch(0.63 0.145 152);
+  --chart-4: oklch(0.58 0.13 250);
+  --chart-5: oklch(0.62 0.16 305);
+
+  /* The sidebar is white against the grey floor, the inverse of the content
+     area. That is what gives the shell its structure without a single rule. */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #33302e;
+  --sidebar-primary: oklch(0.634 0.215 33.6);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f2f5;
+  --sidebar-accent-foreground: #211814;
+  --sidebar-border: #e3e5ec;
+  --sidebar-ring: oklch(0.634 0.215 33.6);
+
+  /* --cta predates --primary and is used on a handful of CTAs. Both now point
+     at the same orange, so the two vocabularies cannot drift apart on screen. */
+  --cta: oklch(0.634 0.215 33.6);
+  --cta-foreground: #ffffff;
+
+  /* One elevation, used everywhere. A design with a single shadow reads as
+     deliberate; one with four reads as accreted. */
+  --shadow-card: rgba(205, 208, 223, 0.4) 0 2px 48px;
+  --shadow-raised: rgba(159, 164, 189, 0.28) 0 4px 20px;
+
+  /* The giant faded wordmark and the liquid-glass system are both retired: the
+     watermark filled two-thirds of every empty screen, and the glass wash left
+     the app looking unfinished rather than light. These aliases stay so the
+     call sites that reference them degrade to flat white instead of breaking. */
+  --brand-imprint: none;
+  --glass-fill: #ffffff;
+  --glass-fill-strong: #ffffff;
+  --glass-edge: #e3e5ec;
+  --glass-glow-blue: transparent;
+  --glass-glow-amber: transparent;
+  --glass-glow-deep: transparent;
+  --glass-shadow: var(--shadow-card);
+  --glass-shadow-clay: var(--shadow-card);
+  --glass-shadow-clay-hover: var(--shadow-raised);
+  --glass-accent-fill: oklch(0.634 0.215 33.6);
   --glass-accent-fg: #ffffff;
-  --glass-amber-fill: rgba(255, 128, 30, 0.14);
-  --glass-amber-edge: rgba(255, 128, 30, 0.30);
-  --glass-amber-fg: #9A4A05;
+  --glass-amber-fill: var(--tint-amber);
+  --glass-amber-edge: #F2E3CB;
+  --glass-amber-fg: #7A4A05;
 }
 
-.dark {
-  --background: oklch(0.16 0.02 245);
-  --foreground: oklch(0.98 0.01 235);
-  --card: oklch(0.21 0.025 245);
-  --card-foreground: oklch(0.98 0.01 235);
-  --popover: oklch(0.21 0.025 245);
-  --popover-foreground: oklch(0.98 0.01 235);
-  --primary: oklch(0.72 0.17 232);
-  --primary-foreground: oklch(0.13 0.03 240);
-  --secondary: oklch(0.27 0.02 245);
-  --secondary-foreground: oklch(0.98 0.01 235);
-  --muted: oklch(0.27 0.02 245);
-  --muted-foreground: oklch(0.72 0.02 235);
-  --accent: oklch(0.28 0.03 235);
-  --accent-foreground: oklch(0.98 0.01 235);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.72 0.17 232);
-  /* Decibyl brand tokens — dark variant */
-  --brand-blue: #5CC8FF;
-  --brand-blue-hover: #28B3F0;
-  --brand-blue-soft: rgba(92, 200, 255, 0.22);
-  --brand-blue-glow: rgba(40, 179, 240, 0.26);
-  --brand-panel: linear-gradient(160deg, #0A1A2E 0%, #0E2540 50%, #123256 100%);
-  --brand-heading: #F1F8FE;
-  --brand-body: #A6B8CC;
-  --brand-chip: rgba(255, 255, 255, 0.06);
-  --brand-chip-border: rgba(92, 200, 255, 0.22);
-  --brand-chip-fg: #DDEEFA;
-  --brand-card: rgba(20, 40, 70, 0.5);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-  /* Warm accent, slightly brighter against the near-black surfaces. */
-  --cta: oklch(0.78 0.16 67);
-  --cta-foreground: oklch(0.16 0.02 60);
-  --brand-imprint: url("/brand-imprint-dark.svg");
-
-  /* Glass, dark variant. The fill goes light-on-dark rather than inverting to
-     black: glass is defined by what shows through it, and a black tint over a
-     near-black surface reads as a hole, not a pane. */
-  --brand-amber: #FFA24D;
-  --glass-glow-blue: rgba(40, 179, 240, 0.24);
-  --glass-glow-amber: rgba(255, 128, 30, 0.12);
-  --glass-glow-deep: rgba(10, 107, 199, 0.22);
-  --glass-fill: rgba(14, 26, 35, 0.62);
-  --glass-fill-strong: rgba(14, 26, 35, 0.52);
-  --glass-edge: rgba(255, 255, 255, 0.11);
-  --glass-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.11),
-    0 1px 2px 0 rgba(0, 0, 0, 0.30),
-    0 12px 32px -12px rgba(0, 0, 0, 0.55);
-  --glass-shadow-clay:
-    inset 0 2px 3px 0 rgba(255, 255, 255, 0.10),
-    inset 0 -2px 6px 0 rgba(0, 0, 0, 0.22),
-    0 16px 36px -14px rgba(0, 0, 0, 0.60);
-  --glass-shadow-clay-hover:
-    inset 0 2px 3px 0 rgba(255, 255, 255, 0.14),
-    inset 0 -2px 6px 0 rgba(0, 0, 0, 0.26),
-    0 22px 46px -16px rgba(0, 0, 0, 0.68);
-  /* Bright blue on a dark surface takes dark text, mirroring how the app's
-     own --primary / --primary-foreground pair resolves in this theme. */
-  --glass-accent-fill: rgba(40, 179, 240, 0.88);
-  --glass-accent-fg: #06182B;
-  --glass-amber-fill: rgba(255, 162, 77, 0.16);
-  --glass-amber-edge: rgba(255, 162, 77, 0.32);
-  --glass-amber-fg: #FFC08A;
-}
+/* The .dark block that stood here is gone: the app is light-only by request.
+   Removing it rather than leaving it unreferenced matters — `.dark` was still
+   togglable from the sidebar, and a half-maintained second palette is how a
+   screen ends up shipping with unreadable text nobody looked at. */
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
 
+  /* Set the family on html explicitly rather than relying on the `--font-sans`
+     mapping in `@theme inline`. `inline` substitutes theme values at their use
+     sites instead of emitting `--font-sans` as a custom property, so Tailwind's
+     preflight `font-family: var(--default-font-family, <system stack>)` falls
+     through to the fallback and the webfont never renders. That failure is
+     invisible to `tsc` and to `next build` — the font loads, nothing uses it —
+     so this line is the whole reason the app is not in the system font. */
+  html {
+    font-family: var(--font-app-sans), ui-sans-serif, system-ui, sans-serif;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-family: inherit;
+  }
+
+  /* Display type: light weight, tightened tracking. The weight is what keeps a
+     36px heading from shouting; the negative tracking is what stops a light
+     weight at that size from falling apart into separate letters. */
+  h1, h2 {
+    font-weight: 300;
+    letter-spacing: -0.02em;
+  }
+
+  h3, h4, h5, h6 {
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -443,40 +434,20 @@
     .auth-waveform span { animation: none; }
   }
 
-  /* Matte app background — flat charcoal (dark) / soft paper (light), NO
-     gradients, with one subtle graphic in BOTH themes: the giant faded
-     "decibyl" wordmark (--brand-imprint, defined in :root/.dark) pinned to
-     the bottom of the viewport, echoing the decibyl.com footer. */
-  /* NOTE: background-attachment: fixed positions in VIEWPORT space but only
-     paints inside .app-surface, which starts right of the ~270px sidebar —
-     the +135px x-shift recentres the wordmark on the VISIBLE canvas. */
+  /* The app canvas: the grey floor white cards sit on.
+
+     It used to carry a giant faded "decibyl" wordmark pinned to the bottom of
+     the viewport. On a populated screen it was a texture; on an empty one it
+     was the screen — two-thirds of the Voice Agents page was watermark. An
+     empty state should look empty and offer the next action, not be decorated
+     to hide that it is empty. The imprint token now resolves to `none`, and
+     both rules that consumed it are flat. */
   .app-surface {
-    background-color: oklch(0.984 0.001 80);
-    background-image: var(--brand-imprint);
-    background-size: min(68vw, 980px) auto;
-    background-position: calc(50% + 135px) calc(100% - 24px);
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-  }
-  /* Sidebar is offcanvas on small screens — true centre there. */
-  @media (max-width: 767px) {
-    .app-surface {
-      background-position: center calc(100% - 24px);
-    }
-  }
-  .dark .app-surface {
-    background-color: oklch(0.165 0.002 80);
+    background-color: var(--background);
   }
 
-  /* Giant faded "decibyl" imprint for the auth pages (applied to the AuthShell
-     form column, shared by Stack + OSS login/signup). Same --brand-imprint as
-     .app-surface; element-relative here (no fixed attachment), so it centers
-     and scales to whatever element carries the class. */
   .auth-imprint {
-    background-image: var(--brand-imprint);
-    background-size: min(86%, 920px) auto;
-    background-position: center calc(100% - 32px);
-    background-repeat: no-repeat;
+    background-image: none;
   }
 
 }
@@ -488,36 +459,38 @@
    layer than @layer components — un-layered author CSS beats both.
 --------------------------------------------------------------------------- */
 
-/* Floating-dock sidebar: detached rounded panel. Targets the shadcn sidebar's
-   inner panel; applied via .app-sidebar-dock on <Sidebar variant="floating">. */
-.app-sidebar-dock [data-slot="sidebar-inner"] {
-  border-radius: 1.25rem;
-  overflow: hidden;
-}
-/* Flat carbon-charcoal panel with a soft light glow along the LEFT edge:
-   a 1px highlight line plus an inner bloom fading rightwards. */
-.dark .app-sidebar-dock [data-slot="sidebar-inner"] {
-  border-color: rgb(255 255 255 / 0.1);
-  background-color: oklch(0.18 0.002 80);
-  box-shadow:
-    inset 1px 0 0 rgb(255 255 255 / 0.1),
-    inset 3px 0 6px -4px rgb(255 255 255 / 0.08),
-    0 24px 50px -14px rgb(0 0 0 / 0.85);
+/* Tailwind's `container` caps at the current breakpoint and centres what is
+   left, which on a 1440 screen leaves a 1152px column inside a 1192px content
+   area — and then each page's own `max-w-*` narrows it again. Nineteen pages
+   use it. Inside the app shell it goes full-bleed with the same 24px gutter
+   the PageHeader uses, so a table can reach the edge the way monday's does.
+   Scoped to .app-surface deliberately: the marketing and auth routes outside
+   the shell still want a measured column. */
+.app-surface .container {
+  max-width: 100%;
+  padding-inline: 1.5rem;
 }
 
-/* Card surface ("Crosshatch + Top-Lit Edge", user-approved 2026-06-11 after a
-   3-round design board): a 45° hairline twill weave at 1% laid over the panel
-   colour, plus — dark mode only — a brighter SOLID top border, like light
-   catching the machined top edge of the panel. Applied app-wide by the Card
-   primitive (components/ui/card.tsx). Un-layered so border-top-color beats
-   the border-border/60 utility. No gradients (user constraint). */
-.card-weave {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M0 0l12 12M12 0L0 12' stroke='%23000000' stroke-opacity='.015' fill='none'/%3E%3C/svg%3E");
-  background-repeat: repeat;
+/* The sidebar is a plain white column against the grey floor, squared off and
+   flush to the viewport edge. The previous treatment floated it as a rounded
+   detached card, which costs ~28px of gutter on both sides and makes the nav
+   read as a widget sitting on the page rather than as the frame around it. */
+.app-sidebar-dock [data-slot="sidebar-inner"] {
+  border-radius: 0;
+  border-right: 1px solid var(--sidebar-border);
+  background-color: var(--sidebar);
+  overflow: hidden;
 }
-.dark .card-weave {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M0 0l12 12M12 0L0 12' stroke='%23ffffff' stroke-opacity='.01' fill='none'/%3E%3C/svg%3E");
-  border-top-color: rgb(255 255 255 / 0.2);
+
+/* Cards are flat white with one soft shadow. The 45° twill texture that used
+   to be laid over every panel is gone: it was legible only as noise at 1%
+   opacity, and against a grey floor the card already separates on value alone.
+   The class name survives because the Card primitive applies it and several
+   screens key off it; it now carries the elevation instead of the texture. */
+.card-weave {
+  background-image: none;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 /* Inside the billing dashboard a shadcn Card IS a glass pane. The six screens
@@ -538,10 +511,6 @@
   border-radius: 20px;
   box-shadow: var(--glass-shadow);
 }
-.dark .glass-canvas .card-weave {
-  background-image: none;
-  border-top-color: var(--glass-edge);
-}
 .glass-canvas .card-weave > :where(div:first-child) {
   padding: 1rem 1.25rem 0.25rem;
 }
@@ -557,10 +526,6 @@
    the slab colour), muted compact labels, and underline-only fields with an
    amber underline on focus. Applied by LeadModalShell; CaptchaChallenge
    reuses slab + underline. */
-.dark .lead-form-slab {
-  background-color: oklch(0.215 0 0);
-  border-color: rgb(255 255 255 / 0.1);
-}
 /* Muted, compact labels — the big white default labels read amateurish. */
 .lead-form-underline label {
   font-size: 0.8125rem;
