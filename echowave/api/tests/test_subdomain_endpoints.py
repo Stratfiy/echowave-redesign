@@ -129,6 +129,9 @@ class TestTheApiHostIsWhatGetsPublished:
         def load(**env: str | None):
             for key in (
                 "DECIBYL_API_HOST",
+                "DECIBYL_APP_HOST",
+                "DECIBYL_DOCS_HOST",
+                "DECIBYL_ROOT_HOST",
                 "BACKEND_API_ENDPOINT",
                 "MINIO_PUBLIC_ENDPOINT",
                 "PUBLIC_BASE_URL",
@@ -183,3 +186,151 @@ class TestTheApiHostIsWhatGetsPublished:
         module = constants()
         assert module.BACKEND_API_ENDPOINT == "http://localhost:8000"
         assert module.MINIO_PUBLIC_ENDPOINT == "http://localhost:9000"
+
+
+class TestNamingOneHostIsEnough:
+    """The renderer only makes the operator name one host. The app has to agree.
+
+    ``decibyl_render_subdomain_nginx_conf`` takes whichever ``DECIBYL_*_HOST``
+    is set, strips a label for the apex, and fills in the conventional names
+    beneath it. So an operator who sets only ``DECIBYL_APP_HOST`` gets an nginx
+    serving ``api.<domain>`` correctly — while the application, if it only read
+    the raw variable, would still publish the root host.
+
+    That is not hypothetical. It is what production did: ``.env`` had
+    ``DECIBYL_APP_HOST=app.decibyl.ai`` and no ``DECIBYL_API_HOST``, nginx
+    routed ``api.decibyl.ai`` fine, and ``/health`` kept reporting
+    ``https://decibyl.ai`` — the one host that serves nothing.
+    """
+
+    @pytest.fixture
+    def constants(self, monkeypatch):
+        def load(**env: str):
+            for key in (
+                "DECIBYL_API_HOST",
+                "DECIBYL_APP_HOST",
+                "DECIBYL_DOCS_HOST",
+                "DECIBYL_ROOT_HOST",
+                "BACKEND_API_ENDPOINT",
+                "MINIO_PUBLIC_ENDPOINT",
+                "PUBLIC_BASE_URL",
+            ):
+                monkeypatch.delenv(key, raising=False)
+            for key, value in env.items():
+                monkeypatch.setenv(key, value)
+            import api.constants as module
+
+            return importlib.reload(module)
+
+        yield load
+
+        monkeypatch.undo()
+        import api.constants as module
+
+        importlib.reload(module)
+
+    def test_naming_only_the_app_host_still_finds_the_api(self, constants):
+        """Production's exact configuration."""
+        module = constants(
+            DECIBYL_APP_HOST="app.decibyl.ai", PUBLIC_BASE_URL="https://decibyl.ai"
+        )
+        assert module.BACKEND_API_ENDPOINT == "https://api.decibyl.ai"
+        assert module.MINIO_PUBLIC_ENDPOINT == "https://api.decibyl.ai"
+
+    def test_naming_only_the_docs_host_works_too(self, constants):
+        module = constants(DECIBYL_DOCS_HOST="docs.decibyl.ai")
+        assert module.BACKEND_API_ENDPOINT == "https://api.decibyl.ai"
+
+    def test_the_root_host_is_used_when_given(self, constants):
+        module = constants(DECIBYL_ROOT_HOST="decibyl.ai")
+        assert module.BACKEND_API_ENDPOINT == "https://api.decibyl.ai"
+
+    def test_a_bare_apex_keeps_its_own_name(self, constants):
+        """One label is not stripped down to the public suffix."""
+        module = constants(DECIBYL_APP_HOST="decibyl.ai")
+        assert module.BACKEND_API_ENDPOINT == "https://api.decibyl.ai"
+
+    def test_an_explicit_api_host_beats_the_derivation(self, constants):
+        module = constants(
+            DECIBYL_APP_HOST="app.decibyl.ai", DECIBYL_API_HOST="edge.decibyl.ai"
+        )
+        assert module.BACKEND_API_ENDPOINT == "https://edge.decibyl.ai"
+
+
+class TestTheAppAndTheRendererAgree:
+    """Parity, asserted by running the renderer rather than reading it.
+
+    The two derivations live in different languages in different directories
+    and are edited by different changes. Comparing them directly is the only
+    check that fails when they drift.
+    """
+
+    @staticmethod
+    def _api_host_according_to_nginx(**env: str) -> str:
+        """Render the real config and report which name serves the API."""
+        import subprocess
+
+        assignments = " ".join(f"{k}={v}" for k, v in env.items())
+        script = f"""
+        set -e
+        cd {ECHOWAVE_DIR}
+        export FASTAPI_WORKERS=1 {assignments}
+        source scripts/lib/setup_common.sh
+        decibyl_render_subdomain_nginx_conf "$PWD" "$1"
+        """
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".conf") as out:
+            subprocess.run(
+                ["bash", "-c", script, "bash", out.name],
+                check=True,
+                capture_output=True,
+            )
+            rendered = Path(out.name).read_text()
+
+        for block in _server_blocks(rendered):
+            if "This is the Decibyl API" in block:
+                for line in block.splitlines():
+                    if line.strip().startswith("server_name "):
+                        return line.strip().rstrip(";").split()[1]
+        raise AssertionError("no API server block in the rendered config")
+
+    @staticmethod
+    def _api_host_according_to_the_app(monkeypatch, **env: str) -> str:
+        for key in (
+            "DECIBYL_API_HOST",
+            "DECIBYL_APP_HOST",
+            "DECIBYL_DOCS_HOST",
+            "DECIBYL_ROOT_HOST",
+            "BACKEND_API_ENDPOINT",
+            "PUBLIC_BASE_URL",
+        ):
+            monkeypatch.delenv(key, raising=False)
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+        import api.constants as module
+
+        return importlib.reload(module).BACKEND_API_ENDPOINT.removeprefix("https://")
+
+    @pytest.mark.parametrize(
+        "env",
+        [
+            {"DECIBYL_APP_HOST": "app.decibyl.ai"},
+            {"DECIBYL_DOCS_HOST": "docs.decibyl.ai"},
+            {"DECIBYL_ROOT_HOST": "decibyl.ai"},
+            {"DECIBYL_APP_HOST": "decibyl.ai"},
+            {"DECIBYL_APP_HOST": "app.decibyl.ai", "DECIBYL_API_HOST": "edge.decibyl.ai"},
+            {"DECIBYL_ROOT_HOST": "example.co.uk", "DECIBYL_APP_HOST": "app.example.co.uk"},
+        ],
+    )
+    def test_both_sides_name_the_same_api_host(self, monkeypatch, env):
+        from_nginx = self._api_host_according_to_nginx(**env)
+        from_app = self._api_host_according_to_the_app(monkeypatch, **env)
+        assert from_app == from_nginx, (
+            f"nginx serves the API at {from_nginx} but the app publishes "
+            f"{from_app} — deploy side and app side disagree for {env}"
+        )
+        monkeypatch.undo()
+        import api.constants as module
+
+        importlib.reload(module)
