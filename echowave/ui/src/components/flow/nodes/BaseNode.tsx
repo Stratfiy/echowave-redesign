@@ -20,14 +20,19 @@ export const BaseNode = forwardRef<
             // Border styling
             "border-border",
             className,
-            // Selected state - prominent halo effect
-            selected ? "border-primary ring-2 ring-primary/40 shadow-[0_0_20px_rgba(59,130,246,0.5)]" : "",
-            // Invalid state
-            invalid ? "border-destructive shadow-[0_0_10px_rgba(239,68,68,0.3)]" : "",
+            // Selection states. The rings were already token-driven, but each
+            // one also carried a hand-written blue halo — so a selected node
+            // rendered an orange ring inside a blue glow. The halos are gone
+            // rather than recoloured: the ring is the affordance, and glows are
+            // not part of this design language.
+            selected ? "border-primary ring-2 ring-primary/40" : "",
+            invalid ? "border-destructive ring-2 ring-destructive/30" : "",
             // Hovered through edge takes precedence over selected through edge
-            hovered_through_edge ? "ring-2 ring-primary/60 shadow-[0_0_12px_rgba(96,165,250,0.3)]" : "",
-            !hovered_through_edge && selected_through_edge ? "ring-1 ring-primary/50 shadow-[0_0_8px_rgba(59,130,246,0.2)]" : "",
-            runtimeActive ? "ring-2 ring-sky-400/60 shadow-[0_0_0_1px_rgba(56,189,248,0.18),0_0_24px_rgba(14,165,233,0.18)]" : "",
+            hovered_through_edge ? "ring-2 ring-primary/60" : "",
+            !hovered_through_edge && selected_through_edge ? "ring-1 ring-primary/50" : "",
+            // Live execution keeps its own colour: this signals runtime state,
+            // not selection, and must not be mistaken for the accent.
+            runtimeActive ? "ring-2 ring-sky-400/60" : "",
             !selected_through_edge && !hovered_through_edge && "hover:border-muted-foreground/50",
         )}
         tabIndex={0}

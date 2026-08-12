@@ -8,8 +8,12 @@ const Card = React.forwardRef<
 >(({ className, ...props }, ref) => (
     <div
         ref={ref}
+        // rounded-xl is now 24px (the radius ramp is stated explicitly in
+        // globals.css rather than derived from --radius). shadow-sm is the one
+        // soft grey elevation the whole app shares, so a card lifts off the
+        // canvas without a hard edge — which is why the border can stay at 60%.
         className={cn(
-            "card-weave rounded-xl border border-border/60 bg-card text-card-foreground shadow-sm dark:shadow-md dark:shadow-black/25",
+            "card-weave rounded-xl border border-border/60 bg-card text-card-foreground shadow-sm",
             className
         )}
         {...props}

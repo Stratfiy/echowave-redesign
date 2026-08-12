@@ -34,7 +34,6 @@ import React, { useEffect, useState } from "react";
 import { getAuthUserApiV1UserAuthUserGet } from "@/client/sdk.gen";
 import { BrandLogo } from "@/components/BrandLogo";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
-import ThemeToggle from "@/components/ThemeSwitcher";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -319,10 +318,14 @@ export function AppSidebar() {
               aria-hidden
             />
           )}
+          {/* The active icon took an amber glow via a hand-written drop-shadow.
+              Glows are out, and the active row already reads as active from its
+              tinted lozenge and ember label — the icon just needs to agree with
+              the label rather than announce itself separately. */}
           <Icon
             className={cn(
               "h-4 w-4 shrink-0",
-              isItemActive && "text-cta drop-shadow-[0_0_6px_rgba(240,170,70,0.8)]"
+              isItemActive && "text-sidebar-accent-foreground"
             )}
           />
           <span
@@ -580,21 +583,6 @@ export function AppSidebar() {
             </div>
           )}
 
-          <div className="mt-1 flex justify-center">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="notranslate" translate="no">
-                  <ThemeToggle
-                    showLabel={false}
-                    className="rounded-full hover:bg-accent hover:text-accent-foreground"
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side={isCollapsed ? "right" : "top"}>
-                <p>Toggle theme</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
         </div>
       </SidebarFooter>
       <SidebarRail />

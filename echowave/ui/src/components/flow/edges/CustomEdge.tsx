@@ -273,17 +273,18 @@ export default function CustomEdge(props: CustomEdgeProps) {
                     path={edgePath}
                     style={{
                         ...style,
+                        // Selection was blue here while the node it connects
+                        // selected orange — the graph disagreed with itself.
+                        // Both now take the accent; invalid stays red and the
+                        // resting edge stays slate, because those carry meaning.
                         stroke: selected
-                            ? '#3B82F6'  // blue-500 when selected
+                            ? 'var(--brand-flame)'
                             : isHovered
-                                ? '#60A5FA'  // blue-400 when hovered
+                                ? 'var(--brand-glow-mid)'
                                 : data?.invalid ? '#EF4444' : '#94A3B8',
+                        // Width alone carries the state now; the drop-shadow
+                        // glows went with the rest of them.
                         strokeWidth: selected ? 4 : isHovered ? 3 : 2.5,
-                        filter: selected
-                            ? 'drop-shadow(0 0 8px rgba(59, 130, 246, 0.6))'
-                            : isHovered
-                                ? 'drop-shadow(0 0 6px rgba(96, 165, 250, 0.4))'
-                                : 'none',
                         transition: 'stroke 0.2s ease, stroke-width 0.2s ease, filter 0.2s ease',
                     }}
                     interactionWidth={20}
@@ -310,10 +311,10 @@ export default function CustomEdge(props: CustomEdgeProps) {
                             "flex flex-col gap-2 bg-card rounded-lg border min-w-[220px]",
                             "animate-in fade-in zoom-in duration-200",
                             data?.invalid
-                                ? "border-destructive/50 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+                                ? "border-destructive/50 ring-2 ring-destructive/25"
                                 : selected
-                                    ? "border-primary ring-2 ring-primary/40 shadow-[0_0_20px_rgba(59,130,246,0.5)]"
-                                    : "border-border shadow-xl"
+                                    ? "border-primary ring-2 ring-primary/40"
+                                    : "border-border shadow-lg"
                         )}>
                             {/* Header with label */}
                             <div className={cn(

@@ -43,9 +43,12 @@ function BackendStatusBanner() {
   const message = config.backendMessage || `Backend is not reachable at ${backendUrl}.`;
 
   return (
+    // Warning semantics come from the tokens, not from Tailwind's amber ramp:
+    // this banner has to stay legible as a warning next to an orange brand, and
+    // --warning is held 44° off the primary hue for exactly that.
     <div
       role="alert"
-      className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+      className="border-b border-warning/40 bg-warning-surface px-4 py-3 text-warning-foreground"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
@@ -60,7 +63,7 @@ function BackendStatusBanner() {
           size="sm"
           onClick={() => void refresh()}
           disabled={loading}
-          className="h-8 shrink-0 border-amber-400 bg-transparent text-amber-950 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-100 dark:hover:bg-amber-900/40"
+          className="h-8 shrink-0 border-warning/50 bg-transparent text-warning-foreground hover:bg-warning/20"
         >
           <RefreshCw className="h-4 w-4" />
           Retry
@@ -123,15 +126,18 @@ const AppLayout: React.FC<AppLayoutProps> = ({
                 </div>
               )}
 
-              {/* Main content area */}
-              <main className="app-surface glass-canvas flex-1">
+              {/* Main content area. `glass-canvas` was briefly put here to give
+                  every page the tinted glass wash; that is the change the look
+                  was rejected for, and the wash itself no longer exists. The
+                  canvas is now just the floor. */}
+              <main className="app-surface flex-1">
                 {children}
               </main>
             </SidebarInset>
           </div>
         </LeadFormsProvider>
       ) : (
-        <div className="app-surface glass-canvas w-full flex-1">
+        <div className="app-surface w-full flex-1">
           <BackendStatusBanner />
           {children}
         </div>

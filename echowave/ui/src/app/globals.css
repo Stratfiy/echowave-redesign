@@ -38,10 +38,34 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* Radii are stated, not derived. The reference pairs very round containers
+     with crisp small controls — a 24px card next to a 6px input — and a single
+     `--radius ± 4px` ramp cannot express that: widening it to reach 24px cards
+     drags inputs to 20px and everything turns into a lozenge. */
+  --radius-sm: 6px;   /* badges, inputs, selects, small controls */
+  --radius-md: 10px;  /* menus, popovers, tooltips */
+  --radius-lg: 16px;  /* dialogs, sheets, nested panels */
+  --radius-xl: 24px;  /* cards */
+
+  /* One elevation, five strengths. Every Tailwind shadow step is redefined so
+     nothing anywhere can emit a foreign drop shadow: the ramp is the same cool
+     grey at increasing spread, never a darker or warmer one. */
+  --shadow-2xs: 0 1px 1px rgba(205, 208, 223, 0.28);
+  --shadow-xs: 0 1px 2px rgba(205, 208, 223, 0.45);
+  --shadow-sm: 0 2px 48px rgba(205, 208, 223, 0.4);
+  --shadow-md: 0 4px 48px rgba(205, 208, 223, 0.5);
+  --shadow-lg: 0 10px 48px -4px rgba(205, 208, 223, 0.62);
+  --shadow-xl: 0 18px 56px -8px rgba(205, 208, 223, 0.7);
+
+  --color-canvas: var(--canvas);
+  --color-tint-peach: var(--tint-peach);
+  --color-tint-amber: var(--tint-amber);
+  --color-tint-sand: var(--tint-sand);
+  --color-tint-sky: var(--tint-sky);
+  --color-tint-mint: var(--tint-mint);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-surface: var(--warning-surface);
   --color-cta: var(--cta);
   --color-cta-foreground: var(--cta-foreground);
   --color-brand-blue: var(--brand-blue);
@@ -54,204 +78,189 @@
   --color-brand-card: var(--brand-card);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   The palette, and the rule that governs it.
+
+   The brief was the reference site's design language carried over with Decibyl
+   orange standing in for its violet. The first attempt at that read as an
+   alarm, and the reason is worth stating here so the next change does not
+   repeat it: the marketing palette was applied literally and at full strength,
+   so #F0431C landed on the primary, on panel gradients, on chips and on glass
+   glows all at once. On a landing page that orange appears two or three times
+   against acres of white. The reference's own violet covers maybe 5% of its
+   pixels.
+
+   So the rule is: ONE saturated accent, used sparingly, on a near-white canvas.
+   --primary is spent on primary CTAs and active states and nowhere else.
+   Everything that used to be orange-tinted structure is now neutral, and the
+   warmth that remains lives in surface tints that never touch text or borders.
+
+   Neutrals are cool slate; the ink is warm. That pairing is deliberate — the
+   warm, brown-biased near-black is the strongest carry-over from decibyl.ai,
+   while a warm grey chrome is what made the first pass feel washed in orange.
+   ═══════════════════════════════════════════════════════════════════════════ */
 :root {
   --radius: 0.75rem;
+
+  /* The floor the app sits on. Cards are white and lift off it; --background
+     stays white so dialogs, sheets and popovers — which all read
+     `bg-background` — remain white rather than inheriting the floor. */
+  --canvas: oklch(0.973 0.003 264.5);      /* #f5f6f8 */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.219 0.016 45.2);   /* #211814, warm ink */
+
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.219 0.016 45.2);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.219 0.016 45.2);
-  --primary: oklch(0.634 0.215 33.6);
+
+  --primary: oklch(0.634 0.215 33.6);      /* #F0431C — CTAs + active only */
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.97 0.012 45);
-  --secondary-foreground: oklch(0.24 0.02 40);
-  --muted: oklch(0.97 0.008 55);
-  --muted-foreground: oklch(0.52 0.02 45);
-  --accent: oklch(0.96 0.024 45);
-  --accent-foreground: oklch(0.24 0.02 40);
-  /* Danger has to survive an orange brand. At its old hue (27.3) it sat four
-     degrees from the new primary (33.6) — a delete button and a save button
-     would have been the same colour, which is how people delete things. Pushed
-     to a deep crimson and away from the flame. */
+
+  /* Secondary/muted/accent are the app's structural greys. They were warm
+     (hue 45) and at that chroma every panel picked up a faint orange cast
+     which, multiplied across a dense screen, was most of the "too much
+     orange". Cool slate at a tenth the chroma reads as neutral. */
+  --secondary: oklch(0.955 0.006 264.5);   /* #eef0f4 */
+  --secondary-foreground: oklch(0.322 0.009 276.9);
+  --muted: oklch(0.963 0.005 264.5);
+  --muted-foreground: oklch(0.523 0.027 282.8);  /* #676879 */
+  --accent: oklch(0.955 0.006 264.5);
+  --accent-foreground: oklch(0.322 0.009 276.9);
+
+  /* Danger has to survive an orange brand. At its original hue (27.3) it sat
+     four degrees from the primary (33.6) — a delete button and a save button
+     the same colour, which is how people delete things they meant to keep.
+     Held at a deep crimson, twenty degrees clear of the flame. */
   --destructive: oklch(0.52 0.22 12);
-  --border: oklch(0.92 0.012 45);
-  --input: oklch(0.94 0.012 45);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  /* Warning is the other semantic that an orange brand can swallow. Pushed to
+     a true yellow-amber, 44° off the primary, and its text tone is dark enough
+     to carry a label on the tint. */
+  --warning: oklch(0.824 0.163 77.8);
+  --warning-foreground: oklch(0.492 0.108 65.1);
+  --warning-surface: oklch(0.980 0.022 87.1);
+
+  --border: oklch(0.913 0.013 271.3);      /* #dfe2eb */
+  --input: oklch(0.913 0.013 271.3);
   --ring: oklch(0.634 0.215 33.6);
 
   /* ── Decibyl brand ────────────────────────────────────────────────────
-     Taken from the marketing site's own stylesheet rather than sampled by
-     eye, so app, docs and decibyl.ai cannot drift: #F0431C primary, #C42D0E
-     pressed, #FF7A2F/#FFB627 the headline gradient, #211814 the ink.
-
-     The ink is the detail that does the most work. It is a warm, brown-biased
-     near-black, not a neutral one — carrying it across is most of what makes
-     the app feel like that landing page instead of "the old app with orange
-     buttons". */
+     Read from the marketing site's own stylesheet rather than sampled by eye,
+     so app, docs and decibyl.ai cannot drift. */
   --brand-flame: #F0431C;
   --brand-ember: #C42D0E;
   --brand-glow-mid: #FF7A2F;
+  --brand-amber: #FFB627;
   --brand-ink: #211814;
 
   /* Legacy aliases. Sixty-eight call sites still say "blue"; pointing them at
-     the new values keeps the rebrand to this file instead of a sixty-eight
+     the new values keeps the restyle inside this file instead of a sixty-eight
      file diff whose only purpose is renaming. New code should use the names
-     above. */
+     above.
+
+     --brand-blue-soft and --brand-blue-glow are what those call sites reach for
+     when they want a *background* — they are now barely-there washes rather
+     than the 16–20% fills they were, because "the accent, but as a surface"
+     applied sixty-eight times is precisely how one accent becomes wallpaper. */
   --brand-blue: var(--brand-flame);
   --brand-blue-hover: var(--brand-ember);
-  --brand-blue-soft: rgba(240, 67, 28, 0.16);
-  --brand-blue-glow: rgba(240, 67, 28, 0.2);
-  --brand-panel: linear-gradient(160deg, #FFF6F0 0%, #FFEDE3 50%, #FFE4D6 100%);
+  --brand-blue-soft: rgba(240, 67, 28, 0.06);
+  --brand-blue-glow: rgba(240, 67, 28, 0.08);
+  /* Was a three-stop orange gradient. Flat, and almost white: the auth aside is
+     a brand moment, not a brand takeover. */
+  --brand-panel: #FFF6F1;
   --brand-heading: #211814;
-  --brand-body: #6B564D;
-  --brand-chip: rgba(255, 255, 255, 0.6);
-  --brand-chip-border: rgba(196, 45, 14, 0.16);
+  --brand-body: #676879;
+  --brand-chip: #FFF3EC;
+  --brand-chip-border: rgba(196, 45, 14, 0.10);
   --brand-chip-fg: #7A3320;
-  --brand-card: rgba(255, 255, 255, 0.72);
+  --brand-card: #ffffff;
 
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.219 0.016 45.2);
-  /* Single restrained warm accent — used only on primary CTAs + focus rings. */
-  --cta: oklch(0.824 0.163 77.8);
-  --cta-foreground: oklch(0.219 0.016 45.2);
+  /* ── Pastel surfaces ──────────────────────────────────────────────────
+     For feature and stat cards. Warm-led so they sit with the orange, with two
+     low-chroma cool companions so a row of them reads as a system rather than
+     one colour fading out. SURFACES ONLY — never text, never borders, never
+     icons. At these lightnesses (0.96–0.98) nothing legible can be drawn in
+     them, which is the point: they tint a card, they do not carry meaning. */
+  --tint-peach: oklch(0.972 0.016 52.6);   /* #FFF3EC */
+  --tint-amber: oklch(0.980 0.022 87.1);   /* #FFF8E8 */
+  --tint-sand: oklch(0.970 0.013 71.3);    /* #FBF4EC */
+  --tint-sky: oklch(0.963 0.010 261.8);    /* #EFF3FA */
+  --tint-mint: oklch(0.963 0.014 169.2);   /* #EAF6F1 */
+
+  --chart-1: oklch(0.634 0.215 33.6);
+  --chart-2: oklch(0.725 0.182 46.0);
+  --chart-3: oklch(0.824 0.163 77.8);
+  --chart-4: oklch(0.653 0.030 276.6);
+  --chart-5: oklch(0.488 0.028 274.9);
+
+  /* Sidebar: white, so the grey canvas beside it reads as the content well.
+     The active item is a soft flame tint with ember text — one of the two
+     places the accent is allowed to appear. */
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.219 0.016 45.2);
+  --sidebar-primary: oklch(0.634 0.215 33.6);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.972 0.016 52.6);
+  --sidebar-accent-foreground: oklch(0.537 0.191 32.7);
+  --sidebar-border: oklch(0.933 0.009 264.5);
+  --sidebar-ring: oklch(0.634 0.215 33.6);
+
+  /* --cta existed as "a single restrained warm accent" from when the brand was
+     blue and warm meant *different*. Against an orange brand, and under a rule
+     that says active states carry the accent, a second accent is just noise —
+     so it resolves to the primary. Focus rings and the auth waveform pick it
+     up and now agree with every other active affordance. */
+  --cta: oklch(0.634 0.215 33.6);
+  --cta-foreground: oklch(0.99 0 0);
   /* Giant faded "decibyl" wordmark (authentic Proxima Nova letterforms traced
      from the brand logo PNG — the font is commercial, so the lettering ships
      as static artwork in /public; fill + 0.9% opacity are baked into the
      files). Theme-switched here; consumed by .app-surface and .auth-imprint. */
   --brand-imprint: url("/brand-imprint-light.svg");
 
-  /* Liquid-glass tokens (see @layer components). The warm accent that pairs
-     with --brand-blue; same hue family the charts use in categorical slot 2. */
-  --brand-amber: #FFB627;
-  --glass-glow-blue: rgba(240, 67, 28, 0.34);
-  --glass-glow-amber: rgba(255, 182, 39, 0.30);
-  --glass-glow-deep: rgba(196, 45, 14, 0.18);
-  --glass-fill: rgba(255, 255, 255, 0.62);
-  --glass-fill-strong: rgba(255, 255, 255, 0.74);
-  --glass-edge: rgba(255, 255, 255, 0.75);
-  /* Layered: lit top edge, contact shadow, ambient lift, then a hairline ring
-     that survives against a light backdrop where the blur alone would not. */
-  --glass-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.85),
-    0 1px 2px 0 rgba(33, 24, 20, 0.04),
-    0 10px 30px -12px rgba(33, 24, 20, 0.16),
-    0 0 0 1px rgba(33, 24, 20, 0.045);
-  --glass-shadow-clay:
-    inset 0 2px 3px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -2px 6px 0 rgba(33, 24, 20, 0.045),
-    0 14px 34px -14px rgba(33, 24, 20, 0.20),
-    0 0 0 1px rgba(33, 24, 20, 0.045);
-  --glass-shadow-clay-hover:
-    inset 0 2px 3px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -2px 6px 0 rgba(33, 24, 20, 0.05),
-    0 20px 44px -16px rgba(33, 24, 20, 0.24),
-    0 0 0 1px rgba(33, 24, 20, 0.06);
-  --glass-accent-fill: rgba(240, 67, 28, 0.92);
+  /* ── Panels (formerly "liquid glass") ────────────────────────────────
+     The glass system is retuned, not replaced and not duplicated — the class
+     names stay so the six superadmin billing screens, /verification and
+     /provider-keys keep working untouched. What changes is what they render
+     as: the tinted atmospheric wash is gone, the fills are opaque white, and
+     the multi-layer clay shadows collapse onto the one soft grey elevation
+     everything else uses. A `.glass-panel` is now simply a card.
+
+     The glow tokens survive as fully transparent so any call site still
+     referencing them composites to nothing rather than breaking. */
+  --glass-glow-blue: rgba(240, 67, 28, 0);
+  --glass-glow-amber: rgba(255, 182, 39, 0);
+  --glass-glow-deep: rgba(196, 45, 14, 0);
+  --glass-fill: #ffffff;
+  --glass-fill-strong: #ffffff;
+  --glass-edge: oklch(0.913 0.013 271.3);
+  --glass-shadow: 0 2px 48px rgba(205, 208, 223, 0.4);
+  --glass-shadow-clay: 0 2px 48px rgba(205, 208, 223, 0.4);
+  --glass-shadow-clay-hover: 0 10px 48px -4px rgba(205, 208, 223, 0.62);
+  --glass-accent-fill: var(--brand-flame);
   --glass-accent-fg: #ffffff;
-  --glass-amber-fill: rgba(255, 182, 39, 0.16);
-  --glass-amber-edge: rgba(255, 182, 39, 0.34);
-  --glass-amber-fg: #8A5206;
+  /* The attention affordance keeps the amber, on the warning tint rather than
+     a translucent fill, so it stays legible against an opaque panel. */
+  --glass-amber-fill: var(--warning-surface);
+  --glass-amber-edge: oklch(0.90 0.06 82);
+  --glass-amber-fg: var(--warning-foreground);
 }
 
-.dark {
-  --background: oklch(0.16 0.02 45);
-  --foreground: oklch(0.98 0.01 45);
-  --card: oklch(0.21 0.025 45);
-  --card-foreground: oklch(0.98 0.01 45);
-  --popover: oklch(0.21 0.025 45);
-  --popover-foreground: oklch(0.98 0.01 45);
-  --primary: oklch(0.7 0.19 36);
-  --primary-foreground: oklch(0.16 0.02 40);
-  --secondary: oklch(0.27 0.02 45);
-  --secondary-foreground: oklch(0.98 0.01 45);
-  --muted: oklch(0.27 0.02 45);
-  --muted-foreground: oklch(0.72 0.02 45);
-  --accent: oklch(0.28 0.03 45);
-  --accent-foreground: oklch(0.98 0.01 45);
-  --destructive: oklch(0.63 0.21 10);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.7 0.19 36);
-  /* Decibyl brand tokens — dark variant.
-     Lifted, not inverted: #F0431C on a near-black ground is dense enough to
-     vibrate against text, so the dark theme runs a lighter, slightly less
-     saturated flame and lets the amber carry the warmth. */
-  --brand-flame: #FF6A3D;
-  --brand-ember: #F0431C;
-  --brand-glow-mid: #FF9057;
-  --brand-ink: #FCEFE9;
+/* The dark theme is gone. The direction is a light one — a near-white canvas
+   with a single saturated accent — and a dark variant of it is not a tint
+   swap: the pastel surfaces have no dark equivalent, and the one soft grey
+   elevation reads as nothing at all on a near-black ground. Rather than ship a
+   second, worse design, light is the only theme.
 
-  --brand-blue: var(--brand-flame);
-  --brand-blue-hover: var(--brand-ember);
-  --brand-blue-soft: rgba(255, 106, 61, 0.2);
-  --brand-blue-glow: rgba(255, 106, 61, 0.24);
-  --brand-panel: linear-gradient(160deg, #1C1210 0%, #2A1A14 50%, #34211A 100%);
-  --brand-heading: #FCEFE9;
-  --brand-body: #C4AA9E;
-  --brand-chip: rgba(255, 255, 255, 0.06);
-  --brand-chip-border: rgba(255, 106, 61, 0.24);
-  --brand-chip-fg: #FFD9C8;
-  --brand-card: rgba(52, 33, 26, 0.5);
-
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-  /* Warm accent, slightly brighter against the near-black surfaces. */
-  --cta: oklch(0.78 0.16 67);
-  --cta-foreground: oklch(0.16 0.02 60);
-  --brand-imprint: url("/brand-imprint-dark.svg");
-
-  /* Glass, dark variant. The fill goes light-on-dark rather than inverting to
-     black: glass is defined by what shows through it, and a black tint over a
-     near-black surface reads as a hole, not a pane. */
-  --brand-amber: #FFA24D;
-  --glass-glow-blue: rgba(255, 106, 61, 0.22);
-  --glass-glow-amber: rgba(255, 195, 82, 0.13);
-  --glass-glow-deep: rgba(196, 45, 14, 0.24);
-  --glass-fill: rgba(28, 18, 16, 0.62);
-  --glass-fill-strong: rgba(28, 18, 16, 0.52);
-  --glass-edge: rgba(255, 255, 255, 0.11);
-  --glass-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.11),
-    0 1px 2px 0 rgba(0, 0, 0, 0.30),
-    0 12px 32px -12px rgba(0, 0, 0, 0.55);
-  --glass-shadow-clay:
-    inset 0 2px 3px 0 rgba(255, 255, 255, 0.10),
-    inset 0 -2px 6px 0 rgba(0, 0, 0, 0.22),
-    0 16px 36px -14px rgba(0, 0, 0, 0.60);
-  --glass-shadow-clay-hover:
-    inset 0 2px 3px 0 rgba(255, 255, 255, 0.14),
-    inset 0 -2px 6px 0 rgba(0, 0, 0, 0.26),
-    0 22px 46px -16px rgba(0, 0, 0, 0.68);
-  /* Bright blue on a dark surface takes dark text, mirroring how the app's
-     own --primary / --primary-foreground pair resolves in this theme. */
-  --glass-accent-fill: rgba(255, 106, 61, 0.9);
-  --glass-accent-fg: #2A1008;
-  --glass-amber-fill: rgba(255, 195, 82, 0.16);
-  --glass-amber-edge: rgba(255, 195, 82, 0.32);
-  --glass-amber-fg: #FFD9A0;
-}
+   The ~147 `dark:` utility variants left in components are inert, not
+   forgotten: they only match under `.dark *`, and nothing can add that class
+   any more — the toggle is removed and the boot script in layout.tsx clears
+   any previously stored preference. Deleting them would be a 147-file diff
+   whose only purpose is deleting, on a change whose standing instruction is
+   not to disturb what works. */
 
 @layer base {
   * {
@@ -283,10 +292,15 @@
 }
 
 /* Attention pulse applied by OnboardingTooltip to the element its arrow points
-   at; removed automatically when the tooltip is dismissed. Blue matches the
-   tooltip body so the ring and the callout read as one unit. Two shadow layers:
+   at; removed automatically when the tooltip is dismissed. Two shadow layers:
    a constant outline so the target stays highlighted between pulses, plus an
-   expanding wave, with a slight breathing scale on top. */
+   expanding wave, with a slight breathing scale on top.
+
+   The ring was hard-coded rgba(59,130,246) — Tailwind blue-500, left over from
+   when the brand was blue. It survived the rebrand because a literal rgba() is
+   invisible to a token sweep, and a build has no opinion about it. Pointing at
+   --primary is also correct on the merits: highlighting the thing you must
+   click next is an active state, which is where the accent belongs. */
 .onboarding-pulse {
   animation: onboarding-pulse 1.5s ease-out infinite;
 }
@@ -294,8 +308,8 @@
 @keyframes onboarding-pulse {
   0% {
     box-shadow:
-      0 0 0 3px rgba(59, 130, 246, 0.75),
-      0 0 0 3px rgba(59, 130, 246, 0.6);
+      0 0 0 3px color-mix(in oklch, var(--primary) 75%, transparent),
+      0 0 0 3px color-mix(in oklch, var(--primary) 60%, transparent);
     transform: scale(1);
   }
   40% {
@@ -303,95 +317,64 @@
   }
   70% {
     box-shadow:
-      0 0 0 3px rgba(59, 130, 246, 0.75),
-      0 0 0 18px rgba(59, 130, 246, 0);
+      0 0 0 3px color-mix(in oklch, var(--primary) 75%, transparent),
+      0 0 0 18px transparent;
     transform: scale(1);
   }
   100% {
     box-shadow:
-      0 0 0 3px rgba(59, 130, 246, 0.75),
-      0 0 0 18px rgba(59, 130, 246, 0);
+      0 0 0 3px color-mix(in oklch, var(--primary) 75%, transparent),
+      0 0 0 18px transparent;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .onboarding-pulse {
     animation: none;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.6);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 60%, transparent);
   }
 }
 
 @layer components {
   /* ---------------------------------------------------------------------
-     Liquid glass — the admin billing dashboard.
+     Panels — retained `.glass-*` names, no longer glass.
 
-     Scoped to `.glass-*` and used only under /superadmin/billing. Two accents
-     carry the whole surface: Decibyl blue (--brand-blue) and a warm amber
-     (--brand-amber), the same pairing the charts already lead with in slots
-     1 and 2, so the chrome and the data agree.
+     These classes are load-bearing for /superadmin/billing (six screens),
+     /superadmin/verification and /superadmin/provider-keys. The names stay so
+     none of those files need touching; what they render as is now the same
+     white card, cool hairline border and single soft shadow used everywhere
+     else in the app.
 
-     Every panel is one recipe: a translucent fill over a blurred backdrop, a
-     hairline ring for structure, and an inset top highlight that reads as the
-     lit edge of a pane of glass. The blur is what makes it glass rather than
-     a flat tint, so the atmospheric glow behind must stay visible through it.
+     The blur, the saturate and the atmospheric wash are gone. Translucency was
+     what made the accent leak: a 62%-opaque pane over a tinted glow puts a
+     little orange behind every table row, which is not "an accent used
+     sparingly" no matter how low the alpha is. There is one recipe left, and
+     it is the plainest one.
      --------------------------------------------------------------------- */
 
-  /* The tinted atmosphere the glass refracts. Painted behind the content via a
-     pseudo-element so no wrapper div is needed and nothing can overlap it. */
+  /* Kept as a no-op positioning context. Removing the class would mean editing
+     four page files to no visual end; leaving it costs nothing and keeps the
+     `isolation` guarantee its children were written against. The wash it used
+     to paint is gone — see the note on --glass-glow-* above. */
   .glass-canvas {
     position: relative;
     isolation: isolate;
   }
 
-  /* The glow has to reach under the panels, not just sit above them — a pane
-     over flat white reads as a plain card. Hence the full-height wash rather
-     than a banner confined to the masthead. */
-  .glass-canvas::before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    inset: -10rem -8rem 0 -8rem;
-    pointer-events: none;
-    background:
-      radial-gradient(46% 36% at 10% 4%, var(--glass-glow-blue), transparent 70%),
-      radial-gradient(42% 30% at 88% 0%, var(--glass-glow-amber), transparent 72%),
-      radial-gradient(50% 30% at 50% 34%, var(--glass-glow-deep), transparent 74%),
-      radial-gradient(40% 26% at 84% 62%, var(--glass-glow-amber), transparent 76%),
-      radial-gradient(46% 30% at 6% 82%, var(--glass-glow-blue), transparent 74%);
-    filter: blur(18px);
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    .glass-canvas::before {
-      animation: glass-drift 24s ease-in-out infinite alternate;
-    }
-  }
-
-  @keyframes glass-drift {
-    from { transform: translate3d(0, 0, 0) scale(1); }
-    to   { transform: translate3d(-1.5rem, 1rem, 0) scale(1.06); }
-  }
-
-  /* The base pane. `saturate` on the backdrop is what keeps colour alive
-     underneath rather than washing to grey. */
   .glass-panel {
     background: var(--glass-fill);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
     border: 1px solid var(--glass-edge);
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     box-shadow: var(--glass-shadow);
   }
 
-  /* Claymorphic variant for the headline figures: puffier radius, a softer and
-     more diffuse shadow, and a second inset from below so the tile reads as a
-     pressed solid rather than a flat sheet. */
+  /* Headline figures. Same surface as a panel; the only thing that still
+     distinguishes it is the hover lift, which is an affordance rather than
+     decoration — these tiles are clickable. */
   .glass-tile {
     background: var(--glass-fill-strong);
-    backdrop-filter: blur(20px) saturate(170%);
-    -webkit-backdrop-filter: blur(20px) saturate(170%);
     border: 1px solid var(--glass-edge);
-    border-radius: 24px;
+    border-radius: var(--radius-xl);
     box-shadow: var(--glass-shadow-clay);
     transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
                 box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -407,25 +390,21 @@
     .glass-tile:hover { transform: none; }
   }
 
-  /* Floating pill nav — the signature of the reference, and it doubles as the
-     page's only sticky chrome now that the app header is mobile-only. */
+  /* Floating pill nav — the signature shape of the reference, and the page's
+     only sticky chrome now that the app header is mobile-only. */
   .glass-nav {
     background: var(--glass-fill-strong);
-    backdrop-filter: blur(50px) saturate(180%);
-    -webkit-backdrop-filter: blur(50px) saturate(180%);
     border: 1px solid var(--glass-edge);
     border-radius: 9999px;
     box-shadow: var(--glass-shadow);
   }
 
-  /* Selected tab: a filled blue lozenge, the one place the brand colour fills
-     a shape rather than tinting one. */
+  /* Selected tab: a filled flame lozenge. An active state, so it is one of the
+     few places the accent is spent — and the only place in this group where it
+     fills a shape rather than tinting one. */
   .glass-nav-active {
     background: var(--glass-accent-fill);
     color: var(--glass-accent-fg);
-    box-shadow:
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.35),
-      0 2px 8px -2px var(--brand-blue-glow);
   }
 
   /* Amber counterpart, for the warning/attention affordances. */
@@ -475,15 +454,19 @@
     .auth-waveform span { animation: none; }
   }
 
-  /* Matte app background — flat charcoal (dark) / soft paper (light), NO
-     gradients, with one subtle graphic in BOTH themes: the giant faded
-     "decibyl" wordmark (--brand-imprint, defined in :root/.dark) pinned to
-     the bottom of the viewport, echoing the decibyl.com footer. */
+  /* The content well. This is the floor the whole app sits on: --canvas, a
+     hair darker and cooler than the white cards, so a card reads as a card
+     without needing a heavy border to say so. No gradients.
+
+     One subtle graphic on it: the giant faded "decibyl" wordmark
+     (--brand-imprint) pinned to the bottom of the viewport, echoing the
+     marketing site's footer. It is baked at 0.9% opacity, which is why it
+     survives on a near-white floor without becoming decoration. */
   /* NOTE: background-attachment: fixed positions in VIEWPORT space but only
      paints inside .app-surface, which starts right of the ~270px sidebar —
      the +135px x-shift recentres the wordmark on the VISIBLE canvas. */
   .app-surface {
-    background-color: oklch(0.984 0.001 80);
+    background-color: var(--canvas);
     background-image: var(--brand-imprint);
     background-size: min(68vw, 980px) auto;
     background-position: calc(50% + 135px) calc(100% - 24px);
@@ -495,9 +478,6 @@
     .app-surface {
       background-position: center calc(100% - 24px);
     }
-  }
-  .dark .app-surface {
-    background-color: oklch(0.165 0.002 80);
   }
 
   /* Giant faded "decibyl" imprint for the auth pages (applied to the AuthShell
@@ -526,53 +506,30 @@
   border-radius: 1.25rem;
   overflow: hidden;
 }
-/* Flat carbon-charcoal panel with a soft light glow along the LEFT edge:
-   a 1px highlight line plus an inner bloom fading rightwards. */
-.dark .app-sidebar-dock [data-slot="sidebar-inner"] {
-  border-color: rgb(255 255 255 / 0.1);
-  background-color: oklch(0.18 0.002 80);
-  box-shadow:
-    inset 1px 0 0 rgb(255 255 255 / 0.1),
-    inset 3px 0 6px -4px rgb(255 255 255 / 0.08),
-    0 24px 50px -14px rgb(0 0 0 / 0.85);
-}
-
-/* Card surface ("Crosshatch + Top-Lit Edge", user-approved 2026-06-11 after a
-   3-round design board): a 45° hairline twill weave at 1% laid over the panel
-   colour, plus — dark mode only — a brighter SOLID top border, like light
-   catching the machined top edge of the panel. Applied app-wide by the Card
-   primitive (components/ui/card.tsx). Un-layered so border-top-color beats
-   the border-border/60 utility. No gradients (user constraint). */
+/* The card surface. The 45° hairline twill at 1.5% (user-approved 2026-06-11
+   after a 3-round design board) stays — on a flat white card it is at the very
+   edge of perceptible, which is exactly what it was chosen to be, and it costs
+   the new look nothing. Applied app-wide by the Card primitive
+   (components/ui/card.tsx). Un-layered so it beats Card's own utilities.
+   No gradients (user constraint). */
 .card-weave {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M0 0l12 12M12 0L0 12' stroke='%23000000' stroke-opacity='.015' fill='none'/%3E%3C/svg%3E");
   background-repeat: repeat;
 }
-.dark .card-weave {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M0 0l12 12M12 0L0 12' stroke='%23ffffff' stroke-opacity='.01' fill='none'/%3E%3C/svg%3E");
-  border-top-color: rgb(255 255 255 / 0.2);
-}
 
-/* Inside the billing dashboard a shadcn Card IS a glass pane. The six screens
-   use the Card primitive inline for their table panels, so rather than fork
-   them all we restate the .glass-panel recipe here, from the same tokens —
-   there is one visual definition of "glass", not two. Un-layered so it beats
-   the bg-card / border-border/60 / shadow-sm utilities Card ships with, and
-   the opaque .card-weave texture that would otherwise sit on top of the blur.
+/* The superadmin screens build their table panels from the Card primitive
+   inline rather than from .glass-panel, so the panel recipe is restated here
+   from the same tokens — there is one visual definition of a panel, not two.
+   Un-layered so it beats the bg-card / border-border/60 / shadow-sm utilities
+   Card ships with.
 
-   Padding is retuned to match: Card's stock p-6 is too generous once the panel
-   is translucent and the content is dense financial tables. */
+   Padding stays tightened: Card's stock p-6 is too generous for dense
+   financial tables regardless of what the surface looks like. */
 .glass-canvas .card-weave {
-  background-image: none;
   background-color: var(--glass-fill);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid var(--glass-edge);
-  border-radius: 20px;
+  border-radius: var(--radius-xl);
   box-shadow: var(--glass-shadow);
-}
-.dark .glass-canvas .card-weave {
-  background-image: none;
-  border-top-color: var(--glass-edge);
 }
 .glass-canvas .card-weave > :where(div:first-child) {
   padding: 1rem 1.25rem 0.25rem;
@@ -584,15 +541,10 @@
   padding: 1.25rem;
 }
 
-/* Lead-form shell ("Ledger" treatment, user-approved 2026-06-11): neutral
-   charcoal slab where ONLY the header band is darker (body and footer share
-   the slab colour), muted compact labels, and underline-only fields with an
-   amber underline on focus. Applied by LeadModalShell; CaptchaChallenge
-   reuses slab + underline. */
-.dark .lead-form-slab {
-  background-color: oklch(0.215 0 0);
-  border-color: rgb(255 255 255 / 0.1);
-}
+/* Lead-form shell ("Ledger" treatment, user-approved 2026-06-11): muted
+   compact labels and underline-only fields, the focused control taking an
+   accent underline. Applied by LeadModalShell; CaptchaChallenge reuses the
+   underline treatment. */
 /* Muted, compact labels — the big white default labels read amateurish. */
 .lead-form-underline label {
   font-size: 0.8125rem;

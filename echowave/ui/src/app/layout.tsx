@@ -51,19 +51,19 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Inline script to prevent flash of wrong theme - runs before React hydrates.
-            Light is the default brand mode; stored 'dark' opts in. */}
+        {/* There is one theme now, and it is light. This script used to honour a
+            stored 'dark' preference; it runs before React hydrates so it is
+            also the only place that can strip a preference already sitting in
+            a returning user's localStorage. Without the eviction those users
+            would boot into a dark theme whose tokens no longer exist, with no
+            toggle left to escape it. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
-                  var theme = localStorage.getItem('theme');
-                  if (theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                  } else {
-                    document.documentElement.classList.remove('dark');
-                  }
+                  document.documentElement.classList.remove('dark');
+                  localStorage.removeItem('theme');
                 } catch (e) {}
               })();
             `,

@@ -24,7 +24,11 @@ export function AuthEnterpriseCTA() {
       <Button
         onClick={openModal}
         data-testid="auth-enterprise-cta"
-        className="w-full bg-brand-blue text-white shadow-[0_10px_30px_-12px_rgba(40,179,240,0.6)] hover:bg-brand-blue-hover"
+        // The default variant already IS the accent. This carried a hand-written
+        // bg + hover + a cyan glow shadow left over from the blue brand, which
+        // put a blue halo under an orange button on the first screen a customer
+        // sees. One accent, defined in one place.
+        className="w-full"
       >
         Talk to Sales →
       </Button>

@@ -3,8 +3,11 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// Badges go the other way from buttons: 6px, not a pill. Two fully-rounded
+// shapes at different sizes read as the same control, and a status badge is not
+// something you click — the shape difference is what says so.
 const badgeVariants = cva(
-    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+    "inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
     {
         variants: {
             variant: {
@@ -15,8 +18,12 @@ const badgeVariants = cva(
                 destructive:
                     "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
                 outline: "text-foreground",
+                // Semantics get their own tones rather than a Tailwind default.
+                // green-500 was a raw palette value that answered to nothing.
                 success:
-                    "border-transparent bg-green-500 text-white hover:bg-green-600",
+                    "border-transparent bg-emerald-600 text-white hover:bg-emerald-700",
+                warning:
+                    "border-transparent bg-warning-surface text-warning-foreground hover:bg-warning/25",
             },
         },
         defaultVariants: {

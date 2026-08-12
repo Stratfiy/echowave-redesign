@@ -2,50 +2,36 @@
 
 import Link from 'next/link';
 
-import { GitHubStarBadge } from '@/components/layout/GitHubStarBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
 
 export default function OverviewPage() {
-    const { user, provider } = useAuth();
-    const isOSSMode = provider !== 'stack';
+    const { user } = useAuth();
 
     return (
         <div className="container mx-auto px-4 py-8">
             <div className="max-w-4xl mx-auto">
-                {/* Welcome Card */}
+                {/* Welcome Card. Display type is light 300 with negative
+                    tracking — the treatment Poppins was brought in for. */}
                 <Card className="mb-8">
                     <CardHeader>
-                        <CardTitle className="text-3xl">
-                            {isOSSMode ? (
-                                "Welcome to Decibyl"
-                            ) : (
-                                `Welcome${user?.displayName ? `, ${user.displayName.split(' ')[0]}` : ''}!`
-                            )}
+                        <CardTitle className="text-4xl font-light tracking-[-0.02em]">
+                            {`Welcome${user?.displayName ? `, ${user.displayName.split(' ')[0]}` : ''}`}
                         </CardTitle>
                         <CardDescription className="text-lg mt-2">
-                            {isOSSMode ? (
-                                <>
-                                    Open source alternative to Vapi. Help us support the project by giving us a star on GitHub.
-                                </>
-                            ) : (
-                                "Get started with building voice AI workflows"
-                            )}
+                            Design a conversation, connect your providers, and start calling.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        {isOSSMode && (
-                            <div className="mb-6">
-                                <GitHubStarBadge label="Star us on GitHub" showCount source="overview_page" />
-                            </div>
-                        )}
-                    </CardContent>
                 </Card>
 
-                {/* Quick Actions */}
+                {/* Quick Actions. These are the feature cards the pastel tints
+                    exist for: the tint is the card's surface and nothing else —
+                    the text, the border and the buttons on top are unchanged,
+                    which is what keeps a tinted card readable and keeps the
+                    warmth from turning into another accent. */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Card>
+                    <Card className="bg-tint-peach">
                         <CardHeader>
                             <CardTitle>Create and Manage your Voice Agents</CardTitle>
                             <CardDescription>
@@ -61,7 +47,7 @@ export default function OverviewPage() {
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className="bg-tint-sky">
                         <CardHeader>
                             <CardTitle>Configure Services</CardTitle>
                             <CardDescription>
@@ -79,7 +65,7 @@ export default function OverviewPage() {
                 </div>
 
                 {/* Resources Section */}
-                <Card className="mt-8">
+                <Card className="mt-8 bg-tint-sand">
                     <CardHeader>
                         <CardTitle>Resources</CardTitle>
                         <CardDescription>

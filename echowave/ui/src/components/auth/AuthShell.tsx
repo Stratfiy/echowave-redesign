@@ -1,15 +1,16 @@
-// Decibyl auth shell — rebranded from the legacy dark 2-col layout to a
-// premium light/blue nAutomation Labs aesthetic with an on-panel dark-mode
-// toggle. LEFT: brand + value panel with animated waveform, feature chips,
-// and enterprise CTA. RIGHT: the auth form card. Mobile collapses to a
-// single column. The palette leans on the app's new blue accent
-// (--brand-blue) with soft neutrals so both light and dark modes read as
-// coherent variants of the same brand.
+// Decibyl auth shell. Two columns: LEFT a brand/value panel with the animated
+// waveform, feature chips and enterprise CTA; RIGHT the auth form card. Mobile
+// collapses to a single column.
+//
+// This is the first screen a customer sees, and the one place where showing the
+// brand is the job — so the panel takes a flat peach tint. It is a tint, not a
+// gradient and not a glow: an earlier pass ran a three-stop orange gradient
+// here with two blurred radial blobs on top of it, and that page is most of
+// what made the rebrand read as an alarm rather than a brand.
 
 import type { ReactNode } from "react";
 
 import { BrandLogo } from "@/components/BrandLogo";
-import ThemeToggle from "@/components/ThemeSwitcher";
 
 const HIGHLIGHTS = [
   "Speech-to-speech",
@@ -29,21 +30,9 @@ export function AuthShell({
     <div className="grid min-h-screen w-full bg-background lg:grid-cols-[52%_48%]">
       {/* Brand / value panel (LEFT) — hidden on mobile */}
       <aside className="relative hidden flex-col justify-between overflow-hidden bg-brand-panel p-10 lg:flex xl:p-14">
-        {/* Soft radial glow anchoring the brand color */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -left-24 top-1/4 size-[32rem] rounded-full opacity-40 blur-3xl"
-          style={{ background: "radial-gradient(circle, var(--brand-blue-soft), transparent 65%)" }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-16 bottom-0 size-[24rem] rounded-full opacity-30 blur-3xl"
-          style={{ background: "radial-gradient(circle, var(--brand-blue-glow), transparent 70%)" }}
-        />
-
         <div className="relative flex items-center justify-between">
           <BrandLogo className="h-9" />
-          <span className="rounded-full border border-brand-blue/25 bg-brand-blue/10 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-brand-blue">
+          <span className="rounded-sm border border-brand-chip-border bg-white px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-brand-chip-fg">
             by nAutomation Labs
           </span>
         </div>
@@ -52,10 +41,13 @@ export function AuthShell({
           <div className="auth-waveform" aria-hidden>
             <span /><span /><span /><span /><span /><span /><span /><span />
           </div>
-          <h1 className="text-4xl font-semibold leading-[1.05] tracking-tight text-brand-heading xl:text-[44px]">
+          {/* Light 300 with negative tracking is the display treatment the switch
+              to Poppins was made for, and the thing that most separates this
+              from the 700-weight SaaS default. */}
+          <h1 className="text-4xl font-light leading-[1.05] tracking-[-0.02em] text-brand-heading xl:text-[44px]">
             Build production
             <br />
-            <span className="text-brand-blue">voice AI agents</span>
+            <span className="font-normal text-brand-blue">voice AI agents</span>
             <br />
             without vendor lock-in.
           </h1>
@@ -66,7 +58,7 @@ export function AuthShell({
             {HIGHLIGHTS.map((point) => (
               <li
                 key={point}
-                className="rounded-full border border-brand-chip-border bg-brand-chip px-3 py-1 text-xs font-medium text-brand-chip-fg"
+                className="rounded-sm border border-brand-chip-border bg-white px-3 py-1 text-xs font-medium text-brand-chip-fg"
               >
                 {point}
               </li>
@@ -75,7 +67,7 @@ export function AuthShell({
         </div>
 
         {/* Enterprise CTA block */}
-        <div className="relative max-w-md space-y-3 rounded-2xl border border-brand-chip-border bg-brand-card/70 p-5 backdrop-blur-sm">
+        <div className="relative max-w-md space-y-3 rounded-3xl border border-brand-chip-border bg-brand-card p-5">
           <h2 className="text-sm font-semibold text-brand-heading">
             Need on-prem, data residency &amp; a data perimeter?
           </h2>
@@ -90,16 +82,16 @@ export function AuthShell({
       {/* Form column (RIGHT) — scrolls and stays centered so tall forms never
           clip. Carries the giant faded "decibyl" imprint along its bottom. */}
       <main className="auth-imprint relative flex min-h-screen flex-col overflow-y-auto">
-        <div className="absolute right-6 top-6 z-10">
-          <ThemeToggle data-testid="auth-theme-toggle" />
-        </div>
         <div className="flex min-h-full items-center justify-center p-6 sm:p-10">
           <div className="w-full max-w-md space-y-6">
             {/* Mobile-only wordmark (brand panel is hidden) */}
             <div className="mb-2 lg:hidden">
               <BrandLogo className="h-8" />
             </div>
-            <div className="space-y-6 rounded-2xl border border-border/60 bg-card p-6 shadow-[0_20px_60px_-30px_rgba(15,60,120,0.25)] sm:p-8">
+            {/* The shadow here was a hand-written rgba(15,60,120) — a blue drop
+                shadow left over from the blue brand, on the product's first
+                screen. It now takes the app's one shared elevation. */}
+            <div className="space-y-6 rounded-3xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
               {children}
             </div>
           </div>
