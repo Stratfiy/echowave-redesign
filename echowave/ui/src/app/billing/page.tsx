@@ -23,6 +23,7 @@ import {
     Clock,
     Download,
     Loader2,
+    Mail,
     Wallet,
     XCircle,
 } from "lucide-react";
@@ -30,6 +31,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
     createTopupApiV1BillingTopupPost,
+    emailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPost,
     getBalanceApiV1BillingBalanceGet,
     getBillingProfileApiV1BillingProfileGet,
     getTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGet,
@@ -220,6 +222,7 @@ export default function BillingPage() {
     const [profile, setProfile] = useState<BillingProfileFields>(EMPTY_PROFILE);
     const [profileComplete, setProfileComplete] = useState(true);
     const [savingProfile, setSavingProfile] = useState(false);
+    const [emailingDocumentId, setEmailingDocumentId] = useState<number | null>(null);
     const [documents, setDocuments] = useState<TaxDocument[]>([]);
     const [downloadingDocumentId, setDownloadingDocumentId] = useState<number | null>(
         null,
@@ -311,6 +314,33 @@ export default function BillingPage() {
             setSavingProfile(false);
         }
     }, [profile, refresh]);
+
+    // Sending a document again is a delivery, not a reissue: same number, same
+    // snapshot, same PDF. It exists because the send at issue time happens once
+    // and has one unrecoverable failure -- a document issued before the account
+    // had a billing email is never sent, and completing the profile afterwards
+    // does not go back for it.
+    const emailDocument = useCallback(async (doc: TaxDocument) => {
+        setError(null);
+        setNotice(null);
+        setEmailingDocumentId(doc.id);
+        try {
+            const response =
+                await emailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPost({
+                    path: { document_id: doc.id },
+                });
+            if (response.error) {
+                setError(detailFromError(response.error, "Could not send the document"));
+                return;
+            }
+            const sentTo = (response.data as { to?: string } | undefined)?.to;
+            setNotice(
+                sentTo ? `${doc.number} sent to ${sentTo}.` : `${doc.number} sent.`,
+            );
+        } finally {
+            setEmailingDocumentId(null);
+        }
+    }, []);
 
     const downloadDocument = useCallback(async (doc: TaxDocument) => {
         setError(null);
@@ -895,6 +925,21 @@ export default function BillingPage() {
                                                 {formatPaise(doc.total_paise)}
                                             </TableCell>
                                             <TableCell className="text-right">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8"
+                                                    disabled={emailingDocumentId === doc.id}
+                                                    onClick={() => void emailDocument(doc)}
+                                                    aria-label={`Email ${doc.number}`}
+                                                    title="Send to your billing email"
+                                                >
+                                                    {emailingDocumentId === doc.id ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Mail className="h-4 w-4" />
+                                                    )}
+                                                </Button>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
