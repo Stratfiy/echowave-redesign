@@ -38,9 +38,34 @@ PUBLIC_HOST = os.getenv("PUBLIC_HOST") or None
 # the browser as "the backend is at", and what telephony webhooks, embed
 # snippets and OAuth redirect URIs are built from. Every one of those pointed
 # at a dead host.
-_SUBDOMAIN_API_BASE_URL = (
-    f"https://{os.getenv('DECIBYL_API_HOST')}" if os.getenv("DECIBYL_API_HOST") else None
-)
+#
+# The derivation mirrors decibyl_render_subdomain_nginx_conf in
+# scripts/lib/setup_common.sh, and it has to. That renderer only requires the
+# operator to name ONE host: it takes whichever of the three is set, strips a
+# label to get the apex, and fills in the conventional api./app./docs. names
+# beneath it. An operator who set only DECIBYL_APP_HOST therefore gets an
+# nginx that serves api.<domain> correctly while the application, reading the
+# raw variable, has never heard of it — deploy side and app side disagreeing
+# about the same deployment, which is the exact shape of the bug this constant
+# already had once. Keep the two in step.
+def _derive_api_base_url() -> str | None:
+    explicit = os.getenv("DECIBYL_API_HOST")
+    if explicit:
+        return f"https://{explicit}"
+
+    root_host = os.getenv("DECIBYL_ROOT_HOST")
+    if not root_host:
+        named = os.getenv("DECIBYL_APP_HOST") or os.getenv("DECIBYL_DOCS_HOST")
+        if not named:
+            return None
+        # Strip one label. A bare apex (decibyl.ai) has no subdomain to strip,
+        # so keep it rather than reducing it to the public suffix.
+        root_host = named.split(".", 1)[1] if named.count(".") >= 2 else named
+
+    return f"https://api.{root_host}"
+
+
+_SUBDOMAIN_API_BASE_URL = _derive_api_base_url()
 
 # Public URL the backend builds webhook/callback/embed links from. Derives from
 # DECIBYL_API_HOST, then PUBLIC_BASE_URL (public IP / domain), falling back to
