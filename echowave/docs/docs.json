@@ -140,6 +140,7 @@
             "group": "Account",
             "pages": [
               "account/billing",
+              "account/analytics",
               "account/roles-and-permissions",
               "account/tax-documents",
               "account/usage-metrics"

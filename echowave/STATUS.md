@@ -7,6 +7,14 @@ from memory or docs. Every claim below names the file it came from.
 engineering is good and the wiring is not. Nothing here is vapour; several
 things are configured wrong in ways that lose money silently.
 
+> **Update — 12 Aug 2026.** The wiring gap this audit led with is now largely
+> closed. Payments, recording read-back, docs hosting and inbound calling were
+> all verified against production after it was written; the items below are
+> marked inline where that happened, with what was actually observed. Anything
+> not marked was **not** re-checked and should be read at its original date —
+> the point of this document is that every claim names its evidence, and a
+> blanket refresh would break that.
+
 ---
 
 ## 1. WHAT SHIPS TODAY
@@ -22,7 +30,7 @@ things are configured wrong in ways that lose money silently.
 | BYOK credential vault | Encrypted, masked, per-org, tenant-scoped |
 | Managed model tier | Platform keys, per-slot managed/BYOK mixing |
 | Per-turn latency capture | `call_turn_metrics`, 6-point timeline, p50/p95 in SQL |
-| Recordings + transcripts (write) | Stored fine; **read-back broken, see below** |
+| Recordings + transcripts | Stored fine. Read-back **fixed** — `BACKEND_API_ENDPOINT` and `MINIO_PUBLIC_ENDPOINT` were falling back to the root host; `constants.py` now derives the API subdomain the same way the deploy renderer does |
 
 ### Half-built
 
@@ -34,9 +42,10 @@ things are configured wrong in ways that lose money silently.
   path (see §4) — running one today is a regulatory incident, not a feature.
 - **Payments.** Full Razorpay integration: signature-verified webhook,
   idempotent by partial unique index, amount taken from our order not the
-  payload. **Not configured** — `RAZORPAY_WEBHOOK_SECRET` unset, so
-  `routes/payments.py:117` returns 503 on every top-up. Code is good; nobody
-  can pay.
+  payload. ~~Not configured.~~ **Configured and verified end-to-end (12 Aug):**
+  top-up → webhook → credit applied → voucher generated → emailed via Resend,
+  landing in the inbox. The 503 path in `routes/payments.py` remains as the
+  correct behaviour when the secret is unset.
 - **Knowledge base.** Upload path calls MPS unconditionally
   (`tasks/knowledge_base_processing.py:178`). MPS is the upstream vendor's
   hosted service and does not resolve from this deployment. **Document upload
@@ -49,9 +58,11 @@ things are configured wrong in ways that lose money silently.
   The "transfer to human" node will fail on your actual carrier.
 - **Managed telephony** gated off by `MANAGED_TELEPHONY_ENABLED` (default
   false). Deliberate — the reseller account does not exist yet.
-- **Auto-recharge / UPI mandate.** No code at all. Grepped
-  `auto_recharge|mandate|autopay|subscription` across billing: zero hits.
-  Manual top-up only.
+- **Auto-recharge / UPI mandate.** ~~No code at all.~~ Built since:
+  `services/billing/mandates.py`, with `REQUIRE_MANDATE_FOR_NUMBERS` defaulting
+  to true in `constants.py:197`. **Blocked on Razorpay**, not on us — the
+  Subscriptions product is a separate approval and the account does not have it
+  yet. Manual top-up until then.
 
 ### Auth, tenancy, dashboard
 
@@ -262,13 +273,13 @@ Ranked. Numbers are dev-days for one person.
 
 **P0 — must ship before a paying customer**
 
-| # | Item | Why | Days |
-|---|---|---|---|
-| 1 | Configure Razorpay | Code is done; 503 on every top-up. Nobody can pay you | 0.5 |
-| 2 | Fix MinIO signed URLs | `SignatureDoesNotMatch` — recordings and transcripts unreachable. The product's whole value is hearing what the agent said | 0.5 |
-| 3 | DND list + calling hours | No DND scrubbing anywhere. TRAI/TCCCPR exposure the moment you dial someone who isn't you. 9am–9pm window also absent | 3 |
-| 4 | Rate for `stt:openai` | Undercosted calls today | 0.25 |
-| 5 | Mid-call balance enforcement | Customer raises their own max duration and outruns their balance | 2 |
+| # | Item | Why | Days | Status |
+|---|---|---|---|---|
+| 1 | Configure Razorpay | Code is done; 503 on every top-up. Nobody can pay you | 0.5 | **Done** — top-up → credit → voucher → email verified 12 Aug |
+| 2 | Fix MinIO signed URLs | `SignatureDoesNotMatch` — recordings and transcripts unreachable. The product's whole value is hearing what the agent said | 0.5 | **Done** — cause was the host fallback in `constants.py`, not the signing |
+| 3 | DND list + calling hours | No DND scrubbing anywhere. TRAI/TCCCPR exposure the moment you dial someone who isn't you. 9am–9pm window also absent | 3 | Open — **the one P0 left** |
+| 4 | Rate for `stt:openai` | Undercosted calls today | 0.25 | Not re-checked |
+| 5 | Mid-call balance enforcement | Customer raises their own max duration and outruns their balance | 2 | Not re-checked |
 
 **P1 — before ten customers**
 
@@ -283,20 +294,22 @@ Ranked. Numbers are dev-days for one person.
 
 **P2 — can wait**
 
-| # | Item | Days |
-|---|---|---|
-| 12 | Prompt caching / history truncation | 3 |
-| 13 | ap-south-1 migration (~250ms RTT saving) | 1 |
-| 14 | Auto-recharge / UPI mandate | 5 |
-| 15 | Outbound at scale (untested) | 3 |
-| 16 | `docs.decibyl.ai` (Mintlify unpointed) | 0.25 |
+| # | Item | Days | Status |
+|---|---|---|---|
+| 12 | Prompt caching / history truncation | 3 | Open |
+| 13 | ap-south-1 migration (~250ms RTT saving) | 1 | Not re-checked |
+| 14 | Auto-recharge / UPI mandate | 5 | Built; blocked on Razorpay Subscriptions approval |
+| 15 | Outbound at scale (untested) | 3 | Single outbound and inbound calls now verified; **at scale still untested** |
+| 16 | `docs.decibyl.ai` (Mintlify unpointed) | 0.25 | **Done** — live on Astro Starlight, 136 pages, link check clean |
 
 ### Honest totals
 
-- **P0: ~6.5 days.** Non-negotiable. Items 1–3 are the difference between a
-  demo and a business.
-- **P0 + P1: ~19 days.**
-- **Everything: ~31 days.**
+Originally: P0 ~6.5 days, P0+P1 ~19, everything ~31.
+
+As of 12 Aug, items 1, 2 and 16 are done and 14 is blocked externally rather
+than unbuilt. **DND scrubbing and calling hours (item 3) is the only P0 left**,
+and it is the one that carries regulatory exposure rather than lost revenue —
+which makes it the gate on dialling anyone who has not asked to be called.
 
 Add 40% for the unknowns a first cohort finds. **Call it 9 days to first paying
 customer, 27 to ten of them**, single developer.

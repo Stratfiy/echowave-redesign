@@ -137,6 +137,93 @@ class TestTenantIsolation:
         # Their spend must not appear in my breakdown.
         assert response.json()["spent_paise"] == 0
 
+    async def test_another_orgs_tokens_are_not_in_my_breakdown(
+        self, db_session, async_session
+    ):
+        """`by_model` names the model and the spend behind it.
+
+        Leaking it tells one customer which models a competitor runs and what
+        they pay per thousand tokens — the same failure as /usage/spend, on a
+        route that had no test holding it.
+        """
+        _mine, my_user = await _account(async_session, "iso-tok-mine")
+        theirs, their_user = await _account(async_session, "iso-tok-theirs")
+
+        await _costed_call(
+            async_session,
+            theirs,
+            their_user,
+            items=[(CostComponent.LLM.value, "openai", "gpt-4o", 9999, 400000)],
+        )
+
+        async with _client(my_user) as client:
+            response = await client.get(
+                "/api/v1/organizations/usage/tokens",
+                params={"organization_id": theirs.id},
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["by_model"] == []
+        assert all(row.get("tokens", 0) == 0 for row in body["series"])
+
+    async def test_another_orgs_calls_are_not_in_my_analytics(
+        self, db_session, async_session
+    ):
+        """`by_agent` carries agent *names*, not just totals.
+
+        A total that included someone else's traffic would be wrong; a list
+        that included their agent names would be a disclosure. Both are
+        checked, because the leak here is worse than an inflated number.
+        """
+        _mine, my_user = await _account(async_session, "iso-calls-mine")
+        theirs, their_user = await _account(async_session, "iso-calls-theirs")
+
+        await _costed_call(
+            async_session,
+            theirs,
+            their_user,
+            items=[(CostComponent.LLM.value, "openai", "gpt-4o", 500, 1000)],
+        )
+
+        async with _client(my_user) as client:
+            response = await client.get(
+                "/api/v1/organizations/usage/calls",
+                params={"organization_id": theirs.id},
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["totals"]["calls"] == 0
+        assert body["by_agent"] == []
+        assert body["by_direction"] == []
+        assert body["by_disposition"] == []
+
+    async def test_call_analytics_never_publishes_the_margin(
+        self, db_session, async_session
+    ):
+        """`daily_series` is a staff query; two of its columns are ours alone.
+
+        It returns `provider_cost_paise` and `margin_paise` — what the vendors
+        charged and what we kept. The route re-projects rather than passing
+        through, and nothing in the UI has to render a field for it to be
+        readable in the response.
+        """
+        org, user = await _account(async_session, "margin")
+        await _costed_call(
+            async_session,
+            org,
+            user,
+            items=[(CostComponent.LLM.value, "openai", "gpt-4o", 500, 1000)],
+        )
+
+        async with _client(user) as client:
+            response = await client.get("/api/v1/organizations/usage/calls")
+
+        assert response.status_code == 200
+        assert "margin_paise" not in response.text
+        assert "provider_cost_paise" not in response.text
+
     async def test_no_organization_selected_is_a_400(
         self, db_session, async_session
     ):
@@ -146,6 +233,24 @@ class TestTenantIsolation:
 
         async with _client(user) as client:
             response = await client.get("/api/v1/organizations/usage/tokens")
+        assert response.status_code == 400
+
+    @pytest.mark.parametrize("path", ["usage/calls", "usage/tokens", "usage/spend"])
+    async def test_every_analytics_route_requires_an_organization(
+        self, db_session, async_session, path
+    ):
+        """None of the three may fall back to "all accounts" when unscoped.
+
+        A missing `selected_organization_id` passes `None` to the query layer,
+        where `organization_id is not None` drops the filter entirely — the
+        superadmin behaviour. The 400 is what stops that reaching a customer.
+        """
+        user = UserModel(provider_id=f"user-noorg-{path.replace('/', '-')}")
+        async_session.add(user)
+        await async_session.flush()
+
+        async with _client(user) as client:
+            response = await client.get(f"/api/v1/organizations/{path}")
         assert response.status_code == 400
 
 

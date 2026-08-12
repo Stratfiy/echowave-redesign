@@ -1,0 +1,88 @@
+---
+title: "Analytics"
+sidebarTitle: "Analytics"
+description: "Read your call shape, token consumption and spend from the dashboard"
+---
+
+**Analytics** is where you answer the three questions that follow a live agent: are my calls connecting, what are they consuming, and what is that costing me.
+
+Open it from the sidebar, or go to `/analytics`. Three tabs sit across the top, in the order those questions get asked — **Calls**, **Tokens**, **Spend** — with a range picker (`7d` / `30d` / `90d`) on the right.
+
+<Note>
+The range lives in the URL, not in the page. Switching tabs keeps the window you were looking at, and a link to `?days=90` is a link you can send to someone else.
+</Note>
+
+Everything on these screens is scoped to the organization you are signed in to. There is no way to widen it to another account, and no request parameter that changes it.
+
+## Calls
+
+The shape of your traffic, not just its total. The runs table under **Usage** already answers *which calls happened*; this answers whether they are working.
+
+Four tiles across the top:
+
+| Tile | What it tells you |
+|---|---|
+| **Calls** | Every run started in the window |
+| **Answer rate** | The share that were actually answered, with the connected count beneath |
+| **Average length** | Mean billable duration, and total minutes |
+| **Spend** | What those calls were charged |
+
+Answer rate turns amber below 30%. That is almost never an agent problem — it is a wrong-numbers, caller-ID-reputation or calling-hours problem, and it is worth checking before you touch a prompt. See [Usage Metrics](/account/usage-metrics) for the exact definition.
+
+<Note>
+Answer rate reads `—` rather than `0%` on an account with no calls. Zero would mean "every call went unanswered", which is a much more alarming statement than "nothing has been dialled yet".
+</Note>
+
+Below the tiles:
+
+- **Calls per day** — volume, with the billable minutes behind it.
+- **How long calls run** — a histogram in fixed bands. Empty bands stay in place so the distribution keeps its shape as data arrives. Under 30 seconds is usually a hang-up; past five minutes is where language-model spend starts to compound (see [Context growth](#context-growth) below).
+- **When the phone rings** — by hour of day, in IST. Bucketed in local time deliberately: IST is 5½ hours off the hour, so a UTC bucket would smear every peak across two of them.
+- **Outcomes** — your dispositions, with calls and minutes each. Decibyl has no fixed taxonomy of outcomes; every workflow defines its own strings. Read whichever row is *your* success outcome.
+- **By direction** — inbound against outbound, each with its own answer count.
+- **Busiest agents** — your top ten workflows by call volume.
+
+A large untagged row in **Outcomes** usually means a workflow path that ends without setting a disposition. It is worth fixing — it is the one thing that makes this panel hard to read.
+
+## Tokens
+
+Money conflates two different things: how busy the account was, and how expensive the agent design is. Rupees go up when you make more calls, which tells you nothing about whether a prompt change was a good idea.
+
+**Tokens per minute** separates them. It stays flat when volume grows and moves when the agent changes, so it is the number to watch after editing a prompt, swapping a model, or adding a tool.
+
+The **By model** table is the split a per-call total cannot give you: which model consumed the tokens, what it cost, tokens per call, and an effective cost per 1,000 tokens. That last figure is derived from what was actually spent rather than read off the rate card — so a model priced at one rate and billed at another shows up here as the discrepancy it is.
+
+<Note>
+Agents running on your own provider keys are billed by that provider directly and do not appear here. If **By model** is empty on an account that is clearly making calls, check whether it is running BYOK — see [Billing](/account/billing).
+</Note>
+
+### Context growth
+
+A voice agent resends the whole conversation on every turn. Language-model cost therefore grows with roughly the *square* of call length, and no per-call line item will ever show you that — it is a structural property of the design, not a charge.
+
+Three tiles make it visible:
+
+- **Context growth** — how much bigger the prompt is at the deepest turn than at the first, as a multiple. It turns amber at 4× or more.
+- **Prompt cache hit rate** — caching removes most of the cost of resent context. Below 20% is flagged; `Not reported` means the provider did not return cache figures.
+- **Turns measured** — how much data the multiple is based on.
+
+If growth is high and the cache hit rate is low, the fix is structural: shorten the system prompt, summarise earlier turns, or end calls sooner. Changing model rarely helps.
+
+## Spend
+
+A single total answers "how much" and nothing else. The split is what tells you whether your bill is speech, language or carriage — and those have completely different fixes: a cheaper voice, a shorter prompt, or fewer unanswered dials.
+
+**Where the money goes** stacks daily spend by component — transcription, language model, speech, telephony, and the Decibyl platform fee — in receipt order, so the stack reads cost-then-fee from the bottom up. Colours follow the component and never its rank, so filtering never repaints the chart.
+
+Alongside it, the two numbers a prepaid account actually needs:
+
+- **Daily average** — burn rate, averaged across *every* day in the window, quiet ones included. An account that only calls on weekdays still runs out on a Sunday, and a projection that skips the quiet days is optimistic in the direction that hurts.
+- **Credit lasts** — days remaining at that rate. Amber at 21 days, red at 7. It reads `—` when there has been no spend to project from.
+
+Top up before **Credit lasts** goes red — calls stop at a zero balance. See [Billing](/account/billing) for top-ups and autopay.
+
+## Related
+
+- [Usage Metrics](/account/usage-metrics) — the metric definitions, and the same figures over the API
+- [Billing](/account/billing) — pricing, top-ups, GST and invoices
+- [Calls and runs](/core-concepts/calls-and-runs) — what a run is and what gets recorded
