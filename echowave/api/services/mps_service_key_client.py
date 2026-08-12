@@ -133,11 +133,31 @@ class MPSServiceKeyClient:
             if include_archived:
                 params["include_archived"] = "true"
 
-            response = await client.get(
-                f"{self.base_url}/api/v1/service-keys/",
-                params=params,
-                headers=self._get_headers(organization_id, created_by),
-            )
+            try:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/service-keys/",
+                    params=params,
+                    headers=self._get_headers(organization_id, created_by),
+                )
+            except httpx.RequestError as exc:
+                # MPS unreachable: no DNS record, no route, or a timeout. An
+                # answer of "no service keys" is already what this returns when
+                # MPS replies with an error, and the same is true when it
+                # cannot reply at all -- there are no keys to report either way.
+                #
+                # Raising here instead turned a page load into a 500 for every
+                # deployment that does not run MPS. A self-hosted install with
+                # its own provider keys has no use for the managed proxy, and
+                # the default MPS_API_URL does not resolve, so listing keys
+                # failed for everybody it was never meant to serve. Writes are
+                # left to raise: someone asking to create a key needs to be
+                # told it did not happen.
+                logger.info(
+                    "MPS unreachable at {} ({}); reporting no service keys.",
+                    self.base_url,
+                    exc,
+                )
+                return []
 
             if response.status_code == 200:
                 keys = response.json()

@@ -87,3 +87,64 @@ async def test_create_correlation_id_uses_bearer_auth(monkeypatch):
             },
         )
     ]
+
+
+class TestMpsBeingUnreachable:
+    """A managed proxy that was never deployed must not break a page.
+
+    The default MPS_API_URL points at a host that does not resolve, and a
+    self-hosted install using its own provider keys has no use for MPS at all.
+    Listing keys used to raise the transport error, which the route turned into
+    a 500 -- so the screen failed for exactly the deployments MPS never served.
+
+    Non-200 from MPS already meant "no keys". Unreachable means the same thing:
+    there are none to report either way.
+    """
+
+    async def test_a_dns_failure_reports_no_keys(self, monkeypatch):
+        import httpx
+
+        from api.services.mps_service_key_client import MPSServiceKeyClient
+
+        class _Failing:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def get(self, *a, **kw):
+                raise httpx.ConnectError("[Errno -2] Name or service not known")
+
+        monkeypatch.setattr(
+            "api.services.mps_service_key_client.httpx.AsyncClient", _Failing
+        )
+
+        assert await MPSServiceKeyClient().get_service_keys(organization_id=1) == []
+
+    async def test_a_timeout_reports_no_keys(self, monkeypatch):
+        import httpx
+
+        from api.services.mps_service_key_client import MPSServiceKeyClient
+
+        class _Timing:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def get(self, *a, **kw):
+                raise httpx.ReadTimeout("too slow")
+
+        monkeypatch.setattr(
+            "api.services.mps_service_key_client.httpx.AsyncClient", _Timing
+        )
+
+        assert await MPSServiceKeyClient().get_service_keys(created_by="u") == []
