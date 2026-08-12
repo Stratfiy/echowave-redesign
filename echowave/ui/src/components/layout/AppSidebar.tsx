@@ -29,8 +29,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import React from "react";
+import React, { useEffect, useState } from "react";
 
+import { getAuthUserApiV1UserAuthUserGet } from "@/client/sdk.gen";
 import { BrandLogo } from "@/components/BrandLogo";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
 import ThemeToggle from "@/components/ThemeSwitcher";
@@ -79,6 +80,24 @@ type SidebarNavSection = {
 };
 
 const TELEPHONY_WARNING_COPY = "Action required";
+
+// Shown only to staff. The review queue, the platform key vault and the
+// cross-account run list are reached from here.
+//
+// It was previously reachable only by typing /superadmin into the address bar:
+// nothing in the product linked to it, so a reviewer had to be told the URL by
+// somebody who already knew it. A queue whose promise is turnaround cannot
+// depend on that.
+const STAFF_SECTION: SidebarNavSection = {
+  label: "STAFF",
+  items: [
+    {
+      title: "Review queue",
+      url: "/superadmin",
+      icon: ShieldCheck,
+    },
+  ],
+};
 
 const NAV_SECTIONS: SidebarNavSection[] = [
   {
@@ -224,6 +243,27 @@ export function AppSidebar() {
     versionInfo?.ui,
     { enabled: config?.deploymentMode === "oss" },
   );
+
+  // Staff-ness is a server fact, so it is read from the server rather than
+  // inferred from anything the browser already has. A failure here simply
+  // leaves the section hidden: showing a staff link to a customer is worse
+  // than making a reviewer reload.
+  const [isStaff, setIsStaff] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void (async () => {
+      const response = await getAuthUserApiV1UserAuthUserGet();
+      if (!cancelled && !response.error) {
+        setIsStaff(Boolean(response.data?.staff_role));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const navSections = isStaff ? [...NAV_SECTIONS, STAFF_SECTION] : NAV_SECTIONS;
 
   const isActive = (path: string) => pathname.startsWith(path);
 
@@ -433,7 +473,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className={cn("notranslate", isCollapsed && "px-0")} translate="no">
-        {NAV_SECTIONS.map((section, index) => (
+        {navSections.map((section, index) => (
           <SidebarGroup
             key={section.label ?? "overview"}
             className={index === 0 ? "mt-2" : "mt-6"}

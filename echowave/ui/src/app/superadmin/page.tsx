@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, KeyRound, List, Loader2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, KeyRound, List, Loader2, ShieldCheck, Wallet } from 'lucide-react';
 import Link from "next/link";
 import { useState } from "react";
 
@@ -225,6 +225,28 @@ export default function SuperadminPage() {
                                     <Button className="w-full md:w-auto">
                                         <List className="mr-2 h-4 w-4" />
                                         View All Runs
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </Link>
+                            </CardContent>
+                        </Card>
+
+                        {/* Built, routed and reachable — but nothing linked to it, so the
+                            readiness checks and per-account balances it shows were
+                            invisible unless you already knew the path. */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Billing</CardTitle>
+                                <CardDescription>
+                                    Account balances, unit economics and the billing
+                                    readiness checks
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Link href="/superadmin/billing">
+                                    <Button className="w-full md:w-auto">
+                                        <Wallet className="mr-2 h-4 w-4" />
+                                        Open Billing
                                         <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 </Link>
