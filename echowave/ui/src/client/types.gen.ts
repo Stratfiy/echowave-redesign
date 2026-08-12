@@ -11668,6 +11668,54 @@ export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses = {
 
 export type GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponse = GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses[keyof GetTaxDocumentApiV1BillingDocumentsDocumentIdGetResponses];
 
+export type EmailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Document Id
+         */
+        document_id: number;
+    };
+    query?: never;
+    url: '/api/v1/billing/documents/{document_id}/email';
+};
+
+export type EmailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EmailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPostError = EmailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPostErrors[keyof EmailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPostErrors];
+
+export type EmailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPostResponses = {
+    /**
+     * Response Email Tax Document Again Api V1 Billing Documents  Document Id  Email Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EmailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPostResponse = EmailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPostResponses[keyof EmailTaxDocumentAgainApiV1BillingDocumentsDocumentIdEmailPostResponses];
+
 export type GetTaxDocumentPdfApiV1BillingDocumentsDocumentIdPdfGetData = {
     body?: never;
     headers?: {

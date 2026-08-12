@@ -1,0 +1,78 @@
+---
+title: "Billing"
+description: "What Decibyl costs, how prepaid credit works, and where your GST invoices come from."
+---
+
+Decibyl is prepaid. You add credit, calls draw it down, and you are never invoiced for more than you have already paid for.
+
+## What you pay
+
+**$0.02 per minute** of connected call time, billed per second. Time is counted from answer to hangup — ringing, busy signals and unanswered calls cost nothing.
+
+That is the platform fee. Alongside it you pay for what the call consumes:
+
+| Component | Billed by |
+| --- | --- |
+| **Platform** | Decibyl, at $0.02/min |
+| **LLM, speech-to-text, text-to-speech** | Your provider, if you use your own keys — otherwise Decibyl |
+| **Telephony minutes** | Your carrier, if you bring your own account — otherwise Decibyl |
+| **Managed phone number** | Decibyl, monthly per number |
+
+There is no seat licence and no minimum commitment. Agents you build and never call cost nothing.
+
+### Your keys or ours
+
+Every model slot — LLM, transcription, voice — is independently either **yours** or **ours**.
+
+- **Your key (BYOK).** You pay the provider directly at whatever rate you have with them. Decibyl adds nothing for that component.
+- **Our key (managed).** Usage appears on your Decibyl invoice, and you do not need an account with the provider at all.
+
+Mixing is normal and supported: your own OpenAI key for the LLM, our Sarvam for Indian-language speech, for example. See [Inference providers](/configurations/inference-providers).
+
+## Adding credit
+
+**Billing → Add credit.** Choose an amount and pay by card, UPI, net banking or wallet through Razorpay.
+
+Credit appears once the payment is confirmed by Razorpay's servers, not when the payment window closes. That is usually a second or two. The balance on screen re-reads itself rather than assuming — a browser saying "paid" is not proof of payment.
+
+<Note>
+GST is added at checkout on top of the credit you buy. Buying ₹500 of credit charges ₹590 and gives you ₹500 of usage; the ₹90 is tax, not a fee.
+</Note>
+
+## Invoices and receipts
+
+Every payment produces a **receipt voucher** — a GST document with your registered name, GSTIN, place of supply and the tax split.
+
+They appear under **Billing → Documents**, where each one can be downloaded as a PDF or sent to your billing email.
+
+### Complete your billing profile first
+
+Under **Billing → Billing details**, fill in your registered business name, GSTIN, address and billing email.
+
+This matters more than it looks:
+
+- **Your GSTIN and state code decide the tax split.** A customer in the same state as us pays CGST + SGST; anywhere else in India pays IGST. The total is the same either way, but the split is what your accountant files.
+- **A document issued before you complete this has no customer details on it**, which makes it useless for claiming input credit.
+- **Your billing email is where documents are sent.** Without one they are still issued and downloadable, but nothing is emailed.
+
+If documents were issued before you filled this in, open **Billing → Documents** and use the send button on each one — they will go to your billing email with the PDF attached.
+
+## Running out of credit
+
+When your balance runs low you get an email warning before anything stops, sent once a day at 09:00 IST to everyone on the account.
+
+If the balance reaches zero, calls stop being placed. Nothing is deleted — your agents, numbers, recordings and transcripts stay exactly as they are, and topping up resumes service immediately.
+
+For a **managed phone number**, the monthly rental is collected from your balance. If it cannot be collected the number is suspended after seven days and becomes eligible for release after 45 — which is why the warning email exists, and why autopay is worth setting up.
+
+## Autopay
+
+**Billing → Autopay** sets up a UPI mandate so the monthly number rental collects automatically, without you needing to remember a top-up.
+
+The mandate is authorised once by you and covers the rental only. It does not top up your usage credit — that stays a deliberate act.
+
+## Seeing where the money went
+
+**Agent Runs** lists every call with its duration and cost. **Analytics** aggregates that by day, agent and campaign.
+
+If a number surprises you, start with the run: it shows the per-call breakdown of platform time, model usage and telephony.

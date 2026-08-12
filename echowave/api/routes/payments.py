@@ -33,7 +33,7 @@ from api.constants import (
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
-from api.services.billing import billing_profile, documents, payments
+from api.services.billing import billing_profile, document_email, documents, payments
 from api.services.billing.tax import TaxError
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -296,6 +296,57 @@ async def get_tax_document(
 ) -> dict[str, Any]:
     """One document in full, including both parties as of issue."""
     return _document_view(await _load_document(document_id, user))
+
+
+@router.post("/documents/{document_id}/email")
+async def email_tax_document_again(
+    document_id: int, user: UserModel = Depends(get_user)
+) -> dict[str, Any]:
+    """Send a document to the account's billing email, on request.
+
+    Exists because the send at issue time is a single best-effort attempt with
+    no retry, and it has one failure mode nobody can recover from: a document
+    issued before the account filled in its billing profile has no address on
+    it, so it is never sent and there is no way to ask for it again. Four were
+    issued that way on the live deployment before anybody noticed -- correct
+    documents, downloadable, that the paying customer never received.
+
+    Re-sends rather than re-issues. The document is unchanged: same number,
+    same snapshot, same PDF. Only the delivery is repeated, which is why this
+    is safe to call more than once.
+    """
+    document = await _load_document(document_id, user)
+
+    if not document_email.email_is_configured():
+        raise HTTPException(
+            status_code=409,
+            detail="Email is not configured on this deployment.",
+        )
+
+    async with db_client.async_session() as session:
+        recipient = await document_email.resolve_recipient(session, document)
+
+    if not recipient:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "No billing email on file. Add one to your billing profile, "
+                "then send this document again."
+            ),
+        )
+
+    result = await document_email.send_document(
+        document,
+        recipient=recipient,
+        pdf_bytes=document_email.render_pdf(document),
+    )
+    if not result.ok:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not send the document: {result.error}",
+        )
+
+    return {"sent": True, "to": recipient, "number": document.number}
 
 
 @router.get("/documents/{document_id}/pdf")

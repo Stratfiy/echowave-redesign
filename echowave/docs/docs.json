@@ -139,6 +139,7 @@
           {
             "group": "Account",
             "pages": [
+              "account/billing",
               "account/roles-and-permissions",
               "account/tax-documents",
               "account/usage-metrics"

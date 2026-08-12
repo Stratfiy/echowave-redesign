@@ -1,58 +1,64 @@
 ---
 title: "Introduction"
+description: "What Decibyl is, what it costs, and how to get your first voice agent running."
 ---
 
 ## About Decibyl
 
-**Decibyl is an open-source alternative to platforms like Vapi and Retell** - Decibyl helps you build voice AI agents with an easy drag-and-drop workflow builder. Unlike proprietary solutions like Vapi, Decibyl gives you:
-- **100% open source** - no vendor lock-in, full transparency
-- **Self-hostable** - deploy anywhere, own your infrastructure  
-- **Complete control** - every line of code is open and customizable
-- **2-minute setup** - from zero to working voice bot in under 2 minutes
+**Decibyl is a voice AI platform for building and running production phone agents.** You design a conversation as a flow, connect a phone number or drop a talk button on your website, and Decibyl runs the call — speech recognition, the model, the voice, the tools it calls mid-conversation, and the recording and transcript afterwards.
 
-## Overview
-Watch the following video to learn about Decibyl’s capabilities.
+It is built for teams selling and supporting in India, which shows up where it matters:
 
-<iframe
-  className="w-full aspect-video rounded-xl"
-  src="https://www.youtube.com/embed/sxiSp4JXqws"
-  title="Decibyl Overview"
-  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-  allowFullScreen
-></iframe>
+- **Indian languages, properly** — Hindi, Tamil, Telugu, Kannada, Malayalam, Marathi, Bengali, Gujarati and more, including callers who switch language mid-sentence.
+- **Your model, your keys** — bring your own OpenAI, Anthropic, Google, Sarvam, Deepgram or ElevenLabs keys, or use ours. Mix them: your LLM with our speech, or the reverse.
+- **Telephony that works here** — Plivo, Twilio, Telnyx, Vonage and Cloudonix, or a managed number we buy and configure for you.
+- **A flow you can read** — a graph of nodes rather than one long prompt, so you can see where a conversation went and change that one step.
+- **Built for assistants** — an MCP server, so Claude Code or Codex can build and edit agents directly.
 
+## Pricing
 
-## Setting up
+**$0.02 per minute** of connected call time, billed per second.
 
-Get the platform up and running using Docker with a small startup script on your local computer. If you are looking to deploy the platform on a server different than your local machine, please check the [Deployment](deployment/introduction) section.
+That is the platform fee. On top of it you pay for what the call consumes:
 
-<Note>We collect anonymous usage data to improve the product. You can opt out by setting `ENABLE_TELEMETRY=false` before running the startup script.</Note>
+| | |
+| --- | --- |
+| **Platform** | $0.02/min of connected time, billed per second |
+| **Model, speech-to-text, text-to-speech** | Your own provider keys, billed by them — or ours, billed through us |
+| **Telephony** | Your carrier account, billed by them — or a managed number from us |
 
-<CodeGroup>
-```bash macOS/Linux
-chmod +x scripts/start_docker.sh && ./scripts/start_docker.sh
-```
-```powershell Windows
-.\scripts\start_docker.ps1
-```
-</CodeGroup>
+No seat licence, no minimum commitment, and nothing to pay for agents you build but never call. Billing is prepaid: top up, and usage draws down. See [Billing](/account/billing) for invoices, GST and payment methods.
 
-Please check [Prerequisites](getting-started/prerequisites) for the system requirements and [Troubleshooting](getting-started/troubleshooting) for common issues.
+## Get started
 
-## Next Steps
-
-Once the platform is running, build your first agent in [Your First Agent in 5 Minutes](/getting-started/first-agent) — no telephony setup required. Or configure an [inference provider](/configurations/inference-providers) first if you're bringing your own LLM keys.
-
-Two shortcuts worth knowing before you start:
+Create an account at [app.decibyl.ai](https://app.decibyl.ai). You can build an agent and talk to it in your browser before spending anything.
 
 <CardGroup cols={2}>
+  <Card title="Your first agent in 5 minutes" icon="microphone" href="/getting-started/first-agent">
+    Create an agent, get a generated conversation flow, and talk to it in your
+    browser. No phone number and no telephony account needed.
+  </Card>
   <Card title="Let an assistant build it" icon="wand-magic-sparkles" href="/integrations/mcp">
     Describe the agent you want to Claude Code or Codex and get a working one.
     Decibyl's MCP server gives your assistant the tools **and** the voice-agent
     craft to do it properly.
   </Card>
-  <Card title="Skip the phone number" icon="globe" href="/voice-agent/add-to-website">
-    Put a talk button on your website with one script tag. No carrier account,
-    no KYC — the fastest route to a real conversation with a real person.
+  <Card title="Put it on your website" icon="globe" href="/voice-agent/add-to-website">
+    A talk button with one script tag. No carrier account, no KYC — the fastest
+    route to a real conversation with a real person.
+  </Card>
+  <Card title="Connect a phone number" icon="phone" href="/integrations/telephony/overview">
+    Bring your own carrier account, or have us buy and configure a number for
+    you.
   </Card>
 </CardGroup>
+
+## Running Decibyl in your own environment
+
+For regulated teams and high-scale deployments, Decibyl can run inside your own cloud — your VPC, your data, your retention policy, with call audio never leaving your perimeter. That is a commercial arrangement rather than a download; [talk to us](https://decibyl.ai) about it.
+
+The [Deployment](/deployment/introduction) section covers how the platform is put together, which is what you want if you are the person operating it.
+
+## Next steps
+
+Build your first agent in [Your First Agent in 5 Minutes](/getting-started/first-agent). If you are bringing your own model keys, set those up first in [Inference providers](/configurations/inference-providers).

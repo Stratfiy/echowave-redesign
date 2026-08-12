@@ -13,6 +13,8 @@ from datetime import UTC, datetime
 
 import pytest
 
+from api.services.messaging.email import SendResult
+
 from api.db.models import (
     BillingProfileModel,
     OrganizationModel,
@@ -101,7 +103,7 @@ class TestEmailTaxDocument:
         monkeypatch.setattr(task_module, "email_is_configured", lambda: False)
         sent = []
         monkeypatch.setattr(
-            task_module, "send_email", lambda **kw: sent.append(kw) or None
+            task_module, "send_document", lambda *a, **kw: sent.append(kw) or None
         )
 
         await task_module.email_tax_document(None, voucher.id)
@@ -116,11 +118,11 @@ class TestEmailTaxDocument:
         monkeypatch.setattr(task_module, "email_is_configured", lambda: True)
         calls = []
 
-        async def _fake_send(**kwargs):
+        async def _fake_send(document, **kwargs):
             calls.append(kwargs)
-            return task_module.SendResult(ok=True)  # type: ignore[attr-defined]
+            return SendResult(ok=True)
 
-        monkeypatch.setattr(task_module, "send_email", _fake_send)
+        monkeypatch.setattr(task_module, "send_document", _fake_send)
 
         await task_module.email_tax_document(None, voucher.id)
         assert calls == []
@@ -140,22 +142,15 @@ class TestEmailTaxDocument:
         monkeypatch.setattr(task_module, "email_is_configured", lambda: True)
         calls = []
 
-        async def _fake_send(**kwargs):
+        async def _fake_send(document, **kwargs):
             calls.append(kwargs)
+            return SendResult(ok=True)
 
-            class _Result:
-                ok = True
-                error = None
-
-            return _Result()
-
-        monkeypatch.setattr(task_module, "send_email", _fake_send)
+        monkeypatch.setattr(task_module, "send_document", _fake_send)
 
         await task_module.email_tax_document(None, voucher.id)
 
         assert len(calls) == 1
         call = calls[0]
-        assert call["to"] == "billing@acme.example"
-        assert voucher.number in call["subject"]
-        assert call["attachment_bytes"].startswith(b"%PDF")
-        assert call["attachment_filename"] == f"{voucher.number.replace('/', '-')}.pdf"
+        assert call["recipient"] == "billing@acme.example"
+        assert call["pdf_bytes"].startswith(b"%PDF")

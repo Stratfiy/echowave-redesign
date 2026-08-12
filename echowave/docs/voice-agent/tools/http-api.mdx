@@ -3,20 +3,7 @@ title: "HTTP API"
 description: "Create REST API tools that your AI agent can invoke during conversations to integrate with external systems."
 ---
 
-HTTP API tools allow you to attach extrernal REST API calls directly to workflow nodes, enabling your voice agents to call any internal or external system during live conversations based on LLM judgment and your prompts. This works similar to function calling on any agentic platform and is 100% open source and fully customizable.
-
-## Video Tutorial
-
-<iframe 
-  width="560" 
-  height="315" 
-  src="https://www.youtube.com/embed/er-YTX5Eocs?si=5tw9rWfaWp2DOSIv" 
-  title="YouTube video player" 
-  frameBorder="0" 
-  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-  referrerPolicy="strict-origin-when-cross-origin"
-  allowFullScreen
-></iframe>
+HTTP API tools allow you to attach extrernal REST API calls directly to workflow nodes, enabling your voice agents to call any internal or external system during live conversations based on LLM judgment and your prompts. This works like function calling on any agentic platform: you describe the endpoint, and the model decides when to call it.
 
 ## What is an HTTP API Tool?
 
@@ -52,7 +39,6 @@ An HTTP API Tool is a REST API definition that the LLM can invoke at runtime.
 - **Examples:** `capture_lead_interest`, `fetch_weather`, 'create_crm_contact', etc
 
 ### 2. Tool Description
-
 
 - Extremely important
 - This is how the LLM decides **when** to use the tool. 
