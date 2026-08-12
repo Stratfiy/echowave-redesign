@@ -33,6 +33,26 @@ export const collections = {
         "!CLAUDE.md",
         "!README.md",
         "!DEPLOY-GITHUB-ACTIONS.md",
+        // Self-hosting and contributor material, kept in the repo and off the
+        // public site.
+        //
+        // Decibyl is a hosted product billed per minute; nobody buying it runs
+        // their own Postgres, renews their own certificates or forks anything.
+        // These pages told visitors otherwise — a Docker install guide, a
+        // Heroku button, "fork maintenance", and an environment-variable
+        // reference whose first section explains how to self-host.
+        //
+        // Excluded here rather than deleted, and removed from `docs.json` in
+        // the same change. Removing a page from the nav alone does not
+        // unpublish it: pages are generated from this glob, so the URL stays
+        // live and Pagefind keeps indexing it. The team still needs these
+        // runbooks, so the files stay where they are.
+        "!deployment/**",
+        "!contribution/**",
+        "!developer/environment-variables.mdx",
+        // Writing a provider means writing Python in this repository,
+        // which is not something a customer of a hosted product can do.
+        "!integrations/telephony/custom.mdx",
       ],
     }),
     schema: docsSchema(),

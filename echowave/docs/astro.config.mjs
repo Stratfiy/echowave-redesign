@@ -111,13 +111,23 @@ export default defineConfig({
       title: docsJson.name || "Decibyl AI",
       favicon: "/favicon.ico",
       customCss: ["./src/styles/docs.css"],
-      social: [
-        {
-          icon: "github",
-          label: "GitHub",
-          href: "https://github.com/Stratfiy/echowave-redesign",
-        },
-      ],
+      // The wordmark `docs.json` already declared and nothing rendered. It
+      // lived at `docs/logo/`, which Astro does not serve — only `public/`
+      // is copied into the build — so the header fell back to the site title
+      // as plain text on every page.
+      //
+      // `replacesTitle` because the mark contains the word "Decibyl": without
+      // it Starlight prints the title beside the logo and the header reads
+      // "Decibyl Decibyl AI".
+      logo: {
+        light: "./public/logo/light.svg",
+        dark: "./public/logo/dark.svg",
+        replacesTitle: true,
+      },
+      // No social icons. The header carried a GitHub link to
+      // `Stratfiy/echowave-redesign` — a private repository, so every visitor
+      // who clicked it got a 404, and the icon itself advertises an
+      // open-source project this is not.
       sidebar: buildSidebar(),
       // Starlight's own 404 and edit links are fine; what matters here is that
       // a broken sidebar slug fails the build rather than shipping a dead link.
