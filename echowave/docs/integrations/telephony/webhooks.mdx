@@ -113,20 +113,7 @@ Decibyl AI automatically:
 5. Manages WebSocket connections for audio streaming
 6. Handles provider-specific audio formats and protocols
 
-Signature verification is implemented per provider in `verify_inbound_signature`. If you are adding a provider, see [Custom Telephony Provider](/integrations/telephony/custom).
-
-## Local Development
-
-For local development, use the built-in Cloudflare tunnel:
-
-```yaml
-# docker-compose.yml includes:
-cloudflared:
-  image: cloudflare/cloudflared:latest
-  command: tunnel --no-autoupdate --url http://api:8000
-```
-
-The tunnel URL is automatically detected and used for webhooks.
+Signature verification is handled per provider. If you need a carrier Decibyl does not yet support, talk to us — adding one is work we do, not configuration you write.
 
 ## Troubleshooting
 

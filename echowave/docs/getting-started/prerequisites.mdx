@@ -1,85 +1,66 @@
 ---
-title: "Prerequisites"
-description: "System requirements and setup needed to run Decibyl AI locally"
+title: "Before You Start"
+sidebarTitle: "Before You Start"
+description: "What you need in place before your first Decibyl agent takes a call"
 ---
 
-## System Requirements (Local Setup)
+Decibyl is a hosted platform. There is nothing to install and nothing to run — you need an account, a browser, and a few decisions made before your first call connects.
 
-### Minimum Requirements
-- **RAM**: 8 GB (4 GB available for Docker)
-- **Storage**: 10 GB free disk space
-- **CPU**: 2 cores (x86_64 or ARM64)
-- **OS**:
-  - macOS 10.15+ (Catalina or newer)
-  - Windows 10/11 with WSL2
-  - Linux with kernel 3.10+
+## An account and a balance
 
-## Software Requirements
+Sign up at [app.decibyl.ai](https://app.decibyl.ai). Every account is prepaid: calls draw down a rupee balance, and **calls stop when it reaches zero**. Top up from **Billing** before you start testing.
 
-To run Decibyl AI locally, make sure you have the following installed:
-
-- [Docker](https://docs.docker.com/get-docker/) (version 20.10 or later)
-- [curl](https://curl.se/download.html) - usually preinstalled on macOS/Linux
+Keep an eye on **Credit lasts** on the [Spend tab](/account/analytics) once you have traffic — it projects your remaining days at the current burn rate and turns red at seven.
 
 <Note>
-Docker Compose is included with Docker Desktop. Make sure Docker is running before you begin.
+Add your billing profile (legal name, address, and GSTIN if you have one) before your first top-up. The GSTIN determines whether you are charged CGST+SGST or IGST, and it is stamped onto the invoice at the moment of payment — it cannot be added to a document already issued. See [Billing](/account/billing).
 </Note>
 
-### Docker Resource Allocation
+## Which models your agent runs on
 
-For Docker Desktop users, ensure Docker has adequate resources:
+Two options, and you can mix them per slot — transcription on one arrangement, the language model on another.
 
-1. Open Docker Desktop settings
-2. Navigate to Resources
-3. Allocate at least:
-   - Memory: 4 GB (8 GB recommended)
-   - CPUs: 2 (4 recommended)
-   - Disk: 10 GB
+| | Managed | Bring your own key |
+|---|---|---|
+| Setup | Nothing to do | Add your provider key |
+| Model billing | On your Decibyl balance | Direct from the provider |
+| Platform fee | $0.02/min | $0.02/min |
+| Choice of model | What we offer | Anything your account can reach |
 
-## Required Ports
+Managed is the faster start. BYOK makes sense once volume is high enough that provider pricing matters to you, or when you need a specific model. Set either up in **Model Configurations** — see [Inference providers](/configurations/inference-providers).
 
-Ensure these ports are available:
+<Note>
+Agents running on your own keys are billed by that provider directly, so their model spend does **not** appear on the Tokens tab in Decibyl. An empty **By model** table on an account making calls usually just means BYOK.
+</Note>
 
-- `3010` - Web UI
-- `8000` - API Server
-- `5432` - PostgreSQL
-- `6379` - Redis
-- `9000` - MinIO (S3-compatible storage)
-- `9001` - MinIO Console
+## How the agent will be reached
 
-## Checking Port Availability
+Pick whichever fits what you are building — you do not need all three.
 
-Check if a port is in use (replace 3010 with the port number):
+<CardGroup cols={3}>
+  <Card title="Web" icon="globe">
+    A voice widget on your site, or a test call from the builder. Works
+    immediately, no telephony setup. Your browser will ask for microphone
+    permission.
+  </Card>
+  <Card title="Inbound calls" icon="phone-arrow-down-left">
+    A phone number people ring. Either connect a number you already own from a
+    supported carrier, or ask us to provision one. See
+    [Inbound](/integrations/telephony/inbound).
+  </Card>
+  <Card title="Outbound calls" icon="phone-arrow-up-right">
+    Your agent dials out, one call at a time or as a campaign. Needs a
+    verified caller ID and, in India, a completed KYC.
+  </Card>
+</CardGroup>
 
-<CodeGroup>
+### If you are calling Indian numbers
 
-```bash macOS/Linux
-lsof -i :3010
-```
+Two things gate outbound dialling in India, and both take real time to clear — start them early rather than on the day you want to launch:
 
-```bash Linux (alternative)
-netstat -tulpn | grep 3010
-```
+- **KYC.** Submit your business documents under **Verification**. Carriers will not issue or activate a number without it. The registered address on your incorporation certificate has to match what you enter, exactly.
+- **DND and calling hours.** Do not dial anyone who has not asked to hear from you, and stay inside 9am–9pm. This is TRAI/TCCCPR territory and the exposure is regulatory, not commercial.
 
-```bash Windows (PowerShell)
-netstat -ano | findstr :3010
-```
+## Then build something
 
-</CodeGroup>
-
-## Docker Registry Options
-
-Decibyl images are published to Docker Hub:
-
-- **Docker Hub**: `decibylai`
-
-Override it with the `REGISTRY` environment variable if you mirror the images elsewhere:
-
-<CodeGroup>
-```bash
-REGISTRY=decibylai ./scripts/start_docker.sh
-```
-```powershell Windows
-$env:REGISTRY = 'decibylai'; .\scripts\start_docker.ps1
-```
-</CodeGroup>
+With an account, a balance and a model arrangement, you are ready for [Your First Agent in 5 Minutes](/getting-started/first-agent).

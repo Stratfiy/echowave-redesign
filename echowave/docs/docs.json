@@ -1,11 +1,10 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
   "name": "Decibyl AI",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#0A6BC7",
+    "light": "#28B3F0",
+    "dark": "#0A6BC7"
   },
   "favicon": "/favicon.ico",
   "navigation": {
@@ -123,8 +122,7 @@
               "integrations/telephony/vobiz",
               "integrations/telephony/asterisk-ari",
               "integrations/telephony/webhooks",
-              "integrations/telephony/agent-stream",
-              "integrations/telephony/custom"
+              "integrations/telephony/agent-stream"
             ]
           },
           {
@@ -153,18 +151,10 @@
         "icon": "code",
         "groups": [
           {
-            "group": "Contribution",
-            "pages": [
-              "contribution/setup",
-              "contribution/reference"
-            ]
-          },
-          {
             "group": "Guides",
             "pages": [
               "developer/workflow-schema",
-              "developer/webhooks",
-              "developer/environment-variables"
+              "developer/webhooks"
             ]
           },
           {
@@ -174,20 +164,6 @@
               "sdks/introduction",
               "sdks/build-an-agent",
               "sdks/outbound-calls"
-            ]
-          },
-          {
-            "group": "Deployment",
-            "pages": [
-              "deployment/introduction",
-              "deployment/docker",
-              "deployment/authentication",
-              "deployment/custom-domain",
-              "deployment/subdomains",
-              "deployment/scaling",
-              "deployment/update",
-              "deployment/recosting-calls",
-              "deployment/heroku"
             ]
           }
         ]
@@ -306,7 +282,7 @@
     "links": [
       {
         "label": "Support",
-        "href": "https://github.com/decibyl-hq/decibyl/issues/new/choose"
+        "href": "mailto:support@decibyl.ai"
       }
     ],
     "primary": {
@@ -337,7 +313,6 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/decibyl-hq",
       "linkedin": "https://linkedin.com/company/decibyl"
     }
   },

@@ -1,13 +1,18 @@
-/* Decibyl brand colour, taken from docs.json so the two cannot drift. */
+/* Decibyl brand blue, matching `docs.json` colors, the app icon
+   (`ui/src/app/icon.svg`) and the favicon the three surfaces share.
+
+   These were Mintlify's default mint green — inherited with the template and
+   never changed at the rebrand, so the docs read as a different product from
+   the dashboard a customer had just been looking at. */
 :root {
-  --sl-color-accent-low: #052e16;
-  --sl-color-accent: #16a34a;
-  --sl-color-accent-high: #86efac;
+  --sl-color-accent-low: #06294a;
+  --sl-color-accent: #28b3f0;
+  --sl-color-accent-high: #a8dcfb;
 }
 :root[data-theme="light"] {
-  --sl-color-accent-low: #dcfce7;
-  --sl-color-accent: #15803d;
-  --sl-color-accent-high: #052e16;
+  --sl-color-accent-low: #d7eefc;
+  --sl-color-accent: #0a6bc7;
+  --sl-color-accent-high: #06294a;
 }
 
 /* Shims that have no Starlight equivalent. Deliberately sparse — anything

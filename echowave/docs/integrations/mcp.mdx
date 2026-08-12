@@ -98,19 +98,16 @@ the decision to spend or to give up a number stays with a person, over the
 ## Connect it
 
 You need a Decibyl API key — generate one at
-[app.decibyl.ai/api-keys](https://app.decibyl.ai/api-keys), or `/api-keys` on
-your own deployment. See [API Keys](/configurations/api-keys).
+[app.decibyl.ai/api-keys](https://app.decibyl.ai/api-keys). See
+[API Keys](/configurations/api-keys).
 
 The endpoint is `https://app.decibyl.ai/api/v1/mcp/`, also shown in
-**Platform Settings → MCP Server**. Self-hosted, it is
-`<YOUR_BACKEND_URL>/api/v1/mcp/`.
+**Platform Settings → MCP Server**.
 
 <Note>
-Deployments that split hostnames also serve this at
-`https://api.decibyl.ai/api/v1/mcp/`. Both work and always will —
-`app.decibyl.ai` is the published address and the one to use, because it is
-what every existing `claude mcp add` config already points at. See
-[Splitting onto subdomains](/deployment/subdomains).
+The server is also reachable at `https://api.decibyl.ai/api/v1/mcp/`. Both
+addresses work and always will — use `app.decibyl.ai`, which is the published
+one and what every existing `claude mcp add` config already points at.
 </Note>
 
 <CodeGroup>
@@ -158,14 +155,6 @@ codex
 ```
 
 Verify with `codex mcp list` and `codex mcp get decibyl`.
-
-<Note>
-If you deployed with [`setup_remote.sh`](/deployment/docker#option-2%3A-remote-server-deployment)
-you are on a self-signed certificate, and Claude Code will refuse the
-connection until you start it with `NODE_TLS_REJECT_UNAUTHORIZED=0 claude`.
-Not needed once you have a [custom domain](/deployment/custom-domain) with
-Let's Encrypt.
-</Note>
 
 ## Things to ask it
 

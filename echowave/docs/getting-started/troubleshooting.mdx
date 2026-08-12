@@ -1,56 +1,63 @@
 ---
 title: "Troubleshooting"
-description: "Common issues and solutions for running Decibyl AI"
+description: "The things that actually go wrong on a first call, and what fixes them"
 ---
 
-# Troubleshooting
+Almost every failed first call is one of five things, and the first two account for most of them. Work down the list in order.
 
-## Freeing Up Ports
+## Calls stop happening at all
 
-### When a port is already in use:
-##### Check what's using the port first and then kill the process (may require sudo on Linux)
-<CodeGroup>
-```bash macOS/Linux
-lsof -i :3010
-kill -9 $(lsof -t -i :3010)
-```
-```powershell Windows
-netstat -ano | findstr :3010
-# Find the PID in the last column, then:
-Stop-Process -Id <PID> -Force
-```
-</CodeGroup>
+**Check your balance first.** Decibyl is prepaid and calls stop at zero — there is no grace period and no overdraft. An account that was working yesterday and places no calls today has usually just run out.
 
-### When Docker containers are using the ports (with auto-restart enabled):
+Open **Billing**, top up, and try again. To stop it recurring, watch **Credit lasts** on the [Spend tab](/account/analytics): it projects days remaining at your current burn rate and turns amber at 21 days, red at 7.
 
-**Step 1:** Stop all running containers
-```bash
-docker stop $(docker ps -q)
-```
+## The agent answers but says nothing
 
-**Step 2:** Disable restart policy for all containers
-This prevents containers from automatically restarting:
-```bash
-docker update --restart=no $(docker ps -a -q)
-```
+The agent connected and then sat silent, or the call dropped after a few seconds.
 
-**Step 3:** Verify
+This is nearly always the model configuration. Check, in order:
 
-Check that no containers are running:
-```bash
-docker ps
-```
+1. **Your provider keys.** If you are on BYOK, a key that is expired, revoked, or out of quota fails at the moment the agent tries to speak — which looks like silence, not like an error. Re-check them under **Model Configurations**.
+2. **Your provider's own balance.** BYOK means the provider bills you directly; if that account is empty, the call fails even though your Decibyl balance is fine.
+3. **The start node's prompt.** An agent with no opening line waits for the caller to speak first. If you expected a greeting, the Start Call node needs one.
 
-Check restart policies (should show 'no' for each container):
-```bash
-docker inspect -f '{{.Name}} - {{.HostConfig.RestartPolicy.Name}}' $(docker ps -a -q)
-```
+## Nobody can hear the agent, or it cannot hear them
 
+One-way or no audio, on a call that otherwise connects.
 
-## Stopping Decibyl Services
-##### Stop services or Stop and remove all data (full cleanup)
-```bash
-docker compose down
+- **On a web call**, this is a browser permission. Check the microphone prompt was accepted, and that no other application is holding the microphone. Reload the page and try again.
+- **On a phone call**, one-way audio is a carrier-side media problem rather than an agent problem. Note the time and the number, and send it to support — the call logs show which leg failed.
 
-docker compose down -v
-```
+## An inbound number rings out or says the number is invalid
+
+The number exists but nothing is answering it, because the number is not pointing at your agent.
+
+Check that the number is attached to a telephony configuration in Decibyl, and that a workflow is set as its inbound agent. A number that was working and then stopped has usually been rebound at the carrier — see [Inbound](/integrations/telephony/inbound) for the full setup.
+
+<Note>
+"Invalid number" from the carrier, rather than a ring-out, generally means the number is not routed to us at all. That is fixed at the carrier, not in Decibyl.
+</Note>
+
+## Outbound calls are rejected
+
+Outbound dialling has requirements inbound does not:
+
+- **Caller ID must be verified.** An unverified number cannot be used as the source of a call.
+- **In India, KYC must be complete.** Submit under **Verification**; carriers will not activate a number without it. The registered address must match your incorporation certificate exactly — a mismatch is the most common rejection.
+- **Calling hours and consent.** Do not dial people who have not asked to hear from you, and stay inside 9am–9pm.
+
+## A call happened but shows no cost
+
+Costing runs after the call ends, not during it, so a run that finished seconds ago may not be costed yet. Give it a minute and refresh.
+
+If a call stays uncosted much longer than that, it is worth reporting — an uncosted run is a call you were not charged for, and it usually means something upstream stopped rather than something being free.
+
+## Recordings or transcripts will not open
+
+Recordings are written after the call completes and uploaded in the background, so they appear shortly after the call rather than during it.
+
+If a recording never appears for a call that clearly connected and ran, send us the run — the upload is logged, so it is quick to tell whether it was never written or written and not served.
+
+## Still stuck
+
+Email [support@decibyl.ai](mailto:support@decibyl.ai) with the **run ID** — from the row in **Usage** — or the phone number and rough time of the call. That is enough to find the call in the logs; a description of the symptom on its own usually is not.

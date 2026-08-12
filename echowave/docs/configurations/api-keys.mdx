@@ -3,7 +3,7 @@ title: "API Keys and Service Keys"
 description: "You can create API Keys to trigger Decibyl Voice Agents and Service Keys to use with Inference Providers"
 ---
 
-The option to create the Keys are in https://app.decibyl.ai/api-keys if you are using hosted version, or http://localhost:3010/api-keys if you are using the self hosted version.
+Create and manage keys at [app.decibyl.ai/api-keys](https://app.decibyl.ai/api-keys).
 
 ### API Keys
 API keys can be used to trigger a voice agent from an external system, like n8n or programatically from your other workflows. In order to generate that, you can go to `/api-keys` and create a new key. 
@@ -16,11 +16,11 @@ Please note that you must copy and keep the API key secretly, since this is the 
 Service Keys are the keys which you generate to be used in [Model Configurations](inference-providers). In order to generate that, you can go to `/api-keys` and create a new key. 
 
 <Note>
-You can use a Service Key created in Decibyl Cloud (`https://app.decibyl.ai/api-keys`) in your self-hosted Decibyl deployment. Create the Service Key from your Decibyl Cloud account, then paste it into **Model Configurations** in your self-hosted instance to use Decibyl-managed inference providers. You can purchase Decibyl credits in Decibyl Cloud; billing happens on the Cloud account that owns the Service Key.
+A Service Key is what lets an agent use Decibyl-managed inference providers instead of your own provider keys. Model usage is billed to the account that owns the key, drawn from that account's Decibyl balance.
 </Note>
 
 ![Create a new Service Key](../images/service-keys.png)
 
 <Warning>
-Service Keys are scoped to the Decibyl Cloud account that created them. You cannot use a Service Key from one cloud-hosted account in another cloud-hosted account; create a new Service Key from the account where you want to use it.
+Service Keys are scoped to the account that created them. A key from one account cannot be used in another — create a new Service Key from the account you want the usage billed to.
 </Warning>

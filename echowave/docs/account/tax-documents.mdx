@@ -44,6 +44,6 @@ In all three cases the document exists and is downloadable through the API. **If
 
 Duplicate sends are collapsed: the job id is derived from the document id, so issuing-then-enqueueing twice results in one email rather than two.
 
-## Self-hosted deployments
+## If an email does not arrive
 
-Email requires a configured mail server. Without one, PDF generation and download work normally and only the automatic send is skipped — see [Environment Variables](/developer/environment-variables) for the mail settings.
+The document itself is never blocked by mail. If a send fails, generation and download work exactly as normal and only the email is skipped — so the invoice or voucher is always available from **Billing**, and you can re-send it from there.
