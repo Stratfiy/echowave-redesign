@@ -196,11 +196,16 @@ export default function VerificationPage() {
     const upload = async (kind: string, file: File) => {
         setUploading(kind);
         setError(null);
-        const body = new FormData();
-        body.append("kind", kind);
-        body.append("file", file);
+        // A plain object, not a FormData. The generated client already applies
+        // formDataBodySerializer, which builds the FormData itself with
+        // `Object.entries(body)` — and Object.entries of a FormData is `[]`,
+        // because its entries live in an internal slot rather than as own
+        // properties. Handing it one produced an empty multipart body, so the
+        // server saw neither field and answered 422 "Field required" twice,
+        // which looked like a form problem rather than an upload that sent
+        // nothing.
         const result = await uploadDocumentApiV1KycDocumentsPost({
-            body: body as never,
+            body: { kind, file },
         });
         if (result.error) {
             setError(detailFromError(result.error, "Could not upload that file"));
