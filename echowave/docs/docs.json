@@ -2,9 +2,9 @@
   "$schema": "https://mintlify.com/docs.json",
   "name": "Decibyl AI",
   "colors": {
-    "primary": "#0A6BC7",
-    "light": "#28B3F0",
-    "dark": "#0A6BC7"
+    "primary": "#F0431C",
+    "light": "#FF7A2F",
+    "dark": "#C42D0E"
   },
   "favicon": "/favicon.ico",
   "navigation": {

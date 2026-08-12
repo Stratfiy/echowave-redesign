@@ -15,7 +15,7 @@ const HIGHLIGHTS = [
   "Speech-to-speech",
   "MCP-native",
   "BYOK · any model",
-  "Self-hostable",
+  "7 Indian languages",
 ];
 
 export function AuthShell({
@@ -60,7 +60,7 @@ export function AuthShell({
             without vendor lock-in.
           </h1>
           <p className="max-w-md text-[15px] leading-relaxed text-brand-body">
-            Decibyl is the open, self-hostable voice AI platform. Design workflows visually, connect any LLM / STT / TTS provider, and ship real conversations in minutes.
+            Decibyl runs your confirmation, follow-up and reminder calls end to end — in Hindi, Tamil, Telugu, Kannada, Marathi, Gujarati and English. Design the conversation visually, connect any LLM / STT / TTS provider, and ship in minutes.
           </p>
           <ul className="flex flex-wrap gap-2">
             {HIGHLIGHTS.map((point) => (

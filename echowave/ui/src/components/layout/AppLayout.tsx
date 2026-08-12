@@ -124,14 +124,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({
               )}
 
               {/* Main content area */}
-              <main className="app-surface flex-1">
+              <main className="app-surface glass-canvas flex-1">
                 {children}
               </main>
             </SidebarInset>
           </div>
         </LeadFormsProvider>
       ) : (
-        <div className="app-surface w-full flex-1">
+        <div className="app-surface glass-canvas w-full flex-1">
           <BackendStatusBanner />
           {children}
         </div>

@@ -30,7 +30,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Decibyl — Voice AI Platform by nAutomation Labs",
-  description: "Build production voice AI agents with a visual workflow builder. Self-hostable, BYOK, MCP-native.",
+  description: "Build production voice AI agents with a visual workflow builder. Seven Indian languages, BYOK, MCP-native.",
 };
 
 export default function RootLayout({
