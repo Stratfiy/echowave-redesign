@@ -24,10 +24,44 @@ function fieldFromLoc(loc: unknown): string | null {
     return parts.length > 0 ? parts.join(".") : null;
 }
 
+/** Field-keyed problems, as the KYC submission endpoint returns them.
+ *
+ * `{ message, problems: [{ field, message }] }` — an object rather than a
+ * string, so a form can mark each input rather than parsing sentences. Worth
+ * handling here too: without it the whole body is unreadable and the caller
+ * falls back to a generic string, which is what made "Could not submit for
+ * review" appear in place of three specific, fixable reasons.
+ */
+function fromProblemObject(detail: Record<string, unknown>): string | null {
+    const problems = detail.problems;
+    const lines: string[] = [];
+
+    if (typeof detail.message === "string" && detail.message) {
+        lines.push(detail.message);
+    }
+    if (Array.isArray(problems)) {
+        for (const problem of problems) {
+            if (!problem || typeof problem !== "object") continue;
+            const p = problem as { field?: unknown; message?: unknown };
+            if (typeof p.message !== "string" || !p.message) continue;
+            lines.push(
+                typeof p.field === "string" && p.field
+                    ? `${p.field}: ${p.message}`
+                    : p.message,
+            );
+        }
+    }
+    return lines.length > 0 ? lines.join("\n") : null;
+}
+
 export function detailFromError(err: unknown, fallback = "Request failed"): string {
     if (typeof err === "string") return err;
     const e = err as { detail?: unknown };
     if (typeof e?.detail === "string") return e.detail;
+    if (e?.detail && typeof e.detail === "object" && !Array.isArray(e.detail)) {
+        const message = fromProblemObject(e.detail as Record<string, unknown>);
+        if (message) return message;
+    }
     if (Array.isArray(e?.detail) && e.detail.length > 0) {
         const messages = e.detail
             .map((item) => {

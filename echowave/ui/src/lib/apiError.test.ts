@@ -56,6 +56,45 @@ describe("detailFromError", () => {
         ).toBe("gpt-4o: No rate on file");
     });
 
+    it("renders field-keyed problems from an object detail", () => {
+        // The KYC submission shape. Without this the whole body is unreadable
+        // and the caller shows a generic fallback, hiding every actual reason.
+        const message = detailFromError({
+            detail: {
+                message: "Fix these before submitting for verification.",
+                problems: [
+                    { field: "address_line1", message: "Enter the registered address on your certificate." },
+                    { field: "city", message: "Enter the city." },
+                    { field: "postal_code", message: "Enter the PIN code." },
+                ],
+            },
+        });
+
+        expect(message).toBe(
+            [
+                "Fix these before submitting for verification.",
+                "address_line1: Enter the registered address on your certificate.",
+                "city: Enter the city.",
+                "postal_code: Enter the PIN code.",
+            ].join("\n"),
+        );
+    });
+
+    it("renders a problem with no field", () => {
+        expect(
+            detailFromError({ detail: { problems: [{ message: "Names do not match." }] } }),
+        ).toBe("Names do not match.");
+    });
+
+    it("falls back when an object detail carries nothing usable", () => {
+        expect(detailFromError({ detail: { problems: [] } }, "Could not submit")).toBe(
+            "Could not submit",
+        );
+        expect(detailFromError({ detail: { unrelated: true } }, "Could not submit")).toBe(
+            "Could not submit",
+        );
+    });
+
     it("falls back when there is nothing usable", () => {
         expect(detailFromError({}, "Could not save")).toBe("Could not save");
         expect(detailFromError(undefined, "Could not save")).toBe("Could not save");

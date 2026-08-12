@@ -58,6 +58,11 @@ type KycView = {
     business_type: string | null;
     legal_name: string | null;
     gstin: string | null;
+    address_line1: string | null;
+    address_line2: string | null;
+    city: string | null;
+    region: string | null;
+    postal_code: string | null;
     submitted_at: string | null;
     rejection_reason: string | null;
     carrier_rejection_reason: string | null;
@@ -154,6 +159,11 @@ export default function VerificationPage() {
     const [businessType, setBusinessType] = useState("");
     const [legalName, setLegalName] = useState("");
     const [gstin, setGstin] = useState("");
+    const [addressLine1, setAddressLine1] = useState("");
+    const [addressLine2, setAddressLine2] = useState("");
+    const [city, setCity] = useState("");
+    const [region, setRegion] = useState("");
+    const [postalCode, setPostalCode] = useState("");
 
     const load = useCallback(async () => {
         const result = await getKycApiV1KycGet();
@@ -163,6 +173,11 @@ export default function VerificationPage() {
             const next = result.data as unknown as KycView;
             setView(next);
             setBusinessType(next.business_type ?? "");
+            setAddressLine1(next.address_line1 ?? "");
+            setAddressLine2(next.address_line2 ?? "");
+            setCity(next.city ?? "");
+            setRegion(next.region ?? "");
+            setPostalCode(next.postal_code ?? "");
             setLegalName(next.legal_name ?? "");
             setGstin(next.gstin ?? "");
             setError(null);
@@ -183,6 +198,11 @@ export default function VerificationPage() {
                 business_type: businessType,
                 legal_name: legalName,
                 gstin: gstin.trim() || null,
+                address_line1: addressLine1.trim() || null,
+                address_line2: addressLine2.trim() || null,
+                city: city.trim() || null,
+                region: region.trim() || null,
+                postal_code: postalCode.trim() || null,
             },
         });
         if (result.error) {
@@ -378,6 +398,60 @@ export default function VerificationPage() {
                                         disabled={!editable}
                                         onChange={(event) => setGstin(event.target.value)}
                                         placeholder="29ABCDE1234F1Z5"
+                                        className="font-mono"
+                                    />
+                                </div>
+                                {/* Required to submit. The operator's application will
+                                    not be accepted without a registered address, and
+                                    this form did not ask for one -- so submission
+                                    failed validation with no way to satisfy it. */}
+                                <div className="space-y-1.5 sm:col-span-2">
+                                    <Label htmlFor="address-line1">Registered address</Label>
+                                    <Input
+                                        id="address-line1"
+                                        value={addressLine1}
+                                        disabled={!editable}
+                                        onChange={(event) => setAddressLine1(event.target.value)}
+                                        placeholder="As printed on your certificate"
+                                    />
+                                </div>
+                                <div className="space-y-1.5 sm:col-span-2">
+                                    <Input
+                                        id="address-line2"
+                                        value={addressLine2}
+                                        disabled={!editable}
+                                        onChange={(event) => setAddressLine2(event.target.value)}
+                                        placeholder="Building, floor (optional)"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="city">City</Label>
+                                    <Input
+                                        id="city"
+                                        value={city}
+                                        disabled={!editable}
+                                        onChange={(event) => setCity(event.target.value)}
+                                        placeholder="Hosur"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="region">State</Label>
+                                    <Input
+                                        id="region"
+                                        value={region}
+                                        disabled={!editable}
+                                        onChange={(event) => setRegion(event.target.value)}
+                                        placeholder="Tamil Nadu"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="postal-code">PIN code</Label>
+                                    <Input
+                                        id="postal-code"
+                                        value={postalCode}
+                                        disabled={!editable}
+                                        onChange={(event) => setPostalCode(event.target.value)}
+                                        placeholder="635109"
                                         className="font-mono"
                                     />
                                 </div>
