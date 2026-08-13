@@ -155,7 +155,7 @@ NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "34900"))
 # replaced by it. Baking the markup into the rate card instead would have made
 # provider_rates hold retail, and every margin figure on the unit-economics
 # screen would silently read zero.
-MANAGED_PROVIDER_MARKUP_BPS = int(os.getenv("MANAGED_PROVIDER_MARKUP_BPS", "13000"))
+MANAGED_PROVIDER_MARKUP_BPS = int(os.getenv("MANAGED_PROVIDER_MARKUP_BPS", "14000"))
 
 # Whether customers can start telephony verification at all.
 #

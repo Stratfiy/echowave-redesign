@@ -16,8 +16,10 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
+from api.constants import MANAGED_PROVIDER_MARKUP_BPS
 from api.enums import CostComponent, CreditLedgerKind, RateUnit
 from api.services.billing.costing import cost_workflow_run, current_balance_paise
+from api.services.billing.money import round_half_up_div
 from api.services.billing.rollup import ist_day_bounds_utc, refresh_daily_rollup
 from api.services.billing.usage import (
     provider_from_processor,
@@ -242,11 +244,14 @@ class TestCostWorkflowRun:
         assert cost.billed_seconds == 90
         assert cost.pulse_seconds == 15
         assert cost.platform_fee_paise == 288  # 1.5 min @ ₹1.92 ($0.02 at ₹96)
-        # Model usage on our keys is sold at MANAGED_PROVIDER_MARKUP_BPS —
-        # 1.3x by default — so the vendor's 12 paise is charged at 16. Both
-        # figures survive on the receipt, which is what keeps margin visible.
+        # Model usage on our keys is sold at MANAGED_PROVIDER_MARKUP_BPS.
+        # Derived from the setting rather than written out, so moving the
+        # multiplier is a configuration change and not a test edit — the
+        # property under test is that both figures survive on the receipt,
+        # which is what keeps margin visible, not what the multiplier is today.
         assert cost.total_provider_cost_paise == 12  # 1k tokens @ 12_000 mpaise
-        assert cost.total_charged_paise == 288 + 16
+        charged_llm = round_half_up_div(12 * MANAGED_PROVIDER_MARKUP_BPS, 10_000)
+        assert cost.total_charged_paise == 288 + charged_llm
 
         items = (
             await async_session.scalars(
@@ -321,16 +326,20 @@ class TestCostWorkflowRun:
 
         # 10k tokens: mini at 700 mpaise/1k = 7 paise; gpt-4o falls back to the
         # provider rate of 12000 mpaise/1k = 120 paise. Both are then sold at
-        # the 1.3x managed markup — the point of this test is which *rate* was
+        # the managed markup — the point of this test is which *rate* was
         # selected, which provider_cost_paise shows before any markup.
         assert cheap_llm.unit_rate_mpaise == 700
         assert cheap_llm.provider_cost_paise == 7
-        assert cheap_llm.cost_paise == 9  # 7 x 1.3, rounded half up
+        assert cheap_llm.cost_paise == round_half_up_div(
+            7 * MANAGED_PROVIDER_MARKUP_BPS, 10_000
+        )
         assert cheap_llm.model == "gpt-4o-mini"
 
         assert dear_llm.unit_rate_mpaise == 12_000
         assert dear_llm.provider_cost_paise == 120
-        assert dear_llm.cost_paise == 156  # 120 x 1.3
+        assert dear_llm.cost_paise == round_half_up_div(
+            120 * MANAGED_PROVIDER_MARKUP_BPS, 10_000
+        )
 
         # And the receipt records which model it billed.
         rows = (

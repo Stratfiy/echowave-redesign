@@ -90,7 +90,40 @@ REALTIME_PRICES: tuple[RealtimeModelPrice, ...] = (
             "it is not from a primary table."
         ),
     ),
+    RealtimeModelPrice(
+        provider="azure_realtime",
+        model="gpt-realtime-2",
+        label="Azure OpenAI GPT Realtime 2",
+        # Azure resells the same model at the same token prices; what differs
+        # is the commercial wrapper around it — support plans, committed
+        # throughput — none of which lands on a per-call receipt. The pair is
+        # carried separately rather than aliased so that when the two do
+        # diverge, one number moves and the other does not.
+        audio_input_usd_per_million=32.00,
+        audio_output_usd_per_million=64.00,
+        cached_audio_input_usd_per_million=0.40,
+        audio_input_tokens_per_second=10.0,
+        audio_output_tokens_per_second=20.0,
+        basis=(
+            "Mirrors OpenAI's published $32/$64 per 1M audio tokens, $0.40 "
+            "cached. Azure quotes token prices identical to the direct API; "
+            "verify against your enterprise agreement, which is where the two "
+            "actually differ."
+        ),
+    ),
 )
+
+# Ultravox and Grok Realtime are deliberately absent.
+#
+# Both bill **per minute of audio** — around $0.05 — and neither publishes a
+# tokenisation rate. The pipeline records speech-to-speech usage as LLM tokens,
+# so pricing them here would mean inventing a tokens-per-second figure for a
+# vendor that does not have one, and every call on them would be costed against
+# that invention rather than against their invoice.
+#
+# Their usage is reported as uncosted instead, which is visible on the receipt
+# and on the Models margin screen. Pricing them properly needs a per-minute
+# usage path for realtime, which is a schema change, not a price book entry.
 
 
 #: Keyed for lookup by the provider names the configuration registry uses, so a

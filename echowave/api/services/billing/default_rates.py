@@ -231,6 +231,14 @@ REALTIME_RATES = (
         _realtime_blend("openai_realtime"),
         "GPT Realtime audio tokens, blended at a 3-minute call",
     ),
+    DefaultRate(
+        "decibylazurerealtime",
+        "",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _realtime_blend("azure_realtime"),
+        "Azure GPT Realtime audio tokens, blended at a 3-minute call",
+    ),
 )
 
 #: Speech to text — unit is a minute of audio.
@@ -306,6 +314,18 @@ TTS_RATES = (
         RateUnit.THOUSAND_CHARS,
         0.0500,
         "Flash v2.5 $0.05/1k chars. Still the line that varies most by plan.",
+    ),
+    # Twice the Flash price, and without this row it fell through to the
+    # provider-wide one above — so an account on multilingual was billed at
+    # half what it cost us. The only case in this file where the card was
+    # knowingly under the vendor.
+    DefaultRate(
+        "elevenlabs",
+        "eleven_multilingual_v2",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        0.1000,
+        "Multilingual v2 $0.10/1k chars — twice Flash/Turbo.",
     ),
     DefaultRate(
         "cartesia",
