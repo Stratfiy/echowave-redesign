@@ -13,6 +13,17 @@ DEFAULT_TURN_START_STRATEGY = "default"
 DEFAULT_TURN_START_MIN_WORDS = 3
 DEFAULT_PROVISIONAL_VAD_PAUSE_SECS = 1.5
 DEFAULT_TURN_STOP_STRATEGY = "transcription"
+# How long the turn waits after the VAD reports silence, in case the caller was
+# only drawing breath. Paid on every turn of the default "transcription"
+# strategy, on top of the VAD's own 0.2s — so it sets a floor under perceived
+# latency that no faster model downstream can recover.
+#
+# 0.4 rather than the pipecat library default of 0.6: two fifths of a second is
+# still a real pause by the standards of a phone call, and the 200ms saved is
+# larger than the entire time-to-first-byte of most speech synthesis. Raise it
+# for a workflow whose callers read out numbers or think mid-sentence; lower it
+# for short scripted confirmations.
+DEFAULT_USER_SPEECH_TIMEOUT = 0.4
 DEFAULT_CONTEXT_COMPACTION_ENABLED = False
 
 
@@ -53,6 +64,11 @@ class WorkflowConfigurationDefaults(BaseModel):
     provisional_vad_pause_secs: float = DEFAULT_PROVISIONAL_VAD_PAUSE_SECS
     turn_stop_strategy: Literal["transcription", "turn_analyzer"] = (
         DEFAULT_TURN_STOP_STRATEGY
+    )
+    # Only applies to the "transcription" strategy. A turn analyzer decides for
+    # itself, and an STT that emits its own turn boundaries never waits at all.
+    user_speech_timeout: float = Field(
+        default=DEFAULT_USER_SPEECH_TIMEOUT, ge=0.15, le=3.0
     )
     dictionary: str = ""
     context_compaction_enabled: bool = DEFAULT_CONTEXT_COMPACTION_ENABLED

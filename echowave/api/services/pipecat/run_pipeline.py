@@ -14,6 +14,7 @@ from api.schemas.workflow_configurations import (
     DEFAULT_SMART_TURN_STOP_SECS,
     DEFAULT_TURN_START_MIN_WORDS,
     DEFAULT_TURN_START_STRATEGY,
+    DEFAULT_USER_SPEECH_TIMEOUT,
 )
 from api.services.call_concurrency import call_concurrency
 from api.services.configuration.registry import ServiceProviders
@@ -176,10 +177,40 @@ def _create_non_realtime_user_turn_start_strategies(
     return [VADUserTurnStartStrategy()]
 
 
+def _resolve_user_speech_timeout(run_configs: dict) -> float:
+    # Floored rather than free: below ~150ms the timer stops being a grace
+    # period for a caller drawing breath and starts cutting people off inside
+    # their own sentence, which costs far more than it saves.
+    return max(
+        0.15,
+        float(run_configs.get("user_speech_timeout", DEFAULT_USER_SPEECH_TIMEOUT)),
+    )
+
+
 def _create_non_realtime_user_turn_stop_strategies(
     run_configs: dict, *, uses_external_turns: bool
 ):
-    """Return user turn stop strategies for non-realtime pipelines."""
+    """Return user turn stop strategies for non-realtime pipelines.
+
+    Three paths, and they differ by roughly half a second of dead air before
+    anything downstream starts:
+
+    **The STT owns turn boundaries** (Deepgram Flux, Cartesia ink-2). Nothing
+    waits on silence at all — the model decides a turn ended from acoustic and
+    semantic context, and the whole VAD-plus-timeout budget below disappears.
+    This is the fast path, and choosing such a model is worth more than any
+    amount of tuning the other two.
+
+    **A turn analyzer.** A local model ends the turn when the utterance sounds
+    complete, falling back to ``smart_turn_stop_secs`` of silence when it is
+    unsure — so it is quick on a finished sentence and slow on an ambiguous
+    one.
+
+    **Silence timeouts** (the default). The caller waits out the VAD's
+    ``stop_secs`` and then ``user_speech_timeout`` on every single turn,
+    whether or not they had obviously finished. That total is a floor under
+    perceived latency that no faster model downstream can recover.
+    """
 
     if uses_external_turns:
         return [ExternalUserTurnStopStrategy()]
@@ -196,7 +227,14 @@ def _create_non_realtime_user_turn_stop_strategies(
             )
         ]
 
-    return [SpeechTimeoutUserTurnStopStrategy()]
+    # Previously left at the library default of 0.6s, which nothing could
+    # configure — so every turn on this path paid it and no workflow could
+    # trade it away.
+    return [
+        SpeechTimeoutUserTurnStopStrategy(
+            user_speech_timeout=_resolve_user_speech_timeout(run_configs)
+        )
+    ]
 
 
 def _create_realtime_user_turn_config(provider: str):
