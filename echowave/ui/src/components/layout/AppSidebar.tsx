@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { getAuthUserApiV1UserAuthUserGet } from "@/client/sdk.gen";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -92,6 +92,16 @@ export function AppSidebar() {
 
   const isActive = (path: string) => pathname.startsWith(path);
 
+  // Eighteen destinations do not fit a 900px viewport, so the list scrolls.
+  // Left alone it rests at the top, which puts the *current* page half under
+  // the footer — a selected item you cannot see reads as a broken sidebar
+  // rather than a scrolled one. block: "nearest" means this only moves the
+  // list when the active item is actually out of view.
+  const activeLinkRef = useRef<HTMLAnchorElement | null>(null);
+  useEffect(() => {
+    activeLinkRef.current?.scrollIntoView({ block: "nearest" });
+  }, [pathname]);
+
   const handleMobileNavClick = () => {
     if (isMobile) {
       setOpenMobile(false);
@@ -138,6 +148,7 @@ export function AppSidebar() {
         )}
       >
         <Link
+          ref={isItemActive ? activeLinkRef : undefined}
           href={item.url}
           onClick={handleMobileNavClick}
           className={cn("relative", isCollapsed && "justify-center")}
@@ -271,7 +282,11 @@ export function AppSidebar() {
         )}
       </SidebarHeader>
 
-      <SidebarContent className={cn("notranslate", isCollapsed && "px-0")} translate="no">
+      {/* pb-2 plus an opaque footer below: the nav list is taller than a 900px
+          viewport once MANAGE has six entries, so the last item scrolls under
+          the footer. Without a background on the footer it showed through and
+          the final entry read as clipped rather than as scrolled. */}
+      <SidebarContent className={cn("notranslate pb-2", isCollapsed && "px-0")} translate="no">
         {navSections.map((section, index) => (
           <SidebarGroup
             key={section.label ?? "overview"}
@@ -300,7 +315,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter
-        className={cn("p-3 notranslate", isCollapsed && "p-2")}
+        className={cn("bg-sidebar p-3 notranslate", isCollapsed && "p-2")}
         translate="no"
       >
         <div className={cn("flex", isCollapsed ? "justify-center" : "justify-stretch [&>button]:w-full")}>

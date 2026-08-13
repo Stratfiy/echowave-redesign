@@ -19,6 +19,8 @@ from api.services.campaign.errors import (
     PhoneNumberPoolExhaustedError,
 )
 from api.services.campaign.rate_limiter import rate_limiter
+from api.services.compliance import dnd
+from api.services.organization_preferences import get_organization_preferences
 from api.services.quota_service import authorize_workflow_run_start
 from api.utils.common import get_backend_endpoints
 
@@ -224,6 +226,45 @@ class CampaignCallDispatcher:
                 f"queued_run_ids={queued_run_ids}; error={revert_error}"
             )
 
+    async def mark_queued_run_refused(
+        self,
+        queued_run: QueuedRunModel,
+        *,
+        reason: str,
+        detail: str,
+    ) -> None:
+        """Close out a row that must not be dialled.
+
+        Terminal on purpose. This deliberately does NOT go through the retry
+        path and does NOT touch the circuit breaker:
+
+        * Retrying is the breach. A number on the do-not-disturb list is not a
+          number that failed to connect, and a campaign that retries it has
+          called it twice rather than once.
+        * The circuit breaker exists to notice a carrier going bad. A campaign
+          run at 3am would refuse every row, trip the breaker, and report a
+          carrier outage that never happened.
+
+        Outside-hours rows are terminal for this run as well. Holding them to
+        redial at 09:00 sounds kinder and is a different feature — it needs a
+        scheduler and an expiry, because a list requeued nightly forever is a
+        list that eventually calls someone a year after they were sourced.
+        """
+        try:
+            await db_client.update_queued_run(
+                queued_run_id=queued_run.id,
+                state="failed",
+                refusal_reason=reason,
+                processed_at=datetime.now(UTC),
+            )
+        except Exception as exc:  # noqa: BLE001
+            # Never let bookkeeping turn a refusal into a dialled call. The row
+            # stays claimed and is not dispatched either way.
+            logger.error(
+                f"Could not record refusal for queued run {queued_run.id}: {exc}"
+            )
+        logger.info(f"Queued run {queued_run.id} refused ({reason}): {detail}")
+
     async def dispatch_call(
         self,
         queued_run: QueuedRunModel,
@@ -245,6 +286,38 @@ class CampaignCallDispatcher:
             phone_number = queued_run.context_variables.get("phone_number")
             if not phone_number:
                 raise ValueError(f"No phone number in queued run {queued_run.id}")
+
+            # TCCCPR: scrub against the do-not-disturb list and refuse outside
+            # the calling window.
+            #
+            # Per row, and here rather than at campaign start. The KYC gate in
+            # routes/campaign.py runs once because verification is a fact about
+            # the account; these are facts about *this number* and *this
+            # moment*. A campaign started at 20:55 dials into the night, and a
+            # 40,000-row list contains numbers the account was asked to stop
+            # calling after the list was uploaded.
+            #
+            # A refusal is terminal for the row, not a transient failure: it
+            # must not feed the retry path, and it must not trip the circuit
+            # breaker, which exists to detect a carrier going bad.
+            preferences = await get_organization_preferences(
+                campaign.organization_id
+            )
+            try:
+                phone_number = await dnd.assert_may_call(
+                    campaign.organization_id,
+                    phone_number,
+                    timezone_name=preferences.timezone,
+                )
+            except dnd.CallRefused as exc:
+                logger.info(
+                    f"Campaign {campaign.id} queued run {queued_run.id} not "
+                    f"dialled: {exc.reason}"
+                )
+                await self.mark_queued_run_refused(
+                    queued_run, reason=exc.reason, detail=str(exc)
+                )
+                return
 
             # Get provider for this campaign's pinned telephony config.
             provider = await self.get_provider_for_campaign(campaign)

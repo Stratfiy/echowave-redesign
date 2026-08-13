@@ -984,6 +984,13 @@ class QueuedRunModel(Base):
     scheduled_for = Column(DateTime(timezone=True), nullable=True)
     retry_reason = Column(String, nullable=True)  # 'busy', 'no_answer', 'voicemail'
 
+    # Why this row was refused before dialling — 'dnd_listed',
+    # 'outside_calling_hours'. Distinct from retry_reason, which records why a
+    # call that *was* placed did not connect. A refusal is terminal: the row
+    # must never be retried, because retrying it is the regulatory breach the
+    # refusal exists to prevent.
+    refusal_reason = Column(String(64), nullable=True)
+
     # Relationships
     campaign = relationship("CampaignModel")
     parent_queued_run = relationship("QueuedRunModel", remote_side=[id])
@@ -3174,5 +3181,53 @@ class AgreementAcceptanceModel(Base):
             "ix_agreement_acceptances_org_agreement",
             "organization_id",
             "agreement",
+        ),
+    )
+
+
+class DoNotCallEntryModel(Base):
+    """A number this organization must not call.
+
+    Per-organization rather than global. A number that asked *this* customer to
+    stop has not asked every customer on the platform to stop, and merging the
+    lists would leak one customer's contact list into another's — the entries
+    are themselves personal data.
+
+    The stored number is the normalised key from
+    services/compliance/dnd.normalise_number, never what the user typed. The
+    list is only protection if the value a customer uploads and the value the
+    dialler looks up reduce to the same string.
+    """
+
+    __tablename__ = "do_not_call_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    phone_number = Column(String(20), nullable=False)
+
+    # How the number got here: "manual", "upload", "caller_request", "carrier".
+    # Kept because a regulator asking why a number was suppressed is asking for
+    # provenance, and "it was in the table" is not an answer.
+    source = Column(String(32), nullable=False, default="manual")
+    note = Column(String(255), nullable=True)
+
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        # The uniqueness is what makes a re-upload idempotent instead of
+        # growing the table by its own size every time.
+        UniqueConstraint(
+            "organization_id", "phone_number", name="_dnc_org_number_uc"
+        ),
+        # The dialler's lookup is (organization_id, phone_number) on every
+        # single call, so it gets a covering index rather than relying on the
+        # unique constraint's ordering by accident.
+        Index(
+            "ix_do_not_call_entries_org_number",
+            "organization_id",
+            "phone_number",
         ),
     )

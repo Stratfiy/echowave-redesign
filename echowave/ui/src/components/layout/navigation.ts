@@ -10,6 +10,7 @@ import {
   type LucideIcon,
   Megaphone,
   Phone,
+  PhoneOff,
   PhoneOutgoing,
   Shield,
   ShieldCheck,
@@ -186,6 +187,16 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         url: "/privacy",
         icon: Shield,
         keywords: ["retention", "erasure", "dpdp", "gdpr"],
+      },
+      // Next to Privacy for the same reason Privacy is here: both are duties
+      // the account holder owes the people they call. Suppression is the one
+      // that stops a call from being placed, so it must be findable without
+      // being told the URL — the mistake the staff review queue made.
+      {
+        title: "Do not call",
+        url: "/do-not-call",
+        icon: PhoneOff,
+        keywords: ["dnd", "suppression", "opt out", "tcccpr", "trai", "blocklist"],
       },
     ],
   },

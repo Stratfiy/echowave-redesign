@@ -635,3 +635,34 @@ OSS_JWT_SECRET = os.getenv("OSS_JWT_SECRET", "change-me-in-production")
 OSS_JWT_EXPIRY_HOURS = int(os.getenv("OSS_JWT_EXPIRY_HOURS", "720"))  # 30 days
 
 TUNER_BASE_URL = os.getenv("TUNER_BASE_URL", "https://api.usetuner.ai")
+
+
+# ---------------------------------------------------------------------------
+# TCCCPR compliance: do-not-disturb scrubbing and the calling window.
+#
+# Both are on by default and both are checked immediately before a number is
+# dialled, not when a campaign is queued. A campaign started at 8pm dials into
+# the night, so a check that ran only at start would pass once and then be
+# wrong for every row after 9pm.
+#
+# The kill switch exists for deployments outside India's jurisdiction, where
+# these particular hours and this particular registry do not apply. It is not
+# there to be turned off during a busy week: a call placed to a registered
+# number is a regulatory event, not a delivery failure.
+# ---------------------------------------------------------------------------
+DND_ENFORCEMENT_ENABLED = (
+    os.getenv("DND_ENFORCEMENT_ENABLED", "true").lower() != "false"
+)
+
+# TCCCPR permits promotional calling between 09:00 and 21:00 in the recipient's
+# local time. We hold the org's configured timezone as the proxy for that —
+# see the note in services/compliance/dnd.py about why that is sound for a
+# single-jurisdiction deployment and what would have to change otherwise.
+CALLING_HOURS_START = os.getenv("CALLING_HOURS_START", "09:00")
+CALLING_HOURS_END = os.getenv("CALLING_HOURS_END", "21:00")
+
+# Fallback when an organization has set no timezone. India has no DST, so a
+# fixed zone name is correct year-round here.
+DEFAULT_ORGANIZATION_TIMEZONE = os.getenv(
+    "DEFAULT_ORGANIZATION_TIMEZONE", "Asia/Kolkata"
+)
