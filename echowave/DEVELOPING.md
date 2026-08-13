@@ -81,6 +81,10 @@ PLATFORM_CREDENTIAL_SECRET=<Fernet.generate_key()>
 be stored at all — the Provider Keys screen shows a red banner and every "Add
 key" button is disabled.
 
+For **production**, `DEPLOY-ENV.md` is the full list: every key added in this
+round, what breaks without it, and which settings are deliberately not
+environment variables.
+
 ### Running
 
 ```bash
