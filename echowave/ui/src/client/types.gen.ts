@@ -223,6 +223,38 @@ export type ActiveRequest = {
 };
 
 /**
+ * AddNumbersRequest
+ */
+export type AddNumbersRequest = {
+    /**
+     * Phone Numbers
+     */
+    phone_numbers: Array<string>;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * AddNumbersResponse
+ */
+export type AddNumbersResponse = {
+    /**
+     * Added
+     */
+    added: number;
+    /**
+     * Already Listed
+     */
+    already_listed: number;
+    /**
+     * Rejected
+     */
+    rejected: Array<string>;
+};
+
+/**
  * AmbientNoiseConfigurationDefaults
  */
 export type AmbientNoiseConfigurationDefaults = {
@@ -898,6 +930,16 @@ export type BodyUploadDocumentApiV1KycDocumentsPost = {
      * Kind
      */
     kind: string;
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
+ * Body_upload_numbers_api_v1_do_not_call_upload_post
+ */
+export type BodyUploadNumbersApiV1DoNotCallUploadPost = {
     /**
      * File
      */
@@ -2466,6 +2508,28 @@ export type DisplayOptions = {
 };
 
 /**
+ * DoNotCallEntry
+ */
+export type DoNotCallEntry = {
+    /**
+     * Phone Number
+     */
+    phone_number: string;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
  * DocumentListResponseSchema
  *
  * Response schema for list of documents.
@@ -3930,6 +3994,20 @@ export type LastCampaignSettingsResponse = {
     max_concurrency?: number | null;
     schedule_config?: ScheduleConfigResponse | null;
     circuit_breaker?: CircuitBreakerConfigResponse | null;
+};
+
+/**
+ * ListResponse
+ */
+export type ListResponse = {
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Entries
+     */
+    entries: Array<DoNotCallEntry>;
 };
 
 /**
@@ -12471,6 +12549,180 @@ export type AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponses = {
 
 export type AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponse = AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponses[keyof AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponses];
 
+export type ListNumbersApiV1DoNotCallGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/api/v1/do-not-call';
+};
+
+export type ListNumbersApiV1DoNotCallGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListNumbersApiV1DoNotCallGetError = ListNumbersApiV1DoNotCallGetErrors[keyof ListNumbersApiV1DoNotCallGetErrors];
+
+export type ListNumbersApiV1DoNotCallGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ListResponse;
+};
+
+export type ListNumbersApiV1DoNotCallGetResponse = ListNumbersApiV1DoNotCallGetResponses[keyof ListNumbersApiV1DoNotCallGetResponses];
+
+export type AddNumbersApiV1DoNotCallPostData = {
+    body: AddNumbersRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/do-not-call';
+};
+
+export type AddNumbersApiV1DoNotCallPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddNumbersApiV1DoNotCallPostError = AddNumbersApiV1DoNotCallPostErrors[keyof AddNumbersApiV1DoNotCallPostErrors];
+
+export type AddNumbersApiV1DoNotCallPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: AddNumbersResponse;
+};
+
+export type AddNumbersApiV1DoNotCallPostResponse = AddNumbersApiV1DoNotCallPostResponses[keyof AddNumbersApiV1DoNotCallPostResponses];
+
+export type UploadNumbersApiV1DoNotCallUploadPostData = {
+    body: BodyUploadNumbersApiV1DoNotCallUploadPost;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/do-not-call/upload';
+};
+
+export type UploadNumbersApiV1DoNotCallUploadPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadNumbersApiV1DoNotCallUploadPostError = UploadNumbersApiV1DoNotCallUploadPostErrors[keyof UploadNumbersApiV1DoNotCallUploadPostErrors];
+
+export type UploadNumbersApiV1DoNotCallUploadPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: AddNumbersResponse;
+};
+
+export type UploadNumbersApiV1DoNotCallUploadPostResponse = UploadNumbersApiV1DoNotCallUploadPostResponses[keyof UploadNumbersApiV1DoNotCallUploadPostResponses];
+
+export type RemoveNumberApiV1DoNotCallPhoneNumberDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Phone Number
+         */
+        phone_number: string;
+    };
+    query?: never;
+    url: '/api/v1/do-not-call/{phone_number}';
+};
+
+export type RemoveNumberApiV1DoNotCallPhoneNumberDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveNumberApiV1DoNotCallPhoneNumberDeleteError = RemoveNumberApiV1DoNotCallPhoneNumberDeleteErrors[keyof RemoveNumberApiV1DoNotCallPhoneNumberDeleteErrors];
+
+export type RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponses = {
+    /**
+     * Response Remove Number Api V1 Do Not Call  Phone Number  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponse = RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponses[keyof RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponses];
+
 export type ValidateWorkflowApiV1WorkflowWorkflowIdValidatePostData = {
     body?: never;
     headers?: {
@@ -18798,6 +19050,84 @@ export type DisableMfaApiV1AuthMfaDisablePostResponses = {
 };
 
 export type DisableMfaApiV1AuthMfaDisablePostResponse = DisableMfaApiV1AuthMfaDisablePostResponses[keyof DisableMfaApiV1AuthMfaDisablePostResponses];
+
+export type GoogleStartApiV1AuthGoogleStartGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Next
+         */
+        next?: string | null;
+    };
+    url: '/api/v1/auth/google/start';
+};
+
+export type GoogleStartApiV1AuthGoogleStartGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GoogleStartApiV1AuthGoogleStartGetError = GoogleStartApiV1AuthGoogleStartGetErrors[keyof GoogleStartApiV1AuthGoogleStartGetErrors];
+
+export type GoogleStartApiV1AuthGoogleStartGetResponses = {
+    /**
+     * Response Google Start Api V1 Auth Google Start Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GoogleStartApiV1AuthGoogleStartGetResponse = GoogleStartApiV1AuthGoogleStartGetResponses[keyof GoogleStartApiV1AuthGoogleStartGetResponses];
+
+export type GoogleCallbackApiV1AuthGoogleCallbackGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Code
+         */
+        code?: string | null;
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Error
+         */
+        error?: string | null;
+    };
+    url: '/api/v1/auth/google/callback';
+};
+
+export type GoogleCallbackApiV1AuthGoogleCallbackGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GoogleCallbackApiV1AuthGoogleCallbackGetError = GoogleCallbackApiV1AuthGoogleCallbackGetErrors[keyof GoogleCallbackApiV1AuthGoogleCallbackGetErrors];
+
+export type GoogleCallbackApiV1AuthGoogleCallbackGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type ListNodeTypesApiV1NodeTypesGetData = {
     body?: never;
