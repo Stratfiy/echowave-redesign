@@ -252,3 +252,75 @@ class TestTheGate:
 
         assert await db_client.remove_verified_number(org_id, NORMALISED) is True
         assert not await vn.is_verified(org_id, NUMBER)
+
+
+class TestTheSender:
+    """The transport is the part blocked on DLT registration, so what matters
+    here is that an unconfigured deployment fails loudly rather than pretending
+    to have sent something."""
+
+    async def test_the_log_channel_refuses_to_run_in_production(self, monkeypatch):
+        """Falling back to the log channel in production would tell every user
+        'code sent' while sending nothing — a broken feature AND a credential
+        written somewhere it does not belong."""
+        from api.services.telephony import verification_sender as sender
+
+        monkeypatch.setattr(sender, "ENVIRONMENT", "production")
+        result = await sender._send_log("919876543210", "123456")
+        assert not result.ok
+        assert "not configured" in (result.error or "")
+
+    async def test_the_log_channel_works_in_test(self, monkeypatch):
+        from api.services.telephony import verification_sender as sender
+
+        monkeypatch.setattr(sender, "ENVIRONMENT", "test")
+        result = await sender._send_log("919876543210", "123456")
+        assert result.ok and result.channel == "log"
+
+    async def test_sms_without_platform_credentials_is_refused(self, monkeypatch):
+        """And refused with a sentence that does not leak which of the three
+        settings is missing."""
+        from api.services.telephony import verification_sender as sender
+
+        monkeypatch.setattr(sender, "PLATFORM_PLIVO_AUTH_ID", None)
+        monkeypatch.setattr(sender, "PLATFORM_PLIVO_AUTH_TOKEN", None)
+        result = await sender._send_plivo_sms("919876543210", "123456")
+        assert not result.ok
+
+    async def test_sms_without_a_sender_number_is_refused(self, monkeypatch):
+        from api.services.telephony import verification_sender as sender
+
+        monkeypatch.setattr(sender, "PLATFORM_PLIVO_AUTH_ID", "id")
+        monkeypatch.setattr(sender, "PLATFORM_PLIVO_AUTH_TOKEN", "token")
+        monkeypatch.setattr(sender, "PLATFORM_SMS_FROM_NUMBER", None)
+        result = await sender._send_plivo_sms("919876543210", "123456")
+        assert not result.ok
+
+    async def test_voice_says_it_is_not_wired_rather_than_failing_silently(self):
+        """STATUS.md records that outbound on the platform account has never
+        completed a real call here. Shipping this as though it worked would
+        produce a flow that silently never rings."""
+        from api.services.telephony import verification_sender as sender
+
+        result = await sender._send_voice("919876543210", "123456")
+        assert not result.ok
+        assert "not enabled" in (result.error or "")
+
+    async def test_an_unknown_channel_is_refused_rather_than_guessed(
+        self, monkeypatch
+    ):
+        from api.services.telephony import verification_sender as sender
+
+        monkeypatch.setattr(sender, "VERIFICATION_CHANNEL", "carrier-pigeon")
+        result = await sender.deliver_code("919876543210", "123456")
+        assert not result.ok
+
+    def test_the_message_body_is_stable(self):
+        """Once SMS is live the operator matches on the registered DLT template.
+        A body that differs by a full stop is rejected as unregistered, so this
+        text changing is a deploy-time incident, not a copy tweak."""
+        from api.services.telephony.verification_sender import _body
+
+        assert _body("123456") == (
+            "Your Decibyl verification code is 123456. It expires in 10 minutes."
+        )

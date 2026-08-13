@@ -694,3 +694,26 @@ VERIFICATION_RESEND_COOLDOWN_SECONDS = int(
 REQUIRE_VERIFIED_TEST_NUMBER = (
     os.getenv("REQUIRE_VERIFIED_TEST_NUMBER", "true").lower() != "false"
 )
+
+# How a verification code reaches the person holding the phone.
+#
+#   log        development only; writes the code to the log and refuses to run
+#              outside a dev/test ENVIRONMENT
+#   voice      call the number and read the code out (not wired — see
+#              services/telephony/verification_sender.py)
+#   plivo_sms  SMS on Decibyl's own Plivo account
+#
+# Defaults to log so a deployment that has configured nothing fails visibly and
+# safely rather than appearing to send codes it never sent.
+#
+# SMS to Indian numbers needs DLT registration first — a Principal Entity, a
+# registered header, and a registered content template. Unregistered traffic is
+# blocked by the operator, and the failure looks like success: Plivo accepts the
+# request and the message never arrives.
+VERIFICATION_CHANNEL = os.getenv("VERIFICATION_CHANNEL", "log")
+
+# The sender number for platform-originated SMS, on Decibyl's own Plivo account.
+# Distinct from a customer's from_numbers: the accounts this serves have no
+# telephony configuration of their own, which is the whole reason the feature
+# exists. Must be the number registered against the DLT header.
+PLATFORM_SMS_FROM_NUMBER = os.getenv("PLATFORM_SMS_FROM_NUMBER") or None
