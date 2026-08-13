@@ -254,6 +254,35 @@ REGISTRY: Dict[ServiceType, Dict[str, Type[BaseServiceConfiguration]]] = {
     ServiceType.REALTIME: {},
 }
 
+#: The components a key can be stored against, and the registry each is
+#: declared in. Embeddings and realtime are deliberately absent: neither is a
+#: billable cost component, and a key stored against them has nowhere to go.
+_KEYED_COMPONENTS: tuple[tuple[str, ServiceType], ...] = (
+    ("stt", ServiceType.STT),
+    ("llm", ServiceType.LLM),
+    ("tts", ServiceType.TTS),
+)
+
+
+def components_for_provider(provider: str) -> tuple[str, ...]:
+    """Which components this vendor can serve, in receipt order.
+
+    Several vendors do more than one — Sarvam and ElevenLabs each do all three
+    — and a customer holding one account with them holds one key. Asking them
+    to paste it once per component is asking them to do the registry's lookup
+    by hand.
+
+    Empty for an unknown provider rather than raising: the caller is usually
+    validating user input, and "this vendor serves nothing" is the answer.
+    """
+    provider = (provider or "").strip().lower()
+    return tuple(
+        component
+        for component, service_type in _KEYED_COMPONENTS
+        if provider in REGISTRY[service_type]
+    )
+
+
 T = TypeVar("T", bound=BaseServiceConfiguration)
 
 
@@ -1523,8 +1552,22 @@ TTSConfig = Annotated[
 class DeepgramSTTConfiguration(BaseSTTConfiguration):
     model_config = DEEPGRAM_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.DEEPGRAM] = ServiceProviders.DEEPGRAM
+    # Flux, not Nova-3. Flux reports end of turn itself, from acoustic and
+    # semantic context, so the pipeline takes the external-turn path and skips
+    # the VAD silence wait plus the speech timeout that follows it — roughly
+    # half a second of dead air on every turn, before anything downstream has
+    # started. Nothing further down the pipeline can win that back.
+    #
+    # Multilingual rather than -en: it auto-detects across ten languages
+    # including Hindi, and an account that needs one of them should not have to
+    # know to change the model. English-only workflows can still pick
+    # flux-general-en, which is both faster to route and cheaper.
+    #
+    # Languages outside that set — Tamil, Telugu, Kannada, Marathi, Bengali —
+    # are not offered on Flux by `model_options` below, and those workflows fall
+    # back to Nova-3 and its silence wait. That gap is Deepgram's, not ours.
     model: str = Field(
-        default="nova-3-general",
+        default="flux-general-multi",
         description="Deepgram STT model.",
         json_schema_extra={"examples": DEEPGRAM_STT_MODELS},
     )

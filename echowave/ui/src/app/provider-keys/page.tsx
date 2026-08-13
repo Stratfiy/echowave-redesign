@@ -62,6 +62,13 @@ const COMPONENTS = [
     },
 ] as const;
 
+/** The slot's own name, as the cards above already title it. */
+function componentLabel(component: string): string {
+    return (
+        COMPONENTS.find((c) => c.value === component)?.title.toLowerCase() ?? component
+    );
+}
+
 // Vendors capitalise their own names, and title-casing produces "Openai" and
 // "Elevenlabs" — which look like we do not know who we are integrating with.
 // Only the ones whose casing a naive transform gets wrong are listed; anything
@@ -136,6 +143,10 @@ export default function ProviderKeysPage() {
     const [formProvider, setFormProvider] = useState("");
     const [formKey, setFormKey] = useState("");
     const [formLabel, setFormLabel] = useState("");
+    // On by default: a vendor account is normally one account, and the same key
+    // works across everything it serves. The customer who genuinely holds two
+    // keys with one vendor turns it off.
+    const [formApplyAll, setFormApplyAll] = useState(true);
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
 
@@ -256,6 +267,17 @@ export default function ProviderKeysPage() {
         setFormError(null);
     };
 
+    // The other slots this vendor also serves, read off the same provider lists
+    // the pickers use — so the offer can never name a component the vendor does
+    // not actually support.
+    const alsoServes = dialogComponent
+        ? ["stt", "llm", "tts"].filter(
+              (component) =>
+                  component !== dialogComponent &&
+                  (providersByComponent[component] ?? []).includes(formProvider),
+          )
+        : [];
+
     const saveKey = async () => {
         if (!dialogComponent) return;
         setSaving(true);
@@ -267,6 +289,7 @@ export default function ProviderKeysPage() {
                 provider: formProvider,
                 api_key: formKey.trim(),
                 label: formLabel.trim() || null,
+                apply_to_all_components: formApplyAll && alsoServes.length > 0,
             },
         });
 
@@ -569,6 +592,32 @@ export default function ProviderKeysPage() {
                                 placeholder="Paste the key"
                             />
                         </div>
+
+                        {/* Only shown when it is true. A checkbox offering to
+                            apply a key to nothing else reads as a broken
+                            control. */}
+                        {alsoServes.length > 0 && (
+                            <label className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm">
+                                <input
+                                    type="checkbox"
+                                    className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--primary)]"
+                                    checked={formApplyAll}
+                                    onChange={(event) =>
+                                        setFormApplyAll(event.currentTarget.checked)
+                                    }
+                                />
+                                <span>
+                                    <span className="font-medium">
+                                        Also use for {alsoServes.map(componentLabel).join(" and ")}
+                                    </span>
+                                    <span className="block text-xs text-muted-foreground">
+                                        {providerLabel(formProvider)} serves them too, and one
+                                        account normally means one key. Turn this off if you hold
+                                        separate keys.
+                                    </span>
+                                </span>
+                            </label>
+                        )}
 
                         <div className="space-y-2">
                             <Label htmlFor="provider-key-label">Label (optional)</Label>

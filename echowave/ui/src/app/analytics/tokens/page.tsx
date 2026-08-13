@@ -52,25 +52,33 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { detailFromError } from "@/lib/apiError";
-import { formatDateIST, formatNumber, formatPaise } from "@/lib/billing/format";
+import { formatDateIST, formatNumber } from "@/lib/billing/format";
 
 type TokenRow = {
     period: string;
     tokens: number;
-    cost_paise: number;
     calls: number;
     minutes: number;
     tokens_per_minute: number | null;
 };
 
+/**
+ * No money here, deliberately.
+ *
+ * Spend per named model divides into a unit price, and this account's models
+ * have public rate cards — so a spend column on this table publishes what we
+ * charge over the vendor. The bill, split by component, is on the Spend tab.
+ *
+ * Nothing is lost for the reader: the question this table answers — which
+ * model is burning the context, would a cheaper one serve — is a question
+ * about tokens.
+ */
 type ModelRow = {
     provider: string;
     model: string;
     tokens: number;
-    cost_paise: number;
     calls: number;
     tokens_per_call: number | null;
-    paise_per_1k_tokens: number | null;
 };
 
 type GrowthRow = {
@@ -148,7 +156,6 @@ export default function CustomerTokensPage() {
     const growthSeries = growth.series ?? [];
 
     const totalTokens = series.reduce((sum, r) => sum + r.tokens, 0);
-    const totalCost = series.reduce((sum, r) => sum + r.cost_paise, 0);
     const totalMinutes = series.reduce((sum, r) => sum + r.minutes, 0);
     // From the totals, not a mean of the per-day ratios: that would weight a
     // quiet Sunday the same as a busy Monday.
@@ -167,7 +174,6 @@ export default function CustomerTokensPage() {
                     }
                     sub="Moves when the agent changes, not when volume does"
                 />
-                <StatTile label="Language model spend" value={formatPaise(totalCost)} />
                 <StatTile
                     label="Conversation"
                     value={`${formatNumber(Math.round(totalMinutes))} min`}
@@ -322,7 +328,6 @@ export default function CustomerTokensPage() {
                                     <TableHead className="text-right">Tokens</TableHead>
                                     <TableHead className="text-right">Calls</TableHead>
                                     <TableHead className="text-right">Tokens/call</TableHead>
-                                    <TableHead className="text-right">Spend</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -338,9 +343,6 @@ export default function CustomerTokensPage() {
                                         </TableCell>
                                         <TableCell className="text-right tabular-nums">
                                             {formatNumber(row.tokens_per_call)}
-                                        </TableCell>
-                                        <TableCell className="text-right tabular-nums">
-                                            {formatPaise(row.cost_paise)}
                                         </TableCell>
                                     </TableRow>
                                 ))}

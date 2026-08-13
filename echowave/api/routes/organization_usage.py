@@ -412,19 +412,54 @@ async def get_token_usage(
         return {
             "range": {"start": start.isoformat(), "end": end.isoformat()},
             "granularity": granularity,
-            "series": await dash.token_usage_series(
-                session,
-                start=start,
-                end=end,
-                granularity=granularity,
-                organization_id=user.selected_organization_id,
-            ),
-            "by_model": await dash.token_usage_by_model(
-                session,
-                start=start,
-                end=end,
-                organization_id=user.selected_organization_id,
-            ),
+            # Same reason as `by_model` below, one step less obvious: spend and
+            # tokens for the same period divide into a blended per-token price,
+            # and on an account running a single model "blended" is that
+            # model's price. Money for this account lives on /usage/spend,
+            # split by component, which is their bill without naming a rate.
+            "series": [
+                {
+                    "period": row["period"],
+                    "tokens": row["tokens"],
+                    "calls": row["calls"],
+                    "minutes": row["minutes"],
+                    "tokens_per_minute": row["tokens_per_minute"],
+                }
+                for row in await dash.token_usage_series(
+                    session,
+                    start=start,
+                    end=end,
+                    granularity=granularity,
+                    organization_id=user.selected_organization_id,
+                )
+            ],
+            # Re-projected, not passed through. The staff version carries
+            # `cost_paise` and `paise_per_1k_tokens` *per named model*, and on a
+            # managed key those are our price for that model — one division
+            # away from the vendor's public rate card, and therefore one
+            # division away from our markup, on every account that opens this
+            # page. The account-wide spend on /usage/spend is their bill and
+            # stays; what is removed is the per-model unit price, which is the
+            # only part that discloses the margin.
+            #
+            # Tokens, calls and tokens-per-call survive, because the question
+            # this table exists to answer — which model is burning the context,
+            # would a cheaper one serve — is answered in tokens, not rupees.
+            "by_model": [
+                {
+                    "provider": row["provider"],
+                    "model": row["model"],
+                    "tokens": row["tokens"],
+                    "calls": row["calls"],
+                    "tokens_per_call": row["tokens_per_call"],
+                }
+                for row in await dash.token_usage_by_model(
+                    session,
+                    start=start,
+                    end=end,
+                    organization_id=user.selected_organization_id,
+                )
+            ],
             "context_growth": await dash.context_growth_by_turn(
                 session,
                 start=start,

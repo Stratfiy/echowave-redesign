@@ -25,6 +25,7 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.configuration import organization_credentials as creds
+from api.services.configuration.registry import components_for_provider
 
 router = APIRouter(prefix="/provider-keys", tags=["provider-keys"])
 
@@ -34,6 +35,17 @@ class SetCredentialRequest(BaseModel):
     provider: str = Field(..., min_length=1, max_length=64)
     api_key: str = Field(..., min_length=8)
     label: str | None = Field(None, max_length=128)
+    # A vendor account is usually one account. Sarvam and ElevenLabs each serve
+    # all three components, and the same key works for all of them — so storing
+    # it once per component is three round trips to say one thing.
+    #
+    # Off by default, because the separate-key case is real: an account can
+    # hold two keys with one vendor on separate billing, and silently
+    # overwriting the other component's key would be worse than the typing.
+    apply_to_all_components: bool = Field(
+        False,
+        description="Store this key for every component this provider serves.",
+    )
 
 
 class ActiveRequest(BaseModel):
@@ -82,23 +94,48 @@ async def list_provider_keys(user: UserModel = Depends(get_user)) -> dict[str, A
 async def set_provider_key(
     request: SetCredentialRequest, user: UserModel = Depends(get_user)
 ) -> dict[str, Any]:
-    """Store or rotate one key. The value is write-only from here on."""
+    """Store or rotate one key. The value is write-only from here on.
+
+    With ``apply_to_all_components`` the same key is stored against every
+    component this vendor serves, in one transaction — so a Sarvam key entered
+    once covers speech-to-text, the language model and synthesis together.
+    """
     organization_id = _organization_id(user)
+
+    components = [request.component]
+    if request.apply_to_all_components:
+        serves = components_for_provider(request.provider)
+        # The requested component leads, so it is the one reported back and the
+        # one whose failure is surfaced first. An unknown provider falls through
+        # to the single component and lets set_credential reject it, rather than
+        # silently storing nothing.
+        components = [request.component] + [
+            component for component in serves if component != request.component
+        ]
+
     async with db_client.async_session() as session:
+        stored = []
         try:
-            credential = await creds.set_credential(
-                session,
-                organization_id=organization_id,
-                actor_user_id=user.id,
-                component=request.component,
-                provider=request.provider,
-                api_key=request.api_key,
-                label=request.label,
-            )
+            for component in components:
+                stored.append(
+                    await creds.set_credential(
+                        session,
+                        organization_id=organization_id,
+                        actor_user_id=user.id,
+                        component=component,
+                        provider=request.provider,
+                        api_key=request.api_key,
+                        label=request.label,
+                    )
+                )
         except creds.OrganizationCredentialError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        # One commit for the whole set: a key that landed on two of three
+        # components would leave the account half-configured, and the failure
+        # that caused it invisible.
         await session.commit()
-    return _view(credential)
+
+    return {**_view(stored[0]), "applied_to": [c.component for c in stored]}
 
 
 @router.post("/active")

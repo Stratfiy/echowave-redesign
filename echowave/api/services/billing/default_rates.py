@@ -246,6 +246,27 @@ STT_RATES = (
         0.0077,
         "Nova-3 streaming $0.0077/min. Batch is $0.0043 and does not apply here.",
     ),
+    # Flux is priced separately from Nova-3 and, without its own rows, fell
+    # through to the fallback above — so every Flux minute was costed as a
+    # Nova-3 minute. Worth a row of its own now that Flux is the default: it is
+    # the model that skips the endpointing wait, so it is the one most calls
+    # will actually run on.
+    DefaultRate(
+        "deepgram",
+        "flux-general-en",
+        CostComponent.STT,
+        RateUnit.MINUTE,
+        0.0065,
+        "Flux English streaming $0.0065/min.",
+    ),
+    DefaultRate(
+        "deepgram",
+        "flux-general-multi",
+        CostComponent.STT,
+        RateUnit.MINUTE,
+        0.0078,
+        "Flux multilingual streaming $0.0078/min.",
+    ),
     DefaultRate(
         "sarvam",
         "",
