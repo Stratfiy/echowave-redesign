@@ -1,6 +1,6 @@
 import random
 from enum import Enum, auto
-from typing import Annotated, Dict, Literal, Type, TypeVar, Union
+from typing import Annotated, ClassVar, Dict, Literal, Type, TypeVar, Union
 
 from pydantic import (
     BaseModel,
@@ -147,6 +147,21 @@ class BaseServiceConfiguration(BaseModel):
     # guard several provider tests rely on.
     api_key: str | list[str]
 
+    #: Whether ``api_key`` is what actually authenticates this service.
+    #:
+    #: True for almost everything, and the exception is what this exists for.
+    #: Google Cloud Speech and Text-to-Speech authenticate with a service
+    #: account JSON in ``credentials``; their ``api_key`` is inherited from here
+    #: and documented as unused. The key vault stores api_key strings and
+    #: nothing else, so a screen offering "also use this key for text to
+    #: speech" on Google would be offering to store a Gemini key against a
+    #: service that cannot read it — and it would fail at dial time rather than
+    #: at save time.
+    #:
+    #: A ClassVar rather than a field: it describes the shape of the vendor's
+    #: authentication, not a value anyone configures.
+    authenticates_with_api_key: ClassVar[bool] = True
+
     # A real, customer-chosen provider and model (e.g. provider=openai,
     # model=gpt-4o), authenticated with *our* platform key instead of the
     # account's own. The older way to get a Decibyl-billed section is
@@ -264,6 +279,26 @@ _KEYED_COMPONENTS: tuple[tuple[str, ServiceType], ...] = (
 )
 
 
+def components_keyed_by_api_key(provider: str) -> tuple[str, ...]:
+    """The components of a vendor that one API key can actually serve.
+
+    ``components_for_provider`` answers "does this vendor do text to speech";
+    this answers "would storing my key against it work", and they differ for
+    exactly one vendor today. Google does all three, but Cloud Speech and
+    Text-to-Speech authenticate with a service-account JSON while Gemini uses
+    an API key — so a fan-out built on the first question would offer to store
+    a Gemini key against two services that cannot read it, and the mistake
+    would surface at dial time rather than at save time.
+    """
+    provider = (provider or "").strip().lower()
+    return tuple(
+        component
+        for component, service_type in _KEYED_COMPONENTS
+        if provider in REGISTRY[service_type]
+        and REGISTRY[service_type][provider].authenticates_with_api_key
+    )
+
+
 def components_for_provider(provider: str) -> tuple[str, ...]:
     """Which components this vendor can serve, in receipt order.
 
@@ -307,11 +342,15 @@ def provider_component_map() -> dict[str, list[str]]:
         for _, service_type in _KEYED_COMPONENTS
         for provider in REGISTRY[service_type]
     }
-    return {
-        provider: list(components_for_provider(provider))
+    mapping = {
+        provider: list(components_keyed_by_api_key(provider))
         for provider in sorted(providers)
         if provider != ServiceProviders.DECIBYL.value
     }
+    # A vendor whose every component authenticates some other way has nothing
+    # to offer here, and an empty list would render a checkbox promising to
+    # store the key against no slots at all.
+    return {provider: components for provider, components in mapping.items() if components}
 
 
 def _provider_key(provider) -> str:
@@ -1083,6 +1122,9 @@ class ElevenlabsTTSConfiguration(BaseServiceConfiguration):
 @register_tts
 class GoogleTTSConfiguration(BaseTTSConfiguration):
     model_config = GOOGLE_CLOUD_PROVIDER_MODEL_CONFIG
+    # Authenticates with the service-account JSON in `credentials`, not with
+    # api_key — which is inherited and documented here as unused.
+    authenticates_with_api_key: ClassVar[bool] = False
     provider: Literal[ServiceProviders.GOOGLE] = ServiceProviders.GOOGLE
     model: str = Field(
         default="chirp_3_hd",
@@ -1667,6 +1709,9 @@ class OpenAISTTConfiguration(BaseSTTConfiguration):
 @register_stt
 class GoogleSTTConfiguration(BaseSTTConfiguration):
     model_config = GOOGLE_CLOUD_PROVIDER_MODEL_CONFIG
+    # Authenticates with the service-account JSON in `credentials`, not with
+    # api_key — which is inherited and documented here as unused.
+    authenticates_with_api_key: ClassVar[bool] = False
     provider: Literal[ServiceProviders.GOOGLE] = ServiceProviders.GOOGLE
     model: str = Field(
         default="latest_long",

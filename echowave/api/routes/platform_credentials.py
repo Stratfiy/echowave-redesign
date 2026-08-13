@@ -20,7 +20,7 @@ from api.db.models import UserModel
 from api.services.auth.depends import get_superuser
 from api.services.configuration import platform_credentials as creds
 from api.services.configuration.registry import (
-    components_for_provider,
+    components_keyed_by_api_key,
     provider_component_map,
 )
 
@@ -99,7 +99,10 @@ async def set_provider_key(
     """
     components = [request.component]
     if request.apply_to_all_components:
-        serves = components_for_provider(request.provider)
+        # Only the components this key can actually authenticate. Google does
+        # all three, but Cloud Speech and TTS want a service-account JSON, so
+        # fanning an API key onto them would store something they cannot read.
+        serves = components_keyed_by_api_key(request.provider)
         # The requested component leads, so it is the one reported back and the
         # one whose failure surfaces first. An unknown provider falls through to
         # the single component and lets set_credential reject it, rather than

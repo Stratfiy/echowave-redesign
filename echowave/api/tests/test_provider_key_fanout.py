@@ -137,14 +137,17 @@ class TestTheMapTheScreenRendersFrom:
     """
 
     def test_it_agrees_with_the_single_provider_lookup(self):
+        """Against the api-key lookup, not the serves-it lookup. Those differ
+        for Google, and the map has to follow the one that decides whether
+        storing the key would work."""
         from api.services.configuration.registry import (
-            components_for_provider,
+            components_keyed_by_api_key,
             provider_component_map,
         )
 
         mapping = provider_component_map()
         for provider, components in mapping.items():
-            assert components == list(components_for_provider(provider)), provider
+            assert components == list(components_keyed_by_api_key(provider)), provider
 
     def test_it_covers_the_vendors_the_managed_tier_depends_on(self):
         from api.services.configuration.registry import provider_component_map
@@ -360,3 +363,49 @@ class TestTheStaffEndpoint:
 
         assert response.status_code == 200
         assert response.json()["applied_to"] == ["tts"]
+
+
+class TestTheVendorsWhereOneKeyIsNotEnough:
+    """Serving a component and authenticating with an API key are different
+    questions, and the fan-out has to ask the second one.
+
+    Google is the case. It does speech-to-text, the language model and
+    synthesis, so "which components does this vendor serve" says all three —
+    but Cloud Speech and Cloud Text-to-Speech authenticate with a service
+    account JSON, and their ``api_key`` field is inherited and documented as
+    unused. Offering to store a Gemini key against them would store something
+    those services cannot read, and it would fail at dial time on a real call
+    rather than at save time in front of the person who typed it.
+    """
+
+    def test_google_serves_three_components_but_keys_only_one(self):
+        from api.services.configuration.registry import (
+            components_for_provider,
+            components_keyed_by_api_key,
+        )
+
+        assert components_for_provider("google") == ("stt", "llm", "tts")
+        assert components_keyed_by_api_key("google") == ("llm",)
+
+    def test_google_is_therefore_offered_no_fan_out(self):
+        from api.services.configuration.registry import provider_component_map
+
+        assert provider_component_map()["google"] == ["llm"]
+
+    def test_the_vendors_that_do_share_one_key_are_unaffected(self):
+        """The guard must not quietly disqualify the vendors it was built for."""
+        from api.services.configuration.registry import components_keyed_by_api_key
+
+        assert components_keyed_by_api_key("sarvam") == ("stt", "llm", "tts")
+        assert components_keyed_by_api_key("openai") == ("stt", "llm", "tts")
+        assert components_keyed_by_api_key("deepgram") == ("stt", "tts")
+        assert components_keyed_by_api_key("elevenlabs") == ("stt", "tts")
+
+    def test_the_marker_defaults_to_true_so_a_new_vendor_is_not_silently_dropped(
+        self,
+    ):
+        """A new configuration class that forgets the attribute should behave
+        like every other vendor, not vanish from the fan-out."""
+        from api.services.configuration.registry import BaseServiceConfiguration
+
+        assert BaseServiceConfiguration.authenticates_with_api_key is True

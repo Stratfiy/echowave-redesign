@@ -128,6 +128,9 @@ export default function ProviderKeysPage() {
 
     const [credentials, setCredentials] = useState<ProviderCredential[]>([]);
     const [providersByComponent, setProvidersByComponent] = useState<Record<string, string[]>>({});
+    // Vendor → the slots one key can serve, from the server. Distinct from
+    // providersByComponent above, which drives the vendor dropdown.
+    const [providerComponents, setProviderComponents] = useState<Record<string, string[]>>({});
     const [encryptionConfigured, setEncryptionConfigured] = useState(true);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -168,9 +171,11 @@ export default function ProviderKeysPage() {
         const payload = keysResult.data as {
             credentials: ProviderCredential[];
             encryption_configured: boolean;
+            provider_components?: Record<string, string[]>;
         };
         setCredentials(payload.credentials ?? []);
         setEncryptionConfigured(payload.encryption_configured !== false);
+        setProviderComponents(payload.provider_components ?? {});
 
         // Which vendors exist per slot, read off the same schema the model
         // picker uses, so the two cannot offer different provider lists.
@@ -267,14 +272,17 @@ export default function ProviderKeysPage() {
         setFormError(null);
     };
 
-    // The other slots this vendor also serves, read off the same provider lists
-    // the pickers use — so the offer can never name a component the vendor does
-    // not actually support.
+    // The other slots this one key can actually serve.
+    //
+    // Off the server's map rather than the model picker's provider lists,
+    // because those answer a different question. "Does Google do text to
+    // speech" is yes; "would storing this key against it work" is no — Cloud
+    // Speech and Cloud TTS authenticate with a service-account JSON, not the
+    // Gemini API key. Deriving the offer from the first question showed the
+    // checkbox for Google, and the save then wrote one slot without saying so.
     const alsoServes = dialogComponent
-        ? ["stt", "llm", "tts"].filter(
-              (component) =>
-                  component !== dialogComponent &&
-                  (providersByComponent[component] ?? []).includes(formProvider),
+        ? (providerComponents[formProvider] ?? []).filter(
+              (component) => component !== dialogComponent,
           )
         : [];
 

@@ -25,7 +25,10 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.configuration import organization_credentials as creds
-from api.services.configuration.registry import components_for_provider
+from api.services.configuration.registry import (
+    components_keyed_by_api_key,
+    provider_component_map,
+)
 
 router = APIRouter(prefix="/provider-keys", tags=["provider-keys"])
 
@@ -87,6 +90,13 @@ async def list_provider_keys(user: UserModel = Depends(get_user)) -> dict[str, A
         # administrator's problem rather than the customer's mistake.
         "encryption_configured": creds.encryption_is_configured(),
         "components": [c.value for c in creds.CREDENTIAL_COMPONENTS],
+        # Which vendors one key can serve more than one slot for. The screen
+        # used to work this out from the model picker's provider lists, which
+        # answer a different question — "does this vendor do text to speech" —
+        # and so offered the fan-out for Google, whose Cloud Speech and TTS
+        # want a service-account JSON rather than the Gemini API key. The offer
+        # appeared, the save wrote one slot, and nothing said so.
+        "provider_components": provider_component_map(),
     }
 
 
@@ -104,7 +114,10 @@ async def set_provider_key(
 
     components = [request.component]
     if request.apply_to_all_components:
-        serves = components_for_provider(request.provider)
+        # Only the components this key can actually authenticate. Google does
+        # all three, but Cloud Speech and TTS want a service-account JSON, so
+        # fanning an API key onto them would store something they cannot read.
+        serves = components_keyed_by_api_key(request.provider)
         # The requested component leads, so it is the one reported back and the
         # one whose failure is surfaced first. An unknown provider falls through
         # to the single component and lets set_credential reject it, rather than
