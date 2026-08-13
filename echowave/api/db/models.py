@@ -69,6 +69,16 @@ class UserModel(Base):
     # Second factor. The secret is stored Fernet-encrypted, never in the clear:
     # a readable TOTP secret is password-equivalent, since anyone holding it can
     # mint valid codes indefinitely.
+    #: When this address was proved. The permanent fact lives on the user; the
+    #: transient challenge lives in email_verification_challenges, because a
+    #: code with an expiry and an attempt counter is not a property of a person.
+    #:
+    #: NULL means unproved, including for every account that existed before
+    #: this shipped — which is why nothing hard-gates on it yet. Locking out
+    #: existing customers to enforce a rule introduced after they signed up is
+    #: not a security improvement, it is an outage.
+    email_verified_at = Column(DateTime(timezone=True), nullable=True)
+
     mfa_secret_encrypted = Column(String, nullable=True)
     mfa_enabled = Column(
         Boolean, nullable=False, default=False, server_default=text("false")
@@ -3291,4 +3301,39 @@ class VerifiedNumberModel(Base):
         Index(
             "ix_verified_numbers_org_number", "organization_id", "phone_number"
         ),
+    )
+
+
+
+class EmailVerificationChallengeModel(Base):
+    """A live one-time code for an email address.
+
+    One row per user, replaced on each send. Separate from the users table
+    because it is transient: it exists for ten minutes, carries an attempt
+    counter, and is destroyed on success. Keeping it beside the durable account
+    record would mean every read of a user drags along a dead credential.
+    """
+
+    __tablename__ = "email_verification_challenges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    #: Stored so a code cannot be replayed against a different address after
+    #: the user edits theirs mid-flow.
+    email = Column(String, nullable=False)
+
+    code_hash = Column(String(64), nullable=False)
+    code_salt = Column(String(32), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+    attempts = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    send_count = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    last_sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        UniqueConstraint("user_id", name="_email_verification_user_uc"),
     )

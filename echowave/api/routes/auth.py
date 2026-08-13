@@ -1,8 +1,10 @@
+from datetime import UTC, datetime
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from loguru import logger
+from pydantic import BaseModel, Field
 
 from api.constants import BACKEND_API_ENDPOINT, ENABLE_SIGNUP, UI_APP_URL
 from api.db import db_client
@@ -17,7 +19,12 @@ from api.schemas.auth import (
     SignupRequest,
     UserResponse,
 )
-from api.services.auth import google_oauth, mfa
+from api.services.auth import (
+    email_verification,
+    email_verification_flow,
+    google_oauth,
+    mfa,
+)
 from api.services.auth.depends import (
     get_user,
     require_local_auth,
@@ -57,6 +64,14 @@ async def signup(request: SignupRequest):
     # Organization, membership and default configuration. Shared with the
     # Google callback so both doors produce an identically-provisioned account.
     organization = await provision_new_account(user)
+
+    # Send the verification code, best effort.
+    #
+    # Signup completes either way. A mail server having a bad minute must not
+    # cost somebody their account — they are already provisioned, already
+    # signed in, and can ask for another code from inside the app. Failing the
+    # signup here would turn a transient SMTP fault into a lost customer.
+    await email_verification_flow.issue_code(user.id, request.email)
 
     # Create JWT token
     token = create_jwt_token(user.id, request.email)
@@ -312,6 +327,14 @@ async def google_callback(
         )
         organization = await provision_new_account(user)
         event = PostHogEvent.SIGNED_UP
+
+    # Google already proved this address — complete_sign_in refuses any token
+    # whose email Google has not verified, which is the check that stands
+    # between us and somebody claiming an address on a domain Google does not
+    # control. Mailing a code to confirm what we just confirmed would be
+    # theatre, and would leave every Google account permanently unverified.
+    if getattr(user, "email_verified_at", None) is None:
+        await db_client.mark_email_verified(user.id, verified_at=datetime.now(UTC))
     else:
         # Linking to an existing account, which is only safe because
         # complete_sign_in has already refused any unverified email — see the
@@ -349,3 +372,45 @@ def _google_failure(message: str) -> RedirectResponse:
     return RedirectResponse(
         url=f"{UI_APP_URL}/auth/login?error={quote(message)}", status_code=303
     )
+
+
+# ---------------------------------------------------------------------------
+# Email verification
+#
+# Nothing refuses an unverified account yet, deliberately. Every account that
+# predates this has email_verified_at NULL, and locking those people out to
+# enforce a rule introduced after they signed up is an outage rather than a
+# security improvement. What exists here is the proof and the record; what to
+# withhold from an unverified account is a separate, reversible decision.
+# ---------------------------------------------------------------------------
+
+
+class VerifyEmailRequest(BaseModel):
+    code: str = Field(..., max_length=12)
+
+
+@router.post("/email/verify", dependencies=[Depends(require_local_auth)])
+async def verify_email(
+    request: VerifyEmailRequest, user: UserModel = Depends(get_user)
+) -> dict:
+    try:
+        await email_verification.confirm_verification(user.id, request.code)
+    except email_verification.TooManyAttempts as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except email_verification.EmailVerificationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"email_verified": True}
+
+
+@router.post("/email/resend", dependencies=[Depends(require_local_auth)])
+async def resend_email_verification(user: UserModel = Depends(get_user)) -> dict:
+    """Send another code.
+
+    Reports whether it went out rather than raising on a refusal: the rate
+    limits live in the service, and "you asked a moment ago" is an answer, not
+    a failure. The response deliberately does not distinguish a cooldown from a
+    send ceiling — both mean wait, and separating them only tells someone
+    probing the endpoint how close they are to the wall.
+    """
+    sent = await email_verification_flow.issue_code(user.id, user.email or "")
+    return {"sent": sent}

@@ -24,7 +24,6 @@ None of the three is optional and none substitutes for the others.
 
 from __future__ import annotations
 
-import hashlib
 import hmac
 import secrets
 from dataclasses import dataclass
@@ -38,6 +37,7 @@ from api.constants import (
     VERIFICATION_MAX_SENDS,
     VERIFICATION_RESEND_COOLDOWN_SECONDS,
 )
+from api.services.auth import otp as _otp
 from api.services.compliance.dnd import normalise_number
 
 
@@ -81,30 +81,11 @@ class StartedVerification:
     expires_at: datetime
 
 
-def generate_code() -> str:
-    """A six-digit code from a cryptographic source.
-
-    ``secrets`` rather than ``random`` because ``random`` is a Mersenne Twister
-    seeded from the clock: observing a handful of codes lets an attacker predict
-    the next, which would let them verify a number they cannot answer.
-    """
-    return f"{secrets.randbelow(1_000_000):06d}"
-
-
-def hash_code(code: str, salt: str) -> str:
-    """Salted SHA-256.
-
-    Deliberately different from ``hash_recovery_code``, which is an unsalted
-    digest. That is correct there — recovery codes are full-entropy random
-    values with no dictionary to precompute against. A six-digit code has a
-    search space of one million, so an unsalted digest of one is a table
-    lookup. The salt is what forces per-row work on a leaked database.
-
-    Not bcrypt: this is checked on a user-facing request path and expires in
-    minutes, so the cost of a slow KDF buys very little against a code that
-    also has an attempt ceiling and a short life.
-    """
-    return hashlib.sha256(f"{salt}:{code}".encode()).hexdigest()
+#: Re-exported from services/auth/otp so email verification at signup and
+#: phone verification here cannot drift apart on the security decisions. The
+#: reasoning for the salt and for SHA-256 over bcrypt lives there.
+generate_code = _otp.generate_code
+hash_code = _otp.hash_code
 
 
 async def start_verification(
@@ -156,7 +137,7 @@ async def start_verification(
                 )
 
     code = generate_code()
-    salt = secrets.token_hex(8)
+    salt = _otp.generate_salt()
     expires_at = moment + timedelta(minutes=VERIFICATION_CODE_TTL_MINUTES)
 
     await client.upsert_verified_number_challenge(
