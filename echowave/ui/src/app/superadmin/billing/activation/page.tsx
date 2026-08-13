@@ -23,7 +23,6 @@ import {
   useAuthReady,
   useChartMode,
 } from "@/components/charts/primitives";
-import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { detailFromError } from "@/lib/apiError";
 
@@ -112,27 +111,27 @@ export default function ActivationPage() {
     );
 
   return (
-    <>
-      <PageHeader
-        title="Activation"
-        description="Of the accounts that signed up in this window, how many ever got to a call — and to paying."
-        actions={
-          <div className="flex gap-1">
-            {RANGES.map((range) => (
-              <Button
-                key={range.days}
-                size="sm"
-                variant={rangeDays === range.days ? "default" : "outline"}
-                onClick={() => setRangeDays(range.days)}
-              >
-                {range.label}
-              </Button>
-            ))}
-          </div>
-        }
-      />
+    <div className="space-y-6">
+        {/* The billing layout supplies the section header and tabs, so this
+            screen contributes only its own filter row — the same shape every
+            sibling tab uses. */}
+        <div className="flex flex-wrap items-center gap-2">
+          {RANGES.map((range) => (
+            <Button
+              key={range.days}
+              size="sm"
+              variant={rangeDays === range.days ? "default" : "outline"}
+              onClick={() => setRangeDays(range.days)}
+            >
+              {range.label}
+            </Button>
+          ))}
+          <span className="text-xs text-muted-foreground">
+            Of the accounts that signed up in this window, how many ever got to a
+            call — and to paying.
+          </span>
+        </div>
 
-      <PageBody className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatTile label="Signed up" value={isLoading ? "—" : String(top)} />
           <StatTile
@@ -301,7 +300,6 @@ export default function ActivationPage() {
             </table>
           </div>
         </ChartCard>
-      </PageBody>
-    </>
+    </div>
   );
 }
