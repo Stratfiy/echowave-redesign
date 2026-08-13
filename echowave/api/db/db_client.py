@@ -1,6 +1,7 @@
 from api.db.agent_trigger_client import AgentTriggerClient
 from api.db.api_key_client import APIKeyClient
 from api.db.campaign_client import CampaignClient
+from api.db.do_not_call_client import DoNotCallClient
 from api.db.embed_token_client import EmbedTokenClient
 from api.db.folder_client import FolderClient
 from api.db.integration_client import IntegrationClient
@@ -25,6 +26,7 @@ from api.db.workflow_template_client import WorkflowTemplateClient
 
 class DBClient(
     KycClient,
+    DoNotCallClient,
     WorkflowClient,
     WorkflowRunClient,
     WorkflowRunTextSessionClient,

@@ -26,6 +26,7 @@ from api.enums import CallType, WorkflowRunMode, WorkflowRunState
 from api.errors.telephony_errors import TelephonyError
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
+from api.services.compliance import dnd
 from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     WorkflowRunSlotAlreadyBoundError,
@@ -160,6 +161,23 @@ async def initiate_call(
             status_code=400,
             detail="Phone number must be provided in request or set in organization preferences",
         )
+
+    # TCCCPR: the do-not-disturb list and the calling window. Checked here, at
+    # the last point before the call is placed, rather than anywhere earlier —
+    # the window is a fact about now, and "now" moves between queueing a call
+    # and dialling it.
+    #
+    # 451 rather than 403: the call is refused for a legal reason, not because
+    # this user lacks permission. The distinction matters to whoever reads the
+    # log, because the two have completely different remedies.
+    try:
+        phone_number = await dnd.assert_may_call(
+            user.selected_organization_id,
+            phone_number,
+            timezone_name=preferences.timezone,
+        )
+    except dnd.CallRefused as exc:
+        raise HTTPException(status_code=451, detail=str(exc)) from exc
 
     workflow = await db_client.get_workflow(
         request.workflow_id, organization_id=user.selected_organization_id
