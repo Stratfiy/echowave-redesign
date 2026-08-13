@@ -343,3 +343,20 @@ class TestTheSender:
         monkeypatch.setattr(sender, "PLATFORM_TWILIO_ACCOUNT_SID", None)
         result = await sender.deliver_code("919876543210", "123456")
         assert result.channel == "twilio_sms"
+
+
+class TestTheGateDefault:
+    def test_the_gate_is_off_until_a_code_can_actually_be_delivered(self):
+        """A permission nobody can obtain is an outage, not a permission.
+
+        VERIFICATION_CHANNEL is `log` on every real deployment today, and log
+        refuses to run outside dev — so enforcing this before delivery works
+        would refuse every test call with no way for the user to proceed.
+
+        This assertion is here to be DELETED, in the same change that makes
+        delivery work and flips the default. It failing means somebody turned
+        the gate on; check that a code can actually reach a user first.
+        """
+        from api.constants import REQUIRE_VERIFIED_TEST_NUMBER
+
+        assert REQUIRE_VERIFIED_TEST_NUMBER is False

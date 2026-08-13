@@ -686,13 +686,23 @@ VERIFICATION_RESEND_COOLDOWN_SECONDS = int(
 
 # Whether a test call may only go to a number the account has verified.
 #
-# On by default. Off, the test-call path dials whatever string a user types,
-# which is the harassment vector this whole mechanism exists to close. Set it
-# false only for a deployment that gates outbound some other way — and note
-# that it does not affect campaigns or the trigger API, which dial numbers the
-# customer supplies as data and are governed by DND and the calling window.
+# OFF by default, and that default is temporary. It should be true — dialling
+# whatever string a user types is the harassment vector this mechanism exists
+# to close — but a permission nobody can obtain is not a permission, it is an
+# outage. VERIFICATION_CHANNEL is `log` on every real deployment today, which
+# refuses to run outside dev, so with this on nobody could verify a number and
+# every test call would be refused with no way forward.
+#
+# Flip it to true in the same change that makes delivery work (DLT registration
+# for SMS, or a proven outbound path for voice). There is a test asserting the
+# gate itself works, so the only thing this default controls is whether it is
+# enforced before anyone can satisfy it.
+#
+# It does not affect campaigns or the trigger API either way: those dial numbers
+# the customer supplies as data, and are governed by the DND list and the
+# calling window instead.
 REQUIRE_VERIFIED_TEST_NUMBER = (
-    os.getenv("REQUIRE_VERIFIED_TEST_NUMBER", "true").lower() != "false"
+    os.getenv("REQUIRE_VERIFIED_TEST_NUMBER", "false").lower() == "true"
 )
 
 # How a verification code reaches the person holding the phone.
