@@ -808,6 +808,10 @@ export const listProviderKeysApiV1AdminProviderKeysGet = <ThrowOnError extends b
  * Set Provider Key
  *
  * Store or rotate one key. The value is write-only from here on.
+ *
+ * With ``apply_to_all_components`` the same key is stored against every
+ * component this vendor serves, in one transaction — so a Sarvam key entered
+ * once covers speech-to-text, the language model and synthesis together.
  */
 export const setProviderKeyApiV1AdminProviderKeysPut = <ThrowOnError extends boolean = false>(options: Options<SetProviderKeyApiV1AdminProviderKeysPutData, ThrowOnError>): RequestResult<SetProviderKeyApiV1AdminProviderKeysPutResponses, SetProviderKeyApiV1AdminProviderKeysPutErrors, ThrowOnError> => (options.client ?? client).put<SetProviderKeyApiV1AdminProviderKeysPutResponses, SetProviderKeyApiV1AdminProviderKeysPutErrors, ThrowOnError>({
     url: '/api/v1/admin/provider-keys',

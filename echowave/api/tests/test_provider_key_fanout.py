@@ -127,3 +127,236 @@ class TestStoringTheKey:
         held = await creds.available_providers(async_session, organization_id=org.id)
         assert "sarvam" in held.get("stt", set())
         assert "sarvam" in held.get("tts", set())
+
+
+class TestTheMapTheScreenRendersFrom:
+    """The staff screen offers "also use this key for …" from a server-built
+    map rather than a list in the page, so an offer cannot name a component
+    the vendor does not serve — the way a hand-kept list drifts the first time
+    a vendor gains one.
+    """
+
+    def test_it_agrees_with_the_single_provider_lookup(self):
+        from api.services.configuration.registry import (
+            components_for_provider,
+            provider_component_map,
+        )
+
+        mapping = provider_component_map()
+        for provider, components in mapping.items():
+            assert components == list(components_for_provider(provider)), provider
+
+    def test_it_covers_the_vendors_the_managed_tier_depends_on(self):
+        from api.services.configuration.registry import provider_component_map
+
+        mapping = provider_component_map()
+        assert mapping["sarvam"] == ["stt", "llm", "tts"]
+        assert mapping["deepgram"] == ["stt", "tts"]
+        assert mapping["groq"] == ["llm"]
+
+    def test_the_keys_are_strings_and_not_enum_members(self):
+        """The registry is keyed by ``ServiceProviders`` members, and because
+        that enum subclasses ``str`` every lookup with a plain string still
+        succeeds — so leaking members out of here does not fail in Python. It
+        fails on the wire, where ``str(member)`` is ``"ServiceProviders.SARVAM"``
+        and a screen matching on ``"sarvam"`` finds nothing, silently offering
+        no fan-out for exactly the vendors that need it most.
+        """
+        import json
+
+        from api.services.configuration.registry import provider_component_map
+
+        mapping = provider_component_map()
+        assert all(type(provider) is str for provider in mapping)
+        assert "sarvam" in json.loads(json.dumps(mapping))
+
+    def test_the_managed_sentinel_is_not_offered_a_key(self):
+        """``decibyl`` is registered for all three components but is the
+        managed option, not a vendor. Offering to store a key against it is
+        offering to store a key with ourselves."""
+        from api.services.configuration.registry import provider_component_map
+
+        assert "decibyl" not in provider_component_map()
+
+    def test_every_entry_serves_at_least_one_component(self):
+        """A provider present in the map but serving nothing would render a
+        checkbox offering to store the key against no slots at all."""
+        from api.services.configuration.registry import provider_component_map
+
+        assert all(components for components in provider_component_map().values())
+
+
+@pytest.mark.asyncio
+class TestTheStaffVaultFansOutToo:
+    """Decibyl's own keys had no fan-out while the customer's did.
+
+    That asymmetry cost more than the customer's, not less: one Sarvam account
+    serves every managed account on the platform, and a key stored against two
+    of three components leaves the managed tier pointing at a provider we hold
+    no key for. That failure surfaces at dial time, as the vendor's own 401, on
+    a customer's call.
+    """
+
+    async def test_one_staff_entry_covers_every_slot_the_vendor_serves(
+        self, db_session, async_session, monkeypatch
+    ):
+        import api.services.configuration.platform_credentials as creds
+
+        monkeypatch.setattr(
+            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+        )
+
+        for component in components_for_provider("sarvam"):
+            await creds.set_credential(
+                async_session,
+                actor_user_id=None,
+                component=component,
+                provider="sarvam",
+                api_key="platform-sarvam-000",
+            )
+        await async_session.flush()
+
+        held = await creds.managed_providers(async_session)
+        for component in ("stt", "llm", "tts"):
+            assert "sarvam" in held.get(component, []), component
+
+    async def test_the_same_key_is_stored_not_a_different_one_per_slot(
+        self, db_session, async_session, monkeypatch
+    ):
+        """The point is one account. If the slots ended up holding different
+        values the fan-out would be storing a typo three times."""
+        import api.services.configuration.platform_credentials as creds
+
+        monkeypatch.setattr(
+            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+        )
+
+        for component in components_for_provider("sarvam"):
+            await creds.set_credential(
+                async_session,
+                actor_user_id=None,
+                component=component,
+                provider="sarvam",
+                api_key="platform-sarvam-000",
+            )
+        await async_session.flush()
+
+        resolved = [
+            await creds.resolve_api_key(
+                async_session, component=component, provider="sarvam"
+            )
+            for component in ("stt", "llm", "tts")
+        ]
+        assert resolved == ["platform-sarvam-000"] * 3
+
+
+@pytest.mark.asyncio
+class TestTheStaffEndpoint:
+    """Through the route, not the service.
+
+    The service layer was already right; what was wrong lived between it and
+    the screen. The map went over the wire keyed by ``ServiceProviders``
+    members, so the page looked up ``"sarvam"``, found nothing, and offered no
+    fan-out — silently, on exactly the vendors that need it. A service-level
+    test cannot see that, because the enum subclasses ``str`` and compares
+    equal to it in Python.
+    """
+
+    async def _client(self, user):
+        from contextlib import asynccontextmanager
+
+        from httpx import ASGITransport, AsyncClient
+
+        from api.app import app
+        from api.services.auth.depends import get_superuser
+
+        @asynccontextmanager
+        async def _ctx():
+            async def _override():
+                return user
+
+            app.dependency_overrides[get_superuser] = _override
+            try:
+                async with AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    yield client
+            finally:
+                app.dependency_overrides.pop(get_superuser, None)
+
+        return _ctx()
+
+    async def test_the_map_arrives_keyed_by_the_name_the_screen_uses(
+        self, db_session, async_session
+    ):
+        from api.db.models import UserModel
+
+        user = UserModel(provider_id="staff-map")
+        async_session.add(user)
+        await async_session.flush()
+
+        async with await self._client(user) as client:
+            response = await client.get("/api/v1/admin/provider-keys")
+
+        assert response.status_code == 200
+        mapping = response.json()["provider_components"]
+        assert mapping["sarvam"] == ["stt", "llm", "tts"]
+        assert not any(name.startswith("ServiceProviders.") for name in mapping)
+
+    async def test_one_save_reports_every_slot_it_landed_on(
+        self, db_session, async_session, monkeypatch
+    ):
+        """``applied_to`` is what tells the operator the third slot was
+        written. Without it a fan-out that quietly stored one component looks
+        identical to one that stored three."""
+        import api.services.configuration.platform_credentials as creds
+        from api.db.models import UserModel
+
+        monkeypatch.setattr(
+            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+        )
+        user = UserModel(provider_id="staff-save")
+        async_session.add(user)
+        await async_session.flush()
+
+        async with await self._client(user) as client:
+            response = await client.put(
+                "/api/v1/admin/provider-keys",
+                json={
+                    "component": "stt",
+                    "provider": "sarvam",
+                    "api_key": "platform-sarvam-999",
+                    "apply_to_all_components": True,
+                },
+            )
+
+        assert response.status_code == 200
+        assert response.json()["applied_to"] == ["stt", "llm", "tts"]
+
+    async def test_without_the_flag_only_the_named_slot_is_written(
+        self, db_session, async_session, monkeypatch
+    ):
+        """The separate-key case. Defaulting the flag on in the form is a
+        convenience; the API must not assume it."""
+        import api.services.configuration.platform_credentials as creds
+        from api.db.models import UserModel
+
+        monkeypatch.setattr(
+            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+        )
+        user = UserModel(provider_id="staff-single")
+        async_session.add(user)
+        await async_session.flush()
+
+        async with await self._client(user) as client:
+            response = await client.put(
+                "/api/v1/admin/provider-keys",
+                json={
+                    "component": "tts",
+                    "provider": "sarvam",
+                    "api_key": "platform-sarvam-111",
+                },
+            )
+
+        assert response.status_code == 200
+        assert response.json()["applied_to"] == ["tts"]

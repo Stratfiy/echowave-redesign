@@ -70,6 +70,8 @@ type Payload = {
     credentials: Credential[];
     encryption_configured: boolean;
     components: string[];
+    /** Vendor → the slots it serves, off the registry. */
+    provider_components: Record<string, string[]>;
 };
 
 const COMPONENT_LABELS: Record<string, string> = {
@@ -101,6 +103,7 @@ export default function ProviderKeysPage() {
     const [provider, setProvider] = useState("");
     const [apiKey, setApiKey] = useState("");
     const [label, setLabel] = useState("");
+    const [applyAll, setApplyAll] = useState(true);
 
     const load = useCallback(async () => {
         const result = await listProviderKeysApiV1AdminProviderKeysGet({});
@@ -137,6 +140,18 @@ export default function ProviderKeysPage() {
         setBusy(null);
     };
 
+    // The other slots this vendor also serves, read off the registry the
+    // pipeline itself resolves against — so the offer can never name a
+    // component the vendor does not actually support.
+    //
+    // Sarvam is the case that prompted this: one account, one key, three slots.
+    // Entering it once per component is three saves to say one thing, and it is
+    // the third that gets forgotten — leaving a managed tier pointing at a
+    // provider we hold no key for, which fails at dial time with the vendor's
+    // own 401 rather than anywhere we would notice.
+    const alsoServes = (payload?.provider_components?.[provider.trim().toLowerCase()] ?? [])
+        .filter((c) => c !== component);
+
     const submit = () => {
         if (!provider.trim() || apiKey.trim().length < 8) return;
         void run(
@@ -148,6 +163,7 @@ export default function ProviderKeysPage() {
                         provider: provider.trim(),
                         api_key: apiKey.trim(),
                         label: label.trim() || null,
+                        apply_to_all_components: applyAll && alsoServes.length > 0,
                     },
                 }),
             "Could not save that key",
@@ -156,6 +172,7 @@ export default function ProviderKeysPage() {
         setProvider("");
         setApiKey("");
         setLabel("");
+        setApplyAll(true);
     };
 
     if (error) {
@@ -309,6 +326,33 @@ export default function ProviderKeysPage() {
                                         </div>
                                     </div>
                                 </div>
+                            )}
+
+                            {/* Only shown when it is true. A vendor that serves
+                                one slot gets no offer, so the checkbox never
+                                promises something that would not happen. */}
+                            {adding && alsoServes.length > 0 && (
+                                <label className="mt-3 flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--primary)]"
+                                        checked={applyAll}
+                                        onChange={(e) => setApplyAll(e.currentTarget.checked)}
+                                    />
+                                    <span>
+                                        <span className="font-medium">
+                                            Also use this key for{" "}
+                                            {alsoServes
+                                                .map((c) => COMPONENT_LABELS[c] ?? c)
+                                                .join(" and ")}
+                                        </span>
+                                        <span className="block text-xs text-muted-foreground">
+                                            {provider.trim()} serves them too, and one vendor
+                                            account normally means one key. Turn this off only
+                                            if we hold separate keys on separate billing.
+                                        </span>
+                                    </span>
+                                </label>
                             )}
 
                             {(payload?.credentials.length ?? 0) === 0 ? (

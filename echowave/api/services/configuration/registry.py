@@ -283,6 +283,42 @@ def components_for_provider(provider: str) -> tuple[str, ...]:
     )
 
 
+def provider_component_map() -> dict[str, list[str]]:
+    """Every keyed vendor and the components it serves.
+
+    The same lookup as ``components_for_provider``, inverted so a screen can
+    offer "also use this key for text to speech" without asking the server once
+    per vendor. Built from the registry rather than a hand-kept list, so an
+    offer can never name a component the vendor does not actually serve.
+
+    Keys are the provider's **string value**, not the enum member. ``REGISTRY``
+    is keyed by ``ServiceProviders`` members, and because that enum subclasses
+    ``str`` a lookup with a plain string still succeeds — so the mistake does
+    not show up here. It shows up on the wire, where ``str(member)`` is
+    ``"ServiceProviders.SARVAM"``, and the screen matching on ``"sarvam"``
+    finds nothing and silently offers no fan-out at all.
+
+    ``decibyl`` is excluded. It is the managed sentinel rather than a vendor:
+    it appears in all three registries, takes no key, and offering to store one
+    against it would be offering to store a key with ourselves.
+    """
+    providers = {
+        _provider_key(provider)
+        for _, service_type in _KEYED_COMPONENTS
+        for provider in REGISTRY[service_type]
+    }
+    return {
+        provider: list(components_for_provider(provider))
+        for provider in sorted(providers)
+        if provider != ServiceProviders.DECIBYL.value
+    }
+
+
+def _provider_key(provider) -> str:
+    """A registry key as the string the rest of the system uses."""
+    return provider.value if hasattr(provider, "value") else str(provider)
+
+
 T = TypeVar("T", bound=BaseServiceConfiguration)
 
 
