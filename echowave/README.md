@@ -57,6 +57,8 @@ Each subtree has an `AGENTS.md` with the conventions that apply inside it.
 - **[`DEVELOPING.md`](DEVELOPING.md)** — running the stack from source, testing
   it, the traps that cost hours, and what is left before rollout. Start here if
   you are picking this up to bug-fix or test.
+- **[`PRICING-REVIEW.md`](PRICING-REVIEW.md)** — whether the price book is
+  right, what moving the managed markup costs, and the rows worth adding.
 - **[`PRD.md`](PRD.md)** — the commercial case: who it is for, unit economics
   derived from the running rate card, differentiators, roadmap and risks.
 - **[`HANDOVER.md`](HANDOVER.md)** — start here if you are new. What was built

@@ -294,14 +294,18 @@ three real tiers, or point them at genuinely different models. One line each in
 `managed_tiers.py`, or an environment variable per tier. Collapsing is
 customer-visible — stored configurations naming `zen` must keep resolving.
 
-**3. Rate card coverage.** 27 provider/component pairs have no rate row. The
-managed default path is priced (Google LLM, Sarvam STT/TTS), but the cost
-estimator on the Models screen reported *"No rate on file for stt:deepgram,
-llm:openai, tts:elevenlabs — the real cost will be higher than shown"* for a
-default BYOK stack. Uncosted usage is surfaced rather than silently zeroed, but
-a receipt that omits a component understates cost and overstates margin. Needs
-a per-model audit, not just per-provider — rates resolve model-first with a
-provider-wide fallback.
+**3. Rate card gaps — narrower than they first look.** The price book is 33
+rows dated `2026-08` and every rate checked against a vendor's published price
+agrees, so the managed path and the common BYOK providers are correctly costed.
+See `PRICING-REVIEW.md` for the audit, the rows still worth adding, and the two
+things that actually need attention:
+
+- **ElevenLabs multilingual v2 is unpriced** and falls through to the
+  Flash/Turbo row at half its real cost. The only known case in the card where
+  we bill less than the vendor charges.
+- **`LLM_INPUT_SHARE = 0.7`** blends two-sided vendor pricing into the single
+  rate the schema carries. It is an assumption, it is measurable from the
+  Tokens screen, and every LLM margin figure depends on it.
 
 **4. No way for an admin to create an account.** `organization_members` can
 list, change a role and remove — it cannot create. The only user-creating paths
@@ -342,86 +346,213 @@ across the fleet.
 
 ### Not built
 
-**10. Referral and partnership.** Nothing exists — see §7.
+**10. Agency tier and referrals.** See §6 and §7. The signup bonus and the two
+staff tiers already exist; the agency tier and refer-a-friend do not.
 
-**11. Agent accounts.** See §6.
-
----
-
-## 6. Agent accounts
-
-What exists today:
-
-- `OrganizationRole` — `member` < `admin` < `owner`, with
-  `ORGANIZATION_ROLE_RANK` for "at least this role" checks.
-- `organization_memberships` — a user's standing in one organization.
-- Routes to **list**, **change role** and **remove** a member.
-
-What is missing is the ability to *create* one. An owner cannot make an account
-for a colleague; that person must sign themselves up and then be promoted, and
-in a deployment with `ENABLE_SIGNUP=false` they cannot even do that.
-
-The smallest change that closes it, staying inside the existing model:
-
-1. `POST /organizations/members` — owner or admin only, takes an email and a
-   role. Creates the user with a random password, adds the membership, and
-   returns a one-time set-password link. Reuse `create_user_with_email`.
-2. Gate it on `AUTH_PROVIDER == "local"`, the same way `/auth/signup` is gated
-   by `require_local_auth`. Under Stack Auth, invites belong to Stack Auth and
-   a second path would fork the identity source.
-3. Send the link over the existing email transport — the one email verification
-   already uses, so no new infrastructure.
-4. Decide what `member` may actually do. The rank exists but little enforces it
-   today; an "agent" who can run calls but not change billing or model
-   configuration needs those checks written, and that is the larger half of
-   the work.
-
-Worth settling first: is "agent" a *third organization role* (a human operator
-with narrow permissions), or a *distinct account type* with its own screens?
-The role system will carry the first cheaply. The second is a bigger build.
+**11. Admin-created accounts.** See §6.
 
 ---
 
-## 7. Partnership tiers and referrals
+## 6. The four-tier account model
 
-Nothing is built. Sketching where it would attach, so the shape is not invented
-twice:
+The target shape, and how much of it exists.
 
-**What already helps.** `OrganizationModel.account_type` is a free-text
-VARCHAR chosen specifically so a new tier needs no migration — the same
-convention as `StaffRole`. A `partner` account type costs nothing structurally.
-`CreditLedgerKind` already separates `topup`, `adjustment` and `trial`, so
-partner-funded credit can be its own kind and stay out of the activation
-funnel's "paid" step, which filters on kind rather than on sign.
+| Tier | Who | Exists today? |
+|---|---|---|
+| **User** | A clinic or business running its own agents | Yes — this is the current account |
+| **Agency** | Manages accounts it sets up, earns a flat commission we set | **No** |
+| **Staff** | Reviews verifications and KYC, nothing further | Yes — `StaffRole.SUPPORT` |
+| **Super admin** | You. Everything. | Yes — `StaffRole.SUPERADMIN` |
 
-**What has to be decided before code.** Three questions, in order:
+So two of four are built. `StaffRole` already splits exactly along the line you
+described — SUPPORT reviews KYC documents and can do nothing else, SUPERADMIN
+adds billing, platform keys and impersonation. Both are a nullable VARCHAR on
+`UserModel`, chosen so a new tier needs no migration.
 
-1. **What does a partner earn — commission on revenue, or a discounted rate
-   card?** These are different systems. Commission is a payable computed from
-   settled payments and needs its own ledger and payout run. A discount is an
-   account-level rate override, and `organization_rate_history` plus the
-   existing platform-rate resolver already support exactly that. The discount
-   route is dramatically cheaper and reuses machinery that is tested.
-2. **Who owns the customer relationship** — does the partner's client have
-   their own account with their own balance, or does everything bill to the
-   partner? "Own account, partner sees it" needs a parent/child link on
-   organizations. "Bills to the partner" needs nothing new beyond a shared
-   account and roles.
-3. **Is attribution one-time or perpetual?** A referral credited once is a
-   ledger entry on first top-up and nothing more. A perpetual share is a
-   recurring computation over every payment, forever, and has to survive a
-   partner leaving.
+Inside an organization there is a second, separate axis: `OrganizationRole` —
+`member` < `admin` < `owner`, with `ORGANIZATION_ROLE_RANK` for "at least this
+role" checks. These are orthogonal on purpose: staff standing is about Decibyl,
+organization role is about one account.
 
-**Where each piece would live.** Attribution is a nullable
-`referred_by_organization_id` on `organizations`, captured at signup from a
-code. The activation funnel already fixes its cohort at signup and asks "ever",
-so partner-sourced conversion is a filter on the existing query rather than a
-new one. Payouts are a new service under `api/services/billing/`, keyed off
-`payments` — which already records what settled, when, and for which account.
+### What Agency needs
 
-My recommendation: start with a `partner` account type, a referral code
-captured at signup, and a **discounted rate card** rather than commission.
-That is a rate override, an attribution column and a filter on a query that
-already exists — no payout run, no second ledger, no money leaving the system.
-Commission can be layered on later against the same attribution data if
-partners ask for cash rather than margin.
+An agency is not a role on an existing organization — it is an organization
+that *stands above others*. Two pieces:
+
+1. **A parent link.** `organizations.managed_by_organization_id`, nullable. An
+   agency's clients each keep their own account, balance and billing; the
+   agency gets read access and management rights across them. This is the only
+   schema change the tier needs.
+2. **A commission rate.** `organizations.commission_bps` on the agency row, set
+   by a super admin. Flat, as you described, and basis-points for the same
+   reason every other rate here is: integers, no float drift.
+
+Everything else follows from machinery that exists. Agency-scoped listing is
+the existing org-scoped queries with the parent link in the `WHERE`. Commission
+owed is a query over `payments`, which already records what settled, when and
+for which account. Payouts are the only genuinely new service.
+
+**The security question to settle first:** an agency user reading a client's
+account is a deliberate hole in tenant isolation, which `api/AGENTS.md` treats
+as a hard rule. It needs one explicit, tested seam — a helper that resolves
+"organizations this user may act on" — rather than each query growing its own
+exception. Get that wrong and it is a cross-tenant leak, not a bug.
+
+### What is missing for all tiers: creating an account
+
+`organization_members` can list, change a role and remove — it **cannot
+create**. The only user-creating paths are self-serve signup and Google first
+sign-in, and there is deliberately no invite endpoint (`AUTH_PROVIDER=stack`
+expects Stack Auth to own invites). So no admin can make an account for anyone
+today, and with `ENABLE_SIGNUP=false` that person cannot make their own either.
+
+Smallest change that closes it:
+
+1. `POST /organizations/members` — owner or admin only, takes email and role.
+   Creates the user with a random password via the existing
+   `create_user_with_email`, adds the membership, returns a one-time
+   set-password link.
+2. Gate on `AUTH_PROVIDER == "local"` the way `/auth/signup` is gated by
+   `require_local_auth`. Under Stack Auth a second path would fork the identity
+   source.
+3. Send the link over the transport email verification already uses.
+4. **Then make `member` mean something.** The rank exists but little enforces
+   it. An operator who can run calls but not change billing or model
+   configuration needs those checks written, and that is the larger half.
+
+---
+
+## 7. Referrals and the signup bonus
+
+### Signup bonus — already built, already $5
+
+`SIGNUP_BONUS_MICROS_USD` defaults to `5000000`, which is **$5.00**. Nothing to
+do. It is worth knowing how it behaves:
+
+- Denominated in **dollars** and converted at the FX in force at signup, so it
+  does not quietly get cheaper as the rupee moves.
+- Lands as `CreditLedgerKind.TRIAL`, not `TOPUP` — so revenue reporting can
+  always separate given credit from bought credit, and the activation funnel's
+  "paid" step (which filters on kind, not on sign) does not count it as a
+  conversion.
+- **No GST and no receipt voucher**: no money changed hands, and a tax document
+  for a gift would misstate a supply that never happened.
+- Granted once per organization, enforced by a partial unique index on the
+  ledger rather than an application check — two requests racing during signup
+  would otherwise both find no bonus and both grant one.
+
+Set `SIGNUP_BONUS_MICROS_USD=0` to switch it off.
+
+### Refer a friend — not built
+
+Target: a referrer gets **20% of their friend's first purchase** as wallet
+credit.
+
+Everything needed exists in pieces:
+
+| Piece | What to use |
+|---|---|
+| Attribution | New nullable `organizations.referred_by_organization_id`, captured at signup from a code |
+| The credit | A new `CreditLedgerKind.REFERRAL` — a fourth kind beside topup/adjustment/trial |
+| "First purchase" | `payments` already records order, settlement and amount per account |
+| Idempotency | The partial unique index pattern the signup bonus already uses |
+| Reporting | The activation funnel fixes its cohort at signup and asks "ever", so referred-vs-organic conversion is a filter on an existing query |
+
+**Four decisions before code:**
+
+1. **20% of what — gross or net?** `payments` stores both `gross_paise` (what
+   the customer was charged, tax included) and `amount_paise` (net of GST,
+   what reaches the ledger). Paying 20% of gross means paying commission on
+   tax you remitted to the government. Use **net**.
+2. **When does it vest?** On settlement, or after a hold? A refunded or
+   charged-back first payment leaves credit already granted. A short hold is
+   the cheap answer; instant is the marketable one.
+3. **Is the credit spendable or withdrawable?** Spendable is a ledger row and
+   nothing else. Withdrawable is a payout obligation, a KYC question and a
+   different regulatory posture. **Strongly prefer spendable.**
+4. **Is it capped?** Uncapped, one referred enterprise account funds the
+   referrer indefinitely. A per-referral ceiling costs one line.
+
+**Why `REFERRAL` must be its own ledger kind**, not `ADJUSTMENT`: the funnel,
+the revenue reports and the "how much of this balance was paid for" question
+all key on kind. Folding referral credit into adjustments makes staff-granted
+credit and earned credit indistinguishable forever.
+
+### How this relates to the agency tier
+
+They are different mechanisms and should stay separate. A **referral** is a
+one-time reward for introducing an account. An **agency commission** is an
+ongoing share of revenue from accounts it manages. Same money, different
+lifecycle — one is a ledger row, the other is a recurring computation and
+eventually a payout run. Building them as one thing means the simple case
+carries the complexity of the hard one.
+
+---
+
+## 8. Test numbers
+
+`/verified-numbers` exists and does most of this: a customer adds a number,
+receives a code, confirms it, and can hold several. The backend is
+`api/services/telephony/verified_numbers.py` with 32 tests.
+
+Two things are not what you may expect:
+
+1. **Delivery is off.** `VERIFICATION_CHANNEL=log` writes codes to the log
+   rather than sending them, and `REQUIRE_VERIFIED_TEST_NUMBER=false` means
+   nothing enforces verification. Both deliberate — enabling the requirement
+   while the channel is `log` would refuse every test call.
+2. **These are the customer's numbers, not ours.** If what you want is
+   *Decibyl provides 2–3 numbers a new account can call to try the product
+   without owning a number*, that does not exist. It is a different feature:
+   a small pool of platform-owned numbers, an inbound route to a demo agent,
+   and a per-account call cap so the pool is not someone's free telephony.
+   Worth confirming which of the two you meant.
+
+---
+
+## 9. Checklist
+
+Everything above, as one list. Ticked means built and verified in this repo.
+
+**Already done — no work needed**
+
+- [x] Signup bonus of $5 (`SIGNUP_BONUS_MICROS_USD=5000000`), as trial credit, once per org, no GST
+- [x] Staff tier that only reviews verifications (`StaffRole.SUPPORT`)
+- [x] Super admin tier (`StaffRole.SUPERADMIN`)
+- [x] Customer registers and verifies their own test numbers (`/verified-numbers`)
+- [x] Managed tiers as a customer-facing choice, vendor-agnostic and env-overridable
+- [x] Simple/advanced model picker per slot ("Decibyl provides it" vs "My own key")
+- [x] Price book accurate as of 2026-08, with `_inr()` and `_blend()` handling rupee vendors and two-sided token pricing
+
+**One setting each**
+
+- [ ] Managed markup to 1.4× — `MANAGED_PROVIDER_MARKUP_BPS=14000`. Do **not** edit the rate rows.
+- [ ] Turn managed models on — store platform keys for Google, Sarvam, OpenAI
+- [ ] Turn on OTP delivery — `VERIFICATION_CHANNEL`, then `REQUIRE_VERIFIED_TEST_NUMBER`
+
+**Small, contained**
+
+- [ ] ElevenLabs multilingual v2 rate row — currently billed at half its cost
+- [ ] Collapse or differentiate `fast` / `lite` / `zen`, which are the same model
+- [ ] Formatting-only commit to clear the drift that will fail the first PR
+- [ ] Measure `LLM_INPUT_SHARE` against real traffic
+- [ ] Decide how to describe managed pricing — the README says "at cost, with no markup", which is true for BYOK and not for managed (see `PRICING-REVIEW.md` §4)
+
+**Real features, in dependency order**
+
+- [ ] `POST /organizations/members` — admin creates an account
+- [ ] Enforce `OrganizationRole` so `member` actually means something
+- [ ] Referral: attribution column, `CreditLedgerKind.REFERRAL`, 20% of first **net** payment
+- [ ] Agency tier: `managed_by_organization_id`, `commission_bps`, and one tested "orgs I may act on" seam
+- [ ] Agency commission reporting and payout run
+- [ ] Failure reasons as a first-class field
+
+**Things you did not ask about but will need**
+
+- [ ] **Refunds.** `payments` records settlement; nothing reverses one. A chargeback today leaves credit granted and no way to claw it back — and referral credit makes that worse.
+- [ ] **Dunning past low-balance.** `dunning.py` exists; what happens to a live call when credit runs out mid-conversation needs a decided answer, not an emergent one.
+- [ ] **Platform key rotation.** Managed inference runs on our keys. There is no rotation path, and revoking one silently breaks every managed account at once.
+- [ ] **Rate-limit / abuse ceiling per account.** Concurrency is capped; spend velocity is not. A stolen card plus a loop is an unbounded vendor bill.
+- [ ] **Backup restore rehearsal.** `scripts/rehearse_restore.sh` exists — has it been run against production-shaped data?
+- [ ] **Status page / incident comms.** A voice platform that goes quiet has customers whose phones simply stop working.
+- [ ] **Per-model latency in the UI.** The instrumentation landed this month and has never been read against real traffic.
