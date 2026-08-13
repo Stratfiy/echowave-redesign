@@ -20,6 +20,30 @@ from pipecat.metrics.metrics import (
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 
+def _ms(seconds: float) -> int:
+    """Seconds to whole milliseconds, never negative."""
+    return max(int(round(seconds * 1000)), 0)
+
+
+def _stage_end_ms(ttfb: list, stage: str, origin: float) -> Optional[int]:
+    """When ``stage`` produced its first byte, in ms after ``origin``.
+
+    Stage identity comes from the processor's class name, the same convention
+    the usage keys use. A processor that matches nothing is skipped rather than
+    guessed at: a wrong attribution on a diagnostic chart is worse than a gap,
+    because a gap is visible and a wrong number is not.
+
+    The earliest match wins where a pipeline has more than one processor of a
+    kind — the first byte of the turn is what the caller waits on.
+    """
+    ends = [
+        entry.start_time + entry.duration_secs
+        for entry in ttfb
+        if f"{stage}service" in (entry.processor or "").lower()
+    ]
+    return _ms(min(ends) - origin) if ends else None
+
+
 class PipelineMetricsAggregator(FrameProcessor):
     def __init__(self):
         super().__init__()
@@ -54,6 +78,9 @@ class PipelineMetricsAggregator(FrameProcessor):
         # what is costing the money.
         self._turn_tokens: Dict[str, int] = {}
         self._turns: list[dict] = []
+        # Set when a turn closes, cleared when its breakdown amends it. Guards
+        # against the greeting's breakdown, which has no turn behind it.
+        self._turn_awaiting_breakdown: bool = False
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
@@ -164,47 +191,43 @@ class PipelineMetricsAggregator(FrameProcessor):
 
         Called from the pipeline's ``on_latency_measured`` handler. This is the
         perceived latency the dashboard reports percentiles over — the gap
-        between the caller finishing and audio going back out.
+        between the caller actually falling silent and audio going back out.
+        (The observer subtracts the VAD's ``stop_secs`` from its determination
+        time, so the zero point is the real end of speech, not the moment the
+        VAD noticed.)
 
         ``call_turn_metrics`` stores a cumulative timeline in milliseconds from
-        the moment the user stopped, and derives each stage as the difference
-        between consecutive marks, so the per-stage TTFBs banked during the turn
-        are laid end to end here.
-
-        Endpointing is not separately instrumented — pipecat reports no VAD
-        mark — so its window is zero-length and the stage reads as 0 rather
-        than being invented. Playback falls out as the honest residual between
-        the last mark and audio going out.
+        that zero point. The marks laid down here are provisional: they chain
+        the per-stage TTFBs end to end, which assumes the stages ran strictly
+        back to back with no gap. ``record_turn_breakdown`` replaces them with
+        real timeline positions when the breakdown for this turn arrives a
+        moment later — see there for why the difference matters.
         """
         stages = self._turn_stage_ttfb
         self._turn_stage_ttfb = {}
         tokens = self._turn_tokens
         self._turn_tokens = {}
 
-        def ms(seconds: float) -> int:
-            return max(int(round(seconds * 1000)), 0)
+        latency_ms = _ms(latency_seconds)
 
-        latency_ms = ms(latency_seconds)
-
-        t_user_stopped = 0
-        t_endpoint_fired = 0  # not separately measured; see docstring
-        t_stt_final = t_endpoint_fired + ms(stages.get("stt_ms", 0.0))
-        t_llm_first_token = t_stt_final + ms(stages.get("llm_ms", 0.0))
-        t_tts_first_byte = t_llm_first_token + ms(stages.get("tts_ms", 0.0))
-        # A stage chain longer than the measured latency would make playback
-        # negative; clamp so the residual is never nonsense.
-        t_audio_out = max(latency_ms, t_tts_first_byte)
+        t_stt_final = _ms(stages.get("stt_ms", 0.0))
+        t_llm_first_token = t_stt_final + _ms(stages.get("llm_ms", 0.0))
+        t_tts_first_byte = t_llm_first_token + _ms(stages.get("tts_ms", 0.0))
 
         self._turns.append(
             {
                 "turn_index": len(self._turns),
                 "latency_ms": latency_ms,
-                "t_user_stopped_ms": t_user_stopped,
-                "t_endpoint_fired_ms": t_endpoint_fired,
+                "t_user_stopped_ms": 0,
+                # Left NULL until the breakdown supplies a measured value. A
+                # zero here would be read as "endpointing is free", which is
+                # both false and the opposite of actionable — it is usually the
+                # largest stage in the turn.
+                "t_endpoint_fired_ms": None,
                 "t_stt_final_ms": t_stt_final,
                 "t_llm_first_token_ms": t_llm_first_token,
                 "t_tts_first_byte_ms": t_tts_first_byte,
-                "t_audio_out_ms": t_audio_out,
+                "t_audio_out_ms": max(latency_ms, t_tts_first_byte),
                 # None rather than 0 when the provider reported no usage for
                 # this turn. A zero would drag the median context size down and
                 # read as an agent that got cheaper.
@@ -213,6 +236,73 @@ class PipelineMetricsAggregator(FrameProcessor):
                 "cached_tokens": tokens.get("cached_tokens") or None,
             }
         )
+        self._turn_awaiting_breakdown = True
+
+    def record_turn_breakdown(self, breakdown) -> None:
+        """Replace the last turn's provisional marks with measured ones.
+
+        Called from ``on_latency_breakdown``, which the observer emits straight
+        after ``on_latency_measured`` for the same cycle — so this amends the
+        turn just closed rather than opening a new one.
+
+        Two things only the breakdown knows:
+
+        **When the turn was released.** ``user_turn_secs`` runs from the user
+        actually falling silent to the turn being handed to the LLM, covering
+        VAD silence detection, transcript finalisation and any turn-analyzer
+        wait. Nothing else in the pipeline reports it, and on a typical call it
+        is the single largest stage — an 800ms silence threshold is 800ms the
+        caller sits through before anything downstream has started. Without it
+        that time does not vanish from the total; it lands in whichever bucket
+        happens to be computed as the remainder, which is how a team ends up
+        optimising a fast stage while the slow one is invisible.
+
+        **Where each stage actually sat.** Each TTFB carries the wall-clock
+        instant it began, so the marks are positions on a real timeline rather
+        than durations chained end to end. Chaining silently assumes no gaps
+        between stages, and any gap it misses is absorbed by the residual.
+
+        A breakdown also arrives for the opening greeting, which has no user
+        turn behind it and so closed no turn — that one is ignored.
+        """
+        if not getattr(self, "_turn_awaiting_breakdown", False) or not self._turns:
+            return
+        self._turn_awaiting_breakdown = False
+
+        turn = self._turns[-1]
+        latency_ms = turn["latency_ms"]
+
+        user_turn_secs = getattr(breakdown, "user_turn_secs", None)
+        if user_turn_secs is not None:
+            # Clamped to the turn: a release mark past the moment audio went
+            # out would make every later stage negative. That it fired at all
+            # is a measurement fault worth seeing rather than propagating.
+            turn["t_endpoint_fired_ms"] = min(_ms(user_turn_secs), latency_ms)
+
+        origin = getattr(breakdown, "user_turn_start_time", None)
+        ttfb = list(getattr(breakdown, "ttfb", None) or [])
+        if origin is not None and ttfb:
+            for stage, column in (
+                ("stt", "t_stt_final_ms"),
+                ("llm", "t_llm_first_token_ms"),
+                ("tts", "t_tts_first_byte_ms"),
+            ):
+                mark = _stage_end_ms(ttfb, stage, origin)
+                if mark is not None:
+                    turn[column] = min(mark, latency_ms)
+
+        # Marks must not run backwards. A stage whose measured end precedes the
+        # one before it is either an overlap the flat timeline cannot express
+        # or a clock artefact; either way the later mark wins, so a stage can
+        # read as instant but never as negative.
+        floor = turn["t_endpoint_fired_ms"] or 0
+        for column in ("t_stt_final_ms", "t_llm_first_token_ms", "t_tts_first_byte_ms"):
+            if turn[column] is None:
+                continue
+            turn[column] = max(turn[column], floor)
+            floor = turn[column]
+
+        turn["t_audio_out_ms"] = max(latency_ms, floor)
 
     def get_turn_metrics(self) -> list[dict]:
         """Per-turn rows for ``call_turn_metrics``, in turn order."""

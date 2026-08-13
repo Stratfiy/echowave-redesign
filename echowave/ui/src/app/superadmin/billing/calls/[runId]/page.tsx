@@ -49,12 +49,20 @@ import {
     formatRateMpaise,
 } from "@/lib/billing/format";
 
-/** The four pipeline stages that make up a turn's perceived latency. */
+/**
+ * The stages that make up a turn's perceived latency.
+ *
+ * A stage is null when either mark bounding it was not recorded, and renders
+ * as nothing rather than as zero — an unmeasured stage and an instant one look
+ * identical on a bar and mean opposite things. "Unattributed" is the trailing
+ * remainder: transport, network transit and queueing, not audio playback.
+ */
 const STAGES = [
     { key: "endpointing_ms", label: "Endpointing", slot: 0 },
     { key: "stt_ms", label: "STT", slot: 1 },
     { key: "llm_ms", label: "LLM", slot: 2 },
     { key: "tts_ms", label: "TTS", slot: 3 },
+    { key: "unattributed_ms", label: "Unattributed", slot: 4 },
 ] as const;
 
 const UNIT_LABEL: Record<string, string> = {

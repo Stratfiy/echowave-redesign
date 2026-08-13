@@ -57,6 +57,18 @@ def _sum(column):
     return func.coalesce(func.sum(column), 0)
 
 
+def _gap(earlier: int | None, later: int | None) -> int | None:
+    """A stage's duration, or None when either end of it was not measured.
+
+    None rather than zero throughout: an unmeasured stage and an instantaneous
+    one look identical on a chart but mean opposite things, and only one of
+    them is good news.
+    """
+    if earlier is None or later is None:
+        return None
+    return max(later - earlier, 0)
+
+
 async def overview_totals(session: AsyncSession, *, start: date, end: date) -> dict:
     """Headline figures for an inclusive IST day range."""
     row = (
@@ -348,13 +360,33 @@ async def latency_by_language(
 async def pipeline_stage_medians(
     session: AsyncSession, *, start: date, end: date
 ) -> dict:
-    """Median duration of each pipeline stage — where the time goes."""
+    """Median duration of each pipeline stage — where the time goes.
+
+    The last bucket is **unattributed**, not playback. It is the remainder of
+    the turn after the last stage that reports a mark, and it holds everything
+    the pipeline does not instrument: transport and network transit, output
+    queueing, and any gap between stages that the marks do not cover. Some of
+    it is genuinely audio starting to play. Naming the whole remainder after
+    one of its parts is how somebody ends up optimising audio output when the
+    time is really in the network.
+
+    Turns predating measured endpointing have a NULL release mark. They are
+    excluded from the endpointing and STT medians rather than counted as zero —
+    a zero would halve the median of the stage that is usually the largest —
+    and ``endpointing_measured_turns`` reports how much of the window has it,
+    so a median over a handful of rows is not read as the whole picture.
+    """
     start_utc, _ = ist_day_bounds_utc(start)
     _, end_utc = ist_day_bounds_utc(end)
     m = CallTurnMetricModel
 
     def median(expr):
         return func.percentile_cont(0.5).within_group(expr)
+
+    # STT is measured from the turn release, so it shares endpointing's fate:
+    # without a release mark there is no start to measure from. Falling back to
+    # t_user_stopped_ms would silently fold endpointing into STT.
+    released = m.t_endpoint_fired_ms.isnot(None)
 
     row = (
         await session.execute(
@@ -365,7 +397,9 @@ async def pipeline_stage_medians(
                 median(m.t_stt_final_ms - m.t_endpoint_fired_ms).label("stt"),
                 median(m.t_llm_first_token_ms - m.t_stt_final_ms).label("llm"),
                 median(m.t_tts_first_byte_ms - m.t_llm_first_token_ms).label("tts"),
-                median(m.t_audio_out_ms - m.t_tts_first_byte_ms).label("playback"),
+                median(m.t_audio_out_ms - m.t_tts_first_byte_ms).label("unattributed"),
+                func.count(m.id).label("turns"),
+                func.count(m.t_endpoint_fired_ms).label("measured"),
             ).where(
                 m.created_at >= start_utc,
                 m.created_at < end_utc,
@@ -374,12 +408,36 @@ async def pipeline_stage_medians(
         )
     ).one()
 
+    endpointing_row = (
+        await session.execute(
+            select(
+                median(m.t_endpoint_fired_ms - m.t_user_stopped_ms).label(
+                    "endpointing"
+                ),
+                median(m.t_stt_final_ms - m.t_endpoint_fired_ms).label("stt"),
+            ).where(
+                m.created_at >= start_utc,
+                m.created_at < end_utc,
+                m.t_audio_out_ms.isnot(None),
+                released,
+            )
+        )
+    ).one()
+
+    turns = int(row.turns or 0)
+    measured = int(row.measured or 0)
+
     return {
-        "endpointing_ms": int(row.endpointing or 0),
-        "stt_ms": int(row.stt or 0),
+        # None, not 0, when nothing in the window measured it: "we did not look"
+        # and "it took no time" are different answers and only one is good news.
+        "endpointing_ms": (int(endpointing_row.endpointing) if measured else None),
+        "stt_ms": int(endpointing_row.stt) if measured else None,
         "llm_ms": int(row.llm or 0),
         "tts_ms": int(row.tts or 0),
-        "playback_ms": int(row.playback or 0),
+        "unattributed_ms": int(row.unattributed or 0),
+        "turns": turns,
+        "endpointing_measured_turns": measured,
+        "endpointing_coverage": (measured / turns) if turns else None,
     }
 
 
@@ -773,14 +831,19 @@ async def call_detail(session: AsyncSession, *, workflow_run_id: int) -> dict | 
             }
             for i in items
         ],
+        # Stage durations are the gaps between consecutive marks. A missing
+        # mark makes both stages either side of it unknowable, so both go None
+        # rather than being measured from the previous mark instead — treating
+        # an absent release as zero would silently fold endpointing, usually
+        # the largest stage of the turn, into STT.
         "turns": [
             {
                 "turn_index": t.turn_index,
-                "endpointing_ms": (t.t_endpoint_fired_ms or 0)
-                - (t.t_user_stopped_ms or 0),
-                "stt_ms": (t.t_stt_final_ms or 0) - (t.t_endpoint_fired_ms or 0),
-                "llm_ms": (t.t_llm_first_token_ms or 0) - (t.t_stt_final_ms or 0),
-                "tts_ms": (t.t_tts_first_byte_ms or 0) - (t.t_llm_first_token_ms or 0),
+                "endpointing_ms": _gap(t.t_user_stopped_ms, t.t_endpoint_fired_ms),
+                "stt_ms": _gap(t.t_endpoint_fired_ms, t.t_stt_final_ms),
+                "llm_ms": _gap(t.t_stt_final_ms, t.t_llm_first_token_ms),
+                "tts_ms": _gap(t.t_llm_first_token_ms, t.t_tts_first_byte_ms),
+                "unattributed_ms": _gap(t.t_tts_first_byte_ms, t.t_audio_out_ms),
                 "latency_ms": t.latency_ms,
                 "tool_called": t.tool_called,
                 "tool_ms": t.tool_ms,

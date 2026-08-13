@@ -52,13 +52,22 @@ import { detailFromError } from "@/lib/apiError";
 import { formatDateIST, formatDateTimeIST, formatMs, formatNumber } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
-/** Median duration of each pipeline stage, in the order a turn flows through. */
+/**
+ * Median duration of each pipeline stage, in the order a turn flows through.
+ *
+ * The last bucket is **unattributed**, not playback. It is whatever is left of
+ * the turn after the stages that report a mark, and it holds transport and
+ * network transit, output queueing, and any gap the marks do not cover. Part
+ * of it really is audio starting to play — but naming the whole remainder
+ * after one of its parts sends anyone reading this chart to optimise audio
+ * output when the time is usually somewhere else entirely.
+ */
 const STAGES = [
     { key: "endpointing_ms", label: "Endpointing", slot: 0 },
     { key: "stt_ms", label: "STT", slot: 1 },
     { key: "llm_ms", label: "LLM", slot: 2 },
     { key: "tts_ms", label: "TTS", slot: 3 },
-    { key: "playback_ms", label: "Playback", slot: 4 },
+    { key: "unattributed_ms", label: "Unattributed", slot: 4 },
 ] as const;
 
 /**
@@ -159,6 +168,18 @@ export default function LatencyPage() {
         },
     ];
     const hasStages = STAGES.some((s) => (stageMedians[s.key] ?? 0) > 0);
+
+    // Endpointing only became measurable once the pipeline started reporting a
+    // turn-release mark, so a window spanning that change is part measured and
+    // part not. Saying so is the difference between "endpointing is fast" and
+    // "endpointing is mostly unmeasured here" — which look identical otherwise.
+    const coverage = stageMedians.endpointing_coverage ?? null;
+    const stageNote =
+        coverage === null || coverage >= 0.99
+            ? "Median duration of each pipeline stage"
+            : `Median duration of each pipeline stage · endpointing measured on ${Math.round(
+                  coverage * 100,
+              )}% of turns`;
 
     return (
         <div className="space-y-6">
@@ -383,7 +404,7 @@ export default function LatencyPage() {
             <div className="grid gap-4 lg:grid-cols-2">
                 <ChartCard
                     title="Where the time goes"
-                    description="Median duration of each pipeline stage"
+                    description={stageNote}
                     isEmpty={!hasStages}
                 >
                     <ResponsiveContainer width="100%" height={220}>

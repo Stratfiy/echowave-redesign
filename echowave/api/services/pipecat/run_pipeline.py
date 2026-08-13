@@ -1171,6 +1171,21 @@ async def _run_pipeline_impl(
             except Exception as e:
                 logger.error(f"Failed to append latency to logs buffer: {e}")
 
+        @task.user_bot_latency_observer.event_handler("on_latency_breakdown")
+        async def on_latency_breakdown(observer, breakdown):
+            # Emitted immediately after the latency above, for the same cycle,
+            # and carrying the two things the measured latency alone cannot:
+            # when the turn was released (VAD silence, transcript finalisation
+            # and turn-analyzer wait — usually the largest stage of the turn),
+            # and the wall-clock position of each service's first byte. Without
+            # it the timeline is a chain of durations laid end to end, and any
+            # gap between stages is absorbed by whichever bucket is computed as
+            # the remainder.
+            try:
+                pipeline_metrics_aggregator.record_turn_breakdown(breakdown)
+            except Exception as e:
+                logger.debug(f"Failed to record turn breakdown: {e}")
+
     # Register turn log handlers for all call types (WebRTC and telephony)
     register_turn_log_handlers(
         transcript_log_coordinator,
