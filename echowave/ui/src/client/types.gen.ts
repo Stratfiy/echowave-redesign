@@ -10383,6 +10383,134 @@ export type GetActivationApiV1AdminBillingActivationGetResponses = {
 
 export type GetActivationApiV1AdminBillingActivationGetResponse = GetActivationApiV1AdminBillingActivationGetResponses[keyof GetActivationApiV1AdminBillingActivationGetResponses];
 
+export type GetModelUsageApiV1AdminBillingModelUsageGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Component
+         */
+        component?: string | null;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+        /**
+         * Start
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        end?: string | null;
+    };
+    url: '/api/v1/admin/billing/model-usage';
+};
+
+export type GetModelUsageApiV1AdminBillingModelUsageGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetModelUsageApiV1AdminBillingModelUsageGetError = GetModelUsageApiV1AdminBillingModelUsageGetErrors[keyof GetModelUsageApiV1AdminBillingModelUsageGetErrors];
+
+export type GetModelUsageApiV1AdminBillingModelUsageGetResponses = {
+    /**
+     * Response Get Model Usage Api V1 Admin Billing Model Usage Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetModelUsageApiV1AdminBillingModelUsageGetResponse = GetModelUsageApiV1AdminBillingModelUsageGetResponses[keyof GetModelUsageApiV1AdminBillingModelUsageGetResponses];
+
+export type GetPaymentsApiV1AdminBillingPaymentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Granularity
+         */
+        granularity?: string;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+        /**
+         * Start
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        end?: string | null;
+    };
+    url: '/api/v1/admin/billing/payments';
+};
+
+export type GetPaymentsApiV1AdminBillingPaymentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPaymentsApiV1AdminBillingPaymentsGetError = GetPaymentsApiV1AdminBillingPaymentsGetErrors[keyof GetPaymentsApiV1AdminBillingPaymentsGetErrors];
+
+export type GetPaymentsApiV1AdminBillingPaymentsGetResponses = {
+    /**
+     * Response Get Payments Api V1 Admin Billing Payments Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetPaymentsApiV1AdminBillingPaymentsGetResponse = GetPaymentsApiV1AdminBillingPaymentsGetResponses[keyof GetPaymentsApiV1AdminBillingPaymentsGetResponses];
+
 export type GetCostPerMinuteApiV1CostEstimatePerMinutePostData = {
     body: CostEstimateRequest;
     headers?: {

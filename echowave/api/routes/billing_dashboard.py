@@ -800,3 +800,56 @@ async def get_activation(rng: RangeParams = Depends()) -> dict[str, Any]:
     worse simply by admitting recent signups who have not had time yet.
     """
     return await db_client.activation_funnel(rng.start, rng.end)
+
+
+# ---------------------------------------------------------------------------
+# Model economics
+#
+# Both halves of every cost line have always been stored — what the customer
+# was charged and what the vendor charged us — but nothing grouped them by the
+# model that incurred them. This is the screen behind "which model is eating
+# the margin", and it covers the whole receipt rather than only the LLM.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/model-usage")
+async def get_model_usage(
+    rng: RangeParams = Depends(),
+    component: str | None = Query(None, pattern="^(stt|llm|tts|telephony|platform)$"),
+    organization_id: int | None = Query(None),
+) -> dict[str, Any]:
+    """Per-model usage, revenue, our cost and the margin between them."""
+    async with db_client.async_session() as session:
+        return await dash.model_usage(
+            session,
+            start=rng.start,
+            end=rng.end,
+            component=component,
+            organization_id=organization_id,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Payments and top-ups
+#
+# Conversion is a question about the orders *started* in a window; money is a
+# question about what *settled* in it. Answering both off one timestamp is how
+# a payments screen ends up disagreeing with itself — see the client.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/payments")
+async def get_payments(
+    rng: RangeParams = Depends(),
+    granularity: str = Query("day", pattern="^(day|week|month)$"),
+    organization_id: int | None = Query(None),
+) -> dict[str, Any]:
+    """Orders started, orders paid, money collected, credit granted."""
+    async with db_client.async_session() as session:
+        return await dash.payments_summary(
+            session,
+            start=rng.start,
+            end=rng.end,
+            granularity=granularity,
+            organization_id=organization_id,
+        )

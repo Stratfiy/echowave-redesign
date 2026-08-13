@@ -13,7 +13,11 @@ const backendUrl = (
 ).replace(/\/+$/, '');
 
 export default defineConfig({
-    input: `${backendUrl}/api/v1/openapi.json`,
+    // OPENAPI_FILE points generation at a spec dumped to disk instead of a
+    // running backend — `python -c "from api.app import app; app.openapi()"`.
+    // Needed where the dev port is claimed by something else, and it is the
+    // only way to generate against routes that are not deployed yet.
+    input: process.env.OPENAPI_FILE || `${backendUrl}/api/v1/openapi.json`,
     output: 'src/client',
     plugins: [{
         name: '@hey-api/client-fetch',

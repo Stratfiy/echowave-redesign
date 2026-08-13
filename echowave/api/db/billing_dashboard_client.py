@@ -41,9 +41,12 @@ from api.db.models import (
     DailyOrganizationRollupModel,
     OrganizationModel,
     OrganizationRateHistoryModel,
+    PaymentModel,
+    ProviderRateModel,
     WorkflowModel,
     WorkflowRunModel,
 )
+from api.enums import CreditLedgerKind, RateUnit
 from api.services.billing.rates import resolve_platform_rate
 from api.services.billing.rollup import IST, ist_day_bounds_utc
 
@@ -1775,4 +1778,428 @@ async def call_analytics(
         "by_duration": by_duration,
         "by_hour": by_hour,
         "by_agent": by_agent,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Model economics
+#
+# Every existing surface answers "what did this call cost" or "what did this
+# account spend". Neither answers the one a pricing decision needs: *which
+# model is eating the margin*. The data was already there — every cost line
+# stores both what the customer was charged and what the vendor charged us —
+# it had simply never been grouped by the model that incurred it.
+# ---------------------------------------------------------------------------
+
+#: What ``call_cost_items.units`` counts, per component. Only a fallback: the
+#: authoritative unit is on the rate the line was priced against, and that is
+#: read from ``provider_rates`` below. This map answers for a component whose
+#: rate has since been deleted, so a row is never labelled with the wrong unit
+#: merely because its rate card entry is gone.
+_FALLBACK_UNIT_BY_COMPONENT = {
+    "stt": RateUnit.MINUTE.value,
+    "llm": RateUnit.THOUSAND_TOKENS.value,
+    "tts": RateUnit.THOUSAND_CHARS.value,
+    "telephony": RateUnit.MINUTE.value,
+    "platform": RateUnit.MINUTE.value,
+}
+
+#: How the raw ``units`` count is spelled for a reader, per rate unit. Seconds
+#: rather than minutes because seconds is what is stored — converting here
+#: would make the column disagree with the receipt it came from.
+_UNIT_LABEL = {
+    RateUnit.MINUTE.value: "seconds",
+    RateUnit.THOUSAND_CHARS.value: "characters",
+    RateUnit.THOUSAND_TOKENS.value: "tokens",
+    RateUnit.MONTH.value: "months",
+}
+
+
+async def _open_rate_units(session: AsyncSession) -> dict[tuple[str, str, str], str]:
+    """The unit each currently-open provider rate is quoted in.
+
+    One query. The rate card is bounded by how many models exist, not by
+    traffic, so this is a few dozen rows however many calls were made.
+    """
+    rows = (
+        await session.execute(
+            select(
+                ProviderRateModel.component,
+                ProviderRateModel.provider,
+                ProviderRateModel.model,
+                ProviderRateModel.unit,
+            ).where(ProviderRateModel.effective_to.is_(None))
+        )
+    ).all()
+    return {(r.component, r.provider, r.model or ""): r.unit for r in rows}
+
+
+async def model_usage(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    component: str | None = None,
+    organization_id: int | None = None,
+) -> dict:
+    """Usage and margin per model, for every component — not only the LLM.
+
+    ``token_usage_by_model`` already answered this for language models and only
+    in tokens charged. This is the whole receipt: speech-to-text, the language
+    model, speech synthesis, telephony and the platform fee, each split into
+    what the customer paid and what the vendor charged us.
+
+    **Units are never summed across rows.** A row's ``units`` is seconds,
+    characters or tokens depending on what its rate is quoted against, so a
+    total over the column would add tokens to seconds. Each row therefore
+    carries its own unit, and the totals block sums only money.
+
+    Bucketed by when the *call* happened rather than when costing ran — a call
+    re-costed after a rate change would otherwise move its usage to the day of
+    the re-cost. Same rule as ``token_usage_series``.
+    """
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+
+    conditions = [
+        WorkflowRunModel.created_at >= start_utc,
+        WorkflowRunModel.created_at < end_utc,
+    ]
+    if component is not None:
+        conditions.append(CallCostItemModel.component == component)
+    if organization_id is not None:
+        conditions.append(WorkflowModel.organization_id == organization_id)
+
+    charged = _sum(CallCostItemModel.cost_paise)
+    our_cost = _sum(CallCostItemModel.provider_cost_paise)
+
+    rows = (
+        await session.execute(
+            select(
+                CallCostItemModel.component,
+                CallCostItemModel.provider,
+                CallCostItemModel.model,
+                _sum(CallCostItemModel.units).label("units"),
+                charged.label("charged_paise"),
+                our_cost.label("our_cost_paise"),
+                func.count(func.distinct(CallCostItemModel.workflow_run_id)).label(
+                    "calls"
+                ),
+                # The rate actually applied. Averaged across the group because a
+                # rate change mid-window means there is no single one; a spread
+                # between this and the rate card is the thing worth seeing.
+                func.avg(CallCostItemModel.unit_rate_mpaise).label("rate_mpaise"),
+            )
+            .select_from(CallCostItemModel)
+            .join(
+                WorkflowRunModel,
+                CallCostItemModel.workflow_run_id == WorkflowRunModel.id,
+            )
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(*conditions)
+            .group_by(
+                CallCostItemModel.component,
+                CallCostItemModel.provider,
+                CallCostItemModel.model,
+            )
+            .order_by(desc(charged))
+        )
+    ).all()
+
+    units_by_rate = await _open_rate_units(session)
+
+    models: list[dict] = []
+    for row in rows:
+        provider = row.provider or ""
+        model = row.model or ""
+        unit = (
+            units_by_rate.get((row.component, provider, model))
+            # A model with no rate row of its own was priced at the
+            # provider-wide fallback, so it is quoted in that rate's unit.
+            or units_by_rate.get((row.component, provider, ""))
+            or _FALLBACK_UNIT_BY_COMPONENT.get(row.component, "")
+        )
+        charged_paise = int(row.charged_paise or 0)
+        our_cost_paise = int(row.our_cost_paise or 0)
+        models.append(
+            {
+                "component": row.component,
+                # The platform fee has no vendor and no model. Named rather
+                # than left blank so a reader is not left wondering whether it
+                # is missing data.
+                "provider": provider or ("—" if row.component == "platform" else ""),
+                "model": model or "(unspecified)",
+                "calls": int(row.calls or 0),
+                "units": int(row.units or 0),
+                "unit": unit,
+                "unit_label": _UNIT_LABEL.get(unit, "units"),
+                "rate_mpaise": int(row.rate_mpaise or 0),
+                "charged_paise": charged_paise,
+                "our_cost_paise": our_cost_paise,
+                "margin_paise": charged_paise - our_cost_paise,
+                # None rather than 0 on a zero-revenue row: a margin share of
+                # nothing is undefined, and "0%" would read as "we made none".
+                "margin_pct": (
+                    (charged_paise - our_cost_paise) / charged_paise
+                    if charged_paise
+                    else None
+                ),
+                "paise_per_call": (
+                    round(charged_paise / int(row.calls), 2) if row.calls else None
+                ),
+            }
+        )
+
+    by_component: dict[str, dict] = {}
+    for entry in models:
+        bucket = by_component.setdefault(
+            entry["component"],
+            {
+                "component": entry["component"],
+                "charged_paise": 0,
+                "our_cost_paise": 0,
+                "margin_paise": 0,
+                "models": 0,
+            },
+        )
+        bucket["charged_paise"] += entry["charged_paise"]
+        bucket["our_cost_paise"] += entry["our_cost_paise"]
+        bucket["margin_paise"] += entry["margin_paise"]
+        bucket["models"] += 1
+
+    charged_total = sum(entry["charged_paise"] for entry in models)
+    cost_total = sum(entry["our_cost_paise"] for entry in models)
+
+    return {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "models": models,
+        "by_component": sorted(
+            by_component.values(), key=lambda b: b["charged_paise"], reverse=True
+        ),
+        "totals": {
+            "charged_paise": charged_total,
+            "our_cost_paise": cost_total,
+            "margin_paise": charged_total - cost_total,
+            "margin_pct": (
+                (charged_total - cost_total) / charged_total if charged_total else None
+            ),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Payments and top-ups
+#
+# Two different questions live here, and answering them off the same timestamp
+# is how a payments screen ends up contradicting itself:
+#
+# * **How many orders converted?** That is a question about a *cohort* — the
+#   orders started in this window — and it is keyed on ``created_at``. An
+#   order created on Tuesday and paid on Wednesday belongs to Tuesday's cohort
+#   either way, which is what keeps the rate stable as the window widens.
+# * **How much money came in?** That is keyed on ``paid_at``, because the cash
+#   arrived when it arrived. Bucketing collections by ``created_at`` would
+#   credit a day for money it did not receive.
+#
+# The ledger is reported beside both. A top-up can reach an account without a
+# payment row — staff credit, trial grants, a manual adjustment — so the gap
+# between "collected" and "credited" is a real reconciliation signal rather
+# than a bug in one of the two numbers.
+# ---------------------------------------------------------------------------
+
+
+async def payments_summary(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    granularity: str = "day",
+    organization_id: int | None = None,
+) -> dict:
+    """Orders started, orders paid, money collected, credit granted."""
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+
+    def _scope(conditions: list):
+        if organization_id is not None:
+            conditions.append(PaymentModel.organization_id == organization_id)
+        return conditions
+
+    # --- The cohort: orders started in this window, by what became of them.
+    cohort_rows = (
+        await session.execute(
+            select(
+                PaymentModel.status,
+                func.count(PaymentModel.id).label("orders"),
+                _sum(PaymentModel.amount_paise).label("net_paise"),
+            )
+            .where(
+                *_scope(
+                    [
+                        PaymentModel.created_at >= start_utc,
+                        PaymentModel.created_at < end_utc,
+                    ]
+                )
+            )
+            .group_by(PaymentModel.status)
+        )
+    ).all()
+    by_status = {r.status: int(r.orders) for r in cohort_rows}
+    started = sum(by_status.values())
+    converted = by_status.get("paid", 0)
+
+    # --- The money: keyed on when it settled, not when it was asked for.
+    collected_conditions = _scope(
+        [
+            PaymentModel.status == "paid",
+            PaymentModel.paid_at >= start_utc,
+            PaymentModel.paid_at < end_utc,
+        ]
+    )
+
+    # gross_paise is nullable — payments taken before GST existed have no
+    # split recorded. Falling back to amount_paise rather than to zero: those
+    # payments were zero-rated, so gross and net were the same figure.
+    gross = func.coalesce(PaymentModel.gross_paise, PaymentModel.amount_paise)
+
+    totals_row = (
+        await session.execute(
+            select(
+                func.count(PaymentModel.id).label("payments"),
+                _sum(PaymentModel.amount_paise).label("net_paise"),
+                _sum(gross).label("gross_paise"),
+                _sum(
+                    func.coalesce(PaymentModel.cgst_paise, 0)
+                    + func.coalesce(PaymentModel.sgst_paise, 0)
+                    + func.coalesce(PaymentModel.igst_paise, 0)
+                ).label("tax_paise"),
+                func.count(func.distinct(PaymentModel.organization_id)).label(
+                    "paying_accounts"
+                ),
+            ).where(*collected_conditions)
+        )
+    ).one()
+
+    payments = int(totals_row.payments or 0)
+    net_paise = int(totals_row.net_paise or 0)
+
+    period = _ist_period(PaymentModel.paid_at, granularity)
+    series = [
+        {
+            "period": row.period.date().isoformat(),
+            "payments": int(row.payments or 0),
+            "net_paise": int(row.net_paise or 0),
+            "gross_paise": int(row.gross_paise or 0),
+            "accounts": int(row.accounts or 0),
+        }
+        for row in (
+            await session.execute(
+                select(
+                    period.label("period"),
+                    func.count(PaymentModel.id).label("payments"),
+                    _sum(PaymentModel.amount_paise).label("net_paise"),
+                    _sum(gross).label("gross_paise"),
+                    func.count(func.distinct(PaymentModel.organization_id)).label(
+                        "accounts"
+                    ),
+                )
+                .where(*collected_conditions)
+                .group_by(period)
+                .order_by(period)
+            )
+        ).all()
+    ]
+
+    # --- Who paid. Ordered by value, because the question behind this table is
+    # always "which accounts are carrying the revenue".
+    top_accounts = [
+        {
+            "organization_id": row.organization_id,
+            # Same fallback the rest of this module uses: an account that has
+            # not filled in a billing name is still identifiable by the id its
+            # auth provider knows it as.
+            "name": row.billing_name or row.provider_id,
+            "payments": int(row.payments or 0),
+            "net_paise": int(row.net_paise or 0),
+            "last_paid_at": row.last_paid_at.isoformat() if row.last_paid_at else None,
+        }
+        for row in (
+            await session.execute(
+                select(
+                    PaymentModel.organization_id,
+                    OrganizationModel.billing_name,
+                    OrganizationModel.provider_id,
+                    func.count(PaymentModel.id).label("payments"),
+                    _sum(PaymentModel.amount_paise).label("net_paise"),
+                    func.max(PaymentModel.paid_at).label("last_paid_at"),
+                )
+                .select_from(PaymentModel)
+                .join(
+                    OrganizationModel,
+                    OrganizationModel.id == PaymentModel.organization_id,
+                )
+                .where(*collected_conditions)
+                .group_by(PaymentModel.organization_id, OrganizationModel.id)
+                .order_by(desc(_sum(PaymentModel.amount_paise)))
+                .limit(10)
+            )
+        ).all()
+    ]
+
+    # --- The ledger, for reconciliation. Every TOPUP row, whatever produced it.
+    ledger_conditions = [
+        CreditLedgerModel.created_at >= start_utc,
+        CreditLedgerModel.created_at < end_utc,
+        CreditLedgerModel.kind == CreditLedgerKind.TOPUP.value,
+    ]
+    if organization_id is not None:
+        ledger_conditions.append(CreditLedgerModel.organization_id == organization_id)
+
+    ledger_row = (
+        await session.execute(
+            select(
+                func.count(CreditLedgerModel.id).label("entries"),
+                _sum(CreditLedgerModel.delta_paise).label("credited_paise"),
+            ).where(*ledger_conditions)
+        )
+    ).one()
+    credited_paise = int(ledger_row.credited_paise or 0)
+
+    return {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "granularity": granularity,
+        "collected": {
+            "payments": payments,
+            # Net of GST — this is what reaches the ledger as credit.
+            "net_paise": net_paise,
+            # What the customer was actually charged, tax included.
+            "gross_paise": int(totals_row.gross_paise or 0),
+            "tax_paise": int(totals_row.tax_paise or 0),
+            "paying_accounts": int(totals_row.paying_accounts or 0),
+            "average_topup_paise": (round(net_paise / payments) if payments else None),
+        },
+        "cohort": {
+            "started": started,
+            "paid": converted,
+            "failed": by_status.get("failed", 0),
+            # Neither paid nor failed: the customer opened the checkout and
+            # walked away. Worth its own number — it is the only one of the
+            # three that a change to the payment page can move.
+            "abandoned": by_status.get("created", 0),
+            # None rather than 0 on an empty window: no orders is not a
+            # conversion rate of zero.
+            "conversion": (converted / started) if started else None,
+        },
+        "series": series,
+        "top_accounts": top_accounts,
+        "ledger": {
+            "entries": int(ledger_row.entries or 0),
+            "credited_paise": credited_paise,
+            # Credit granted that no settled payment paid for: staff top-ups,
+            # promotional credit, a manual correction. Not an error — but if it
+            # is large and unexplained, it is the first place to look.
+            "unpaid_credit_paise": credited_paise - net_paise,
+        },
     }
