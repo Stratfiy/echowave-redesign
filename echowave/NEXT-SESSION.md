@@ -45,9 +45,13 @@ unless it says otherwise.
 This is the order things actually block each other in, which is **not** the
 order they are interesting in.
 
-### 1. DND scrubbing + calling hours — the only P0 left
+### 1. DND scrubbing + calling hours — DONE
 
-Grep the API for `dnd`, `do_not_disturb`, `calling_hours`, `quiet_hours` or
+Shipped and deployed (`316e930`). Enforced per call in both dial paths, failing
+closed, refusals terminal so they never enter the retry path, with a screen at
+`/do-not-call`. Left here because the reasoning still matters:
+
+Before it, grepping the API for `dnd`, `do_not_disturb`, `calling_hours`, `quiet_hours` or
 `tcccpr` and you get **zero files**. There is no scrubbing anywhere in the
 dialling path and no 9am–9pm window.
 
@@ -67,9 +71,42 @@ the providers.
 caller list. Confirm whether it reaches the gate by another path before
 assuming it is covered.
 
-### 2. Verified test number
+### 2. Verified test number — built, blocked on a delivery channel
 
-Not started, and what exists today is weaker than it looks. `test_phone_number`
+Done: the table, the service, the three rate limits, the routes, the gate on
+the test-call path (`REQUIRE_VERIFIED_TEST_NUMBER`, default true) and the
+screen. 30 tests. Driven end to end against a live API.
+
+**What is blocked.** The code cannot be delivered yet.
+`VERIFICATION_CHANNEL` defaults to `log`, which refuses to run outside a
+dev/test `ENVIRONMENT`, so production reports the feature unavailable rather
+than pretending to send.
+
+- **`plivo_sms`** is written and needs **DLT registration** first — a Principal
+  Entity (PAN/GST), a registered header, and a registered content template.
+  Grepping this repo for `dlt`, `sender_id`, `principal_entity` or
+  `template_id` returns nothing, so none of it exists. Unregistered traffic is
+  blocked by the operator and the failure looks like success: Plivo accepts the
+  request and the message never arrives. `_body()` is asserted character for
+  character in a test because the operator matches on the registered template.
+- **`voice`** — call the number and read the code out — sidesteps the DLT
+  template requirement and fits what we are. It returns "not enabled" until
+  somebody completes **one real outbound call on the platform Plivo account**,
+  which `STATUS.md` records has never happened in this deployment.
+
+**A second gap this surfaced.** A test call from a trial account with no
+telephony configuration fails at `telephony_not_configured`
+(`routes/telephony.py:122`) *before* the verification gate. That ordering is
+right — you cannot dial without a carrier to dial from — but it means verifying
+a number is not by itself enough for trial calling. The call still needs
+somewhere to originate, which is the managed telephony path behind
+`MANAGED_TELEPHONY_ENABLED` and Plivo KYC. Verification closes the harassment
+hole and stores the permission; "try it without renting a number" needs
+platform origination too.
+
+### The old note on this, kept for the reasoning
+
+What existed before was weaker than it looked. `test_phone_number`
 is a free-text organization preference (`routes/user.py:118`) that
 `routes/telephony.py:156` dials directly. There is no proof the caller owns the
 number, so an account can have Decibyl ring anything they type — a missing
