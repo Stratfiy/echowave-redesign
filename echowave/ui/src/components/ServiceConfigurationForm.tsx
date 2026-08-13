@@ -733,7 +733,9 @@ export function ServiceConfigurationForm({
             <div className="space-y-6">
                 {canBeManaged && (
                     <div className="space-y-2">
-                        <Label>Who provides this model</Label>
+                        <Label className="text-sm font-semibold tracking-[-0.01em] text-foreground">
+                            Who provides this model
+                        </Label>
                         <div className="grid grid-cols-2 gap-2">
                             <button
                                 type="button"
@@ -1224,12 +1226,42 @@ export function ServiceConfigurationForm({
             <Card>
                 <CardContent className="pt-6">
                     <Tabs key={defaultTab} defaultValue={defaultTab} className="w-full">
-                        <TabsList className="grid w-full mb-6" style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
-                            {visibleTabs.map(({ key, label }) => (
-                                <TabsTrigger key={key} value={key}>
-                                    {label}
-                                </TabsTrigger>
-                            ))}
+                        {/* Each tab carries its own current setting.
+
+                            Three of the four choices are hidden at any moment
+                            behind a tab strip that said only "LLM", "Voice",
+                            "Transcriber" — so reading the stack you have
+                            configured meant clicking through it and
+                            remembering. The slot name is the heading and what
+                            it resolves to is the line under it, which makes the
+                            whole pipeline legible without opening anything. */}
+                        <TabsList
+                            className="mb-6 grid h-auto w-full gap-1 p-1"
+                            style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}
+                        >
+                            {visibleTabs.map(({ key, label }) => {
+                                const provider = serviceProviders[key];
+                                const model = watch(`${key}_model`) as string | undefined;
+                                const managed = provider === "decibyl";
+                                return (
+                                    <TabsTrigger
+                                        key={key}
+                                        value={key}
+                                        className="flex-col items-start gap-0.5 px-3 py-2 text-left"
+                                    >
+                                        <span className="text-[0.9375rem] font-semibold tracking-[-0.015em]">
+                                            {label}
+                                        </span>
+                                        <span className="w-full truncate text-[11px] font-normal leading-tight text-muted-foreground">
+                                            {provider
+                                                ? managed
+                                                    ? `Decibyl · ${model || "default"}`
+                                                    : model || provider
+                                                : "Not set"}
+                                        </span>
+                                    </TabsTrigger>
+                                );
+                            })}
                         </TabsList>
 
                         {visibleTabs.map(({ key, label }) => (

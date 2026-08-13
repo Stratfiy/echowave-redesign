@@ -331,7 +331,9 @@ export function AIModelConfigurationV2Editor({
             {/* One choice, and it is about shape rather than about money. */}
             <div className="space-y-3">
                 <div>
-                    <h2 className="text-sm font-medium">How the conversation runs</h2>
+                    <h2 className="text-base font-semibold tracking-[-0.015em] text-foreground">
+                        How the conversation runs
+                    </h2>
                     <p className="text-xs text-muted-foreground">
                         Pick the shape of the pipeline. Who pays for each model is a separate
                         choice, made per model below.
@@ -397,7 +399,9 @@ export function AIModelConfigurationV2Editor({
                 `managedUpstream` below. */}
 
             <div>
-                <h2 className="text-sm font-medium">Models</h2>
+                <h2 className="text-base font-semibold tracking-[-0.015em] text-foreground">
+                    Models
+                </h2>
                 <p className="mb-3 text-xs text-muted-foreground">
                     Choose <span className="font-medium">Decibyl</span> for any model you
                     want us to provide and bill — no key needed. Choose a vendor to run it on
