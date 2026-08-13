@@ -399,6 +399,14 @@ export type AuthUserResponse = {
      */
     staff_role: string | null;
     /**
+     * Email Verified
+     */
+    email_verified: boolean;
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
      * Organization Role
      */
     organization_role: string | null;
@@ -7511,6 +7519,16 @@ export type VerifiedNumber = {
      * Verified At
      */
     verified_at?: string | null;
+};
+
+/**
+ * VerifyEmailRequest
+ */
+export type VerifyEmailRequest = {
+    /**
+     * Code
+     */
+    code: string;
 };
 
 /**
@@ -19363,6 +19381,92 @@ export type GoogleCallbackApiV1AuthGoogleCallbackGetResponses = {
      */
     200: unknown;
 };
+
+export type VerifyEmailApiV1AuthEmailVerifyPostData = {
+    body: VerifyEmailRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/email/verify';
+};
+
+export type VerifyEmailApiV1AuthEmailVerifyPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type VerifyEmailApiV1AuthEmailVerifyPostError = VerifyEmailApiV1AuthEmailVerifyPostErrors[keyof VerifyEmailApiV1AuthEmailVerifyPostErrors];
+
+export type VerifyEmailApiV1AuthEmailVerifyPostResponses = {
+    /**
+     * Response Verify Email Api V1 Auth Email Verify Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type VerifyEmailApiV1AuthEmailVerifyPostResponse = VerifyEmailApiV1AuthEmailVerifyPostResponses[keyof VerifyEmailApiV1AuthEmailVerifyPostResponses];
+
+export type ResendEmailVerificationApiV1AuthEmailResendPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/email/resend';
+};
+
+export type ResendEmailVerificationApiV1AuthEmailResendPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResendEmailVerificationApiV1AuthEmailResendPostError = ResendEmailVerificationApiV1AuthEmailResendPostErrors[keyof ResendEmailVerificationApiV1AuthEmailResendPostErrors];
+
+export type ResendEmailVerificationApiV1AuthEmailResendPostResponses = {
+    /**
+     * Response Resend Email Verification Api V1 Auth Email Resend Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ResendEmailVerificationApiV1AuthEmailResendPostResponse = ResendEmailVerificationApiV1AuthEmailResendPostResponses[keyof ResendEmailVerificationApiV1AuthEmailResendPostResponses];
 
 export type ListNodeTypesApiV1NodeTypesGetData = {
     body?: never;
