@@ -513,12 +513,12 @@ Two things are not what you may expect:
    Worth confirming which of the two you meant.
 
 ---
-
 ## 9. Checklist
 
-Everything above, as one list. Ticked means built and verified in this repo.
+Everything above, as one list. Ticked means built and verified in this repo —
+not that it is switched on in production.
 
-**Already done — no work needed**
+**Done and merged**
 
 - [x] Signup bonus of $5 (`SIGNUP_BONUS_MICROS_USD=5000000`), as trial credit, once per org, no GST
 - [x] Staff tier that only reviews verifications (`StaffRole.SUPPORT`)
@@ -527,20 +527,54 @@ Everything above, as one list. Ticked means built and verified in this repo.
 - [x] Managed tiers as a customer-facing choice, vendor-agnostic and env-overridable
 - [x] Simple/advanced model picker per slot ("Decibyl provides it" vs "My own key")
 - [x] Price book accurate as of 2026-08, with `_inr()` and `_blend()` handling rupee vendors and two-sided token pricing
+- [x] Managed markup at 1.4× (`MANAGED_PROVIDER_MARKUP_BPS=14000`)
+- [x] Markup editable without a deploy, effective-dated, behind a code to `hello@decibyl.ai`
+- [x] BYOK earns the platform fee and nothing else — locked by test, not by convention
+- [x] ElevenLabs multilingual v2 rate row, Azure speech-to-speech row, Flux STT rows
+- [x] One vendor key covers every slot it can authenticate, on both the customer and the staff vault
+- [x] Model picker tabs show each slot's current setting instead of only its name
 
-**One setting each**
+**One setting each — no code**
 
-- [ ] Managed markup to 1.4× — `MANAGED_PROVIDER_MARKUP_BPS=14000`. Do **not** edit the rate rows.
-- [ ] Turn managed models on — store platform keys for Google, Sarvam, OpenAI
-- [ ] Turn on OTP delivery — `VERIFICATION_CHANNEL`, then `REQUIRE_VERIFIED_TEST_NUMBER`
+- [ ] **Turn managed models on.** Store platform keys for Google (LLM), Sarvam
+      (transcriber, voice) and OpenAI (speech-to-speech, embeddings) at
+      `/superadmin/provider-keys`. Until then the entire no-key offering is dark.
+- [ ] **Turn on OTP delivery.** `VERIFICATION_CHANNEL`, then
+      `REQUIRE_VERIFIED_TEST_NUMBER`. Blocked on DLT registration, not on us.
+- [ ] **SMTP.** Now load-bearing: without it the markup can be staged but never
+      applied, and no invoice, receipt or low-balance warning is delivered.
 
 **Small, contained**
 
-- [ ] ElevenLabs multilingual v2 rate row — currently billed at half its cost
-- [ ] Collapse or differentiate `fast` / `lite` / `zen`, which are the same model
-- [ ] Formatting-only commit to clear the drift that will fail the first PR
-- [ ] Measure `LLM_INPUT_SHARE` against real traffic
-- [ ] Decide how to describe managed pricing — the README says "at cost, with no markup", which is true for BYOK and not for managed (see `PRICING-REVIEW.md` §4)
+- [ ] **Formatting-only commit.** `black` reformats **103** files nobody touched.
+      `pre-pr-drift-check` fails on any difference, so the first PR raised from
+      any branch fails CI regardless of content. Do it alone, never mixed in.
+- [ ] Collapse or differentiate `fast` / `lite` / `zen` — all three resolve to
+      `gemini-2.5-flash-lite`. Collapsing is customer-visible: stored configs
+      naming `zen` must keep resolving.
+- [ ] Measure `LLM_INPUT_SHARE = 0.7` against real traffic. Every LLM margin
+      figure depends on it and it is currently an assumption.
+- [ ] Validate endpointing against production traffic. Instrumented and
+      deployed, never checked — p50 per language, and how far behind the
+      non-Flux path runs.
+- [ ] Reconcile the README's "at cost, with no markup" with the 1.4× on managed.
+      True for BYOK, not for managed (`PRICING-REVIEW.md` §4).
+
+**Known limits to decide about, not bugs**
+
+- [ ] **Google cannot serve managed speech.** Cloud STT and TTS authenticate
+      with a service-account JSON; the key vault stores API-key strings only, so
+      there is nowhere to put one. Gemini (key-based) is fine, which is why the
+      default LLM tier works. Pointing `MANAGED_STT_DEFAULT` at Google would
+      fail at dial time. Needs a `credentials` path in the vault, or Google stays
+      LLM-only on the managed tier.
+- [ ] **Languages outside Flux stay slow.** Tamil, Telugu, Kannada, Marathi and
+      Bengali fall back to Nova-3 and pay the full VAD silence wait — roughly
+      half a second per turn Hindi and English no longer pay. Deepgram's gap,
+      ours to explain.
+- [ ] **Ultravox and Grok bill per minute**, we record tokens. Deliberately
+      unpriced rather than wrongly priced; needs a per-minute costing path
+      before either is offered.
 
 **Real features, in dependency order**
 
@@ -549,14 +583,20 @@ Everything above, as one list. Ticked means built and verified in this repo.
 - [ ] Referral: attribution column, `CreditLedgerKind.REFERRAL`, 20% of first **net** payment
 - [ ] Agency tier: `managed_by_organization_id`, `commission_bps`, and one tested "orgs I may act on" seam
 - [ ] Agency commission reporting and payout run
-- [ ] Failure reasons as a first-class field
+- [ ] Failure reasons as a first-class field — `queued_runs.refusal_reason` exists
+      but is not generalised, so "why did this call fail" is unanswerable fleet-wide
 
-**Things you did not ask about but will need**
+**Operational gaps that will bite**
 
-- [ ] **Refunds.** `payments` records settlement; nothing reverses one. A chargeback today leaves credit granted and no way to claw it back — and referral credit makes that worse.
-- [ ] **Dunning past low-balance.** `dunning.py` exists; what happens to a live call when credit runs out mid-conversation needs a decided answer, not an emergent one.
-- [ ] **Platform key rotation.** Managed inference runs on our keys. There is no rotation path, and revoking one silently breaks every managed account at once.
-- [ ] **Rate-limit / abuse ceiling per account.** Concurrency is capped; spend velocity is not. A stolen card plus a loop is an unbounded vendor bill.
-- [ ] **Backup restore rehearsal.** `scripts/rehearse_restore.sh` exists — has it been run against production-shaped data?
-- [ ] **Status page / incident comms.** A voice platform that goes quiet has customers whose phones simply stop working.
-- [ ] **Per-model latency in the UI.** The instrumentation landed this month and has never been read against real traffic.
+- [ ] **Refunds.** `payments` records settlement; nothing reverses one. A
+      chargeback today leaves credit granted with no way to claw it back — and
+      referral credit makes that worse.
+- [ ] **Dunning past low-balance.** What happens to a *live* call when credit
+      runs out mid-conversation needs a decided answer, not an emergent one.
+- [ ] **Platform key rotation.** Managed inference runs on our keys. There is no
+      rotation path, and revoking one silently breaks every managed account at
+      once. The one-key fan-out makes rotation easier, not safer.
+- [ ] **Spend velocity ceiling.** Concurrency is capped; spend is not. A stolen
+      card plus a loop is an unbounded vendor bill.
+- [ ] **Backup restore rehearsal.** `scripts/rehearse_restore.sh` exists — has it
+      ever been run against production-shaped data?
