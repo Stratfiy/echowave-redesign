@@ -717,3 +717,10 @@ VERIFICATION_CHANNEL = os.getenv("VERIFICATION_CHANNEL", "log")
 # telephony configuration of their own, which is the whole reason the feature
 # exists. Must be the number registered against the DLT header.
 PLATFORM_SMS_FROM_NUMBER = os.getenv("PLATFORM_SMS_FROM_NUMBER") or None
+
+# Decibyl's own Twilio account, the alternative to PLATFORM_PLIVO_* for
+# platform-originated SMS. Having both is about not being locked to one carrier
+# — it is NOT a way around DLT, which attaches to the sending entity and the
+# Indian destination rather than to the carrier.
+PLATFORM_TWILIO_ACCOUNT_SID = os.getenv("PLATFORM_TWILIO_ACCOUNT_SID") or None
+PLATFORM_TWILIO_AUTH_TOKEN = os.getenv("PLATFORM_TWILIO_AUTH_TOKEN") or None

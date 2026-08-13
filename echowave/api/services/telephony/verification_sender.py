@@ -20,7 +20,14 @@ So the channel is a seam rather than a hard-coded call:
   transactional voice does not carry the DLT template requirement that SMS
   does, and the thing a trial user is verifying is precisely that Decibyl can
   ring them.
-* ``plivo_sms`` — the conventional route, once DLT registration exists.
+* ``plivo_sms`` / ``twilio_sms`` — the conventional routes, once DLT
+  registration exists.
+
+**Changing carrier does not avoid DLT.** The requirement attaches to the
+destination and to *your* Principal Entity, not to the carrier: Twilio, Plivo
+and everyone else refuse or drop unregistered Indian A2P traffic alike. Both
+are here so the choice is a config value once the paperwork lands, not so one
+can be used to route around it.
 
 Every sender returns rather than raises, for the same reason the follow-up
 message path does: whether the code reached them is an outcome to report, not
@@ -38,6 +45,8 @@ from api.constants import (
     PLATFORM_PLIVO_AUTH_ID,
     PLATFORM_PLIVO_AUTH_TOKEN,
     PLATFORM_SMS_FROM_NUMBER,
+    PLATFORM_TWILIO_ACCOUNT_SID,
+    PLATFORM_TWILIO_AUTH_TOKEN,
     VERIFICATION_CHANNEL,
 )
 
@@ -138,6 +147,62 @@ async def _send_plivo_sms(number: str, code: str) -> DeliveryResult:
     return DeliveryResult(ok=True, channel="plivo_sms", reference=result.message_id)
 
 
+async def _send_twilio_sms(number: str, code: str) -> DeliveryResult:
+    """SMS on Decibyl's own Twilio account.
+
+    Same shape as the Plivo branch and for the same reason — the customer's own
+    telephony configuration is the wrong credential here, because the accounts
+    this serves have none.
+
+    Worth being clear that this is not a way around DLT. The registration is
+    against the sending entity and the Indian destination, so Twilio drops
+    unregistered A2P traffic exactly as Plivo does. Having both is about not
+    being locked to one carrier once the paperwork exists.
+    """
+    if not (PLATFORM_TWILIO_ACCOUNT_SID and PLATFORM_TWILIO_AUTH_TOKEN):
+        return DeliveryResult(
+            ok=False,
+            channel="twilio_sms",
+            error="Verification is not configured on this deployment.",
+        )
+    if not PLATFORM_SMS_FROM_NUMBER:
+        return DeliveryResult(
+            ok=False,
+            channel="twilio_sms",
+            error="Verification is not configured on this deployment.",
+        )
+
+    from api.services.messaging.send import MessagingError, send_message
+
+    try:
+        result = await send_message(
+            provider="twilio",
+            credentials={
+                "account_sid": PLATFORM_TWILIO_ACCOUNT_SID,
+                "auth_token": PLATFORM_TWILIO_AUTH_TOKEN,
+            },
+            to=number,
+            from_=PLATFORM_SMS_FROM_NUMBER,
+            body=_body(code),
+        )
+    except MessagingError as exc:
+        logger.error(f"Verification SMS could not be sent: {exc}")
+        return DeliveryResult(ok=False, channel="twilio_sms", error=str(exc))
+
+    if not result.ok:
+        # Twilio error 21610 and the 30xxx delivery codes are where an
+        # unregistered DLT template surfaces. The carrier's own words are the
+        # useful ones, so they go in the log rather than being flattened.
+        logger.warning(f"Carrier refused the verification SMS: {result.error}")
+        return DeliveryResult(
+            ok=False,
+            channel="twilio_sms",
+            error="The code could not be sent to that number. Try again shortly.",
+        )
+
+    return DeliveryResult(ok=True, channel="twilio_sms", reference=result.message_id)
+
+
 async def _send_voice(number: str, code: str) -> DeliveryResult:
     """Call the number and read the code out.
 
@@ -167,6 +232,8 @@ async def deliver_code(number: str, code: str) -> DeliveryResult:
     channel = (VERIFICATION_CHANNEL or "log").strip().lower()
     if channel == "plivo_sms":
         return await _send_plivo_sms(number, code)
+    if channel == "twilio_sms":
+        return await _send_twilio_sms(number, code)
     if channel == "voice":
         return await _send_voice(number, code)
     if channel == "log":

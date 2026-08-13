@@ -324,3 +324,22 @@ class TestTheSender:
         assert _body("123456") == (
             "Your Decibyl verification code is 123456. It expires in 10 minutes."
         )
+
+    async def test_twilio_without_platform_credentials_is_refused(self, monkeypatch):
+        from api.services.telephony import verification_sender as sender
+
+        monkeypatch.setattr(sender, "PLATFORM_TWILIO_ACCOUNT_SID", None)
+        monkeypatch.setattr(sender, "PLATFORM_TWILIO_AUTH_TOKEN", None)
+        result = await sender._send_twilio_sms("919876543210", "123456")
+        assert not result.ok
+
+    async def test_twilio_is_reachable_through_the_channel_switch(self, monkeypatch):
+        """Switching carrier must be a config value, not a code change. It is
+        NOT a way around DLT — that attaches to the sending entity and the
+        Indian destination, so Twilio drops unregistered traffic as Plivo does."""
+        from api.services.telephony import verification_sender as sender
+
+        monkeypatch.setattr(sender, "VERIFICATION_CHANNEL", "twilio_sms")
+        monkeypatch.setattr(sender, "PLATFORM_TWILIO_ACCOUNT_SID", None)
+        result = await sender.deliver_code("919876543210", "123456")
+        assert result.channel == "twilio_sms"
