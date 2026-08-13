@@ -10327,6 +10327,62 @@ export type BillingReadinessApiV1AdminBillingReadinessGetResponses = {
 
 export type BillingReadinessApiV1AdminBillingReadinessGetResponse = BillingReadinessApiV1AdminBillingReadinessGetResponses[keyof BillingReadinessApiV1AdminBillingReadinessGetResponses];
 
+export type GetActivationApiV1AdminBillingActivationGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Start
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        end?: string | null;
+    };
+    url: '/api/v1/admin/billing/activation';
+};
+
+export type GetActivationApiV1AdminBillingActivationGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetActivationApiV1AdminBillingActivationGetError = GetActivationApiV1AdminBillingActivationGetErrors[keyof GetActivationApiV1AdminBillingActivationGetErrors];
+
+export type GetActivationApiV1AdminBillingActivationGetResponses = {
+    /**
+     * Response Get Activation Api V1 Admin Billing Activation Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetActivationApiV1AdminBillingActivationGetResponse = GetActivationApiV1AdminBillingActivationGetResponses[keyof GetActivationApiV1AdminBillingActivationGetResponses];
+
 export type GetCostPerMinuteApiV1CostEstimatePerMinutePostData = {
     body: CostEstimateRequest;
     headers?: {

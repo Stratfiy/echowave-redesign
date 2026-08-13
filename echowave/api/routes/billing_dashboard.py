@@ -781,3 +781,22 @@ async def billing_readiness() -> dict[str, Any]:
     async with db_client.async_session() as session:
         assessment = await readiness.assess(session)
     return as_dict(assessment)
+
+
+# ---------------------------------------------------------------------------
+# Activation
+#
+# The one question none of the screens above can answer: who arrived and never
+# made a call. Everything else here measures calls that happened.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/activation")
+async def get_activation(rng: RangeParams = Depends()) -> dict[str, Any]:
+    """Signup → agent → first call → first top-up, for the signup cohort.
+
+    The cohort is fixed at signup and each step asks "ever", not "in the
+    window". Counting steps inside the window would make a wide range look
+    worse simply by admitting recent signups who have not had time yet.
+    """
+    return await db_client.activation_funnel(rng.start, rng.end)
