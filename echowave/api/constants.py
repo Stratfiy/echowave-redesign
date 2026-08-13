@@ -666,3 +666,71 @@ CALLING_HOURS_END = os.getenv("CALLING_HOURS_END", "21:00")
 DEFAULT_ORGANIZATION_TIMEZONE = os.getenv(
     "DEFAULT_ORGANIZATION_TIMEZONE", "Asia/Kolkata"
 )
+
+
+# ---------------------------------------------------------------------------
+# Verified test numbers.
+#
+# An account proves it can answer a number by receiving an SMS, and only then
+# will we dial it. Three limits, each closing a different abuse: attempts per
+# code (six digits falls to exhaustive guessing in under a second), sends per
+# number (otherwise the endpoint is a free SMS cannon aimed at a stranger, on
+# our carrier bill), and a cooldown between sends.
+# ---------------------------------------------------------------------------
+VERIFICATION_CODE_TTL_MINUTES = int(os.getenv("VERIFICATION_CODE_TTL_MINUTES", "10"))
+VERIFICATION_MAX_ATTEMPTS = int(os.getenv("VERIFICATION_MAX_ATTEMPTS", "5"))
+VERIFICATION_MAX_SENDS = int(os.getenv("VERIFICATION_MAX_SENDS", "5"))
+VERIFICATION_RESEND_COOLDOWN_SECONDS = int(
+    os.getenv("VERIFICATION_RESEND_COOLDOWN_SECONDS", "60")
+)
+
+# Whether a test call may only go to a number the account has verified.
+#
+# OFF by default, and that default is temporary. It should be true — dialling
+# whatever string a user types is the harassment vector this mechanism exists
+# to close — but a permission nobody can obtain is not a permission, it is an
+# outage. VERIFICATION_CHANNEL is `log` on every real deployment today, which
+# refuses to run outside dev, so with this on nobody could verify a number and
+# every test call would be refused with no way forward.
+#
+# Flip it to true in the same change that makes delivery work (DLT registration
+# for SMS, or a proven outbound path for voice). There is a test asserting the
+# gate itself works, so the only thing this default controls is whether it is
+# enforced before anyone can satisfy it.
+#
+# It does not affect campaigns or the trigger API either way: those dial numbers
+# the customer supplies as data, and are governed by the DND list and the
+# calling window instead.
+REQUIRE_VERIFIED_TEST_NUMBER = (
+    os.getenv("REQUIRE_VERIFIED_TEST_NUMBER", "false").lower() == "true"
+)
+
+# How a verification code reaches the person holding the phone.
+#
+#   log        development only; writes the code to the log and refuses to run
+#              outside a dev/test ENVIRONMENT
+#   voice      call the number and read the code out (not wired — see
+#              services/telephony/verification_sender.py)
+#   plivo_sms  SMS on Decibyl's own Plivo account
+#
+# Defaults to log so a deployment that has configured nothing fails visibly and
+# safely rather than appearing to send codes it never sent.
+#
+# SMS to Indian numbers needs DLT registration first — a Principal Entity, a
+# registered header, and a registered content template. Unregistered traffic is
+# blocked by the operator, and the failure looks like success: Plivo accepts the
+# request and the message never arrives.
+VERIFICATION_CHANNEL = os.getenv("VERIFICATION_CHANNEL", "log")
+
+# The sender number for platform-originated SMS, on Decibyl's own Plivo account.
+# Distinct from a customer's from_numbers: the accounts this serves have no
+# telephony configuration of their own, which is the whole reason the feature
+# exists. Must be the number registered against the DLT header.
+PLATFORM_SMS_FROM_NUMBER = os.getenv("PLATFORM_SMS_FROM_NUMBER") or None
+
+# Decibyl's own Twilio account, the alternative to PLATFORM_PLIVO_* for
+# platform-originated SMS. Having both is about not being locked to one carrier
+# — it is NOT a way around DLT, which attaches to the sending entity and the
+# Indian destination rather than to the carrier.
+PLATFORM_TWILIO_ACCOUNT_SID = os.getenv("PLATFORM_TWILIO_ACCOUNT_SID") or None
+PLATFORM_TWILIO_AUTH_TOKEN = os.getenv("PLATFORM_TWILIO_AUTH_TOKEN") or None

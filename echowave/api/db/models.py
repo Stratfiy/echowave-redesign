@@ -69,6 +69,16 @@ class UserModel(Base):
     # Second factor. The secret is stored Fernet-encrypted, never in the clear:
     # a readable TOTP secret is password-equivalent, since anyone holding it can
     # mint valid codes indefinitely.
+    #: When this address was proved. The permanent fact lives on the user; the
+    #: transient challenge lives in email_verification_challenges, because a
+    #: code with an expiry and an attempt counter is not a property of a person.
+    #:
+    #: NULL means unproved, including for every account that existed before
+    #: this shipped — which is why nothing hard-gates on it yet. Locking out
+    #: existing customers to enforce a rule introduced after they signed up is
+    #: not a security improvement, it is an outage.
+    email_verified_at = Column(DateTime(timezone=True), nullable=True)
+
     mfa_secret_encrypted = Column(String, nullable=True)
     mfa_enabled = Column(
         Boolean, nullable=False, default=False, server_default=text("false")
@@ -3230,4 +3240,100 @@ class DoNotCallEntryModel(Base):
             "organization_id",
             "phone_number",
         ),
+    )
+
+
+class VerifiedNumberModel(Base):
+    """A phone number an organization has proved it can answer.
+
+    Distinct from ``telephony_phone_numbers``, which is for numbers we rent to a
+    customer and bind to an inbound workflow. This is the opposite direction: a
+    number the customer already owns, proved by answering an SMS, so we are
+    willing to dial it for a test call.
+
+    Why prove it at all: ``organization_preferences.test_phone_number`` is free
+    text, and routes/telephony.py dials it directly. Without ownership proof an
+    account can have Decibyl ring any number its user types, which is a
+    telephone-harassment vector wearing the costume of a convenience feature.
+    """
+
+    __tablename__ = "verified_numbers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    #: Normalised by services/compliance/dnd.normalise_number — the same key the
+    #: DND list uses, so "is this verified" and "is this suppressed" are asked
+    #: about the same string.
+    phone_number = Column(String(20), nullable=False)
+    label = Column(String(64), nullable=True)
+
+    # pending | verified
+    status = Column(String(16), nullable=False, default="pending")
+
+    #: The OTP, hashed with a per-row salt. NOT the bare SHA-256 used for
+    #: recovery codes: those are full-entropy random values with no dictionary
+    #: to precompute, while a six-digit code has a search space of one million
+    #: and an unsalted digest of one is a rainbow-table lookup. The salt is what
+    #: makes a leaked table useless without per-row work.
+    code_hash = Column(String(64), nullable=True)
+    code_salt = Column(String(32), nullable=True)
+    code_expires_at = Column(DateTime(timezone=True), nullable=True)
+
+    #: Wrong guesses against the current code. A six-digit code falls to
+    #: exhaustive guessing in under a second without this.
+    attempts = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    #: Codes sent to this number, ever. Bounds the number of texts an account
+    #: can make us send to a stranger — the abuse this feature would otherwise
+    #: enable is using our carrier to SMS-bomb somebody.
+    send_count = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    last_sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "phone_number", name="_verified_number_org_number_uc"
+        ),
+        Index(
+            "ix_verified_numbers_org_number", "organization_id", "phone_number"
+        ),
+    )
+
+
+
+class EmailVerificationChallengeModel(Base):
+    """A live one-time code for an email address.
+
+    One row per user, replaced on each send. Separate from the users table
+    because it is transient: it exists for ten minutes, carries an attempt
+    counter, and is destroyed on success. Keeping it beside the durable account
+    record would mean every read of a user drags along a dead credential.
+    """
+
+    __tablename__ = "email_verification_challenges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    #: Stored so a code cannot be replayed against a different address after
+    #: the user edits theirs mid-flow.
+    email = Column(String, nullable=False)
+
+    code_hash = Column(String(64), nullable=False)
+    code_salt = Column(String(32), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+    attempts = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    send_count = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    last_sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        UniqueConstraint("user_id", name="_email_verification_user_uc"),
     )

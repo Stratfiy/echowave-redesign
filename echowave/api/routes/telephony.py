@@ -19,6 +19,7 @@ from pipecat.utils.run_context import set_current_run_id
 from pydantic import BaseModel
 from starlette.websockets import WebSocketDisconnect
 
+from api.constants import REQUIRE_VERIFIED_TEST_NUMBER
 from api.db import db_client
 from api.db.models import UserModel
 from api.db.workflow_run_client import WorkflowRunStateConflictError
@@ -27,6 +28,7 @@ from api.errors.telephony_errors import TelephonyError
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
 from api.services.compliance import dnd
+from api.services.telephony import verified_numbers
 from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     WorkflowRunSlotAlreadyBoundError,
@@ -160,6 +162,26 @@ async def initiate_call(
         raise HTTPException(
             status_code=400,
             detail="Phone number must be provided in request or set in organization preferences",
+        )
+
+    # A test call may only go to a number this account has proved it can
+    # answer. Without it, test_phone_number is free text that we dial — an
+    # account can have Decibyl ring any number its user types, which is
+    # telephone harassment wearing the costume of a convenience feature.
+    #
+    # Scoped to the test-call path deliberately. Campaigns and the trigger API
+    # dial numbers the customer supplies as data; those are governed by the DND
+    # list and the calling window below, not by ownership proof, because a
+    # customer does not own their contact list's phone numbers.
+    if REQUIRE_VERIFIED_TEST_NUMBER and not await verified_numbers.is_verified(
+        user.selected_organization_id, phone_number
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Verify this number before calling it. Add it under Verified "
+                "numbers and enter the code we send you."
+            ),
         )
 
     # TCCCPR: the do-not-disturb list and the calling window. Checked here, at

@@ -46,6 +46,11 @@ router = APIRouter(prefix="/user")
 class AuthUserResponse(TypedDict):
     id: int
     staff_role: str | None
+    #: Whether this address has been proved. Reported so the app can prompt
+    #: for it; nothing refuses an unverified account, so this drives a banner
+    #: rather than a gate.
+    email_verified: bool
+    email: str | None
     #: This user's role in their currently-selected organization, or None if
     #: no org is selected or they have no membership row there.
     organization_role: str | None
@@ -104,6 +109,8 @@ async def get_auth_user(
     return {
         "id": user.id,
         "staff_role": user.staff_role,
+        "email_verified": getattr(user, "email_verified_at", None) is not None,
+        "email": user.email,
         "organization_role": organization_role,
     }
 

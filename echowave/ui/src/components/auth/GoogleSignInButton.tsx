@@ -15,8 +15,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+import { useAppConfig } from "@/context/AppConfigContext";
+import { resolveBrowserBackendUrl } from "@/lib/apiClient";
 
 function GoogleMark() {
     // Google's four-colour mark. Inline rather than an <img> so it is not a
@@ -34,12 +34,24 @@ function GoogleMark() {
 export function GoogleSignInButton({ label = "Continue with Google" }: { label?: string }) {
     const [available, setAvailable] = useState<boolean | null>(null);
     const [starting, setStarting] = useState(false);
+    const { config } = useAppConfig();
+
+    // Resolved the same way every other API call in the app resolves it.
+    //
+    // This used to read NEXT_PUBLIC_API_BASE_URL, a name defined nowhere in the
+    // repo, so it was always the empty string and every request went to the
+    // app's own origin. In production that happens to work — nginx on the app
+    // host proxies /api/v1 to the API — which is exactly why it survived: it
+    // fails only where the two are served separately, such as `npm run dev` on
+    // :3000 against an API on :8000. There the probe 404s, res.ok is false, and
+    // the button silently does not render at all.
+    const apiBase = resolveBrowserBackendUrl(config?.backendApiEndpoint);
 
     useEffect(() => {
         let cancelled = false;
         (async () => {
             try {
-                const res = await fetch(`${API_BASE}/api/v1/auth/google/start`);
+                const res = await fetch(`${apiBase}/api/v1/auth/google/start`);
                 if (!cancelled) setAvailable(res.ok);
             } catch {
                 if (!cancelled) setAvailable(false);
@@ -48,14 +60,14 @@ export function GoogleSignInButton({ label = "Continue with Google" }: { label?:
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [apiBase]);
 
     if (available !== true) return null;
 
     const start = async () => {
         setStarting(true);
         try {
-            const res = await fetch(`${API_BASE}/api/v1/auth/google/start`);
+            const res = await fetch(`${apiBase}/api/v1/auth/google/start`);
             const body = await res.json();
             if (!res.ok || !body.authorization_url) {
                 toast.error(body.detail || "Could not start sign-in with Google");

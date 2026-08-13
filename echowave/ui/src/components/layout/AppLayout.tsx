@@ -4,6 +4,7 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { usePathname } from "next/navigation";
 import React, { ReactNode } from "react";
 
+import { VerifyEmailBanner } from "@/components/auth/VerifyEmailBanner";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useAppConfig } from "@/context/AppConfigContext";
@@ -82,6 +83,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             <AppSidebar />
             <SidebarInset className="flex-1">
               <BackendStatusBanner />
+              <VerifyEmailBanner />
               {/* The workflow editor is the one full-bleed canvas in the app —
                   it needs the whole viewport, so it opts out of the top bar. */}
               {!isWorkflowEditor && <TopBar />}

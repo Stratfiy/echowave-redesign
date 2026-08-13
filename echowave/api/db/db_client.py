@@ -2,6 +2,7 @@ from api.db.agent_trigger_client import AgentTriggerClient
 from api.db.api_key_client import APIKeyClient
 from api.db.campaign_client import CampaignClient
 from api.db.do_not_call_client import DoNotCallClient
+from api.db.email_verification_client import EmailVerificationClient
 from api.db.embed_token_client import EmbedTokenClient
 from api.db.folder_client import FolderClient
 from api.db.integration_client import IntegrationClient
@@ -15,6 +16,7 @@ from api.db.telephony_configuration_client import TelephonyConfigurationClient
 from api.db.telephony_phone_number_client import TelephonyPhoneNumberClient
 from api.db.tool_client import ToolClient
 from api.db.user_client import UserClient
+from api.db.verified_number_client import VerifiedNumberClient
 from api.db.webhook_credential_client import WebhookCredentialClient
 from api.db.webhook_delivery_client import WebhookDeliveryClient
 from api.db.workflow_client import WorkflowClient
@@ -27,6 +29,8 @@ from api.db.workflow_template_client import WorkflowTemplateClient
 class DBClient(
     KycClient,
     DoNotCallClient,
+    EmailVerificationClient,
+    VerifiedNumberClient,
     WorkflowClient,
     WorkflowRunClient,
     WorkflowRunTextSessionClient,

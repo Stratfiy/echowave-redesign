@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { loginApiV1AuthLoginPost } from "@/client/sdk.gen";
@@ -13,6 +13,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
+  // Google sign-in failures come back as ?error= on this page — the backend has
+  // been redirecting here with a message since the feature shipped, and nothing
+  // ever read it. Every failure therefore looked identical to the user: back on
+  // the login page, no explanation, nothing to report to support.
+  //
+  // Read from window rather than useSearchParams so this component does not
+  // need a Suspense boundary it did not previously have.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const message = params.get("error");
+    if (!message) return;
+    toast.error(message);
+    // Clear it, so a reload does not replay a failure the user already saw.
+    const url = new URL(window.location.href);
+    url.searchParams.delete("error");
+    window.history.replaceState({}, "", url.toString());
+  }, []);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);

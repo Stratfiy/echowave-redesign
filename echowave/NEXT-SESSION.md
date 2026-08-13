@@ -1,6 +1,6 @@
 # Next session — start here
 
-Updated 12 Aug 2026. Read this before touching anything; it exists so the next
+Updated 13 Aug 2026. Read this before touching anything; it exists so the next
 session does not re-derive what previous ones paid for.
 
 This file lives on `main` deliberately. An earlier copy sat only on a feature
@@ -8,159 +8,270 @@ branch, which meant the handoff would have been deleted along with the branch.
 
 ---
 
-## 1. Where things stand
+## 1. What shipped, and what it means
 
-`main` is at the merge of the monday.com restyle. Everything below is on `main`
-unless it says otherwise.
+### Merged and deployed
 
-### Recently landed
+- **The app restyle** (`93d409b`). monday.com's structure in Decibyl orange.
+  Light-only, `#f5f6f8` floor, orange confined to primary CTAs and active
+  states, top bar with working navigation search, shared `PageHeader`/
+  `PageBody`, pill buttons, 24px cards.
+- **Figtree, actually applied.** Read the commit message. Every previous
+  attempt loaded a webfont and rendered in the system font: `@theme inline`
+  does not emit `--font-sans` as a custom property, so Tailwind's preflight
+  fell through to its fallback. Both `tsc` and `next build` pass either way.
+  **Verify type with `getComputedStyle` against a running server, never by
+  reading the code.**
+- **DND scrubbing + calling hours** (`316e930`). The last P0. Enforced per call
+  in both dial paths, failing closed, refusals terminal so they never enter the
+  retry path. Screen at `/do-not-call`.
 
-- **The app restyle** (`93d409b`). monday.com's structure in Decibyl orange:
-  light-only palette on a `#f5f6f8` canvas, orange confined to primary CTAs and
-  active states, a desktop top bar with working navigation search, shared
-  `PageHeader`/`PageBody`, full-bleed content, pill buttons, 24px cards.
-  Screenshot-verified at 1440.
-- **Figtree, actually applied.** Worth reading the commit message on this one.
-  Every previous attempt loaded a webfont and rendered in the system font:
-  `@theme inline` does not emit `--font-sans` as a custom property, so
-  Tailwind's preflight fell through to its fallback stack. Both `tsc` and
-  `next build` pass whether or not a font renders. Verify type with
-  `getComputedStyle` against a running server, never by reading the code.
-- **Sign in with Google** (PR #36). Live and configured. **Nobody has completed
-  an end-to-end sign-in yet** — worth confirming before anyone relies on it.
+### Merged this session (see §2 for what is and is not enforced)
 
-### Still open in the UI
-
-- **~17 pages render their own headers** rather than `PageHeader`. Voice Agents
-  and Settings are converted; the rest put a bare `<h1>` straight on the grey
-  with no white band. Visible immediately on `/provider-keys`.
-- **Table density.** monday's screens read dense because of the filter row, the
-  checkbox column and inline row actions. Our tables have none of that. This is
-  the larger half of "make it look like monday" and it is page-by-page work.
+- **Email verification at signup.** Works end to end. Delivered over the
+  existing SMTP path (Resend).
+- **Verified test numbers.** Complete except delivery — see §3.
+- **Three Google sign-in fixes.** See §4.
 
 ---
 
-## 2. Rollout order
+## 2. Two switches that are deliberately OFF
 
-This is the order things actually block each other in, which is **not** the
-order they are interesting in.
+Both are off because the alternative is an outage, and both should be turned on
+later. Neither is an oversight.
 
-### 1. DND scrubbing + calling hours — the only P0 left
+### `REQUIRE_VERIFIED_TEST_NUMBER` — false
 
-Grep the API for `dnd`, `do_not_disturb`, `calling_hours`, `quiet_hours` or
-`tcccpr` and you get **zero files**. There is no scrubbing anywhere in the
-dialling path and no 9am–9pm window.
+The gate works and is tested. It is not enforced because
+`VERIFICATION_CHANNEL` is `log` on every real deployment, and `log` refuses to
+run outside dev. With the gate on, nobody could verify a number and **every
+test call would be refused with no way for the user to proceed**. A permission
+nobody can obtain is not a permission.
 
-This is TRAI/TCCCPR exposure the moment you dial someone who has not asked to
-be called, which makes it the gate on outbound existing at all. It is the one
-remaining P0 in `STATUS.md`; everything else on that list is either done
-(Razorpay, MinIO read-back, docs) or blocked on a third party (autopay on
-Razorpay Subscriptions, managed numbers on Plivo KYC).
+`api/tests/test_verified_numbers.py::TestTheGateDefault` asserts it is false.
+**That test exists to be deleted** — in the same change that makes delivery
+work and flips the default. If it starts failing, somebody turned the gate on;
+check a code can actually reach a user first.
 
-**Where it goes.** There is already an outbound choke point:
-`services/kyc/service.py::assert_may_place_calls` and
-`assert_configuration_may_place_calls`, called from `routes/campaign.py:572`
-and `routes/telephony.py:141`. DND belongs beside those, not scattered through
-the providers.
+### Email verification — nothing is gated on it
 
-**Watch:** `routes/public_agent.py`'s trigger route does not appear in that
-caller list. Confirm whether it reaches the gate by another path before
-assuming it is covered.
+Every account predating the feature has `email_verified_at` NULL. Refusing them
+would be an outage dressed as a security improvement. What exists is the proof
+and the record; deciding what to withhold from an unverified account is a
+separate, reversible decision — and a decision somebody should actually make.
 
-### 2. Verified test number
+---
 
-Not started, and what exists today is weaker than it looks. `test_phone_number`
-is a free-text organization preference (`routes/user.py:118`) that
-`routes/telephony.py:156` dials directly. There is no proof the caller owns the
-number, so an account can have Decibyl ring anything they type — a missing
-feature and a small abuse surface in one.
+## 3. Verified test numbers: blocked on delivery, not on code
 
-The user's framing: *"like bolna … they allow to add a number with OTP like a
-test number where user can test receiving calls"*. Needs its own table — **not**
-`telephony_phone_numbers`, which is for rented numbers bound to inbound
-workflows — with OTP expiry, rate limiting and hashed storage. SMS delivery
-already exists and is live in production (`services/messaging/send.py`).
+Table, service, three rate limits, routes, gate and screen (`/verified-numbers`)
+are done. 32 tests. What is missing is a way to get the code to the phone.
 
-This is what unblocks trial calling while managed numbers sit behind Plivo KYC.
+**The India problem.** TRAI's TCCCPR requires commercial SMS to Indian numbers
+to be registered on a DLT platform first: a Principal Entity (PAN/GST), a
+registered 6-character alphanumeric header, and a registered content template
+with the variable marked. Roughly ₹5,900 and 7–10 business days. Unregistered
+traffic is **blocked by the operator**, and the failure looks like success —
+the carrier accepts the request and the message never arrives.
 
-### 3. Analytics gaps
+**Changing carrier does not help.** The requirement attaches to the sending
+entity and the Indian destination, not the carrier. Twilio and Plivo both drop
+unregistered A2P traffic. Both channels exist so the choice is a config value
+once the paperwork lands, not so one can route around it.
 
-Half-built. `/analytics` ships `spend` and `tokens`, and the billing dashboard
-carries latency p50/p95. Missing, in value order:
+`VERIFICATION_CHANNEL` takes:
 
-- **Activation funnel** (signup → agent → first call → first top-up). Highest
-  value and answerable in plain SQL.
-- **Failure reasons.** `grep failure_reason api/` returns nothing — there is no
-  first-class field, so "why did calls fail" cannot be answered at all today.
-- Account health, then margin per account.
+| | |
+|---|---|
+| `log` | default; dev only, refuses outside a dev/test `ENVIRONMENT` |
+| `voice` | call the number and read the code out — **not wired** |
+| `plivo_sms` / `twilio_sms` | written, blocked on DLT |
 
-### 4. Latency instrumentation
+`voice` is the interesting one: transactional voice carries no DLT template
+requirement, and the thing a trial user is verifying is precisely that Decibyl
+can ring them. It returns "not enabled" because `STATUS.md` records that
+outbound on the platform account has **never completed a real call** in this
+deployment. Prove that path with one call before building on it.
 
-`t_endpoint_fired_ms` is written and read (`pipeline_metrics_aggregator.py:203`,
-`billing_dashboard_client.py:359`) and is **always 0** — pipecat emits no VAD
-mark. Endpointing is often the largest share of perceived latency and is
-currently invisible, as is the network leg: the timeline starts and ends inside
-our own process.
+**`_body()` is asserted character for character in a test.** Once SMS is live
+the operator matches on the registered template; a message differing by a full
+stop is rejected as unregistered. When the template is approved, change the
+code to match it — not the other way round.
 
-### 5. Reconciliation
+**A second gap.** A test call from an account with no telephony configuration
+fails at `telephony_not_configured` (`routes/telephony.py:122`) *before* the
+verification gate. That ordering is right — you cannot dial without a carrier
+to dial from — but it means verifying a number is not by itself enough for
+trial calling. That needs platform origination, which is the managed telephony
+path behind `MANAGED_TELEPHONY_ENABLED` and Plivo KYC.
 
-Three independent paths to "what did this account use" — the credit ledger, the
-daily rollup, raw runs — and nothing asserts they agree.
+---
+
+## 4. Google sign-in
+
+Three defects were fixed, none of which produced a log line. If it is still
+broken, the third fix means the login page now shows Google's actual error.
+
+1. **One OAuth client, two callbacks.** `GOOGLE_OAUTH_CLIENT_ID/SECRET` are
+   shared by Sign in with Google and the google_calendar tool, and they have
+   different redirect URIs. The env template documented only the calendar one,
+   so a client registered from it has no authorised URI for sign-in and Google
+   refuses with `redirect_uri_mismatch` *before* redirecting to us — nothing in
+   our logs, and the calendar tool keeps working. Both URIs are now documented
+   in `deploy/decibyl.env.template`. **The user added the sign-in URI to the
+   console on 13 Aug; whether that fixed it was not confirmed.**
+2. **The button hid itself** wherever the API is served separately, because it
+   read `NEXT_PUBLIC_API_BASE_URL`, a name defined nowhere. Now resolved like
+   every other API call.
+3. **The `?error=` redirect was never read.** The callback has always sent
+   failures to `/auth/login?error=<message>` and nothing displayed it.
+
+Two more silent failures, both now in the env template: a consent screen left
+in **Testing** refuses everyone not on the test-user list, and an unset
+`UI_APP_URL` sends a successful sign-in to `http://localhost:3010`.
+
+---
+
+## 5. What is next, in priority order
+
+1. **Analytics — the activation funnel.** signup → agent created → first call →
+   first top-up. Highest value and answerable in plain SQL. `email_verified_at`
+   now gives it a real first step: "signed up" and "signed up with a working
+   address" are different numbers.
+2. **Failure reasons.** `grep failure_reason api/` returns nothing — there is
+   no first-class field, so "why did calls fail" cannot be answered at all.
+   Note `queued_runs.refusal_reason` now exists for the DND case and is the
+   obvious shape to follow.
+3. **Account health, then margin per account.**
+4. **Latency instrumentation.** `t_endpoint_fired_ms` is written and read and is
+   **always 0** — pipecat emits no VAD mark. Endpointing is often the largest
+   share of perceived latency and is invisible, as is the network leg.
+5. **Reconciliation** between the credit ledger, the daily rollup and raw runs.
+   Three paths to "what did this account use", nothing asserts they agree.
+6. **UI: ~17 pages still render their own headers** rather than `PageHeader` —
+   visible on `/provider-keys`, title straight on the grey with no white band.
+   Plus monday's table density: filter row, checkbox column, inline row actions.
 
 ### Blocked on third parties
 
 - **Autopay** — Razorpay Subscriptions approval.
 - **Managed numbers** — Plivo KYC verdict.
+- **SMS verification** — DLT registration (§3).
 
 ### Decided against
 
-- **PostHog.** The wired events are backend events already in Postgres, there is
-  no frontend instrumentation so it would not answer the funnel question, and
-  its default host is a US endpoint — a DPDP decision, not a config toggle.
+- **PostHog.** Wired events are backend events already in Postgres, there is no
+  frontend instrumentation so it would not answer the funnel question, and its
+  default host is a US endpoint — a DPDP decision, not a config toggle.
 
 ---
 
-## 3. Things that cost time if you re-derive them
+## 6. Things that cost time if you re-derive them
+
+### The app
 
 - **`ui/src/app/globals.css` is fully tokenised.** `--primary` and friends flip
-  the whole shadcn surface from one place. Light only — there is no `.dark`
-  block, and `ThemeProvider` runs `forcedTheme="light"`.
+  the whole shadcn surface. Light only; `ThemeProvider` runs
+  `forcedTheme="light"` and there is no `.dark` block.
 - **68 call sites still say `--brand-blue*`.** They are aliases onto correctly
-  named tokens. Do not rename them; it is a 68-file diff whose only content is
-  the rename.
-- **`BrandLogo` does not use `icon.svg`.** It points at three files in
-  `ui/public/`: `decibyl-mark.svg`, `decibyl-logo.svg`,
-  `decibyl-logo-inverse.svg`. A `src/` sweep misses all three, which is exactly
-  how the header logo stayed blue on an orange page through a green build.
-- **Danger vs brand collide if you are not careful.** `--destructive` sits at
-  hue 18 against a primary at 33.6. It was four degrees away once — a delete
-  button and a save button the same colour. Keep the separation.
+  named tokens. Do not rename them.
+- **`BrandLogo` does not use `icon.svg`.** It reads three files from
+  `ui/public/`. A `src/` sweep misses all three — which is how the header logo
+  stayed blue on an orange page through a green build.
 - **Only screenshots find colour bugs.** `tsc` and `next build` both pass while
   a page is unreadable.
 - **The nav list lives in `components/layout/navigation.ts`**, shared by the
-  sidebar and the top-bar search. Add a destination once, not twice.
+  sidebar and the top-bar search. Add a destination once.
+- **OTP primitives are shared.** `services/auth/otp.py` is imported by both
+  email and phone verification, and a test asserts they are the same function.
+  Two copies of those decisions drift, always towards the weaker one.
+
+### Running the API in a fresh container
+
+The test suite cannot collect ~40 modules out of the box because optional
+provider SDKs are missing. This is pre-existing and unrelated to any change —
+unmodified `main` produces 41 collection errors. To get a full run:
+
+```bash
+python3 -m venv venv
+venv/bin/pip install -r api/requirements.txt -r api/requirements.dev.txt
+venv/bin/pip install pytest pytest-asyncio
+git submodule update --init --recursive echowave/pipecat   # the FORK, not PyPI
+venv/bin/pip install -e ./pipecat
+venv/bin/pip install soundfile aiortc deepgram-sdk google-genai groq \
+    azure-cognitiveservices-speech google-api-core google-cloud-speech \
+    sarvamai speechmatics-voice opencv-python-headless pgvector
+apt-get install -y postgresql-16-pgvector    # the SERVER extension, not the wheel
+pg_ctlcluster 16 main start && redis-server --daemonize yes
+su postgres -c "createdb decibyl"
+su postgres -c "psql -c \"ALTER ROLE postgres WITH PASSWORD 'postgres'\""
+```
+
+Postgres and Redis stop between long gaps — a sudden wall of
+`ConnectionRefusedError ('127.0.0.1', 5432)` means restart them, not that you
+broke something.
 
 ---
 
-## 4. Deployment
+## 7. Verifying work without production
+
+### UI screenshots
+
+```bash
+cd ui && npx next build && BACKEND_URL=http://127.0.0.1:8000 npx next start -p 3014
+```
+
+Put a stub API on `:8000` answering `/api/v1/health` with
+`{"auth_provider": "local"}`, and proxy both behind **one origin** so the
+browser's same-origin calls reach it. Mint a session by POSTing `{token, user}`
+to `/api/auth/session` — that sets the two cookies middleware and SSR read.
+Chromium is at `/opt/pw-browsers/chromium`; launch with `--no-sandbox`.
+
+A stub returning `[]` for everything makes some pages throw
+`Cannot read properties of undefined`. That is the stub, not the page.
+
+**A fresh account gets the welcome questionnaire**, which covers the screen and
+blocks Playwright clicks. Answer all four `[role="combobox"]` selects and click
+"Get started" before screenshotting anything.
+
+### Email, end to end
+
+```bash
+venv/bin/python -m aiosmtpd -n -l 127.0.0.1:1025 -d > smtp.log 2>&1 &
+# then run the API with:
+SMTP_HOST=127.0.0.1 SMTP_PORT=1025 SMTP_USE_TLS=false \
+  EMAIL_FROM_ADDRESS="noreply@decibyl.test"
+```
+
+The code is in `smtp.log`. Quote `EMAIL_FROM_ADDRESS` — unquoted, the shell
+parses `[email` as an identifier, the variable never gets set, and the API logs
+"SMTP is not configured", which looks exactly like a code fault.
+
+### Production is not reachable from the agent container
+
+The proxy resolves `api.decibyl.ai` to `127.0.0.1`. Diagnose from code and
+config, and say so rather than implying you observed the live system.
+
+---
+
+## 8. Deployment
 
 - **Deploys run from GitHub Actions over SSM** — no SSH key, no long-lived AWS
   credentials. `on: push: branches: [main]`, plus `workflow_dispatch` with a
   `ref` input.
-- **You can deploy any branch without merging.** Actions → Deploy → Run
+- **Any branch can be deployed without merging.** Actions → Deploy → Run
   workflow → put the branch in `ref`. `ci_deploy.sh` checks out the ref, builds,
   and **rolls back to the previous SHA automatically if any step fails**.
 - **The UI is built on the box** — `ci_deploy.sh:88` runs
-  `docker compose build api ui`. An older note in this file claimed it was a
-  pulled image; that was wrong.
+  `docker compose build api ui`. An older note claimed it was a pulled image;
+  that was wrong.
 - **Every deploy runs `alembic upgrade head`**, so a "UI-only" preview deploy is
   still a full-stack deploy at that ref.
 - **The box sits in detached HEAD.** `git pull` fails. Use
   `git fetch origin main && git checkout -B main origin/main`.
 - **`docker compose restart` does not re-read `.env`.** Use
   `up -d --force-recreate`.
-- **The EC2 box has no `npm`.** Do not `apt install npm` (too old for Astro 7).
-  Build docs in a container:
+- **The EC2 box has no `npm`.** Build docs in a container:
   ```bash
   cd ~/echowave-redesign/echowave/docs
   docker run --rm -v "$PWD":/w -w /w -e npm_config_cache=/tmp/.npm \
@@ -169,39 +280,11 @@ daily rollup, raw runs — and nothing asserts they agree.
 
 ---
 
-## 5. Verifying UI work
-
-The test environment is rebuilt each session (the container is ephemeral).
-
-```bash
-# api/.env.test — recreate if missing
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/decibyl
-REDIS_URL=redis://localhost:6379/1
-LOG_LEVEL=WARNING
-ENVIRONMENT=test
-```
-`redis-server --daemonize yes` and
-`su postgres -c "psql -c \"ALTER ROLE postgres WITH PASSWORD 'postgres'\""`.
-
-For screenshots without a backend: run `next build && next start`, put a stub
-API on `:8000` answering `/api/v1/health` with `{"auth_provider": "local"}`,
-and proxy both behind one origin so the browser's same-origin API calls land on
-the stub. Mint the session by POSTing `{token, user}` to `/api/auth/session` —
-that sets the two cookies the middleware and SSR read. Chromium is at
-`/opt/pw-browsers/chromium`; launch with `--no-sandbox`.
-
-A stub returning `[]` for everything will make some pages throw
-`Cannot read properties of undefined` — that is the stub, not the page. Do not
-report those as defects without a real API.
-
----
-
-## 6. Standing constraints from the user
+## 9. Standing constraints from the user
 
 - **Do not raise pasted API keys.** Verbatim: *"Never worrie abou API KEYS
   DROPPED HERE."* Never commit them either — `PRODUCTION-CHECKLIST.md:164`.
-- **The exposed PEM is not to be raised again** — the user assessed it and
-  declined rotation.
+- **The exposed PEM is not to be raised again** — assessed and declined.
 - **No SSH access to the EC2 box.** Give the user commands to run.
 - **No trace of the upstream fork, and the product is not open source.** Both
   the docs and the login page have been cleaned; watch for regressions.
