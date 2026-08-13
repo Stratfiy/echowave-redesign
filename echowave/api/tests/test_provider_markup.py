@@ -52,8 +52,7 @@ def _cost(markup_bps, usage=None, platform_rate=0, seconds=60):
     return compute_call_cost(
         billable_seconds=seconds,
         platform_rate_mpaise=platform_rate,
-        usage=usage
-        or [_usage(CostComponent.LLM, "openai", "gpt-4o", 1000)],
+        usage=usage or [_usage(CostComponent.LLM, "openai", "gpt-4o", 1000)],
         provider_rates=RATES,
         markup_bps=markup_bps,
     )
@@ -212,3 +211,135 @@ class TestUncostedUsageIsUnaffected:
         )
         assert len(cost.uncosted) == 1
         assert cost.total_provider_cost_paise == 0
+
+
+class TestByokRevenueIsThePlatformFeeAlone:
+    """The commercial invariant behind bring-your-own-key.
+
+    A customer on their own keys has already paid OpenAI, Sarvam and the rest
+    directly. Charging them again here would be billing twice for one unit of
+    usage — so on such a call the platform fee is the whole of our margin, and
+    that has to hold no matter how much speech or how many tokens the call
+    consumed.
+
+    Telephony is the deliberate exception and is not a hole in the rule: we
+    front the carrier's bill whoever owns the model keys, so it is charged. It
+    is excluded from the markup, so it carries no margin either.
+    """
+
+    #: A busy call — long conversation, plenty of synthesis — on the account's
+    #: own keys throughout. The figures are large on purpose: if any of it
+    #: leaked into a charge, the assertions below could not miss it.
+    ALL_BYOK = {
+        "llm": {
+            "OpenAILLMService|||gpt-4o": {
+                "prompt_tokens": 90_000,
+                "completion_tokens": 12_000,
+            }
+        },
+        "tts": {"SarvamTTSService|||bulbul": 40_000},
+        "stt": {"DeepgramSTTService|||nova-3": 600},
+        "telephony": {"twilio": 600},
+        "call_duration_seconds": 600,
+        "key_sources": {"llm": "byok", "stt": "byok", "tts": "byok"},
+    }
+
+    def test_no_model_usage_becomes_a_billable_item(self):
+        items = usage_items_from_usage_info(self.ALL_BYOK)
+        components = {item.component for item in items}
+
+        assert CostComponent.LLM not in components
+        assert CostComponent.TTS not in components
+        assert CostComponent.STT not in components
+        # Telephony survives: we pay the carrier regardless of whose keys ran
+        # the models.
+        assert CostComponent.TELEPHONY in components
+
+    def test_the_platform_fee_is_the_entire_margin(self):
+        """The invariant stated as money. Revenue minus what we paid out equals
+        the platform fee exactly — not approximately, and not plus a little
+        speech synthesis that slipped through."""
+        telephony_rate = {
+            ("telephony", "twilio", ""): RateSpec(
+                rate_mpaise=1_250_000, unit=RateUnit.MINUTE
+            )
+        }
+        cost = compute_call_cost(
+            billable_seconds=600,
+            platform_rate_mpaise=200_000,
+            usage=usage_items_from_usage_info(self.ALL_BYOK),
+            provider_rates=telephony_rate,
+            markup_bps=MARKUP_1_3,
+        )
+
+        margin = cost.total_charged_paise - cost.total_provider_cost_paise
+        assert margin == cost.platform_fee_paise
+
+    def test_telephony_is_charged_but_earns_nothing(self):
+        """Charged because we pay the carrier; no margin because telephony is
+        outside MARKED_UP_COMPONENTS — the rate card holds the sell price
+        directly, so marking it up again would mean the number an operator
+        types is not the number a customer pays."""
+        telephony_rate = {
+            ("telephony", "twilio", ""): RateSpec(
+                rate_mpaise=1_250_000, unit=RateUnit.MINUTE
+            )
+        }
+        cost = compute_call_cost(
+            billable_seconds=600,
+            platform_rate_mpaise=200_000,
+            usage=usage_items_from_usage_info(self.ALL_BYOK),
+            provider_rates=telephony_rate,
+            markup_bps=MARKUP_1_3,
+        )
+        line = next(
+            l for l in cost.line_items if l.component == CostComponent.TELEPHONY.value
+        )
+
+        assert line.cost_paise > 0
+        assert line.cost_paise == line.provider_cost_paise
+
+    def test_raising_the_markup_cannot_change_a_byok_bill(self):
+        """The reason this is worth a test of its own: moving the managed
+        multiplier is an environment variable, and it must be impossible for it
+        to reach an account that brought its own keys."""
+        telephony_rate = {
+            ("telephony", "twilio", ""): RateSpec(
+                rate_mpaise=1_250_000, unit=RateUnit.MINUTE
+            )
+        }
+
+        def at(markup):
+            return compute_call_cost(
+                billable_seconds=600,
+                platform_rate_mpaise=200_000,
+                usage=usage_items_from_usage_info(self.ALL_BYOK),
+                provider_rates=telephony_rate,
+                markup_bps=markup,
+            ).total_charged_paise
+
+        assert at(13_000) == at(14_000) == at(20_000)
+
+    def test_a_mixed_call_only_charges_the_managed_half(self):
+        """The realistic case: an account brings a language-model key and takes
+        our voice. Exactly one of the two should reach the receipt."""
+        mixed = {
+            **self.ALL_BYOK,
+            "key_sources": {"llm": "byok", "stt": "byok", "tts": "managed"},
+        }
+        components = {i.component for i in usage_items_from_usage_info(mixed)}
+
+        assert CostComponent.TTS in components
+        assert CostComponent.LLM not in components
+        assert CostComponent.STT not in components
+
+    def test_an_unrecorded_component_is_charged_rather_than_given_away(self):
+        """Calls predating this tracking carry no key_sources. Treating an
+        absent entry as BYOK would silently stop billing for usage nobody
+        confirmed was BYOK — the expensive direction to be wrong in."""
+        legacy = {k: v for k, v in self.ALL_BYOK.items() if k != "key_sources"}
+        components = {i.component for i in usage_items_from_usage_info(legacy)}
+
+        assert CostComponent.LLM in components
+        assert CostComponent.TTS in components
+        assert CostComponent.STT in components
