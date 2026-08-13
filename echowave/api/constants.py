@@ -666,3 +666,31 @@ CALLING_HOURS_END = os.getenv("CALLING_HOURS_END", "21:00")
 DEFAULT_ORGANIZATION_TIMEZONE = os.getenv(
     "DEFAULT_ORGANIZATION_TIMEZONE", "Asia/Kolkata"
 )
+
+
+# ---------------------------------------------------------------------------
+# Verified test numbers.
+#
+# An account proves it can answer a number by receiving an SMS, and only then
+# will we dial it. Three limits, each closing a different abuse: attempts per
+# code (six digits falls to exhaustive guessing in under a second), sends per
+# number (otherwise the endpoint is a free SMS cannon aimed at a stranger, on
+# our carrier bill), and a cooldown between sends.
+# ---------------------------------------------------------------------------
+VERIFICATION_CODE_TTL_MINUTES = int(os.getenv("VERIFICATION_CODE_TTL_MINUTES", "10"))
+VERIFICATION_MAX_ATTEMPTS = int(os.getenv("VERIFICATION_MAX_ATTEMPTS", "5"))
+VERIFICATION_MAX_SENDS = int(os.getenv("VERIFICATION_MAX_SENDS", "5"))
+VERIFICATION_RESEND_COOLDOWN_SECONDS = int(
+    os.getenv("VERIFICATION_RESEND_COOLDOWN_SECONDS", "60")
+)
+
+# Whether a test call may only go to a number the account has verified.
+#
+# On by default. Off, the test-call path dials whatever string a user types,
+# which is the harassment vector this whole mechanism exists to close. Set it
+# false only for a deployment that gates outbound some other way — and note
+# that it does not affect campaigns or the trigger API, which dial numbers the
+# customer supplies as data and are governed by DND and the calling window.
+REQUIRE_VERIFIED_TEST_NUMBER = (
+    os.getenv("REQUIRE_VERIFIED_TEST_NUMBER", "true").lower() != "false"
+)

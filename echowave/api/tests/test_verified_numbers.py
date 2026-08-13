@@ -1,0 +1,254 @@
+"""Proving a number can be answered before we agree to dial it.
+
+The limits are the point of this module, so they are what is tested hardest.
+Each closes a different abuse and none substitutes for another:
+
+* attempts per code — six digits falls to exhaustive guessing in under a second
+* sends per number — otherwise the endpoint texts a stranger on our carrier bill
+* a cooldown between sends — the same abuse, slower
+
+Plus the property the whole feature exists for: a number nobody answered is
+never treated as verified.
+"""
+
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
+from api.constants import (
+    VERIFICATION_MAX_ATTEMPTS,
+    VERIFICATION_MAX_SENDS,
+)
+from api.db import db_client
+from api.db.models import OrganizationModel
+from api.services.telephony import verified_numbers as vn
+
+NUMBER = "9876543210"
+NORMALISED = "919876543210"
+
+
+async def _org(session, slug: str) -> int:
+    org = OrganizationModel(provider_id=f"org-{slug}", quota_decibyl_tokens=0)
+    session.add(org)
+    await session.flush()
+    return org.id
+
+
+def _later(minutes: int = 0, seconds: int = 0) -> datetime:
+    return datetime.now(UTC) + timedelta(minutes=minutes, seconds=seconds)
+
+
+class TestCodeGeneration:
+    def test_a_code_is_six_digits(self):
+        for _ in range(50):
+            code = vn.generate_code()
+            assert len(code) == 6 and code.isdigit()
+
+    def test_codes_are_not_all_the_same(self):
+        """A weak sanity check, but it catches the mistake where a constant is
+        returned and every verification silently succeeds."""
+        assert len({vn.generate_code() for _ in range(50)}) > 10
+
+    def test_the_same_code_hashes_differently_under_different_salts(self):
+        """This is the whole reason for the salt. Without it a leaked table of
+        six-digit digests is a rainbow-table lookup, because there are only a
+        million possible codes."""
+        assert vn.hash_code("123456", "aaaa") != vn.hash_code("123456", "bbbb")
+
+    def test_hashing_is_stable_for_one_salt(self):
+        assert vn.hash_code("123456", "aaaa") == vn.hash_code("123456", "aaaa")
+
+
+class TestStarting:
+    async def test_it_issues_a_code_and_stores_only_the_hash(
+        self, db_session, async_session
+    ):
+        org_id = await _org(async_session, "issue")
+        started = await vn.start_verification(org_id, NUMBER)
+
+        assert started.phone_number == NORMALISED
+        assert len(started.code) == 6
+
+        record = await db_client.get_verified_number(org_id, NORMALISED)
+        assert record.status == "pending"
+        # The plaintext must not be anywhere in the row.
+        assert started.code not in (record.code_hash or "")
+        assert record.code_hash == vn.hash_code(started.code, record.code_salt)
+
+    async def test_the_number_is_normalised_before_storage(
+        self, db_session, async_session
+    ):
+        """Verified and suppressed have to be asked about the same string, or a
+        number verified one way is unrecognised when dialled another."""
+        org_id = await _org(async_session, "normalise")
+        started = await vn.start_verification(org_id, "+91 98765 43210")
+        assert started.phone_number == NORMALISED
+
+    async def test_an_undialable_number_is_refused(self, db_session, async_session):
+        org_id = await _org(async_session, "junk")
+        with pytest.raises(vn.NumberNotDialable):
+            await vn.start_verification(org_id, "12345")
+
+    async def test_a_resend_inside_the_cooldown_is_refused(
+        self, db_session, async_session
+    ):
+        org_id = await _org(async_session, "cooldown")
+        await vn.start_verification(org_id, NUMBER)
+        with pytest.raises(vn.ResendTooSoon):
+            await vn.start_verification(org_id, NUMBER)
+
+    async def test_a_resend_after_the_cooldown_is_allowed(
+        self, db_session, async_session
+    ):
+        org_id = await _org(async_session, "cooldown-passed")
+        await vn.start_verification(org_id, NUMBER)
+        second = await vn.start_verification(org_id, NUMBER, now=_later(minutes=5))
+        assert len(second.code) == 6
+
+    async def test_the_send_ceiling_stops_us_texting_a_stranger_forever(
+        self, db_session, async_session
+    ):
+        """Without this the endpoint is an SMS cannon pointed at any number,
+        billed to us."""
+        org_id = await _org(async_session, "sms-cannon")
+        for i in range(VERIFICATION_MAX_SENDS):
+            await vn.start_verification(org_id, NUMBER, now=_later(minutes=10 * i))
+
+        with pytest.raises(vn.TooManySends):
+            await vn.start_verification(org_id, NUMBER, now=_later(minutes=999))
+
+    async def test_a_new_code_clears_the_previous_failed_attempts(
+        self, db_session, async_session
+    ):
+        """The attempt ceiling belongs to the code, not the number. Inheriting
+        it would make a fresh code unusable after five mistypes."""
+        org_id = await _org(async_session, "attempts-reset")
+        await vn.start_verification(org_id, NUMBER)
+        for _ in range(3):
+            with pytest.raises(vn.CodeIncorrect):
+                await vn.confirm_verification(org_id, NUMBER, "000000")
+
+        await vn.start_verification(org_id, NUMBER, now=_later(minutes=5))
+        record = await db_client.get_verified_number(org_id, NORMALISED)
+        assert record.attempts == 0
+
+
+class TestConfirming:
+    async def test_the_right_code_verifies_the_number(
+        self, db_session, async_session
+    ):
+        org_id = await _org(async_session, "confirm")
+        started = await vn.start_verification(org_id, NUMBER)
+
+        assert not await vn.is_verified(org_id, NUMBER)
+        await vn.confirm_verification(org_id, NUMBER, started.code)
+        assert await vn.is_verified(org_id, NUMBER)
+
+    async def test_verifying_destroys_the_code(self, db_session, async_session):
+        """A verified number keeping a usable code is a credential nobody needs,
+        and the safest place for it is nowhere."""
+        org_id = await _org(async_session, "destroy")
+        started = await vn.start_verification(org_id, NUMBER)
+        await vn.confirm_verification(org_id, NUMBER, started.code)
+
+        record = await db_client.get_verified_number(org_id, NORMALISED)
+        assert record.code_hash is None
+        assert record.code_salt is None
+
+    async def test_a_wrong_code_does_not_verify(self, db_session, async_session):
+        org_id = await _org(async_session, "wrong")
+        started = await vn.start_verification(org_id, NUMBER)
+        wrong = "000000" if started.code != "000000" else "111111"
+
+        with pytest.raises(vn.CodeIncorrect):
+            await vn.confirm_verification(org_id, NUMBER, wrong)
+        assert not await vn.is_verified(org_id, NUMBER)
+
+    async def test_guessing_is_cut_off_at_the_attempt_ceiling(
+        self, db_session, async_session
+    ):
+        """Six digits is a million possibilities and falls in under a second
+        without this."""
+        org_id = await _org(async_session, "bruteforce")
+        started = await vn.start_verification(org_id, NUMBER)
+
+        for _ in range(VERIFICATION_MAX_ATTEMPTS):
+            with pytest.raises(vn.CodeIncorrect):
+                await vn.confirm_verification(org_id, NUMBER, "000000")
+
+        # Even the CORRECT code is refused now. The ceiling would be worthless
+        # if an attacker's final guess still counted.
+        with pytest.raises(vn.TooManyAttempts):
+            await vn.confirm_verification(org_id, NUMBER, started.code)
+        assert not await vn.is_verified(org_id, NUMBER)
+
+    async def test_an_expired_code_is_refused(self, db_session, async_session):
+        org_id = await _org(async_session, "expired")
+        started = await vn.start_verification(org_id, NUMBER)
+
+        with pytest.raises(vn.CodeExpired):
+            await vn.confirm_verification(
+                org_id, NUMBER, started.code, now=_later(minutes=60)
+            )
+        assert not await vn.is_verified(org_id, NUMBER)
+
+    async def test_an_unknown_number_looks_the_same_as_a_wrong_code(
+        self, db_session, async_session
+    ):
+        """Distinguishing them would let someone enumerate which numbers an
+        organization has tried to verify."""
+        org_id = await _org(async_session, "enumerate")
+        with pytest.raises(vn.CodeIncorrect):
+            await vn.confirm_verification(org_id, "9999999999", "123456")
+
+    async def test_one_organizations_verification_does_not_verify_it_for_another(
+        self, db_session, async_session
+    ):
+        """Otherwise anyone could dial any number that any other customer had
+        ever verified."""
+        first = await _org(async_session, "verifier")
+        second = await _org(async_session, "freeloader")
+
+        started = await vn.start_verification(first, NUMBER)
+        await vn.confirm_verification(first, NUMBER, started.code)
+
+        assert await vn.is_verified(first, NUMBER)
+        assert not await vn.is_verified(second, NUMBER)
+
+    async def test_a_code_from_one_number_does_not_verify_another(
+        self, db_session, async_session
+    ):
+        org_id = await _org(async_session, "cross-number")
+        started = await vn.start_verification(org_id, NUMBER)
+
+        with pytest.raises(vn.CodeIncorrect):
+            await vn.confirm_verification(org_id, "9123456789", started.code)
+
+
+class TestTheGate:
+    async def test_an_unknown_number_is_not_verified(
+        self, db_session, async_session
+    ):
+        org_id = await _org(async_session, "unknown")
+        assert not await vn.is_verified(org_id, NUMBER)
+
+    async def test_a_pending_number_is_not_verified(
+        self, db_session, async_session
+    ):
+        """The property the whole feature exists for: asking for a code is not
+        the same as answering one."""
+        org_id = await _org(async_session, "pending")
+        await vn.start_verification(org_id, NUMBER)
+        assert not await vn.is_verified(org_id, NUMBER)
+
+    async def test_junk_is_never_verified(self, db_session, async_session):
+        org_id = await _org(async_session, "junk-gate")
+        assert not await vn.is_verified(org_id, "not-a-number")
+
+    async def test_removing_a_number_revokes_it(self, db_session, async_session):
+        org_id = await _org(async_session, "revoke")
+        started = await vn.start_verification(org_id, NUMBER)
+        await vn.confirm_verification(org_id, NUMBER, started.code)
+
+        assert await db_client.remove_verified_number(org_id, NORMALISED) is True
+        assert not await vn.is_verified(org_id, NUMBER)
