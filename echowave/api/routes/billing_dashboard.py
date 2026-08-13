@@ -17,12 +17,15 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from api.db import billing_dashboard_client as dash
 from api.db import db_client
 from api.db.models import (
     BillingAuditLogModel,
     CreditLedgerModel,
+    ManagedMarkupHistoryModel,
+    MarkupChangeChallengeModel,
     OrganizationModel,
     UserModel,
 )
@@ -30,6 +33,7 @@ from api.enums import BillingAuditAction, CreditLedgerKind
 from api.services.auth.depends import get_superuser
 from api.services.billing import (
     default_rates,
+    markup,
     fx_source,
     kpis,
     rate_card,
@@ -39,6 +43,7 @@ from api.services.billing import (
 from api.services.billing.costing import current_balance_paise
 from api.services.billing.rate_card import RateCardError
 from api.services.billing.rollup import IST
+from api.services.messaging.email import send_email
 from api.services.readiness import as_dict
 
 router = APIRouter(
@@ -853,3 +858,154 @@ async def get_payments(
             granularity=granularity,
             organization_id=organization_id,
         )
+
+
+# ---------------------------------------------------------------------------
+# Managed markup
+#
+# One number sets the price of every managed call on every account. It used to
+# be an environment variable, which made changing it a deploy; it is now an
+# effective-dated history, which makes changing it a form — and that is exactly
+# why it is the only setting on this router that needs a code from the company
+# inbox before it takes effect.
+# ---------------------------------------------------------------------------
+
+
+class MarkupChangeRequest(BaseModel):
+    markup_bps: int = Field(
+        ...,
+        ge=markup.MIN_MARKUP_BPS,
+        le=markup.MAX_MARKUP_BPS,
+        description="Basis points. 10000 is at cost; 14000 charges 1.4x.",
+    )
+    note: str | None = Field(None, max_length=500)
+
+
+class MarkupConfirmRequest(BaseModel):
+    #: Only the code. The value being applied was staged server-side, so a
+    #: tampered confirmation cannot substitute a different multiple.
+    code: str = Field(..., min_length=4, max_length=12)
+
+
+@router.get("/rate-card/markup")
+async def get_managed_markup() -> dict[str, Any]:
+    """The multiple in force, and whether a change is waiting on a code."""
+    async with db_client.async_session() as session:
+        current = await markup.resolve_markup_bps(session)
+        pending = (
+            await session.execute(select(MarkupChangeChallengeModel).limit(1))
+        ).scalar_one_or_none()
+        history = (
+            (
+                await session.execute(
+                    select(ManagedMarkupHistoryModel)
+                    .order_by(ManagedMarkupHistoryModel.effective_from.desc())
+                    .limit(10)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    return {
+        "markup_bps": current,
+        "min_bps": markup.MIN_MARKUP_BPS,
+        "max_bps": markup.MAX_MARKUP_BPS,
+        "notice_address": markup.MARKUP_NOTICE_ADDRESS,
+        # Never the code or its hash — only that something is waiting, and for
+        # what. Enough to render the confirmation step, useless to an attacker.
+        "pending": (
+            {
+                "markup_bps": pending.markup_bps,
+                "previous_markup_bps": pending.previous_markup_bps,
+                "expires_at": pending.expires_at.isoformat(),
+                "attempts_remaining": max(
+                    0, markup.MAX_ATTEMPTS - (pending.attempts or 0)
+                ),
+            }
+            if pending is not None
+            else None
+        ),
+        "history": [
+            {
+                "markup_bps": row.markup_bps,
+                "effective_from": row.effective_from.isoformat(),
+                "effective_to": (
+                    row.effective_to.isoformat() if row.effective_to else None
+                ),
+                "note": row.note,
+            }
+            for row in history
+        ],
+    }
+
+
+@router.post("/rate-card/markup/request")
+async def request_managed_markup_change(
+    request: MarkupChangeRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Stage a change and email a code. Applies nothing."""
+    async with db_client.async_session() as session:
+        try:
+            started = await markup.start_change(
+                session,
+                markup_bps=request.markup_bps,
+                actor_user_id=user.id,
+                note=request.note,
+            )
+        except markup.MarkupError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+
+    result = await send_email(
+        to=started.address,
+        subject=markup.notice_subject(),
+        body_text=markup.notice_body(started),
+    )
+    # The change stays staged even if the mail failed. Rolling it back would
+    # mean a delivery problem silently discards a deliberate action; leaving it
+    # means the operator can retry the send or let it expire.
+    return {
+        "requested": True,
+        "markup_bps": started.markup_bps,
+        "previous_markup_bps": started.previous_markup_bps,
+        "expires_at": started.expires_at.isoformat(),
+        "sent_to": started.address,
+        "email_sent": result.ok,
+        "email_error": None if result.ok else result.error,
+    }
+
+
+@router.put("/rate-card/markup")
+async def confirm_managed_markup_change(
+    request: MarkupConfirmRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Apply the staged change, given the code from the inbox."""
+    async with db_client.async_session() as session:
+        try:
+            applied = await markup.confirm_change(
+                session, code=request.code, actor_user_id=user.id
+            )
+        except markup.MarkupError as exc:
+            # 400 rather than 403: a wrong code is a failed step in a flow the
+            # caller is authorised for, not a permission problem.
+            await session.commit()  # persist the attempt counter
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        session.add(
+            BillingAuditLogModel(
+                organization_id=None,
+                actor_user_id=user.id,
+                action=BillingAuditAction.MANAGED_MARKUP_CHANGED.value,
+                old_value={"markup_bps": applied.previous_markup_bps},
+                new_value={"markup_bps": applied.markup_bps},
+                note=applied.note,
+            )
+        )
+        await session.commit()
+
+    return {
+        "markup_bps": applied.markup_bps,
+        "previous_markup_bps": applied.previous_markup_bps,
+        "applied": True,
+    }

@@ -23,9 +23,9 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
-from api.constants import MANAGED_PROVIDER_MARKUP_BPS
 from api.enums import CreditLedgerKind
 from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_cost
+from api.services.billing.markup import resolve_markup_bps
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
 from api.services.billing.usage import (
     billable_seconds_from_usage_info,
@@ -127,7 +127,12 @@ async def cost_workflow_run(
         # Only managed usage reaches here — a BYOK component produced no usage
         # item at all (services/billing/usage.py), so there is nothing of the
         # customer's own spend to mark up.
-        markup_bps=MANAGED_PROVIDER_MARKUP_BPS,
+        #
+        # Resolved as at the call's own time rather than read from the
+        # environment, so re-costing a March call prices it against the markup
+        # that was in force in March. That is the whole reason the value is a
+        # history and not a setting.
+        markup_bps=await resolve_markup_bps(session, at=at),
     )
 
     uncosted_labels = [

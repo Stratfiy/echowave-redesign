@@ -2828,6 +2828,82 @@ class BillingAuditLogModel(Base):
     )
 
 
+class ManagedMarkupHistoryModel(Base):
+    """Effective-dated history of the multiple charged on managed model usage.
+
+    Never updated in place, for the same reason ``OrganizationRateHistoryModel``
+    is not: re-costing a call from March has to reproduce what that customer was
+    actually charged, and a mutable setting makes that impossible the first time
+    anyone edits it.
+
+    One row, globally — this is not per account. An account that negotiated a
+    different multiple gets it through its own rate history, not by moving the
+    number every other account pays.
+    """
+
+    __tablename__ = "managed_markup_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    #: Basis points. 10000 is at cost; 14000 charges 1.4x what the vendor did.
+    markup_bps = Column(Integer, nullable=False)
+    effective_from = Column(DateTime(timezone=True), nullable=False)
+    #: NULL means "still in effect". At most one open row, by index below.
+    effective_to = Column(DateTime(timezone=True), nullable=True)
+    set_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    set_by_user = relationship("UserModel")
+
+    __table_args__ = (
+        Index("ix_managed_markup_effective", "effective_from"),
+        # There is exactly one markup in force at a time. Enforced here rather
+        # than in application code because two concurrent saves would otherwise
+        # both close the old row and both open a new one.
+        Index(
+            "uq_managed_markup_open",
+            "effective_to",
+            unique=True,
+            postgresql_where=text("effective_to IS NULL"),
+        ),
+    )
+
+
+class MarkupChangeChallengeModel(Base):
+    """A pending markup change, waiting on a code from the inbox.
+
+    The proposed value lives **here**, server-side, not in the confirming
+    request. The request carries only the code — so someone who intercepts or
+    replays it cannot swap in a different multiple, and the number that applies
+    is always the one that was emailed about.
+
+    One row at a time: requesting a new change replaces any pending one, which
+    is also what makes an abandoned change harmless.
+    """
+
+    __tablename__ = "markup_change_challenges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    #: What would be applied on a correct code.
+    markup_bps = Column(Integer, nullable=False)
+    #: Recorded so the confirmation email and the audit row can say what moved,
+    #: even if something else changed the live value in between.
+    previous_markup_bps = Column(Integer, nullable=False)
+    note = Column(Text, nullable=True)
+
+    #: Salted SHA-256, never the code itself — same construction as the email
+    #: verification challenge, compared with hmac.compare_digest.
+    code_hash = Column(String(64), nullable=False)
+    code_salt = Column(String(32), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+    attempts = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    requested_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    requested_by_user = relationship("UserModel")
+
+
 class BillingProfileModel(Base):
     """Who an account is, for tax purposes.
 

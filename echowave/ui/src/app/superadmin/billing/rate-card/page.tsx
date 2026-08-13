@@ -29,6 +29,7 @@ import {
     setProviderRateApiV1AdminBillingRateCardProvidersPut,
     setVolumeTierApiV1AdminBillingRateCardTiersPut,
 } from "@/client/sdk.gen";
+import { ManagedMarkupCard } from "@/components/billing/ManagedMarkupCard";
 import { useAuthReady } from "@/components/charts/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -169,6 +170,10 @@ export default function RateCardPage() {
             </p>
 
             <PlatformPricePanel card={card} onSaved={load} />
+            {/* Sits above provider costs because it multiplies them: reading
+                the rates without knowing the multiple in force gives the wrong
+                answer to "what does a customer pay". */}
+            <ManagedMarkupCard />
             <VolumeTierPanel card={card} onSaved={load} />
             <ExchangeRatePanel card={card} onSaved={load} />
             <ProviderRatePanel card={card} onSaved={load} />

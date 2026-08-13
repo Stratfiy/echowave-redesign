@@ -4051,6 +4051,32 @@ export type LoginRequest = {
 };
 
 /**
+ * MarkupChangeRequest
+ */
+export type MarkupChangeRequest = {
+    /**
+     * Markup Bps
+     *
+     * Basis points. 10000 is at cost; 14000 charges 1.4x.
+     */
+    markup_bps: number;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * MarkupConfirmRequest
+ */
+export type MarkupConfirmRequest = {
+    /**
+     * Code
+     */
+    code: string;
+};
+
+/**
  * McpRefreshResponse
  *
  * Result of re-discovering an MCP server's tool catalog.
@@ -10544,6 +10570,135 @@ export type GetPaymentsApiV1AdminBillingPaymentsGetResponses = {
 };
 
 export type GetPaymentsApiV1AdminBillingPaymentsGetResponse = GetPaymentsApiV1AdminBillingPaymentsGetResponses[keyof GetPaymentsApiV1AdminBillingPaymentsGetResponses];
+
+export type GetManagedMarkupApiV1AdminBillingRateCardMarkupGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/rate-card/markup';
+};
+
+export type GetManagedMarkupApiV1AdminBillingRateCardMarkupGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetManagedMarkupApiV1AdminBillingRateCardMarkupGetError = GetManagedMarkupApiV1AdminBillingRateCardMarkupGetErrors[keyof GetManagedMarkupApiV1AdminBillingRateCardMarkupGetErrors];
+
+export type GetManagedMarkupApiV1AdminBillingRateCardMarkupGetResponses = {
+    /**
+     * Response Get Managed Markup Api V1 Admin Billing Rate Card Markup Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetManagedMarkupApiV1AdminBillingRateCardMarkupGetResponse = GetManagedMarkupApiV1AdminBillingRateCardMarkupGetResponses[keyof GetManagedMarkupApiV1AdminBillingRateCardMarkupGetResponses];
+
+export type ConfirmManagedMarkupChangeApiV1AdminBillingRateCardMarkupPutData = {
+    body: MarkupConfirmRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/rate-card/markup';
+};
+
+export type ConfirmManagedMarkupChangeApiV1AdminBillingRateCardMarkupPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConfirmManagedMarkupChangeApiV1AdminBillingRateCardMarkupPutError = ConfirmManagedMarkupChangeApiV1AdminBillingRateCardMarkupPutErrors[keyof ConfirmManagedMarkupChangeApiV1AdminBillingRateCardMarkupPutErrors];
+
+export type ConfirmManagedMarkupChangeApiV1AdminBillingRateCardMarkupPutResponses = {
+    /**
+     * Response Confirm Managed Markup Change Api V1 Admin Billing Rate Card Markup Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ConfirmManagedMarkupChangeApiV1AdminBillingRateCardMarkupPutResponse = ConfirmManagedMarkupChangeApiV1AdminBillingRateCardMarkupPutResponses[keyof ConfirmManagedMarkupChangeApiV1AdminBillingRateCardMarkupPutResponses];
+
+export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostData = {
+    body: MarkupChangeRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/rate-card/markup/request';
+};
+
+export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostError = RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostErrors[keyof RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostErrors];
+
+export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponses = {
+    /**
+     * Response Request Managed Markup Change Api V1 Admin Billing Rate Card Markup Request Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponse = RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponses[keyof RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponses];
 
 export type GetCostPerMinuteApiV1CostEstimatePerMinutePostData = {
     body: CostEstimateRequest;

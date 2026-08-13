@@ -269,6 +269,10 @@ class BillingAuditAction(str, Enum):
     # The USD→INR rate. Audited like any other rate because the list price is
     # quoted in dollars, so changing this changes what every account pays.
     EXCHANGE_RATE_CHANGED = "exchange_rate_changed"
+    # The multiple charged on managed model usage. Moves the price of every
+    # managed call at once, which is why it is the one change that requires a
+    # code from the inbox before it applies.
+    MANAGED_MARKUP_CHANGED = "managed_markup_changed"
 
 
 class KycStatus(str, Enum):
