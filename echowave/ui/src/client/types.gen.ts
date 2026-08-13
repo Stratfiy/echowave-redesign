@@ -1613,6 +1613,20 @@ export type CloudonixConfigurationResponse = {
 };
 
 /**
+ * ConfirmRequest
+ */
+export type ConfirmRequest = {
+    /**
+     * Phone Number
+     */
+    phone_number: string;
+    /**
+     * Code
+     */
+    code: string;
+};
+
+/**
  * CostByOutcomeItem
  */
 export type CostByOutcomeItem = {
@@ -6342,6 +6356,38 @@ export type SpeechmaticsSttConfiguration = {
 };
 
 /**
+ * StartRequest
+ */
+export type StartRequest = {
+    /**
+     * Phone Number
+     */
+    phone_number: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+};
+
+/**
+ * StartResponse
+ */
+export type StartResponse = {
+    /**
+     * Phone Number
+     */
+    phone_number: string;
+    /**
+     * Expires In Seconds
+     */
+    expires_in_seconds: number;
+    /**
+     * Channel
+     */
+    channel: string;
+};
+
+/**
  * SuperuserWorkflowRunResponse
  */
 export type SuperuserWorkflowRunResponse = {
@@ -7443,6 +7489,28 @@ export type ValidationError = {
     ctx?: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * VerifiedNumber
+ */
+export type VerifiedNumber = {
+    /**
+     * Phone Number
+     */
+    phone_number: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Verified At
+     */
+    verified_at?: string | null;
 };
 
 /**
@@ -12722,6 +12790,173 @@ export type RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponses = {
 };
 
 export type RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponse = RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponses[keyof RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponses];
+
+export type ListNumbersApiV1VerifiedNumbersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/verified-numbers';
+};
+
+export type ListNumbersApiV1VerifiedNumbersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListNumbersApiV1VerifiedNumbersGetError = ListNumbersApiV1VerifiedNumbersGetErrors[keyof ListNumbersApiV1VerifiedNumbersGetErrors];
+
+export type ListNumbersApiV1VerifiedNumbersGetResponses = {
+    /**
+     * Response List Numbers Api V1 Verified Numbers Get
+     *
+     * Successful Response
+     */
+    200: Array<VerifiedNumber>;
+};
+
+export type ListNumbersApiV1VerifiedNumbersGetResponse = ListNumbersApiV1VerifiedNumbersGetResponses[keyof ListNumbersApiV1VerifiedNumbersGetResponses];
+
+export type StartApiV1VerifiedNumbersStartPostData = {
+    body: StartRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/verified-numbers/start';
+};
+
+export type StartApiV1VerifiedNumbersStartPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartApiV1VerifiedNumbersStartPostError = StartApiV1VerifiedNumbersStartPostErrors[keyof StartApiV1VerifiedNumbersStartPostErrors];
+
+export type StartApiV1VerifiedNumbersStartPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: StartResponse;
+};
+
+export type StartApiV1VerifiedNumbersStartPostResponse = StartApiV1VerifiedNumbersStartPostResponses[keyof StartApiV1VerifiedNumbersStartPostResponses];
+
+export type ConfirmApiV1VerifiedNumbersConfirmPostData = {
+    body: ConfirmRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/verified-numbers/confirm';
+};
+
+export type ConfirmApiV1VerifiedNumbersConfirmPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConfirmApiV1VerifiedNumbersConfirmPostError = ConfirmApiV1VerifiedNumbersConfirmPostErrors[keyof ConfirmApiV1VerifiedNumbersConfirmPostErrors];
+
+export type ConfirmApiV1VerifiedNumbersConfirmPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: VerifiedNumber;
+};
+
+export type ConfirmApiV1VerifiedNumbersConfirmPostResponse = ConfirmApiV1VerifiedNumbersConfirmPostResponses[keyof ConfirmApiV1VerifiedNumbersConfirmPostResponses];
+
+export type RemoveApiV1VerifiedNumbersPhoneNumberDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Phone Number
+         */
+        phone_number: string;
+    };
+    query?: never;
+    url: '/api/v1/verified-numbers/{phone_number}';
+};
+
+export type RemoveApiV1VerifiedNumbersPhoneNumberDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveApiV1VerifiedNumbersPhoneNumberDeleteError = RemoveApiV1VerifiedNumbersPhoneNumberDeleteErrors[keyof RemoveApiV1VerifiedNumbersPhoneNumberDeleteErrors];
+
+export type RemoveApiV1VerifiedNumbersPhoneNumberDeleteResponses = {
+    /**
+     * Response Remove Api V1 Verified Numbers  Phone Number  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RemoveApiV1VerifiedNumbersPhoneNumberDeleteResponse = RemoveApiV1VerifiedNumbersPhoneNumberDeleteResponses[keyof RemoveApiV1VerifiedNumbersPhoneNumberDeleteResponses];
 
 export type ValidateWorkflowApiV1WorkflowWorkflowIdValidatePostData = {
     body?: never;

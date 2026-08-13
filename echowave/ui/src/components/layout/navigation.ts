@@ -10,6 +10,7 @@ import {
   type LucideIcon,
   Megaphone,
   Phone,
+  PhoneCall,
   PhoneOff,
   PhoneOutgoing,
   Shield,
@@ -111,6 +112,15 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         url: "/verification",
         icon: ShieldCheck,
         keywords: ["kyc", "gst", "compliance", "documents"],
+      },
+      // Between Verification and "Get a number" because it is the cheaper way
+      // to reach the same goal: hearing an agent on a real phone. Someone who
+      // finds this first does not need to rent a number to try the product.
+      {
+        title: "Verified numbers",
+        url: "/verified-numbers",
+        icon: PhoneCall,
+        keywords: ["otp", "test number", "my number", "trial", "verify phone"],
       },
       // Directly under Verification: approval is the first gate on this flow,
       // so the thing it unlocks belongs next to it.

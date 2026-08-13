@@ -1,0 +1,346 @@
+"use client";
+
+import { AlertTriangle, CheckCircle2, Clock, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+
+import {
+  confirmApiV1VerifiedNumbersConfirmPost,
+  listNumbersApiV1VerifiedNumbersGet,
+  removeApiV1VerifiedNumbersPhoneNumberDelete,
+  startApiV1VerifiedNumbersStartPost,
+} from "@/client/sdk.gen";
+import type { VerifiedNumber } from "@/client/types.gen";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { detailFromError } from "@/lib/apiError";
+import { useAuth } from "@/lib/auth";
+
+/**
+ * Verified numbers.
+ *
+ * Two jobs on one screen. The obvious one is trial calling: an account with no
+ * rented number verifies their own mobile and can hear an agent. The less
+ * obvious one is that this is a permission list — a test call now only goes to
+ * a number somebody answered, which is why the page explains what verifying
+ * unlocks rather than presenting itself as a settings chore.
+ */
+export default function VerifiedNumbersPage() {
+  const { user, loading: authLoading } = useAuth();
+
+  const [numbers, setNumbers] = useState<VerifiedNumber[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // "enter" is a separate step rather than a second field on the same form:
+  // the code does not exist until the first request succeeds, and a form
+  // showing both at once invites people to type a code they have not received.
+  const [step, setStep] = useState<"closed" | "enter-number" | "enter-code">("closed");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [label, setLabel] = useState("");
+  const [code, setCode] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [expiresIn, setExpiresIn] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    const response = await listNumbersApiV1VerifiedNumbersGet();
+    if (response.error) {
+      setError(detailFromError(response.error, "Could not load your numbers."));
+      setIsLoading(false);
+      return;
+    }
+    setNumbers(response.data ?? []);
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    void load();
+  }, [authLoading, user, load]);
+
+  // Counts the code's life down. Its only job is to stop someone staring at a
+  // code that expired four minutes ago wondering why it will not work.
+  useEffect(() => {
+    if (step !== "enter-code" || expiresIn === null) return;
+    if (expiresIn <= 0) return;
+    const timer = setTimeout(() => setExpiresIn((value) => (value ?? 1) - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [step, expiresIn]);
+
+  const handleStart = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    const response = await startApiV1VerifiedNumbersStartPost({
+      body: { phone_number: phoneNumber, label: label || null },
+    });
+    setIsSubmitting(false);
+
+    if (response.error) {
+      setError(detailFromError(response.error, "Could not send a code."));
+      return;
+    }
+    setExpiresIn(response.data?.expires_in_seconds ?? null);
+    setStep("enter-code");
+  };
+
+  const handleConfirm = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    const response = await confirmApiV1VerifiedNumbersConfirmPost({
+      body: { phone_number: phoneNumber, code },
+    });
+    setIsSubmitting(false);
+
+    if (response.error) {
+      setError(detailFromError(response.error, "That code was not accepted."));
+      return;
+    }
+    setNotice(`+${response.data?.phone_number} is verified — you can call it now.`);
+    setStep("closed");
+    setPhoneNumber("");
+    setLabel("");
+    setCode("");
+    void load();
+  };
+
+  const handleRemove = async (number: string) => {
+    const response = await removeApiV1VerifiedNumbersPhoneNumberDelete({
+      path: { phone_number: number },
+    });
+    if (response.error) {
+      setError(detailFromError(response.error, "Could not remove that number."));
+      return;
+    }
+    setNotice(`+${number} removed — test calls to it will be refused.`);
+    void load();
+  };
+
+  const close = () => {
+    setStep("closed");
+    setError(null);
+    setCode("");
+  };
+
+  return (
+    <>
+      <PageHeader
+        title="Verified numbers"
+        description="Numbers you have proved you can answer. A test call only goes to a number on this list."
+        actions={
+          <Button onClick={() => setStep("enter-number")}>
+            <Plus className="h-4 w-4" />
+            Verify a number
+          </Button>
+        }
+      />
+
+      <PageBody className="space-y-4">
+        {notice && (
+          <div className="rounded-[var(--radius-control)] border border-border bg-card px-4 py-3 text-sm">
+            {notice}
+          </div>
+        )}
+        {error && step === "closed" && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-[var(--radius-control)] border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Your numbers</CardTitle>
+            <CardDescription>
+              Verifying proves you can answer the number, so we will dial it for
+              a test call. It does not affect campaigns, which dial the numbers
+              in your lists.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }, (_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            ) : numbers.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                No verified numbers yet. Verify your own mobile to hear an agent
+                without renting a number first.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Number</TableHead>
+                      <TableHead>Label</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-16" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {numbers.map((entry) => (
+                      <TableRow key={entry.phone_number}>
+                        <TableCell className="font-mono">
+                          +{entry.phone_number}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {entry.label || "—"}
+                        </TableCell>
+                        <TableCell>
+                          {entry.status === "verified" ? (
+                            <Badge className="gap-1 border-transparent bg-primary/10 text-foreground">
+                              <CheckCircle2 className="h-3 w-3 text-primary" />
+                              Verified
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="gap-1 text-muted-foreground"
+                            >
+                              <Clock className="h-3 w-3" />
+                              Awaiting code
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Remove ${entry.phone_number}`}
+                            onClick={() => void handleRemove(entry.phone_number)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </PageBody>
+
+      <Dialog open={step !== "closed"} onOpenChange={(open) => !open && close()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {step === "enter-number" ? "Verify a number" : "Enter the code"}
+            </DialogTitle>
+            <DialogDescription>
+              {step === "enter-number"
+                ? "We will send a six-digit code to this number. Any format works."
+                : `We sent a code to +${phoneNumber.replace(/\D/g, "")}.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-[var(--radius-control)] border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {step === "enter-number" ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="vn-number">Phone number</Label>
+                <Input
+                  id="vn-number"
+                  value={phoneNumber}
+                  onChange={(event) => setPhoneNumber(event.target.value)}
+                  placeholder="+91 98765 43210"
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vn-label">Label (optional)</Label>
+                <Input
+                  id="vn-label"
+                  value={label}
+                  onChange={(event) => setLabel(event.target.value)}
+                  placeholder="My mobile"
+                  maxLength={64}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="vn-code">Six-digit code</Label>
+              <Input
+                id="vn-code"
+                value={code}
+                onChange={(event) =>
+                  setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                placeholder="000000"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                className="font-mono text-lg tracking-[0.4em]"
+              />
+              {expiresIn !== null && (
+                <p className="text-xs text-muted-foreground">
+                  {expiresIn > 0
+                    ? `Expires in ${Math.floor(expiresIn / 60)}m ${expiresIn % 60}s.`
+                    : "This code has expired. Close this and start again."}
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={close}>
+              Cancel
+            </Button>
+            {step === "enter-number" ? (
+              <Button
+                onClick={() => void handleStart()}
+                disabled={isSubmitting || !phoneNumber.trim()}
+              >
+                Send code
+              </Button>
+            ) : (
+              <Button
+                onClick={() => void handleConfirm()}
+                disabled={isSubmitting || code.length < 6}
+              >
+                Verify
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
