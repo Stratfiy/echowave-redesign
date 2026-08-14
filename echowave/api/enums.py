@@ -433,6 +433,32 @@ class OrganizationRole(str, Enum):
 
     Ordered least to most privileged; ``ORGANIZATION_ROLE_RANK`` below is the
     ordering a permission check compares against.
+
+    What each tier can do, so that assigning one is a decision rather than a
+    guess. ADMIN gated nothing at all for a while, which is the worse failure:
+    a role that appears in a picker and restricts nobody is a permission an
+    operator believes they have granted.
+
+    MEMBER
+        Builds and runs agents. Everything the product is for — workflows,
+        campaigns, calls, recordings, the knowledge base — and can spend the
+        organization's balance by placing calls.
+    ADMIN
+        Everything a member can do, plus the surfaces where one person's action
+        binds the whole account: the BYOK key vault and integration
+        credentials (secrets, and spend under someone else's contract), the
+        billing profile (which decides what tax the customer is charged), the
+        autopay mandate (a standing authority to debit a bank account), and
+        removing a number from the do-not-disturb list (a regulatory act, and
+        the one entry nobody notices going missing).
+    OWNER
+        Everything an admin can do, plus membership: who is in the
+        organization and at what tier. The last Owner cannot be demoted or
+        removed.
+
+    Buying credit is deliberately *not* admin-gated. A member who cannot top up
+    when the balance runs out is a member who cannot work, and paying us more
+    money is not a privilege that needs protecting.
     """
 
     MEMBER = "member"

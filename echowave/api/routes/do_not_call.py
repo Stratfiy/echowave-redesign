@@ -22,7 +22,8 @@ from pydantic import BaseModel, Field
 
 from api.db import db_client
 from api.db.models import UserModel
-from api.services.auth.depends import get_user
+from api.enums import OrganizationRole
+from api.services.auth.depends import get_user, require_organization_role
 from api.services.compliance.dnd import normalise_number
 
 router = APIRouter(prefix="/do-not-call", tags=["compliance"])
@@ -203,7 +204,7 @@ async def upload_numbers(
 @router.delete("/{phone_number}")
 async def remove_number(
     phone_number: str,
-    user: UserModel = Depends(get_user),
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict:
     """Take a number off the list.
 

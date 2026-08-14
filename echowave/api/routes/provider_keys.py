@@ -23,7 +23,8 @@ from pydantic import BaseModel, Field
 
 from api.db import db_client
 from api.db.models import UserModel
-from api.services.auth.depends import get_user
+from api.enums import OrganizationRole
+from api.services.auth.depends import get_user, require_organization_role
 from api.services.configuration import organization_credentials as creds
 from api.services.configuration.registry import components_for_provider
 
@@ -92,7 +93,8 @@ async def list_provider_keys(user: UserModel = Depends(get_user)) -> dict[str, A
 
 @router.put("")
 async def set_provider_key(
-    request: SetCredentialRequest, user: UserModel = Depends(get_user)
+    request: SetCredentialRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict[str, Any]:
     """Store or rotate one key. The value is write-only from here on.
 
@@ -140,7 +142,8 @@ async def set_provider_key(
 
 @router.post("/active")
 async def set_provider_key_active(
-    request: ActiveRequest, user: UserModel = Depends(get_user)
+    request: ActiveRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict[str, Any]:
     """Take a provider out of service without discarding its key.
 
@@ -165,7 +168,9 @@ async def set_provider_key_active(
 
 @router.delete("")
 async def delete_provider_key(
-    component: str, provider: str, user: UserModel = Depends(get_user)
+    component: str,
+    provider: str,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict[str, Any]:
     organization_id = _organization_id(user)
     async with db_client.async_session() as session:
