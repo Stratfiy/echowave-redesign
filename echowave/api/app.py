@@ -55,11 +55,40 @@ API_PREFIX = "/api/v1"
 mcp_app = mcp.http_app(path="/", stateless_http=True)
 
 
+def _warn_if_mps_is_inherited() -> None:
+    """Say out loud that this deployment is depending on a host nobody chose.
+
+    ``MPS_API_URL`` was undocumented, so an install that never set it inherited
+    ``https://services.decibyl.ai`` and depended on it silently. Two features
+    fail without it — recording transcription and service keys — and both fail
+    at the moment a customer uses them rather than at boot. Knowledge base
+    ingestion used to be a third and no longer is: it converts and chunks
+    in-process.
+
+    A log line rather than a refusal. The default is correct for the managed
+    product, and refusing to boot over it would take down the deployment it is
+    right for.
+    """
+    from api.constants import MPS_API_URL, MPS_API_URL_IS_DEFAULT
+
+    if MPS_API_URL_IS_DEFAULT:
+        logger.warning(
+            "MPS_API_URL is unset, so this deployment has inherited the default "
+            f"{MPS_API_URL}. Recording transcription and service keys call it "
+            "and have no fallback; knowledge base ingestion runs locally and "
+            "does not. Set MPS_API_URL explicitly, or accept that those two "
+            "screens depend on a host this install never chose. See "
+            "DEPLOY-ENV.md §7."
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with mcp_app.lifespan(app):
         # warmup arq pool
         await get_arq_redis()
+
+        _warn_if_mps_is_inherited()
 
         # Install any platform provider keys the environment declares, so a
         # freshly-deployed box serves managed accounts without someone having

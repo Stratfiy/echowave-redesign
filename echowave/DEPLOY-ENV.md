@@ -181,6 +181,75 @@ Built and tested, off by default.
 FOLLOW_CALLER_LANGUAGE=true
 ```
 
+## 7. The Model Proxy Service — what happens if you never set this
+
+`MPS_API_URL` was absent from this file entirely, so a deployment silently
+inherited `https://services.decibyl.ai` and depended on a host nobody had
+decided to depend on. It is not a secret and there is nothing to fill in for
+most installs; it is here because *not* setting it has consequences, and those
+consequences should be a choice.
+
+```bash
+# The Model Proxy Service. Defaults to https://services.decibyl.ai — Decibyl's
+# own hosted service, which is right for the managed product and wrong for a
+# self-hosted install that cannot reach it.
+MPS_API_URL=
+
+# Which backend converts and chunks an uploaded knowledge base document:
+#   local  (default) — in-process, no network call, works with nothing else up
+#   mps              — delegate, and surface the outage if MPS is down
+#   auto             — MPS when MPS_API_URL is set, local on any failure
+KB_DOCUMENT_PROCESSOR=local
+```
+
+**What still calls MPS, and what happens without it:**
+
+| Feature | Without a reachable MPS |
+| --- | --- |
+| Knowledge base ingestion | Works. Converted and chunked in-process since `KB_DOCUMENT_PROCESSOR` defaulted to `local`. |
+| Recording transcription | Fails. Uploading a recording for transcription returns an error. |
+| Service keys | Fails. The service-keys screen cannot list, create or archive. |
+| Agent generation | Works. Falls back to building the workflow locally. |
+| Voice picker | Works. Migrated to a local catalogue. |
+
+The first row is the one that mattered: it had no fallback at all, so an
+unreachable MPS meant a customer uploaded a policy document and got a transport
+error. Ingestion no longer needs MPS. Transcription and service keys still do —
+either point `MPS_API_URL` at something real, or accept that those two screens
+do not work on this deployment.
+
+## 8. Durability — the recovery point, and where the backups live
+
+None of these are required, and leaving all of them unset is a position rather
+than a default. Billing and privacy readiness both report which one you are in.
+
+```bash
+# Set when the database is managed Postgres with point-in-time recovery. With
+# no WAL archiving the recovery point is "since last night's dump" — a failure
+# at 17:00 loses that day's calls, costings and top-ups, and the ledger is the
+# only record of what customers paid against invoices already issued.
+DATABASE_PITR_ENABLED=false
+
+# Records a deliberate decision to live with that gap, in hours. Readiness then
+# reports the accepted figure instead of an open finding. Set it only when
+# somebody has actually weighed it.
+ACCEPTED_RECOVERY_POINT_HOURS=
+
+# A second copy of each nightly dump, somewhere the first one's failure cannot
+# reach. Backups are otherwise written to a prefix in the same bucket, under
+# the same credentials, in the same account as the call recordings — which is a
+# backup against hardware failure and nothing else.
+#
+# Worth configuring only if it is genuinely elsewhere: a write-only identity,
+# in a different account, into a bucket with object lock enabled for at least
+# BACKUP_RETENTION_DAYS. A mirror sharing the primary's credentials is reported
+# as partial rather than as protection.
+BACKUP_MIRROR_BUCKET=
+BACKUP_MIRROR_REGION=
+BACKUP_MIRROR_ACCESS_KEY_ID=
+BACKUP_MIRROR_SECRET_ACCESS_KEY=
+```
+
 ---
 
 ## Not environment variables

@@ -21,8 +21,33 @@ from api.services.workflow.node_specs import (
     all_specs,
 )
 
+from api.mcp_server.ts_bridge import _VALIDATOR_ENTRY
+
+_NODE_MODULES = _VALIDATOR_ENTRY.parents[1] / "node_modules"
+
+
+def _why_these_cannot_run() -> str | None:
+    """The setup step that has not been done, named.
+
+    These 26 tests shell out to node, so an environment where nobody has run
+    `npm install` fails all 26 with a subprocess error apiece. That reads as a
+    broken workflow bridge rather than a missing setup step, and a suite whose
+    red does not mean broken is a suite people stop reading. CI installs these
+    deps, so skipping here costs no coverage where it counts.
+    """
+    if shutil.which("node") is None:
+        return "node binary not available"
+    if not _NODE_MODULES.is_dir():
+        return (
+            "ts_validator dependencies are not installed — run: "
+            "cd api/mcp_server/ts_validator && npm install"
+        )
+    return None
+
+
 pytestmark = pytest.mark.skipif(
-    shutil.which("node") is None, reason="node binary not available"
+    _why_these_cannot_run() is not None,
+    reason=_why_these_cannot_run() or "",
 )
 
 

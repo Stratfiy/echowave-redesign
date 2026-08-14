@@ -16,12 +16,13 @@ This script checks what can be checked from here, and then tells you the one
 thing you have to do yourself. It is deliberately not a mock: a mocked payment
 proves the code, and the code was never the doubt.
 
-    # 1. Before you pay: configuration, reachability, and a signed self-test.
-    set -a && source api/.env && set +a
-    python -m scripts.verify_payment_round_trip
+    # On the deployed box, which is the only place the answers mean anything:
+    #   1. Before you pay: configuration, reachability, and a signed self-test.
+    docker compose exec api python -m scripts.verify_payment_round_trip
 
-    # 2. After a real ₹1 top-up, with the order id from /billing/payments:
-    python -m scripts.verify_payment_round_trip --order order_QxYz1234567890
+    #   2. After a real Rs 1 top-up, with the order id from /billing/payments:
+    docker compose exec api python -m scripts.verify_payment_round_trip \
+        --order order_QxYz1234567890
 
 Exit status is 0 when everything checked here passed, 1 otherwise, so it can
 sit in a deploy gate.
