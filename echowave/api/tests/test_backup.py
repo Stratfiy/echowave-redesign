@@ -453,3 +453,125 @@ class TestHowAMirrorIsConfigured:
         with patch.object(mirror, "BACKUP_MIRROR_BUCKET", None):
             assert mirror.is_configured() is False
             assert mirror.get_mirror_storage() is None
+
+
+@pytest.mark.asyncio
+class TestTheHourlyLedgerSnapshot:
+    """The part of a 24-hour recovery gap that cannot be reconstructed.
+
+    Calls can be re-made, agents re-built, documents re-uploaded. The ledger
+    cannot: it is the only record of what each customer paid and consumed, and
+    tax invoices are already issued numbered against those rows. Razorpay knows
+    what was charged and nothing about what was spent, reserved or adjusted.
+
+    This is a mitigation, and every test here is written to stop it being
+    mistaken for point-in-time recovery.
+    """
+
+    async def test_only_the_money_tables_are_dumped(self, monkeypatch):
+        """A pattern here would quietly start dumping call transcripts, and the
+        hourly cadence is affordable precisely because these tables are small."""
+        from api.services.backup import ledger_snapshot
+
+        captured: list[str] = []
+
+        async def fake_dump(destination):
+            captured.extend(ledger_snapshot.MONEY_TABLES)
+            await asyncio.to_thread(
+                pathlib.Path(destination).write_bytes, b"PGDMP-ledger"
+            )
+
+        storage = FakeStorage()
+        with (
+            patch.object(ledger_snapshot, "get_storage", return_value=storage),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(ledger_snapshot, "_run_pg_dump_of_money_tables", fake_dump),
+        ):
+            result = await ledger_snapshot.take_snapshot()
+
+        assert "credit_ledger" in captured
+        assert "payments" in captured
+        assert "tax_documents" in captured
+        # The bulk of the database, deliberately absent.
+        assert "workflow_runs" not in captured
+        assert result.key.startswith("backups/ledger/")
+
+    async def test_the_snapshot_is_encrypted(self, monkeypatch):
+        from api.services.backup import ledger_snapshot
+
+        async def fake_dump(destination):
+            await asyncio.to_thread(
+                pathlib.Path(destination).write_bytes,
+                b"PGDMP ... +919876543210 ... credit_ledger",
+            )
+
+        storage = FakeStorage()
+        with (
+            patch.object(ledger_snapshot, "get_storage", return_value=storage),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(ledger_snapshot, "_run_pg_dump_of_money_tables", fake_dump),
+        ):
+            result = await ledger_snapshot.take_snapshot()
+
+        assert b"+919876543210" not in storage.objects[result.key]
+
+    async def test_a_truncated_upload_is_caught(self):
+        from api.services.backup import ledger_snapshot
+
+        async def fake_dump(destination):
+            await asyncio.to_thread(
+                pathlib.Path(destination).write_bytes, b"PGDMP-ledger"
+            )
+
+        with (
+            patch.object(
+                ledger_snapshot, "get_storage", return_value=FakeStorage(truncate=True)
+            ),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(ledger_snapshot, "_run_pg_dump_of_money_tables", fake_dump),
+        ):
+            with pytest.raises(RuntimeError, match="verification failed"):
+                await ledger_snapshot.take_snapshot()
+
+    async def test_snapshots_do_not_appear_among_the_nightly_backups(self):
+        """Separate prefixes, so a listing of "backups" is not 700 partials and
+        neither prune sweep can walk into the other's objects."""
+        from api.services.backup import ledger_snapshot
+
+        assert not ledger_snapshot.SNAPSHOT_PREFIX.startswith(database.BACKUP_PREFIX)
+
+    async def test_a_failing_snapshot_never_takes_down_the_worker(self, monkeypatch):
+        """Unlike the nightly backup, which re-raises. An hourly job that pages
+        is an hourly job somebody switches off."""
+        from api.tasks.backup import run_ledger_snapshot
+
+        async def explodes():
+            raise RuntimeError("object store unreachable")
+
+        monkeypatch.setattr(
+            "api.services.backup.ledger_snapshot.take_snapshot", explodes
+        )
+
+        # Returns rather than raises.
+        assert await run_ledger_snapshot(None) is None
+
+    async def test_the_job_is_a_no_op_when_switched_off(self, monkeypatch):
+        from api.tasks.backup import run_ledger_snapshot
+
+        async def must_not_run():
+            raise AssertionError("snapshot ran while disabled")
+
+        monkeypatch.setattr("api.constants.LEDGER_SNAPSHOT_ENABLED", False)
+        monkeypatch.setattr(
+            "api.services.backup.ledger_snapshot.take_snapshot", must_not_run
+        )
+
+        assert await run_ledger_snapshot(None) is None
+
+    async def test_snapshots_age_out_faster_than_the_nightly_dumps(self):
+        """Their purpose is to cover the hours since the last full backup. A
+        three-week-old partial is no use for recovery and is still a copy of
+        every payment."""
+        from api.constants import BACKUP_RETENTION_DAYS, LEDGER_SNAPSHOT_RETENTION_DAYS
+
+        assert LEDGER_SNAPSHOT_RETENTION_DAYS < BACKUP_RETENTION_DAYS

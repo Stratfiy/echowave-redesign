@@ -59,11 +59,10 @@ def _warn_if_mps_is_inherited() -> None:
     """Say out loud that this deployment is depending on a host nobody chose.
 
     ``MPS_API_URL`` was undocumented, so an install that never set it inherited
-    ``https://services.decibyl.ai`` and depended on it silently. Two features
-    fail without it — recording transcription and service keys — and both fail
-    at the moment a customer uses them rather than at boot. Knowledge base
-    ingestion used to be a third and no longer is: it converts and chunks
-    in-process.
+    ``https://services.decibyl.ai`` and depended on it silently. Nothing fails
+    outright any more — ingestion and transcription both run locally — so what
+    remains is one question: does this deployment sell the Decibyl-managed
+    model tier? If it does, that host has to be real.
 
     A log line rather than a refusal. The default is correct for the managed
     product, and refusing to boot over it would take down the deployment it is
@@ -74,11 +73,11 @@ def _warn_if_mps_is_inherited() -> None:
     if MPS_API_URL_IS_DEFAULT:
         logger.warning(
             "MPS_API_URL is unset, so this deployment has inherited the default "
-            f"{MPS_API_URL}. Recording transcription and service keys call it "
-            "and have no fallback; knowledge base ingestion runs locally and "
-            "does not. Set MPS_API_URL explicitly, or accept that those two "
-            "screens depend on a host this install never chose. See "
-            "DEPLOY-ENV.md §7."
+            f"{MPS_API_URL}. Knowledge base ingestion and recording "
+            "transcription both run locally and do not need it. It is required "
+            "only for the Decibyl-managed model tier, whose service keys are "
+            "issued against it. Set MPS_API_URL explicitly, or leave the "
+            "managed tier unsold. See DEPLOY-ENV.md §7."
         )
 
 

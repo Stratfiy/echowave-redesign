@@ -28,6 +28,7 @@ LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL") or None
 PUBLIC_HOST = os.getenv("PUBLIC_HOST") or None
 
+
 # Where the API is reached, as distinct from where the deployment is rooted.
 #
 # Derived from DECIBYL_API_HOST before PUBLIC_BASE_URL, because on a split-
@@ -89,7 +90,11 @@ BACKEND_API_ENDPOINT = (
 # local development and dangerous anywhere else, which is why it is last.
 UI_APP_URL = (
     os.getenv("UI_APP_URL")
-    or (f"https://{os.getenv('DECIBYL_APP_HOST')}" if os.getenv("DECIBYL_APP_HOST") else None)
+    or (
+        f"https://{os.getenv('DECIBYL_APP_HOST')}"
+        if os.getenv("DECIBYL_APP_HOST")
+        else None
+    )
     or "http://localhost:3010"
 )
 
@@ -115,16 +120,16 @@ STACK_PUBLISHABLE_CLIENT_KEY = os.getenv("STACK_PUBLISHABLE_CLIENT_KEY")
 GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
 GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)
-# The Model Proxy Service. Three features still call it — recording
-# transcription, service keys, and agent generation (which builds locally when
-# the call fails). Knowledge base ingestion used to be a fourth, and was the
-# reason an unset variable here could block a launch: it had no local path at
-# all.
+# The Model Proxy Service. Nothing fails outright without it any more:
+# knowledge base ingestion and recording transcription both run in-process, and
+# agent generation builds locally when the call fails. What remains is the
+# managed model tier itself — the `decibyl` provider authenticates with a
+# service key issued by, and validated against, this host — so an unset value
+# here is now one question rather than three broken screens: does this
+# deployment sell the managed tier?
 #
 # The default is kept because the managed product genuinely runs at that host,
-# but whether it was *chosen* is now recorded. A deployment that never set this
-# variable and cannot reach that hostname should be told so by readiness rather
-# than by a customer's failed upload.
+# but whether it was *chosen* is now recorded, and the app says so at boot.
 DEFAULT_MPS_API_URL = "https://services.decibyl.ai"
 MPS_API_URL = os.getenv("MPS_API_URL") or DEFAULT_MPS_API_URL
 MPS_API_URL_IS_DEFAULT = not os.getenv("MPS_API_URL")
@@ -412,6 +417,20 @@ BACKUP_MIRROR_SECRET_ACCESS_KEY = os.getenv("BACKUP_MIRROR_SECRET_ACCESS_KEY") o
 # because an operator who has weighed it deserves a different answer from one
 # who has never been told.
 DATABASE_PITR_ENABLED = os.getenv("DATABASE_PITR_ENABLED", "false").lower() == "true"
+
+# An hourly dump of the money tables only, between the nightly dumps of
+# everything. Narrows the *irreplaceable* part of the recovery gap from 24
+# hours to one, and is emphatically not point-in-time recovery — see
+# services/backup/ledger_snapshot.py for why homegrown WAL archiving on the
+# bundled Postgres is the wrong trade. On by default because it is cheap: five
+# small tables, and a read, so nothing about it can affect the primary.
+LEDGER_SNAPSHOT_ENABLED = (
+    os.getenv("LEDGER_SNAPSHOT_ENABLED", "true").lower() != "false"
+)
+# Days, not the nightly dumps' 30. Their whole purpose is to cover the hours
+# since the last full backup; a three-week-old partial is no use for recovery
+# and is still a copy of every payment.
+LEDGER_SNAPSHOT_RETENTION_DAYS = int(os.getenv("LEDGER_SNAPSHOT_RETENTION_DAYS", "3"))
 ACCEPTED_RECOVERY_POINT_HOURS = (
     int(os.getenv("ACCEPTED_RECOVERY_POINT_HOURS"))
     if os.getenv("ACCEPTED_RECOVERY_POINT_HOURS")

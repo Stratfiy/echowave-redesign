@@ -140,6 +140,21 @@ reconstructed. `DATABASE_PITR_ENABLED` reports the managed-Postgres answer;
 gap. Unset, it is an open finding — an operator who has weighed this deserves a
 different answer from one who has never been told.
 
+An **hourly snapshot of the money tables** now runs between the nightly dumps
+of everything, narrowing the irreplaceable part of that gap from 24 hours to
+one. Five tables, about 25KB an hour, and a read — so nothing about it can
+affect the primary. It is reported *inside* the recovery-point check rather
+than as its own line, because a separate green tick beside an amber one is
+exactly how somebody concludes they have point-in-time recovery when they do
+not.
+
+Homegrown WAL archiving on the bundled Postgres was considered and rejected:
+an `archive_command` that fails stops WAL recycling and eventually wedges the
+primary, while `pg_receivewal` without a replication slot can silently gap and
+with one reintroduces the same disk risk. That is not a trade to make on
+somebody else's production database when managed Postgres with PITR is an
+afternoon of configuration and also answers who patches Postgres.
+
 **Decryptability.** A dump is restorable only while the secret it was written
 under is still configured. Rotate `PLATFORM_CREDENTIAL_SECRET` and every
 earlier backup becomes an unreadable file that still lists, is still the right
@@ -199,9 +214,25 @@ warning at boot when the default is inherited. A log line rather than a
 refusal: the default is correct for the managed product, and refusing to boot
 over it would take down the deployment it is right for.
 
-Ingestion no longer needs it. **Recording transcription and service keys still
-do, with no fallback** — either point `MPS_API_URL` at something real, or
-accept that those two screens do not work on this deployment.
+**Nothing fails outright without MPS any more.** Ingestion converts and chunks
+in-process. Recording transcription now resolves the same speech-to-text
+provider the account's live calls use — an account with a Deepgram or Sarvam
+key transcribes an upload with it, and `gen_ai/transcription/` mirrors the
+embedding package it sits beside. Agent generation already built locally on
+failure.
+
+Service keys are the exception, and looking closely they are not a gap: a
+service key is a credential **for** MPS — the `decibyl` provider's API key is
+one of these, validated against MPS's own usage endpoint. A deployment that
+does not use MPS has nothing to issue them against and no use for them. That
+screen now answers 503 with an explanation instead of "Failed to retrieve
+service keys", which was sending people to debug a feature that had nothing to
+do for them.
+
+So the remaining question is narrower than it first looked: **do you sell the
+Decibyl-managed model tier?** If yes, `MPS_API_URL` must point somewhere real.
+If every account brings its own provider keys, you can leave it unset and
+nothing is missing.
 
 ---
 
@@ -220,8 +251,9 @@ code will move them.
       success.
 - [ ] **A decision recorded on the 24-hour recovery point** — managed Postgres
       with PITR, or `ACCEPTED_RECOVERY_POINT_HOURS=24` in writing.
-- [ ] **`MPS_API_URL` pointed at something real, or transcription and service
-      keys retired** from what you sell.
+- [ ] **A decision on whether you sell the Decibyl-managed model tier.** If
+      yes, `MPS_API_URL` and `DECIBYL_MPS_SECRET_KEY` must be real. If every
+      account brings its own keys, leave both unset — nothing else needs them.
 - [ ] **One restore rehearsal against production backups**, with the time
       written down.
 - [ ] **Billing readiness and privacy readiness both clear** on the box itself.
@@ -254,10 +286,11 @@ invisible one accrues.
    bucket, an IAM identity, and four environment variables. It is also the
    single most credible line in a security questionnaire, which is why it moves
    ahead of things that feel more urgent.
-5. **Decide what to do about transcription and service keys.** They are the
-   last two MPS dependencies without a fallback. Either stand up MPS or take
-   those screens out of the product — a feature that fails on a deployment you
-   sold is worse than a feature you never offered.
+5. **Decide whether you sell the Decibyl-managed model tier.** It is now the
+   only thing MPS is required for. Selling it means running that service and
+   keeping it up; not selling it means every account brings its own provider
+   keys and you can leave `MPS_API_URL` unset. Either is fine. Being undecided
+   means shipping a screen whose behaviour nobody has chosen.
 6. **Watch `payments_have_vouchers`.** Designed to read zero. Any other value
    is an accrued GST liability rather than a statistic, and it accrues silently.
 

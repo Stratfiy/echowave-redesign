@@ -387,6 +387,32 @@ async def _durability_checks(*, now: datetime | None = None) -> list[Check]:
             )
         )
     else:
+        from api.services.backup import ledger_snapshot
+
+        snapshot = await ledger_snapshot.newest(now=now)
+        snapshot_age = snapshot.get("age_hours")
+        # The hourly money-table snapshot narrows the irreplaceable part of the
+        # gap. It is reported inside this check rather than as its own, because
+        # a separate green tick beside an amber one is exactly how somebody
+        # concludes they have PITR when they do not.
+        if snapshot.get("available") and snapshot_age is not None and snapshot_age < 3:
+            narrowing = (
+                f" The hourly ledger snapshot ({snapshot_age:.0f}h old) narrows "
+                "that to about an hour for the money tables specifically — "
+                "which is a mitigation, not point-in-time recovery: everything "
+                "else still falls back to last night."
+            )
+        elif snapshot.get("available"):
+            narrowing = (
+                f" The hourly ledger snapshot is {snapshot_age:.0f} hours old, "
+                "so it is not running and is not narrowing anything."
+            )
+        else:
+            narrowing = (
+                " No ledger snapshot has been taken yet, so nothing is "
+                "narrowing the gap."
+            )
+
         checks.append(
             Check(
                 key="recovery_point",
@@ -399,7 +425,7 @@ async def _durability_checks(*, now: datetime | None = None) -> list[Check]:
                     "that day's calls, costings and top-ups. The ledger is the "
                     "only record of what customers paid, against invoices "
                     "already issued, so that is money that cannot be "
-                    "reconstructed rather than an inconvenience."
+                    "reconstructed rather than an inconvenience." + narrowing
                 ),
                 reference="DPDP s8(5); GDPR Art 32(1)(c)",
                 remedy=(

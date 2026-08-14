@@ -40,7 +40,7 @@ REDIS_SETTINGS = RedisSettings(
 )
 
 from api.constants import ARQ_MAX_JOBS
-from api.tasks.backup import run_database_backup
+from api.tasks.backup import run_database_backup, run_ledger_snapshot
 from api.tasks.billing_rollup import refresh_billing_rollups
 from api.tasks.campaign_tasks import (
     process_campaign_batch,
@@ -77,6 +77,7 @@ class WorkerSettings:
         issue_monthly_tax_invoices,
         purge_expired_call_data,
         run_database_backup,
+        run_ledger_snapshot,
         refresh_exchange_rate,
         record_worker_heartbeat,
         charge_recurring_rentals,
@@ -152,6 +153,17 @@ class WorkerSettings:
             run_database_backup,
             hour={18},
             minute={0},
+            second=0,
+            run_at_startup=False,
+        ),
+        # Every hour, at 20 past, so it never lands on the nightly dump or the
+        # retention sweep. Five small tables — the ones that cannot be
+        # reconstructed from anywhere else — so the irreplaceable part of the
+        # recovery gap is an hour rather than a day. Not point-in-time
+        # recovery, and services/backup/ledger_snapshot.py says why not.
+        cron(
+            run_ledger_snapshot,
+            minute={20},
             second=0,
             run_at_startup=False,
         ),

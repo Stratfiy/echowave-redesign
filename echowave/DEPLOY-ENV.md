@@ -206,17 +206,26 @@ KB_DOCUMENT_PROCESSOR=local
 
 | Feature | Without a reachable MPS |
 | --- | --- |
-| Knowledge base ingestion | Works. Converted and chunked in-process since `KB_DOCUMENT_PROCESSOR` defaulted to `local`. |
-| Recording transcription | Fails. Uploading a recording for transcription returns an error. |
-| Service keys | Fails. The service-keys screen cannot list, create or archive. |
+| Knowledge base ingestion | Works. Converted and chunked in-process. |
+| Recording transcription | Works, if the account has its own STT key. Uses the same provider its live calls use. |
 | Agent generation | Works. Falls back to building the workflow locally. |
 | Voice picker | Works. Migrated to a local catalogue. |
+| Service keys | Not applicable — see below. |
 
-The first row is the one that mattered: it had no fallback at all, so an
-unreachable MPS meant a customer uploaded a policy document and got a transport
-error. Ingestion no longer needs MPS. Transcription and service keys still do —
-either point `MPS_API_URL` at something real, or accept that those two screens
-do not work on this deployment.
+Nothing here fails silently any more. The first two rows are the ones that
+changed: both had no fallback, so an unreachable MPS meant a customer uploaded
+a policy document or a recording and got a transport error.
+
+**Service keys are the exception, and they are not a gap.** A service key is a
+credential *for* MPS — the `decibyl` provider's API key is one of these, and it
+is validated against MPS's own usage endpoint. A deployment that does not use
+MPS has nothing to issue them against and no use for them. The screen now says
+so, with a 503 and an explanation, rather than reporting a failure.
+
+So the remaining question is narrower than it looks: **do you sell the
+Decibyl-managed model tier?** If yes, `MPS_API_URL` must point at a running
+service and `DECIBYL_MPS_SECRET_KEY` must be set. If no — every account brings
+its own provider keys — you can leave both unset and nothing is missing.
 
 ## 8. Durability — the recovery point, and where the backups live
 
@@ -234,6 +243,19 @@ DATABASE_PITR_ENABLED=false
 # reports the accepted figure instead of an open finding. Set it only when
 # somebody has actually weighed it.
 ACCEPTED_RECOVERY_POINT_HOURS=
+
+# An hourly dump of the money tables only — credit_ledger, payments,
+# tax_documents, provider_rates, organizations — between the nightly dumps of
+# everything. About 25KB an hour on a small deployment, and a read, so nothing
+# about it can affect the primary.
+#
+# This narrows the *irreplaceable* part of the gap from 24 hours to one. Calls
+# can be re-made and documents re-uploaded; the ledger cannot be reconstructed
+# from anywhere, because Razorpay knows what was charged and nothing about what
+# was spent, reserved or adjusted. It is NOT point-in-time recovery and does
+# not close the finding above — readiness keeps reporting the real number.
+LEDGER_SNAPSHOT_ENABLED=true
+LEDGER_SNAPSHOT_RETENTION_DAYS=3
 
 # A second copy of each nightly dump, somewhere the first one's failure cannot
 # reach. Backups are otherwise written to a prefix in the same bucket, under
