@@ -513,7 +513,11 @@ OPENROUTER_MODELS = [
     "meta-llama/llama-3.3-70b-instruct",
     "deepseek/deepseek-chat-v3-0324",
 ]
-DECIBYL_LLM_MODELS = ["default", "accurate", "fast", "lite", "zen"]
+# Three tiers, three genuinely different models, cheapest first. "lite" and
+# "zen" are deliberately absent: both resolved to the same model as "fast", so
+# offering them was offering a choice that was not one. Both still resolve, so
+# an agent saved when they were listed keeps working — see managed_tiers.
+DECIBYL_LLM_MODELS = ["fast", "default", "accurate"]
 AWS_BEDROCK_MODELS = [
     "us.amazon.nova-pro-v1:0",
     "us.amazon.nova-lite-v1:0",

@@ -32,9 +32,26 @@ from dataclasses import dataclass
 
 from api.enums import CostComponent
 
-#: The tiers a customer can choose. Deliberately small and behavioural — adding
-#: one is a product decision, and every tier must map for every component.
+#: Every tier name ``resolve()`` understands, including the two no longer
+#: offered. Not the same list as the picker — see ``OFFERED_LLM_TIERS``.
 LLM_TIERS = ("default", "fast", "lite", "accurate", "zen")
+
+#: The tiers a customer can actually choose, and the order they read in.
+#:
+#: Three, because there are three genuinely different models behind them.
+#: ``lite`` and ``zen`` both resolved to the same model as ``fast``, so the
+#: picker was offering five names for three choices — which is worse than
+#: offering three, because a customer who picks "lite" over "fast" believes
+#: they have made a decision and has not.
+#:
+#: Both retired names stay in ``LLM_TIERS`` and stay mapped. A configuration
+#: saved when they were offered must keep resolving: dropping them from the
+#: resolver would fall those agents back to ``default``, which is a different
+#: model at more than twice the price, silently and mid-campaign.
+OFFERED_LLM_TIERS = ("fast", "default", "accurate")
+
+#: Names kept working but no longer shown.
+RETIRED_LLM_TIERS = ("lite", "zen")
 STT_TIERS = ("default",)
 TTS_TIERS = ("default",)
 EMBEDDINGS_TIERS = ("default",)
@@ -90,11 +107,21 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
     """
     return {
         # --- LLM -----------------------------------------------------------
-        ("llm", "default"): _tier("llm", "default", "google", "gemini-2.5-flash"),
+        # Three offered tiers, three genuinely different models. Blended cost
+        # per 1M tokens at LLM_INPUT_SHARE=0.7: $0.19, $0.48, $4.75 — a real
+        # ladder rather than three names for one model.
+        #
+        # gemini-2.5-flash-lite retires 2026-10-16 and its replacement is 2.5x
+        # dearer, so `fast` gets materially more expensive on that date unless
+        # it is repointed. Recorded on the rate row as well as here.
         ("llm", "fast"): _tier("llm", "fast", "google", "gemini-2.5-flash-lite"),
-        ("llm", "lite"): _tier("llm", "lite", "google", "gemini-2.5-flash-lite"),
+        ("llm", "default"): _tier("llm", "default", "google", "gemini-2.5-flash"),
         ("llm", "accurate"): _tier("llm", "accurate", "openai", "gpt-4o"),
-        # "zen" is the quiet tier — cheapest that still holds a conversation.
+        # Retired from the picker, still resolved. An agent saved against
+        # either of these keeps running on exactly the model it always ran on
+        # — falling them back to `default` would double the price of a
+        # campaign already in flight.
+        ("llm", "lite"): _tier("llm", "lite", "google", "gemini-2.5-flash-lite"),
         ("llm", "zen"): _tier("llm", "zen", "google", "gemini-2.5-flash-lite"),
         # --- Speech --------------------------------------------------------
         # saarika:v2.5, not v2. Sarvam's own configuration class defaults to
