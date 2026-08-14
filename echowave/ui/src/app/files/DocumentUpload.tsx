@@ -21,7 +21,18 @@ interface DocumentUploadProps {
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ACCEPTED_FILE_TYPES = ['.pdf', '.docx', '.doc', '.txt', '.json'];
+// Kept in step with api/services/knowledge_base/extraction.py. Legacy .doc is
+// deliberately absent: no pure-Python reader handles it, so offering it here
+// only produces an upload that fails after the customer has waited for it.
+const ACCEPTED_FILE_TYPES = [
+    '.pdf',
+    '.docx',
+    '.txt',
+    '.md',
+    '.json',
+    '.csv',
+    '.html',
+];
 
 export default function DocumentUpload({ onUploadSuccess }: DocumentUploadProps) {
   const { config } = useAppConfig();

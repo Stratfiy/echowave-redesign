@@ -1,8 +1,19 @@
 """ARQ background task for processing knowledge base documents.
 
-Document conversion and chunking live in the Model Proxy Service (MPS);
-this task downloads the file from S3, calls MPS, then handles the embedding
-and DB writes locally.
+Download from S3, convert and chunk, embed, store. Conversion and chunking run
+in this process by default (``api/services/knowledge_base/``); the Model Proxy
+Service remains selectable through ``KB_DOCUMENT_PROCESSOR`` for a deployment
+that runs it. Everything else in this path — embeddings, the pgvector write,
+the per-organization scoping — has always been local and is unchanged.
+
+Two rules this task is responsible for holding:
+
+* **A document that produced nothing is ``failed``, never ``completed``.** The
+  worst outcome available here is a document listed as ready that the agent
+  cannot answer a single question from.
+* **What is stored in ``processing_error`` is written for the customer.** It is
+  rendered verbatim on the files screen, so a raw ``ConnectError`` there is
+  both useless to them and a leak of our internals.
 """
 
 import os
@@ -13,7 +24,12 @@ from loguru import logger
 from api.db import db_client
 from api.db.models import KnowledgeBaseChunkModel
 from api.services.gen_ai import build_embedding_service
-from api.services.mps_service_key_client import mps_service_key_client
+from api.services.knowledge_base import (
+    EmptyDocumentError,
+    KnowledgeBaseError,
+    process_document,
+    user_facing_message,
+)
 from api.services.storage import storage_fs
 
 MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
@@ -45,7 +61,7 @@ async def process_knowledge_base_document(
     max_tokens: int = 128,
     retrieval_mode: str = "chunked",
 ):
-    """Process a knowledge base document via MPS: download, call MPS, embed, store.
+    """Download, convert, chunk, embed and store one uploaded document.
 
     Args:
         ctx: ARQ context
@@ -174,8 +190,8 @@ async def process_knowledge_base_document(
                     f"model={embeddings_model}"
                 )
 
-        logger.info(f"Delegating document processing to MPS (mode={retrieval_mode})")
-        mps_response = await mps_service_key_client.process_document(
+        logger.info(f"Converting and chunking document (mode={retrieval_mode})")
+        processed = await process_document(
             file_path=temp_file_path,
             filename=filename,
             content_type=mime_type or "application/octet-stream",
@@ -185,10 +201,21 @@ async def process_knowledge_base_document(
             created_by=created_by_provider_id,
         )
 
-        docling_metadata = mps_response.get("docling_metadata", {})
+        docling_metadata = processed.get("docling_metadata", {})
 
         if retrieval_mode == "full_document":
-            full_text = mps_response.get("full_text") or ""
+            full_text = processed.get("full_text") or ""
+            if not full_text.strip():
+                # Same rule as the chunked path: an empty document that reads
+                # as 'completed' is the failure the customer never finds out
+                # about until an agent cannot answer from it.
+                raise EmptyDocumentError(
+                    f"Document {document_id} produced no text",
+                    user_message=(
+                        "This file contains no text we can read, so there "
+                        "would be nothing for the agent to answer from."
+                    ),
+                )
             await db_client.update_document_full_text(document_id, full_text)
             await db_client.update_document_status(
                 document_id,
@@ -226,13 +253,24 @@ async def process_knowledge_base_document(
             resolve_correlation=True,
         )
 
-        mps_chunks = mps_response.get("chunks", [])
-        if not mps_chunks:
-            logger.warning(f"Document {document_id}: MPS returned zero chunks")
+        # Zero chunks cannot reach here: process_document raises
+        # EmptyDocumentError rather than returning an empty list, precisely so
+        # this path cannot mark an unanswerable document 'completed'. The
+        # assertion is a tripwire for a future backend that forgets.
+        source_chunks = processed.get("chunks", [])
+        if not source_chunks:
+            raise EmptyDocumentError(
+                f"Document {document_id} produced no chunks",
+                user_message=(
+                    "We read this document but could not split it into "
+                    "anything the agent can quote. If it is a scan or mostly "
+                    "images, run it through OCR and upload it again."
+                ),
+            )
 
         chunk_records = []
         chunk_texts = []
-        for chunk in mps_chunks:
+        for chunk in source_chunks:
             contextualized = chunk.get("contextualized_text") or chunk["chunk_text"]
             chunk_records.append(
                 KnowledgeBaseChunkModel(
@@ -282,12 +320,23 @@ async def process_knowledge_base_document(
         )
 
     except Exception as e:
+        # Two audiences, two texts. The log gets the exception; the document
+        # row gets a sentence written for whoever uploaded the file, because
+        # that is what the files screen renders. str(e) on an httpx failure
+        # reads "[Errno -2] Name or service not known" and names our host.
         logger.exception(
             "Error processing knowledge base document {}: {}", document_id, e
         )
         await db_client.update_document_status(
-            document_id, "failed", error_message=str(e)
+            document_id, "failed", error_message=user_facing_message(e)
         )
+
+        # A file the customer must fix — wrong format, no text layer, password
+        # protected — is not a job to retry. Re-raising would burn ARQ's retry
+        # budget re-reading the same PDF to the same conclusion, and the
+        # document is already marked failed with the reason.
+        if isinstance(e, KnowledgeBaseError):
+            return
         raise
 
     finally:

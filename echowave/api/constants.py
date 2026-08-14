@@ -115,7 +115,29 @@ STACK_PUBLISHABLE_CLIENT_KEY = os.getenv("STACK_PUBLISHABLE_CLIENT_KEY")
 GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
 GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)
-MPS_API_URL = os.getenv("MPS_API_URL", "https://services.decibyl.ai")
+# The Model Proxy Service. Three features still call it — recording
+# transcription, service keys, and agent generation (which builds locally when
+# the call fails). Knowledge base ingestion used to be a fourth, and was the
+# reason an unset variable here could block a launch: it had no local path at
+# all.
+#
+# The default is kept because the managed product genuinely runs at that host,
+# but whether it was *chosen* is now recorded. A deployment that never set this
+# variable and cannot reach that hostname should be told so by readiness rather
+# than by a customer's failed upload.
+DEFAULT_MPS_API_URL = "https://services.decibyl.ai"
+MPS_API_URL = os.getenv("MPS_API_URL") or DEFAULT_MPS_API_URL
+MPS_API_URL_IS_DEFAULT = not os.getenv("MPS_API_URL")
+
+# Which backend converts and chunks an uploaded knowledge base document:
+# "local" (in this process, no network), "mps" (delegate, and fail if it is
+# down), or "auto" (MPS when configured, local on any failure).
+#
+# Local is the default deliberately. Ingestion is the one path where a remote
+# dependency has no fallback worth the name — a customer uploads a policy
+# document and either gets a knowledge base or gets nothing — so the default
+# must be the one that works on a deployment where nothing else is stood up.
+KB_DOCUMENT_PROCESSOR = (os.getenv("KB_DOCUMENT_PROCESSOR") or "local").strip().lower()
 DECIBYL_DEVOPS_SECRET = os.getenv("DECIBYL_DEVOPS_SECRET") or None
 
 # Decibyl's own Plivo account — the parent under which managed numbers are
