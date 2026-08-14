@@ -20,8 +20,8 @@ from api.db.models import UserModel
 from api.services.auth.depends import get_superuser
 from api.services.configuration import platform_credentials as creds
 from api.services.configuration.registry import (
-    components_keyed_by_api_key,
-    provider_component_map,
+    components_sharing_credential,
+    provider_credential_groups,
 )
 
 router = APIRouter(
@@ -83,7 +83,7 @@ async def list_provider_keys() -> dict[str, Any]:
         # store one key against all of them. Read off the registry rather than
         # a list in the screen, which would drift the first time a vendor
         # gained a component.
-        "provider_components": provider_component_map(),
+        "provider_components": provider_credential_groups(),
     }
 
 
@@ -99,10 +99,11 @@ async def set_provider_key(
     """
     components = [request.component]
     if request.apply_to_all_components:
-        # Only the components this key can actually authenticate. Google does
-        # all three, but Cloud Speech and TTS want a service-account JSON, so
-        # fanning an API key onto them would store something they cannot read.
-        serves = components_keyed_by_api_key(request.provider)
+        # Only the components this *same secret* can authenticate. Google
+        # serves all three but with two different credentials — a Gemini key
+        # fans out to nothing, a service-account JSON fans out across both
+        # speech slots — so the group is the unit, not the vendor.
+        serves = components_sharing_credential(request.provider, request.component)
         # The requested component leads, so it is the one reported back and the
         # one whose failure surfaces first. An unknown provider falls through to
         # the single component and lets set_credential reject it, rather than

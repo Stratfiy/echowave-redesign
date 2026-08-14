@@ -10,6 +10,8 @@ account can hold two keys with one vendor on separate billing, and quietly
 overwriting the other component's key would cost more than the typing saved.
 """
 
+from types import SimpleNamespace
+
 import pytest
 from cryptography.fernet import Fernet
 
@@ -130,32 +132,46 @@ class TestStoringTheKey:
 
 
 class TestTheMapTheScreenRendersFrom:
-    """The staff screen offers "also use this key for …" from a server-built
-    map rather than a list in the page, so an offer cannot name a component
-    the vendor does not serve — the way a hand-kept list drifts the first time
-    a vendor gains one.
+    """The screens offer "also use this key for …" from a server-built map
+    rather than a list in the page, so an offer cannot name a component the
+    vendor does not serve — the way a hand-kept list drifts the first time a
+    vendor gains one.
+
+    The map is *groups*, not one list per vendor, because a vendor can
+    authenticate two ways. Google serves all three components with two
+    different secrets, and a flat list of three would offer to fan a Gemini key
+    onto Cloud Speech.
     """
 
-    def test_it_agrees_with_the_single_provider_lookup(self):
-        """Against the api-key lookup, not the serves-it lookup. Those differ
-        for Google, and the map has to follow the one that decides whether
-        storing the key would work."""
+    def test_each_group_agrees_with_the_single_lookup(self):
         from api.services.configuration.registry import (
-            components_keyed_by_api_key,
-            provider_component_map,
+            components_sharing_credential,
+            provider_credential_groups,
         )
 
-        mapping = provider_component_map()
-        for provider, components in mapping.items():
-            assert components == list(components_keyed_by_api_key(provider)), provider
+        for provider, groups in provider_credential_groups().items():
+            for group in groups:
+                for component in group:
+                    assert (
+                        list(components_sharing_credential(provider, component))
+                        == group
+                    ), (provider, component)
 
-    def test_it_covers_the_vendors_the_managed_tier_depends_on(self):
-        from api.services.configuration.registry import provider_component_map
+    def test_a_one_secret_vendor_is_a_single_group(self):
+        from api.services.configuration.registry import provider_credential_groups
 
-        mapping = provider_component_map()
-        assert mapping["sarvam"] == ["stt", "llm", "tts"]
-        assert mapping["deepgram"] == ["stt", "tts"]
-        assert mapping["groq"] == ["llm"]
+        mapping = provider_credential_groups()
+        assert mapping["sarvam"] == [["stt", "llm", "tts"]]
+        assert mapping["deepgram"] == [["stt", "tts"]]
+        assert mapping["groq"] == [["llm"]]
+
+    def test_a_two_secret_vendor_is_two_groups(self):
+        """Google, and the whole reason the shape is groups. A service-account
+        JSON covers Cloud Speech and Cloud TTS; a Gemini key covers the
+        language model; neither covers the other."""
+        from api.services.configuration.registry import provider_credential_groups
+
+        assert provider_credential_groups()["google"] == [["stt", "tts"], ["llm"]]
 
     def test_the_keys_are_strings_and_not_enum_members(self):
         """The registry is keyed by ``ServiceProviders`` members, and because
@@ -167,9 +183,9 @@ class TestTheMapTheScreenRendersFrom:
         """
         import json
 
-        from api.services.configuration.registry import provider_component_map
+        from api.services.configuration.registry import provider_credential_groups
 
-        mapping = provider_component_map()
+        mapping = provider_credential_groups()
         assert all(type(provider) is str for provider in mapping)
         assert "sarvam" in json.loads(json.dumps(mapping))
 
@@ -177,16 +193,31 @@ class TestTheMapTheScreenRendersFrom:
         """``decibyl`` is registered for all three components but is the
         managed option, not a vendor. Offering to store a key against it is
         offering to store a key with ourselves."""
-        from api.services.configuration.registry import provider_component_map
+        from api.services.configuration.registry import provider_credential_groups
 
-        assert "decibyl" not in provider_component_map()
+        assert "decibyl" not in provider_credential_groups()
 
-    def test_every_entry_serves_at_least_one_component(self):
-        """A provider present in the map but serving nothing would render a
-        checkbox offering to store the key against no slots at all."""
-        from api.services.configuration.registry import provider_component_map
+    def test_no_group_is_empty(self):
+        """An empty group would render a checkbox offering to store the key
+        against no slots at all."""
+        from api.services.configuration.registry import provider_credential_groups
 
-        assert all(components for components in provider_component_map().values())
+        for provider, groups in provider_credential_groups().items():
+            assert groups, provider
+            assert all(group for group in groups), provider
+
+    def test_the_groups_partition_what_the_vendor_serves(self):
+        """Every component the vendor serves lands in exactly one group. A
+        component in two groups would let one secret overwrite another."""
+        from api.services.configuration.registry import (
+            components_for_provider,
+            provider_credential_groups,
+        )
+
+        for provider, groups in provider_credential_groups().items():
+            flat = [component for group in groups for component in group]
+            assert len(flat) == len(set(flat)), provider
+            assert set(flat) == set(components_for_provider(provider)), provider
 
 
 @pytest.mark.asyncio
@@ -303,7 +334,10 @@ class TestTheStaffEndpoint:
 
         assert response.status_code == 200
         mapping = response.json()["provider_components"]
-        assert mapping["sarvam"] == ["stt", "llm", "tts"]
+        assert mapping["sarvam"] == [["stt", "llm", "tts"]]
+        # Google arrives as two groups, which is what lets the screen offer a
+        # fan-out on the speech pair and none on the language model.
+        assert mapping["google"] == [["stt", "tts"], ["llm"]]
         assert not any(name.startswith("ServiceProviders.") for name in mapping)
 
     async def test_one_save_reports_every_slot_it_landed_on(
@@ -365,47 +399,153 @@ class TestTheStaffEndpoint:
         assert response.json()["applied_to"] == ["tts"]
 
 
-class TestTheVendorsWhereOneKeyIsNotEnough:
-    """Serving a component and authenticating with an API key are different
+class TestTheVendorWithTwoWaysToAuthenticate:
+    """Serving a component and authenticating the same way are different
     questions, and the fan-out has to ask the second one.
 
-    Google is the case. It does speech-to-text, the language model and
-    synthesis, so "which components does this vendor serve" says all three —
-    but Cloud Speech and Cloud Text-to-Speech authenticate with a service
-    account JSON, and their ``api_key`` field is inherited and documented as
-    unused. Offering to store a Gemini key against them would store something
-    those services cannot read, and it would fail at dial time on a real call
-    rather than at save time in front of the person who typed it.
+    Google is the case. Gemini takes an API key; Cloud Speech and Cloud
+    Text-to-Speech take a service-account JSON, and their ``api_key`` field is
+    inherited from the base config and documented right there as unused. A
+    fan-out built on "which components does this vendor serve" would offer to
+    store a Gemini key against two services that cannot read it, and it would
+    fail at dial time on a real call rather than at save time in front of the
+    person who typed it.
+
+    The answer is not to exclude Google. It is that Google has *two* groups —
+    and the speech one is a real fan-out, because one service account covers
+    both Cloud Speech and Cloud TTS.
     """
 
-    def test_google_serves_three_components_but_keys_only_one(self):
+    def test_a_gemini_key_fans_out_to_nothing(self):
         from api.services.configuration.registry import (
             components_for_provider,
-            components_keyed_by_api_key,
+            components_sharing_credential,
         )
 
         assert components_for_provider("google") == ("stt", "llm", "tts")
-        assert components_keyed_by_api_key("google") == ("llm",)
+        assert components_sharing_credential("google", "llm") == ("llm",)
 
-    def test_google_is_therefore_offered_no_fan_out(self):
-        from api.services.configuration.registry import provider_component_map
+    def test_a_service_account_fans_out_across_both_speech_slots(self):
+        """The half that was simply missing before: one service account is one
+        secret, and pasting it twice is the registry's lookup done by hand."""
+        from api.services.configuration.registry import components_sharing_credential
 
-        assert provider_component_map()["google"] == ["llm"]
+        assert components_sharing_credential("google", "stt") == ("stt", "tts")
+        assert components_sharing_credential("google", "tts") == ("stt", "tts")
+
+    def test_the_two_groups_never_overlap(self):
+        """If they did, storing a Gemini key would overwrite the service
+        account, or the other way round."""
+        from api.services.configuration.registry import components_sharing_credential
+
+        speech = set(components_sharing_credential("google", "stt"))
+        language = set(components_sharing_credential("google", "llm"))
+        assert speech.isdisjoint(language)
+
+    def test_each_google_slot_names_the_field_its_secret_belongs_in(self):
+        from api.services.configuration.registry import credential_field_for
+
+        assert credential_field_for("google", "stt") == "credentials"
+        assert credential_field_for("google", "tts") == "credentials"
+        assert credential_field_for("google", "llm") == "api_key"
 
     def test_the_vendors_that_do_share_one_key_are_unaffected(self):
         """The guard must not quietly disqualify the vendors it was built for."""
-        from api.services.configuration.registry import components_keyed_by_api_key
+        from api.services.configuration.registry import components_sharing_credential
 
-        assert components_keyed_by_api_key("sarvam") == ("stt", "llm", "tts")
-        assert components_keyed_by_api_key("openai") == ("stt", "llm", "tts")
-        assert components_keyed_by_api_key("deepgram") == ("stt", "tts")
-        assert components_keyed_by_api_key("elevenlabs") == ("stt", "tts")
+        assert components_sharing_credential("sarvam", "llm") == ("stt", "llm", "tts")
+        assert components_sharing_credential("openai", "llm") == ("stt", "llm", "tts")
+        assert components_sharing_credential("deepgram", "stt") == ("stt", "tts")
+        assert components_sharing_credential("elevenlabs", "stt") == ("stt", "tts")
 
-    def test_the_marker_defaults_to_true_so_a_new_vendor_is_not_silently_dropped(
-        self,
-    ):
-        """A new configuration class that forgets the attribute should behave
-        like every other vendor, not vanish from the fan-out."""
+    def test_a_vendor_that_does_not_serve_the_slot_gets_no_group(self):
+        from api.services.configuration.registry import (
+            components_sharing_credential,
+            credential_field_for,
+        )
+
+        assert components_sharing_credential("groq", "tts") == ()
+        assert credential_field_for("groq", "tts") is None
+        assert credential_field_for("not-a-vendor", "llm") is None
+
+    def test_the_marker_defaults_so_a_new_vendor_is_not_silently_dropped(self):
+        """A new configuration class that never thinks about this should
+        behave like every other vendor, not vanish from the fan-out."""
         from api.services.configuration.registry import BaseServiceConfiguration
 
-        assert BaseServiceConfiguration.authenticates_with_api_key is True
+        assert BaseServiceConfiguration.credential_field == "api_key"
+
+
+@pytest.mark.asyncio
+class TestTheSecretLandsInTheFieldTheVendorReads:
+    """The half that made managed Google speech impossible.
+
+    Resolution used to write every stored secret to ``section.api_key``. For
+    almost every vendor that is right. For Google Cloud Speech and Cloud
+    Text-to-Speech it authenticated nothing: those services read
+    ``credentials``, and ``api_key`` is inherited from the base config and
+    documented there as unused.
+
+    Nothing failed at save time. The screen showed a key installed, the
+    configuration validated, and the call failed at dial time with Google's own
+    error — on a customer's call, on the managed tier, which is the tier for
+    accounts that chose not to hold a key precisely so this would not be their
+    problem.
+    """
+
+    async def _store(self, session, *, component, provider, secret):
+        from api.services.configuration import platform_credentials as creds
+
+        await creds.set_credential(
+            session,
+            actor_user_id=None,
+            component=component,
+            provider=provider,
+            api_key=secret,
+            label=None,
+        )
+        await session.flush()
+
+    async def test_a_google_speech_secret_lands_in_credentials(
+        self, db_session, async_session, monkeypatch
+    ):
+        import api.services.configuration.platform_credentials as creds
+        from api.services.configuration.managed_resolution import apply
+        from api.services.configuration.registry import GoogleSTTConfiguration
+
+        monkeypatch.setattr(
+            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+        )
+        service_account = '{"type":"service_account","project_id":"decibyl"}'
+        await self._store(
+            async_session, component="stt", provider="google", secret=service_account
+        )
+
+        section = GoogleSTTConfiguration(api_key="", use_platform_key=True)
+        effective = SimpleNamespace(stt=section, llm=None, tts=None)
+        await apply(effective)
+
+        assert section.credentials == service_account
+        # And not smuggled into the field the vendor ignores.
+        assert section.api_key in ("", None)
+
+    async def test_an_ordinary_vendor_still_lands_in_api_key(
+        self, db_session, async_session, monkeypatch
+    ):
+        """The change must not move everyone else's secret."""
+        import api.services.configuration.platform_credentials as creds
+        from api.services.configuration.managed_resolution import apply
+        from api.services.configuration.registry import SarvamSTTConfiguration
+
+        monkeypatch.setattr(
+            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+        )
+        await self._store(
+            async_session, component="stt", provider="sarvam", secret="sarvam-key-00000"
+        )
+
+        section = SarvamSTTConfiguration(api_key="", use_platform_key=True)
+        effective = SimpleNamespace(stt=section, llm=None, tts=None)
+        await apply(effective)
+
+        assert section.api_key == "sarvam-key-00000"

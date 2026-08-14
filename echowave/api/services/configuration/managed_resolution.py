@@ -28,7 +28,7 @@ from api.services.configuration import (
     managed_tiers,
     platform_credentials,
 )
-from api.services.configuration.registry import ServiceProviders
+from api.services.configuration.registry import ServiceProviders, credential_field_for
 
 #: Sections that can be served by a managed tier. Telephony is absent for the
 #: same reason it is absent from platform credentials: carrier accounts carry
@@ -138,7 +138,26 @@ async def apply(effective) -> None:
 
             section.provider = upstream_provider
             section.model = upstream_model
-            section.api_key = api_key
+
+            # Where the secret goes is the vendor's business, not ours. Almost
+            # everything authenticates on `api_key`; Google Cloud Speech and
+            # Text-to-Speech want a service-account JSON in `credentials`, and
+            # writing theirs to `api_key` authenticated nothing — the field is
+            # inherited and documented as unused, so it failed at dial time
+            # with Google's own error rather than anywhere we would see it.
+            #
+            # Asked of the configuration class after `provider` is set, because
+            # a tier section arrives as the managed sentinel and only becomes
+            # the real vendor on the line above.
+            # The section's *own* component, not the credential component.
+            # Embeddings and realtime authenticate on the LLM credential but
+            # are their own configuration classes, and asking about "llm" would
+            # answer for a class this section is not.
+            own_component = (
+                component.value if hasattr(component, "value") else str(component)
+            )
+            field = credential_field_for(upstream_provider, own_component) or "api_key"
+            setattr(section, field, api_key)
 
             # A customer-pointed endpoint exists so BYOK can run their own key
             # against a proxy or self-hosted OpenAI-compatible server -- their

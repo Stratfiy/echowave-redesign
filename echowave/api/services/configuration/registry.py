@@ -147,20 +147,23 @@ class BaseServiceConfiguration(BaseModel):
     # guard several provider tests rely on.
     api_key: str | list[str]
 
-    #: Whether ``api_key`` is what actually authenticates this service.
+    #: Which field on this configuration a stored secret belongs in.
     #:
-    #: True for almost everything, and the exception is what this exists for.
-    #: Google Cloud Speech and Text-to-Speech authenticate with a service
+    #: ``api_key`` for almost everything, and the exception is what this exists
+    #: for. Google Cloud Speech and Text-to-Speech authenticate with a service
     #: account JSON in ``credentials``; their ``api_key`` is inherited from here
-    #: and documented as unused. The key vault stores api_key strings and
-    #: nothing else, so a screen offering "also use this key for text to
-    #: speech" on Google would be offering to store a Gemini key against a
-    #: service that cannot read it — and it would fail at dial time rather than
+    #: and documented as unused. Writing a stored secret to ``api_key`` on those
+    #: two would authenticate nothing, and would do it at dial time rather than
     #: at save time.
+    #:
+    #: Naming the field rather than carrying a boolean means the vault stays a
+    #: store of opaque secrets: nothing about it changes to hold a JSON blob
+    #: instead of a key, and resolution asks the configuration class where the
+    #: secret goes rather than knowing about Google.
     #:
     #: A ClassVar rather than a field: it describes the shape of the vendor's
     #: authentication, not a value anyone configures.
-    authenticates_with_api_key: ClassVar[bool] = True
+    credential_field: ClassVar[str] = "api_key"
 
     # A real, customer-chosen provider and model (e.g. provider=openai,
     # model=gpt-4o), authenticated with *our* platform key instead of the
@@ -279,23 +282,45 @@ _KEYED_COMPONENTS: tuple[tuple[str, ServiceType], ...] = (
 )
 
 
-def components_keyed_by_api_key(provider: str) -> tuple[str, ...]:
-    """The components of a vendor that one API key can actually serve.
+def credential_field_for(provider: str, component: str) -> str | None:
+    """Which field on that vendor's configuration a stored secret goes in.
 
-    ``components_for_provider`` answers "does this vendor do text to speech";
-    this answers "would storing my key against it work", and they differ for
-    exactly one vendor today. Google does all three, but Cloud Speech and
-    Text-to-Speech authenticate with a service-account JSON while Gemini uses
-    an API key — so a fan-out built on the first question would offer to store
-    a Gemini key against two services that cannot read it, and the mistake
-    would surface at dial time rather than at save time.
+    ``None`` when the vendor does not serve that component at all, so a caller
+    validating user input gets an answer rather than an exception.
     """
     provider = (provider or "").strip().lower()
+    for name, service_type in _KEYED_COMPONENTS:
+        if name == component and provider in REGISTRY[service_type]:
+            return REGISTRY[service_type][provider].credential_field
+    return None
+
+
+def components_sharing_credential(provider: str, component: str) -> tuple[str, ...]:
+    """The components of a vendor that the *same* secret can serve.
+
+    ``components_for_provider`` answers "does this vendor do text to speech".
+    This answers "would the secret I am about to store also work there", and
+    the two differ wherever one vendor authenticates two ways.
+
+    Google is that vendor. Gemini takes an API key; Cloud Speech and Cloud
+    Text-to-Speech take a service-account JSON. So a Gemini key fans out to
+    nothing, and a service-account JSON fans out across speech-to-text and
+    text-to-speech together — which is right, because that is one service
+    account either way.
+
+    Includes ``component`` itself, so the result is the whole group rather than
+    the others; the caller decides what to do with the one it started from.
+    """
+    field = credential_field_for(provider, component)
+    if field is None:
+        return ()
+
+    provider = (provider or "").strip().lower()
     return tuple(
-        component
-        for component, service_type in _KEYED_COMPONENTS
+        name
+        for name, service_type in _KEYED_COMPONENTS
         if provider in REGISTRY[service_type]
-        and REGISTRY[service_type][provider].authenticates_with_api_key
+        and REGISTRY[service_type][provider].credential_field == field
     )
 
 
@@ -318,13 +343,22 @@ def components_for_provider(provider: str) -> tuple[str, ...]:
     )
 
 
-def provider_component_map() -> dict[str, list[str]]:
-    """Every keyed vendor and the components it serves.
+def provider_credential_groups() -> dict[str, list[list[str]]]:
+    """Every keyed vendor, and which of its components share one secret.
 
-    The same lookup as ``components_for_provider``, inverted so a screen can
-    offer "also use this key for text to speech" without asking the server once
-    per vendor. Built from the registry rather than a hand-kept list, so an
-    offer can never name a component the vendor does not actually serve.
+    What a key-entry screen needs to offer "also use this for text to speech"
+    truthfully. A flat list per vendor cannot express it: Google serves all
+    three components but with *two* different secrets, so the honest answer is
+    two groups, not one list of three.
+
+        {"sarvam": [["stt", "llm", "tts"]],
+         "google": [["llm"], ["stt", "tts"]],
+         "deepgram": [["stt", "tts"]]}
+
+    The screen finds the group containing the slot being edited and offers the
+    rest of it. Built from the registry rather than a hand-kept list, so an
+    offer can never name a component the vendor does not serve, or one it
+    serves with a different credential.
 
     Keys are the provider's **string value**, not the enum member. ``REGISTRY``
     is keyed by ``ServiceProviders`` members, and because that enum subclasses
@@ -342,17 +376,19 @@ def provider_component_map() -> dict[str, list[str]]:
         for _, service_type in _KEYED_COMPONENTS
         for provider in REGISTRY[service_type]
     }
-    mapping = {
-        provider: list(components_keyed_by_api_key(provider))
-        for provider in sorted(providers)
-        if provider != ServiceProviders.DECIBYL.value
-    }
-    # A vendor whose every component authenticates some other way has nothing
-    # to offer here, and an empty list would render a checkbox promising to
-    # store the key against no slots at all.
-    return {
-        provider: components for provider, components in mapping.items() if components
-    }
+
+    groups: dict[str, list[list[str]]] = {}
+    for provider in sorted(providers):
+        if provider == ServiceProviders.DECIBYL.value:
+            continue
+        seen: list[list[str]] = []
+        for component in components_for_provider(provider):
+            group = list(components_sharing_credential(provider, component))
+            if group and group not in seen:
+                seen.append(group)
+        if seen:
+            groups[provider] = seen
+    return groups
 
 
 def _provider_key(provider) -> str:
@@ -1128,9 +1164,9 @@ class ElevenlabsTTSConfiguration(BaseServiceConfiguration):
 @register_tts
 class GoogleTTSConfiguration(BaseTTSConfiguration):
     model_config = GOOGLE_CLOUD_PROVIDER_MODEL_CONFIG
-    # Authenticates with the service-account JSON in `credentials`, not with
-    # api_key — which is inherited and documented here as unused.
-    authenticates_with_api_key: ClassVar[bool] = False
+    # The stored secret is a service-account JSON and belongs in `credentials`,
+    # not in the inherited `api_key`, which is documented here as unused.
+    credential_field: ClassVar[str] = "credentials"
     provider: Literal[ServiceProviders.GOOGLE] = ServiceProviders.GOOGLE
     model: str = Field(
         default="chirp_3_hd",
@@ -1715,9 +1751,9 @@ class OpenAISTTConfiguration(BaseSTTConfiguration):
 @register_stt
 class GoogleSTTConfiguration(BaseSTTConfiguration):
     model_config = GOOGLE_CLOUD_PROVIDER_MODEL_CONFIG
-    # Authenticates with the service-account JSON in `credentials`, not with
-    # api_key — which is inherited and documented here as unused.
-    authenticates_with_api_key: ClassVar[bool] = False
+    # The stored secret is a service-account JSON and belongs in `credentials`,
+    # not in the inherited `api_key`, which is documented here as unused.
+    credential_field: ClassVar[str] = "credentials"
     provider: Literal[ServiceProviders.GOOGLE] = ServiceProviders.GOOGLE
     model: str = Field(
         default="latest_long",

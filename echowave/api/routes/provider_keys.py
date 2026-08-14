@@ -26,8 +26,8 @@ from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.configuration import organization_credentials as creds
 from api.services.configuration.registry import (
-    components_keyed_by_api_key,
-    provider_component_map,
+    components_sharing_credential,
+    provider_credential_groups,
 )
 
 router = APIRouter(prefix="/provider-keys", tags=["provider-keys"])
@@ -96,7 +96,7 @@ async def list_provider_keys(user: UserModel = Depends(get_user)) -> dict[str, A
         # and so offered the fan-out for Google, whose Cloud Speech and TTS
         # want a service-account JSON rather than the Gemini API key. The offer
         # appeared, the save wrote one slot, and nothing said so.
-        "provider_components": provider_component_map(),
+        "provider_components": provider_credential_groups(),
     }
 
 
@@ -114,10 +114,11 @@ async def set_provider_key(
 
     components = [request.component]
     if request.apply_to_all_components:
-        # Only the components this key can actually authenticate. Google does
-        # all three, but Cloud Speech and TTS want a service-account JSON, so
-        # fanning an API key onto them would store something they cannot read.
-        serves = components_keyed_by_api_key(request.provider)
+        # Only the components this *same secret* can authenticate. Google
+        # serves all three but with two different credentials — a Gemini key
+        # fans out to nothing, a service-account JSON fans out across both
+        # speech slots — so the group is the unit, not the vendor.
+        serves = components_sharing_credential(request.provider, request.component)
         # The requested component leads, so it is the one reported back and the
         # one whose failure is surfaced first. An unknown provider falls through
         # to the single component and lets set_credential reject it, rather than

@@ -70,8 +70,8 @@ type Payload = {
     credentials: Credential[];
     encryption_configured: boolean;
     components: string[];
-    /** Vendor → the slots it serves, off the registry. */
-    provider_components: Record<string, string[]>;
+    /** Vendor → groups of slots sharing one secret, off the registry. */
+    provider_components: Record<string, string[][]>;
 };
 
 const COMPONENT_LABELS: Record<string, string> = {
@@ -149,8 +149,11 @@ export default function ProviderKeysPage() {
     // the third that gets forgotten — leaving a managed tier pointing at a
     // provider we hold no key for, which fails at dial time with the vendor's
     // own 401 rather than anywhere we would notice.
-    const alsoServes = (payload?.provider_components?.[provider.trim().toLowerCase()] ?? [])
-        .filter((c) => c !== component);
+    const alsoServes = (
+        (payload?.provider_components?.[provider.trim().toLowerCase()] ?? []).find(
+            (group) => group.includes(component),
+        ) ?? []
+    ).filter((c) => c !== component);
 
     const submit = () => {
         if (!provider.trim() || apiKey.trim().length < 8) return;

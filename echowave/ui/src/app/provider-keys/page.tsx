@@ -128,9 +128,13 @@ export default function ProviderKeysPage() {
 
     const [credentials, setCredentials] = useState<ProviderCredential[]>([]);
     const [providersByComponent, setProvidersByComponent] = useState<Record<string, string[]>>({});
-    // Vendor → the slots one key can serve, from the server. Distinct from
-    // providersByComponent above, which drives the vendor dropdown.
-    const [providerComponents, setProviderComponents] = useState<Record<string, string[]>>({});
+    // Vendor → the groups of slots that share one secret, from the server.
+    // Groups rather than a flat list because one vendor can authenticate two
+    // ways: Google is [["stt","tts"],["llm"]] — a service-account JSON for
+    // Cloud Speech and TTS, an API key for Gemini.
+    const [providerComponents, setProviderComponents] = useState<
+        Record<string, string[][]>
+    >({});
     const [encryptionConfigured, setEncryptionConfigured] = useState(true);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -171,7 +175,7 @@ export default function ProviderKeysPage() {
         const payload = keysResult.data as {
             credentials: ProviderCredential[];
             encryption_configured: boolean;
-            provider_components?: Record<string, string[]>;
+            provider_components?: Record<string, string[][]>;
         };
         setCredentials(payload.credentials ?? []);
         setEncryptionConfigured(payload.encryption_configured !== false);
@@ -281,9 +285,9 @@ export default function ProviderKeysPage() {
     // Gemini API key. Deriving the offer from the first question showed the
     // checkbox for Google, and the save then wrote one slot without saying so.
     const alsoServes = dialogComponent
-        ? (providerComponents[formProvider] ?? []).filter(
-              (component) => component !== dialogComponent,
-          )
+        ? ((providerComponents[formProvider] ?? []).find((group) =>
+              group.includes(dialogComponent),
+          ) ?? []).filter((component) => component !== dialogComponent)
         : [];
 
     const saveKey = async () => {
