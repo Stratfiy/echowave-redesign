@@ -353,6 +353,10 @@ class BillingAuditAction(str, Enum):
     # managed call at once, which is why it is the one change that requires a
     # code from the inbox before it applies.
     MANAGED_MARKUP_CHANGED = "managed_markup_changed"
+    # Concurrency and the daily spend ceiling. Audited with the money changes
+    # rather than beside them: raising a ceiling is how an account comes to
+    # spend more, and "who raised it" is the first question afterwards.
+    ACCOUNT_LIMITS_CHANGED = "account_limits_changed"
 
 
 class KycStatus(str, Enum):

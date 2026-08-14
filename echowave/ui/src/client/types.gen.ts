@@ -219,6 +219,40 @@ export type AcceptInvitationRequest = {
 };
 
 /**
+ * AccountLimitsRequest
+ *
+ * The three ceilings, each optional in two different senses.
+ *
+ * A field left out is unchanged. A field sent as ``null`` is *cleared* back
+ * to the default — which is why ``clear`` names them explicitly rather than
+ * ``null`` doing double duty. Without it there is no way to undo an override
+ * except retyping today's default, which silently freezes the account at that
+ * number the next time the default moves.
+ */
+export type AccountLimitsRequest = {
+    /**
+     * Inbound Concurrency
+     */
+    inbound_concurrency?: number | null;
+    /**
+     * Outbound Concurrency
+     */
+    outbound_concurrency?: number | null;
+    /**
+     * Daily Spend Ceiling Paise
+     *
+     * 0 disables the ceiling entirely.
+     */
+    daily_spend_ceiling_paise?: number | null;
+    /**
+     * Clear
+     *
+     * Field names to reset to the platform default.
+     */
+    clear?: Array<string>;
+};
+
+/**
  * AccrueRequest
  */
 export type AccrueRequest = {
@@ -9669,6 +9703,54 @@ export type AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostRespons
 };
 
 export type AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostResponse = AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostResponses[keyof AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostResponses];
+
+export type SetAccountLimitsApiV1AdminBillingAccountsOrganizationIdLimitsPutData = {
+    body: AccountLimitsRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/accounts/{organization_id}/limits';
+};
+
+export type SetAccountLimitsApiV1AdminBillingAccountsOrganizationIdLimitsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetAccountLimitsApiV1AdminBillingAccountsOrganizationIdLimitsPutError = SetAccountLimitsApiV1AdminBillingAccountsOrganizationIdLimitsPutErrors[keyof SetAccountLimitsApiV1AdminBillingAccountsOrganizationIdLimitsPutErrors];
+
+export type SetAccountLimitsApiV1AdminBillingAccountsOrganizationIdLimitsPutResponses = {
+    /**
+     * Response Set Account Limits Api V1 Admin Billing Accounts  Organization Id  Limits Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetAccountLimitsApiV1AdminBillingAccountsOrganizationIdLimitsPutResponse = SetAccountLimitsApiV1AdminBillingAccountsOrganizationIdLimitsPutResponses[keyof SetAccountLimitsApiV1AdminBillingAccountsOrganizationIdLimitsPutResponses];
 
 export type ListCallsApiV1AdminBillingCallsGetData = {
     body?: never;

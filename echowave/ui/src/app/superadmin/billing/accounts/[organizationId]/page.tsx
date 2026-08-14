@@ -22,6 +22,7 @@ import {
 import {
     adjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPost,
     getAccountApiV1AdminBillingAccountsOrganizationIdGet,
+    setAccountLimitsApiV1AdminBillingAccountsOrganizationIdLimitsPut,
     setAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePut,
 } from "@/client/sdk.gen";
 import { COST_COMPONENTS, seriesColor } from "@/components/charts/chartTheme";
@@ -350,7 +351,216 @@ export default function AccountDetailPage() {
 
                 <CreditAdjustPanel organizationId={organizationId} onChanged={load} />
             </div>
+
+            <LimitsPanel
+                organizationId={organizationId}
+                limits={data?.limits as LimitsPayload | undefined}
+                onChanged={load}
+            />
         </div>
+    );
+}
+
+type LimitField = {
+    effective: number;
+    configured: number | null;
+    default: number;
+    maximum: number;
+};
+
+type LimitsPayload = {
+    inbound_concurrency: LimitField;
+    outbound_concurrency: LimitField;
+    daily_spend_ceiling_paise: LimitField;
+    legacy_concurrency: number | null;
+};
+
+/**
+ * How much of us this account may use at once, and cost in a day.
+ *
+ * An empty box means no override — the account follows the platform default,
+ * and moves when that default moves. That is the whole reason the box is empty
+ * rather than pre-filled with today's default: a form that made staff retype
+ * the default to save would pin every account it touched to the number that
+ * happened to be current, and nobody would know it had happened.
+ *
+ * The spend ceiling is entered in rupees because that is the unit on the
+ * invoice; paise is the storage detail, not the thing anybody is deciding.
+ */
+function LimitsPanel({
+    organizationId,
+    limits,
+    onChanged,
+}: {
+    organizationId: number;
+    limits: LimitsPayload | undefined;
+    onChanged: () => Promise<void>;
+}) {
+    const [inbound, setInbound] = useState("");
+    const [outbound, setOutbound] = useState("");
+    const [ceiling, setCeiling] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [message, setMessage] = useState<string | null>(null);
+    const [failure, setFailure] = useState<string | null>(null);
+
+    // Reflect what is stored whenever the account reloads, so the boxes show
+    // the overrides that exist rather than whatever was last typed.
+    useEffect(() => {
+        if (!limits) return;
+        setInbound(
+            limits.inbound_concurrency.configured == null
+                ? ""
+                : String(limits.inbound_concurrency.configured),
+        );
+        setOutbound(
+            limits.outbound_concurrency.configured == null
+                ? ""
+                : String(limits.outbound_concurrency.configured),
+        );
+        setCeiling(
+            limits.daily_spend_ceiling_paise.configured == null
+                ? ""
+                : String(limits.daily_spend_ceiling_paise.configured / 100),
+        );
+    }, [limits]);
+
+    if (!limits) return null;
+
+    const submit = async () => {
+        setSaving(true);
+        setMessage(null);
+        setFailure(null);
+
+        const clear: string[] = [];
+        const body: Record<string, number | string[]> = {};
+        if (inbound.trim() === "") clear.push("inbound_concurrency");
+        else body.inbound_concurrency = Number(inbound);
+        if (outbound.trim() === "") clear.push("outbound_concurrency");
+        else body.outbound_concurrency = Number(outbound);
+        if (ceiling.trim() === "") clear.push("daily_spend_ceiling_paise");
+        else body.daily_spend_ceiling_paise = Math.round(Number(ceiling) * 100);
+
+        const result = await setAccountLimitsApiV1AdminBillingAccountsOrganizationIdLimitsPut({
+            path: { organization_id: organizationId },
+            body: { ...body, clear } as never,
+        });
+        if (result.error) {
+            setFailure(detailFromError(result.error, "Failed to set limits"));
+        } else {
+            setMessage("Limits updated");
+            await onChanged();
+        }
+        setSaving(false);
+    };
+
+    const rows: Array<{
+        id: string;
+        label: string;
+        hint: string;
+        value: string;
+        onChange: (v: string) => void;
+        field: LimitField;
+        format: (n: number) => string;
+        step?: string;
+    }> = [
+        {
+            id: "limit-inbound",
+            label: "Inbound calls at once",
+            hint: "A refused inbound call is a person on a ringing phone.",
+            value: inbound,
+            onChange: setInbound,
+            field: limits.inbound_concurrency,
+            format: (n) => String(n),
+        },
+        {
+            id: "limit-outbound",
+            label: "Outbound calls at once",
+            hint: "A campaign that cannot get a slot simply dials a moment later.",
+            value: outbound,
+            onChange: setOutbound,
+            field: limits.outbound_concurrency,
+            format: (n) => String(n),
+        },
+        {
+            id: "limit-ceiling",
+            label: "Daily spend ceiling (₹)",
+            hint: "A circuit breaker, not a price cap. 0 switches it off.",
+            value: ceiling,
+            onChange: setCeiling,
+            field: limits.daily_spend_ceiling_paise,
+            format: (n) => formatPaise(n),
+            step: "1",
+        },
+    ];
+
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Limits</CardTitle>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                    Leave a box empty to follow the platform default — an account on the
+                    default moves when the default moves, one with a number typed in does
+                    not.
+                </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-3">
+                    {rows.map((row) => (
+                        <div key={row.id} className="min-w-0">
+                            <Label htmlFor={row.id} className="text-xs">
+                                {row.label}
+                            </Label>
+                            <Input
+                                id={row.id}
+                                type="number"
+                                min="0"
+                                step={row.step ?? "1"}
+                                value={row.value}
+                                placeholder={`Default — ${row.format(row.field.default)}`}
+                                onChange={(e) => row.onChange(e.target.value)}
+                            />
+                            <p className="mt-1 text-[0.6875rem] leading-snug text-muted-foreground">
+                                In force now: {row.format(row.field.effective)}
+                                {row.field.configured == null ? " (default)" : " (set here)"}
+                            </p>
+                            <p className="mt-0.5 text-[0.6875rem] leading-snug text-muted-foreground/80">
+                                {row.hint}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+
+                {limits.legacy_concurrency != null && (
+                    // Reported rather than hidden: this account carries the older
+                    // direction-blind limit, which binds both directions until a
+                    // per-direction number replaces it. Hiding it is how somebody
+                    // "raises" a limit and watches nothing change.
+                    <p className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
+                        <AlertTriangle className="mr-1.5 inline h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                        This account has an older combined limit of{" "}
+                        <span className="font-medium text-foreground tabular-nums">
+                            {limits.legacy_concurrency}
+                        </span>{" "}
+                        calls, which applies in both directions. Setting a number above
+                        replaces it for that direction.
+                    </p>
+                )}
+
+                <div className="flex items-center gap-3">
+                    <Button size="sm" onClick={submit} disabled={saving}>
+                        {saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                        Save limits
+                    </Button>
+                    {message && (
+                        <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                            <Check className="h-3.5 w-3.5" />
+                            {message}
+                        </span>
+                    )}
+                    {failure && <span className="text-xs text-destructive">{failure}</span>}
+                </div>
+            </CardContent>
+        </Card>
     );
 }
 

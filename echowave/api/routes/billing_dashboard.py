@@ -30,6 +30,7 @@ from api.db.models import (
     UserModel,
 )
 from api.enums import BillingAuditAction, CreditLedgerKind
+from api.services import account_limits
 from api.services.auth.depends import get_superuser
 from api.services.billing import (
     default_rates,
@@ -184,6 +185,9 @@ async def get_account(
             "credit_ledger": await dash.credit_ledger(
                 session, organization_id=organization_id
             ),
+            "limits": await account_limits.read(
+                session, organization_id=organization_id
+            ),
         }
 
 
@@ -235,6 +239,81 @@ async def adjust_credit(
         await session.commit()
 
         return {"organization_id": organization_id, "balance_paise": after}
+
+
+class AccountLimitsRequest(BaseModel):
+    """The three ceilings, each optional in two different senses.
+
+    A field left out is unchanged. A field sent as ``null`` is *cleared* back
+    to the default — which is why ``clear`` names them explicitly rather than
+    ``null`` doing double duty. Without it there is no way to undo an override
+    except retyping today's default, which silently freezes the account at that
+    number the next time the default moves.
+    """
+
+    inbound_concurrency: int | None = Field(None, ge=1)
+    outbound_concurrency: int | None = Field(None, ge=1)
+    daily_spend_ceiling_paise: int | None = Field(
+        None, ge=0, description="0 disables the ceiling entirely."
+    )
+    clear: list[str] = Field(
+        default_factory=list,
+        description="Field names to reset to the platform default.",
+    )
+
+
+@router.put("/accounts/{organization_id}/limits")
+async def set_account_limits(
+    organization_id: int,
+    request: AccountLimitsRequest,
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Set how much of us one account may use at once, and cost in a day."""
+    async with db_client.async_session() as session:
+        org = await session.get(OrganizationModel, organization_id)
+        if org is None:
+            raise HTTPException(status_code=404, detail="Account not found")
+
+        before = await account_limits.read(session, organization_id=organization_id)
+
+        changes: dict[str, int | None] = {}
+        for field in account_limits.LIMITS:
+            if field in request.clear:
+                changes[field] = None
+            else:
+                value = getattr(request, field)
+                if value is not None:
+                    changes[field] = value
+
+        if not changes:
+            raise HTTPException(status_code=400, detail="Nothing to change.")
+
+        for field, value in changes.items():
+            try:
+                await account_limits.set_limit(
+                    session,
+                    organization_id=organization_id,
+                    field=field,
+                    value=value,
+                )
+            except account_limits.LimitError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        await session.flush()
+        after = await account_limits.read(session, organization_id=organization_id)
+
+        session.add(
+            BillingAuditLogModel(
+                organization_id=organization_id,
+                actor_user_id=user.id,
+                action=BillingAuditAction.ACCOUNT_LIMITS_CHANGED.value,
+                old_value={k: before[k] for k in changes},
+                new_value={k: after[k] for k in changes},
+            )
+        )
+        await session.commit()
+
+    return after
 
 
 # ---------------------------------------------------------------------------
