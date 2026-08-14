@@ -31,6 +31,7 @@ def test_workflow_fetch_list_includes_workflow_uuid():
         created_at=datetime(2026, 5, 22, 10, 30, tzinfo=timezone.utc),
         folder_id=3,
         workflow_uuid="workflow-uuid-123",
+        is_live=True,
     )
 
     with patch("api.routes.workflow.db_client") as mock_db:
@@ -45,6 +46,9 @@ def test_workflow_fetch_list_includes_workflow_uuid():
             "id": workflow.id,
             "name": workflow.name,
             "status": workflow.status,
+            # The agent list renders the Live switch from this, so it has to
+            # arrive with the list rather than a request later.
+            "is_live": True,
             "created_at": "2026-05-22T10:30:00Z",
             "total_runs": 9,
             "folder_id": workflow.folder_id,

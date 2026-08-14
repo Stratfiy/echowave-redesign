@@ -15,11 +15,13 @@ import { toast } from 'sonner';
 
 import {
     moveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPut,
+    updateWorkflowLiveApiV1WorkflowWorkflowIdLivePut,
     updateWorkflowStatusApiV1WorkflowWorkflowIdStatusPut,
 } from '@/client/sdk.gen';
 import type { FolderResponse } from '@/client/types.gen';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -40,6 +42,12 @@ interface Workflow {
     id: number;
     name: string;
     status: string;
+    /**
+     * Whether this agent is answering calls. Distinct from `status`, which is
+     * active-vs-archived. Optional so an older cached response cannot render
+     * every agent as paused.
+     */
+    is_live?: boolean;
     created_at: string;
     total_runs?: number | null;
     folder_id?: number | null;
@@ -67,6 +75,8 @@ export function WorkflowTable({
     const [isPending, startTransition] = useTransition();
     const [loadingWorkflowId, setLoadingWorkflowId] = useState<number | null>(null);
     const [movingWorkflowId, setMovingWorkflowId] = useState<number | null>(null);
+    // Optimistic overrides, keyed by agent id, cleared when the server answers.
+    const [pendingLive, setPendingLive] = useState<Record<number, boolean>>({});
 
     const handleEdit = (id: number) => {
         router.push(`/workflow/${id}`);
@@ -102,6 +112,48 @@ export function WorkflowTable({
         }
     };
 
+    /**
+     * Turn an agent on or off for calls.
+     *
+     * Optimistic: the switch moves immediately and reverts if the request
+     * fails. Flipping it is the one thing on this screen an operator does when
+     * something is going wrong on a live call, and a spinner in that moment
+     * reads as "did it work?".
+     */
+    const handleLiveToggle = async (id: number, nextLive: boolean) => {
+        setPendingLive((current) => ({ ...current, [id]: nextLive }));
+
+        try {
+            const response = await updateWorkflowLiveApiV1WorkflowWorkflowIdLivePut({
+                path: { workflow_id: id },
+                body: { is_live: nextLive },
+            });
+
+            if (response.data) {
+                toast.success(
+                    nextLive ? 'Agent is taking calls' : 'Agent paused — it will not answer',
+                );
+                startTransition(() => {
+                    router.refresh();
+                });
+            } else {
+                throw new Error('No data in response');
+            }
+        } catch (error) {
+            console.error('Error changing whether the agent takes calls:', error);
+            toast.error(
+                nextLive
+                    ? 'Could not start the agent'
+                    : 'Could not pause the agent — it is still taking calls',
+            );
+            setPendingLive((current) => {
+                const next = { ...current };
+                delete next[id];
+                return next;
+            });
+        }
+    };
+
     const handleMove = async (id: number, folderId: number | null) => {
         setMovingWorkflowId(id);
         try {
@@ -134,6 +186,9 @@ export function WorkflowTable({
                         <TableRow>
                             <TableHead className="font-semibold">ID</TableHead>
                             <TableHead className="font-semibold">Agent Name</TableHead>
+                            {!showArchived && (
+                                <TableHead className="font-semibold text-center">Live</TableHead>
+                            )}
                             <TableHead className="font-semibold">Created At</TableHead>
                             <TableHead className="font-semibold text-center">Total Runs</TableHead>
                             <TableHead className="font-semibold text-right">Actions</TableHead>
@@ -151,6 +206,29 @@ export function WorkflowTable({
                                 <TableCell className="font-medium">
                                     {workflow.name}
                                 </TableCell>
+                                {/*
+                                  * Hidden on the archived list: an archived agent
+                                  * does not take calls whatever this said, and a
+                                  * switch that changes nothing is worse than none.
+                                  */}
+                                {!showArchived && (
+                                    <TableCell className="text-center">
+                                        <div className="flex flex-col items-center gap-1">
+                                            <Switch
+                                                checked={pendingLive[workflow.id] ?? workflow.is_live ?? true}
+                                                onCheckedChange={(checked) =>
+                                                    handleLiveToggle(workflow.id, checked)
+                                                }
+                                                aria-label={`${(pendingLive[workflow.id] ?? workflow.is_live ?? true) ? 'Pause' : 'Start'} ${workflow.name}`}
+                                            />
+                                            <span className="text-xs text-muted-foreground">
+                                                {(pendingLive[workflow.id] ?? workflow.is_live ?? true)
+                                                    ? 'Taking calls'
+                                                    : 'Paused'}
+                                            </span>
+                                        </div>
+                                    </TableCell>
+                                )}
                                 <TableCell>
                                     {new Date(workflow.created_at).toLocaleDateString('en-US', {
                                         year: 'numeric',

@@ -4870,6 +4870,32 @@ export type OrganizationPreferences = {
  *
  * Ordered least to most privileged; ``ORGANIZATION_ROLE_RANK`` below is the
  * ordering a permission check compares against.
+ *
+ * What each tier can do, so that assigning one is a decision rather than a
+ * guess. ADMIN gated nothing at all for a while, which is the worse failure:
+ * a role that appears in a picker and restricts nobody is a permission an
+ * operator believes they have granted.
+ *
+ * MEMBER
+ * Builds and runs agents. Everything the product is for — workflows,
+ * campaigns, calls, recordings, the knowledge base — and can spend the
+ * organization's balance by placing calls.
+ * ADMIN
+ * Everything a member can do, plus the surfaces where one person's action
+ * binds the whole account: the BYOK key vault and integration
+ * credentials (secrets, and spend under someone else's contract), the
+ * billing profile (which decides what tax the customer is charged), the
+ * autopay mandate (a standing authority to debit a bank account), and
+ * removing a number from the do-not-disturb list (a regulatory act, and
+ * the one entry nobody notices going missing).
+ * OWNER
+ * Everything an admin can do, plus membership: who is in the
+ * organization and at what tier. The last Owner cannot be demoted or
+ * removed.
+ *
+ * Buying credit is deliberately *not* admin-gated. A member who cannot top up
+ * when the balance runs out is a member who cannot work, and paying us more
+ * money is not a privilege that needs protecting.
  */
 export type OrganizationRole = 'member' | 'admin' | 'owner';
 
@@ -7313,6 +7339,16 @@ export type UpdateToolRequest = {
 };
 
 /**
+ * UpdateWorkflowLiveRequest
+ */
+export type UpdateWorkflowLiveRequest = {
+    /**
+     * Is Live
+     */
+    is_live: boolean;
+};
+
+/**
  * UpdateWorkflowRequest
  */
 export type UpdateWorkflowRequest = {
@@ -7937,6 +7973,10 @@ export type WorkflowListResponse = {
      */
     status: string;
     /**
+     * Is Live
+     */
+    is_live?: boolean;
+    /**
      * Created At
      */
     created_at: string;
@@ -7984,6 +8024,10 @@ export type WorkflowResponse = {
      * Status
      */
     status: string;
+    /**
+     * Is Live
+     */
+    is_live?: boolean;
     /**
      * Created At
      */
@@ -10357,7 +10401,12 @@ export type BillingReadinessApiV1AdminBillingReadinessGetData = {
         'X-API-Key'?: string | null;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Probe
+         */
+        probe?: boolean;
+    };
     url: '/api/v1/admin/billing/readiness';
 };
 
@@ -13834,6 +13883,50 @@ export type UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutResponses = {
 };
 
 export type UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutResponse = UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutResponses[keyof UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutResponses];
+
+export type UpdateWorkflowLiveApiV1WorkflowWorkflowIdLivePutData = {
+    body: UpdateWorkflowLiveRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/live';
+};
+
+export type UpdateWorkflowLiveApiV1WorkflowWorkflowIdLivePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateWorkflowLiveApiV1WorkflowWorkflowIdLivePutError = UpdateWorkflowLiveApiV1WorkflowWorkflowIdLivePutErrors[keyof UpdateWorkflowLiveApiV1WorkflowWorkflowIdLivePutErrors];
+
+export type UpdateWorkflowLiveApiV1WorkflowWorkflowIdLivePutResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkflowResponse;
+};
+
+export type UpdateWorkflowLiveApiV1WorkflowWorkflowIdLivePutResponse = UpdateWorkflowLiveApiV1WorkflowWorkflowIdLivePutResponses[keyof UpdateWorkflowLiveApiV1WorkflowWorkflowIdLivePutResponses];
 
 export type MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutData = {
     body: MoveWorkflowToFolderRequest;

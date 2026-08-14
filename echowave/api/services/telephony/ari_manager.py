@@ -26,6 +26,7 @@ from loguru import logger
 from api.constants import REDIS_URL
 from api.db import db_client
 from api.enums import CallType, WorkflowRunMode
+from api.services.workflow import liveness
 from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     call_concurrency,
@@ -571,6 +572,19 @@ class ARIConnection:
                 logger.warning(
                     f"[ARI org={self.organization_id}] Workflow {inbound_workflow_id} "
                     f"not found or doesn't belong to this organization — hanging up"
+                )
+                await self._delete_channel(channel_id)
+                return
+
+            # An agent that has been switched off, or archived, does not
+            # answer. Checked before a concurrency slot is taken so a paused
+            # agent cannot consume capacity a live one needs.
+            try:
+                liveness.assert_workflow_may_take_calls(workflow)
+            except liveness.AgentNotTakingCalls as exc:
+                logger.info(
+                    f"[ARI org={self.organization_id}] {exc} Hanging up "
+                    f"channel {channel_id}."
                 )
                 await self._delete_channel(channel_id)
                 return
