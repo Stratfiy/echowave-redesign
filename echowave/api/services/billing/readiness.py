@@ -42,6 +42,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import (
+    PUBLIC_BASE_URL,
+    RAZORPAY_KEY_ID,
     RAZORPAY_WEBHOOK_SECRET,
     SUPPLIER_ADDRESS,
     SUPPLIER_GSTIN,
@@ -56,11 +58,22 @@ from api.db.models import (
 )
 from api.services.readiness import (
     ACTION_REQUIRED,
+    NEEDS_A_HUMAN,
     READY,
     UNKNOWN,
     Check,
     Readiness,
 )
+
+#: The path Razorpay posts to. Duplicated from routes/payments.py rather than
+#: imported, because importing the router to read one string pulls the whole
+#: payment path into a read-only check.
+WEBHOOK_PATH = "/api/v1/billing/razorpay/webhook"
+
+#: Razorpay key prefixes. The distinction is the whole of this check: test keys
+#: work perfectly, produce orders, fire webhooks, and take no money.
+LIVE_KEY_PREFIX = "rzp_live_"
+TEST_KEY_PREFIX = "rzp_test_"
 
 #: Document kind that acknowledges an advance. Duplicated from
 #: services/billing/documents.py rather than imported, because importing that
@@ -175,6 +188,239 @@ def _supplier_checks() -> list[Check]:
     )
 
     return checks
+
+
+def _key_mode_check() -> Check:
+    """Whether the keys on this box can take real money.
+
+    A test key is not a broken key. It creates orders, renders a checkout, and
+    fires signature-valid webhooks that credit the ledger — the entire path
+    passes with no money having moved. That is why this is a check and not a
+    line in a runbook: a deployment can look completely healthy, with credited
+    accounts and issued vouchers, and be taking nothing.
+    """
+    key = (RAZORPAY_KEY_ID or "").strip()
+
+    if not key:
+        return Check(
+            key="razorpay_key_mode",
+            title="Razorpay keys are live keys",
+            status=ACTION_REQUIRED,
+            detail=(
+                "RAZORPAY_KEY_ID is unset, so no order can be created and "
+                "nobody can buy credit on this deployment."
+            ),
+            reference="DEPLOY-ENV.md — payments",
+            remedy=(
+                "Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET from the Razorpay "
+                "dashboard, using the Live keys once your account is activated."
+            ),
+        )
+
+    if key.startswith(TEST_KEY_PREFIX):
+        return Check(
+            key="razorpay_key_mode",
+            title="Razorpay keys are live keys",
+            status=ACTION_REQUIRED,
+            detail=(
+                "This deployment is configured with Razorpay **test** keys. "
+                "Checkout will work, webhooks will verify, and credit will "
+                "land in the ledger — and no money will be collected for any "
+                "of it."
+            ),
+            reference="DEPLOY-ENV.md — payments",
+            remedy=(
+                "Activate the Razorpay account, then replace RAZORPAY_KEY_ID, "
+                "RAZORPAY_KEY_SECRET and RAZORPAY_WEBHOOK_SECRET with the Live "
+                "values. The webhook secret is per-mode: reusing the test one "
+                "against live keys rejects every webhook."
+            ),
+        )
+
+    if key.startswith(LIVE_KEY_PREFIX):
+        return Check(
+            key="razorpay_key_mode",
+            title="Razorpay keys are live keys",
+            status=READY,
+            detail=f"Live keys are configured ({key[: len(LIVE_KEY_PREFIX) + 4]}…).",
+            reference="DEPLOY-ENV.md — payments",
+        )
+
+    return Check(
+        key="razorpay_key_mode",
+        title="Razorpay keys are live keys",
+        status=UNKNOWN,
+        detail=(
+            "RAZORPAY_KEY_ID does not start with rzp_live_ or rzp_test_, so "
+            "which mode this deployment is in cannot be read from it."
+        ),
+        reference="DEPLOY-ENV.md — payments",
+        remedy="Confirm in the Razorpay dashboard which mode these keys belong to.",
+    )
+
+
+async def _webhook_reachability_check(*, probe: bool) -> Check:
+    """Whether Razorpay's servers can actually reach the endpoint that credits.
+
+    This is the gap that stays invisible until the first real customer pays.
+    Every other part of the payment path is exercised by tests; none of them
+    can tell you that a load balancer forwards ``/api/v1/billing/razorpay/…``
+    or that the URL registered in the dashboard is the one this deployment
+    answers on. The failure mode is precisely the one the payment code was
+    written to avoid: the customer is charged and nobody is credited.
+
+    The probe posts a deliberately invalid signature to our own public URL and
+    expects **400**. A 400 proves the request traversed DNS, TLS and the load
+    balancer and was rejected by our signature check — which is the whole path
+    Razorpay's POST takes, minus a valid signature. A 404 or a timeout means
+    the route is not exposed where the dashboard is pointing.
+
+    What it cannot prove is that the secret on this box matches the dashboard's,
+    or that the dashboard is subscribed to ``payment.captured``. Those are
+    reported separately as obligations rather than guessed at.
+    """
+    if not PUBLIC_BASE_URL:
+        return Check(
+            key="webhook_reachable",
+            title="Razorpay can reach the webhook endpoint",
+            status=ACTION_REQUIRED,
+            detail=(
+                "PUBLIC_BASE_URL is unset, so there is no public URL to "
+                "register with Razorpay and none to test."
+            ),
+            reference="DEPLOY-ENV.md — PUBLIC_BASE_URL",
+            remedy=(
+                "Set PUBLIC_BASE_URL to the origin this deployment is reached "
+                f"at, then register {{PUBLIC_BASE_URL}}{WEBHOOK_PATH} in the "
+                "Razorpay dashboard."
+            ),
+        )
+
+    url = f"{PUBLIC_BASE_URL.rstrip('/')}{WEBHOOK_PATH}"
+
+    if not probe:
+        return Check(
+            key="webhook_reachable",
+            title="Razorpay can reach the webhook endpoint",
+            status=UNKNOWN,
+            detail=(
+                f"The endpoint should be registered as {url}. Not tested — "
+                "reachability is only checked when explicitly asked for, "
+                "because it makes an outbound request."
+            ),
+            reference="HANDOVER.md §3 rule 8 — only a verified webhook credits",
+            remedy=(
+                "Re-check with ?probe=true, or run: python -m "
+                "scripts.verify_payment_round_trip"
+            ),
+        )
+
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
+            response = await client.post(
+                url,
+                content=b'{"event":"readiness.probe"}',
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Razorpay-Signature": "readiness-probe-not-a-signature",
+                },
+            )
+    except Exception as exc:
+        return Check(
+            key="webhook_reachable",
+            title="Razorpay can reach the webhook endpoint",
+            status=ACTION_REQUIRED,
+            detail=(
+                f"{url} could not be reached from this deployment: {exc}. "
+                "Razorpay will fare no better, and a webhook it cannot deliver "
+                "is a customer charged and not credited."
+            ),
+            reference="HANDOVER.md §3 rule 8",
+            remedy=(
+                "Check DNS, TLS and that the load balancer forwards "
+                f"{WEBHOOK_PATH} to the api container."
+            ),
+        )
+
+    if response.status_code == 400:
+        return Check(
+            key="webhook_reachable",
+            title="Razorpay can reach the webhook endpoint",
+            status=READY,
+            detail=(
+                f"{url} answered 400 to an unsigned probe — the route is "
+                "publicly reachable and is rejecting bad signatures."
+            ),
+            reference="HANDOVER.md §3 rule 8",
+        )
+
+    if response.status_code == 404:
+        return Check(
+            key="webhook_reachable",
+            title="Razorpay can reach the webhook endpoint",
+            status=ACTION_REQUIRED,
+            detail=(
+                f"{url} returned 404. Whatever is serving that origin does not "
+                "route the webhook path to this application."
+            ),
+            reference="HANDOVER.md §3 rule 8",
+            remedy=(
+                f"Check the reverse proxy forwards {WEBHOOK_PATH} to the api "
+                "container, and that PUBLIC_BASE_URL names the origin Razorpay "
+                "is configured to post to."
+            ),
+        )
+
+    return Check(
+        key="webhook_reachable",
+        title="Razorpay can reach the webhook endpoint",
+        status=ACTION_REQUIRED,
+        detail=(
+            f"{url} answered {response.status_code} to an unsigned probe. It "
+            "should answer 400: anything else means the request is not "
+            "arriving at the signature check."
+        ),
+        reference="HANDOVER.md §3 rule 8",
+        remedy=(
+            "A 5xx usually means the api container is not behind that origin; "
+            "a 2xx means something is accepting unsigned webhooks, which is "
+            "considerably worse and should be investigated immediately."
+        ),
+    )
+
+
+def _round_trip_obligation() -> Check:
+    """The one thing no check can discharge: somebody has to pay, once.
+
+    Reported as ``needs_a_human`` rather than left out, because the shape of
+    the remaining risk is exactly "everything is configured and nobody has
+    tried it". The secret matching the dashboard's, the subscription to
+    ``payment.captured``, the account being activated for live collection —
+    each is invisible from inside the process, and each fails as a charge with
+    no credit.
+    """
+    return Check(
+        key="live_round_trip_rehearsed",
+        title="A real payment has been carried through end to end",
+        status=NEEDS_A_HUMAN,
+        detail=(
+            "Configuration cannot prove that the webhook secret on this box "
+            "matches the one in the dashboard, that the dashboard is "
+            "subscribed to payment.captured and payment.failed, or that the "
+            "account is activated for live collection. Each of those fails as "
+            "a customer charged and nobody credited."
+        ),
+        reference="PRODUCTION-CHECKLIST.md — before the first customer",
+        remedy=(
+            "Buy ₹1 of credit yourself, with live keys, from the real "
+            "checkout. Then confirm three things: the payment reads 'paid' at "
+            "GET /billing/payments, the credit appears in the ledger balance, "
+            "and a numbered receipt voucher exists at GET /billing/documents. "
+            "Run: python -m scripts.verify_payment_round_trip --order <id>"
+        ),
+    )
 
 
 async def _payment_evidence(session: AsyncSession) -> list[Check]:
@@ -413,11 +659,24 @@ async def _worker_check() -> Check:
     )
 
 
-async def assess(session: AsyncSession, *, now: datetime | None = None) -> Readiness:
-    """Every billing check, in the order someone should work through them."""
+async def assess(
+    session: AsyncSession,
+    *,
+    now: datetime | None = None,
+    probe_network: bool = False,
+) -> Readiness:
+    """Every billing check, in the order someone should work through them.
+
+    ``probe_network`` makes the webhook reachability check actually reach out.
+    Off by default: readiness is polled, and a check that opens a connection
+    every time it is read is a check that gets switched off.
+    """
     checks: list[Check] = []
     checks.extend(_supplier_checks())
+    checks.append(_key_mode_check())
+    checks.append(await _webhook_reachability_check(probe=probe_network))
     checks.append(await _worker_check())
     checks.extend(await _payment_evidence(session))
     checks.extend(await _price_book_evidence(session, now=now))
+    checks.append(_round_trip_obligation())
     return Readiness(checks=tuple(checks))
