@@ -98,6 +98,30 @@ def _dump_key(at: datetime) -> str:
     return f"{BACKUP_PREFIX}/{at:%Y/%m/%d}/decibyl-{at:%Y%m%dT%H%M%SZ}.dump.enc"
 
 
+def _canary_key(dump_key: str) -> str:
+    """The tiny companion object beside each dump.
+
+    A dump is restorable only for as long as the secret it was encrypted under
+    is still configured. Rotate ``PLATFORM_CREDENTIAL_SECRET`` and every earlier
+    backup becomes an unreadable file that still lists, still has a plausible
+    size, and still satisfies every "is there a recent backup" check ever
+    written. The discovery happens during a restore, which is the worst possible
+    moment.
+
+    So each dump gets a few hundred bytes encrypted at the same instant, under
+    the same secret. Proving the current secret still opens *that* is proof it
+    opens the dump, and costs a 200-byte download instead of a multi-gigabyte
+    one — cheap enough to check on every readiness poll, which is the only
+    reason it gets checked at all.
+    """
+    return f"{dump_key}.canary"
+
+
+#: What the canary holds. Fixed and boring: the value is not a secret, the
+#: ability to decrypt it is the whole signal.
+CANARY_PLAINTEXT = b"decibyl-backup-canary-v1"
+
+
 def _require_pg_dump() -> str:
     """Locate pg_dump, or say precisely what is wrong.
 
@@ -200,6 +224,24 @@ async def run_backup(*, now: datetime | None = None) -> BackupResult:
                 f"expected {len(encrypted)} bytes, object holds {uploaded}"
             )
 
+        # Written after the dump is verified, so a canary can never exist
+        # beside a backup that does not. Failure is logged rather than raised:
+        # a missing canary loses the rotation check, and raising here would
+        # lose the backup, which is the worse of the two.
+        canary = await asyncio.to_thread(_cipher().encrypt, CANARY_PLAINTEXT)
+        try:
+            await storage.acreate_file_from_bytes(_canary_key(key), canary)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not write backup canary for {}: {}", key, exc)
+
+        # A second copy somewhere the first one's failure cannot reach. A no-op
+        # unless BACKUP_MIRROR_BUCKET is set, and never fatal — a mirror
+        # failure that failed the backup would leave no backup at all.
+        from api.services.backup import mirror
+
+        if mirror.is_configured():
+            await mirror.mirror_object(key, encrypted)
+
     finished = datetime.now(UTC)
     logger.info(
         "Database backup written to {} ({} bytes, {:.1f}s)",
@@ -271,6 +313,11 @@ def _timestamp_from_key(key: str) -> datetime | None:
     stem = key.rsplit("/", 1)[-1]
     if not stem.startswith("decibyl-") or ".dump" not in stem:
         return None
+    # The canary sits beside its dump and carries the same timestamp in its
+    # name. Counting it as a backup would double the reported count and, worse,
+    # let a 200-byte object be picked as "the newest backup" on a tie.
+    if stem.endswith(".canary"):
+        return None
     raw = stem[len("decibyl-") :].split(".", 1)[0]
     try:
         return datetime.strptime(raw, "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
@@ -298,6 +345,85 @@ async def last_successful(*, now: datetime | None = None) -> dict:
     return {
         "available": True,
         "count": len(listed),
+        "key": key,
+        "taken_at": taken_at.isoformat(),
+        "age_hours": round((now - taken_at).total_seconds() / 3600, 1),
+    }
+
+
+async def newest_is_decryptable(*, now: datetime | None = None) -> dict:
+    """Whether the secret configured right now still opens the newest backup.
+
+    The failure this catches: ``PLATFORM_CREDENTIAL_SECRET`` is rotated, every
+    dump written before the rotation becomes an unreadable file, and nothing
+    says so. The objects still list. Their sizes are still plausible. Every
+    "is there a recent backup" check still passes. The discovery happens during
+    a restore, at the one moment there is nothing to fall back to.
+
+    Reads the canary rather than the dump — a few hundred bytes encrypted at the
+    same instant, under the same secret — so this is cheap enough to run on
+    every readiness poll.
+
+    Never raises. A readiness probe that can fail is a readiness probe that
+    takes the endpoint down with it.
+    """
+    from cryptography.fernet import InvalidToken
+
+    now = now or datetime.now(UTC)
+    storage = get_storage()
+
+    try:
+        listed = await _list_backups(storage)
+    except Exception as exc:  # noqa: BLE001
+        return {"checked": False, "reason": f"could not list backups: {exc}"}
+
+    if not listed:
+        return {"checked": False, "reason": "no backups yet"}
+
+    key, taken_at = listed[-1]
+    canary_key = _canary_key(key)
+
+    payload: bytes | None = None
+    try:
+        with tempfile.TemporaryDirectory(prefix="decibyl-canary-") as workdir:
+            local = os.path.join(workdir, "canary")
+            if await storage.adownload_file(canary_key, local):
+                payload = await asyncio.to_thread(_read_file, local)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Canary read failed for {}: {}", canary_key, exc)
+
+    if not payload:
+        # Backups written before canaries existed have none. That is unknown,
+        # not a failure — claiming an old dump is unreadable when it may be
+        # perfectly good would send someone chasing the wrong problem.
+        return {
+            "checked": False,
+            "key": key,
+            "reason": (
+                "no canary beside this backup — it predates the rotation check. "
+                "It will be checked from the next nightly run onwards."
+            ),
+        }
+
+    try:
+        opened = await asyncio.to_thread(_cipher().decrypt, payload)
+    except InvalidToken:
+        return {
+            "checked": True,
+            "decryptable": False,
+            "key": key,
+            "taken_at": taken_at.isoformat(),
+            "reason": (
+                "PLATFORM_CREDENTIAL_SECRET does not decrypt the newest backup. "
+                "Every dump written under the previous secret is unreadable."
+            ),
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"checked": False, "key": key, "reason": str(exc)}
+
+    return {
+        "checked": True,
+        "decryptable": opened == CANARY_PLAINTEXT,
         "key": key,
         "taken_at": taken_at.isoformat(),
         "age_hours": round((now - taken_at).total_seconds() / 3600, 1),

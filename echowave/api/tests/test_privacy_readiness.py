@@ -228,6 +228,27 @@ class TestTheWholeAssessment:
             patch.object(readiness, "GRIEVANCE_OFFICER_ADDRESS", "Somewhere"),
             patch.object(readiness, "MINIO_PUBLIC_BUCKET", False),
             patch.object(readiness, "RECORDING_DISCLOSURE_ENABLED", True),
+            # Durability is part of "correctly configured": point-in-time
+            # recovery, and backups somewhere the loss of the primary cannot
+            # reach. Without both, a deployment that passes every other check
+            # here can still lose a day of ledger it cannot reconstruct.
+            patch.object(readiness, "DATABASE_PITR_ENABLED", True),
+            patch(
+                "api.services.backup.mirror.BACKUP_MIRROR_BUCKET",
+                "decibyl-backups-dr",
+            ),
+            patch(
+                "api.services.backup.mirror.BACKUP_MIRROR_ACCESS_KEY_ID",
+                "AKIAEXAMPLE",
+            ),
+            patch(
+                "api.services.backup.mirror.BACKUP_MIRROR_SECRET_ACCESS_KEY",
+                "secret",
+            ),
+            patch(
+                "api.services.backup.mirror.newest_mirrored_key",
+                AsyncMock(return_value="backups/postgres/2026/08/14/x.dump.enc"),
+            ),
         ):
             assessment = await assess(async_session)
 

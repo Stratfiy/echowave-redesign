@@ -41,8 +41,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import (
+    ACCEPTED_RECOVERY_POINT_HOURS,
     BACKUP_ENABLED,
     BACKUP_STALE_AFTER_HOURS,
+    DATABASE_PITR_ENABLED,
     DEFAULT_RECORDING_RETENTION_DAYS,
     DEFAULT_TRANSCRIPT_RETENTION_DAYS,
     GRIEVANCE_OFFICER_ADDRESS,
@@ -309,6 +311,12 @@ async def _evidence_checks(
         )
     )
 
+    # Three questions about that backup that "is there a recent one" does not
+    # answer, and each of which turns the backup into nothing on the day it is
+    # needed: how much is lost between dumps, whether the dump can still be
+    # opened, and whether it survives the loss of what it is backing up.
+    checks.extend(await _durability_checks(now=now))
+
     turnaround = await erasure_turnaround(session, now=now)
     late = turnaround.get("past_deadline", 0)
     checks.append(
@@ -327,6 +335,199 @@ async def _evidence_checks(
             else "",
         )
     )
+
+    return checks
+
+
+async def _durability_checks(*, now: datetime | None = None) -> list[Check]:
+    """What "there is a recent backup" leaves unanswered.
+
+    Each of these is a way for a deployment with a green backup check to lose
+    money it cannot reconstruct:
+
+    * **The recovery point.** Without WAL archiving, a failure at 17:00 loses
+      that day's calls, costings and top-ups. The ledger is the only record of
+      what customers paid, against invoices already issued.
+    * **Decryptability.** A rotated secret makes every earlier dump an
+      unreadable file that still lists at a plausible size.
+    * **Blast radius.** Backups beside the data they protect are a backup
+      against hardware failure and nothing else.
+    """
+    checks: list[Check] = []
+
+    if DATABASE_PITR_ENABLED:
+        checks.append(
+            Check(
+                key="recovery_point",
+                title="How much data a database failure loses",
+                status=READY,
+                detail=(
+                    "Point-in-time recovery is enabled, so the recovery point "
+                    "is minutes rather than the time since the last dump."
+                ),
+                reference="DPDP s8(5); GDPR Art 32(1)(c)",
+            )
+        )
+    elif ACCEPTED_RECOVERY_POINT_HOURS is not None:
+        # An operator who has weighed this deserves a different answer from one
+        # who has never been told. The finding does not disappear — it becomes
+        # a recorded decision, which is what the gate actually asked for.
+        checks.append(
+            Check(
+                key="recovery_point",
+                title="How much data a database failure loses",
+                status=READY,
+                detail=(
+                    f"No point-in-time recovery. A recovery point of up to "
+                    f"{ACCEPTED_RECOVERY_POINT_HOURS} hours has been accepted "
+                    "deliberately (ACCEPTED_RECOVERY_POINT_HOURS). A failure "
+                    "late in the day loses that day's ledger movements."
+                ),
+                reference="DPDP s8(5); GDPR Art 32(1)(c)",
+            )
+        )
+    else:
+        checks.append(
+            Check(
+                key="recovery_point",
+                title="How much data a database failure loses",
+                status=ACTION_REQUIRED,
+                detail=(
+                    "There is no WAL archiving and no point-in-time recovery, "
+                    "so the recovery point is the time since the last nightly "
+                    "dump — up to 24 hours. A database failure at 17:00 loses "
+                    "that day's calls, costings and top-ups. The ledger is the "
+                    "only record of what customers paid, against invoices "
+                    "already issued, so that is money that cannot be "
+                    "reconstructed rather than an inconvenience."
+                ),
+                reference="DPDP s8(5); GDPR Art 32(1)(c)",
+                remedy=(
+                    "Move to managed Postgres with PITR and set "
+                    "DATABASE_PITR_ENABLED=true — an afternoon of "
+                    "configuration, and it turns 24 hours into minutes. If you "
+                    "are choosing to live with the gap, record that by setting "
+                    "ACCEPTED_RECOVERY_POINT_HOURS=24."
+                ),
+            )
+        )
+
+    from api.services.backup import mirror, newest_is_decryptable
+
+    decryptable = await newest_is_decryptable(now=now)
+    if not decryptable.get("checked"):
+        checks.append(
+            Check(
+                key="backup_still_decryptable",
+                title="The newest backup can still be decrypted",
+                status=UNKNOWN,
+                detail=decryptable.get("reason", "Not checked."),
+                reference="DPDP s8(5)",
+                remedy=(
+                    "Re-check after the next nightly run. Until then, "
+                    "restore-test one dump before dropping any previous "
+                    "PLATFORM_CREDENTIAL_SECRET."
+                ),
+            )
+        )
+    elif decryptable.get("decryptable"):
+        checks.append(
+            Check(
+                key="backup_still_decryptable",
+                title="The newest backup can still be decrypted",
+                status=READY,
+                detail=(
+                    "The configured PLATFORM_CREDENTIAL_SECRET opens the newest "
+                    "backup."
+                ),
+                reference="DPDP s8(5)",
+            )
+        )
+    else:
+        checks.append(
+            Check(
+                key="backup_still_decryptable",
+                title="The newest backup can still be decrypted",
+                status=ACTION_REQUIRED,
+                detail=(
+                    "PLATFORM_CREDENTIAL_SECRET does not decrypt the newest "
+                    "backup. Every dump written under the previous secret is an "
+                    "unreadable file — it still lists, it is still the right "
+                    "size, and it restores nothing."
+                ),
+                reference="DPDP s8(5)",
+                remedy=(
+                    "Restore the previous secret, verify a dump opens, and only "
+                    "then rotate — keeping the old secret configured until a "
+                    "backup written under the new one has been restore-tested."
+                ),
+            )
+        )
+
+    if not mirror.is_configured():
+        checks.append(
+            Check(
+                key="backup_blast_radius",
+                title="Backups survive the loss of what they back up",
+                status=ACTION_REQUIRED,
+                detail=(
+                    "Backups are written to a prefix inside the same object "
+                    "store, under the same credentials, in the same account as "
+                    "the call recordings. A compromised or deleted bucket takes "
+                    "the database and its backups together — ransomware and a "
+                    "mistaken `aws s3 rm` both have that shape."
+                ),
+                reference="DPDP s8(5); GDPR Art 32(1)(c)",
+                remedy=(
+                    "Set BACKUP_MIRROR_BUCKET, with BACKUP_MIRROR_ACCESS_KEY_ID "
+                    "and BACKUP_MIRROR_SECRET_ACCESS_KEY for a write-only "
+                    "identity in a different account, into a bucket with object "
+                    "lock enabled for at least the retention window."
+                ),
+            )
+        )
+    elif mirror.shares_credentials_with_primary():
+        checks.append(
+            Check(
+                key="backup_blast_radius",
+                title="Backups survive the loss of what they back up",
+                status=ACTION_REQUIRED,
+                detail=(
+                    "A mirror bucket is configured but has no credentials of "
+                    "its own, so it is written by the same identity as the "
+                    "primary. That survives one bucket being deleted and "
+                    "nothing about a compromised account."
+                ),
+                reference="DPDP s8(5)",
+                remedy=(
+                    "Set BACKUP_MIRROR_ACCESS_KEY_ID and "
+                    "BACKUP_MIRROR_SECRET_ACCESS_KEY to a write-only identity "
+                    "in a different account."
+                ),
+            )
+        )
+    else:
+        mirrored = await mirror.newest_mirrored_key()
+        checks.append(
+            Check(
+                key="backup_blast_radius",
+                title="Backups survive the loss of what they back up",
+                status=READY if mirrored else UNKNOWN,
+                detail=(
+                    f"Mirrored off-account; newest copy is {mirrored}."
+                    if mirrored
+                    else (
+                        "A mirror is configured under separate credentials, but "
+                        "nothing has been copied to it yet. Expected before the "
+                        "first nightly run."
+                    )
+                ),
+                reference="DPDP s8(5)",
+                remedy=""
+                if mirrored
+                else "Re-check after the next nightly backup.",
+            )
+        )
 
     return checks
 

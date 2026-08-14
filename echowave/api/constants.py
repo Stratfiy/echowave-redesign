@@ -384,6 +384,40 @@ BACKUP_RETENTION_DAYS = int(os.getenv("BACKUP_RETENTION_DAYS", "30"))
 # silently dead worker is caught on the second morning rather than the tenth.
 BACKUP_STALE_AFTER_HOURS = int(os.getenv("BACKUP_STALE_AFTER_HOURS", "36"))
 
+# A second copy, deliberately somewhere else. Backups written to a prefix inside
+# the same bucket, under the same credentials, in the same account as the call
+# recordings share their blast radius: a compromised or deleted bucket takes the
+# database and its backups together, and ransomware and a mistaken `aws s3 rm`
+# both have exactly that shape. The mirror is only worth anything if its
+# credentials are ones this deployment does not otherwise hold — ideally
+# write-only, into a bucket with object lock, in a different account.
+BACKUP_MIRROR_BUCKET = os.getenv("BACKUP_MIRROR_BUCKET") or None
+BACKUP_MIRROR_REGION = os.getenv("BACKUP_MIRROR_REGION") or None
+BACKUP_MIRROR_ENDPOINT_URL = os.getenv("BACKUP_MIRROR_ENDPOINT_URL") or None
+BACKUP_MIRROR_ACCESS_KEY_ID = os.getenv("BACKUP_MIRROR_ACCESS_KEY_ID") or None
+BACKUP_MIRROR_SECRET_ACCESS_KEY = os.getenv("BACKUP_MIRROR_SECRET_ACCESS_KEY") or None
+
+# The recovery point this deployment actually has, in hours, and whether anyone
+# has decided that is acceptable.
+#
+# Without WAL archiving the answer is "since the last nightly dump" — up to 24
+# hours. A database failure at 17:00 loses that day's calls, costings and
+# top-ups, and the ledger is the only record of what customers paid, against
+# invoices already issued. That is money that cannot be reconstructed.
+#
+# Set DATABASE_PITR_ENABLED=true when the database is on managed Postgres with
+# point-in-time recovery, which turns the number into minutes. Set
+# ACCEPTED_RECOVERY_POINT_HOURS to record a deliberate decision to live with the
+# gap — readiness then reports the accepted figure instead of an open finding,
+# because an operator who has weighed it deserves a different answer from one
+# who has never been told.
+DATABASE_PITR_ENABLED = os.getenv("DATABASE_PITR_ENABLED", "false").lower() == "true"
+ACCEPTED_RECOVERY_POINT_HOURS = (
+    int(os.getenv("ACCEPTED_RECOVERY_POINT_HOURS"))
+    if os.getenv("ACCEPTED_RECOVERY_POINT_HOURS")
+    else None
+)
+
 # How often the background worker records that it is alive, and how long
 # without one before it is presumed dead.
 #
