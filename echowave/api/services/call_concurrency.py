@@ -4,7 +4,11 @@ from dataclasses import dataclass
 
 from loguru import logger
 
-from api.constants import DEFAULT_ORG_CONCURRENCY_LIMIT
+from api.constants import (
+    DEFAULT_INBOUND_CONCURRENCY,
+    DEFAULT_ORG_CONCURRENCY_LIMIT,
+    DEFAULT_OUTBOUND_CONCURRENCY,
+)
 from api.db import db_client
 from api.enums import OrganizationConfigurationKey, PostHogEvent
 from api.services.campaign.rate_limiter import rate_limiter
@@ -51,25 +55,85 @@ class WorkflowRunSlotAlreadyBoundError(Exception):
         )
 
 
+#: Which direction a slot request is for, worked out from the source label the
+#: caller already passes. Explicit rather than inferred from a substring: a new
+#: source that matches nothing falls back to the direction-blind limit, which
+#: is the behaviour it had before this existed, rather than silently getting
+#: whichever ceiling the guesswork landed on.
+_OUTBOUND_PREFIXES = ("campaign:", "trigger", "outbound", "dialer")
+_INBOUND_PREFIXES = ("ari_inbound", "inbound", "webrtc", "public_agent", "agent_stream")
+
+
+def direction_for_source(source: str | None) -> str | None:
+    """inbound | outbound | None, from the source label.
+
+    ``None`` means "not classified", and a caller that gets None is limited by
+    the account's single blind limit exactly as it was before. That is a better
+    failure than assuming: an outbound source misread as inbound would take
+    capacity away from people holding ringing phones.
+    """
+    text = (source or "").strip().lower()
+    if not text:
+        return None
+    if any(text.startswith(prefix) for prefix in _OUTBOUND_PREFIXES):
+        return "outbound"
+    if any(text.startswith(prefix) for prefix in _INBOUND_PREFIXES):
+        return "inbound"
+    return None
+
+
 class CallConcurrencyService:
     def __init__(self):
         self.default_concurrent_limit = int(DEFAULT_ORG_CONCURRENCY_LIMIT)
 
-    async def get_org_concurrent_limit(self, organization_id: int) -> int:
-        """Get the concurrent call limit for an organization."""
-        try:
-            config = await db_client.get_configuration(
-                organization_id,
-                OrganizationConfigurationKey.CONCURRENT_CALL_LIMIT.value,
+    async def get_org_concurrent_limit(
+        self, organization_id: int, *, direction: str | None = None
+    ) -> int:
+        """The concurrent call limit for an organization, by direction.
+
+        Resolution order, and the order matters:
+
+        1. The account's own limit for this direction, if staff set one.
+        2. The account's single, direction-blind limit, if it has one. Kept
+           because an account that was given a number keeps it — silently
+           re-interpreting a figure somebody chose is how a customer's capacity
+           changes without anybody telling them.
+        3. The default for this direction.
+
+        Inbound is lower than outbound by default and that is deliberate. An
+        outbound call that cannot get a slot waits and dials a moment later;
+        an inbound one is a person already holding a ringing phone, and the
+        only thing to do with them is refuse. Reserving inbound capacity is
+        what stops a campaign in full flight eating every slot and leaving real
+        callers hearing nothing.
+        """
+        keys = []
+        if direction == "inbound":
+            keys.append(
+                OrganizationConfigurationKey.CONCURRENT_CALL_LIMIT_INBOUND.value
             )
-            if config and config.value:
-                value = config.value.get("value")
-                if value is not None:
-                    return int(value)
-        except Exception as e:
-            logger.warning(
-                f"Error getting concurrent limit for org {organization_id}: {e}"
+        elif direction == "outbound":
+            keys.append(
+                OrganizationConfigurationKey.CONCURRENT_CALL_LIMIT_OUTBOUND.value
             )
+        keys.append(OrganizationConfigurationKey.CONCURRENT_CALL_LIMIT.value)
+
+        for key in keys:
+            try:
+                config = await db_client.get_configuration(organization_id, key)
+                if config and config.value:
+                    value = config.value.get("value")
+                    if value is not None:
+                        return int(value)
+            except Exception as e:
+                logger.warning(
+                    f"Error getting concurrent limit for org {organization_id}: {e}"
+                )
+
+        if direction == "inbound":
+            return int(DEFAULT_INBOUND_CONCURRENCY)
+        if direction == "outbound":
+            return int(DEFAULT_OUTBOUND_CONCURRENCY)
         return self.default_concurrent_limit
 
     async def acquire_org_slot(
@@ -89,7 +153,9 @@ class CallConcurrencyService:
         concurrency without measuring — or being starved by — unrelated calls
         in the same org.
         """
-        max_concurrent = await self.get_org_concurrent_limit(organization_id)
+        max_concurrent = await self.get_org_concurrent_limit(
+            organization_id, direction=direction_for_source(source)
+        )
         if scope_max_concurrent is not None:
             scope_max_concurrent = int(scope_max_concurrent)
 

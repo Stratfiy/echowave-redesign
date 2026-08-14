@@ -591,6 +591,34 @@ COUNTRY_CODES = {
 DEFAULT_ORG_CONCURRENCY_LIMIT = max(
     1, int(os.getenv("DEFAULT_ORG_CONCURRENCY_LIMIT", "10"))
 )
+
+# Concurrency, split by direction, because the two fail differently.
+#
+# An outbound call that cannot get a slot waits and dials a moment later —
+# nobody notices. An *inbound* call that cannot get a slot is a person already
+# holding a ringing phone, and the only thing to do with them is refuse. So the
+# inbound ceiling is the more expensive one to hit and is deliberately the
+# lower of the two: it is a reservation against the account's own capacity, so
+# a campaign in full flight cannot eat every slot and leave real callers
+# hearing nothing.
+#
+# Per account, settable by staff. These are only the defaults for an account
+# that has had nothing set.
+DEFAULT_INBOUND_CONCURRENCY = max(1, int(os.getenv("DEFAULT_INBOUND_CONCURRENCY", "5")))
+DEFAULT_OUTBOUND_CONCURRENCY = max(
+    1, int(os.getenv("DEFAULT_OUTBOUND_CONCURRENCY", "10"))
+)
+
+# Most an account may spend in one IST day, in paise. Concurrency caps how many
+# calls run at once; nothing capped how much they could cost, so a stolen card
+# plus a loop was an unbounded vendor bill payable by us.
+#
+# 0 disables the ceiling. Deliberately generous by default — it is a circuit
+# breaker against runaway spend, not a commercial limit, and one that trips on
+# an ordinary busy day is one somebody switches off.
+DEFAULT_DAILY_SPEND_CEILING_PAISE = int(
+    os.getenv("DEFAULT_DAILY_SPEND_CEILING_PAISE", "5000000")  # Rs 50,000
+)
 DEFAULT_CAMPAIGN_RETRY_CONFIG = {
     "enabled": True,
     "max_retries": 1,

@@ -170,6 +170,14 @@ class WorkflowRunStatus(Enum):
 
 class OrganizationConfigurationKey(Enum):
     CONCURRENT_CALL_LIMIT = "CONCURRENT_CALL_LIMIT"
+    # Split by direction. Kept alongside the single limit above rather than
+    # replacing it: an account that has one set keeps whatever it was given,
+    # because silently re-interpreting a number somebody chose is how a
+    # customer's capacity changes without anybody telling them.
+    CONCURRENT_CALL_LIMIT_INBOUND = "CONCURRENT_CALL_LIMIT_INBOUND"
+    CONCURRENT_CALL_LIMIT_OUTBOUND = "CONCURRENT_CALL_LIMIT_OUTBOUND"
+    # Most the account may spend in one IST day, in paise. 0 disables it.
+    DAILY_SPEND_CEILING_PAISE = "DAILY_SPEND_CEILING_PAISE"
     TELEPHONY_CONFIGURATION = (
         "TELEPHONY_CONFIGURATION"  # Stores all providers + active one
     )

@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from api.constants import DEFAULT_INBOUND_CONCURRENCY
 from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     CallConcurrencyService,
@@ -110,7 +111,10 @@ async def test_acquire_org_slot_fires_usage_event_per_org_member_when_limit_reac
         assert kwargs["properties"]["organization_id"] == 199
         assert kwargs["properties"]["source"] == "webrtc"
         assert kwargs["properties"]["active_calls"] == 10
-        assert kwargs["properties"]["max_concurrent"] == 10
+        # "webrtc" is an inbound source, so it is bounded by the inbound
+        # ceiling rather than the old direction-blind one. Asserted against the
+        # constant so moving the default cannot leave this passing by accident.
+        assert kwargs["properties"]["max_concurrent"] == DEFAULT_INBOUND_CONCURRENCY
         assert "scope_key" not in kwargs["properties"]
 
 
