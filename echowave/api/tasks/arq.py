@@ -41,7 +41,7 @@ REDIS_SETTINGS = RedisSettings(
 
 from api.constants import ARQ_MAX_JOBS
 from api.tasks.agency_commission import accrue_agency_commission
-from api.tasks.backup import run_database_backup
+from api.tasks.backup import rehearse_database_restore, run_database_backup
 from api.tasks.billing_rollup import refresh_billing_rollups
 from api.tasks.campaign_tasks import (
     process_campaign_batch,
@@ -79,6 +79,7 @@ class WorkerSettings:
         issue_monthly_tax_invoices,
         purge_expired_call_data,
         run_database_backup,
+        rehearse_database_restore,
         refresh_exchange_rate,
         record_worker_heartbeat,
         charge_recurring_rentals,
@@ -176,6 +177,20 @@ class WorkerSettings:
         cron(
             run_database_backup,
             hour={18},
+            minute={0},
+            second=0,
+            run_at_startup=False,
+        ),
+        # The 4th at 20:00 UTC — a quiet night, and away from the 1st so it is
+        # not competing with the monthly invoice run. Monthly rather than
+        # nightly because restoring is expensive and the failures it catches
+        # are slow-moving; a job that ran every night would be switched off,
+        # and a switched-off rehearsal proves less than none because it looks
+        # like coverage.
+        cron(
+            rehearse_database_restore,
+            day={4},
+            hour={20},
             minute={0},
             second=0,
             run_at_startup=False,

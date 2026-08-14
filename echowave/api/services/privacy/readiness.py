@@ -303,8 +303,57 @@ async def _evidence_checks(
             if backup_status == READY
             else (
                 "Check the arq worker is running and read its logs for "
-                "run_database_backup. An untested backup is not a backup — "
-                "rehearse a restore once."
+                "run_database_backup."
+            ),
+        )
+    )
+
+    # The other half, and the one the check above cannot answer. Everything it
+    # measures is the write path: a dump was taken and the object is the right
+    # size. A dump of a replica that had stopped replicating, or one encrypted
+    # under a secret since rotated, passes all of it and restores nothing.
+    from api.services.backup import rehearsal as restore_rehearsal
+
+    rehearsed = await restore_rehearsal.last_rehearsal(session, now=now)
+    if not rehearsed["rehearsed"]:
+        rehearsal_status, rehearsal_detail = (
+            UNKNOWN,
+            "No restore has ever been rehearsed, so these backups are a "
+            "hypothesis rather than a copy.",
+        )
+    elif not rehearsed["ok"]:
+        rehearsal_status, rehearsal_detail = (
+            ACTION_REQUIRED,
+            f"The last restore rehearsal failed ({rehearsed['age_days']} days "
+            f"ago): {rehearsed.get('error') or 'the checks did not pass'}",
+        )
+    elif rehearsed["stale"]:
+        rehearsal_status, rehearsal_detail = (
+            ACTION_REQUIRED,
+            f"The last successful restore was {rehearsed['age_days']} days ago. "
+            "Anything that has broken the restore path since then is unseen.",
+        )
+    else:
+        rehearsal_status, rehearsal_detail = (
+            READY,
+            f"A restore was rehearsed {rehearsed['age_days']} days ago and the "
+            "data came back.",
+        )
+
+    checks.append(
+        Check(
+            key="backup_restore_rehearsed",
+            title="A restore has actually been carried out",
+            status=rehearsal_status,
+            detail=rehearsal_detail,
+            reference="DPDP s8(5) (reasonable security safeguards); GDPR Art 32(1)(c)",
+            remedy=""
+            if rehearsal_status == READY
+            else (
+                "Run `python -m scripts.rehearse_restore`. It restores the "
+                "newest backup into a scratch database, checks the credit "
+                "ledger came back and reconciles, and drops the scratch copy. "
+                "Nothing touches the live database."
             ),
         )
     )

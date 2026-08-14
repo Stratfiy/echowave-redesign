@@ -3637,3 +3637,45 @@ class EmailVerificationChallengeModel(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     __table_args__ = (UniqueConstraint("user_id", name="_email_verification_user_uc"),)
+
+
+class BackupRehearsalModel(Base):
+    """A restore that was actually carried out, and what came back.
+
+    The backup job proves only the write path: a dump was taken, encrypted,
+    uploaded, and the object is the right size. None of that proves a single
+    row comes back — the ways a backup is worthless while looking healthy are
+    all invisible from the write side. A dump of a replica that had stopped
+    replicating, an object encrypted under a secret since rotated, a restore
+    that fails on a missing extension: every one produces a bucket full of
+    correctly-sized objects and nothing to restore.
+
+    So the rehearsal is recorded rather than merely logged. Without a row here
+    nobody could tell whether a restore had *ever* been carried out, which
+    leaves the runbook line asking somebody to do it as the only evidence — and
+    a runbook is not evidence.
+
+    Failed attempts are kept, and the readiness check reads the newest attempt
+    rather than the newest success. A rehearsal that failed four days ago is
+    the single most important fact about these backups, and reporting "last
+    known good" instead is how a broken restore path stays quiet.
+    """
+
+    __tablename__ = "backup_rehearsals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    #: The object restored, so a failure can be traced to one dump.
+    backup_key = Column(String(512), nullable=False)
+    ok = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    #: Each fingerprint check, its value in the restored copy, and live's value
+    #: at the time. Kept whole rather than reduced to a boolean so a later
+    #: reader can see *how far behind* a passing rehearsal was.
+    checks = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+
+    started_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (Index("ix_backup_rehearsals_started_at", "started_at"),)

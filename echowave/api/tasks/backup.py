@@ -45,3 +45,52 @@ async def run_database_backup(_ctx) -> None:
         await database.prune()
     except Exception as exc:  # noqa: BLE001 - the backup already succeeded
         logger.error("Backup prune failed (the backup itself succeeded): {}", exc)
+
+
+async def rehearse_database_restore(_ctx) -> None:
+    """Restore the newest backup into a scratch database and check it came back.
+
+    The nightly job proves only the write path: a dump was taken, encrypted,
+    uploaded, and the object is the right size. Every way a backup is worthless
+    while looking healthy is invisible from there — a dump of a replica that
+    had stopped replicating, an object encrypted under a secret since rotated,
+    a restore that fails on an extension the host does not have.
+
+    Monthly rather than nightly, because restoring is expensive and the
+    failures it catches are slow-moving. A job that ran every night would be
+    switched off, and a switched-off rehearsal proves less than none — it looks
+    like coverage.
+
+    **Failures are recorded, not raised.** The opposite of the backup job
+    above, and for the opposite reason: the backup re-raises because a failed
+    write leaves no other trace, while a failed rehearsal writes its own row
+    and the readiness check reads it. Re-raising as well would mark the ARQ job
+    failed on a night when the *evidence* worked exactly as intended.
+    """
+    if not BACKUP_ENABLED:
+        logger.warning(
+            "BACKUP_ENABLED is false — skipping the restore rehearsal. There "
+            "is nothing to restore from."
+        )
+        return
+
+    from api.db import db_client
+    from api.services.backup import rehearsal
+
+    async with db_client.async_session() as session:
+        try:
+            result = await rehearsal.rehearse(session)
+        except rehearsal.RehearsalError as exc:
+            logger.error("Restore rehearsal could not run: {}", exc)
+            return
+        await session.commit()
+
+    if result.ok:
+        logger.info("Restore rehearsal passed against {}", result.key)
+    else:
+        logger.error(
+            "Restore rehearsal FAILED against {}: {}. These backups cannot "
+            "currently be relied on.",
+            result.key,
+            result.error or "the checks did not pass",
+        )

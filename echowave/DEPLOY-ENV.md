@@ -203,6 +203,41 @@ here:
   `managed_markup_history` table. `MANAGED_PROVIDER_MARKUP_BPS` seeds an empty
   history and is then ignored.
 
+## Proving the backups actually restore
+
+The nightly job proves the *write* path: a dump was taken, encrypted, uploaded,
+and the object is the right size. None of that proves a single row comes back,
+and every way a backup is worthless while looking healthy is invisible from
+there — a dump of a replica that had stopped replicating, an object encrypted
+under a secret since rotated, a restore that fails on a missing extension. Each
+produces a bucket full of correctly-sized objects and nothing to restore.
+
+So a restore is rehearsed automatically on the 4th of each month, and can be
+run on demand:
+
+```bash
+python -m scripts.rehearse_restore
+```
+
+Nothing touches the live database. The newest dump is restored into a scratch
+database created for the run and dropped afterwards, pass or fail. What it then
+checks is the point — "pg_restore exited 0" is another write-path fact:
+
+- Is the credit ledger there, and does it hold as many rows as live?
+- **Does the running balance reconcile?** A dump missing rows from the middle
+  passes every row count and fails only here. This is the check that earns the
+  rehearsal its place.
+- Do settled payments still sum to something?
+- How far behind live is the newest row?
+
+The result is written to `backup_rehearsals` and read by `/privacy/readiness`,
+which reports the newest *attempt* rather than the newest success: a rehearsal
+that failed four days ago is the most important fact about these backups, and
+"last known good" is how a broken restore path stays quiet.
+
+Needs `pg_restore` and `psql` in the runner image — a package added to an
+earlier build stage is discarded with it.
+
 ## Rotating the encryption secret
 
 `PLATFORM_CREDENTIAL_SECRET` opens more than the provider keys. It also covers
