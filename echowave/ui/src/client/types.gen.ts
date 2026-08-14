@@ -12236,6 +12236,97 @@ export type SetProviderKeyApiV1AdminProviderKeysPutResponses = {
 
 export type SetProviderKeyApiV1AdminProviderKeysPutResponse = SetProviderKeyApiV1AdminProviderKeysPutResponses[keyof SetProviderKeyApiV1AdminProviderKeysPutResponses];
 
+export type RotationStatusApiV1AdminProviderKeysRotationGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/provider-keys/rotation';
+};
+
+export type RotationStatusApiV1AdminProviderKeysRotationGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RotationStatusApiV1AdminProviderKeysRotationGetError = RotationStatusApiV1AdminProviderKeysRotationGetErrors[keyof RotationStatusApiV1AdminProviderKeysRotationGetErrors];
+
+export type RotationStatusApiV1AdminProviderKeysRotationGetResponses = {
+    /**
+     * Response Rotation Status Api V1 Admin Provider Keys Rotation Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RotationStatusApiV1AdminProviderKeysRotationGetResponse = RotationStatusApiV1AdminProviderKeysRotationGetResponses[keyof RotationStatusApiV1AdminProviderKeysRotationGetResponses];
+
+export type ReencryptApiV1AdminProviderKeysRotationReencryptPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Dry Run
+         */
+        dry_run?: boolean;
+    };
+    url: '/api/v1/admin/provider-keys/rotation/reencrypt';
+};
+
+export type ReencryptApiV1AdminProviderKeysRotationReencryptPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReencryptApiV1AdminProviderKeysRotationReencryptPostError = ReencryptApiV1AdminProviderKeysRotationReencryptPostErrors[keyof ReencryptApiV1AdminProviderKeysRotationReencryptPostErrors];
+
+export type ReencryptApiV1AdminProviderKeysRotationReencryptPostResponses = {
+    /**
+     * Response Reencrypt Api V1 Admin Provider Keys Rotation Reencrypt Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReencryptApiV1AdminProviderKeysRotationReencryptPostResponse = ReencryptApiV1AdminProviderKeysRotationReencryptPostResponses[keyof ReencryptApiV1AdminProviderKeysRotationReencryptPostResponses];
+
 export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostData = {
     body: ActiveRequest;
     headers?: {

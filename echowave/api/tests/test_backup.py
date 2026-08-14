@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from cryptography.fernet import Fernet
 
+from api.services import secret_rotation
 from api.services.backup import database
 
 
@@ -68,7 +69,7 @@ class TestTakingABackup:
 
         with (
             patch.object(database, "get_storage", return_value=storage),
-            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", SECRET),
             patch.object(database, "_run_pg_dump", _dump_writes(secret_row)),
         ):
             result = await database.run_backup()
@@ -83,7 +84,7 @@ class TestTakingABackup:
 
         with (
             patch.object(database, "get_storage", return_value=storage),
-            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", SECRET),
             patch.object(database, "_run_pg_dump", _dump_writes(payload)),
         ):
             result = await database.run_backup()
@@ -97,7 +98,7 @@ class TestTakingABackup:
 
         with (
             patch.object(database, "get_storage", return_value=storage),
-            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", SECRET),
             patch.object(database, "_run_pg_dump", _dump_writes(b"PGDMP-content")),
             pytest.raises(RuntimeError, match="verification failed"),
         ):
@@ -110,7 +111,7 @@ class TestTakingABackup:
 
         with (
             patch.object(database, "get_storage", return_value=storage),
-            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", ""),
+            patch.object(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", ""),
             patch.object(database, "_run_pg_dump", _dump_writes(b"PGDMP")),
             pytest.raises(RuntimeError, match="PLATFORM_CREDENTIAL_SECRET"),
         ):
@@ -125,7 +126,7 @@ class TestTakingABackup:
 
         with (
             patch.object(database, "get_storage", return_value=storage),
-            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", SECRET),
             patch.object(database, "_run_pg_dump", _dump_writes(b"")),
             pytest.raises(RuntimeError, match="empty"),
         ):

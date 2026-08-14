@@ -11,6 +11,7 @@ from cryptography.fernet import Fernet
 
 from api.db.models import PlatformProviderCredentialModel, UserModel
 from api.enums import CostComponent
+from api.services import secret_rotation
 from api.services.configuration import platform_credentials as creds
 
 # A real Fernet key, generated once. Tests patch the constant rather than
@@ -21,7 +22,8 @@ OPENAI_KEY = "sk-proj-abcdefghijklmnopqrstuvwxyz0042"
 
 @pytest.fixture(autouse=True)
 def configured_secret(monkeypatch):
-    monkeypatch.setattr(creds, "PLATFORM_CREDENTIAL_SECRET", TEST_SECRET)
+    monkeypatch.setattr(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", TEST_SECRET)
+    monkeypatch.setattr(secret_rotation, "PLATFORM_CREDENTIAL_SECRET_PREVIOUS", None)
 
 
 async def _staff(session) -> UserModel:
@@ -94,7 +96,7 @@ class TestMisconfigurationFailsLoudly:
         """A default secret would mean a deployment that forgot to configure one
         still appeared to work, with every key encrypted under a published
         value."""
-        monkeypatch.setattr(creds, "PLATFORM_CREDENTIAL_SECRET", None)
+        monkeypatch.setattr(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", None)
         staff = await _staff(async_session)
 
         with pytest.raises(creds.PlatformCredentialError, match="not set"):
@@ -107,7 +109,9 @@ class TestMisconfigurationFailsLoudly:
             )
 
     async def test_a_malformed_secret_is_refused(self, async_session, monkeypatch):
-        monkeypatch.setattr(creds, "PLATFORM_CREDENTIAL_SECRET", "not-a-fernet-key")
+        monkeypatch.setattr(
+            secret_rotation, "PLATFORM_CREDENTIAL_SECRET", "not-a-fernet-key"
+        )
         staff = await _staff(async_session)
 
         with pytest.raises(creds.PlatformCredentialError, match="valid Fernet"):
@@ -135,7 +139,9 @@ class TestMisconfigurationFailsLoudly:
         )
 
         monkeypatch.setattr(
-            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+            secret_rotation,
+            "PLATFORM_CREDENTIAL_SECRET",
+            Fernet.generate_key().decode(),
         )
 
         assert (
@@ -146,7 +152,7 @@ class TestMisconfigurationFailsLoudly:
 
     async def test_the_screen_can_tell_whether_storage_works(self, monkeypatch):
         assert creds.encryption_is_configured() is True
-        monkeypatch.setattr(creds, "PLATFORM_CREDENTIAL_SECRET", None)
+        monkeypatch.setattr(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", None)
         assert creds.encryption_is_configured() is False
 
 

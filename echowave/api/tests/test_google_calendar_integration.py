@@ -24,6 +24,7 @@ import pytest
 from cryptography.fernet import Fernet
 
 from api.db.models import GoogleCalendarConnectionModel, OrganizationModel, UserModel
+from api.services import secret_rotation
 from api.services.integrations.google_calendar import client as gcal_client
 from api.services.integrations.google_calendar import oauth as gcal_oauth
 
@@ -38,7 +39,12 @@ def encryption(monkeypatch):
     happens to work in a real deployment is how a fixture becomes a leaked
     production secret.
     """
+    # Two places, because they are two mechanisms: the cipher lives in
+    # secret_rotation so a key rotation covers stored tokens, while the OAuth
+    # state parameter is HMACed with the raw secret in the module itself.
     monkeypatch.setattr(gcal_oauth, "PLATFORM_CREDENTIAL_SECRET", TEST_SECRET)
+    monkeypatch.setattr(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", TEST_SECRET)
+    monkeypatch.setattr(secret_rotation, "PLATFORM_CREDENTIAL_SECRET_PREVIOUS", None)
 
 
 @pytest.fixture(autouse=True)

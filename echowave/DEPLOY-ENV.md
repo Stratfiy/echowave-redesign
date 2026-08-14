@@ -25,11 +25,16 @@ Nothing here is a secret in this file. Fill the values in on the box.
 ## 1. Required — the managed tier does not work without these
 
 ```bash
-# Encrypts every platform provider key at rest. No default on purpose: without
-# it, storing a key raises rather than falling back to a value published in
-# source. Generate once and never rotate without re-entering every key.
+# Encrypts every platform provider key at rest — and more besides: every
+# customer's own BYOK key, MFA secrets, Google Calendar grants, and the nightly
+# database backups. No default on purpose: without it, storing a key raises
+# rather than falling back to a value published in source.
 #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 PLATFORM_CREDENTIAL_SECRET=
+
+# Only set during a rotation, and only ever read from — nothing is encrypted
+# under it. See "Rotating the encryption secret" at the end of this file.
+PLATFORM_CREDENTIAL_SECRET_PREVIOUS=
 
 # The vendor keys the managed tier spends. Read at boot and written into the
 # encrypted vault, after which they behave exactly like keys typed into
@@ -198,10 +203,63 @@ here:
   `managed_markup_history` table. `MANAGED_PROVIDER_MARKUP_BPS` seeds an empty
   history and is then ignored.
 
+## Rotating the encryption secret
+
+`PLATFORM_CREDENTIAL_SECRET` opens more than the provider keys. It also covers
+every customer's own BYOK key, staff MFA secrets, Google Calendar grants, and
+the database backups. Changing it in one edit therefore breaks five subsystems
+at once — and breaks them *quietly*, because every decrypt path is written to
+degrade rather than raise: a managed call falls through to "no key" and fails
+at the vendor with a 401, an MFA prompt rejects a correct code, a calendar sync
+just stops.
+
+So it is rotated in three ordered steps, and none of them has a broken window.
+
+1. **Two keys at once.** Move the current value into
+   `PLATFORM_CREDENTIAL_SECRET_PREVIOUS` and put the new one in
+   `PLATFORM_CREDENTIAL_SECRET`. Restart the API and the workers. Everything
+   still decrypts — old rows under the previous key, every new write under the
+   new one.
+
+   ```bash
+   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   ```
+
+2. **Re-encrypt.** Either press **Re-encrypt everything** on
+   `/superadmin/provider-keys`, or run it on the box:
+
+   ```bash
+   python -m scripts.rotate_platform_secret --dry-run   # see the size of it
+   python -m scripts.rotate_platform_secret             # do it
+   ```
+
+   Re-runnable and safe while serving. A row already on the new key is skipped;
+   a row that decrypts under neither is counted and **left untouched** rather
+   than overwritten, because it is already lost and overwriting destroys the
+   only evidence of what was there.
+
+3. **Drop the old key.** Once *Still on the previous key* reads **0**, remove
+   `PLATFORM_CREDENTIAL_SECRET_PREVIOUS` and restart again. Until this happens
+   the old key still opens everything, so a rotation stopped at step 2 has
+   achieved nothing except two working keys.
+
+One direction is unsafe: removing the previous key before the re-encryption
+finishes strands whatever is left. That is recoverable — put it back and run
+step 2 again — which is why the screen reports the count rather than a
+tick.
+
+Backups taken before a rotation are only restorable while the key they were
+written under is still configured. Restore-test an old dump before dropping a
+previous key, or accept that everything older than the rotation is gone.
+
 ## Still unbuilt
 
 Not oversights — nothing to configure yet, listed so the absence is not
-mistaken for a missing key: the agency tier and its commission rate, the
-referral wallet credit, admin-creates-account, and per-minute realtime pricing
-for Ultravox and Grok (both meter by minute; we record tokens, so they are
-deliberately unpriced rather than wrongly priced).
+mistaken for a missing key: per-minute realtime pricing for Ultravox and Grok
+(both meter by minute; we record tokens, so they are deliberately unpriced
+rather than wrongly priced).
+
+The agency tier, the referral credit, admin-creates-account, per-account
+concurrency and the daily spend ceiling are all built, and none of them is an
+environment variable — they are set per account from `/superadmin`, which is
+where a value that differs between customers belongs.

@@ -20,6 +20,7 @@ import {
     KeyRound,
     Loader2,
     Plus,
+    RefreshCw,
     Trash2,
     X,
 } from "lucide-react";
@@ -28,6 +29,8 @@ import { useCallback, useEffect, useState } from "react";
 import {
     deleteProviderKeyApiV1AdminProviderKeysDelete,
     listProviderKeysApiV1AdminProviderKeysGet,
+    reencryptApiV1AdminProviderKeysRotationReencryptPost,
+    rotationStatusApiV1AdminProviderKeysRotationGet,
     setProviderKeyActiveApiV1AdminProviderKeysActivePost,
     setProviderKeyApiV1AdminProviderKeysPut,
 } from "@/client/sdk.gen";
@@ -64,6 +67,8 @@ type Credential = {
     label: string | null;
     is_active: boolean;
     updated_at: string | null;
+    age_days: number | null;
+    is_stale: boolean;
 };
 
 type Payload = {
@@ -72,6 +77,15 @@ type Payload = {
     components: string[];
     /** Vendor → groups of slots sharing one secret, off the registry. */
     provider_components: Record<string, string[][]>;
+    stale_after_days: number;
+};
+
+type RotationStatus = {
+    current: number;
+    pending: number;
+    unreadable: number;
+    previous_key_configured: boolean;
+    safe_to_drop_previous: boolean;
 };
 
 const COMPONENT_LABELS: Record<string, string> = {
@@ -405,9 +419,33 @@ export default function ProviderKeysPage() {
                                                         {c.label ?? "—"}
                                                     </TableCell>
                                                     <TableCell className="text-muted-foreground">
-                                                        {c.updated_at
-                                                            ? formatDateTimeIST(c.updated_at)
-                                                            : "—"}
+                                                        {c.updated_at ? (
+                                                            <span
+                                                                title={formatDateTimeIST(
+                                                                    c.updated_at,
+                                                                )}
+                                                            >
+                                                                {formatDateTimeIST(c.updated_at)}
+                                                                {/* Age, because it is the one
+                                                                    property of a key an operator
+                                                                    cannot see by looking at it,
+                                                                    and the one that decides
+                                                                    whether to act. */}
+                                                                {c.is_stale && (
+                                                                    <Badge
+                                                                        variant="outline"
+                                                                        className="ml-2 border-amber-500/40 text-amber-700 dark:text-amber-400"
+                                                                    >
+                                                                        {Math.floor(
+                                                                            (c.age_days ?? 0) / 30,
+                                                                        )}{" "}
+                                                                        months old
+                                                                    </Badge>
+                                                                )}
+                                                            </span>
+                                                        ) : (
+                                                            "—"
+                                                        )}
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <Button
@@ -491,9 +529,185 @@ export default function ProviderKeysPage() {
                                 something in service.
                             </p>
                         </section>
+
+                        <RotationSection />
                     </>
                 )}
             </div>
+        </div>
+    );
+}
+
+/**
+ * Rotating the encryption secret, which is a different thing from rotating a
+ * provider key.
+ *
+ * One Fernet key covers our provider keys, every customer's own key, staff MFA
+ * secrets, calendar grants and the database backups. Changing it used to be a
+ * one-line env edit that broke all five at once and said nothing — every
+ * decrypt path degrades rather than raises, so the symptom was calls failing at
+ * the vendor with a 401.
+ *
+ * The number here is the one that matters: `pending` has to reach zero before
+ * the old key can be dropped, and dropping it is what actually retires it. A
+ * rotation stopped halfway has achieved nothing except two keys that both work.
+ */
+function RotationSection() {
+    const [status, setStatus] = useState<RotationStatus | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [message, setMessage] = useState<string | null>(null);
+    const [failure, setFailure] = useState<string | null>(null);
+
+    const load = useCallback(async () => {
+        const result = await rotationStatusApiV1AdminProviderKeysRotationGet({});
+        if (result.error) {
+            setFailure(detailFromError(result.error, "Could not read rotation status"));
+        } else {
+            setStatus(result.data as unknown as RotationStatus);
+            setFailure(null);
+        }
+    }, []);
+
+    useEffect(() => {
+        void load();
+    }, [load]);
+
+    const rewrite = async (dryRun: boolean) => {
+        setBusy(true);
+        setMessage(null);
+        setFailure(null);
+        const result = await reencryptApiV1AdminProviderKeysRotationReencryptPost({
+            query: { dry_run: dryRun },
+        });
+        if (result.error) {
+            setFailure(detailFromError(result.error, "Could not re-encrypt"));
+        } else {
+            const data = result.data as unknown as {
+                rewritten: number;
+                already_current: number;
+                unreadable: number;
+            };
+            setMessage(
+                dryRun
+                    ? `${data.rewritten} would be rewritten, ${data.already_current} already current.`
+                    : `${data.rewritten} rewritten, ${data.already_current} already current.`,
+            );
+            await load();
+        }
+        setBusy(false);
+    };
+
+    if (!status) return null;
+
+    return (
+        <section className="glass-panel mt-5 px-6 pb-6 pt-5">
+            <h2 className="flex items-center gap-2 text-[0.9375rem] font-semibold tracking-[-0.018em] text-foreground">
+                <RefreshCw className="h-4 w-4 text-[color:var(--brand-amber)]" />
+                Encryption secret
+            </h2>
+            <p className="mt-0.5 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+                One key encrypts these provider keys, every customer&apos;s own
+                key, MFA secrets, calendar grants and the database backups.
+                Rotating it is three ordered steps and none of them has a broken
+                window — set the old value as{" "}
+                <code className="rounded bg-foreground/[0.06] px-1 py-0.5">
+                    PLATFORM_CREDENTIAL_SECRET_PREVIOUS
+                </code>{" "}
+                and the new one as{" "}
+                <code className="rounded bg-foreground/[0.06] px-1 py-0.5">
+                    PLATFORM_CREDENTIAL_SECRET
+                </code>
+                , restart, re-encrypt below, then remove the previous key and
+                restart again.
+            </p>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <Figure
+                    label="On the current key"
+                    value={status.current}
+                    hint="Nothing to do for these."
+                />
+                <Figure
+                    label="Still on the previous key"
+                    value={status.pending}
+                    hint="Has to reach zero before the old key can be dropped."
+                    emphasis={status.pending > 0}
+                />
+                <Figure
+                    label="Unreadable"
+                    value={status.unreadable}
+                    hint="Encrypted under a secret no longer configured. Already lost — these have to be re-entered."
+                    emphasis={status.unreadable > 0}
+                />
+            </div>
+
+            {!status.previous_key_configured && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                    No previous key is configured, so nothing is mid-rotation.
+                </p>
+            )}
+            {status.previous_key_configured && status.safe_to_drop_previous && (
+                <p className="mt-3 flex items-start gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    Nothing is left on the previous key. Remove{" "}
+                    <code className="rounded bg-foreground/[0.06] px-1">
+                        PLATFORM_CREDENTIAL_SECRET_PREVIOUS
+                    </code>{" "}
+                    and restart to finish the rotation — until then the old key
+                    still opens everything.
+                </p>
+            )}
+
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void rewrite(true)}
+                >
+                    {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                    Dry run
+                </Button>
+                <Button size="sm" disabled={busy} onClick={() => void rewrite(false)}>
+                    {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                    Re-encrypt everything
+                </Button>
+                {message && (
+                    <span className="text-xs text-muted-foreground">{message}</span>
+                )}
+                {failure && <span className="text-xs text-destructive">{failure}</span>}
+            </div>
+        </section>
+    );
+}
+
+function Figure({
+    label,
+    value,
+    hint,
+    emphasis = false,
+}: {
+    label: string;
+    value: number;
+    hint: string;
+    emphasis?: boolean;
+}) {
+    return (
+        <div className="rounded-xl border border-foreground/[0.07] px-4 py-3">
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <p
+                className={cn(
+                    "mt-0.5 text-2xl font-semibold tabular-nums tracking-[-0.03em]",
+                    emphasis
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-foreground",
+                )}
+            >
+                {value}
+            </p>
+            <p className="mt-1 text-[0.6875rem] leading-snug text-muted-foreground">
+                {hint}
+            </p>
         </div>
     );
 }

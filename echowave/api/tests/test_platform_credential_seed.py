@@ -9,6 +9,7 @@ which is randomised per encryption and so cannot be compared byte for byte.
 import pytest
 from cryptography.fernet import Fernet
 
+from api.services import secret_rotation
 from api.services.configuration import platform_credential_seed as seed
 from api.services.configuration import platform_credentials as creds
 
@@ -21,7 +22,8 @@ ANOTHER_KEY = "sk-proj-zyxwvutsrqponmlkjihgfedcba9911"
 def configured_secret(monkeypatch):
     """Patch the constant rather than the environment, so these pass on a
     machine that has no platform secret configured."""
-    monkeypatch.setattr(creds, "PLATFORM_CREDENTIAL_SECRET", TEST_SECRET)
+    monkeypatch.setattr(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", TEST_SECRET)
+    monkeypatch.setattr(secret_rotation, "PLATFORM_CREDENTIAL_SECRET_PREVIOUS", None)
 
 
 @pytest.fixture

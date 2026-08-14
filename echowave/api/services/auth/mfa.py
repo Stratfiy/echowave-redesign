@@ -34,8 +34,6 @@ from dataclasses import dataclass
 import pyotp
 from loguru import logger
 
-from api.constants import PLATFORM_CREDENTIAL_SECRET
-
 #: Seconds a code is valid for. The RFC default, and what every authenticator
 #: app assumes.
 STEP_SECONDS = 30
@@ -69,14 +67,21 @@ class Enrollment:
 
 
 def _cipher():
-    from cryptography.fernet import Fernet
+    """The shared cipher, so a key rotation covers TOTP secrets too.
 
-    if not PLATFORM_CREDENTIAL_SECRET:
+    Left out, rotating the secret would lock every person with MFA enabled out
+    of their own account — and out of the recovery flow, since it is the same
+    secret behind both.
+    """
+    from api.services import secret_rotation
+
+    try:
+        return secret_rotation.cipher()
+    except secret_rotation.SecretError as exc:
         raise RuntimeError(
-            "PLATFORM_CREDENTIAL_SECRET is not set. Refusing to store a TOTP "
-            "secret in plaintext."
-        )
-    return Fernet(PLATFORM_CREDENTIAL_SECRET.encode())
+            "PLATFORM_CREDENTIAL_SECRET is not usable. Refusing to store a "
+            f"TOTP secret in plaintext. {exc}"
+        ) from exc
 
 
 def encrypt_secret(secret: str) -> str:

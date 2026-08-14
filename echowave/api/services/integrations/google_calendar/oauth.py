@@ -30,7 +30,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 import httpx
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import InvalidToken
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -100,19 +100,18 @@ def _redirect_uri() -> str:
     return f"{BACKEND_API_ENDPOINT}/api/v1/integrations/google-calendar/callback"
 
 
-def _cipher() -> Fernet:
-    if not PLATFORM_CREDENTIAL_SECRET:
-        raise GoogleCalendarError(
-            "PLATFORM_CREDENTIAL_SECRET is not set, so Google Calendar tokens "
-            "cannot be stored. Ask your administrator to configure it."
-        )
+def _cipher():
+    """The shared cipher, so a key rotation covers stored grants too.
+
+    Left out, rotating would silently disconnect every calendar and the only
+    symptom would be syncs quietly stopping.
+    """
+    from api.services import secret_rotation
+
     try:
-        return Fernet(PLATFORM_CREDENTIAL_SECRET.encode())
-    except (ValueError, TypeError) as exc:
-        raise GoogleCalendarError(
-            "PLATFORM_CREDENTIAL_SECRET is not a valid Fernet key. It must be "
-            "32 url-safe base64-encoded bytes."
-        ) from exc
+        return secret_rotation.cipher()
+    except secret_rotation.SecretError as exc:
+        raise GoogleCalendarError(str(exc)) from exc
 
 
 def _sign_state(*, organization_id: int, user_id: int) -> str:

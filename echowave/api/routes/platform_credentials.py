@@ -10,6 +10,7 @@ exfiltrate every provider key on the platform from a single compromised staff
 session.
 """
 
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from api.db import db_client
 from api.db.models import UserModel
+from api.services import secret_rotation
 from api.services.auth.depends import get_superuser
 from api.services.configuration import platform_credentials as creds
 from api.services.configuration.registry import (
@@ -29,6 +31,12 @@ router = APIRouter(
     tags=["admin-provider-keys"],
     dependencies=[Depends(get_superuser)],
 )
+
+#: When a key starts being worth rotating. A year is not a security threshold
+#: anybody can defend precisely; it is the point past which "when did we last
+#: change this" has no answer, and a key nobody remembers setting is a key
+#: nobody knows the reach of.
+STALE_AFTER_DAYS = 365
 
 
 class SetCredentialRequest(BaseModel):
@@ -57,7 +65,20 @@ class ActiveRequest(BaseModel):
     is_active: bool
 
 
+def _age_days(updated_at: str | None) -> int | None:
+    if not updated_at:
+        return None
+    try:
+        moment = datetime.fromisoformat(updated_at)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return max(0, (datetime.now(UTC) - moment).days)
+
+
 def _view(credential: creds.PlatformCredential) -> dict[str, Any]:
+    age = _age_days(credential.updated_at)
     return {
         "id": credential.id,
         "component": credential.component,
@@ -66,6 +87,10 @@ def _view(credential: creds.PlatformCredential) -> dict[str, Any]:
         "label": credential.label,
         "is_active": credential.is_active,
         "updated_at": credential.updated_at,
+        # Derived here rather than in the screen so "stale" means one thing
+        # across every surface that asks.
+        "age_days": age,
+        "is_stale": age is not None and age >= STALE_AFTER_DAYS,
     }
 
 
@@ -84,6 +109,53 @@ async def list_provider_keys() -> dict[str, Any]:
         # a list in the screen, which would drift the first time a vendor
         # gained a component.
         "provider_components": provider_credential_groups(),
+        # How old each key is, and how many are old enough to be worth
+        # rotating. Age is the one property of a key an operator cannot see by
+        # looking at it, and it is the one that decides whether to act.
+        "stale_after_days": STALE_AFTER_DAYS,
+    }
+
+
+@router.get("/rotation")
+async def rotation_status() -> dict[str, Any]:
+    """Where a rotation of the encryption secret has got to.
+
+    Deliberately a count rather than a verdict. The number that has to reach
+    zero is ``pending`` — rows still readable only under the previous key —
+    and dropping that key while it is non-zero strands every one of them.
+    """
+    async with db_client.async_session() as session:
+        try:
+            state = await secret_rotation.status(session)
+        except secret_rotation.SecretError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return state.as_dict()
+
+
+@router.post("/rotation/reencrypt")
+async def reencrypt(dry_run: bool = False) -> dict[str, Any]:
+    """Rewrite every stored secret under the current key.
+
+    Re-runnable and safe to run while serving: a row already on the current
+    key is skipped, and a row that decrypts under neither is counted and left
+    exactly as it was rather than overwritten.
+    """
+    async with db_client.async_session() as session:
+        try:
+            result = await secret_rotation.reencrypt_all(session, dry_run=dry_run)
+        except secret_rotation.SecretError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not dry_run:
+            await session.commit()
+        state = await secret_rotation.status(session)
+
+    return {
+        "dry_run": dry_run,
+        "rewritten": result.rewritten,
+        "already_current": result.skipped,
+        "unreadable": result.unreadable,
+        "by_kind": result.by_kind,
+        "status": state.as_dict(),
     }
 
 

@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import pytest
 from cryptography.fernet import Fernet
 
+from api.services import secret_rotation
 from api.services.configuration.registry import components_for_provider
 
 
@@ -57,10 +58,9 @@ def credential_secret(monkeypatch):
     Generated per run rather than committed: a fixed key in the repository is
     one that eventually protects something real.
     """
-    import api.services.configuration.organization_credentials as creds
 
     monkeypatch.setattr(
-        creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+        secret_rotation, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
     )
 
 
@@ -237,7 +237,9 @@ class TestTheStaffVaultFansOutToo:
         import api.services.configuration.platform_credentials as creds
 
         monkeypatch.setattr(
-            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+            secret_rotation,
+            "PLATFORM_CREDENTIAL_SECRET",
+            Fernet.generate_key().decode(),
         )
 
         for component in components_for_provider("sarvam"):
@@ -262,7 +264,9 @@ class TestTheStaffVaultFansOutToo:
         import api.services.configuration.platform_credentials as creds
 
         monkeypatch.setattr(
-            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+            secret_rotation,
+            "PLATFORM_CREDENTIAL_SECRET",
+            Fernet.generate_key().decode(),
         )
 
         for component in components_for_provider("sarvam"):
@@ -346,11 +350,12 @@ class TestTheStaffEndpoint:
         """``applied_to`` is what tells the operator the third slot was
         written. Without it a fan-out that quietly stored one component looks
         identical to one that stored three."""
-        import api.services.configuration.platform_credentials as creds
         from api.db.models import UserModel
 
         monkeypatch.setattr(
-            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+            secret_rotation,
+            "PLATFORM_CREDENTIAL_SECRET",
+            Fernet.generate_key().decode(),
         )
         user = UserModel(provider_id="staff-save")
         async_session.add(user)
@@ -375,11 +380,12 @@ class TestTheStaffEndpoint:
     ):
         """The separate-key case. Defaulting the flag on in the form is a
         convenience; the API must not assume it."""
-        import api.services.configuration.platform_credentials as creds
         from api.db.models import UserModel
 
         monkeypatch.setattr(
-            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+            secret_rotation,
+            "PLATFORM_CREDENTIAL_SECRET",
+            Fernet.generate_key().decode(),
         )
         user = UserModel(provider_id="staff-single")
         async_session.add(user)
@@ -509,12 +515,13 @@ class TestTheSecretLandsInTheFieldTheVendorReads:
     async def test_a_google_speech_secret_lands_in_credentials(
         self, db_session, async_session, monkeypatch
     ):
-        import api.services.configuration.platform_credentials as creds
         from api.services.configuration.managed_resolution import apply
         from api.services.configuration.registry import GoogleSTTConfiguration
 
         monkeypatch.setattr(
-            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+            secret_rotation,
+            "PLATFORM_CREDENTIAL_SECRET",
+            Fernet.generate_key().decode(),
         )
         service_account = '{"type":"service_account","project_id":"decibyl"}'
         await self._store(
@@ -533,12 +540,13 @@ class TestTheSecretLandsInTheFieldTheVendorReads:
         self, db_session, async_session, monkeypatch
     ):
         """The change must not move everyone else's secret."""
-        import api.services.configuration.platform_credentials as creds
         from api.services.configuration.managed_resolution import apply
         from api.services.configuration.registry import SarvamSTTConfiguration
 
         monkeypatch.setattr(
-            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+            secret_rotation,
+            "PLATFORM_CREDENTIAL_SECRET",
+            Fernet.generate_key().decode(),
         )
         await self._store(
             async_session, component="stt", provider="sarvam", secret="sarvam-key-00000"

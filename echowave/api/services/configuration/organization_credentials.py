@@ -35,15 +35,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import InvalidToken, MultiFernet
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.constants import PLATFORM_CREDENTIAL_SECRET
 from api.db.models import OrganizationProviderCredentialModel
 from api.enums import CostComponent
+from api.services import secret_rotation
 
 #: Components a customer key can serve. Telephony is absent for the same reason
 #: it is absent from the platform vault: carrier credentials live on
@@ -55,19 +55,17 @@ class OrganizationCredentialError(ValueError):
     """A credential could not be stored or read."""
 
 
-def _cipher() -> Fernet:
-    if not PLATFORM_CREDENTIAL_SECRET:
-        raise OrganizationCredentialError(
-            "PLATFORM_CREDENTIAL_SECRET is not set, so provider keys cannot be "
-            "stored. Ask your administrator to configure it."
-        )
+def _cipher() -> MultiFernet:
+    """The shared cipher, so a key rotation covers the customer vault too.
+
+    Encrypts under the current secret, decrypts under either it or the one
+    being rotated out — otherwise rotating would silently strand every
+    customer's own key, and they would find out at their next call.
+    """
     try:
-        return Fernet(PLATFORM_CREDENTIAL_SECRET.encode())
-    except (ValueError, TypeError) as exc:
-        raise OrganizationCredentialError(
-            "PLATFORM_CREDENTIAL_SECRET is not a valid Fernet key. It must be "
-            "32 url-safe base64-encoded bytes."
-        ) from exc
+        return secret_rotation.cipher()
+    except secret_rotation.SecretError as exc:
+        raise OrganizationCredentialError(str(exc)) from exc
 
 
 def encryption_is_configured() -> bool:

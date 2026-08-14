@@ -18,6 +18,7 @@ from cryptography.fernet import Fernet
 
 from api.db.models import OrganizationModel
 from api.enums import CostComponent
+from api.services import secret_rotation
 from api.services.configuration import organization_credentials as creds
 
 TEST_SECRET = Fernet.generate_key().decode()
@@ -31,7 +32,8 @@ def encryption(monkeypatch):
     deployment is how a test fixture becomes a production secret, which this
     repo has already had to fix once.
     """
-    monkeypatch.setattr(creds, "PLATFORM_CREDENTIAL_SECRET", TEST_SECRET)
+    monkeypatch.setattr(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", TEST_SECRET)
+    monkeypatch.setattr(secret_rotation, "PLATFORM_CREDENTIAL_SECRET_PREVIOUS", None)
 
 
 async def _org(async_session, slug: str) -> OrganizationModel:
@@ -314,7 +316,7 @@ class TestWhatCannotBeStored:
     ):
         """A deployment that forgot to configure the secret must fail loudly.
         A default would mean every key encrypted under a published value."""
-        monkeypatch.setattr(creds, "PLATFORM_CREDENTIAL_SECRET", "")
+        monkeypatch.setattr(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", "")
         org = await _org(async_session, "no-secret")
         with pytest.raises(creds.OrganizationCredentialError, match="not set"):
             await creds.set_credential(
@@ -596,7 +598,9 @@ class TestWhatThePickerIsOffered:
         )
 
         monkeypatch.setattr(
-            creds, "PLATFORM_CREDENTIAL_SECRET", Fernet.generate_key().decode()
+            secret_rotation,
+            "PLATFORM_CREDENTIAL_SECRET",
+            Fernet.generate_key().decode(),
         )
         assert (
             await creds.resolve_api_key(

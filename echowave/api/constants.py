@@ -459,6 +459,14 @@ EMAIL_FROM_NAME = os.getenv("EMAIL_FROM_NAME", "Decibyl")
 # raises instead — see services/configuration/platform_credentials.py.
 PLATFORM_CREDENTIAL_SECRET = os.getenv("PLATFORM_CREDENTIAL_SECRET") or None
 
+# The secret being rotated *out of*. Read-only: nothing is ever encrypted under
+# it. Set it during a rotation so existing ciphertext stays readable while
+# scripts/rotate_platform_secret.py rewrites it, then remove it — the old key
+# is only worthless once it is gone. See services/secret_rotation.py.
+PLATFORM_CREDENTIAL_SECRET_PREVIOUS = (
+    os.getenv("PLATFORM_CREDENTIAL_SECRET_PREVIOUS") or None
+)
+
 # Storage Configuration
 ENABLE_AWS_S3 = os.getenv("ENABLE_AWS_S3", "false").lower() == "true"
 

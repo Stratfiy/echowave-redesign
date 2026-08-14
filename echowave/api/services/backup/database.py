@@ -46,7 +46,6 @@ from loguru import logger
 from api.constants import (
     BACKUP_RETENTION_DAYS,
     DATABASE_URL,
-    PLATFORM_CREDENTIAL_SECRET,
 )
 from api.services.storage import get_storage
 
@@ -83,15 +82,22 @@ def _cipher():
     Deliberately not a separate key. A second secret is a second thing to lose,
     and losing it means the backups are unreadable — which is indistinguishable
     from having no backups at the moment you need them.
-    """
-    from cryptography.fernet import Fernet
 
-    if not PLATFORM_CREDENTIAL_SECRET:
+    Goes through the shared cipher, which matters here for the direction nobody
+    thinks about: a dump is written under the current secret, but a dump being
+    *restored* was written under whatever was current on the day it was taken.
+    Keeping the previous key readable is what stops a rotation quietly voiding
+    every backup older than it.
+    """
+    from api.services import secret_rotation
+
+    try:
+        return secret_rotation.cipher()
+    except secret_rotation.SecretError as exc:
         raise RuntimeError(
-            "PLATFORM_CREDENTIAL_SECRET is not set. Refusing to write an "
-            "unencrypted database dump to object storage."
-        )
-    return Fernet(PLATFORM_CREDENTIAL_SECRET.encode())
+            "PLATFORM_CREDENTIAL_SECRET is not usable. Refusing to write an "
+            f"unencrypted database dump to object storage. {exc}"
+        ) from exc
 
 
 def _dump_key(at: datetime) -> str:

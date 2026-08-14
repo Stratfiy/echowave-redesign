@@ -23,14 +23,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import InvalidToken, MultiFernet
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.constants import PLATFORM_CREDENTIAL_SECRET
 from api.db.models import PlatformProviderCredentialModel
 from api.enums import CostComponent
+from api.services import secret_rotation
 
 #: Components a platform key can serve. Telephony is deliberately absent —
 #: carrier credentials live on telephony_configurations, which already models
@@ -42,20 +42,17 @@ class PlatformCredentialError(ValueError):
     """A credential could not be stored or read."""
 
 
-def _cipher() -> Fernet:
-    if not PLATFORM_CREDENTIAL_SECRET:
-        raise PlatformCredentialError(
-            "PLATFORM_CREDENTIAL_SECRET is not set, so provider keys cannot be "
-            'stored. Generate one with: python -c "from cryptography.fernet '
-            'import Fernet; print(Fernet.generate_key().decode())"'
-        )
+def _cipher() -> MultiFernet:
+    """The shared cipher, so a key rotation covers these keys too.
+
+    Encrypts under the current secret and decrypts under either it or the one
+    being rotated out — which is what lets the secret change without every
+    managed call failing at the vendor until each key is re-entered by hand.
+    """
     try:
-        return Fernet(PLATFORM_CREDENTIAL_SECRET.encode())
-    except (ValueError, TypeError) as exc:
-        raise PlatformCredentialError(
-            "PLATFORM_CREDENTIAL_SECRET is not a valid Fernet key. It must be "
-            "32 url-safe base64-encoded bytes."
-        ) from exc
+        return secret_rotation.cipher()
+    except secret_rotation.SecretError as exc:
+        raise PlatformCredentialError(str(exc)) from exc
 
 
 def encryption_is_configured() -> bool:

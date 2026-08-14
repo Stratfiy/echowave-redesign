@@ -14,6 +14,7 @@ import pyotp
 import pytest
 from cryptography.fernet import Fernet
 
+from api.services import secret_rotation
 from api.services.auth import mfa
 
 # Generated per run, never a real key — see the note in test_backup.py.
@@ -99,13 +100,13 @@ class TestSecretStorage:
     def test_the_secret_is_not_stored_in_the_clear(self):
         """A readable TOTP secret is password-equivalent: anyone with the table
         can mint valid codes indefinitely."""
-        with patch.object(mfa, "PLATFORM_CREDENTIAL_SECRET", SECRET_KEY):
+        with patch.object(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", SECRET_KEY):
             stored = mfa.encrypt_secret("JBSWY3DPEHPK3PXP")
 
         assert "JBSWY3DPEHPK3PXP" not in stored
 
     def test_it_round_trips(self):
-        with patch.object(mfa, "PLATFORM_CREDENTIAL_SECRET", SECRET_KEY):
+        with patch.object(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", SECRET_KEY):
             assert mfa.decrypt_secret(mfa.encrypt_secret("JBSWY3DPEHPK3PXP")) == (
                 "JBSWY3DPEHPK3PXP"
             )
@@ -114,7 +115,7 @@ class TestSecretStorage:
         """Falling back to plaintext would silently downgrade every enrolment
         from here on, with nothing in the UI to show it."""
         with (
-            patch.object(mfa, "PLATFORM_CREDENTIAL_SECRET", ""),
+            patch.object(secret_rotation, "PLATFORM_CREDENTIAL_SECRET", ""),
             pytest.raises(RuntimeError, match="PLATFORM_CREDENTIAL_SECRET"),
         ):
             mfa.encrypt_secret("JBSWY3DPEHPK3PXP")
