@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 from loguru import logger
 from pydantic import ValidationError
-from sqlalchemy import func
+from sqlalchemy import func, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.future import select
 
@@ -241,3 +241,18 @@ class UserClient(BaseDBClient):
             await session.commit()
             await session.refresh(user)
             return user
+
+    async def set_user_password(self, user_id: int, password_hash: str) -> None:
+        """Give an account a password it did not have, or replace the one it did.
+
+        Adds a way in; it never takes another away. An account that arrived
+        through Google and then accepts an invitation ends up reachable both
+        ways, which is what the person expects — they used both doors.
+        """
+        async with self.async_session() as session:
+            await session.execute(
+                update(UserModel)
+                .where(UserModel.id == user_id)
+                .values(password_hash=password_hash)
+            )
+            await session.commit()

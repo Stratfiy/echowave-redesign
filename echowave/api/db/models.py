@@ -2903,6 +2903,51 @@ class MarkupChangeChallengeModel(Base):
     requested_by_user = relationship("UserModel")
 
 
+class AccountInvitationModel(Base):
+    """An account somebody else created, waiting for its owner to claim it.
+
+    The row that makes an invited user reachable. Their ``users`` row is created
+    with **no password** — exactly like a Google account, and refused by
+    ``login`` for the same reason — so this challenge is the only way to set
+    one. Inventing a temporary password instead would put a working credential
+    in an inbox in the clear, permanently.
+
+    One row per address: issuing again replaces any pending invitation, so a
+    resend means one valid code rather than two, and a stale code from an
+    abandoned attempt stops working.
+
+    ``organization_id`` is nullable because the two callers mean different
+    things by it. An owner inviting a colleague names their own organization;
+    staff standing up a new customer names none, and one is provisioned when
+    the invitation is accepted.
+    """
+
+    __tablename__ = "account_invitations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    #: Lower-cased at issue time. The unique index is what enforces one live
+    #: invitation per address rather than a convention in the service.
+    email = Column(String, nullable=False, unique=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True
+    )
+    #: The OrganizationRole to grant on acceptance. Nullable so a new account
+    #: takes the provisioning default rather than this having to know it.
+    role = Column(String(32), nullable=True)
+
+    #: Salted SHA-256, never the code itself — same construction as the email
+    #: verification and markup challenges, compared with hmac.compare_digest.
+    code_hash = Column(String(64), nullable=False)
+    code_salt = Column(String(32), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+    attempts = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    invited_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    invited_by_user = relationship("UserModel")
+
+
 class BillingProfileModel(Base):
     """Who an account is, for tax purposes.
 

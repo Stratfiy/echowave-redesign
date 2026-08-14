@@ -23,6 +23,7 @@ from api.services.auth import (
     email_verification,
     email_verification_flow,
     google_oauth,
+    invitations,
     mfa,
 )
 from api.services.auth.depends import (
@@ -92,6 +93,98 @@ async def signup(request: SignupRequest):
             email=user.email,
             name=request.name,
             organization_id=organization.id,
+            provider_id=user.provider_id,
+        ),
+    )
+
+
+class AcceptInvitationRequest(BaseModel):
+    """Claim an account somebody else created, by setting its password."""
+
+    email: str = Field(..., max_length=320)
+    code: str = Field(..., min_length=4, max_length=12)
+    password: str = Field(..., min_length=8, max_length=256)
+    name: str | None = Field(None, max_length=200)
+
+
+@router.post(
+    "/accept-invitation",
+    response_model=AuthResponse,
+    dependencies=[Depends(require_local_auth)],
+)
+async def accept_invitation(request: AcceptInvitationRequest):
+    """Set a password on an invited account and sign in.
+
+    Deliberately *not* gated on ``ENABLE_SIGNUP``. That switch closes the
+    self-serve door — anyone off the internet making themselves an account —
+    and this door is the opposite: it can only be walked through by someone an
+    owner or staff member already invited, holding a code they were sent.
+    Gating it would make a deployment with signup closed unable to add anyone
+    at all, which is the configuration most likely to need this.
+
+    The email is marked verified on success. Receiving the code *is* proof of
+    the address, and asking for a second code to prove the same fact is asking
+    the user to do the same thing twice.
+    """
+    async with db_client.async_session() as session:
+        try:
+            accepted = await invitations.accept(
+                session, email=request.email, code=request.code
+            )
+        except invitations.InvitationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+
+    hashed = hash_password(request.password)
+    user = await db_client.get_user_by_email(accepted.email)
+    if user is None:
+        user = await db_client.create_user_with_email(
+            email=accepted.email, password_hash=hashed, name=request.name
+        )
+    else:
+        # A row already existed with no password — an earlier invitation, or a
+        # Google sign-in on the same address. Setting the password adds a way
+        # in; it does not take the other one away.
+        await db_client.set_user_password(user.id, hashed)
+
+    if accepted.organization_id is None:
+        # Staff created the account rather than an owner adding a colleague, so
+        # there is no organization yet. Provisioned here rather than at
+        # invitation time so an unaccepted invitation leaves nothing behind.
+        organization = await provision_new_account(user)
+    else:
+        # `role` may be None when the invitation predates roles or came from
+        # a caller that did not name one; the client's own default is the
+        # right answer then, rather than passing None into a NOT NULL column.
+        if accepted.role:
+            await db_client.add_user_to_organization(
+                user.id, accepted.organization_id, role=accepted.role
+            )
+        else:
+            await db_client.add_user_to_organization(user.id, accepted.organization_id)
+        await db_client.update_user_selected_organization(
+            user.id, accepted.organization_id
+        )
+        organization = await db_client.get_organization_by_id(accepted.organization_id)
+
+    await db_client.mark_email_verified(user.id, verified_at=datetime.now(UTC))
+
+    token = create_jwt_token(user.id, user.email)
+    capture_event(
+        distinct_id=str(user.provider_id),
+        event=PostHogEvent.SIGNED_UP,
+        properties={
+            "organization_id": organization.id if organization else None,
+            "auth_provider": "invitation",
+        },
+    )
+    return AuthResponse(
+        token=token,
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            name=request.name,
+            organization_id=organization.id if organization else None,
             provider_id=user.provider_id,
         ),
     )

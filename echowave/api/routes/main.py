@@ -5,6 +5,7 @@ from fastapi import APIRouter, Header, HTTPException, status
 from loguru import logger
 from pydantic import BaseModel
 
+from api.routes.admin_accounts import router as admin_accounts_router
 from api.routes.agent_stream import router as agent_stream_router
 from api.routes.auth import router as auth_router
 from api.routes.billing_dashboard import router as billing_dashboard_router
@@ -59,6 +60,7 @@ router.include_router(kyc_router)
 router.include_router(kyc_admin_router)
 router.include_router(managed_numbers_router)
 router.include_router(organization_members_router)
+router.include_router(admin_accounts_router)
 router.include_router(platform_credentials_router)
 router.include_router(provider_keys_router)
 router.include_router(payments_router)

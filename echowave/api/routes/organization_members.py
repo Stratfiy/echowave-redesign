@@ -1,12 +1,15 @@
 """Membership and roles within the caller's currently-selected organization.
 
-There is deliberately no invite-by-email endpoint here — in SaaS mode
-membership is mirrored from Stack Auth team membership on login (see
-``get_user`` in api/services/auth/depends.py), and Stack Auth owns invites at
-the team level. What this file adds is the piece that didn't exist at all
-before: once someone is a member, an Owner can see who else is, and promote,
-demote, or remove them, instead of every member having identical access
-forever with no local knob to turn.
+Membership used to be mirror-only: in SaaS mode it arrives from Stack Auth team
+membership on login (see ``get_user`` in api/services/auth/depends.py), and
+Stack Auth owns invites at the team level. That left an Owner on a local
+deployment able to promote, demote and remove people — but never to *add* one,
+which made "manage your team" a screen you could only ever subtract from.
+
+``POST /members`` closes that. It creates the user row with no password at all
+and emails a code, because ``login`` refuses any account whose
+``password_hash`` is falsy and inventing a temporary one would put a working
+credential in an inbox in the clear. See ``services/auth/invitations.py``.
 """
 
 from __future__ import annotations
@@ -17,14 +20,18 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationRole
 from api.schemas.organization_members import (
+    InviteMemberRequest,
+    InviteMemberResponse,
     OrganizationMemberResponse,
     OrganizationMembersListResponse,
     UpdateMemberRoleRequest,
 )
+from api.services.auth import invitations
 from api.services.auth.depends import (
     get_user_with_selected_organization,
     require_organization_role,
 )
+from api.services.messaging.email import send_email
 
 router = APIRouter(prefix="/organizations", tags=["organization-members"])
 
@@ -46,6 +53,50 @@ async def list_members(
             )
             for m in members
         ]
+    )
+
+
+@router.post("/members", response_model=InviteMemberResponse)
+async def invite_member(
+    request: InviteMemberRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.OWNER)),
+) -> InviteMemberResponse:
+    """Invite somebody into this organization by email. Owner-only.
+
+    Owner-only for the same reason promoting is: adding a member grants
+    standing access to every workflow, recording and phone number the account
+    holds, and that is not a decision a member should be able to make.
+
+    The membership row is created *on acceptance*, not here. Creating it now
+    would put someone in the organization who cannot sign in, which shows up on
+    the roster as a member nobody can contact and nobody can explain.
+    """
+    organization_id = user.selected_organization_id
+
+    async with db_client.async_session() as session:
+        try:
+            issued = await invitations.issue(
+                session,
+                email=request.email,
+                organization_id=organization_id,
+                invited_by=user.id,
+                role=request.role.value,
+            )
+        except invitations.InvitationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+
+    result = await send_email(
+        to=issued.email,
+        subject=invitations.notice_subject(),
+        body_text=invitations.notice_body(issued, invited_by_email=user.email),
+    )
+    return InviteMemberResponse(
+        email=issued.email,
+        is_new_user=issued.is_new_user,
+        expires_at=issued.expires_at.isoformat(),
+        email_sent=result.ok,
+        email_error=result.error,
     )
 
 
