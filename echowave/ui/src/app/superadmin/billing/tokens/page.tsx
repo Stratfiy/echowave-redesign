@@ -158,6 +158,17 @@ export default function TokensPage() {
     };
     const growthSeries = growth.series ?? [];
 
+    // The blend assumption, measured. Every LLM margin figure on every screen
+    // rests on LLM_INPUT_SHARE, and until this the only way to check it was to
+    // read the constant and believe it.
+    const inputShare = (data?.input_share ?? {}) as {
+        assumed?: number;
+        observed?: number | null;
+        drift?: number | null;
+        cached_share?: number | null;
+        turns?: number;
+    };
+
     const totalTokens = series.reduce((sum, r) => sum + r.tokens, 0);
     const totalCost = series.reduce((sum, r) => sum + r.cost_paise, 0);
     const totalMinutes = series.reduce((sum, r) => sum + r.minutes, 0);
@@ -208,6 +219,57 @@ export default function TokensPage() {
                     value={`${formatNumber(Math.round(totalMinutes))} min`}
                 />
             </div>
+
+            {/* Placed above the charts because it is the figure the charts
+                are denominated in: if the blend is wrong, every cost and
+                margin below it is wrong by the same proportion. */}
+            {inputShare.observed !== null && inputShare.observed !== undefined && (
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-[0.9375rem]">
+                            Input share — assumed vs measured
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+                            <div>
+                                <p className="text-[0.6875rem] font-medium uppercase tracking-[0.07em] text-muted-foreground">
+                                    Assumed
+                                </p>
+                                <p className="text-2xl font-semibold tabular-nums leading-tight tracking-[-0.03em]">
+                                    {((inputShare.assumed ?? 0) * 100).toFixed(0)}%
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-[0.6875rem] font-medium uppercase tracking-[0.07em] text-muted-foreground">
+                                    Measured
+                                </p>
+                                <p className="text-2xl font-semibold tabular-nums leading-tight tracking-[-0.03em]">
+                                    {(inputShare.observed * 100).toFixed(1)}%
+                                </p>
+                            </div>
+                            {inputShare.cached_share !== null &&
+                                inputShare.cached_share !== undefined && (
+                                    <div>
+                                        <p className="text-[0.6875rem] font-medium uppercase tracking-[0.07em] text-muted-foreground">
+                                            Of input, cached
+                                        </p>
+                                        <p className="text-2xl font-semibold tabular-nums leading-tight tracking-[-0.03em]">
+                                            {(inputShare.cached_share * 100).toFixed(0)}%
+                                        </p>
+                                    </div>
+                                )}
+                            <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
+                                {Math.abs(inputShare.drift ?? 0) < 0.05
+                                    ? `The assumption holds, across ${formatNumber(inputShare.turns ?? 0)} turns. Nothing to change.`
+                                    : (inputShare.drift ?? 0) > 0
+                                      ? `We assume more input than there is. Output costs several times input, so every LLM cost here is understated and every margin overstated. Lower LLM_INPUT_SHARE to ${(inputShare.observed).toFixed(2)}.`
+                                      : `We assume less input than there is, so LLM costs here are overstated and margins understated. Raise LLM_INPUT_SHARE to ${(inputShare.observed).toFixed(2)}.`}
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             <ChartCard
                 title="Tokens over time"

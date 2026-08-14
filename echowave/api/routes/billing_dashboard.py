@@ -418,6 +418,15 @@ async def get_tokens(
                 end=rng.end,
                 organization_id=organization_id,
             ),
+            # The blend assumption, measured instead of assumed. Every LLM
+            # margin figure on every screen rests on LLM_INPUT_SHARE, and the
+            # data to check it has been recorded per turn all along.
+            "input_share": await dash.observed_input_share(
+                session,
+                start=rng.start,
+                end=rng.end,
+                organization_id=organization_id,
+            ),
         }
 
 

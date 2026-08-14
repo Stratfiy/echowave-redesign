@@ -47,6 +47,7 @@ from api.db.models import (
     WorkflowRunModel,
 )
 from api.enums import CreditLedgerKind, RateUnit
+from api.services.billing.default_rates import LLM_INPUT_SHARE
 from api.services.billing.rates import resolve_platform_rate
 from api.services.billing.rollup import IST, ist_day_bounds_utc
 
@@ -2261,4 +2262,87 @@ async def payments_summary(
             # is large and unexplained, it is the first place to look.
             "unpaid_credit_paise": credited_paise - net_paise,
         },
+    }
+
+
+async def observed_input_share(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    organization_id: int | None = None,
+) -> dict:
+    """What share of LLM tokens is actually input, measured rather than assumed.
+
+    ``LLM_INPUT_SHARE`` blends a vendor's two-sided price — input and output
+    charged differently — into the single per-1k rate the schema carries. It is
+    set to 0.7 by assumption, and every LLM margin figure on every screen rests
+    on it.
+
+    It never needed to be an assumption. ``call_turn_metrics`` records
+    ``prompt_tokens`` and ``completion_tokens`` per turn, so the true share is a
+    division. This performs it, and reports what the gap costs: with output
+    tokens priced several times input, a share set too high understates what we
+    pay and overstates every margin derived from it.
+
+    Returns ``observed`` as ``None`` rather than zero when nothing is recorded.
+    A voice agent whose provider never reported usage is silent, not
+    all-output, and a zero here would read as "we assumed badly" when it means
+    "we measured nothing".
+    """
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+
+    conditions = [
+        WorkflowRunModel.created_at >= start_utc,
+        WorkflowRunModel.created_at < end_utc,
+        CallTurnMetricModel.prompt_tokens.isnot(None),
+        CallTurnMetricModel.completion_tokens.isnot(None),
+    ]
+    if organization_id is not None:
+        conditions.append(WorkflowModel.organization_id == organization_id)
+
+    row = (
+        await session.execute(
+            select(
+                func.sum(CallTurnMetricModel.prompt_tokens).label("prompt"),
+                func.sum(CallTurnMetricModel.completion_tokens).label("completion"),
+                func.sum(CallTurnMetricModel.cached_tokens).label("cached"),
+                func.count().label("turns"),
+                func.count(func.distinct(CallTurnMetricModel.workflow_run_id)).label(
+                    "calls"
+                ),
+            )
+            .select_from(CallTurnMetricModel)
+            .join(
+                WorkflowRunModel,
+                CallTurnMetricModel.workflow_run_id == WorkflowRunModel.id,
+            )
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(*conditions)
+        )
+    ).one()
+
+    prompt = int(row.prompt or 0)
+    completion = int(row.completion or 0)
+    total = prompt + completion
+    observed = round(prompt / total, 4) if total else None
+
+    return {
+        "assumed": LLM_INPUT_SHARE,
+        "observed": observed,
+        "prompt_tokens": prompt,
+        "completion_tokens": completion,
+        # Caching is the lever on all of it: a cached input token costs a
+        # fraction of a fresh one, so a high input share is cheaper than it
+        # looks when the hit rate is high.
+        "cached_tokens": int(row.cached or 0),
+        "cached_share": (round(int(row.cached or 0) / prompt, 4) if prompt else None),
+        "turns": int(row.turns or 0),
+        "calls": int(row.calls or 0),
+        # Signed: positive means we assumed more input than there is, which
+        # understates cost because output is the dearer side.
+        "drift": (
+            round(LLM_INPUT_SHARE - observed, 4) if observed is not None else None
+        ),
     }
