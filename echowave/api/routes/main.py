@@ -6,6 +6,8 @@ from loguru import logger
 from pydantic import BaseModel
 
 from api.routes.admin_accounts import router as admin_accounts_router
+from api.routes.admin_agency import router as admin_agency_router
+from api.routes.agency import router as agency_router
 from api.routes.agent_stream import router as agent_stream_router
 from api.routes.auth import router as auth_router
 from api.routes.billing_dashboard import router as billing_dashboard_router
@@ -62,6 +64,8 @@ router.include_router(kyc_admin_router)
 router.include_router(managed_numbers_router)
 router.include_router(organization_members_router)
 router.include_router(admin_accounts_router)
+router.include_router(admin_agency_router)
+router.include_router(agency_router)
 router.include_router(platform_credentials_router)
 router.include_router(referrals_router)
 router.include_router(provider_keys_router)

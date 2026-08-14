@@ -1,6 +1,7 @@
 import {
   AudioLines,
   Brain,
+  Building2,
   ChartColumnBig,
   Database,
   FileText,
@@ -217,6 +218,16 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         url: "/referrals",
         icon: Gift,
         keywords: ["referral", "refer", "invite", "reward", "credit", "code"],
+      },
+      // Shown to everyone, and self-explaining for the vast majority who are
+      // not an agency: the screen says so rather than showing a blank table.
+      // Hiding it behind a flag would mean an agency could not find the thing
+      // they were told they had.
+      {
+        title: "Your clients",
+        url: "/agency",
+        icon: Building2,
+        keywords: ["agency", "clients", "commission", "reseller", "partner"],
       },
     ],
   },

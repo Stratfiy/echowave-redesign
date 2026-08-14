@@ -141,6 +141,18 @@ class OrganizationModel(Base):
     )
     referred_at = Column(DateTime(timezone=True), nullable=True)
 
+    #: The agency that manages this account, if any. An agency sees a roll-up
+    #: of the accounts it manages; it does not sign in as them. Nullable
+    #: because almost every account is nobody's client.
+    managed_by_organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
+    #: What that agency earns on this account, in basis points of what the
+    #: account is charged. Per client rather than per agency, because the rate
+    #: is negotiated per deal and a single agency rate would make the first
+    #: exception a schema change.
+    agency_commission_bps = Column(Integer, nullable=True)
+
     # Deprecated: MPS owns quota and credit ledger state.
     quota_type = Column(
         Enum("monthly", "annual", name="quota_type"),
@@ -3008,6 +3020,58 @@ class ReferralAwardModel(Base):
     #: Set when the payment behind it was refunded before it matured.
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class AgencyCommissionAccrualModel(Base):
+    """What an agency earned on one client in one month, as it stood then.
+
+    Snapshotted rather than recomputed. Commission is a percentage of what the
+    client was charged, and if it were derived on read then renegotiating the
+    rate would silently rewrite every past month — the same failure the rate
+    card and the managed markup both avoid by being effective-dated.
+
+    ``bps_applied`` and ``charged_paise`` are both recorded, so a statement can
+    show its own arithmetic. An amount alone is a number somebody has to trust.
+
+    One row per agency, client and month, enforced by the unique constraint:
+    the accrual job is monthly and re-runnable, and without it a second run
+    would double what is owed.
+    """
+
+    __tablename__ = "agency_commission_accruals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    agency_organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    client_organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    #: First day of the IST month this covers.
+    month = Column(Date, nullable=False)
+
+    charged_paise = Column(BigInteger, nullable=False)
+    bps_applied = Column(Integer, nullable=False)
+    amount_paise = Column(BigInteger, nullable=False)
+
+    #: Set when the agency has actually been paid. Kept here rather than in a
+    #: separate payouts table because "owed" is then earned-minus-paid over one
+    #: table, and there is no way for the two to disagree.
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+    paid_note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "agency_organization_id",
+            "client_organization_id",
+            "month",
+            name="uq_agency_accrual_month",
+        ),
+    )
 
 
 class BillingProfileModel(Base):

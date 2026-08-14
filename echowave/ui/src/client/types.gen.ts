@@ -219,6 +219,16 @@ export type AcceptInvitationRequest = {
 };
 
 /**
+ * AccrueRequest
+ */
+export type AccrueRequest = {
+    /**
+     * Month
+     */
+    month: string;
+};
+
+/**
  * ActiveCallsResponse
  */
 export type ActiveCallsResponse = {
@@ -4152,6 +4162,20 @@ export type LoginRequest = {
 };
 
 /**
+ * MarkPaidRequest
+ */
+export type MarkPaidRequest = {
+    /**
+     * Accrual Id
+     */
+    accrual_id: number;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
  * MarkupChangeRequest
  */
 export type MarkupChangeRequest = {
@@ -6238,6 +6262,26 @@ export type SetCredentialRequest = {
      * Store this key for every component this provider serves.
      */
     apply_to_all_components?: boolean;
+};
+
+/**
+ * SetManagerRequest
+ */
+export type SetManagerRequest = {
+    /**
+     * Client Organization Id
+     */
+    client_organization_id: number;
+    /**
+     * Agency Organization Id
+     */
+    agency_organization_id?: number | null;
+    /**
+     * Commission Bps
+     *
+     * Basis points of what the client is charged. 1000 = 10%.
+     */
+    commission_bps?: number | null;
 };
 
 /**
@@ -11738,6 +11782,178 @@ export type CreateAccountApiV1AdminAccountsPostResponses = {
 };
 
 export type CreateAccountApiV1AdminAccountsPostResponse = CreateAccountApiV1AdminAccountsPostResponses[keyof CreateAccountApiV1AdminAccountsPostResponses];
+
+export type SetManagerApiV1AdminAgencyManagerPostData = {
+    body: SetManagerRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/agency/manager';
+};
+
+export type SetManagerApiV1AdminAgencyManagerPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetManagerApiV1AdminAgencyManagerPostError = SetManagerApiV1AdminAgencyManagerPostErrors[keyof SetManagerApiV1AdminAgencyManagerPostErrors];
+
+export type SetManagerApiV1AdminAgencyManagerPostResponses = {
+    /**
+     * Response Set Manager Api V1 Admin Agency Manager Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetManagerApiV1AdminAgencyManagerPostResponse = SetManagerApiV1AdminAgencyManagerPostResponses[keyof SetManagerApiV1AdminAgencyManagerPostResponses];
+
+export type AccrueApiV1AdminAgencyAccruePostData = {
+    body: AccrueRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/agency/accrue';
+};
+
+export type AccrueApiV1AdminAgencyAccruePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AccrueApiV1AdminAgencyAccruePostError = AccrueApiV1AdminAgencyAccruePostErrors[keyof AccrueApiV1AdminAgencyAccruePostErrors];
+
+export type AccrueApiV1AdminAgencyAccruePostResponses = {
+    /**
+     * Response Accrue Api V1 Admin Agency Accrue Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AccrueApiV1AdminAgencyAccruePostResponse = AccrueApiV1AdminAgencyAccruePostResponses[keyof AccrueApiV1AdminAgencyAccruePostResponses];
+
+export type MarkPaidApiV1AdminAgencyPaidPostData = {
+    body: MarkPaidRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/agency/paid';
+};
+
+export type MarkPaidApiV1AdminAgencyPaidPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MarkPaidApiV1AdminAgencyPaidPostError = MarkPaidApiV1AdminAgencyPaidPostErrors[keyof MarkPaidApiV1AdminAgencyPaidPostErrors];
+
+export type MarkPaidApiV1AdminAgencyPaidPostResponses = {
+    /**
+     * Response Mark Paid Api V1 Admin Agency Paid Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type MarkPaidApiV1AdminAgencyPaidPostResponse = MarkPaidApiV1AdminAgencyPaidPostResponses[keyof MarkPaidApiV1AdminAgencyPaidPostResponses];
+
+export type GetAgencyStatementApiV1AgencyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/agency';
+};
+
+export type GetAgencyStatementApiV1AgencyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAgencyStatementApiV1AgencyGetError = GetAgencyStatementApiV1AgencyGetErrors[keyof GetAgencyStatementApiV1AgencyGetErrors];
+
+export type GetAgencyStatementApiV1AgencyGetResponses = {
+    /**
+     * Response Get Agency Statement Api V1 Agency Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetAgencyStatementApiV1AgencyGetResponse = GetAgencyStatementApiV1AgencyGetResponses[keyof GetAgencyStatementApiV1AgencyGetResponses];
 
 export type DeleteProviderKeyApiV1AdminProviderKeysDeleteData = {
     body?: never;

@@ -40,6 +40,7 @@ REDIS_SETTINGS = RedisSettings(
 )
 
 from api.constants import ARQ_MAX_JOBS
+from api.tasks.agency_commission import accrue_agency_commission
 from api.tasks.backup import run_database_backup
 from api.tasks.billing_rollup import refresh_billing_rollups
 from api.tasks.campaign_tasks import (
@@ -82,6 +83,7 @@ class WorkerSettings:
         record_worker_heartbeat,
         charge_recurring_rentals,
         credit_matured_referrals,
+        accrue_agency_commission,
         reconcile_carrier_numbers,
     ]
     cron_jobs = [
@@ -123,6 +125,17 @@ class WorkerSettings:
             minute={7},
             second=0,
             run_at_startup=True,
+        ),
+        # Commission is snapshotted as it stood rather than derived on read,
+        # so something has to do the recording. The 2nd rather than the 1st:
+        # the daily rollups it reads are refreshed on a lag, and accruing at
+        # midnight would snapshot a month still being counted.
+        cron(
+            accrue_agency_commission,
+            day={2},
+            hour={3},
+            minute={0},
+            second=0,
         ),
         # The KYC carrier poll used to run here. Plivo posts a compliance
         # callback on every status change (routes/kyc.py), so polling asked a

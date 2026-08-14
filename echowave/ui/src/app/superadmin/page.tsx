@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, KeyRound, List, Loader2, ShieldCheck, UserPlus, Wallet } from 'lucide-react';
+import { ArrowRight, Building2, KeyRound, List, Loader2, ShieldCheck, UserPlus, Wallet } from 'lucide-react';
 import Link from "next/link";
 import { useState } from "react";
 
@@ -208,6 +208,25 @@ export default function SuperadminPage() {
                                     <Button className="w-full md:w-auto">
                                         <UserPlus className="mr-2 h-4 w-4" />
                                         Create account
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </Link>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Agencies</CardTitle>
+                                <CardDescription>
+                                    Put an account under an agency, set what they
+                                    earn on it, and close a month once settled
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Link href="/superadmin/agency">
+                                    <Button className="w-full md:w-auto">
+                                        <Building2 className="mr-2 h-4 w-4" />
+                                        Manage agencies
                                         <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 </Link>
