@@ -128,6 +128,19 @@ class OrganizationModel(Base):
     provider_id = Column(String, unique=True, index=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
+    #: This account's own code, for inviting others. Minted on first use rather
+    #: than at signup, so the codes that exist are ones somebody meant to share.
+    #: Unique, because two accounts holding one code makes "who gets paid"
+    #: unanswerable.
+    referral_code = Column(String(16), unique=True, nullable=True, index=True)
+    #: Who referred this account, if anyone. Set once at signup and never
+    #: changed — the award is paid against it weeks later, and an attribution
+    #: that could move would pay whoever happened to hold it at the time.
+    referred_by_organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
+    referred_at = Column(DateTime(timezone=True), nullable=True)
+
     # Deprecated: MPS owns quota and credit ledger state.
     quota_type = Column(
         Enum("monthly", "annual", name="quota_type"),
@@ -2946,6 +2959,55 @@ class AccountInvitationModel(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     invited_by_user = relationship("UserModel")
+
+
+class ReferralAwardModel(Base):
+    """A referral reward, earned at settlement and spendable after a hold.
+
+    Deliberately **not** a credit ledger row until it matures. The ledger means
+    one thing — money that is yours now — and every balance query in the system
+    depends on that. An award that sat there with an availability date would
+    make each of those queries wrong by exactly the amount nobody could spend.
+
+    The hold exists because card disputes arrive weeks after the payment. An
+    award credited at settlement and never reversed is a way to buy credit at a
+    discount with a stolen card; cancelling before maturity writes nothing at
+    all, so a clawback leaves no correction to explain.
+
+    One award per referred organization, enforced by the unique index rather
+    than by a check in the service — two concurrent webhooks for the same order
+    race that check and both win.
+    """
+
+    __tablename__ = "referral_awards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    referrer_organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    #: Unique: the reward is for the referral, not for each payment they make.
+    referred_organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    #: The payment that earned it, so a refund webhook can find the award to
+    #: cancel without knowing anything about referrals.
+    payment_id = Column(String(64), nullable=False, index=True)
+    amount_paise = Column(BigInteger, nullable=False)
+
+    earned_at = Column(DateTime(timezone=True), nullable=False)
+    available_at = Column(DateTime(timezone=True), nullable=False)
+    #: Set when the ledger row is written. Also what makes crediting
+    #: idempotent, so a retried job pays nothing twice.
+    credited_at = Column(DateTime(timezone=True), nullable=True)
+    #: Set when the payment behind it was refunded before it matured.
+    cancelled_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
 class BillingProfileModel(Base):

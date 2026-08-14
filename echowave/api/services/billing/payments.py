@@ -45,6 +45,7 @@ from api.constants import (
 )
 from api.db.models import CreditLedgerModel, PaymentModel
 from api.enums import CreditLedgerKind
+from api.services.billing import referrals
 from api.services.billing.billing_profile import get_profile
 from api.services.billing.tax import TaxError, compute_tax
 
@@ -418,6 +419,28 @@ async def handle_webhook(
     payment.provider_payload = event
     payment.credit_ledger_id = entry.id
     await session.flush()
+
+    # A referral earns its share here, of the *net* credited rather than the
+    # gross charged — 20% of the GST would be somebody else's money. Returns
+    # None on almost every payment (no referrer, or not the first), which is
+    # the ordinary case rather than a failure.
+    #
+    # Deliberately not awaited on failure: a settled payment must not roll back
+    # because a reward could not be recorded. The customer paid and the credit
+    # is theirs either way.
+    try:
+        await referrals.award_for_payment(
+            session,
+            organization_id=payment.organization_id,
+            payment_id=payment_id,
+            net_paise=credited,
+        )
+    except Exception:
+        logger.warning(
+            "Could not record a referral award for payment {}",
+            payment_id,
+            exc_info=True,
+        )
 
     # The advance is taxable on receipt, so the voucher belongs to this
     # transaction rather than to a later job. It returns None rather than

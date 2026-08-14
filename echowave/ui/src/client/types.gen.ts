@@ -368,6 +368,16 @@ export type AppendTextChatMessageRequest = {
 };
 
 /**
+ * ApplyCodeRequest
+ */
+export type ApplyCodeRequest = {
+    /**
+     * Code
+     */
+    code: string;
+};
+
+/**
  * AssemblyAI
  */
 export type AssemblyAisttConfiguration = {
@@ -11909,6 +11919,92 @@ export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses = {
 };
 
 export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponse = SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses[keyof SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses];
+
+export type GetReferralsApiV1ReferralsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/referrals';
+};
+
+export type GetReferralsApiV1ReferralsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetReferralsApiV1ReferralsGetError = GetReferralsApiV1ReferralsGetErrors[keyof GetReferralsApiV1ReferralsGetErrors];
+
+export type GetReferralsApiV1ReferralsGetResponses = {
+    /**
+     * Response Get Referrals Api V1 Referrals Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetReferralsApiV1ReferralsGetResponse = GetReferralsApiV1ReferralsGetResponses[keyof GetReferralsApiV1ReferralsGetResponses];
+
+export type ApplyReferralCodeApiV1ReferralsApplyPostData = {
+    body: ApplyCodeRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/referrals/apply';
+};
+
+export type ApplyReferralCodeApiV1ReferralsApplyPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApplyReferralCodeApiV1ReferralsApplyPostError = ApplyReferralCodeApiV1ReferralsApplyPostErrors[keyof ApplyReferralCodeApiV1ReferralsApplyPostErrors];
+
+export type ApplyReferralCodeApiV1ReferralsApplyPostResponses = {
+    /**
+     * Response Apply Referral Code Api V1 Referrals Apply Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApplyReferralCodeApiV1ReferralsApplyPostResponse = ApplyReferralCodeApiV1ReferralsApplyPostResponses[keyof ApplyReferralCodeApiV1ReferralsApplyPostResponses];
 
 export type DeleteProviderKeyApiV1ProviderKeysDeleteData = {
     body?: never;

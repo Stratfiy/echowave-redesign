@@ -4,6 +4,7 @@ import {
   ChartColumnBig,
   Database,
   FileText,
+  Gift,
   Home,
   Key,
   KeyRound,
@@ -207,6 +208,15 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         url: "/do-not-call",
         icon: PhoneOff,
         keywords: ["dnd", "suppression", "opt out", "tcccpr", "trai", "blocklist"],
+      },
+      // Under Manage rather than beside Billing: it is a thing the account
+      // holder does, not a number they read, and burying it under invoices is
+      // how a referral scheme goes unused.
+      {
+        title: "Refer a friend",
+        url: "/referrals",
+        icon: Gift,
+        keywords: ["referral", "refer", "invite", "reward", "credit", "code"],
       },
     ],
   },

@@ -53,6 +53,7 @@ from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.low_balance import notify_low_balances
+from api.tasks.referral_maturation import credit_matured_referrals
 from api.tasks.rental_billing import (
     charge_recurring_rentals,
     reconcile_carrier_numbers,
@@ -80,6 +81,7 @@ class WorkerSettings:
         refresh_exchange_rate,
         record_worker_heartbeat,
         charge_recurring_rentals,
+        credit_matured_referrals,
         reconcile_carrier_numbers,
     ]
     cron_jobs = [
@@ -110,6 +112,16 @@ class WorkerSettings:
             refresh_billing_rollups,
             minute=set(range(0, 60, 10)),
             second=30,
+            run_at_startup=True,
+        ),
+        # A referral award is earned at settlement and spendable a week later,
+        # so that a chargeback in between can take it back before it is spent.
+        # Hourly: the hold is in days, so an hour of slack is invisible to the
+        # referrer and a worker restart never strands an award until tomorrow.
+        cron(
+            credit_matured_referrals,
+            minute={7},
+            second=0,
             run_at_startup=True,
         ),
         # The KYC carrier poll used to run here. Plivo posts a compliance

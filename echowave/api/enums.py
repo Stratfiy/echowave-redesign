@@ -258,6 +258,12 @@ class CreditLedgerKind(str, Enum):
     # dials, and a statement that folded it into usage would tell a customer
     # they were charged for calls they never made.
     RENTAL = "rental"
+    # A referral reward, credited once the referred account's first payment has
+    # settled and survived the clawback window. Kept distinct from ADJUSTMENT
+    # because it is earned rather than granted: it has a payment behind it, it
+    # is reportable as a marketing cost, and an adjustment that folded it in
+    # would make "what did referrals cost us" unanswerable.
+    REFERRAL = "referral"
 
 
 class BillingAuditAction(str, Enum):
