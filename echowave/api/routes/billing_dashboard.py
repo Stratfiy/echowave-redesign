@@ -345,6 +345,12 @@ async def get_latency(
             "endpointing_by_language": await dash.endpointing_by_language(
                 session, start=rng.start, end=rng.end
             ),
+            # Why calls failed, grouped by who has to act. Listed by volume
+            # it would put "outside calling hours" — the system working — at
+            # the top and bury the faults underneath it.
+            "failures": await dash.failure_breakdown(
+                session, start=rng.start, end=rng.end, organization_id=organization_id
+            ),
             "slowest_turns": await dash.slowest_turns(
                 session, start=rng.start, end=rng.end
             ),

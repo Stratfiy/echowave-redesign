@@ -687,6 +687,22 @@ class WorkflowRunModel(Base):
         server_default=text("'initialized'::workflow_run_state"),
     )
     is_completed = Column(Boolean, default=False)
+
+    #: Why this run did not happen, or did not finish. NULL on a call that
+    #: went fine, which is most of them.
+    #:
+    #: A short vocabulary (``RunFailureReason``) rather than free text,
+    #: because the question it exists to answer is "what is failing across the
+    #: fleet" and that cannot be asked of a column holding a thousand distinct
+    #: sentences. Stored as a plain string rather than a Postgres ENUM so
+    #: naming a new reason is a deploy rather than a migration — the vocabulary
+    #: will grow, and each growth blocking on DDL is how it stops growing.
+    failure_reason = Column(String(32), nullable=True, index=True)
+    #: The part that is unique to this one call — a provider's own message, a
+    #: carrier code. Never grouped on; read after the breakdown has already
+    #: said which bucket to look in.
+    failure_detail = Column(Text, nullable=True)
+
     recording_url = Column(String, nullable=True)
     transcript_url = Column(String, nullable=True)
     extra = Column(

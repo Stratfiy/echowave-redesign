@@ -96,6 +96,72 @@ class WorkflowRunState(Enum):
     COMPLETED = "completed"  # Workflow run finished
 
 
+class RunFailureReason(str, Enum):
+    """Why a call did not happen, or did not finish.
+
+    A small, stable vocabulary rather than free text, because the question this
+    answers is "what is failing across the fleet" and that cannot be asked of a
+    column holding a thousand distinct sentences. The detail that *is* unique
+    to one call goes in ``failure_detail`` beside it.
+
+    Grouped by who has to act, which is the only grouping that matters when
+    somebody is looking at the breakdown at 9am:
+
+    * The **customer** can fix insufficient_credit, no_verified_number.
+    * **We** have to fix provider_error, platform_error, no_platform_key.
+    * **Nobody** can fix caller_hung_up or the compliance refusals — those are
+      the system working, and they must not sit in the same bucket as faults
+      or every real problem is buried under them.
+    """
+
+    # The account's own situation.
+    INSUFFICIENT_CREDIT = "insufficient_credit"
+    NO_VERIFIED_NUMBER = "no_verified_number"
+    CONCURRENCY_LIMIT = "concurrency_limit"
+
+    # Deliberate refusals. Not faults — the system doing its job.
+    DND_LISTED = "dnd_listed"
+    OUTSIDE_CALLING_HOURS = "outside_calling_hours"
+    CALLER_HUNG_UP = "caller_hung_up"
+
+    # Ours.
+    PROVIDER_ERROR = "provider_error"
+    NO_PLATFORM_KEY = "no_platform_key"
+    TELEPHONY_ERROR = "telephony_error"
+    PLATFORM_ERROR = "platform_error"
+
+    # The honest bucket. A reason we have not classified yet is worth a name of
+    # its own: folding it into platform_error would claim we know it is ours.
+    UNKNOWN = "unknown"
+
+
+#: Which reasons are the system working rather than something broken. Kept
+#: beside the enum so a screen cannot drift from it, and so "how many calls
+#: failed" can exclude the ones that did exactly what they were told to.
+DELIBERATE_FAILURES = frozenset(
+    {
+        RunFailureReason.DND_LISTED,
+        RunFailureReason.OUTSIDE_CALLING_HOURS,
+        RunFailureReason.CALLER_HUNG_UP,
+    }
+)
+
+#: Whose problem each reason is. Drives the breakdown grouping.
+FAILURE_OWNER = {
+    RunFailureReason.INSUFFICIENT_CREDIT: "customer",
+    RunFailureReason.NO_VERIFIED_NUMBER: "customer",
+    RunFailureReason.CONCURRENCY_LIMIT: "customer",
+    RunFailureReason.DND_LISTED: "nobody",
+    RunFailureReason.OUTSIDE_CALLING_HOURS: "nobody",
+    RunFailureReason.CALLER_HUNG_UP: "nobody",
+    RunFailureReason.PROVIDER_ERROR: "us",
+    RunFailureReason.NO_PLATFORM_KEY: "us",
+    RunFailureReason.TELEPHONY_ERROR: "us",
+    RunFailureReason.PLATFORM_ERROR: "us",
+    RunFailureReason.UNKNOWN: "us",
+}
+
+
 class WorkflowRunStatus(Enum):
     # historical modes
     VOICE = "VOICE"

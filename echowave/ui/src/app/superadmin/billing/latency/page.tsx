@@ -158,6 +158,23 @@ export default function LatencyPage() {
     // Endpointing split by language and transcriber. The global median above
     // averages a language paying no silence wait with one paying half a second
     // every turn, and describes neither.
+    // Grouped by who has to act rather than by volume: ordered by volume a
+    // healthy fleet puts "outside calling hours" — the system obeying its
+    // instructions — at the top, and buries the faults underneath it.
+    const failures = (data?.failures ?? {}) as {
+        total_runs?: number;
+        failed_runs?: number;
+        fault_runs?: number;
+        fault_rate?: number | null;
+        reasons?: Array<{
+            reason: string;
+            owner: string;
+            deliberate: boolean;
+            runs: number;
+        }>;
+    };
+    const failureRows = failures.reasons ?? [];
+
     const endpointing = (data?.endpointing_by_language ?? []) as Array<{
         language: string;
         stt_model: string;
@@ -495,6 +512,80 @@ export default function LatencyPage() {
                     </ResponsiveContainer>
                 </ChartCard>
             </div>
+
+            <Card>
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Why calls failed</CardTitle>
+                    <p className="mt-0.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+                        Grouped by who has to do something about it. Refusals the
+                        system makes on purpose — do-not-call, outside calling hours
+                        — are listed but never counted against the fault rate.
+                    </p>
+                </CardHeader>
+                <CardContent>
+                    {failureRows.length === 0 ? (
+                        <PanelMessage height={140}>
+                            No failures recorded in this period.
+                        </PanelMessage>
+                    ) : (
+                        <>
+                            <div className="mb-4 flex flex-wrap items-end gap-x-8 gap-y-3">
+                                <div>
+                                    <p className="text-[0.6875rem] font-medium uppercase tracking-[0.07em] text-muted-foreground">
+                                        Our fault rate
+                                    </p>
+                                    <p className="text-2xl font-semibold tabular-nums leading-tight tracking-[-0.03em]">
+                                        {failures.fault_rate === null ||
+                                        failures.fault_rate === undefined
+                                            ? "—"
+                                            : `${(failures.fault_rate * 100).toFixed(2)}%`}
+                                    </p>
+                                </div>
+                                <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
+                                    {formatNumber(failures.fault_runs ?? 0)} of{" "}
+                                    {formatNumber(failures.total_runs ?? 0)} calls failed
+                                    for a reason on our side. This is the number that
+                                    should be near zero.
+                                </p>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Reason</TableHead>
+                                            <TableHead>Who fixes it</TableHead>
+                                            <TableHead className="text-right">Calls</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {failureRows.map((row) => (
+                                            <TableRow key={row.reason}>
+                                                <TableCell className="whitespace-nowrap font-medium">
+                                                    {row.reason.replace(/_/g, " ")}
+                                                </TableCell>
+                                                <TableCell className="whitespace-nowrap">
+                                                    <span className="rounded-md bg-foreground/[0.06] px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                                                        {row.deliberate
+                                                            ? "working as intended"
+                                                            : row.owner === "us"
+                                                              ? "us"
+                                                              : row.owner === "customer"
+                                                                ? "the account"
+                                                                : "nobody"}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-right tabular-nums">
+                                                    {formatNumber(row.runs)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </>
+                    )}
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardHeader className="pb-2">

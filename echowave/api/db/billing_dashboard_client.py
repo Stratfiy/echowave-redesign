@@ -46,7 +46,13 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
-from api.enums import CreditLedgerKind, RateUnit
+from api.enums import (
+    DELIBERATE_FAILURES,
+    FAILURE_OWNER,
+    CreditLedgerKind,
+    RateUnit,
+    RunFailureReason,
+)
 from api.services.billing.default_rates import LLM_INPUT_SHARE
 from api.services.billing.rates import resolve_platform_rate
 from api.services.billing.rollup import IST, ist_day_bounds_utc
@@ -2432,3 +2438,98 @@ async def endpointing_by_language(
         }
         for r in rows
     ]
+
+
+async def failure_breakdown(
+    session: AsyncSession,
+    *,
+    start: date,
+    end: date,
+    organization_id: int | None = None,
+) -> dict:
+    """Why calls failed, grouped by who has to do something about it.
+
+    The grouping is the point. A breakdown that lists reasons by volume puts
+    "outside calling hours" at the top of a healthy fleet — a refusal that is
+    the system working exactly as instructed — and buries the provider errors
+    that somebody has to fix under it.
+
+    So three buckets: what the customer can fix, what we have to fix, and what
+    nobody can. ``fault_rate`` counts only the middle one against total calls,
+    because that is the number that should be near zero and the only one worth
+    alerting on.
+    """
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+
+    conditions = [
+        WorkflowRunModel.created_at >= start_utc,
+        WorkflowRunModel.created_at < end_utc,
+    ]
+    if organization_id is not None:
+        conditions.append(WorkflowModel.organization_id == organization_id)
+
+    total = await session.scalar(
+        select(func.count())
+        .select_from(WorkflowRunModel)
+        .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+        .where(*conditions)
+    )
+
+    rows = (
+        await session.execute(
+            select(
+                WorkflowRunModel.failure_reason,
+                func.count().label("runs"),
+            )
+            .select_from(WorkflowRunModel)
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(*conditions, WorkflowRunModel.failure_reason.isnot(None))
+            .group_by(WorkflowRunModel.failure_reason)
+            .order_by(desc(func.count()))
+        )
+    ).all()
+
+    reasons = []
+    ours = 0
+    for row in rows:
+        try:
+            reason = RunFailureReason(row.failure_reason)
+        except ValueError:
+            # A reason written by a newer deploy than this one is reported
+            # rather than dropped. Dropping it would make the fleet look
+            # healthier during exactly the window somebody is investigating.
+            reasons.append(
+                {
+                    "reason": row.failure_reason,
+                    "owner": "us",
+                    "deliberate": False,
+                    "runs": int(row.runs),
+                }
+            )
+            ours += int(row.runs)
+            continue
+
+        owner = FAILURE_OWNER.get(reason, "us")
+        if owner == "us":
+            ours += int(row.runs)
+        reasons.append(
+            {
+                "reason": reason.value,
+                "owner": owner,
+                "deliberate": reason in DELIBERATE_FAILURES,
+                "runs": int(row.runs),
+            }
+        )
+
+    total = int(total or 0)
+    failed = sum(r["runs"] for r in reasons)
+    return {
+        "total_runs": total,
+        "failed_runs": failed,
+        "reasons": reasons,
+        # Only what we have to fix, against everything. The number that should
+        # be near zero, and the only one worth waking somebody for.
+        "fault_runs": ours,
+        "fault_rate": round(ours / total, 4) if total else None,
+    }

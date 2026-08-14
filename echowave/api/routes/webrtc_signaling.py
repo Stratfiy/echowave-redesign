@@ -51,6 +51,7 @@ from api.services.pipecat.ws_sender_registry import (
     unregister_ws_sender,
 )
 from api.services.quota_service import authorize_workflow_run_start
+from api.services.runs import failures
 
 router = APIRouter(prefix="/ws")
 
@@ -456,6 +457,20 @@ class SignalingManager:
             actor_user=user,
         )
         if not quota_result.has_quota:
+            # Recorded before the socket is told, so a refusal shows up in the
+            # fleet breakdown whether or not the browser is still listening.
+            # The customer sees a message; nobody could previously ask how
+            # often this happens across every account.
+            if workflow_run_id:
+                async with db_client.async_session() as failure_session:
+                    await failures.record(
+                        failure_session,
+                        workflow_run_id=workflow_run_id,
+                        reason=failures.reason_for_error_code(quota_result.error_code),
+                        detail=quota_result.error_message,
+                    )
+                    await failure_session.commit()
+
             # Send error response for quota issues
             await ws.send_json(
                 {
