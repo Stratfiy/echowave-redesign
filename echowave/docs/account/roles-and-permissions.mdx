@@ -57,6 +57,30 @@ The split exists because the staff surfaces are not equivalent in risk. Reviewin
 
 Because the tiers are ranked, `superadmin` passes every `support` check without needing a separate grant.
 
+## Agencies: a third relationship, not a third role
+
+An agency is not a role somebody holds inside an account. It is a link *between*
+two accounts: one organization is recorded as managing another, with a
+commission rate attached. Staff set both, from `/superadmin/agency`.
+
+The reach is deliberately narrow, and the narrowness is the design rather than a
+limitation to be lifted later. An agency sees:
+
+- which accounts it manages
+- what those accounts were charged
+- what it earned on them
+
+An agency **cannot** sign in as a client, open their agents, or read their
+recordings and transcripts. Those are conversations with the client's own
+customers, and an agency relationship is not consent to listen to them. Managing
+an account is not the same as being in it.
+
+The rate is set by Decibyl rather than by the agency, for the obvious reason: it
+is what we pay, and a rate the earner can edit is not a rate.
+
+Detaching a client leaves past accruals in place. The agency did earn them, and
+"no longer manages" is not "never did".
+
 ## What happened to your existing team on upgrade
 
 If you had an account before roles existed, nothing about your access changed.
