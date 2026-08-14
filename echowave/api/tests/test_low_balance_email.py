@@ -80,22 +80,16 @@ class TestThePolicy:
 
     def test_ten_days_of_runway_is_a_warning(self):
         # ₹1,000 balance at ₹100/day.
-        assessment = low_balance.assess(
-            balance_paise=100_000, daily_burn_paise=10_000
-        )
+        assessment = low_balance.assess(balance_paise=100_000, daily_burn_paise=10_000)
         assert assessment.level == low_balance.LOW
         assert assessment.days_remaining == 10
 
     def test_three_days_of_runway_is_critical(self):
-        assessment = low_balance.assess(
-            balance_paise=30_000, daily_burn_paise=10_000
-        )
+        assessment = low_balance.assess(balance_paise=30_000, daily_burn_paise=10_000)
         assert assessment.level == low_balance.CRITICAL
 
     def test_a_month_of_runway_says_nothing(self):
-        assessment = low_balance.assess(
-            balance_paise=300_000, daily_burn_paise=10_000
-        )
+        assessment = low_balance.assess(balance_paise=300_000, daily_burn_paise=10_000)
         assert assessment.level is None
 
     def test_a_big_balance_is_still_a_warning_at_a_big_burn_rate(self):
@@ -136,7 +130,7 @@ class TestThePolicy:
 
 class TestTheMessage:
     def test_it_states_the_consequence_not_just_the_number(self):
-        """"Your balance is low" is not actionable."""
+        """ "Your balance is low" is not actionable."""
         assessment = low_balance.assess(balance_paise=50_000, daily_burn_paise=10_000)
         _subject, body = low_balance.compose(
             assessment=assessment,

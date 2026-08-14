@@ -249,7 +249,10 @@ async def create_rental_mandate(
             # the rental code, so collecting here as well would take the first
             # month twice.
             "customer_notify": 1,
-            "notes": {"organization_id": str(organization_id), "purpose": "number_rental"},
+            "notes": {
+                "organization_id": str(organization_id),
+                "purpose": "number_rental",
+            },
         },
         client=client,
     )
@@ -322,9 +325,7 @@ async def assert_mandate_authorised(
     return mandate
 
 
-async def apply_subscription_event(
-    session: AsyncSession, *, event: dict
-) -> dict:
+async def apply_subscription_event(session: AsyncSession, *, event: dict) -> dict:
     """Move a mandate to the state a verified provider event puts it in.
 
     Deliberately tolerant of unknown events: the provider adds them, and
@@ -337,9 +338,9 @@ async def apply_subscription_event(
     if event_type not in _EVENT_STATUS:
         return {"status": "ignored", "event": event_type}
 
-    entity = (
-        ((event.get("payload") or {}).get("subscription") or {}).get("entity") or {}
-    )
+    entity = ((event.get("payload") or {}).get("subscription") or {}).get(
+        "entity"
+    ) or {}
     subscription_id = entity.get("id")
     if not subscription_id:
         return {"status": "ignored", "event": event_type, "reason": "no_subscription"}

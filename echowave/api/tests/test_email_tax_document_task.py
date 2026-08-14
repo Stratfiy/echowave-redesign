@@ -13,8 +13,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-from api.services.messaging.email import SendResult
-
 from api.db.models import (
     BillingProfileModel,
     OrganizationModel,
@@ -22,6 +20,7 @@ from api.db.models import (
     UserModel,
 )
 from api.services.billing import documents, tax
+from api.services.messaging.email import SendResult
 from api.tasks import email_tax_document as task_module
 
 OUR_STATE = "29"

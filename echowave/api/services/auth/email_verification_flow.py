@@ -40,7 +40,5 @@ async def issue_code(user_id: int, email: str) -> bool:
         body_text=email_verification.body(started.code),
     )
     if not result.ok:
-        logger.error(
-            "Verification email to user {} failed: {}", user_id, result.error
-        )
+        logger.error("Verification email to user {} failed: {}", user_id, result.error)
     return result.ok

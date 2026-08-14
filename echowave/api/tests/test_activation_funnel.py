@@ -13,7 +13,6 @@ Two properties carry the whole thing, and both are easy to break by accident:
 from datetime import UTC, date, datetime, timedelta
 
 from api.db import db_client
-from api.enums import CreditLedgerKind
 from api.db.models import (
     CreditLedgerModel,
     OrganizationMembershipModel,
@@ -22,6 +21,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
+from api.enums import CreditLedgerKind
 
 TODAY = date.today()
 WINDOW = (TODAY - timedelta(days=7), TODAY)
@@ -40,9 +40,7 @@ async def _account(session, slug: str, *, created: datetime | None = None):
     session.add(user)
     await session.flush()
 
-    session.add(
-        OrganizationMembershipModel(user_id=user.id, organization_id=org.id)
-    )
+    session.add(OrganizationMembershipModel(user_id=user.id, organization_id=org.id))
     await session.flush()
     return user, org
 
@@ -124,9 +122,7 @@ class TestTheFunnel:
         after = _by_key(await db_client.activation_funnel(*WINDOW))
         assert after["first_call"] == before["first_call"] + 1
 
-    async def test_only_a_real_top_up_counts_as_paid(
-        self, db_session, async_session
-    ):
+    async def test_only_a_real_top_up_counts_as_paid(self, db_session, async_session):
         """Usage, reservations, staff adjustments and trial credit are all
         ledger rows, and two of those are positive. Only the customer actually
         paying makes them a customer."""
@@ -165,9 +161,7 @@ class TestTheFunnel:
         )
         counts = _by_key(await db_client.activation_funnel(*WINDOW))
         recent = _by_key(
-            await db_client.activation_funnel(
-                TODAY - timedelta(days=500), TODAY
-            )
+            await db_client.activation_funnel(TODAY - timedelta(days=500), TODAY)
         )
         assert recent["signed_up"] > counts["signed_up"]
 
@@ -190,9 +184,7 @@ class TestTheFunnel:
 
 
 class TestTheRates:
-    async def test_rates_are_computed_once_server_side(
-        self, db_session, async_session
-    ):
+    async def test_rates_are_computed_once_server_side(self, db_session, async_session):
         """So two screens cannot disagree about which denominator they used."""
         _, org = await _account(async_session, "rates")
         await _agent(async_session, org.id, "rates")

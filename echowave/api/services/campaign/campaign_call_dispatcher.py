@@ -300,9 +300,7 @@ class CampaignCallDispatcher:
             # A refusal is terminal for the row, not a transient failure: it
             # must not feed the retry path, and it must not trip the circuit
             # breaker, which exists to detect a carrier going bad.
-            preferences = await get_organization_preferences(
-                campaign.organization_id
-            )
+            preferences = await get_organization_preferences(campaign.organization_id)
             try:
                 phone_number = await dnd.assert_may_call(
                     campaign.organization_id,

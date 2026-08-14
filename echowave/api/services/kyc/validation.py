@@ -140,9 +140,7 @@ def check_address(record) -> list[ValidationProblem]:
             )
         )
     if not (getattr(record, "city", None) or "").strip():
-        problems.append(
-            ValidationProblem(field="city", message="Enter the city.")
-        )
+        problems.append(ValidationProblem(field="city", message="Enter the city."))
     if not (getattr(record, "postal_code", None) or "").strip():
         problems.append(
             ValidationProblem(field="postal_code", message="Enter the PIN code.")

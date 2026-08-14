@@ -350,7 +350,9 @@ def provider_component_map() -> dict[str, list[str]]:
     # A vendor whose every component authenticates some other way has nothing
     # to offer here, and an empty list would render a checkbox promising to
     # store the key against no slots at all.
-    return {provider: components for provider, components in mapping.items() if components}
+    return {
+        provider: components for provider, components in mapping.items() if components
+    }
 
 
 def _provider_key(provider) -> str:

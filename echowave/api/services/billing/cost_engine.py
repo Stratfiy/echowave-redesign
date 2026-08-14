@@ -178,9 +178,7 @@ def compute_call_cost(
         # Marked up per line rather than on the total, so each line on a
         # receipt adds up to the figure printed beside it. Rounding once per
         # line is the same rule the rest of this module follows.
-        line_markup = (
-            markup_bps if component_value in MARKED_UP_COMPONENTS else 10_000
-        )
+        line_markup = markup_bps if component_value in MARKED_UP_COMPONENTS else 10_000
         lines.append(
             CostLine(
                 component=component_value,

@@ -20,7 +20,6 @@ from sqlalchemy import select
 
 from api.db import db_client
 from api.db.models import (
-    CreditLedgerModel,
     OrganizationKycModel,
     OrganizationModel,
     PaymentMandateModel,
@@ -30,13 +29,11 @@ from api.db.models import (
     UserModel,
 )
 from api.enums import (
-    CreditLedgerKind,
     KycStatus,
     MandateStatus,
     PhoneNumberStatus,
     RecurringChargeStatus,
 )
-from api.services.billing import rentals
 from api.services.telephony import number_lifecycle, provisioning
 from api.services.telephony.base import (
     AvailableNumber,
@@ -88,16 +85,14 @@ class FakeProvider:
         self.bought.append(number)
         self.app_ids.append(app_id)
         if not self.buy_ok:
-            return NumberPurchaseResult(
-                ok=False, number=number, message="no inventory"
-            )
-        return NumberPurchaseResult(
-            ok=True, number=number, carrier_number_id="cn-999"
-        )
+            return NumberPurchaseResult(ok=False, number=number, message="no inventory")
+        return NumberPurchaseResult(ok=True, number=number, carrier_number_id="cn-999")
 
     async def release_number(self, number):
         self.released.append(number)
-        return ProviderSyncResult(ok=self.release_ok, message=None if self.release_ok else "carrier said no")
+        return ProviderSyncResult(
+            ok=self.release_ok, message=None if self.release_ok else "carrier said no"
+        )
 
     async def list_owned_numbers(self):
         return list(self.owned)
@@ -234,9 +229,7 @@ class TestAutopayGate:
         )
 
         async with db_client.async_session() as session:
-            charge = await session.get(
-                RecurringChargeModel, result.recurring_charge_id
-            )
+            charge = await session.get(RecurringChargeModel, result.recurring_charge_id)
             mandate = await session.get(PaymentMandateModel, charge.mandate_id)
         assert mandate is not None
         assert mandate.organization_id == org_id
@@ -271,9 +264,7 @@ class TestVerificationGate:
                 address=NUMBER,
             )
 
-    async def test_search_is_gated_too(
-        self, db_session, async_session, fake_provider
-    ):
+    async def test_search_is_gated_too(self, db_session, async_session, fake_provider):
         """Showing a list they cannot buy from is worse than saying why."""
         org_id, _, config_id = await _approved_org(
             async_session, "search-gate", status=KycStatus.NOT_STARTED
@@ -308,10 +299,10 @@ class TestHappyPath:
         assert client.linked == [(NUMBER.lstrip("+"), "app-approved")]
 
         async with db_client.async_session() as session:
-            number = await session.get(TelephonyPhoneNumberModel, result.phone_number_id)
-            charge = await session.get(
-                RecurringChargeModel, result.recurring_charge_id
+            number = await session.get(
+                TelephonyPhoneNumberModel, result.phone_number_id
             )
+            charge = await session.get(RecurringChargeModel, result.recurring_charge_id)
         assert number.status == PhoneNumberStatus.ACTIVE.value
         assert number.carrier_number_id == "cn-999"
         assert number.is_active is True

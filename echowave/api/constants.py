@@ -28,6 +28,7 @@ LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL") or None
 PUBLIC_HOST = os.getenv("PUBLIC_HOST") or None
 
+
 # Where the API is reached, as distinct from where the deployment is rooted.
 #
 # Derived from DECIBYL_API_HOST before PUBLIC_BASE_URL, because on a split-
@@ -89,7 +90,11 @@ BACKEND_API_ENDPOINT = (
 # local development and dangerous anywhere else, which is why it is last.
 UI_APP_URL = (
     os.getenv("UI_APP_URL")
-    or (f"https://{os.getenv('DECIBYL_APP_HOST')}" if os.getenv("DECIBYL_APP_HOST") else None)
+    or (
+        f"https://{os.getenv('DECIBYL_APP_HOST')}"
+        if os.getenv("DECIBYL_APP_HOST")
+        else None
+    )
     or "http://localhost:3010"
 )
 

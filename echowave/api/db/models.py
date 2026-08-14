@@ -1863,8 +1863,9 @@ class CallCostItemModel(Base):
     # Stored rather than derived from today's multiplier: recomputing an old
     # receipt against a rate that has since changed would rewrite what a
     # customer was actually charged.
-    provider_cost_paise = Column(BigInteger, nullable=False, default=0,
-                                 server_default="0")
+    provider_cost_paise = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     workflow_run = relationship("WorkflowRunModel", back_populates="cost_items")
@@ -2163,9 +2164,7 @@ class RecurringChargeModel(Base):
             "charge_type",
             "resource_id",
             unique=True,
-            postgresql_where=text(
-                "status NOT IN ('released', 'cancelled')"
-            ),
+            postgresql_where=text("status NOT IN ('released', 'cancelled')"),
         ),
     )
 
@@ -3305,9 +3304,7 @@ class DoNotCallEntryModel(Base):
     __table_args__ = (
         # The uniqueness is what makes a re-upload idempotent instead of
         # growing the table by its own size every time.
-        UniqueConstraint(
-            "organization_id", "phone_number", name="_dnc_org_number_uc"
-        ),
+        UniqueConstraint("organization_id", "phone_number", name="_dnc_org_number_uc"),
         # The dialler's lookup is (organization_id, phone_number) on every
         # single call, so it gets a covering index rather than relying on the
         # unique constraint's ordering by accident.
@@ -3374,11 +3371,8 @@ class VerifiedNumberModel(Base):
         UniqueConstraint(
             "organization_id", "phone_number", name="_verified_number_org_number_uc"
         ),
-        Index(
-            "ix_verified_numbers_org_number", "organization_id", "phone_number"
-        ),
+        Index("ix_verified_numbers_org_number", "organization_id", "phone_number"),
     )
-
 
 
 class EmailVerificationChallengeModel(Base):
@@ -3410,6 +3404,4 @@ class EmailVerificationChallengeModel(Base):
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
-    __table_args__ = (
-        UniqueConstraint("user_id", name="_email_verification_user_uc"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", name="_email_verification_user_uc"),)

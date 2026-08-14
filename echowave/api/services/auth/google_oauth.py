@@ -132,13 +132,13 @@ def _read_state(state: str) -> dict:
             audience=_STATE_AUDIENCE,
         )
     except jwt.ExpiredSignatureError as exc:
-        raise GoogleAuthError(
-            "This sign-in link has expired. Start again."
-        ) from exc
+        raise GoogleAuthError("This sign-in link has expired. Start again.") from exc
     except jwt.InvalidTokenError as exc:
         # Deliberately vague to the user: the detail only helps someone
         # probing the callback.
-        raise GoogleAuthError("This sign-in could not be verified. Start again.") from exc
+        raise GoogleAuthError(
+            "This sign-in could not be verified. Start again."
+        ) from exc
 
 
 def build_authorization_url(*, redirect_uri: str, next_path: str | None = None) -> str:
@@ -180,7 +180,9 @@ async def _exchange_code(*, code: str, redirect_uri: str) -> str:
         except httpx.RequestError as exc:
             # An air-gapped or network-restricted box reaches exactly here, and
             # "could not reach Google" is the honest thing to say.
-            raise GoogleAuthError("Could not reach Google to complete sign-in.") from exc
+            raise GoogleAuthError(
+                "Could not reach Google to complete sign-in."
+            ) from exc
 
     if response.status_code != 200:
         logger.warning(
@@ -232,7 +234,9 @@ def _verify_id_token(id_token: str, *, expected_nonce: str) -> GoogleIdentity:
     )
 
 
-async def complete_sign_in(*, code: str, state: str, redirect_uri: str) -> tuple[GoogleIdentity, str | None]:
+async def complete_sign_in(
+    *, code: str, state: str, redirect_uri: str
+) -> tuple[GoogleIdentity, str | None]:
     """Verify a callback end to end.
 
     Returns the identity Google vouched for and the path the user was heading

@@ -13,9 +13,8 @@ Revision ID: f18a4d3c07e9
 Revises: e5b27c0a91d4
 """
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "f18a4d3c07e9"
 down_revision = "e5b27c0a91d4"

@@ -463,7 +463,9 @@ async def create_mandate(user: UserModel = Depends(get_user)) -> dict[str, Any]:
             # "your card was declined".
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except mandate_service.MandateError as exc:
-            logger.error("Could not create a mandate for org {}: {}", organization_id, exc)
+            logger.error(
+                "Could not create a mandate for org {}: {}", organization_id, exc
+            )
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         await session.commit()
         return {"mandate": _mandate_view(mandate)}

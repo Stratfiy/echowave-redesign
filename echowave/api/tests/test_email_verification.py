@@ -110,9 +110,7 @@ class TestStarting:
 
 
 class TestConfirming:
-    async def test_the_right_code_verifies_the_address(
-        self, db_session, async_session
-    ):
+    async def test_the_right_code_verifies_the_address(self, db_session, async_session):
         user_id = await _user(async_session, "confirm")
         started = await ev.start_verification(user_id, EMAIL)
 
@@ -120,9 +118,7 @@ class TestConfirming:
         user = await db_client.get_user_by_id(user_id)
         assert user.email_verified_at is not None
 
-    async def test_verifying_destroys_the_challenge(
-        self, db_session, async_session
-    ):
+    async def test_verifying_destroys_the_challenge(self, db_session, async_session):
         """A used code sitting in the database is a credential nobody needs."""
         user_id = await _user(async_session, "destroy")
         started = await ev.start_verification(user_id, EMAIL)
@@ -140,9 +136,7 @@ class TestConfirming:
         user = await db_client.get_user_by_id(user_id)
         assert user.email_verified_at is None
 
-    async def test_guessing_is_cut_off_at_the_ceiling(
-        self, db_session, async_session
-    ):
+    async def test_guessing_is_cut_off_at_the_ceiling(self, db_session, async_session):
         user_id = await _user(async_session, "brute")
         started = await ev.start_verification(user_id, EMAIL)
 
@@ -160,9 +154,7 @@ class TestConfirming:
         started = await ev.start_verification(user_id, EMAIL)
 
         with pytest.raises(ev.CodeExpired):
-            await ev.confirm_verification(
-                user_id, started.code, now=_later(minutes=60)
-            )
+            await ev.confirm_verification(user_id, started.code, now=_later(minutes=60))
 
     async def test_no_challenge_looks_the_same_as_a_wrong_code(
         self, db_session, async_session

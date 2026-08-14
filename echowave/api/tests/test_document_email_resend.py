@@ -91,7 +91,9 @@ class TestSendDocument:
     async def test_it_attaches_the_pdf_under_a_filename_a_filesystem_accepts(self):
         """Document numbers contain slashes; filenames cannot."""
         with patch.object(
-            document_email, "send_email", new=AsyncMock(return_value=SendResult(ok=True))
+            document_email,
+            "send_email",
+            new=AsyncMock(return_value=SendResult(ok=True)),
         ) as sender:
             await document_email.send_document(
                 _document(), recipient="to@example.com", pdf_bytes=b"%PDF-1.4"
@@ -105,7 +107,9 @@ class TestSendDocument:
 
     async def test_the_subject_names_the_document(self):
         with patch.object(
-            document_email, "send_email", new=AsyncMock(return_value=SendResult(ok=True))
+            document_email,
+            "send_email",
+            new=AsyncMock(return_value=SendResult(ok=True)),
         ) as sender:
             await document_email.send_document(
                 _document(), recipient="to@example.com", pdf_bytes=b""
@@ -138,7 +142,9 @@ class TestSendDocument:
     async def test_an_unknown_kind_still_sends(self, kind, expected):
         """A new document kind must not make the send unreachable."""
         with patch.object(
-            document_email, "send_email", new=AsyncMock(return_value=SendResult(ok=True))
+            document_email,
+            "send_email",
+            new=AsyncMock(return_value=SendResult(ok=True)),
         ) as sender:
             await document_email.send_document(
                 _document(kind=kind), recipient="to@example.com", pdf_bytes=b""

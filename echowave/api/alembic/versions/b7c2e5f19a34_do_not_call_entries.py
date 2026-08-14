@@ -60,9 +60,7 @@ def upgrade() -> None:
         "do_not_call_entries",
         ["organization_id", "phone_number"],
     )
-    op.create_index(
-        op.f("ix_do_not_call_entries_id"), "do_not_call_entries", ["id"]
-    )
+    op.create_index(op.f("ix_do_not_call_entries_id"), "do_not_call_entries", ["id"])
 
     # Why a campaign row was refused before dialling. Separate from
     # retry_reason, which is why a call that was placed did not connect —
@@ -77,7 +75,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_column("queued_runs", "refusal_reason")
     op.drop_index(op.f("ix_do_not_call_entries_id"), table_name="do_not_call_entries")
-    op.drop_index(
-        "ix_do_not_call_entries_org_number", table_name="do_not_call_entries"
-    )
+    op.drop_index("ix_do_not_call_entries_org_number", table_name="do_not_call_entries")
     op.drop_table("do_not_call_entries")

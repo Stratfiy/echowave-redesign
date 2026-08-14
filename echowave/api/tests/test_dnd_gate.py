@@ -53,9 +53,7 @@ class TestNormalisation:
         assert dnd.normalise_number(written) == "919876543210"
 
     def test_two_different_numbers_do_not_collide(self):
-        assert dnd.normalise_number("9876543210") != dnd.normalise_number(
-            "9876543211"
-        )
+        assert dnd.normalise_number("9876543210") != dnd.normalise_number("9876543211")
 
     @pytest.mark.parametrize("junk", ["", None, "   ", "abcd", "12345", "+91"])
     def test_undialable_input_is_rejected_rather_than_stored(self, junk):
@@ -70,9 +68,7 @@ class TestCallingWindow:
 
     @pytest.mark.parametrize("hour", [8, 21, 22, 3])
     def test_outside_the_window(self, hour):
-        assert not dnd.within_calling_hours(
-            timezone_name="Asia/Kolkata", now=_at(hour)
-        )
+        assert not dnd.within_calling_hours(timezone_name="Asia/Kolkata", now=_at(hour))
 
     def test_the_boundaries_are_inclusive_at_the_start_and_exclusive_at_the_end(
         self,
@@ -87,9 +83,7 @@ class TestCallingWindow:
         it in London. Judging in the wrong zone is how a compliant deployment
         dials at half past nine at night."""
         moment = datetime(2026, 8, 12, 16, 0, tzinfo=ZoneInfo("UTC"))
-        assert not dnd.within_calling_hours(
-            timezone_name="Asia/Kolkata", now=moment
-        )
+        assert not dnd.within_calling_hours(timezone_name="Asia/Kolkata", now=moment)
         assert dnd.within_calling_hours(timezone_name="Europe/London", now=moment)
 
     def test_an_unknown_zone_falls_back_instead_of_blocking_every_call(self):

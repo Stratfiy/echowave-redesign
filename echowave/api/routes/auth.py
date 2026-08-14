@@ -309,7 +309,11 @@ async def google_callback(
     if error or not code or not state:
         # `error` is Google's own — most often the user pressing Cancel, which
         # is not a failure worth alarming them about.
-        return _google_failure("Sign-in was cancelled." if error == "access_denied" else "Sign-in could not be completed.")
+        return _google_failure(
+            "Sign-in was cancelled."
+            if error == "access_denied"
+            else "Sign-in could not be completed."
+        )
 
     try:
         identity, next_path = await google_oauth.complete_sign_in(

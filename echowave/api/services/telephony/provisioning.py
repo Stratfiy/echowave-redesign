@@ -331,9 +331,7 @@ async def _compensate(
             )
 
     try:
-        await db_client.delete_phone_number(
-            phone_number_id, telephony_configuration_id
-        )
+        await db_client.delete_phone_number(phone_number_id, telephony_configuration_id)
     except Exception as cleanup_error:
         logger.error(
             "Could not remove the placeholder row for {} after a failed "
