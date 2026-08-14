@@ -437,8 +437,7 @@ async def _durability_checks(*, now: datetime | None = None) -> list[Check]:
                 title="The newest backup can still be decrypted",
                 status=READY,
                 detail=(
-                    "The configured PLATFORM_CREDENTIAL_SECRET opens the newest "
-                    "backup."
+                    "The configured PLATFORM_CREDENTIAL_SECRET opens the newest backup."
                 ),
                 reference="DPDP s8(5)",
             )
@@ -523,9 +522,7 @@ async def _durability_checks(*, now: datetime | None = None) -> list[Check]:
                     )
                 ),
                 reference="DPDP s8(5)",
-                remedy=""
-                if mirrored
-                else "Re-check after the next nightly backup.",
+                remedy="" if mirrored else "Re-check after the next nightly backup.",
             )
         )
 

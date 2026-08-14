@@ -88,7 +88,10 @@ def _minimal_pdf(path, text: str | None) -> str:
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
         b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
-        b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n" + content
+        b"<< /Length "
+        + str(len(content)).encode()
+        + b" >>\nstream\n"
+        + content
         + b"\nendstream",
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     ]
@@ -156,7 +159,9 @@ class TestExtraction:
     def test_markdown_headings_become_a_path(self, markdown_file):
         extracted = extract_document(markdown_file, "handbook.md")
         refund_block = next(
-            b for b in extracted.blocks if "fourteen days" in b.text and not b.is_heading
+            b
+            for b in extracted.blocks
+            if "fourteen days" in b.text and not b.is_heading
         )
         assert refund_block.heading_path == ("Support handbook", "Refunds")
 
@@ -257,7 +262,9 @@ class TestChunking:
         assert all(count_tokens(c.contextualized_text) <= 64 * 1.2 for c in chunks)
 
     def test_chunks_do_not_cut_mid_sentence(self):
-        sentences = [f"Sentence number {i} explains a policy detail." for i in range(40)]
+        sentences = [
+            f"Sentence number {i} explains a policy detail." for i in range(40)
+        ]
         chunks = chunk_blocks([TextBlock(text=" ".join(sentences))], max_tokens=48)
         for chunk in chunks:
             assert chunk.text.endswith(".")
@@ -356,7 +363,9 @@ class TestProcessing:
             process_document_locally(file_path=scanned_pdf, filename="scan.pdf")
 
     def test_backend_defaults_to_local(self, monkeypatch):
-        monkeypatch.setattr("api.services.knowledge_base.processor.KB_DOCUMENT_PROCESSOR", "local")
+        monkeypatch.setattr(
+            "api.services.knowledge_base.processor.KB_DOCUMENT_PROCESSOR", "local"
+        )
         assert resolve_backend() == "local"
 
     def test_auto_falls_back_to_local_without_an_mps_url(self, monkeypatch):

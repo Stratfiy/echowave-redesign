@@ -420,6 +420,7 @@ class TestTheSecondCopy:
         ):
             assert await mirror.mirror_object("k", b"payload") is False
 
+
 class TestHowAMirrorIsConfigured:
     """Whether the second copy is protected by anything the first is not."""
 

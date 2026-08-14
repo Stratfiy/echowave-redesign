@@ -219,7 +219,9 @@ async def check_signed_delivery() -> None:
     print("\n— Does a correctly signed delivery get through —\n")
 
     if not (PUBLIC_BASE_URL and RAZORPAY_WEBHOOK_SECRET):
-        record(WARN, "A signed webhook is accepted", "Needs PUBLIC_BASE_URL and secret.")
+        record(
+            WARN, "A signed webhook is accepted", "Needs PUBLIC_BASE_URL and secret."
+        )
         return
 
     url = f"{PUBLIC_BASE_URL.rstrip('/')}{WEBHOOK_PATH}"
@@ -351,7 +353,9 @@ async def check_order(order_id: str) -> None:
                 f"ledger is throughout)",
             )
         except Exception as exc:
-            record(WARN, "The credit is in the ledger", f"Could not read balance: {exc}")
+            record(
+                WARN, "The credit is in the ledger", f"Could not read balance: {exc}"
+            )
 
 
 def print_the_human_part() -> None:
