@@ -13,6 +13,25 @@ from api.services.auth.depends import get_user
 from api.services.call_concurrency import CallConcurrencyLimitError
 
 
+@pytest.fixture(autouse=True)
+def calling_window_open(monkeypatch):
+    """Hold the TCCCPR calling window open for this module.
+
+    These tests are about call setup, not about the window — but the route
+    checks the window immediately before dialling, using the wall clock. Left
+    alone, every test here passes between 09:00 and 21:00 IST and returns 451
+    the rest of the day: green all afternoon, red all evening, and looking
+    exactly like a flake rather than a timezone.
+
+    The window itself is covered properly in test_dnd_gate.py, which pins
+    ``now`` instead of stubbing it.
+    """
+    monkeypatch.setattr(
+        "api.services.compliance.dnd.within_calling_hours",
+        lambda **kwargs: True,
+    )
+
+
 def _make_test_app() -> FastAPI:
     app = FastAPI()
     app.include_router(router)

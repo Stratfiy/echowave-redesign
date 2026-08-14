@@ -187,6 +187,8 @@ COPY --chown=decibyl:decibyl \
      ./scripts/seed_provider_rates.py \
      ./scripts/recost_uncosted_calls.py \
      ./scripts/verify_payment_round_trip.py \
+     ./scripts/verify_managed_database.py \
+     ./scripts/fetch_latest_backup.py \
      ./scripts/
 
 # ts_validator Node deps (built in ts-deps stage with full node:22-slim image).

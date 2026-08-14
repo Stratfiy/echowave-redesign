@@ -25,6 +25,25 @@ from api.services.campaign.campaign_call_dispatcher import CampaignCallDispatche
 from api.services.campaign.rate_limiter import RateLimiter
 
 
+@pytest.fixture(autouse=True)
+def calling_window_open(monkeypatch):
+    """Hold the TCCCPR calling window open for this module.
+
+    These tests are about call setup, not about the window — but the route
+    checks the window immediately before dialling, using the wall clock. Left
+    alone, every test here passes between 09:00 and 21:00 IST and returns 451
+    the rest of the day: green all afternoon, red all evening, and looking
+    exactly like a flake rather than a timezone.
+
+    The window itself is covered properly in test_dnd_gate.py, which pins
+    ``now`` instead of stubbing it.
+    """
+    monkeypatch.setattr(
+        "api.services.compliance.dnd.within_calling_hours",
+        lambda **kwargs: True,
+    )
+
+
 def _unique_id() -> int:
     """A stable-but-unique positive int derived from a uuid for keying tests."""
     return uuid.uuid4().int % 10_000_000

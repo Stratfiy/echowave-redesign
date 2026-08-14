@@ -272,9 +272,10 @@ invisible one accrues.
    and it is the only item whose failure mode is a customer charged and not
    credited. Half a day, most of it waiting for Razorpay activation.
 2. **PITR, or a recorded decision not to.** An afternoon of configuration on
-   managed Postgres. The alternative is defensible; leaving it undecided is
-   not, because the deployment behaves identically either way until the day it
-   does not.
+   managed Postgres — `MIGRATE-TO-MANAGED-POSTGRES.md` is the runbook, and
+   `scripts/verify_managed_database.py` checks the result. The alternative is
+   defensible; leaving it undecided is not, because the deployment behaves
+   identically either way until the day it does not.
 3. **Time a restore against a production-sized dump.** Until this number
    exists, any RTO quoted in a sales conversation is invented, and quoting an
    invented RTO to an enterprise buyer is the kind of thing that surfaces

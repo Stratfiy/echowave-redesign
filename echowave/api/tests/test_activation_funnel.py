@@ -11,6 +11,7 @@ Two properties carry the whole thing, and both are easy to break by accident:
 """
 
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from api.db import db_client
 from api.enums import CreditLedgerKind
@@ -23,7 +24,17 @@ from api.db.models import (
     WorkflowRunModel,
 )
 
-TODAY = date.today()
+# The funnel counts in **IST business days** — activation_funnel's _bounds
+# turns the dates it is given into IST midnights, which is right for an Indian
+# product. So the tests' notion of "today" has to be IST's, not the container's.
+#
+# Using date.today() here meant every one of these tests failed between 18:30
+# UTC and midnight UTC: rows created "now" land after the window's end bound
+# (IST midnight = 18:30 UTC), so the cohort came back empty. They passed all
+# afternoon and failed all evening, which is the worst way for a test to be
+# wrong — it looks like a flake and it is a timezone.
+IST = ZoneInfo("Asia/Kolkata")
+TODAY = datetime.now(IST).date()
 WINDOW = (TODAY - timedelta(days=7), TODAY)
 
 
@@ -40,9 +51,7 @@ async def _account(session, slug: str, *, created: datetime | None = None):
     session.add(user)
     await session.flush()
 
-    session.add(
-        OrganizationMembershipModel(user_id=user.id, organization_id=org.id)
-    )
+    session.add(OrganizationMembershipModel(user_id=user.id, organization_id=org.id))
     await session.flush()
     return user, org
 
@@ -124,9 +133,7 @@ class TestTheFunnel:
         after = _by_key(await db_client.activation_funnel(*WINDOW))
         assert after["first_call"] == before["first_call"] + 1
 
-    async def test_only_a_real_top_up_counts_as_paid(
-        self, db_session, async_session
-    ):
+    async def test_only_a_real_top_up_counts_as_paid(self, db_session, async_session):
         """Usage, reservations, staff adjustments and trial credit are all
         ledger rows, and two of those are positive. Only the customer actually
         paying makes them a customer."""
@@ -165,9 +172,7 @@ class TestTheFunnel:
         )
         counts = _by_key(await db_client.activation_funnel(*WINDOW))
         recent = _by_key(
-            await db_client.activation_funnel(
-                TODAY - timedelta(days=500), TODAY
-            )
+            await db_client.activation_funnel(TODAY - timedelta(days=500), TODAY)
         )
         assert recent["signed_up"] > counts["signed_up"]
 
@@ -190,9 +195,7 @@ class TestTheFunnel:
 
 
 class TestTheRates:
-    async def test_rates_are_computed_once_server_side(
-        self, db_session, async_session
-    ):
+    async def test_rates_are_computed_once_server_side(self, db_session, async_session):
         """So two screens cannot disagree about which denominator they used."""
         _, org = await _account(async_session, "rates")
         await _agent(async_session, org.id, "rates")

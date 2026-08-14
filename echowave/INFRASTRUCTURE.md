@@ -285,6 +285,11 @@ aws rds describe-db-instances --db-instance-identifier decibyl-prod \
 `LatestRestorableTime` within the last five minutes is the proof. A retention
 period of `0` means PITR is off however healthy the snapshots look.
 
+`scripts/verify_managed_database.py` checks all of that plus pgvector, the
+migration head and whether the restored ledger reconciles. **You do not have to
+do the rest of this section to get PITR** — moving only the database is an
+afternoon, and `MIGRATE-TO-MANAGED-POSTGRES.md` is the runbook for exactly that.
+
 ElastiCache Redis, `cache.t4g.medium`. Single-AZ is modelled; Multi-AZ costs
 ₹5,500 more and is worth taking if the budget holds — Redis holds the
 concurrency counters and the ARQ queue, so losing it mid-campaign stalls
