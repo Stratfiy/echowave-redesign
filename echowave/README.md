@@ -84,10 +84,22 @@ Each subtree has an `AGENTS.md` with the conventions that apply inside it.
 
 ## Pricing model
 
-A platform fee plus provider costs passed through **at cost, with no markup** —
-enforced by the schema rather than by convention: provider cost and platform fee
-are separate rows and separate columns, and nothing anywhere stores a blended
-number.
+A platform fee plus provider costs, and what happens to those costs depends on
+whose key bought them.
+
+**On your own key, nothing is added.** You have already paid the vendor, so we
+charge the platform fee and no more — there is no provider line to mark up, and
+a test holds that invariant rather than leaving it to convention.
+
+**On ours, model usage carries a multiple** — 1.4× at the time of writing, set
+under **Billing → Managed markup** and changeable without a deploy. It applies
+to speech, language and voice only; telephony and the platform fee pass through
+untouched either way.
+
+Both are enforced by the schema rather than by convention. The vendor's true
+cost and the amount charged are separate columns on every line, so a margin is
+always the subtraction of two recorded numbers and never a blend somebody has
+to trust.
 
 Time is billed in **15-second pulses** rather than whole minutes, so a
 62-second call bills 75 seconds and not 120. Every price is set in the admin
