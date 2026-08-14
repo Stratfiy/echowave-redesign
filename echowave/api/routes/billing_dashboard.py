@@ -39,6 +39,7 @@ from api.services.billing import (
     rate_card,
     readiness,
     realized_rates,
+    refunds,
 )
 from api.services.billing.costing import current_balance_paise
 from api.services.billing.rate_card import RateCardError
@@ -879,6 +880,52 @@ async def get_payments(
             granularity=granularity,
             organization_id=organization_id,
         )
+
+
+# ---------------------------------------------------------------------------
+# Refunds
+#
+# Money back and credit reversed in one act. Before this, a refund was two
+# manual steps in two systems and nobody could tell later whether both had
+# happened.
+# ---------------------------------------------------------------------------
+
+
+class RefundRequest(BaseModel):
+    payment_id: int
+    #: Gross paise. Omit to refund everything still refundable.
+    amount_paise: int | None = Field(None, gt=0)
+    reason: str | None = Field(None, max_length=500)
+
+
+@router.post("/refunds")
+async def create_refund(
+    request: RefundRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Refund a payment and reverse the credit it granted.
+
+    Refuses when the credit has already been spent — refunding then would hand
+    back the money, keep the service, and leave a negative balance that every
+    reservation check downstream misreads.
+    """
+    async with db_client.async_session() as session:
+        try:
+            result = await refunds.refund_payment(
+                session,
+                payment_id=request.payment_id,
+                amount_paise=request.amount_paise,
+                reason=request.reason,
+                actor_user_id=user.id,
+            )
+        except refunds.RefundError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+
+    return {
+        "refund_id": result.refund_id,
+        "amount_paise": result.amount_paise,
+        "reversed_credit_paise": result.reversed_credit_paise,
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -3038,6 +3038,51 @@ class ReferralAwardModel(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
+class RefundModel(Base):
+    """A refund of a payment, and the credit it took back.
+
+    Its own row rather than a flag on the payment, because a payment can be
+    refunded in parts and "how much is left" must be a sum over records rather
+    than a mutable number somebody can get wrong.
+
+    ``amount_paise`` is **gross** — what the customer gets back, tax included,
+    which is what the provider moves. ``reversed_credit_paise`` is **net** —
+    what left the ledger, which never held the tax. Storing both is what lets a
+    credit note be produced later without re-deriving a split from a rate that
+    may since have changed.
+
+    ``status`` records the two-step nature honestly: a row is written before
+    the provider is called, so a refund that failed mid-flight leaves evidence
+    rather than nothing.
+    """
+
+    __tablename__ = "refunds"
+
+    id = Column(Integer, primary_key=True, index=True)
+    payment_id = Column(
+        Integer,
+        ForeignKey("payments.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    #: Gross, as the customer receives it.
+    amount_paise = Column(BigInteger, nullable=False)
+    #: Net, as the ledger loses it.
+    reversed_credit_paise = Column(BigInteger, nullable=False)
+    reason = Column(Text, nullable=True)
+    #: pending | processed | failed
+    status = Column(
+        String(16), nullable=False, default="pending", server_default=text("'pending'")
+    )
+    provider_refund_id = Column(String(64), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+
+
 class AgencyCommissionAccrualModel(Base):
     """What an agency earned on one client in one month, as it stood then.
 

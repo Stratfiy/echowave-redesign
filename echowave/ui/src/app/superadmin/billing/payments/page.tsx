@@ -20,7 +20,7 @@
  * that only exists if both halves are shown.
  */
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
     Bar,
@@ -32,7 +32,10 @@ import {
     YAxis,
 } from "recharts";
 
-import { getPaymentsApiV1AdminBillingPaymentsGet } from "@/client/sdk.gen";
+import {
+    createRefundApiV1AdminBillingRefundsPost,
+    getPaymentsApiV1AdminBillingPaymentsGet,
+} from "@/client/sdk.gen";
 import { seriesColor, STATUS } from "@/components/charts/chartTheme";
 import {
     axisProps,
@@ -45,6 +48,10 @@ import {
     useAuthReady,
     useChartMode,
 } from "@/components/charts/primitives";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
     Select,
     SelectContent,
@@ -149,6 +156,53 @@ export default function PaymentsPage() {
             cancelled = true;
         };
     }, [authReady, granularity]);
+
+    // Refunding lives on this screen because this is where somebody is when
+    // they decide to. There is no per-payment row to hang a button on — the
+    // page is a set of charts — so the id is typed, the way it is read off
+    // Razorpay's own dashboard or a customer's email.
+    const [refundPaymentId, setRefundPaymentId] = useState("");
+    const [refundRupees, setRefundRupees] = useState("");
+    const [refundReason, setRefundReason] = useState("");
+    const [refunding, setRefunding] = useState(false);
+    const [refundError, setRefundError] = useState<string | null>(null);
+    const [refundDone, setRefundDone] = useState<string | null>(null);
+
+    const submitRefund = async () => {
+        if (!refundPaymentId.trim()) return;
+        setRefunding(true);
+        setRefundError(null);
+        setRefundDone(null);
+        const result = await createRefundApiV1AdminBillingRefundsPost({
+            body: {
+                payment_id: Number(refundPaymentId),
+                // Blank means everything still refundable, which is the common
+                // case and should not need a number typed into it.
+                amount_paise: refundRupees.trim()
+                    ? Math.round(Number(refundRupees) * 100)
+                    : null,
+                reason: refundReason.trim() || null,
+            },
+        });
+        if (result.error) {
+            setRefundError(detailFromError(result.error, "Could not refund that payment"));
+        } else {
+            const data = result.data as unknown as {
+                amount_paise: number;
+                reversed_credit_paise: number;
+                refund_id: string | null;
+            };
+            setRefundDone(
+                `Refunded ${formatPaise(data.amount_paise)} and reversed ${formatPaise(
+                    data.reversed_credit_paise,
+                )} of credit.${data.refund_id ? "" : " Razorpay is not configured, so no money moved — settle it separately."}`,
+            );
+            setRefundPaymentId("");
+            setRefundRupees("");
+            setRefundReason("");
+        }
+        setRefunding(false);
+    };
 
     if (loading && !data) return <LoadingBlock label="Loading payments" />;
     if (error && !data) {
@@ -473,6 +527,75 @@ export default function PaymentsPage() {
                     </Table>
                 </div>
             </ChartCard>
+
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-[0.9375rem]">Refund a payment</CardTitle>
+                    <p className="mt-0.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+                        Sends the money back through Razorpay and reverses the credit
+                        it granted, in one act. Refused if that credit has already
+                        been spent — refunding then would hand back the money and keep
+                        the service.
+                    </p>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-wrap items-end gap-3">
+                        <div className="w-32 space-y-1.5">
+                            <Label htmlFor="refund-payment" className="text-xs">
+                                Payment id
+                            </Label>
+                            <Input
+                                id="refund-payment"
+                                inputMode="numeric"
+                                value={refundPaymentId}
+                                onChange={(e) => setRefundPaymentId(e.target.value)}
+                            />
+                        </div>
+                        <div className="w-36 space-y-1.5">
+                            <Label htmlFor="refund-amount" className="text-xs">
+                                Amount (₹)
+                            </Label>
+                            <Input
+                                id="refund-amount"
+                                inputMode="decimal"
+                                placeholder="all of it"
+                                value={refundRupees}
+                                onChange={(e) => setRefundRupees(e.target.value)}
+                            />
+                        </div>
+                        <div className="min-w-[200px] flex-1 space-y-1.5">
+                            <Label htmlFor="refund-reason" className="text-xs">
+                                Reason
+                            </Label>
+                            <Input
+                                id="refund-reason"
+                                placeholder="Duplicate charge, cancelled order"
+                                value={refundReason}
+                                onChange={(e) => setRefundReason(e.target.value)}
+                            />
+                        </div>
+                        <Button
+                            variant="outline"
+                            disabled={refunding || !refundPaymentId.trim()}
+                            onClick={() => void submitRefund()}
+                        >
+                            {refunding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Refund
+                        </Button>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                        Leave the amount blank to refund everything still refundable.
+                        Partial refunds take back credit in proportion, so the tax
+                        splits correctly on the credit note.
+                    </p>
+                    {refundError && (
+                        <p className="mt-3 text-xs text-destructive">{refundError}</p>
+                    )}
+                    {refundDone && (
+                        <p className="mt-3 text-xs text-foreground">{refundDone}</p>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }

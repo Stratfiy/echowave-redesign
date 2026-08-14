@@ -5827,6 +5827,24 @@ export type RedialCampaignRequest = {
 };
 
 /**
+ * RefundRequest
+ */
+export type RefundRequest = {
+    /**
+     * Payment Id
+     */
+    payment_id: number;
+    /**
+     * Amount Paise
+     */
+    amount_paise?: number | null;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
  * RejectRequest
  */
 export type RejectRequest = {
@@ -10691,6 +10709,49 @@ export type GetPaymentsApiV1AdminBillingPaymentsGetResponses = {
 };
 
 export type GetPaymentsApiV1AdminBillingPaymentsGetResponse = GetPaymentsApiV1AdminBillingPaymentsGetResponses[keyof GetPaymentsApiV1AdminBillingPaymentsGetResponses];
+
+export type CreateRefundApiV1AdminBillingRefundsPostData = {
+    body: RefundRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/refunds';
+};
+
+export type CreateRefundApiV1AdminBillingRefundsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateRefundApiV1AdminBillingRefundsPostError = CreateRefundApiV1AdminBillingRefundsPostErrors[keyof CreateRefundApiV1AdminBillingRefundsPostErrors];
+
+export type CreateRefundApiV1AdminBillingRefundsPostResponses = {
+    /**
+     * Response Create Refund Api V1 Admin Billing Refunds Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateRefundApiV1AdminBillingRefundsPostResponse = CreateRefundApiV1AdminBillingRefundsPostResponses[keyof CreateRefundApiV1AdminBillingRefundsPostResponses];
 
 export type GetManagedMarkupApiV1AdminBillingRateCardMarkupGetData = {
     body?: never;
