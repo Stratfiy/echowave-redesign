@@ -24,6 +24,7 @@ from api.db.models import (
     WorkflowRunModel,
 )
 from api.enums import CreditLedgerKind
+from api.services.billing import exhaustion
 from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_cost
 from api.services.billing.markup import resolve_markup_bps
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
@@ -31,6 +32,7 @@ from api.services.billing.usage import (
     billable_seconds_from_usage_info,
     usage_items_from_usage_info,
 )
+from api.services.messaging.email import send_email
 
 
 async def _period_minutes(
@@ -255,6 +257,37 @@ async def _debit_ledger(
             balance_after_paise=balance - amount_paise,
         )
     )
+
+    # The only place both sides of the crossing are known. An account whose
+    # credit ran out used to find out when its next call was refused — mid
+    # campaign, with no explanation on the screen anybody was watching.
+    #
+    # Deliberately not fatal to costing: a call that has already happened must
+    # be costed whether or not we can tell anybody about the consequence.
+    try:
+        if await exhaustion.note_if_exhausted(
+            session,
+            organization_id=organization_id,
+            balance_before=balance,
+            balance_after=balance - amount_paise,
+        ):
+            address = await exhaustion.recipient_for(
+                session, organization_id=organization_id
+            )
+            if address:
+                await send_email(
+                    to=address,
+                    subject=exhaustion.notice_subject(),
+                    body_text=exhaustion.notice_body(
+                        balance_paise=balance - amount_paise
+                    ),
+                )
+    except Exception:
+        logger.warning(
+            "Could not send the credit-exhausted notice for organization {}",
+            organization_id,
+            exc_info=True,
+        )
 
 
 async def current_balance_paise(session: AsyncSession, *, organization_id: int) -> int:
