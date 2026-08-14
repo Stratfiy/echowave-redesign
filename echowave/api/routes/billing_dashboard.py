@@ -339,6 +339,12 @@ async def get_latency(
             "stage_medians": await dash.pipeline_stage_medians(
                 session, start=rng.start, end=rng.end
             ),
+            # Endpointing split by language *and* transcriber. The global
+            # median averages a language that pays no silence wait with one
+            # that pays half a second on every turn, describing neither.
+            "endpointing_by_language": await dash.endpointing_by_language(
+                session, start=rng.start, end=rng.end
+            ),
             "slowest_turns": await dash.slowest_turns(
                 session, start=rng.start, end=rng.end
             ),

@@ -155,6 +155,18 @@ export default function LatencyPage() {
     const tools = (data?.tools ?? []) as Array<Record<string, never>>;
     const byLanguage = (data?.by_language ?? []) as Array<Record<string, never>>;
     const stageMedians = (data?.stage_medians ?? {}) as Record<string, number>;
+    // Endpointing split by language and transcriber. The global median above
+    // averages a language paying no silence wait with one paying half a second
+    // every turn, and describes neither.
+    const endpointing = (data?.endpointing_by_language ?? []) as Array<{
+        language: string;
+        stt_model: string;
+        waits_for_silence: boolean;
+        p50_ms: number | null;
+        p95_ms: number | null;
+        turns: number;
+        calls: number;
+    }>;
     const slowest = (data?.slowest_turns ?? []) as Array<Record<string, never>>;
     const languages = (data?.languages ?? []) as string[];
 
@@ -483,6 +495,81 @@ export default function LatencyPage() {
                     </ResponsiveContainer>
                 </ChartCard>
             </div>
+
+            <Card>
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">
+                        Endpointing by language
+                    </CardTitle>
+                    <p className="mt-0.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">
+                        How long the agent waits before it knows the caller has
+                        finished. Flux signals the end of a turn, so it waits for
+                        nothing; every other transcriber waits out the silence
+                        timeout on every turn. Flux has no Tamil, Telugu, Kannada,
+                        Marathi or Bengali — which is why those languages sit here.
+                    </p>
+                </CardHeader>
+                <CardContent>
+                    {endpointing.length === 0 ? (
+                        <PanelMessage height={140}>
+                            No measured turns in this period.
+                        </PanelMessage>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Language</TableHead>
+                                        <TableHead>Transcriber</TableHead>
+                                        <TableHead className="text-right">p50</TableHead>
+                                        <TableHead className="text-right">p95</TableHead>
+                                        <TableHead className="text-right">Turns</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {endpointing.map((row) => (
+                                        <TableRow
+                                            key={`${row.language}-${row.stt_model}`}
+                                        >
+                                            <TableCell className="whitespace-nowrap font-medium">
+                                                {row.language}
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap">
+                                                <span className="text-muted-foreground">
+                                                    {row.stt_model}
+                                                </span>
+                                                {/* The distinction the table
+                                                    exists to draw, said in
+                                                    words rather than left to
+                                                    be inferred from a model
+                                                    name nobody memorises. */}
+                                                <span className="ml-2 rounded-md bg-foreground/[0.06] px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                                                    {row.waits_for_silence
+                                                        ? "waits for silence"
+                                                        : "signals turn end"}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-right tabular-nums">
+                                                {row.p50_ms === null
+                                                    ? "—"
+                                                    : formatMs(row.p50_ms)}
+                                            </TableCell>
+                                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                                                {row.p95_ms === null
+                                                    ? "—"
+                                                    : formatMs(row.p95_ms)}
+                                            </TableCell>
+                                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                                                {formatNumber(row.turns)}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardHeader className="pb-2">

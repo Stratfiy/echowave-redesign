@@ -2346,3 +2346,89 @@ async def observed_input_share(
             round(LLM_INPUT_SHARE - observed, 4) if observed is not None else None
         ),
     }
+
+
+async def endpointing_by_language(
+    session: AsyncSession, *, start: date, end: date
+) -> list[dict]:
+    """Endpointing per language, and which transcriber earned it.
+
+    The question the endpointing work left unanswered. Deepgram's Flux emits a
+    turn-ended signal, so a turn on it pays no silence wait at all; every other
+    transcriber waits out ``stop_secs`` and then ``user_speech_timeout`` on
+    every single turn. Flux does not support Tamil, Telugu, Kannada, Marathi or
+    Bengali, so those languages fall back and pay roughly half a second a turn
+    that Hindi and English no longer pay.
+
+    That gap is Deepgram's, but explaining it to a customer is ours, and until
+    this there was no figure to explain it with — the medians were global, so a
+    fast language and a slow one averaged into a number describing neither.
+
+    The transcriber comes from the call's own cost lines rather than from
+    configuration, because configuration says what the agent was *set* to and
+    the cost line says what actually ran. A managed tier repointed mid-window
+    makes those two different answers.
+
+    Turns with no release mark are excluded rather than counted as zero: a zero
+    would halve the median of the stage that is usually the largest.
+    """
+    start_utc, _ = ist_day_bounds_utc(start)
+    _, end_utc = ist_day_bounds_utc(end)
+    m = CallTurnMetricModel
+
+    # One STT model per run. A call that somehow logged two takes the first by
+    # name, which is deterministic rather than arbitrary.
+    stt = (
+        select(
+            CallCostItemModel.workflow_run_id.label("run_id"),
+            func.min(CallCostItemModel.model).label("stt_model"),
+        )
+        .where(CallCostItemModel.component == "stt")
+        .group_by(CallCostItemModel.workflow_run_id)
+        .subquery()
+    )
+
+    rows = (
+        await session.execute(
+            select(
+                WorkflowRunModel.language,
+                stt.c.stt_model,
+                func.percentile_cont(0.5)
+                .within_group(m.t_endpoint_fired_ms - m.t_user_stopped_ms)
+                .label("p50"),
+                func.percentile_cont(0.95)
+                .within_group(m.t_endpoint_fired_ms - m.t_user_stopped_ms)
+                .label("p95"),
+                func.count(m.id).label("turns"),
+                func.count(func.distinct(m.workflow_run_id)).label("calls"),
+            )
+            .select_from(m)
+            .join(WorkflowRunModel, m.workflow_run_id == WorkflowRunModel.id)
+            .outerjoin(stt, stt.c.run_id == m.workflow_run_id)
+            .where(
+                m.created_at >= start_utc,
+                m.created_at < end_utc,
+                m.t_endpoint_fired_ms.isnot(None),
+                m.t_user_stopped_ms.isnot(None),
+                WorkflowRunModel.language.isnot(None),
+            )
+            .group_by(WorkflowRunModel.language, stt.c.stt_model)
+            .order_by(desc(func.count(m.id)))
+        )
+    ).all()
+
+    return [
+        {
+            "language": r.language,
+            "stt_model": r.stt_model or "(unrecorded)",
+            # Flux is the whole distinction this table exists to draw, and it
+            # is a property of the model name rather than of the vendor:
+            # Deepgram's own Nova waits like everything else.
+            "waits_for_silence": not (r.stt_model or "").startswith("flux"),
+            "p50_ms": round(float(r.p50)) if r.p50 is not None else None,
+            "p95_ms": round(float(r.p95)) if r.p95 is not None else None,
+            "turns": int(r.turns or 0),
+            "calls": int(r.calls or 0),
+        }
+        for r in rows
+    ]
