@@ -112,6 +112,20 @@ def normalise_number(raw: str | None) -> str | None:
     return digits
 
 
+def to_dialable(normalised: str | None) -> str | None:
+    """Turn a comparison key back into a number a carrier will accept.
+
+    The list key is digits only, because that is what makes "+91 98765 43210"
+    and "098765 43210" the same row. A carrier wants E.164 — the same digits
+    with a leading ``+`` — and Twilio rejects the bare form outright (error
+    21211). Two representations for one number, so the conversion between them
+    is written down once here rather than guessed at each call site.
+    """
+    if not normalised:
+        return None
+    return normalised if normalised.startswith("+") else f"+{normalised}"
+
+
 # ---------------------------------------------------------------------------
 # The calling window
 # ---------------------------------------------------------------------------
@@ -185,15 +199,20 @@ async def assert_may_call(
 ) -> str:
     """Refuse the call if the number is listed, or the window is closed.
 
-    Returns the normalised number on success, so callers that need the key for
-    logging or storage do not normalise it a second time and risk disagreeing
-    with the check that just passed.
+    Returns the number **in E.164, ready to dial** — same digits the list was
+    matched on, with the leading ``+`` a carrier requires. Both call sites
+    assign the result straight back over the number they are about to dial, so
+    returning the bare comparison key here handed Twilio a number it rejects
+    (error 21211) on every outbound call. The gate normalises; the caller
+    should not have to normalise a second time and risk disagreeing with the
+    check that just passed; and neither of those is a reason to return
+    something undialable.
 
     Raises DoNotDisturbListed or OutsideCallingHours. Both are refusals the
     caller is expected to surface, not errors to retry.
     """
     if not DND_ENFORCEMENT_ENABLED:
-        return normalise_number(phone_number) or phone_number
+        return to_dialable(normalise_number(phone_number)) or phone_number
 
     normalised = normalise_number(phone_number)
     if normalised is None:
@@ -233,4 +252,4 @@ async def assert_may_call(
             "This number is on your do-not-disturb list and was not called."
         )
 
-    return normalised
+    return to_dialable(normalised)

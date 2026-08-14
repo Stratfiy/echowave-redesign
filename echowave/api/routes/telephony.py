@@ -197,6 +197,12 @@ async def initiate_call(
             user.selected_organization_id,
             phone_number,
             timezone_name=preferences.timezone,
+            # The module-level client this route uses for everything else.
+            # assert_may_call would otherwise import its own, which is a second
+            # engine on a second event loop — harmless in production and a
+            # false 451 under test, where the refusal is indistinguishable from
+            # a real DND hit.
+            db=db_client,
         )
     except dnd.CallRefused as exc:
         raise HTTPException(status_code=451, detail=str(exc)) from exc

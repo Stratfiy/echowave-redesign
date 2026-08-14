@@ -88,6 +88,10 @@ def test_initiate_call_executes_as_workflow_owner_for_shared_org_workflow():
         mock_db.get_user_configurations = AsyncMock(
             return_value=SimpleNamespace(test_phone_number=None)
         )
+        # The TCCCPR gate reads the do-not-disturb list through this same
+        # client, and fails closed when it cannot. Unstubbed, every one of
+        # these tests refuses its own call with a 451.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
@@ -189,6 +193,10 @@ def test_initiate_call_uses_organization_preference_phone_number():
         mock_db.get_configuration = Mock(
             return_value=SimpleNamespace(value={"test_phone_number": "+15557654321"})
         )
+        # The TCCCPR gate reads the do-not-disturb list through this same
+        # client, and fails closed when it cannot. Unstubbed, every one of
+        # these tests refuses its own call with a 451.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
@@ -254,6 +262,10 @@ def test_initiate_call_rejects_existing_run_for_different_workflow():
         mock_db.get_user_configurations = AsyncMock(
             return_value=SimpleNamespace(test_phone_number=None)
         )
+        # The TCCCPR gate reads the do-not-disturb list through this same
+        # client, and fails closed when it cannot. Unstubbed, every one of
+        # these tests refuses its own call with a 451.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
@@ -319,6 +331,10 @@ def test_initiate_call_rejects_when_concurrency_limit_reached():
                 max_concurrent=1,
             )
         )
+        # The TCCCPR gate reads the do-not-disturb list through this same
+        # client, and fails closed when it cannot. Unstubbed, every one of
+        # these tests refuses its own call with a 451.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )

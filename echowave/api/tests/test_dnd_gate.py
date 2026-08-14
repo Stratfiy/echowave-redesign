@@ -114,7 +114,9 @@ class TestTheGate:
         result = await dnd.assert_may_call(
             org_id, "9876543210", timezone_name="Asia/Kolkata", now=_at(10)
         )
-        assert result == "919876543210"
+        # E.164, not the bare list key: both call sites dial whatever this
+        # returns, and a carrier rejects the number without its '+'.
+        assert result == "+919876543210"
 
     async def test_a_listed_number_is_refused(self, db_session, async_session):
         org_id = await _org(async_session, "listed")
@@ -236,3 +238,32 @@ class TestTheList:
         assert await dnd.assert_may_call(
             org_id, "9876543210", timezone_name="Asia/Kolkata", now=_at(10)
         )
+
+
+class TestWhatTheGateHandsBack:
+    """The gate's return value is dialled directly. It has to be dialable.
+
+    Both call sites — ``routes/telephony.initiate_call`` and the campaign
+    dispatcher — do ``phone_number = await dnd.assert_may_call(...)`` and pass
+    the result to the provider as ``to_number``. So the shape of this return
+    value is not an internal detail; it is the number the carrier receives.
+    """
+
+    async def test_the_number_handed_back_is_e164(self, db_session, async_session):
+        org_id = await _org(async_session, "dialable-form")
+        result = await dnd.assert_may_call(
+            org_id, "+91 98765 43210", timezone_name="Asia/Kolkata", now=_at(10)
+        )
+        assert result == "+919876543210"
+
+    async def test_enforcement_disabled_still_returns_a_dialable_number(
+        self, monkeypatch
+    ):
+        """The bypass path is the one nobody re-reads. It got this wrong too."""
+        monkeypatch.setattr(dnd, "DND_ENFORCEMENT_ENABLED", False)
+        assert await dnd.assert_may_call(1, "09876543210") == "+919876543210"
+
+    def test_to_dialable_is_idempotent(self):
+        assert dnd.to_dialable("919876543210") == "+919876543210"
+        assert dnd.to_dialable("+919876543210") == "+919876543210"
+        assert dnd.to_dialable(None) is None
