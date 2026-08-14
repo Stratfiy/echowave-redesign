@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, KeyRound, List, Loader2, ShieldCheck, Wallet } from 'lucide-react';
+import { ArrowRight, KeyRound, List, Loader2, ShieldCheck, UserPlus, Wallet } from 'lucide-react';
 import Link from "next/link";
 import { useState } from "react";
 
@@ -188,6 +188,26 @@ export default function SuperadminPage() {
                                     <Button className="w-full md:w-auto">
                                         <ShieldCheck className="mr-2 h-4 w-4" />
                                         Open Review Queue
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </Link>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Create an account</CardTitle>
+                                <CardDescription>
+                                    Stand up an account for a customer who has been
+                                    sold a subscription — they choose their own
+                                    password from a code
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Link href="/superadmin/accounts">
+                                    <Button className="w-full md:w-auto">
+                                        <UserPlus className="mr-2 h-4 w-4" />
+                                        Create account
                                         <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 </Link>

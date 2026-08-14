@@ -195,6 +195,30 @@ export type AcceptAgreementRequest = {
 };
 
 /**
+ * AcceptInvitationRequest
+ *
+ * Claim an account somebody else created, by setting its password.
+ */
+export type AcceptInvitationRequest = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Password
+     */
+    password: string;
+    /**
+     * Name
+     */
+    name?: string | null;
+};
+
+/**
  * ActiveCallsResponse
  */
 export type ActiveCallsResponse = {
@@ -1727,6 +1751,24 @@ export type CreateApiKeyResponse = {
      * Created At
      */
     created_at: string;
+};
+
+/**
+ * CreateAccountRequest
+ */
+export type CreateAccountRequest = {
+    /**
+     * Email
+     *
+     * The customer's address.
+     */
+    email: string;
+    /**
+     * Note
+     *
+     * Recorded for staff. Never shown to the customer.
+     */
+    note?: string | null;
 };
 
 /**
@@ -3906,6 +3948,55 @@ export type InitiateCallRequest = {
      * From Phone Number Id
      */
     from_phone_number_id?: number | null;
+};
+
+/**
+ * InviteMemberRequest
+ *
+ * Add somebody to this organization by email.
+ *
+ * No password field, deliberately. An invited account is created without one
+ * and stays unreachable by password until its owner sets theirs — inventing a
+ * temporary password would put a working credential in an inbox, in the
+ * clear, for as long as the mailbox exists.
+ */
+export type InviteMemberRequest = {
+    /**
+     * Email
+     *
+     * Where the invitation goes.
+     */
+    email: string;
+    /**
+     * The role they get on accepting.
+     */
+    role?: OrganizationRole;
+};
+
+/**
+ * InviteMemberResponse
+ */
+export type InviteMemberResponse = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Is New User
+     */
+    is_new_user: boolean;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Email Sent
+     */
+    email_sent: boolean;
+    /**
+     * Email Error
+     */
+    email_error?: string | null;
 };
 
 /**
@@ -11464,6 +11555,45 @@ export type ListMembersApiV1OrganizationsMembersGetResponses = {
 
 export type ListMembersApiV1OrganizationsMembersGetResponse = ListMembersApiV1OrganizationsMembersGetResponses[keyof ListMembersApiV1OrganizationsMembersGetResponses];
 
+export type InviteMemberApiV1OrganizationsMembersPostData = {
+    body: InviteMemberRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/members';
+};
+
+export type InviteMemberApiV1OrganizationsMembersPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type InviteMemberApiV1OrganizationsMembersPostError = InviteMemberApiV1OrganizationsMembersPostErrors[keyof InviteMemberApiV1OrganizationsMembersPostErrors];
+
+export type InviteMemberApiV1OrganizationsMembersPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: InviteMemberResponse;
+};
+
+export type InviteMemberApiV1OrganizationsMembersPostResponse = InviteMemberApiV1OrganizationsMembersPostResponses[keyof InviteMemberApiV1OrganizationsMembersPostResponses];
+
 export type RemoveMemberApiV1OrganizationsMembersUserIdDeleteData = {
     body?: never;
     headers?: {
@@ -11555,6 +11685,49 @@ export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponses = {
 };
 
 export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponse = UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponses[keyof UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponses];
+
+export type CreateAccountApiV1AdminAccountsPostData = {
+    body: CreateAccountRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/accounts';
+};
+
+export type CreateAccountApiV1AdminAccountsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateAccountApiV1AdminAccountsPostError = CreateAccountApiV1AdminAccountsPostErrors[keyof CreateAccountApiV1AdminAccountsPostErrors];
+
+export type CreateAccountApiV1AdminAccountsPostResponses = {
+    /**
+     * Response Create Account Api V1 Admin Accounts Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateAccountApiV1AdminAccountsPostResponse = CreateAccountApiV1AdminAccountsPostResponses[keyof CreateAccountApiV1AdminAccountsPostResponses];
 
 export type DeleteProviderKeyApiV1AdminProviderKeysDeleteData = {
     body?: never;
@@ -19459,6 +19632,35 @@ export type SignupApiV1AuthSignupPostResponses = {
 };
 
 export type SignupApiV1AuthSignupPostResponse = SignupApiV1AuthSignupPostResponses[keyof SignupApiV1AuthSignupPostResponses];
+
+export type AcceptInvitationApiV1AuthAcceptInvitationPostData = {
+    body: AcceptInvitationRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/accept-invitation';
+};
+
+export type AcceptInvitationApiV1AuthAcceptInvitationPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AcceptInvitationApiV1AuthAcceptInvitationPostError = AcceptInvitationApiV1AuthAcceptInvitationPostErrors[keyof AcceptInvitationApiV1AuthAcceptInvitationPostErrors];
+
+export type AcceptInvitationApiV1AuthAcceptInvitationPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthResponse;
+};
+
+export type AcceptInvitationApiV1AuthAcceptInvitationPostResponse = AcceptInvitationApiV1AuthAcceptInvitationPostResponses[keyof AcceptInvitationApiV1AuthAcceptInvitationPostResponses];
 
 export type LoginApiV1AuthLoginPostData = {
     body: LoginRequest;

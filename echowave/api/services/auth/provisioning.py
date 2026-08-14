@@ -19,7 +19,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.db.models import OrganizationModel, UserModel
-from api.enums import OrganizationConfigurationKey
+from api.enums import OrganizationConfigurationKey, OrganizationRole
 from api.services.auth.depends import create_user_configuration_with_mps_key
 from api.services.configuration.ai_model_configuration import (
     convert_legacy_ai_model_configuration_to_v2,
@@ -27,13 +27,37 @@ from api.services.configuration.ai_model_configuration import (
 
 
 async def provision_new_account(user: UserModel) -> OrganizationModel:
-    """Give ``user`` an organization, select it, and seed a default config."""
+    """Give ``user`` an organization, select it, and seed a default config.
+
+    The founder is the **owner** of the organization they just created. That
+    reads as obvious and was not the behaviour: ``add_user_to_organization``
+    defaults to MEMBER, so everybody who signed up ended up a member of their
+    own account — unable to change a role, remove anybody, or invite anybody,
+    on an organization nobody else was in. The role machinery was enforced
+    correctly all along; the founder simply never got the role.
+
+    Only when the organization is new. Somebody joining an existing one gets
+    whatever role they were given, and re-provisioning must never quietly
+    promote them — which ``add_user_to_organization`` also guarantees, since it
+    leaves an existing membership's role untouched.
+    """
     org_provider_id = f"org_{user.provider_id}"
-    organization, _ = await db_client.get_or_create_organization_by_provider_id(
+    (
+        organization,
+        was_created,
+    ) = await db_client.get_or_create_organization_by_provider_id(
         org_provider_id=org_provider_id, user_id=user.id
     )
 
-    await db_client.add_user_to_organization(user.id, organization.id)
+    await db_client.add_user_to_organization(
+        user.id,
+        organization.id,
+        role=(
+            OrganizationRole.OWNER.value
+            if was_created
+            else OrganizationRole.MEMBER.value
+        ),
+    )
     await db_client.update_user_selected_organization(user.id, organization.id)
 
     # Best-effort, exactly as it was in signup. A default model configuration

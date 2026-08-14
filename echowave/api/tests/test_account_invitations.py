@@ -444,3 +444,92 @@ class TestTheWholeRoundTrip:
         await async_session.commit()
 
         assert await db_client.get_user_by_email("pending@example.com") is None
+
+
+@pytest.mark.asyncio
+class TestTheFounderOwnsWhatTheyCreated:
+    """Whoever creates an organization is its owner.
+
+    That reads as obvious and was not the behaviour.
+    ``add_user_to_organization`` defaults to MEMBER, and provisioning took the
+    default — so everybody who signed up became a *member* of the organization
+    they had just created, on an account nobody else was in. They could not
+    change a role, remove anybody, or invite anybody.
+
+    Nothing looked broken. The role machinery was enforced correctly the whole
+    time; the founder simply never got the role, so it read as roles doing
+    nothing rather than as one missing assignment.
+    """
+
+    async def test_signing_up_makes_you_the_owner(self, db_session, async_session):
+        from api.db import db_client
+        from api.services.auth.provisioning import provision_new_account
+
+        user = await _user(async_session, "founder", email="founder@example.com")
+        await async_session.commit()
+
+        organization = await provision_new_account(user)
+
+        membership = await db_client.get_membership(user.id, organization.id)
+        assert membership is not None
+        assert membership.role == "owner"
+
+    async def test_provisioning_again_does_not_promote_anybody(
+        self, db_session, async_session
+    ):
+        """Re-provisioning happens on a Stack Auth login re-confirming team
+        membership. It must never quietly promote a member to owner."""
+        from api.db import db_client
+        from api.db.models import OrganizationMembershipModel
+        from api.services.auth.provisioning import provision_new_account
+
+        founder = await _user(async_session, "already", email="already@example.com")
+        await async_session.commit()
+        organization = await provision_new_account(founder)
+
+        joiner = await _user(async_session, "joiner", email="joiner@example.com")
+        async_session.add(
+            OrganizationMembershipModel(
+                user_id=joiner.id, organization_id=organization.id, role="member"
+            )
+        )
+        await async_session.commit()
+
+        # The organization already exists, so this is the "joining" path.
+        await provision_new_account(founder)
+
+        assert (
+            await db_client.get_membership(joiner.id, organization.id)
+        ).role == "member"
+
+    async def test_the_owner_can_then_actually_invite(
+        self, db_session, async_session, monkeypatch
+    ):
+        """The two halves together. Being owner is what makes the invite route
+        reachable, and before this the founder never was one — so the feature
+        was unreachable for every account that had ever signed up."""
+        from api.services.auth.depends import get_user_with_selected_organization
+        from api.services.auth.provisioning import provision_new_account
+
+        async def _fake_send(**kwargs):
+            from api.services.messaging.email import SendResult
+
+            return SendResult(ok=True)
+
+        monkeypatch.setattr("api.routes.organization_members.send_email", _fake_send)
+
+        founder = await _user(async_session, "invites", email="invites@example.com")
+        await async_session.commit()
+        organization = await provision_new_account(founder)
+        founder.selected_organization_id = organization.id
+        await async_session.commit()
+
+        async with await TestTheWholeRoundTrip()._client(
+            founder, dependency=get_user_with_selected_organization
+        ) as client:
+            response = await client.post(
+                "/api/v1/organizations/members",
+                json={"email": "invited-by-founder@example.com"},
+            )
+
+        assert response.status_code == 200, response.text
