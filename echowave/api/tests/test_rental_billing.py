@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-import pytest
 from sqlalchemy import func, select
 
 from api.db import db_client
@@ -25,7 +24,6 @@ from api.db.models import (
     RecurringChargePeriodModel,
     TelephonyConfigurationModel,
     TelephonyPhoneNumberModel,
-    UserModel,
 )
 from api.enums import (
     CreditLedgerKind,
@@ -390,9 +388,7 @@ class TestFirstPeriodIsProrated:
 
 
 class TestCostAndPriceAreBothRecorded:
-    async def test_both_sides_of_the_margin_are_stored(
-        self, db_session, async_session
-    ):
+    async def test_both_sides_of_the_margin_are_stored(self, db_session, async_session):
         """Recording only the price is how a margin figure starts lying."""
         org_id = await _org_with_balance(async_session, "margin", 200000)
         number_id = await _number(async_session, org_id, "margn1")

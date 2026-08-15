@@ -109,7 +109,7 @@ export default function SignupPage() {
         </div>
         <Button
           type="submit"
-          className="w-full bg-brand-blue text-white shadow-[0_10px_30px_-12px_rgba(40,179,240,0.6)] hover:bg-brand-blue-hover"
+          className="w-full bg-brand-blue text-primary-foreground shadow-[0_10px_30px_-12px_rgba(238,120,35,0.55)] hover:bg-brand-blue-hover"
           disabled={loading}
           data-testid="signup-submit-btn"
         >

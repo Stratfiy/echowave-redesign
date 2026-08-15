@@ -45,3 +45,38 @@ async def run_database_backup(_ctx) -> None:
         await database.prune()
     except Exception as exc:  # noqa: BLE001 - the backup already succeeded
         logger.error("Backup prune failed (the backup itself succeeded): {}", exc)
+
+
+async def run_ledger_snapshot(_ctx) -> None:
+    """Hourly copy of the money tables, between the nightly copies of all of it.
+
+    Failures are logged and swallowed, unlike the nightly backup which
+    re-raises. The asymmetry is deliberate: this is a *narrowing* of a gap that
+    the nightly dump already covers, so an hour that fails costs an hour of
+    precision, while a nightly dump that fails quietly costs the database. An
+    hourly job that pages is also an hourly job somebody switches off.
+
+    The readiness check reads the age of the newest snapshot, so a run of
+    failures is visible there rather than only in the log.
+    """
+    from api.constants import LEDGER_SNAPSHOT_ENABLED
+    from api.services.backup import ledger_snapshot
+
+    if not LEDGER_SNAPSHOT_ENABLED:
+        return
+
+    try:
+        result = await ledger_snapshot.take_snapshot()
+        logger.info(
+            "Ledger snapshot complete: {} ({:.1f} KB)",
+            result.key,
+            result.size_bytes / 1024,
+        )
+    except Exception as exc:  # noqa: BLE001 — see the docstring
+        logger.error("Ledger snapshot failed: {}", exc)
+        return
+
+    try:
+        await ledger_snapshot.prune_snapshots()
+    except Exception as exc:  # noqa: BLE001 — the snapshot already succeeded
+        logger.error("Ledger snapshot prune failed (the snapshot succeeded): {}", exc)

@@ -45,9 +45,7 @@ def upgrade() -> None:
     )
     op.add_column(
         "organization_kyc",
-        sa.Column(
-            "country_iso", sa.String(2), nullable=False, server_default="IN"
-        ),
+        sa.Column("country_iso", sa.String(2), nullable=False, server_default="IN"),
     )
     op.add_column(
         "kyc_documents", sa.Column("content_sha256", sa.String(64), nullable=True)
@@ -93,26 +91,16 @@ def upgrade() -> None:
         sa.Column("organization_id", sa.Integer(), nullable=False),
         sa.Column("charge_type", sa.String(32), nullable=False),
         sa.Column("resource_id", sa.Integer(), nullable=False),
-        sa.Column(
-            "status", sa.String(24), nullable=False, server_default="active"
-        ),
-        sa.Column(
-            "cost_paise", sa.BigInteger(), nullable=False, server_default="0"
-        ),
-        sa.Column(
-            "price_paise", sa.BigInteger(), nullable=False, server_default="0"
-        ),
+        sa.Column("status", sa.String(24), nullable=False, server_default="active"),
+        sa.Column("cost_paise", sa.BigInteger(), nullable=False, server_default="0"),
+        sa.Column("price_paise", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column(
-            "current_period_start", sa.DateTime(timezone=True), nullable=True
-        ),
+        sa.Column("current_period_start", sa.DateTime(timezone=True), nullable=True),
         sa.Column("current_period_end", sa.DateTime(timezone=True), nullable=True),
         sa.Column("next_charge_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("first_failed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_attempt_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "failure_count", sa.Integer(), nullable=False, server_default="0"
-        ),
+        sa.Column("failure_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("last_failure_reason", sa.Text(), nullable=True),
         sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=True),
@@ -156,9 +144,7 @@ def upgrade() -> None:
         sa.Column("period_start", sa.DateTime(timezone=True), nullable=False),
         sa.Column("period_end", sa.DateTime(timezone=True), nullable=False),
         sa.Column("charged_paise", sa.BigInteger(), nullable=False),
-        sa.Column(
-            "cost_paise", sa.BigInteger(), nullable=False, server_default="0"
-        ),
+        sa.Column("cost_paise", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column(
             "prorated", sa.Boolean(), nullable=False, server_default=sa.text("false")
         ),

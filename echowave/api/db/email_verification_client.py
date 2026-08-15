@@ -58,9 +58,7 @@ class EmailVerificationClient(BaseDBClient):
                         "code_salt": code_salt,
                         "expires_at": expires_at,
                         "attempts": 0,
-                        "send_count": (
-                            EmailVerificationChallengeModel.send_count + 1
-                        ),
+                        "send_count": (EmailVerificationChallengeModel.send_count + 1),
                         "last_sent_at": sent_at,
                     },
                 )
@@ -83,9 +81,7 @@ class EmailVerificationClient(BaseDBClient):
             )
             await session.commit()
 
-    async def mark_email_verified(
-        self, user_id: int, *, verified_at: datetime
-    ) -> None:
+    async def mark_email_verified(self, user_id: int, *, verified_at: datetime) -> None:
         """Record the fact and destroy the challenge.
 
         The row goes rather than being marked spent: a used code sitting in the

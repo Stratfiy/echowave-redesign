@@ -1,0 +1,61 @@
+---
+title: "Pausing an agent"
+description: "Stop an agent answering calls without archiving it or unassigning its phone numbers"
+---
+
+Every agent in the list has a **Live** switch. Turn it off and the agent stops
+answering; turn it back on and it resumes. Nothing else about the agent
+changes — it keeps its phone numbers, its workflow, its knowledge base and its
+history.
+
+Use it when an agent is behaving badly on a live line and you need it to stop
+now, or when a seasonal agent should be silent between campaigns.
+
+## What "paused" actually stops
+
+All four ways a call can reach an agent honour the switch:
+
+| Route | What happens when paused |
+| --- | --- |
+| Inbound call to an assigned number | Rejected at the carrier. No workflow run is created and no concurrency slot is taken. |
+| Inbound over SIP / ARI | The channel is hung up before a slot is acquired. |
+| Test call from the API | `POST /telephony/initiate-call` returns **409** with a message naming the pause. |
+| A running campaign | Each queued row is marked refused with reason `agent_not_live`. |
+
+Campaign rows refused this way are **terminal, not retried**. Retrying would
+change nothing until somebody turns the agent back on, and it would pollute the
+failure signal the circuit breaker uses to spot a genuinely bad carrier. Turn
+the agent on and re-queue if you want those calls placed.
+
+## Paused is not archived
+
+They are different things and they are deliberately separate controls.
+
+- **Paused** — the agent is part of your working set. It appears in the list,
+  you can edit and test it, and it is not answering.
+- **Archived** — the agent is out of the working set entirely. It moves to the
+  Archived section, and it does not answer calls either.
+
+Archiving something already implies it should not take calls, so archived
+agents are refused by the same check. A single field would have made "hide it"
+and "silence it" the same gesture, and you would not have been able to see a
+paused agent in order to unpause it.
+
+## Who can do it
+
+Any member of the organization. Pausing is reversible and is part of running an
+agent — an operator who has to find an admin before stopping a misbehaving
+agent will pull the phone number instead, which is far harder to undo.
+
+## Through the API
+
+```bash
+curl -X PUT https://<your-host>/api/v1/workflow/42/live \
+  -H "Authorization: Bearer $DECIBYL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"is_live": false}'
+```
+
+The response is the agent, including its new `is_live`. Agents are live by
+default, and every agent that existed before this switch did stayed live when
+it shipped — nothing went quiet on deploy.

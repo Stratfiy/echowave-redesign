@@ -24,7 +24,7 @@ export function AuthEnterpriseCTA() {
       <Button
         onClick={openModal}
         data-testid="auth-enterprise-cta"
-        className="w-full bg-brand-blue text-white shadow-[0_10px_30px_-12px_rgba(40,179,240,0.6)] hover:bg-brand-blue-hover"
+        className="w-full bg-brand-blue text-primary-foreground shadow-[0_10px_30px_-12px_rgba(238,120,35,0.55)] hover:bg-brand-blue-hover"
       >
         Talk to Sales →
       </Button>

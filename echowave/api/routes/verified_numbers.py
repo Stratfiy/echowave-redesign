@@ -122,9 +122,7 @@ async def confirm(
 
 
 @router.delete("/{phone_number}")
-async def remove(
-    phone_number: str, user: UserModel = Depends(get_user)
-) -> dict:
+async def remove(phone_number: str, user: UserModel = Depends(get_user)) -> dict:
     from api.services.compliance.dnd import normalise_number
 
     normalised = normalise_number(phone_number)

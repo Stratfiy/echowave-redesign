@@ -1,5 +1,5 @@
-from api.db.agent_trigger_client import AgentTriggerClient
 from api.db.activation_client import ActivationClient
+from api.db.agent_trigger_client import AgentTriggerClient
 from api.db.api_key_client import APIKeyClient
 from api.db.campaign_client import CampaignClient
 from api.db.do_not_call_client import DoNotCallClient

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import pytest
 
-from api.db import db_client
 from api.db.models import (
     CreditLedgerModel,
     OrganizationKycModel,

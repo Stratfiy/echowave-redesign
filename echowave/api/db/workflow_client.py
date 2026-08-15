@@ -363,7 +363,7 @@ class WorkflowClient(BaseDBClient):
             status: Filter by status (active/archived)
 
         Returns:
-            List of WorkflowModel with only id, name, status, created_at loaded
+            List of WorkflowModel with only the listing columns loaded
         """
         async with self.async_session() as session:
             query = select(WorkflowModel).options(
@@ -371,6 +371,12 @@ class WorkflowClient(BaseDBClient):
                     WorkflowModel.id,
                     WorkflowModel.name,
                     WorkflowModel.status,
+                    # The agent list renders the Live switch, so this has to be
+                    # in the same SELECT. Left out, SQLAlchemy would lazy-load
+                    # it per row — an N+1 on the busiest screen in the product,
+                    # and one that only appears once somebody has enough agents
+                    # to notice.
+                    WorkflowModel.is_live,
                     WorkflowModel.created_at,
                     WorkflowModel.folder_id,
                     WorkflowModel.workflow_uuid,
@@ -672,6 +678,55 @@ class WorkflowClient(BaseDBClient):
                 raise ValueError(f"Workflow with ID {workflow_id} not found")
 
             workflow.status = status
+
+            try:
+                await session.commit()
+            except Exception as e:
+                await session.rollback()
+                raise e
+            await session.refresh(workflow)
+        return workflow
+
+    async def set_workflow_live(
+        self,
+        workflow_id: int,
+        is_live: bool,
+        organization_id: int,
+    ) -> WorkflowModel:
+        """Turn an agent on or off for calls.
+
+        Separate from ``update_workflow_status``, which archives. This is the
+        operational switch: the agent stays in the list, stays editable, and
+        stops or starts answering.
+
+        ``organization_id`` is required and always filtered on: this is a
+        mutation, and an unscoped query would let a caller silence another
+        org's agent — an outage they did not cause and cannot see the reason
+        for.
+
+        Raises:
+            ValueError: If the workflow is not found in this organization.
+        """
+        async with self.async_session() as session:
+            query = (
+                select(WorkflowModel)
+                .options(
+                    selectinload(WorkflowModel.current_definition),
+                    selectinload(WorkflowModel.released_definition),
+                )
+                .where(
+                    WorkflowModel.id == workflow_id,
+                    WorkflowModel.organization_id == organization_id,
+                )
+            )
+
+            result = await session.execute(query)
+            workflow = result.scalars().first()
+
+            if not workflow:
+                raise ValueError(f"Workflow with ID {workflow_id} not found")
+
+            workflow.is_live = is_live
 
             try:
                 await session.commit()

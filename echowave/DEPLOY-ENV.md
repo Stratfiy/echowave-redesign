@@ -181,6 +181,97 @@ Built and tested, off by default.
 FOLLOW_CALLER_LANGUAGE=true
 ```
 
+## 7. The Model Proxy Service — what happens if you never set this
+
+`MPS_API_URL` was absent from this file entirely, so a deployment silently
+inherited `https://services.decibyl.ai` and depended on a host nobody had
+decided to depend on. It is not a secret and there is nothing to fill in for
+most installs; it is here because *not* setting it has consequences, and those
+consequences should be a choice.
+
+```bash
+# The Model Proxy Service. Defaults to https://services.decibyl.ai — Decibyl's
+# own hosted service, which is right for the managed product and wrong for a
+# self-hosted install that cannot reach it.
+MPS_API_URL=
+
+# Which backend converts and chunks an uploaded knowledge base document:
+#   local  (default) — in-process, no network call, works with nothing else up
+#   mps              — delegate, and surface the outage if MPS is down
+#   auto             — MPS when MPS_API_URL is set, local on any failure
+KB_DOCUMENT_PROCESSOR=local
+```
+
+**What still calls MPS, and what happens without it:**
+
+| Feature | Without a reachable MPS |
+| --- | --- |
+| Knowledge base ingestion | Works. Converted and chunked in-process. |
+| Recording transcription | Works, if the account has its own STT key. Uses the same provider its live calls use. |
+| Agent generation | Works. Falls back to building the workflow locally. |
+| Voice picker | Works. Migrated to a local catalogue. |
+| Service keys | Not applicable — see below. |
+
+Nothing here fails silently any more. The first two rows are the ones that
+changed: both had no fallback, so an unreachable MPS meant a customer uploaded
+a policy document or a recording and got a transport error.
+
+**Service keys are the exception, and they are not a gap.** A service key is a
+credential *for* MPS — the `decibyl` provider's API key is one of these, and it
+is validated against MPS's own usage endpoint. A deployment that does not use
+MPS has nothing to issue them against and no use for them. The screen now says
+so, with a 503 and an explanation, rather than reporting a failure.
+
+So the remaining question is narrower than it looks: **do you sell the
+Decibyl-managed model tier?** If yes, `MPS_API_URL` must point at a running
+service and `DECIBYL_MPS_SECRET_KEY` must be set. If no — every account brings
+its own provider keys — you can leave both unset and nothing is missing.
+
+## 8. Durability — the recovery point, and where the backups live
+
+None of these are required, and leaving all of them unset is a position rather
+than a default. Billing and privacy readiness both report which one you are in.
+
+```bash
+# Set when the database is managed Postgres with point-in-time recovery. With
+# no WAL archiving the recovery point is "since last night's dump" — a failure
+# at 17:00 loses that day's calls, costings and top-ups, and the ledger is the
+# only record of what customers paid against invoices already issued.
+DATABASE_PITR_ENABLED=false
+
+# Records a deliberate decision to live with that gap, in hours. Readiness then
+# reports the accepted figure instead of an open finding. Set it only when
+# somebody has actually weighed it.
+ACCEPTED_RECOVERY_POINT_HOURS=
+
+# An hourly dump of the money tables only — credit_ledger, payments,
+# tax_documents, provider_rates, organizations — between the nightly dumps of
+# everything. About 25KB an hour on a small deployment, and a read, so nothing
+# about it can affect the primary.
+#
+# This narrows the *irreplaceable* part of the gap from 24 hours to one. Calls
+# can be re-made and documents re-uploaded; the ledger cannot be reconstructed
+# from anywhere, because Razorpay knows what was charged and nothing about what
+# was spent, reserved or adjusted. It is NOT point-in-time recovery and does
+# not close the finding above — readiness keeps reporting the real number.
+LEDGER_SNAPSHOT_ENABLED=true
+LEDGER_SNAPSHOT_RETENTION_DAYS=3
+
+# A second copy of each nightly dump, somewhere the first one's failure cannot
+# reach. Backups are otherwise written to a prefix in the same bucket, under
+# the same credentials, in the same account as the call recordings — which is a
+# backup against hardware failure and nothing else.
+#
+# Worth configuring only if it is genuinely elsewhere: a write-only identity,
+# in a different account, into a bucket with object lock enabled for at least
+# BACKUP_RETENTION_DAYS. A mirror sharing the primary's credentials is reported
+# as partial rather than as protection.
+BACKUP_MIRROR_BUCKET=
+BACKUP_MIRROR_REGION=
+BACKUP_MIRROR_ACCESS_KEY_ID=
+BACKUP_MIRROR_SECRET_ACCESS_KEY=
+```
+
 ---
 
 ## Not environment variables

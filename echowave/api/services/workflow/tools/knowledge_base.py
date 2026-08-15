@@ -4,6 +4,26 @@ This module provides vector similarity search capabilities for retrieving
 relevant information from the knowledge base during conversations.
 
 Implements OpenTelemetry tracing for observability in Langfuse.
+
+Two things about the returned payload are load-bearing, because pipecat
+serialises the whole dictionary into the LLM's context as the tool result
+(``json.dumps(frame.result)`` in ``llm_response_universal``) — so every key
+here is something the model reads, and can repeat to the person on the phone.
+
+**A failed lookup is not an empty one.** Both used to come back as zero chunks,
+and the model has no way to tell them apart, so a caller asking about a policy
+we document perfectly well hears "I don't have that information" when the truth
+is "I could not reach the search". That is a wrong answer delivered
+confidently, which is worse than an admission of trouble. :data:`STATUS_OK`,
+:data:`STATUS_NO_MATCH` and :data:`STATUS_UNAVAILABLE` separate them, and each
+non-ok result carries a plain-language ``instruction`` telling the model what
+to do about it.
+
+**Internal error text never goes in.** ``str(exception)`` from an embedding
+provider carries base URLs, host names and console instructions ("set your API
+key in Model Configurations"), and the model will happily read them out to a
+stranger. The detail belongs in the log and on the span, where an operator
+reads it; the model gets a sentence written for a caller's ears.
 """
 
 import json
@@ -15,6 +35,51 @@ from opentelemetry import trace
 from api.db import db_client
 from api.services.gen_ai import build_embedding_service
 from api.services.pipecat.tracing_config import ensure_tracing
+
+#: The search ran and found something.
+STATUS_OK = "ok"
+#: The search ran and nothing matched. The knowledge base is working.
+STATUS_NO_MATCH = "no_match"
+#: The search could not be performed. Says nothing about what we know.
+STATUS_UNAVAILABLE = "unavailable"
+
+NO_MATCH_INSTRUCTION = (
+    "The knowledge base was searched successfully and nothing relevant was "
+    "found. It is correct to tell the caller you do not have that information."
+)
+
+UNAVAILABLE_INSTRUCTION = (
+    "The knowledge base could not be searched. This is a fault on our side, "
+    "not a gap in what we know, so do NOT tell the caller we have no "
+    "information about this — that would be misleading. Say you are unable to "
+    "look it up right now, offer to have someone follow up, and continue "
+    "helping with anything else. Do not describe the technical problem and do "
+    "not read out any error message."
+)
+
+
+def retrieval_unavailable(query: str, exception: BaseException) -> Dict[str, Any]:
+    """The payload for a lookup that could not be performed.
+
+    The exception is logged and recorded on the current span — the payload
+    itself carries nothing but the status and an instruction, because
+    everything in it is read by the model and can be spoken to a caller.
+    """
+    logger.error(f"Error retrieving from knowledge base: {exception}")
+
+    span = trace.get_current_span()
+    if span is not None:
+        # A no-op span when tracing is off; harmless either way.
+        span.set_attribute("retrieval.error", str(exception))
+        span.set_status(trace.Status(trace.StatusCode.ERROR, str(exception)))
+
+    return {
+        "status": STATUS_UNAVAILABLE,
+        "instruction": UNAVAILABLE_INSTRUCTION,
+        "chunks": [],
+        "query": query,
+        "total_results": 0,
+    }
 
 
 async def retrieve_from_knowledge_base(
@@ -50,9 +115,14 @@ async def retrieve_from_knowledge_base(
 
     Returns:
         Dictionary containing:
+        - status: One of ``ok``, ``no_match`` or ``unavailable``
         - chunks: List of relevant text chunks with metadata
         - query: The original query
         - total_results: Number of results returned
+        - instruction: What the model should do, when the status is not ``ok``
+
+        Every key is serialised into the LLM's context, so nothing internal
+        goes in — see the module docstring.
     """
     # Create span for retrieval operation if tracing is enabled
     if ensure_tracing():
@@ -124,12 +194,12 @@ async def retrieve_from_knowledge_base(
                         "retrieval.results_count", result["total_results"]
                     )
 
-                    if result.get("error"):
-                        span.set_attribute("retrieval.error", result["error"])
-                        span.set_status(
-                            trace.Status(trace.StatusCode.ERROR, result["error"])
-                        )
-                    else:
+                    span.set_attribute("retrieval.status", result["status"])
+
+                    # The failure detail is recorded by retrieval_unavailable
+                    # on this same span, rather than travelling back through
+                    # the payload the model reads.
+                    if result["status"] != STATUS_UNAVAILABLE:
                         # Add similarity scores
                         if result["chunks"]:
                             similarities = [
@@ -301,20 +371,27 @@ async def _perform_retrieval(
             f"document_filter={document_uuids}"
         )
 
+        if not chunks:
+            # A real answer: the search worked, and this organization has
+            # nothing on the subject. Said explicitly so the model does not
+            # have to guess whether the silence means "no" or "broken".
+            return {
+                "status": STATUS_NO_MATCH,
+                "instruction": NO_MATCH_INSTRUCTION,
+                "chunks": [],
+                "query": query,
+                "total_results": 0,
+            }
+
         return {
+            "status": STATUS_OK,
             "chunks": chunks,
             "query": query,
             "total_results": len(chunks),
         }
 
     except Exception as e:
-        logger.error(f"Error retrieving from knowledge base: {e}")
-        return {
-            "error": str(e),
-            "chunks": [],
-            "query": query,
-            "total_results": 0,
-        }
+        return retrieval_unavailable(query, e)
 
 
 def get_knowledge_base_tool(

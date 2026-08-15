@@ -149,9 +149,7 @@ class TestTheTemplateDocumentsAWorkingCombination:
         from pathlib import Path
 
         template = (
-            Path(__file__).resolve().parents[2]
-            / "deploy"
-            / "decibyl.env.template"
+            Path(__file__).resolve().parents[2] / "deploy" / "decibyl.env.template"
         )
         settings: dict[str, str] = {}
         for raw in template.read_text().splitlines():

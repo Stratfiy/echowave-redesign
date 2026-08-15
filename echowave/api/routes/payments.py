@@ -32,7 +32,8 @@ from api.constants import (
 )
 from api.db import db_client
 from api.db.models import UserModel
-from api.services.auth.depends import get_user
+from api.enums import OrganizationRole
+from api.services.auth.depends import get_user, require_organization_role
 from api.services.billing import billing_profile, document_email, documents, payments
 from api.services.billing.tax import TaxError
 
@@ -180,7 +181,8 @@ async def get_billing_profile(user: UserModel = Depends(get_user)) -> dict[str, 
 
 @router.put("/profile")
 async def save_billing_profile(
-    request: BillingProfileRequest, user: UserModel = Depends(get_user)
+    request: BillingProfileRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict[str, Any]:
     """Set who invoices are made out to, and therefore which tax applies."""
     organization_id = _organization_id(user)
@@ -442,7 +444,9 @@ async def get_mandate(user: UserModel = Depends(get_user)) -> dict[str, Any]:
 
 
 @router.post("/mandate")
-async def create_mandate(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+async def create_mandate(
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> dict[str, Any]:
     """Start autopay, and hand back the link where it is authorised.
 
     Idempotent: an account that already has a live mandate gets that one back
@@ -463,14 +467,18 @@ async def create_mandate(user: UserModel = Depends(get_user)) -> dict[str, Any]:
             # "your card was declined".
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except mandate_service.MandateError as exc:
-            logger.error("Could not create a mandate for org {}: {}", organization_id, exc)
+            logger.error(
+                "Could not create a mandate for org {}: {}", organization_id, exc
+            )
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         await session.commit()
         return {"mandate": _mandate_view(mandate)}
 
 
 @router.post("/mandate/cancel")
-async def cancel_mandate(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+async def cancel_mandate(
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> dict[str, Any]:
     """Withdraw the standing authorisation.
 
     The number is not released here and the rental does not stop — the charge

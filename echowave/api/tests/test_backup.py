@@ -41,6 +41,12 @@ class FakeStorage:
         self.objects.pop(key, None)
         return True
 
+    async def adownload_file(self, key: str, local_path: str) -> bool:
+        if key not in self.objects:
+            return False
+        pathlib.Path(local_path).write_bytes(self.objects[key])
+        return True
+
 
 # Generated per run, never a real key. A fixture copied from a deployment's
 # .env ends up in git history, where it is readable by anyone with repo access
@@ -268,3 +274,304 @@ class TestRestore:
         assert "pg_restore" in command
         assert "PLATFORM_CREDENTIAL_SECRET" in command
         assert "EMPTY" in command
+
+
+@pytest.mark.asyncio
+class TestTheRotationThatStrandsEveryBackup:
+    """A dump is restorable only while the secret it was written under is still
+    configured.
+
+    Rotate ``PLATFORM_CREDENTIAL_SECRET`` and every earlier backup becomes an
+    unreadable file. It still lists. Its size is still right. Every "is there a
+    recent backup" check ever written still passes. The discovery happens
+    during a restore, at the one moment there is nothing to fall back to — so
+    the canary exists to make the discovery happen on an ordinary Tuesday
+    instead.
+    """
+
+    async def test_a_canary_is_written_beside_every_backup(self):
+        storage = FakeStorage()
+
+        with (
+            patch.object(database, "get_storage", return_value=storage),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(database, "_run_pg_dump", _dump_writes(b"PGDMP-x")),
+        ):
+            result = await database.run_backup()
+
+        assert database._canary_key(result.key) in storage.objects
+
+    async def test_the_current_secret_opening_the_canary_is_the_pass(self):
+        storage = FakeStorage()
+
+        with (
+            patch.object(database, "get_storage", return_value=storage),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(database, "_run_pg_dump", _dump_writes(b"PGDMP-x")),
+        ):
+            await database.run_backup()
+            verdict = await database.newest_is_decryptable()
+
+        assert verdict["checked"] is True
+        assert verdict["decryptable"] is True
+
+    async def test_a_rotated_secret_is_reported_rather_than_discovered_later(self):
+        storage = FakeStorage()
+        rotated = Fernet.generate_key().decode()
+
+        with (
+            patch.object(database, "get_storage", return_value=storage),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(database, "_run_pg_dump", _dump_writes(b"PGDMP-x")),
+        ):
+            await database.run_backup()
+
+        with (
+            patch.object(database, "get_storage", return_value=storage),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", rotated),
+        ):
+            verdict = await database.newest_is_decryptable()
+
+        assert verdict["checked"] is True
+        assert verdict["decryptable"] is False
+        assert "unreadable" in verdict["reason"]
+
+    async def test_a_backup_predating_canaries_is_unknown_not_a_failure(self):
+        """Claiming an old dump is unreadable when it may be perfectly good
+        sends somebody chasing the wrong problem during an incident."""
+        storage = FakeStorage()
+        storage.objects[
+            "backups/postgres/2026/08/01/decibyl-20260801T020000Z.dump.enc"
+        ] = b"written-before-canaries-existed"
+
+        with (
+            patch.object(database, "get_storage", return_value=storage),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+        ):
+            verdict = await database.newest_is_decryptable()
+
+        assert verdict["checked"] is False
+        assert "predates" in verdict["reason"]
+
+    async def test_no_backups_at_all_is_not_a_decryption_verdict(self):
+        with (
+            patch.object(database, "get_storage", return_value=FakeStorage()),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+        ):
+            verdict = await database.newest_is_decryptable()
+
+        assert verdict["checked"] is False
+
+
+@pytest.mark.asyncio
+class TestTheSecondCopy:
+    """Backups beside the data they protect are a backup against hardware
+    failure and nothing else. A compromised or deleted bucket takes both."""
+
+    async def test_a_mirror_receives_the_same_ciphertext(self):
+        from api.services.backup import mirror
+
+        primary = FakeStorage()
+        secondary = FakeStorage()
+
+        with (
+            patch.object(database, "get_storage", return_value=primary),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(database, "_run_pg_dump", _dump_writes(b"PGDMP-x")),
+            patch.object(mirror, "BACKUP_MIRROR_BUCKET", "decibyl-dr"),
+            patch.object(mirror, "get_mirror_storage", return_value=secondary),
+        ):
+            result = await database.run_backup()
+
+        # Byte-identical, deliberately: re-encrypting would produce a different
+        # ciphertext and remove the ability to compare the two copies.
+        assert secondary.objects[result.key] == primary.objects[result.key]
+
+    async def test_a_mirror_failure_never_costs_us_the_backup(self):
+        """The wrong trade is obvious once stated: failing the nightly job over
+        an unreachable mirror leaves no backup at all."""
+        from api.services.backup import mirror
+
+        primary = FakeStorage()
+
+        class BrokenMirror:
+            async def acreate_file_from_bytes(self, key, data):
+                raise RuntimeError("mirror account suspended")
+
+        with (
+            patch.object(database, "get_storage", return_value=primary),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(database, "_run_pg_dump", _dump_writes(b"PGDMP-x")),
+            patch.object(mirror, "BACKUP_MIRROR_BUCKET", "decibyl-dr"),
+            patch.object(mirror, "get_mirror_storage", return_value=BrokenMirror()),
+        ):
+            result = await database.run_backup()
+
+        assert result.key in primary.objects
+
+    async def test_a_truncated_mirror_copy_is_not_reported_as_mirrored(self):
+        from api.services.backup import mirror
+
+        secondary = FakeStorage(truncate=True)
+
+        with (
+            patch.object(mirror, "BACKUP_MIRROR_BUCKET", "decibyl-dr"),
+            patch.object(mirror, "get_mirror_storage", return_value=secondary),
+        ):
+            assert await mirror.mirror_object("k", b"payload") is False
+
+
+class TestHowAMirrorIsConfigured:
+    """Whether the second copy is protected by anything the first is not."""
+
+    def test_a_mirror_without_its_own_credentials_is_reported_as_partial(self):
+        """Same identity as the primary means the same blast radius for
+        anything that is not a single bucket being deleted."""
+        from api.services.backup import mirror
+
+        with (
+            patch.object(mirror, "BACKUP_MIRROR_BUCKET", "decibyl-dr"),
+            patch.object(mirror, "BACKUP_MIRROR_ACCESS_KEY_ID", None),
+            patch.object(mirror, "BACKUP_MIRROR_SECRET_ACCESS_KEY", None),
+        ):
+            assert mirror.is_configured() is True
+            assert mirror.shares_credentials_with_primary() is True
+
+    def test_separate_credentials_are_what_makes_it_a_mirror(self):
+        from api.services.backup import mirror
+
+        with (
+            patch.object(mirror, "BACKUP_MIRROR_BUCKET", "decibyl-dr"),
+            patch.object(mirror, "BACKUP_MIRROR_ACCESS_KEY_ID", "AKIAEXAMPLE"),
+            patch.object(mirror, "BACKUP_MIRROR_SECRET_ACCESS_KEY", "secret"),
+        ):
+            assert mirror.shares_credentials_with_primary() is False
+
+    def test_nothing_configured_is_a_no_op_rather_than_an_error(self):
+        from api.services.backup import mirror
+
+        with patch.object(mirror, "BACKUP_MIRROR_BUCKET", None):
+            assert mirror.is_configured() is False
+            assert mirror.get_mirror_storage() is None
+
+
+@pytest.mark.asyncio
+class TestTheHourlyLedgerSnapshot:
+    """The part of a 24-hour recovery gap that cannot be reconstructed.
+
+    Calls can be re-made, agents re-built, documents re-uploaded. The ledger
+    cannot: it is the only record of what each customer paid and consumed, and
+    tax invoices are already issued numbered against those rows. Razorpay knows
+    what was charged and nothing about what was spent, reserved or adjusted.
+
+    This is a mitigation, and every test here is written to stop it being
+    mistaken for point-in-time recovery.
+    """
+
+    async def test_only_the_money_tables_are_dumped(self, monkeypatch):
+        """A pattern here would quietly start dumping call transcripts, and the
+        hourly cadence is affordable precisely because these tables are small."""
+        from api.services.backup import ledger_snapshot
+
+        captured: list[str] = []
+
+        async def fake_dump(destination):
+            captured.extend(ledger_snapshot.MONEY_TABLES)
+            await asyncio.to_thread(
+                pathlib.Path(destination).write_bytes, b"PGDMP-ledger"
+            )
+
+        storage = FakeStorage()
+        with (
+            patch.object(ledger_snapshot, "get_storage", return_value=storage),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(ledger_snapshot, "_run_pg_dump_of_money_tables", fake_dump),
+        ):
+            result = await ledger_snapshot.take_snapshot()
+
+        assert "credit_ledger" in captured
+        assert "payments" in captured
+        assert "tax_documents" in captured
+        # The bulk of the database, deliberately absent.
+        assert "workflow_runs" not in captured
+        assert result.key.startswith("backups/ledger/")
+
+    async def test_the_snapshot_is_encrypted(self, monkeypatch):
+        from api.services.backup import ledger_snapshot
+
+        async def fake_dump(destination):
+            await asyncio.to_thread(
+                pathlib.Path(destination).write_bytes,
+                b"PGDMP ... +919876543210 ... credit_ledger",
+            )
+
+        storage = FakeStorage()
+        with (
+            patch.object(ledger_snapshot, "get_storage", return_value=storage),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(ledger_snapshot, "_run_pg_dump_of_money_tables", fake_dump),
+        ):
+            result = await ledger_snapshot.take_snapshot()
+
+        assert b"+919876543210" not in storage.objects[result.key]
+
+    async def test_a_truncated_upload_is_caught(self):
+        from api.services.backup import ledger_snapshot
+
+        async def fake_dump(destination):
+            await asyncio.to_thread(
+                pathlib.Path(destination).write_bytes, b"PGDMP-ledger"
+            )
+
+        with (
+            patch.object(
+                ledger_snapshot, "get_storage", return_value=FakeStorage(truncate=True)
+            ),
+            patch.object(database, "PLATFORM_CREDENTIAL_SECRET", SECRET),
+            patch.object(ledger_snapshot, "_run_pg_dump_of_money_tables", fake_dump),
+        ):
+            with pytest.raises(RuntimeError, match="verification failed"):
+                await ledger_snapshot.take_snapshot()
+
+    async def test_snapshots_do_not_appear_among_the_nightly_backups(self):
+        """Separate prefixes, so a listing of "backups" is not 700 partials and
+        neither prune sweep can walk into the other's objects."""
+        from api.services.backup import ledger_snapshot
+
+        assert not ledger_snapshot.SNAPSHOT_PREFIX.startswith(database.BACKUP_PREFIX)
+
+    async def test_a_failing_snapshot_never_takes_down_the_worker(self, monkeypatch):
+        """Unlike the nightly backup, which re-raises. An hourly job that pages
+        is an hourly job somebody switches off."""
+        from api.tasks.backup import run_ledger_snapshot
+
+        async def explodes():
+            raise RuntimeError("object store unreachable")
+
+        monkeypatch.setattr(
+            "api.services.backup.ledger_snapshot.take_snapshot", explodes
+        )
+
+        # Returns rather than raises.
+        assert await run_ledger_snapshot(None) is None
+
+    async def test_the_job_is_a_no_op_when_switched_off(self, monkeypatch):
+        from api.tasks.backup import run_ledger_snapshot
+
+        async def must_not_run():
+            raise AssertionError("snapshot ran while disabled")
+
+        monkeypatch.setattr("api.constants.LEDGER_SNAPSHOT_ENABLED", False)
+        monkeypatch.setattr(
+            "api.services.backup.ledger_snapshot.take_snapshot", must_not_run
+        )
+
+        assert await run_ledger_snapshot(None) is None
+
+    async def test_snapshots_age_out_faster_than_the_nightly_dumps(self):
+        """Their purpose is to cover the hours since the last full backup. A
+        three-week-old partial is no use for recovery and is still a copy of
+        every payment."""
+        from api.constants import BACKUP_RETENTION_DAYS, LEDGER_SNAPSHOT_RETENTION_DAYS
+
+        assert LEDGER_SNAPSHOT_RETENTION_DAYS < BACKUP_RETENTION_DAYS

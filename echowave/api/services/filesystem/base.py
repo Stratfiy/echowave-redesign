@@ -119,7 +119,13 @@ class BaseFileSystem(ABC):
             file_path: Path where the file should be uploaded
             expiration: URL expiration time in seconds (default: 15 minutes)
             content_type: MIME type of the file (default: text/csv)
-            max_size: Maximum file size in bytes (default: 10MB)
+            max_size: **Advisory only.** A presigned PUT signs a URL, not a
+                request body, so there is no field in it that carries a size
+                limit — only a browser POST policy (``content-length-range``)
+                can do that, and this is a PUT. No implementation enforces this
+                and none can. It records what the caller believes the ceiling
+                to be; whoever consumes the object has to check the size
+                itself, before pulling it down.
 
         Returns:
             Optional[str]: Presigned PUT URL if successful, None otherwise

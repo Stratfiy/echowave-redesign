@@ -16,6 +16,30 @@ from api.services.mps_service_key_client import mps_service_key_client
 router = APIRouter()
 
 
+#: What a service key actually is, said once so the three handlers below can
+#: agree. It is a credential *for the Model Proxy Service* — the Decibyl
+#: provider's ``api_key`` is one of these, and ``validate_service_key`` checks
+#: it against MPS's own usage endpoint. So on a deployment that cannot reach
+#: MPS these are not broken; they are meaningless, and the difference is the
+#: whole of what this screen should say. Reporting "Failed to retrieve service
+#: keys" sends somebody to debug a feature that has nothing to do for them.
+MPS_UNREACHABLE_DETAIL = (
+    "Service keys are issued by the Decibyl model service, which this "
+    "deployment cannot reach. They are only needed for Decibyl-managed models "
+    "— if you bring your own provider keys, you do not need one. Set "
+    "MPS_API_URL to a reachable service to use this screen."
+)
+
+
+def _is_unreachable(exc: Exception) -> bool:
+    """Whether this failure is "no MPS here" rather than "MPS said no"."""
+    import httpx
+
+    return isinstance(
+        exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout)
+    )
+
+
 @router.get("/user/service-keys", response_model=List[ServiceKeyResponse])
 async def get_service_keys(
     include_archived: bool = False,
@@ -40,9 +64,15 @@ async def get_service_keys(
             )
 
         return [ServiceKeyResponse.model_validate(key) for key in service_keys]
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get service keys: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve service keys")
+        if _is_unreachable(e):
+            raise HTTPException(status_code=503, detail=MPS_UNREACHABLE_DETAIL) from e
+        raise HTTPException(
+            status_code=502, detail="Failed to retrieve service keys"
+        ) from e
 
 
 @router.post("/user/service-keys", response_model=CreateServiceKeyResponse)
@@ -75,12 +105,15 @@ async def create_service_key(
 
         return CreateServiceKeyResponse.model_validate(result)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create service key: {e}")
+        if _is_unreachable(e):
+            raise HTTPException(status_code=503, detail=MPS_UNREACHABLE_DETAIL) from e
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create service key: {str(e)}",
-        )
+            status_code=502, detail="Failed to create service key"
+        ) from e
 
 
 @router.delete("/user/service-keys/{service_key_id}")
@@ -114,12 +147,18 @@ async def archive_service_key(
 
         return {"message": "Service key archived successfully"}
 
+    except HTTPException:
+        # A 404 from the block above is the answer, not an error to relabel.
+        raise
     except Exception as e:
         logger.error(f"Failed to archive service key: {e}")
+        if _is_unreachable(e):
+            raise HTTPException(status_code=503, detail=MPS_UNREACHABLE_DETAIL) from e
+        # str(e) on an httpx failure names our internal host. It went to the
+        # log a line ago; it does not go to the customer.
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to archive service key: {str(e)}",
-        )
+            status_code=502, detail="Failed to archive service key"
+        ) from e
 
 
 @router.put("/user/service-keys/{service_key_id}/reactivate")

@@ -226,6 +226,10 @@ class WorkflowResponse(BaseModel):
     id: int
     name: str
     status: str
+    # Whether this agent is answering calls. Distinct from `status`, which is
+    # active-vs-archived. Defaulted so an older client that does not send it
+    # cannot read as "paused".
+    is_live: bool = True
     created_at: datetime
     workflow_definition: dict
     current_definition_id: int | None
@@ -244,6 +248,11 @@ class WorkflowListResponse(BaseModel):
     id: int
     name: str
     status: str
+    # The agent list is where the toggle lives, so the flag has to come back
+    # with the list — otherwise the switch renders in the wrong position until
+    # a second request lands. Defaulted True so an older cached row cannot show
+    # a live agent as paused.
+    is_live: bool = True
     created_at: datetime
     total_runs: int
     folder_id: int | None = None
@@ -305,6 +314,10 @@ class WorkflowVersionResponse(BaseModel):
 
 class UpdateWorkflowStatusRequest(BaseModel):
     status: str  # "active" or "archived"
+
+
+class UpdateWorkflowLiveRequest(BaseModel):
+    is_live: bool
 
 
 class CreateWorkflowRunRequest(BaseModel):
@@ -459,6 +472,7 @@ async def create_workflow(
         "id": workflow.id,
         "name": workflow.name,
         "status": workflow.status,
+        "is_live": workflow.is_live,
         "created_at": workflow.created_at,
         "workflow_definition": mask_workflow_definition(workflow_definition),
         "current_definition_id": workflow.current_definition_id,
@@ -560,6 +574,7 @@ async def create_workflow_from_template(
             "id": workflow.id,
             "name": workflow.name,
             "status": workflow.status,
+            "is_live": workflow.is_live,
             "created_at": workflow.created_at,
             "workflow_definition": mask_workflow_definition(workflow_def),
             "current_definition_id": workflow.current_definition_id,
@@ -682,6 +697,7 @@ async def get_workflows(
             id=workflow.id,
             name=workflow.name,
             status=workflow.status,
+            is_live=workflow.is_live,
             created_at=workflow.created_at,
             total_runs=run_counts.get(workflow.id, 0),
             folder_id=workflow.folder_id,
@@ -733,6 +749,7 @@ async def get_workflow(
         "id": workflow.id,
         "name": workflow.name,
         "status": workflow.status,
+        "is_live": workflow.is_live,
         "created_at": workflow.created_at,
         "workflow_definition": mask_workflow_definition(workflow_def),
         "current_definition_id": workflow.current_definition_id,
@@ -926,6 +943,7 @@ async def update_workflow_status(
             "id": workflow.id,
             "name": workflow.name,
             "status": workflow.status,
+            "is_live": workflow.is_live,
             "created_at": workflow.created_at,
             "workflow_definition": mask_workflow_definition(
                 workflow.released_definition.workflow_json
@@ -942,6 +960,65 @@ async def update_workflow_status(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{workflow_id}/live")
+async def update_workflow_live(
+    workflow_id: int,
+    request: UpdateWorkflowLiveRequest,
+    user: UserModel = Depends(get_user),
+) -> WorkflowResponse:
+    """Turn an agent on or off for calls.
+
+    Off means: inbound calls to any number pointed at this agent are rejected,
+    the outbound test-call API refuses with 409, and a running campaign stops
+    dialling for it. The agent itself is untouched — still listed, still
+    editable, still holding its numbers — so turning it back on needs no
+    reconfiguration.
+
+    Deliberately not folded into ``PUT /{id}/status``. Archiving removes an
+    agent from the working set; this pauses one that is still part of it, and a
+    single field would have made "hide it" and "silence it" the same gesture.
+    """
+    try:
+        workflow = await db_client.set_workflow_live(
+            workflow_id=workflow_id,
+            is_live=request.is_live,
+            organization_id=user.selected_organization_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    logger.info(
+        f"Agent {workflow_id} is now "
+        f"{'taking calls' if request.is_live else 'paused'} "
+        f"(org {user.selected_organization_id}, user {user.id})"
+    )
+
+    run_count = await db_client.get_workflow_run_count(workflow.id)
+    return {
+        "id": workflow.id,
+        "name": workflow.name,
+        "status": workflow.status,
+        "is_live": workflow.is_live,
+        "created_at": workflow.created_at,
+        # An agent that has never been published has no released definition,
+        # and pausing one is a perfectly ordinary thing to want to do — so this
+        # returns an empty definition rather than 500ing on the way to
+        # confirming a toggle that has already been applied.
+        "workflow_definition": mask_workflow_definition(
+            workflow.released_definition.workflow_json
+            if workflow.released_definition
+            else {}
+        ),
+        "current_definition_id": workflow.current_definition_id,
+        "template_context_variables": workflow.template_context_variables,
+        "call_disposition_codes": workflow.call_disposition_codes,
+        "workflow_configurations": mask_workflow_configurations(
+            workflow.workflow_configurations
+        ),
+        "total_runs": run_count,
+    }
 
 
 @router.put("/{workflow_id}/folder")
@@ -1238,6 +1315,7 @@ async def update_workflow(
             "id": workflow.id,
             "name": workflow.name,
             "status": workflow.status,
+            "is_live": workflow.is_live,
             "created_at": workflow.created_at,
             "workflow_definition": mask_workflow_definition(workflow_def),
             "current_definition_id": workflow.current_definition_id,
@@ -1283,6 +1361,7 @@ async def duplicate_workflow_endpoint(
             "id": workflow.id,
             "name": workflow.name,
             "status": workflow.status,
+            "is_live": workflow.is_live,
             "created_at": workflow.created_at,
             "workflow_definition": mask_workflow_definition(
                 workflow.released_definition.workflow_json
@@ -1577,6 +1656,7 @@ async def duplicate_workflow_template(
         "id": workflow.id,
         "name": workflow.name,
         "status": workflow.status,
+        "is_live": workflow.is_live,
         "created_at": workflow.created_at,
         "workflow_definition": mask_workflow_definition(workflow_def),
         "current_definition_id": workflow.current_definition_id,

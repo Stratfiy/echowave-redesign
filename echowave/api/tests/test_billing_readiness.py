@@ -45,6 +45,11 @@ CONFIGURED = {
     "SUPPLIER_STATE_CODE": "33",
     "SUPPLIER_ADDRESS": "No.86/16, Hosur 635109, Tamil Nadu",
     "RAZORPAY_WEBHOOK_SECRET": "whsec_test",
+    # Live keys and a public origin belong in "fully configured" for the same
+    # reason the supplier identity does: without them the deployment takes no
+    # money, and it is the checks that say so which make that visible.
+    "RAZORPAY_KEY_ID": "rzp_live_abcdef123456",
+    "PUBLIC_BASE_URL": "https://app.example.com",
 }
 
 
@@ -63,9 +68,11 @@ def configured(monkeypatch):
 def unconfigured(monkeypatch):
     """The state a fresh .env is actually in: nothing set."""
     for name in CONFIGURED:
-        monkeypatch.setattr(
-            readiness, name, "" if name != "RAZORPAY_WEBHOOK_SECRET" else None
-        )
+        # The supplier variables default to "" and are .strip()ed; the rest are
+        # `os.getenv(...) or None`. Mirroring both shapes matters, because a
+        # check that only handles one of them passes here and fails on a box.
+        blank = "" if name.startswith("SUPPLIER_") else None
+        monkeypatch.setattr(readiness, name, blank)
 
 
 async def _org(async_session, slug: str) -> OrganizationModel:
@@ -427,3 +434,158 @@ class TestTheWholeAssessment:
 
         assessment = await assess(async_session)
         assert assessment.blocking == ()
+
+
+class TestTheGapThatOnlyOpensInProduction:
+    """The four failures that are invisible until a customer pays.
+
+    Every other check in this module reads a setting or counts a row. These
+    are about the boundary between this deployment and Razorpay's servers,
+    which no amount of correct code can vouch for — and where the failure mode
+    is the one the payment path was written to prevent: a customer charged and
+    nobody credited.
+    """
+
+    async def test_test_keys_are_a_blocker_not_a_detail(
+        self, async_session, monkeypatch, configured
+    ):
+        """A test key is not a broken key, which is exactly the problem.
+
+        Orders create, checkout renders, webhooks verify, credit lands. The
+        deployment looks entirely healthy and has collected nothing.
+        """
+        monkeypatch.setattr(readiness, "RAZORPAY_KEY_ID", "rzp_test_abcdef123456")
+        assessment = await assess(async_session)
+        check = _by_key(assessment)["razorpay_key_mode"]
+
+        assert check.status == ACTION_REQUIRED
+        assert "no money will be collected" in check.detail
+        # The webhook secret is per-mode, and reusing the test one against live
+        # keys rejects every delivery. Say so where it will be read.
+        assert "webhook secret is per-mode" in check.remedy
+
+    async def test_live_keys_pass(self, async_session, monkeypatch, configured):
+        monkeypatch.setattr(readiness, "RAZORPAY_KEY_ID", "rzp_live_abcdef123456")
+        assessment = await assess(async_session)
+        assert _by_key(assessment)["razorpay_key_mode"].status == READY
+
+    async def test_absent_keys_block(self, async_session, monkeypatch, configured):
+        monkeypatch.setattr(readiness, "RAZORPAY_KEY_ID", None)
+        assessment = await assess(async_session)
+        assert _by_key(assessment)["razorpay_key_mode"].status == ACTION_REQUIRED
+
+    async def test_an_unreadable_key_prefix_is_unknown_not_a_pass(
+        self, async_session, monkeypatch, configured
+    ):
+        monkeypatch.setattr(readiness, "RAZORPAY_KEY_ID", "some_other_format")
+        assessment = await assess(async_session)
+        assert _by_key(assessment)["razorpay_key_mode"].status == UNKNOWN
+
+    async def test_no_public_url_means_no_webhook_can_be_registered(
+        self, async_session, monkeypatch, configured
+    ):
+        monkeypatch.setattr(readiness, "PUBLIC_BASE_URL", None)
+        assessment = await assess(async_session)
+        check = _by_key(assessment)["webhook_reachable"]
+        assert check.status == ACTION_REQUIRED
+
+    async def test_reachability_is_not_probed_unless_asked(
+        self, async_session, monkeypatch, configured
+    ):
+        """This endpoint is polled. A check that opens a connection on every
+        read is a check somebody switches off."""
+        monkeypatch.setattr(readiness, "PUBLIC_BASE_URL", "https://app.example.com")
+
+        async def forbidden(*args, **kwargs):
+            raise AssertionError("readiness made an outbound request unasked")
+
+        monkeypatch.setattr("httpx.AsyncClient.post", forbidden)
+
+        assessment = await assess(async_session)
+        assert _by_key(assessment)["webhook_reachable"].status == UNKNOWN
+
+    async def test_a_400_to_an_unsigned_probe_is_the_pass(
+        self, async_session, monkeypatch, configured
+    ):
+        """400 means the request crossed DNS, TLS and the load balancer and was
+        turned away by our signature check — Razorpay's whole path, minus a
+        valid signature."""
+        import httpx
+
+        monkeypatch.setattr(readiness, "PUBLIC_BASE_URL", "https://app.example.com")
+
+        async def answered_400(self, url, **kwargs):
+            return httpx.Response(400, request=httpx.Request("POST", url))
+
+        monkeypatch.setattr("httpx.AsyncClient.post", answered_400)
+
+        assessment = await assess(async_session, probe_network=True)
+        assert _by_key(assessment)["webhook_reachable"].status == READY
+
+    async def test_a_404_names_the_reverse_proxy(
+        self, async_session, monkeypatch, configured
+    ):
+        import httpx
+
+        monkeypatch.setattr(readiness, "PUBLIC_BASE_URL", "https://app.example.com")
+
+        async def answered_404(self, url, **kwargs):
+            return httpx.Response(404, request=httpx.Request("POST", url))
+
+        monkeypatch.setattr("httpx.AsyncClient.post", answered_404)
+
+        assessment = await assess(async_session, probe_network=True)
+        check = _by_key(assessment)["webhook_reachable"]
+        assert check.status == ACTION_REQUIRED
+        assert "reverse proxy" in check.remedy
+
+    async def test_an_unreachable_endpoint_says_so_plainly(
+        self, async_session, monkeypatch, configured
+    ):
+        import httpx
+
+        monkeypatch.setattr(readiness, "PUBLIC_BASE_URL", "https://app.example.com")
+
+        async def refused(self, url, **kwargs):
+            raise httpx.ConnectError("Name or service not known")
+
+        monkeypatch.setattr("httpx.AsyncClient.post", refused)
+
+        assessment = await assess(async_session, probe_network=True)
+        check = _by_key(assessment)["webhook_reachable"]
+        assert check.status == ACTION_REQUIRED
+        assert "charged and not credited" in check.detail
+
+    async def test_accepting_an_unsigned_webhook_is_reported_as_worse_not_better(
+        self, async_session, monkeypatch, configured
+    ):
+        """A 2xx here is an open credit endpoint. It must never read as a pass
+        merely because the request succeeded."""
+        import httpx
+
+        monkeypatch.setattr(readiness, "PUBLIC_BASE_URL", "https://app.example.com")
+
+        async def answered_200(self, url, **kwargs):
+            return httpx.Response(200, request=httpx.Request("POST", url))
+
+        monkeypatch.setattr("httpx.AsyncClient.post", answered_200)
+
+        assessment = await assess(async_session, probe_network=True)
+        check = _by_key(assessment)["webhook_reachable"]
+        assert check.status == ACTION_REQUIRED
+        assert "immediately" in check.remedy
+
+    async def test_the_round_trip_never_reports_ready(
+        self, async_session, monkeypatch, configured
+    ):
+        """Nothing inside the process can discharge this one. If it could ever
+        read 'ready', somebody would ship on it having proved nothing."""
+        monkeypatch.setattr(readiness, "RAZORPAY_KEY_ID", "rzp_live_abcdef123456")
+        assessment = await assess(async_session)
+
+        check = _by_key(assessment)["live_round_trip_rehearsed"]
+        assert check.status != READY
+        assert check in assessment.unresolvable
+        # And it must not inflate the blocking count, which is the number an
+        # operator works down to zero.
+        assert check not in assessment.blocking

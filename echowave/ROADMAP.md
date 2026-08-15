@@ -44,17 +44,30 @@ python -m pytest api/tests -q --no-header -p no:randomly
 There is no `api/.env.test` in this container despite what `AGENTS.md` says —
 export the variables directly as above.
 
-### Known-failing tests — NOT yours
+### Known-failing tests — none, and keep it that way
 
-Six fail on a clean `origin/main`. Verified against a clean worktree on a
-separate database. Do not chase them:
+**Baseline is 3,126 passed, 4 skipped, 0 failed**, confirmed twice in a row
+against the same database rather than a fresh one.
 
-- `test_mcp_tool_creation.py::test_sdk_openapi_exposes_create_tool_schema_and_llm_hints`
-- `test_user_idle_handler.py::test_idle_does_not_trigger_during_active_conversation`
-- `integrations/test_run_pipeline_text_greeting.py::test_text_greeting_speaks_then_user_transcript_triggers_end_call`
-- `test_pipecat_engine_tool_calls.py` — three parallel-transition tests
+This heading used to list six tests as permanently red and told you not to
+chase them, and a later readiness pass counted thirty-nine. Both were wrong in
+the same way, and the way matters: a suite with a standing list of failures to
+ignore stops being a signal. Somebody has to decide, per failure, whether it is
+on the list — and the moment that judgement is required, a real regression can
+hide behind it. The thirty-nine turned out to be
 
-Baseline is **2596 passed, 6 failed**.
+- **26** in the TypeScript workflow bridge, which shells out to `node`: nobody
+  had run `npm install` in `api/mcp_server/ts_validator`. The suite now skips
+  those with a message naming that command instead of failing 26 times.
+- **4** in the telephony routes, all 451s from the do-not-disturb gate failing
+  closed on a lookup that never had a chance to succeed under test. Fixing that
+  uncovered a real defect: outbound calls were being dialled without their
+  leading `+`.
+- the rest, environment.
+
+If you find a red test, it is yours. Set up the environment first — Postgres
+with the `vector` extension, Redis, `npm install` in the ts_validator directory
+— and if it is still red after that, it is a bug.
 
 ### Docs
 

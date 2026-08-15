@@ -81,3 +81,62 @@ def test_seed_provider_rates_specifically_ships():
 def test_grant_superuser_still_ships():
     """The only route to the admin panel on a Docker install."""
     assert "grant_superuser" in _scripts_copied_into_the_image()
+
+
+# ---------------------------------------------------------------------------
+# The other half of the same failure
+#
+# The rule above catches a script that is on disk and not in the image. It does
+# not catch a script that is documented and does not exist at all — which is
+# what happened to scripts/fetch_latest_backup: rehearse_restore.sh had
+# documented the invocation since it was written, the module was never created,
+# and the restore rehearsal failed at its first step with "No module named
+# scripts.fetch_latest_backup". On the box. At the moment somebody had decided
+# to do the right thing and verify a backup.
+#
+# Both failures read identically to an operator, so both are checked here.
+# ---------------------------------------------------------------------------
+
+_SHELL_INVOCATION = re.compile(r"python3?\s+-m\s+scripts\.(\w+)")
+
+
+def _modules_referenced_by_any_operator_file() -> set[str]:
+    """Every scripts.<name> named in a script or a runbook we ship."""
+    found: set[str] = set()
+    searched = list(_SCRIPTS.glob("*.py")) + list(_SCRIPTS.glob("*.sh"))
+    searched += sorted(_REPO.glob("*.md"))
+    for path in searched:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        found.update(_SHELL_INVOCATION.findall(text))
+        found.update(_DOCKER_INVOCATION.findall(text))
+    return found
+
+
+@pytest.mark.parametrize(
+    "module", sorted(_modules_referenced_by_any_operator_file()) or ["<none>"]
+)
+def test_a_documented_script_exists(module):
+    if module == "<none>":
+        pytest.skip("no script or runbook references a scripts module")
+
+    assert (_SCRIPTS / f"{module}.py").is_file(), (
+        f"Something in this repository tells an operator to run "
+        f"`python -m scripts.{module}`, and scripts/{module}.py does not exist. "
+        f"That command fails with 'No module named scripts.{module}' — which "
+        f"reads as a broken deployment rather than a missing file, and lands "
+        f"on whoever was following the instruction."
+    )
+
+
+def test_fetch_latest_backup_specifically_exists():
+    """The one that found this hole.
+
+    Without it there is no way to get a production backup off the box, so the
+    restore rehearsal — the step that turns a backup from a hypothesis into a
+    fact — could not be carried out at all.
+    """
+    assert (_SCRIPTS / "fetch_latest_backup.py").is_file()
+    assert "fetch_latest_backup" in _scripts_copied_into_the_image()

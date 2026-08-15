@@ -21,8 +21,8 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from pipecat.utils.enums import EndTaskReason
+
 from api.services.workflow.pipecat_engine_callbacks import UserIdleHandler
 
 
@@ -75,9 +75,7 @@ class TestTheFirstNudgeCannotHangUp:
     stopped speaking.
     """
 
-    async def test_the_first_prompt_forbids_ending_the_call(
-        self, engine, aggregator
-    ):
+    async def test_the_first_prompt_forbids_ending_the_call(self, engine, aggregator):
         handler = UserIdleHandler(engine)
 
         await handler.handle_idle(aggregator)
@@ -186,6 +184,6 @@ class TestPipecatStillEmitsWhatWeSubscribeTo:
         ],
     )
     def test_the_event_is_still_registered_upstream(self, event):
-        assert (
-            f'_register_event_handler("{event}")' in self._aggregator_source()
-        ), f"pipecat no longer registers {event}; the idle reset depends on it"
+        assert f'_register_event_handler("{event}")' in self._aggregator_source(), (
+            f"pipecat no longer registers {event}; the idle reset depends on it"
+        )

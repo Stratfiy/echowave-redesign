@@ -27,7 +27,9 @@ from api.services.auth import google_oauth as g
 @pytest.fixture(autouse=True)
 def _configured(monkeypatch):
     """Pretend the deployment has Google configured."""
-    monkeypatch.setattr(g, "GOOGLE_OAUTH_CLIENT_ID", "client-id.apps.googleusercontent.com")
+    monkeypatch.setattr(
+        g, "GOOGLE_OAUTH_CLIENT_ID", "client-id.apps.googleusercontent.com"
+    )
     monkeypatch.setattr(g, "GOOGLE_OAUTH_CLIENT_SECRET", "client-secret")
 
 
@@ -50,7 +52,9 @@ class TestConfiguration:
         monkeypatch.setattr(g, "GOOGLE_OAUTH_CLIENT_SECRET", None)
         assert not g.is_enabled()
 
-    def test_an_unconfigured_deployment_refuses_rather_than_half_works(self, monkeypatch):
+    def test_an_unconfigured_deployment_refuses_rather_than_half_works(
+        self, monkeypatch
+    ):
         monkeypatch.setattr(g, "GOOGLE_OAUTH_CLIENT_ID", None)
         with pytest.raises(g.GoogleAuthError):
             g.build_authorization_url(redirect_uri="https://api.example.com/cb")
@@ -70,8 +74,12 @@ class TestTheAuthorizationUrl:
         assert q["nonce"][0] == g._read_state(q["state"][0])["nonce"]
 
     def test_each_sign_in_gets_its_own_nonce(self):
-        first = g._read_state(_state_from(g.build_authorization_url(redirect_uri="https://x/cb")))
-        second = g._read_state(_state_from(g.build_authorization_url(redirect_uri="https://x/cb")))
+        first = g._read_state(
+            _state_from(g.build_authorization_url(redirect_uri="https://x/cb"))
+        )
+        second = g._read_state(
+            _state_from(g.build_authorization_url(redirect_uri="https://x/cb"))
+        )
         assert first["nonce"] != second["nonce"]
 
     def test_it_asks_for_no_more_than_identity(self):
@@ -95,7 +103,11 @@ class TestState:
     def test_a_state_we_did_not_sign_is_refused(self):
         """The login-CSRF case: an attacker supplying their own state."""
         forged = jwt.encode(
-            {"aud": g._STATE_AUDIENCE, "nonce": "attacker", "exp": datetime.now(UTC) + timedelta(minutes=5)},
+            {
+                "aud": g._STATE_AUDIENCE,
+                "nonce": "attacker",
+                "exp": datetime.now(UTC) + timedelta(minutes=5),
+            },
             "not-our-secret",
             algorithm="HS256",
         )

@@ -13,6 +13,25 @@ from api.services.auth.depends import get_user
 from api.services.call_concurrency import CallConcurrencyLimitError
 
 
+@pytest.fixture(autouse=True)
+def calling_window_open(monkeypatch):
+    """Hold the TCCCPR calling window open for this module.
+
+    These tests are about call setup, not about the window — but the route
+    checks the window immediately before dialling, using the wall clock. Left
+    alone, every test here passes between 09:00 and 21:00 IST and returns 451
+    the rest of the day: green all afternoon, red all evening, and looking
+    exactly like a flake rather than a timezone.
+
+    The window itself is covered properly in test_dnd_gate.py, which pins
+    ``now`` instead of stubbing it.
+    """
+    monkeypatch.setattr(
+        "api.services.compliance.dnd.within_calling_hours",
+        lambda **kwargs: True,
+    )
+
+
 def _make_test_app() -> FastAPI:
     app = FastAPI()
     app.include_router(router)
@@ -88,6 +107,10 @@ def test_initiate_call_executes_as_workflow_owner_for_shared_org_workflow():
         mock_db.get_user_configurations = AsyncMock(
             return_value=SimpleNamespace(test_phone_number=None)
         )
+        # The TCCCPR gate reads the do-not-disturb list through this same
+        # client, and fails closed when it cannot. Unstubbed, every one of
+        # these tests refuses its own call with a 451.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
@@ -189,6 +212,10 @@ def test_initiate_call_uses_organization_preference_phone_number():
         mock_db.get_configuration = Mock(
             return_value=SimpleNamespace(value={"test_phone_number": "+15557654321"})
         )
+        # The TCCCPR gate reads the do-not-disturb list through this same
+        # client, and fails closed when it cannot. Unstubbed, every one of
+        # these tests refuses its own call with a 451.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
@@ -254,6 +281,10 @@ def test_initiate_call_rejects_existing_run_for_different_workflow():
         mock_db.get_user_configurations = AsyncMock(
             return_value=SimpleNamespace(test_phone_number=None)
         )
+        # The TCCCPR gate reads the do-not-disturb list through this same
+        # client, and fails closed when it cannot. Unstubbed, every one of
+        # these tests refuses its own call with a 451.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
@@ -319,6 +350,10 @@ def test_initiate_call_rejects_when_concurrency_limit_reached():
                 max_concurrent=1,
             )
         )
+        # The TCCCPR gate reads the do-not-disturb list through this same
+        # client, and fails closed when it cannot. Unstubbed, every one of
+        # these tests refuses its own call with a 451.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )

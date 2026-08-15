@@ -262,6 +262,34 @@ aws rds create-db-instance \
 not enable it, and the migration that needs it fails with a message that reads
 like a broken migration rather than a missing extension.
 
+**`--backup-retention-period 7` is the point-in-time recovery switch**, and it
+is the whole reason to move off the bundled Postgres container. Any value from
+1 to 35 turns on automated backups *and* continuous WAL archiving, after which
+you can restore to any second inside the window with
+`aws rds restore-db-instance-to-point-in-time`. That takes the recovery point
+from "since last night's dump" — up to 24 hours, of a ledger that cannot be
+reconstructed from anywhere — down to minutes. Set
+`DATABASE_PITR_ENABLED=true` in `.env` once it is on, so privacy readiness
+stops reporting the gap. Do not confuse it with `--multi-az`, which buys
+failover, costs roughly double the instance, and does nothing for recovery
+point: a bad `DELETE` replicates to the standby instantly.
+
+Verify rather than assume, because this is the one setting whose absence is
+invisible until the day it matters:
+
+```bash
+aws rds describe-db-instances --db-instance-identifier decibyl-prod \
+  --query 'DBInstances[0].[BackupRetentionPeriod,LatestRestorableTime]'
+```
+
+`LatestRestorableTime` within the last five minutes is the proof. A retention
+period of `0` means PITR is off however healthy the snapshots look.
+
+`scripts/verify_managed_database.py` checks all of that plus pgvector, the
+migration head and whether the restored ledger reconciles. **You do not have to
+do the rest of this section to get PITR** — moving only the database is an
+afternoon, and `MIGRATE-TO-MANAGED-POSTGRES.md` is the runbook for exactly that.
+
 ElastiCache Redis, `cache.t4g.medium`. Single-AZ is modelled; Multi-AZ costs
 ₹5,500 more and is worth taking if the budget holds — Redis holds the
 concurrency counters and the ARQ queue, so losing it mid-campaign stalls

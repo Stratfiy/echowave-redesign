@@ -224,9 +224,7 @@ class TestTenantIsolation:
         assert "margin_paise" not in response.text
         assert "provider_cost_paise" not in response.text
 
-    async def test_no_organization_selected_is_a_400(
-        self, db_session, async_session
-    ):
+    async def test_no_organization_selected_is_a_400(self, db_session, async_session):
         user = UserModel(provider_id="user-noorg")
         async_session.add(user)
         await async_session.flush()
@@ -255,9 +253,7 @@ class TestTenantIsolation:
 
 
 class TestSpend:
-    async def test_spend_is_broken_down_by_component(
-        self, db_session, async_session
-    ):
+    async def test_spend_is_broken_down_by_component(self, db_session, async_session):
         """A total says how much. Only the split says whether the bill is
         speech, language or carriage — which have different fixes."""
         org, user = await _account(async_session, "spend", balance_paise=100000)
@@ -273,13 +269,13 @@ class TestSpend:
         )
 
         async with _client(user) as client:
-            body = (
-                await client.get("/api/v1/organizations/usage/spend")
-            ).json()
+            body = (await client.get("/api/v1/organizations/usage/spend")).json()
 
         assert body["spent_paise"] == 1000
-        totals = {c: sum(int(r.get(c) or 0) for r in body["series"]) for c in
-                  ("llm", "tts", "telephony")}
+        totals = {
+            c: sum(int(r.get(c) or 0) for r in body["series"])
+            for c in ("llm", "tts", "telephony")
+        }
         assert totals == {"llm": 300, "tts": 500, "telephony": 200}
 
     async def test_balance_and_days_remaining_are_reported(
@@ -311,9 +307,7 @@ class TestSpend:
         org, user = await _account(async_session, "nospend", balance_paise=5000)
 
         async with _client(user) as client:
-            body = (
-                await client.get("/api/v1/organizations/usage/spend")
-            ).json()
+            body = (await client.get("/api/v1/organizations/usage/spend")).json()
 
         assert body["spent_paise"] == 0
         # No spend means no meaningful projection — null, not a divide by zero.
@@ -321,9 +315,7 @@ class TestSpend:
 
 
 class TestTokens:
-    async def test_tokens_are_broken_down_by_model(
-        self, db_session, async_session
-    ):
+    async def test_tokens_are_broken_down_by_model(self, db_session, async_session):
         """The half customers ask for: a total says spend rose, the split says
         which model did it and whether a cheaper one would serve."""
         org, user = await _account(async_session, "tok")
@@ -338,9 +330,7 @@ class TestTokens:
         )
 
         async with _client(user) as client:
-            body = (
-                await client.get("/api/v1/organizations/usage/tokens")
-            ).json()
+            body = (await client.get("/api/v1/organizations/usage/tokens")).json()
 
         models = {row["model"] for row in body["by_model"]}
         assert {"gpt-4o", "gpt-4o-mini"} <= models
@@ -351,9 +341,7 @@ class TestTokens:
         org, user = await _account(async_session, "tok-shape")
 
         async with _client(user) as client:
-            body = (
-                await client.get("/api/v1/organizations/usage/tokens")
-            ).json()
+            body = (await client.get("/api/v1/organizations/usage/tokens")).json()
 
         assert {"range", "granularity", "series", "by_model", "context_growth"} <= set(
             body
@@ -372,9 +360,7 @@ class TestTokens:
             )
         assert response.status_code == 200
 
-    async def test_an_unknown_granularity_is_refused(
-        self, db_session, async_session
-    ):
+    async def test_an_unknown_granularity_is_refused(self, db_session, async_session):
         org, user = await _account(async_session, "gran-bad")
 
         async with _client(user) as client:

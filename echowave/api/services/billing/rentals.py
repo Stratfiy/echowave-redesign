@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import calendar
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from loguru import logger
 from sqlalchemy import select
@@ -89,9 +89,7 @@ def month_end(moment: datetime) -> datetime:
 
 
 def month_start(moment: datetime) -> datetime:
-    return moment.replace(
-        day=1, hour=0, minute=0, second=0, microsecond=0
-    )
+    return moment.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
 def prorated_amount(
@@ -270,9 +268,7 @@ async def charge_period(
         # deferring it to the next run. With >= here, a cron firing at
         # midnight on the first would find every charge "not due".
         if period_start > now and charge.current_period_end is not None:
-            return ChargeOutcome(
-                charge_id=charge_id, charged=False, reason="not_due"
-            )
+            return ChargeOutcome(charge_id=charge_id, charged=False, reason="not_due")
 
         amount = (
             prorated_amount(
@@ -302,8 +298,7 @@ async def charge_period(
                 charge,
                 now=now,
                 reason=(
-                    f"Balance {balance} paise is short of the "
-                    f"{amount} paise rental."
+                    f"Balance {balance} paise is short of the {amount} paise rental."
                 ),
             )
             await session.commit()
@@ -368,9 +363,7 @@ async def charge_period(
             RecurringChargeStatus.PENDING_RELEASE.value,
         ):
             charge.status = RecurringChargeStatus.ACTIVE.value
-            await _set_number_status(
-                session, charge, PhoneNumberStatus.ACTIVE.value
-            )
+            await _set_number_status(session, charge, PhoneNumberStatus.ACTIVE.value)
             logger.info(
                 "Rental charge {} collected; number {} restored",
                 charge.id,
@@ -608,9 +601,7 @@ async def _record_failure(
     charge.status = state.status.value
 
     if state.should_suspend:
-        await _set_number_status(
-            session, charge, PhoneNumberStatus.SUSPENDED.value
-        )
+        await _set_number_status(session, charge, PhoneNumberStatus.SUSPENDED.value)
 
     logger.warning(
         "Rental charge {} for org {} is {} day(s) overdue ({}); status {}",

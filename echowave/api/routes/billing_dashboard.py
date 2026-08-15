@@ -33,9 +33,9 @@ from api.enums import BillingAuditAction, CreditLedgerKind
 from api.services.auth.depends import get_superuser
 from api.services.billing import (
     default_rates,
-    markup,
     fx_source,
     kpis,
+    markup,
     rate_card,
     readiness,
     realized_rates,
@@ -771,7 +771,7 @@ async def set_account_platform_rate(
 
 
 @router.get("/readiness")
-async def billing_readiness() -> dict[str, Any]:
+async def billing_readiness(probe: bool = False) -> dict[str, Any]:
     """What would silently cost money or break GST compliance, and how to fix it.
 
     The mirror of ``/privacy/readiness``, for the money path. Deliberately not
@@ -782,9 +782,13 @@ async def billing_readiness() -> dict[str, Any]:
     The check to watch is ``payments_have_vouchers``. It is designed to read
     zero missing, and any other value is an accrued tax liability rather than a
     statistic.
+
+    ``?probe=true`` additionally posts an unsigned request to this deployment's
+    own public webhook URL to prove Razorpay can reach it. Opt-in because it
+    makes an outbound request, and this endpoint is polled.
     """
     async with db_client.async_session() as session:
-        assessment = await readiness.assess(session)
+        assessment = await readiness.assess(session, probe_network=probe)
     return as_dict(assessment)
 
 

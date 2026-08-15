@@ -23,7 +23,7 @@ def generate_code() -> str:
     the next — which would let them verify an address or a number they do not
     control.
     """
-    return f"{secrets.randbelow(10 ** CODE_DIGITS):0{CODE_DIGITS}d}"
+    return f"{secrets.randbelow(10**CODE_DIGITS):0{CODE_DIGITS}d}"
 
 
 def generate_salt() -> str:

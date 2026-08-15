@@ -28,9 +28,8 @@ Revision ID: e5b27c0a91d4
 Revises: d3f5a81c62b7
 """
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "e5b27c0a91d4"
 down_revision = "d3f5a81c62b7"
@@ -59,9 +58,7 @@ def upgrade() -> None:
             "status", sa.String(length=24), nullable=False, server_default="created"
         ),
         sa.Column("short_url", sa.Text(), nullable=True),
-        sa.Column(
-            "price_paise", sa.BigInteger(), nullable=False, server_default="0"
-        ),
+        sa.Column("price_paise", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("authorised_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_charged_at", sa.DateTime(timezone=True), nullable=True),
@@ -74,9 +71,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        "ix_payment_mandates_id", "payment_mandates", ["id"], unique=False
-    )
+    op.create_index("ix_payment_mandates_id", "payment_mandates", ["id"], unique=False)
     op.create_index(
         "ix_payment_mandates_org",
         "payment_mandates",
@@ -95,9 +90,7 @@ def upgrade() -> None:
         "payment_mandates",
         ["organization_id", "purpose"],
         unique=True,
-        postgresql_where=sa.text(
-            "status NOT IN ('cancelled', 'completed', 'expired')"
-        ),
+        postgresql_where=sa.text("status NOT IN ('cancelled', 'completed', 'expired')"),
     )
 
     op.add_column(

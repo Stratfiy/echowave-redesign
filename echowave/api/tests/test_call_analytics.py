@@ -166,9 +166,7 @@ class TestTenantIsolation:
 
 
 class TestHeadlineFigures:
-    async def test_answer_rate_counts_connected_calls(
-        self, db_session, async_session
-    ):
+    async def test_answer_rate_counts_connected_calls(self, db_session, async_session):
         org, user = await _account(async_session, "calls-answer")
         agent = await _agent(async_session, org, user)
         await _call(async_session, agent, answered=True)
@@ -243,9 +241,7 @@ class TestBreakdowns:
 
         rows = (await _fetch(user))["by_disposition"]
 
-        assert rows == [
-            {"disposition": None, "calls": 1, "billable_seconds": 60}
-        ]
+        assert rows == [{"disposition": None, "calls": 1, "billable_seconds": 60}]
 
     async def test_direction_split_carries_its_own_answer_count(
         self, db_session, async_session

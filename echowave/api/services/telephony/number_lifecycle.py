@@ -92,9 +92,7 @@ def assert_number_may_serve(number) -> None:
     if status == PhoneNumberStatus.ACTIVE.value:
         return
     raise NumberSuspended(
-        _UNAVAILABLE_MESSAGES.get(
-            status, "This number is not available for calls."
-        ),
+        _UNAVAILABLE_MESSAGES.get(status, "This number is not available for calls."),
         status=status,
     )
 
@@ -179,9 +177,7 @@ async def release_number(
         if number is None:
             raise ValueError(f"No phone number {phone_number_id}.")
         if number.status == PhoneNumberStatus.RELEASED.value:
-            logger.info(
-                "Number {} is already released; nothing to do", number.address
-            )
+            logger.info("Number {} is already released; nothing to do", number.address)
             return
 
         charge = await session.scalar(
@@ -234,9 +230,7 @@ async def release_number(
         # Nothing is recorded as released. A row that says released while the
         # carrier still bills us is worse than a failed release, because it
         # stops anyone looking.
-        raise RuntimeError(
-            f"The carrier would not release {address}: {result.message}"
-        )
+        raise RuntimeError(f"The carrier would not release {address}: {result.message}")
 
     async with db_client.async_session() as session:
         number = await session.get(TelephonyPhoneNumberModel, phone_number_id)
@@ -290,9 +284,7 @@ async def reconcile_configuration(
         # missing at the carrier, which is the shape of a false alarm that
         # trains people to ignore this job.
         report.error = f"Could not list numbers at the carrier: {exc}"
-        logger.error(
-            "Reconciliation for config {} failed: {}", configuration.id, exc
-        )
+        logger.error("Reconciliation for config {} failed: {}", configuration.id, exc)
         return report
 
     async with db_client.async_session() as session:
@@ -310,11 +302,7 @@ async def reconcile_configuration(
         )
 
     ours = {r.address_normalized: r for r in rows}
-    theirs = {
-        normalize_telephony_address(n).canonical: n
-        for n in carrier_numbers
-        if n
-    }
+    theirs = {normalize_telephony_address(n).canonical: n for n in carrier_numbers if n}
     report.checked = len(theirs)
 
     for canonical, raw in theirs.items():

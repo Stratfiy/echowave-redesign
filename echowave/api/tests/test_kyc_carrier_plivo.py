@@ -33,7 +33,6 @@ from api.services.kyc.plivo_compliance import (
 )
 from api.services.kyc.state import can_transition
 
-
 # ---------------------------------------------------------------------------
 # Status mapping
 # ---------------------------------------------------------------------------

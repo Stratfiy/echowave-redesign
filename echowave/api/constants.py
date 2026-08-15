@@ -28,6 +28,7 @@ LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL") or None
 PUBLIC_HOST = os.getenv("PUBLIC_HOST") or None
 
+
 # Where the API is reached, as distinct from where the deployment is rooted.
 #
 # Derived from DECIBYL_API_HOST before PUBLIC_BASE_URL, because on a split-
@@ -89,7 +90,11 @@ BACKEND_API_ENDPOINT = (
 # local development and dangerous anywhere else, which is why it is last.
 UI_APP_URL = (
     os.getenv("UI_APP_URL")
-    or (f"https://{os.getenv('DECIBYL_APP_HOST')}" if os.getenv("DECIBYL_APP_HOST") else None)
+    or (
+        f"https://{os.getenv('DECIBYL_APP_HOST')}"
+        if os.getenv("DECIBYL_APP_HOST")
+        else None
+    )
     or "http://localhost:3010"
 )
 
@@ -115,7 +120,60 @@ STACK_PUBLISHABLE_CLIENT_KEY = os.getenv("STACK_PUBLISHABLE_CLIENT_KEY")
 GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
 GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)
-MPS_API_URL = os.getenv("MPS_API_URL", "https://services.decibyl.ai")
+# The Model Proxy Service. Nothing fails outright without it any more:
+# knowledge base ingestion and recording transcription both run in-process, and
+# agent generation builds locally when the call fails. What remains is the
+# managed model tier itself — the `decibyl` provider authenticates with a
+# service key issued by, and validated against, this host — so an unset value
+# here is now one question rather than three broken screens: does this
+# deployment sell the managed tier?
+#
+# The default is kept because the managed product genuinely runs at that host,
+# but whether it was *chosen* is now recorded, and the app says so at boot.
+DEFAULT_MPS_API_URL = "https://services.decibyl.ai"
+MPS_API_URL = os.getenv("MPS_API_URL") or DEFAULT_MPS_API_URL
+MPS_API_URL_IS_DEFAULT = not os.getenv("MPS_API_URL")
+
+# Which backend converts and chunks an uploaded knowledge base document:
+# "local" (in this process, no network), "mps" (delegate, and fail if it is
+# down), or "auto" (MPS when configured, local on any failure).
+#
+# Local is the default deliberately. Ingestion is the one path where a remote
+# dependency has no fallback worth the name — a customer uploads a policy
+# document and either gets a knowledge base or gets nothing — so the default
+# must be the one that works on a deployment where nothing else is stood up.
+KB_DOCUMENT_PROCESSOR = (os.getenv("KB_DOCUMENT_PROCESSOR") or "local").strip().lower()
+
+# The largest document that will be ingested. Lives here rather than in the
+# ingestion task because three places have to agree about it and they used not
+# to: the browser refuses larger files, the presigned URL is minted claiming
+# this ceiling, and the worker enforces it. A worker limit the upload path does
+# not know about is a customer watching a progress bar reach 100% and then
+# being told the file is too big.
+KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES = int(
+    os.getenv("KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES", str(5 * 1024 * 1024))
+)
+# Reading scanned PDFs — pictures of words, with no text layer for pypdf to
+# find. On by default because the alternative is telling a customer to go and
+# OCR their own scan, and it costs nothing on a deployment without tesseract
+# installed: the code checks for the binaries and falls back to that same
+# message. Set to "false" to refuse scans outright.
+KNOWLEDGE_BASE_OCR_ENABLED = os.getenv(
+    "KNOWLEDGE_BASE_OCR_ENABLED", "true"
+).strip().lower() not in {"false", "0", "no", "off"}
+# Languages passed to tesseract, '+'-separated. English plus Hindi by default,
+# and each one needs its trained data installed (tesseract-ocr-hin and so on);
+# tesseract fails the whole page for a language it does not have, so this stays
+# to what the base package ships until a deployment says otherwise.
+KNOWLEDGE_BASE_OCR_LANGUAGES = os.getenv("KNOWLEDGE_BASE_OCR_LANGUAGES", "eng")
+# 300 is the resolution scanners produce and tesseract is tuned for. Lower
+# loses small print; higher costs time and memory for no accuracy.
+KNOWLEDGE_BASE_OCR_DPI = int(os.getenv("KNOWLEDGE_BASE_OCR_DPI", "300"))
+# A ceiling on how much of one document is worth seconds-per-page. Fifty pages
+# is a long policy and about a minute of worker time; a scanned book is not
+# something to discover by watching a queue stop moving.
+KNOWLEDGE_BASE_OCR_MAX_PAGES = int(os.getenv("KNOWLEDGE_BASE_OCR_MAX_PAGES", "50"))
+
 DECIBYL_DEVOPS_SECRET = os.getenv("DECIBYL_DEVOPS_SECRET") or None
 
 # Decibyl's own Plivo account — the parent under which managed numbers are
@@ -361,6 +419,54 @@ BACKUP_RETENTION_DAYS = int(os.getenv("BACKUP_RETENTION_DAYS", "30"))
 # one missed run is a warning rather than an alarm, but well under two days so a
 # silently dead worker is caught on the second morning rather than the tenth.
 BACKUP_STALE_AFTER_HOURS = int(os.getenv("BACKUP_STALE_AFTER_HOURS", "36"))
+
+# A second copy, deliberately somewhere else. Backups written to a prefix inside
+# the same bucket, under the same credentials, in the same account as the call
+# recordings share their blast radius: a compromised or deleted bucket takes the
+# database and its backups together, and ransomware and a mistaken `aws s3 rm`
+# both have exactly that shape. The mirror is only worth anything if its
+# credentials are ones this deployment does not otherwise hold — ideally
+# write-only, into a bucket with object lock, in a different account.
+BACKUP_MIRROR_BUCKET = os.getenv("BACKUP_MIRROR_BUCKET") or None
+BACKUP_MIRROR_REGION = os.getenv("BACKUP_MIRROR_REGION") or None
+BACKUP_MIRROR_ENDPOINT_URL = os.getenv("BACKUP_MIRROR_ENDPOINT_URL") or None
+BACKUP_MIRROR_ACCESS_KEY_ID = os.getenv("BACKUP_MIRROR_ACCESS_KEY_ID") or None
+BACKUP_MIRROR_SECRET_ACCESS_KEY = os.getenv("BACKUP_MIRROR_SECRET_ACCESS_KEY") or None
+
+# The recovery point this deployment actually has, in hours, and whether anyone
+# has decided that is acceptable.
+#
+# Without WAL archiving the answer is "since the last nightly dump" — up to 24
+# hours. A database failure at 17:00 loses that day's calls, costings and
+# top-ups, and the ledger is the only record of what customers paid, against
+# invoices already issued. That is money that cannot be reconstructed.
+#
+# Set DATABASE_PITR_ENABLED=true when the database is on managed Postgres with
+# point-in-time recovery, which turns the number into minutes. Set
+# ACCEPTED_RECOVERY_POINT_HOURS to record a deliberate decision to live with the
+# gap — readiness then reports the accepted figure instead of an open finding,
+# because an operator who has weighed it deserves a different answer from one
+# who has never been told.
+DATABASE_PITR_ENABLED = os.getenv("DATABASE_PITR_ENABLED", "false").lower() == "true"
+
+# An hourly dump of the money tables only, between the nightly dumps of
+# everything. Narrows the *irreplaceable* part of the recovery gap from 24
+# hours to one, and is emphatically not point-in-time recovery — see
+# services/backup/ledger_snapshot.py for why homegrown WAL archiving on the
+# bundled Postgres is the wrong trade. On by default because it is cheap: five
+# small tables, and a read, so nothing about it can affect the primary.
+LEDGER_SNAPSHOT_ENABLED = (
+    os.getenv("LEDGER_SNAPSHOT_ENABLED", "true").lower() != "false"
+)
+# Days, not the nightly dumps' 30. Their whole purpose is to cover the hours
+# since the last full backup; a three-week-old partial is no use for recovery
+# and is still a copy of every payment.
+LEDGER_SNAPSHOT_RETENTION_DAYS = int(os.getenv("LEDGER_SNAPSHOT_RETENTION_DAYS", "3"))
+ACCEPTED_RECOVERY_POINT_HOURS = (
+    int(os.getenv("ACCEPTED_RECOVERY_POINT_HOURS"))
+    if os.getenv("ACCEPTED_RECOVERY_POINT_HOURS")
+    else None
+)
 
 # How often the background worker records that it is alive, and how long
 # without one before it is presumed dead.

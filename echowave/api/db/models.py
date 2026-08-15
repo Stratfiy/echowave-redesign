@@ -572,6 +572,25 @@ class WorkflowModel(Base):
         default=WorkflowStatus.ACTIVE.value,
         server_default=text("'active'::workflow_status"),
     )
+    # Whether this agent is answering the phone right now.
+    #
+    # Separate from ``status``, which is the lifecycle — active or archived,
+    # i.e. whether the agent is in the list at all. This is the operational
+    # switch: the agent exists, you can see and edit it, and it is or is not
+    # taking calls. Folding the two together would hide a paused agent from
+    # every screen filtering ``status == 'active'``, including the one you
+    # would use to bring it back.
+    #
+    # Enforced in services/workflow/liveness.py, which every call path routes
+    # through — inbound webhook, inbound ARI, the outbound API and the campaign
+    # dispatcher. A flag that only some of those honoured would be worse than
+    # no flag, because an operator would believe the agent was off.
+    is_live = Column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default=text("true"),
+    )
     workflow_definition = Column(JSON, nullable=False, default=dict)
     template_context_variables = Column(JSON, nullable=False, default=dict)
     call_disposition_codes = Column(JSON, nullable=False, default=dict)
@@ -1863,8 +1882,9 @@ class CallCostItemModel(Base):
     # Stored rather than derived from today's multiplier: recomputing an old
     # receipt against a rate that has since changed would rewrite what a
     # customer was actually charged.
-    provider_cost_paise = Column(BigInteger, nullable=False, default=0,
-                                 server_default="0")
+    provider_cost_paise = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     workflow_run = relationship("WorkflowRunModel", back_populates="cost_items")
@@ -2163,9 +2183,7 @@ class RecurringChargeModel(Base):
             "charge_type",
             "resource_id",
             unique=True,
-            postgresql_where=text(
-                "status NOT IN ('released', 'cancelled')"
-            ),
+            postgresql_where=text("status NOT IN ('released', 'cancelled')"),
         ),
     )
 
@@ -3305,9 +3323,7 @@ class DoNotCallEntryModel(Base):
     __table_args__ = (
         # The uniqueness is what makes a re-upload idempotent instead of
         # growing the table by its own size every time.
-        UniqueConstraint(
-            "organization_id", "phone_number", name="_dnc_org_number_uc"
-        ),
+        UniqueConstraint("organization_id", "phone_number", name="_dnc_org_number_uc"),
         # The dialler's lookup is (organization_id, phone_number) on every
         # single call, so it gets a covering index rather than relying on the
         # unique constraint's ordering by accident.
@@ -3374,11 +3390,8 @@ class VerifiedNumberModel(Base):
         UniqueConstraint(
             "organization_id", "phone_number", name="_verified_number_org_number_uc"
         ),
-        Index(
-            "ix_verified_numbers_org_number", "organization_id", "phone_number"
-        ),
+        Index("ix_verified_numbers_org_number", "organization_id", "phone_number"),
     )
-
 
 
 class EmailVerificationChallengeModel(Base):
@@ -3410,6 +3423,4 @@ class EmailVerificationChallengeModel(Base):
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
-    __table_args__ = (
-        UniqueConstraint("user_id", name="_email_verification_user_uc"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", name="_email_verification_user_uc"),)

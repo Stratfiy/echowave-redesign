@@ -6,6 +6,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 
+from api.constants import KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
 from api.db import db_client
 from api.enums import PostHogEvent
 from api.schemas.knowledge_base import (
@@ -19,6 +20,7 @@ from api.schemas.knowledge_base import (
 )
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
+from api.services.knowledge_base import staleness, upload_keys
 from api.services.posthog_client import capture_event
 from api.services.storage import storage_fs
 from api.tasks.arq import enqueue_job
@@ -54,15 +56,24 @@ async def get_upload_url(
         # Generate unique document UUID for S3 organization
         document_uuid = str(uuid.uuid4())
 
-        # Generate S3 key: knowledge_base/{org_id}/{document_uuid}/{filename}
-        s3_key = f"knowledge_base/{user.selected_organization_id}/{document_uuid}/{request.filename}"
+        # Generate S3 key: knowledge_base/{org_id}/{document_uuid}/{filename}.
+        # Built by the same function /process-document validates against, so
+        # the two cannot disagree about what a legitimate key looks like.
+        s3_key = upload_keys.build_document_key(
+            user.selected_organization_id, document_uuid, request.filename
+        )
 
-        # Generate presigned PUT URL (valid for 30 minutes)
+        # Generate presigned PUT URL (valid for 30 minutes).
+        #
+        # max_size is advisory — a presigned PUT cannot carry a size limit, see
+        # BaseFileSystem.aget_presigned_put_url — so it is stated here to match
+        # what the worker will actually accept rather than the 100MB it used to
+        # claim while ingestion refused anything over five.
         upload_url = await storage_fs.aget_presigned_put_url(
             file_path=s3_key,
             expiration=1800,  # 30 minutes
             content_type=request.mime_type,
-            max_size=100_000_000,  # 100MB max
+            max_size=KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES,
         )
 
         if not upload_url:
@@ -114,6 +125,30 @@ async def process_document(
     """
 
     try:
+        # The key arrives from the client, and whatever is at it gets ingested
+        # into this organization's knowledge base — where this organization's
+        # agent will read it aloud. Another organization's key must not be
+        # accepted here, so the key has to be exactly the one /upload-url would
+        # have minted for this caller and this document.
+        if not upload_keys.key_belongs_to(
+            user.selected_organization_id, request.document_uuid, request.s3_key
+        ):
+            logger.warning(
+                "Rejected a process-document request for a key outside "
+                "organization {}: {!r} (document {!r}, user {})",
+                user.selected_organization_id,
+                request.s3_key,
+                request.document_uuid,
+                user.id,
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "This upload key does not belong to your organization. "
+                    "Request a fresh upload URL and try again."
+                ),
+            )
+
         # Extract filename from s3_key
         filename = request.s3_key.split("/")[-1]
 
@@ -220,6 +255,22 @@ async def list_documents(
             offset=offset,
         )
 
+        # Which of these the agent can no longer retrieve from, because the
+        # organization changed embedding model after they were ingested. One
+        # grouped query for the whole page rather than one per row.
+        async with db_client.async_session() as session:
+            stranded = await staleness.stranded_document_ids(
+                session, user.selected_organization_id
+            )
+        if stranded:
+            logger.warning(
+                "Organization {} has {} document(s) embedded with a superseded "
+                "model; the agent retrieves nothing from them until they are "
+                "re-ingested.",
+                user.selected_organization_id,
+                len(stranded),
+            )
+
         # Convert to response schema
         document_list = [
             DocumentResponseSchema(
@@ -231,6 +282,7 @@ async def list_documents(
                 mime_type=doc.mime_type,
                 processing_status=doc.processing_status,
                 processing_error=doc.processing_error,
+                needs_reingest=doc.id in stranded,
                 total_chunks=doc.total_chunks,
                 retrieval_mode=doc.retrieval_mode,
                 custom_metadata=doc.custom_metadata,

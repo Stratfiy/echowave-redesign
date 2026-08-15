@@ -45,6 +45,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Recovery time, not just recoverability. The rehearsal proves the data comes
+# back; until somebody has timed it, any RTO quoted to a customer is invented.
+STARTED_AT=$(date +%s)
+
 echo "${YELLOW}1/4${NC} Decrypting…"
 python3 - "$ENCRYPTED" "$WORKDIR/restore.dump" <<'PY'
 import os, sys
@@ -58,6 +62,8 @@ with open(destination, "wb") as handle:
     handle.write(plaintext)
 print(f"    decrypted {len(plaintext):,} bytes")
 PY
+
+DECRYPTED_AT=$(date +%s)
 
 echo "${YELLOW}2/4${NC} Creating scratch database ${SCRATCH_DB}…"
 dropdb --if-exists "$SCRATCH_DB" 2>/dev/null || true
@@ -74,13 +80,26 @@ echo "${YELLOW}3/4${NC} Restoring…"
 pg_restore --no-owner --no-acl -d "$SCRATCH_DB" "$WORKDIR/restore.dump" 2>&1 \
     | grep -v "already exists" | tail -20 || true
 
+RESTORED_AT=$(date +%s)
+
 echo "${YELLOW}4/4${NC} Verifying…"
-read -r TABLES MIGRATION LEDGER ORGS <<<"$(psql -d "$SCRATCH_DB" -tAX -F' ' -c "
+read -r TABLES MIGRATION LEDGER ORGS BROKEN <<<"$(psql -d "$SCRATCH_DB" -tAX -F' ' -c "
 SELECT
   (SELECT count(*) FROM information_schema.tables WHERE table_schema='public'),
   (SELECT coalesce(max(version_num),'NONE') FROM alembic_version),
   (SELECT count(*) FROM credit_ledger),
-  (SELECT count(*) FROM organizations);
+  (SELECT count(*) FROM organizations),
+  -- Every ledger row records the running balance it produced, so each row's
+  -- balance_after_paise must equal the previous row's plus this row's delta.
+  -- A row count cannot see a hole in the middle of a dump; this can. Rows are
+  -- ordered by id within an organization, which is the order they were written.
+  (SELECT count(*) FROM (
+     SELECT balance_after_paise
+          - lag(balance_after_paise, 1, 0) OVER w
+          - delta_paise AS drift
+       FROM credit_ledger
+     WINDOW w AS (PARTITION BY organization_id ORDER BY id)
+   ) AS reconciliation WHERE drift <> 0);
 ")"
 
 echo
@@ -88,6 +107,7 @@ echo "  tables:          $TABLES"
 echo "  migration head:  $MIGRATION"
 echo "  organizations:   $ORGS"
 echo "  credit ledger:   $LEDGER rows"
+echo "  ledger drift:    $BROKEN row(s) whose running balance does not reconcile"
 echo
 
 # The ledger is the reason backups exist. A restore that produced a schema and
@@ -97,6 +117,36 @@ if [[ "$TABLES" -lt 40 || "$MIGRATION" == "NONE" ]]; then
     exit 1
 fi
 
+# The check that earns its place. Delete three rows from the middle of a dump
+# and every row count above still reads plausible; only this notices.
+if [[ "$BROKEN" != "0" ]]; then
+    echo "${RED}REHEARSAL FAILED${NC} — $BROKEN ledger row(s) do not reconcile." >&2
+    echo "The restore produced a database whose money history is internally" >&2
+    echo "inconsistent. Row counts alone would have passed this backup." >&2
+    exit 1
+fi
+
+FINISHED_AT=$(date +%s)
+DECRYPT_SECONDS=$((DECRYPTED_AT - STARTED_AT))
+RESTORE_SECONDS=$((RESTORED_AT - DECRYPTED_AT))
+TOTAL_SECONDS=$((FINISHED_AT - STARTED_AT))
+
 echo "${GREEN}Restore rehearsal passed.${NC}"
-echo "Record the date. Re-run after any schema change, secret rotation, or"
-echo "storage migration — those are what silently break a working backup."
+echo
+echo "  decrypt:         ${DECRYPT_SECONDS}s"
+echo "  restore:         ${RESTORE_SECONDS}s"
+echo "  total:           ${TOTAL_SECONDS}s"
+echo
+
+# Written down, because an RTO nobody has measured is an RTO nobody should
+# quote. This is data-restore time only: it does not include provisioning a
+# host, pointing the application at the new database, or draining DNS. Whoever
+# quotes a recovery time to a customer owes them that arithmetic too.
+RECORD="${REHEARSAL_LOG:-restore-rehearsals.log}"
+printf '%s\trestore_seconds=%s\tledger_rows=%s\tdrift_rows=%s\tmigration=%s\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TOTAL_SECONDS" "$LEDGER" "$BROKEN" "$MIGRATION" \
+    >> "$RECORD"
+echo "Recorded in ${RECORD}."
+echo
+echo "Re-run after any schema change, secret rotation, or storage migration —"
+echo "those are what silently break a working backup."

@@ -46,15 +46,15 @@ async def _staff(session, slug: str) -> UserModel:
     # SUPERADMIN rather than SUPPORT: this router can put an organization on
     # the managed path, which is a decision about who we bill and who we owe a
     # carrier — the same tier the billing surfaces sit behind.
-    user = UserModel(
-        provider_id=f"staff-{slug}", staff_role=StaffRole.SUPERADMIN.value
-    )
+    user = UserModel(provider_id=f"staff-{slug}", staff_role=StaffRole.SUPERADMIN.value)
     session.add(user)
     await session.flush()
     return user
 
 
-async def _number(session, org_id, config_id, address, *, carrier_id="cn-1", status=None):
+async def _number(
+    session, org_id, config_id, address, *, carrier_id="cn-1", status=None
+):
     row = TelephonyPhoneNumberModel(
         organization_id=org_id,
         telephony_configuration_id=config_id,
@@ -154,9 +154,7 @@ class TestSettingTheFlag:
         with pytest.raises(kyc_service.TelephonyNotVerified):
             await kyc_service.assert_configuration_may_place_calls(managed)
 
-    async def test_an_unknown_configuration_is_a_404(
-        self, db_session, async_session
-    ):
+    async def test_an_unknown_configuration_is_a_404(self, db_session, async_session):
         staff = await _staff(async_session, "s404")
         async with _client(staff) as client:
             response = await client.put(

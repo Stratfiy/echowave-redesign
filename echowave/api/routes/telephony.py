@@ -27,16 +27,15 @@ from api.enums import CallType, WorkflowRunMode, WorkflowRunState
 from api.errors.telephony_errors import TelephonyError
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
-from api.services.compliance import dnd
-from api.services.telephony import verified_numbers
 from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     WorkflowRunSlotAlreadyBoundError,
     call_concurrency,
 )
+from api.services.compliance import dnd
 from api.services.kyc import service as kyc_service
-from api.services.telephony import number_lifecycle
 from api.services.quota_service import authorize_workflow_run_start
+from api.services.telephony import number_lifecycle, verified_numbers
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.factory import (
     get_all_telephony_providers,
@@ -48,6 +47,7 @@ from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
 )
+from api.services.workflow import liveness
 from api.utils.common import get_backend_endpoints
 from api.utils.telephony_helper import (
     generic_hangup_response,
@@ -197,6 +197,12 @@ async def initiate_call(
             user.selected_organization_id,
             phone_number,
             timezone_name=preferences.timezone,
+            # The module-level client this route uses for everything else.
+            # assert_may_call would otherwise import its own, which is a second
+            # engine on a second event loop — harmless in production and a
+            # false 451 under test, where the refusal is indistinguishable from
+            # a real DND hit.
+            db=db_client,
         )
     except dnd.CallRefused as exc:
         raise HTTPException(status_code=451, detail=str(exc)) from exc
@@ -206,6 +212,15 @@ async def initiate_call(
     )
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # 409 rather than 404 or 403: the agent exists and the caller may use it,
+    # but it is switched off. That is a state the caller can change, and the
+    # distinction is what makes the message actionable.
+    try:
+        liveness.assert_workflow_may_take_calls(workflow)
+    except liveness.AgentNotTakingCalls as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     execution_user_id = _get_execution_user_id(workflow)
 
     # Determine the workflow run mode based on provider type
@@ -900,6 +915,19 @@ async def handle_inbound_run(request: Request):
             return provider_class.generate_validation_error_response(
                 TelephonyError.WORKFLOW_NOT_FOUND
             )
+
+        # An agent the operator has switched off, or archived, does not answer.
+        # Rejected here rather than further in: the caller hears the provider's
+        # rejection instead of a half-set-up call, and no concurrency slot or
+        # workflow run is spent on a call nobody wanted taken.
+        try:
+            liveness.assert_workflow_may_take_calls(workflow)
+        except liveness.AgentNotTakingCalls as exc:
+            logger.info(f"/inbound/run: {exc}")
+            return provider_class.generate_validation_error_response(
+                TelephonyError.WORKFLOW_NOT_FOUND
+            )
+
         user_id = workflow.user_id
 
         # 3. Verify webhook signature against the matched config's credentials.

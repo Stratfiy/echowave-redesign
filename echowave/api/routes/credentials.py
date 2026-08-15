@@ -8,9 +8,9 @@ from pydantic import BaseModel
 
 from api.db import db_client
 from api.db.models import UserModel
-from api.enums import WebhookCredentialType
+from api.enums import OrganizationRole, WebhookCredentialType
 from api.sdk_expose import sdk_expose
-from api.services.auth.depends import get_user
+from api.services.auth.depends import get_user, require_organization_role
 
 router = APIRouter(prefix="/credentials")
 
@@ -139,7 +139,7 @@ async def list_credentials(
 @router.post("/")
 async def create_credential(
     request: CreateCredentialRequest,
-    user: UserModel = Depends(get_user),
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> CredentialResponse:
     """
     Create a new webhook credential.
@@ -213,7 +213,7 @@ async def get_credential(
 async def update_credential(
     credential_uuid: str,
     request: UpdateCredentialRequest,
-    user: UserModel = Depends(get_user),
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> CredentialResponse:
     """
     Update a webhook credential.
@@ -265,7 +265,7 @@ async def update_credential(
 @router.delete("/{credential_uuid}")
 async def delete_credential(
     credential_uuid: str,
-    user: UserModel = Depends(get_user),
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict:
     """
     Delete (soft delete) a webhook credential.

@@ -21,7 +21,10 @@ from api.schemas.workflow_recording import (
 )
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
-from api.services.mps_service_key_client import mps_service_key_client
+from api.services.gen_ai.transcription import (
+    TranscriptionError,
+    build_transcription_service,
+)
 from api.services.storage import storage_fs
 
 router = APIRouter(prefix="/workflow-recordings", tags=["workflow-recordings"])
@@ -318,31 +321,37 @@ async def transcribe_audio(
     language: str = Form("en"),
     user=Depends(get_user),
 ):
-    """Transcribe an uploaded audio file using MPS STT."""
+    """Transcribe an uploaded audio file with this account's own STT provider.
+
+    Resolves the same speech-to-text configuration the live call path uses, so
+    an account with a working Deepgram or Sarvam key transcribes an upload with
+    it. Managed accounts hold no vendor keys by design and still go through
+    MPS — it is now one option rather than the only one, which is what made
+    this screen dead on any deployment that could not reach that service.
+    """
+    audio_data = await file.read()
+
     try:
-        audio_data = await file.read()
-
-        if DEPLOYMENT_MODE == "oss":
-            result = await mps_service_key_client.transcribe_audio(
-                audio_data=audio_data,
-                filename=file.filename or "audio.wav",
-                content_type=file.content_type or "audio/wav",
-                language=language,
-                created_by=str(user.provider_id),
-            )
-        else:
-            result = await mps_service_key_client.transcribe_audio(
-                audio_data=audio_data,
-                filename=file.filename or "audio.wav",
-                content_type=file.content_type or "audio/wav",
-                language=language,
-                organization_id=user.selected_organization_id,
-            )
-
-        return result
-
+        service = await build_transcription_service(
+            organization_id=user.selected_organization_id,
+            created_by=str(user.provider_id) if DEPLOYMENT_MODE == "oss" else None,
+        )
+        transcription = await service.transcribe(
+            audio_data,
+            filename=file.filename or "audio.wav",
+            content_type=file.content_type or "audio/wav",
+            language=language,
+        )
+    except TranscriptionError as exc:
+        # These carry copy written for whoever is watching the upload spinner.
+        # 422 rather than 500 for the ones they can act on — an unset key or an
+        # unsupported provider is a configuration answer, not an outage.
+        logger.warning("Transcription refused: {}", exc)
+        raise HTTPException(status_code=422, detail=exc.user_message) from exc
     except Exception as exc:
-        logger.error(f"Error transcribing audio: {exc}")
+        logger.exception("Error transcribing audio: {}", exc)
         raise HTTPException(
             status_code=500, detail="Failed to transcribe audio"
         ) from exc
+
+    return transcription.as_response()

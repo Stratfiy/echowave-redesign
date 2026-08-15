@@ -22,6 +22,7 @@ from api.services.campaign.rate_limiter import rate_limiter
 from api.services.compliance import dnd
 from api.services.organization_preferences import get_organization_preferences
 from api.services.quota_service import authorize_workflow_run_start
+from api.services.workflow import liveness
 from api.utils.common import get_backend_endpoints
 
 if TYPE_CHECKING:
@@ -282,6 +283,23 @@ class CampaignCallDispatcher:
             if not workflow:
                 raise ValueError(f"Workflow {campaign.workflow_id} not found")
 
+            # An agent switched off mid-campaign stops dialling. Terminal for
+            # the row like a DND refusal — retrying changes nothing until
+            # somebody turns the agent back on, and feeding these into the
+            # retry path would trip the circuit breaker that exists to detect a
+            # carrier going bad.
+            try:
+                liveness.assert_workflow_may_take_calls(workflow)
+            except liveness.AgentNotTakingCalls as exc:
+                logger.info(
+                    f"Campaign {campaign.id} queued run {queued_run.id} not "
+                    f"dialled: {exc}"
+                )
+                await self.mark_queued_run_refused(
+                    queued_run, reason=exc.reason, detail=str(exc)
+                )
+                return
+
             # Extract phone number
             phone_number = queued_run.context_variables.get("phone_number")
             if not phone_number:
@@ -300,9 +318,7 @@ class CampaignCallDispatcher:
             # A refusal is terminal for the row, not a transient failure: it
             # must not feed the retry path, and it must not trip the circuit
             # breaker, which exists to detect a carrier going bad.
-            preferences = await get_organization_preferences(
-                campaign.organization_id
-            )
+            preferences = await get_organization_preferences(campaign.organization_id)
             try:
                 phone_number = await dnd.assert_may_call(
                     campaign.organization_id,

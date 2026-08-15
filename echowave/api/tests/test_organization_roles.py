@@ -339,3 +339,175 @@ class TestAuthUserResponseCarriesOrganizationRole:
         body = response.json()
         assert body["organization_role"] == "admin"
         assert body["staff_role"] is None
+
+
+@pytest.mark.asyncio
+class TestWhatTheAdminTierActuallyGates:
+    """The tier existed in the enum, appeared in the picker, and restricted
+    nobody.
+
+    That is worse than having only two roles: an operator who assigns "admin"
+    to someone believes they have withheld something, and has withheld
+    nothing. Each surface below is one where a single person's action binds the
+    whole account — a secret, a standing bank authority, what tax the customer
+    is charged, or a regulatory list — so each is checked from both sides.
+    """
+
+    async def test_a_member_cannot_install_a_provider_key(
+        self, async_session, db_session, test_client_factory
+    ):
+        """A BYOK key is spend under someone else's contract, and the one row
+        whose leak is worst."""
+        user, _org = await _org_with_member(
+            async_session, "member-byok", role=OrganizationRole.MEMBER.value
+        )
+
+        async with test_client_factory(user) as client:
+            response = await client.put(
+                "/api/v1/provider-keys",
+                json={
+                    "component": "llm",
+                    "provider": "openai",
+                    "api_key": "sk-not-a-real-key",
+                },
+            )
+
+        assert response.status_code == 403
+
+    async def test_an_admin_can_install_a_provider_key(
+        self, async_session, db_session, test_client_factory
+    ):
+        user, _org = await _org_with_member(
+            async_session, "admin-byok", role=OrganizationRole.ADMIN.value
+        )
+
+        async with test_client_factory(user) as client:
+            response = await client.put(
+                "/api/v1/provider-keys",
+                json={
+                    "component": "llm",
+                    "provider": "openai",
+                    "api_key": "sk-not-a-real-key",
+                },
+            )
+
+        assert response.status_code != 403
+
+    async def test_a_member_cannot_delete_a_provider_key(
+        self, async_session, db_session, test_client_factory
+    ):
+        user, _org = await _org_with_member(
+            async_session, "member-byok-delete", role=OrganizationRole.MEMBER.value
+        )
+
+        async with test_client_factory(user) as client:
+            response = await client.delete(
+                "/api/v1/provider-keys?component=llm&provider=openai"
+            )
+
+        assert response.status_code == 403
+
+    async def test_a_member_cannot_change_who_the_invoice_is_made_out_to(
+        self, async_session, db_session, test_client_factory
+    ):
+        """The billing profile decides which tax applies. One member editing it
+        changes what every other person in the account is charged."""
+        user, _org = await _org_with_member(
+            async_session, "member-billing-profile", role=OrganizationRole.MEMBER.value
+        )
+
+        async with test_client_factory(user) as client:
+            response = await client.put(
+                "/api/v1/billing/profile",
+                json={
+                    "legal_name": "Somebody Else Pvt Ltd",
+                    "gstin": "29AAACX1234A1Z5",
+                    "state_code": "29",
+                    "address": "Bengaluru",
+                },
+            )
+
+        assert response.status_code == 403
+
+    async def test_a_member_cannot_start_an_autopay_mandate(
+        self, async_session, db_session, test_client_factory
+    ):
+        """A standing authority to debit the company's bank account."""
+        user, _org = await _org_with_member(
+            async_session, "member-mandate", role=OrganizationRole.MEMBER.value
+        )
+
+        async with test_client_factory(user) as client:
+            response = await client.post("/api/v1/billing/mandate")
+
+        assert response.status_code == 403
+
+    async def test_a_member_cannot_take_a_number_off_the_dnd_list(
+        self, async_session, db_session, test_client_factory
+    ):
+        """Adding is fine — over-suppressing calls costs us, not the recipient.
+        Removing is a regulatory act, and the entry nobody notices going
+        missing."""
+        user, _org = await _org_with_member(
+            async_session, "member-dnd-remove", role=OrganizationRole.MEMBER.value
+        )
+
+        async with test_client_factory(user) as client:
+            response = await client.delete("/api/v1/do-not-call/919876543210")
+
+        assert response.status_code == 403
+
+    async def test_a_member_can_still_add_to_the_dnd_list(
+        self, async_session, db_session, test_client_factory
+    ):
+        """Honouring a request to stop calling somebody must never wait for an
+        admin to be available."""
+        user, _org = await _org_with_member(
+            async_session, "member-dnd-add", role=OrganizationRole.MEMBER.value
+        )
+
+        async with test_client_factory(user) as client:
+            response = await client.post(
+                "/api/v1/do-not-call", json={"phone_numbers": ["9876543210"]}
+            )
+
+        assert response.status_code != 403
+
+    async def test_a_member_can_still_buy_credit(
+        self, async_session, db_session, test_client_factory
+    ):
+        """Deliberately not gated. A member who cannot top up when the balance
+        runs out is a member who cannot work, and paying us more money is not a
+        privilege that needs protecting."""
+        user, _org = await _org_with_member(
+            async_session, "member-topup", role=OrganizationRole.MEMBER.value
+        )
+
+        async with test_client_factory(user) as client:
+            response = await client.post(
+                "/api/v1/billing/topup", json={"amount_paise": 50000}
+            )
+
+        assert response.status_code != 403
+
+    async def test_an_owner_has_everything_an_admin_has(
+        self, async_session, db_session, test_client_factory
+    ):
+        """The ranking is 'at least this role', so this is a property of the
+        comparison rather than of each route — but a regression here would be
+        an owner locked out of their own account."""
+        user, _org = await _org_with_member(
+            async_session, "owner-inherits", role=OrganizationRole.OWNER.value
+        )
+
+        async with test_client_factory(user) as client:
+            response = await client.put(
+                "/api/v1/provider-keys",
+                json={
+                    "component": "llm",
+                    "provider": "openai",
+                    "api_key": "sk-not-a-real-key",
+                },
+            )
+
+        assert response.status_code != 403

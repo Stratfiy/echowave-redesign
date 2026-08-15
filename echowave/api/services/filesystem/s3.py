@@ -20,6 +20,8 @@ class S3FileSystem(BaseFileSystem):
         endpoint_url: str | None = None,
         signature_version: str | None = None,
         addressing_style: str | None = None,
+        access_key_id: str | None = None,
+        secret_access_key: str | None = None,
     ):
         """Initialize S3 filesystem.
 
@@ -32,11 +34,24 @@ class S3FileSystem(BaseFileSystem):
                 ``"s3v4"``). ``None`` keeps botocore's default signing behavior.
             addressing_style: Optional S3 addressing style (``"path"`` /
                 ``"virtual"`` / ``"auto"``). ``None`` keeps botocore's default.
+            access_key_id / secret_access_key: Explicit credentials, instead of
+                the ambient chain. Exists for the backup mirror, whose entire
+                purpose is to live under credentials the running deployment
+                does not otherwise hold — a mirror written with the same keys as
+                the primary shares its blast radius and protects against
+                nothing but hardware failure.
         """
         self.bucket_name = bucket_name
         self.region_name = region_name
         self.endpoint_url = endpoint_url
-        self.session = aioboto3.Session()
+        if access_key_id and secret_access_key:
+            self.session = aioboto3.Session(
+                aws_access_key_id=access_key_id,
+                aws_secret_access_key=secret_access_key,
+                region_name=region_name,
+            )
+        else:
+            self.session = aioboto3.Session()
 
         # Build a botocore Config only when an override is requested so that the
         # default behavior is byte-for-byte unchanged when no env vars are set.

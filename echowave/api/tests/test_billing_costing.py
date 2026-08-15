@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 from sqlalchemy import func, select
 
+from api.constants import MANAGED_PROVIDER_MARKUP_BPS
 from api.db.models import (
     CallCostItemModel,
     CreditLedgerModel,
@@ -16,7 +17,6 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
-from api.constants import MANAGED_PROVIDER_MARKUP_BPS
 from api.enums import CostComponent, CreditLedgerKind, RateUnit
 from api.services.billing.costing import cost_workflow_run, current_balance_paise
 from api.services.billing.money import round_half_up_div
