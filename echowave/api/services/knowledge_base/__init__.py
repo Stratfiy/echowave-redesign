@@ -13,7 +13,7 @@ or care which backend produced the chunks, so ``KB_DOCUMENT_PROCESSOR=mps``
 still works for a deployment that has MPS and wants it.
 """
 
-from api.services.knowledge_base import staleness
+from api.services.knowledge_base import staleness, upload_keys
 from api.services.knowledge_base.chunking import Chunk, chunk_text, count_tokens
 from api.services.knowledge_base.errors import (
     DocumentExtractionError,
@@ -47,5 +47,6 @@ __all__ = [
     "process_document_locally",
     "resolve_backend",
     "staleness",
+    "upload_keys",
     "user_facing_message",
 ]
