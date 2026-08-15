@@ -399,16 +399,20 @@ class TestSwitchingEmbeddingModel:
 
 @pytest.mark.asyncio
 class TestWhatTheAgentIsToldWhenRetrievalBreaks:
-    """The tool returns zero results for "nothing matched" and for "retrieval
-    is broken", and the agent cannot tell those apart.
+    """A failed lookup and an empty one are different answers.
 
-    Returning empty rather than raising is right — an exception mid-call would
-    end the conversation. But the caller hears "I don't have that information"
-    in both cases, so the failure is invisible to everyone except whoever reads
-    the log. Pinned here because it is a deliberate trade, not an oversight.
+    Returning a payload rather than raising is right — an exception mid-call
+    would end the conversation. But when both come back as zero chunks, the
+    model says "I don't have that information" to a caller asking about a
+    policy we document perfectly well. A wrong answer delivered confidently is
+    worse than an admission of trouble, so the two are named apart, and the
+    model is told what to do with each.
+
+    Everything in this payload is serialised into the model's context, so these
+    tests also check what is *not* there.
     """
 
-    async def test_a_broken_retrieval_looks_exactly_like_an_empty_one(
+    async def test_a_broken_retrieval_is_not_reported_as_an_empty_one(
         self, db_session, async_session, ingestion, monkeypatch
     ):
         from api.services.workflow.tools import knowledge_base as kb_tool
@@ -428,8 +432,110 @@ class TestWhatTheAgentIsToldWhenRetrievalBreaks:
             embeddings_api_key="sk-test",
         )
 
+        assert result["status"] == kb_tool.STATUS_UNAVAILABLE
         assert result["total_results"] == 0
         assert result["chunks"] == []
-        # The one thing that distinguishes it, and only in the payload — the
-        # agent's prompt never sees this key.
-        assert "error" in result
+        # And is told, in words, not to pass the failure off as an answer.
+        assert "not a gap in what we know" in result["instruction"]
+
+    async def test_an_empty_result_says_the_search_worked(
+        self, db_session, async_session, ingestion, monkeypatch
+    ):
+        """The other half. Without this, "no_match" could be handed back for
+        both and the distinction would be decorative."""
+        from api.services.workflow.tools import knowledge_base as kb_tool
+
+        org, user = await _organization(async_session, "e2e-no-match")
+        ingestion.write()
+        await _ingest(async_session, org, user)
+
+        async def fake_build(**kwargs):
+            return DeterministicEmbeddingService()
+
+        monkeypatch.setattr(kb_tool, "build_embedding_service", fake_build)
+
+        # A real search that finds nothing: this organization's documents are
+        # about refunds and delivery, and the filter excludes all of them.
+        result = await kb_tool.retrieve_from_knowledge_base(
+            query="what is the warranty on industrial bearings",
+            organization_id=org.id,
+            document_uuids=["a-document-this-organization-does-not-have"],
+            embeddings_api_key="sk-test",
+        )
+
+        assert result["status"] == kb_tool.STATUS_NO_MATCH
+        assert result["total_results"] == 0
+        assert "correct to tell the caller" in result["instruction"]
+
+    async def test_a_successful_retrieval_carries_no_instruction(
+        self, db_session, async_session, ingestion, monkeypatch
+    ):
+        from api.services.workflow.tools import knowledge_base as kb_tool
+
+        org, user = await _organization(async_session, "e2e-status-ok")
+        ingestion.write()
+        await _ingest(async_session, org, user)
+
+        async def fake_build(**kwargs):
+            return DeterministicEmbeddingService()
+
+        monkeypatch.setattr(kb_tool, "build_embedding_service", fake_build)
+
+        result = await kb_tool.retrieve_from_knowledge_base(
+            query="how long do I have to ask for a refund",
+            organization_id=org.id,
+            embeddings_api_key="sk-test",
+        )
+
+        assert result["status"] == kb_tool.STATUS_OK
+        assert "instruction" not in result
+
+    async def test_the_provider_error_never_reaches_the_model(
+        self, db_session, async_session, ingestion, monkeypatch
+    ):
+        """Provider exceptions carry base URLs, host names and console
+        instructions ("set your API key in Model Configurations"). The model
+        reads this payload and will say it out loud to a stranger."""
+        from api.services.workflow.tools import knowledge_base as kb_tool
+
+        org, user = await _organization(async_session, "e2e-leak")
+        ingestion.write()
+        await _ingest(async_session, org, user)
+
+        secret = "https://embeddings.internal.example:8443/v1 rejected key sk-live-42"
+
+        async def exploding_build(**kwargs):
+            raise RuntimeError(secret)
+
+        monkeypatch.setattr(kb_tool, "build_embedding_service", exploding_build)
+
+        result = await kb_tool.retrieve_from_knowledge_base(
+            query="how long do I have to ask for a refund",
+            organization_id=org.id,
+            embeddings_api_key="sk-test",
+        )
+
+        # Serialised the way pipecat serialises it into the LLM context.
+        assert secret not in json.dumps(result)
+        assert "sk-live-42" not in json.dumps(result)
+
+    async def test_a_missing_api_key_is_not_read_out_to_the_caller(
+        self, db_session, async_session, ingestion
+    ):
+        """The unconfigured deployment, which is the likeliest way this fires.
+        The message is written for whoever administers the account, and the
+        caller must not hear it."""
+        from api.services.workflow.tools import knowledge_base as kb_tool
+
+        org, user = await _organization(async_session, "e2e-no-key")
+        ingestion.write()
+        await _ingest(async_session, org, user)
+
+        result = await kb_tool.retrieve_from_knowledge_base(
+            query="how long do I have to ask for a refund",
+            organization_id=org.id,
+            embeddings_api_key=None,
+        )
+
+        assert result["status"] == kb_tool.STATUS_UNAVAILABLE
+        assert "Model Configurations" not in json.dumps(result)

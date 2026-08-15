@@ -58,6 +58,7 @@ from api.services.workflow.pipecat_engine_variable_extractor import (
     VariableExtractionManager,
 )
 from api.services.workflow.tools.knowledge_base import (
+    retrieval_unavailable,
     retrieve_from_knowledge_base,
 )
 from api.utils.template_renderer import render_template
@@ -403,8 +404,13 @@ class PipecatEngine:
             logger.info("LLM Function Call EXECUTED: retrieve_from_knowledge_base")
             logger.info(f"Arguments: {function_call_params.arguments}")
 
+            # Read before the try: the handler below reports on `query`, and a
+            # malformed arguments payload would otherwise raise NameError
+            # inside the error path rather than returning a usable result.
+            arguments = function_call_params.arguments or {}
+            query = arguments.get("query", "") if isinstance(arguments, dict) else ""
+
             try:
-                query = function_call_params.arguments.get("query", "")
                 organization_id = await self._get_organization_id()
 
                 if not organization_id:
@@ -432,9 +438,12 @@ class PipecatEngine:
                 await function_call_params.result_callback(result)
 
             except Exception as e:
-                logger.error(f"Knowledge base retrieval failed: {e}")
+                # Same payload the tool itself returns when the lookup breaks:
+                # a status the model can act on, and no internal error text,
+                # since everything here is read into its context and can be
+                # spoken to the caller.
                 await function_call_params.result_callback(
-                    {"error": str(e), "chunks": [], "query": query, "total_results": 0}
+                    retrieval_unavailable(query, e)
                 )
 
         # Register the function with the LLM
