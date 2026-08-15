@@ -25,7 +25,6 @@ None of the three is optional and none substitutes for the others.
 from __future__ import annotations
 
 import hmac
-import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -186,9 +185,7 @@ async def confirm_verification(
         raise CodeIncorrect("That code is not right. Ask for a new one.")
 
     if record.attempts >= VERIFICATION_MAX_ATTEMPTS:
-        raise TooManyAttempts(
-            "Too many incorrect codes. Ask for a new one."
-        )
+        raise TooManyAttempts("Too many incorrect codes. Ask for a new one.")
 
     expires_at = record.code_expires_at
     if expires_at is not None and expires_at.tzinfo is None:

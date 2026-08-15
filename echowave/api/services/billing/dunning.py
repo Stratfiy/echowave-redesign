@@ -146,9 +146,7 @@ def evaluate(
     )
 
 
-def may_release(
-    *, first_failed_at: datetime | None, now: datetime
-) -> bool:
+def may_release(*, first_failed_at: datetime | None, now: datetime) -> bool:
     """Whether the grace period has elapsed.
 
     A precondition, asserted by the release path. It answers "is this

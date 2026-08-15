@@ -198,9 +198,7 @@ class TestTheGate:
 
 
 class TestWebhookDrivenState:
-    async def test_activation_authorises_the_mandate(
-        self, db_session, async_session
-    ):
+    async def test_activation_authorises_the_mandate(self, db_session, async_session):
         org = await _org(async_session, "wh-activate")
         mandate = await _mandate(
             async_session, org, status=MandateStatus.CREATED.value, sub="sub_act"
@@ -215,9 +213,7 @@ class TestWebhookDrivenState:
         assert mandate.status == MandateStatus.ACTIVE.value
         assert mandate.authorised_at is not None
 
-    async def test_a_terminal_mandate_is_never_revived(
-        self, db_session, async_session
-    ):
+    async def test_a_terminal_mandate_is_never_revived(self, db_session, async_session):
         """Webhooks arrive out of order. A late `activated` after a `cancelled`
         would otherwise revive an authorisation the customer's bank has already
         withdrawn, and the next collection would fail at the bank while our
@@ -331,9 +327,7 @@ class TestCollection:
         ).all()
         assert rentals == []
 
-    async def test_a_redelivered_collection_is_a_no_op(
-        self, db_session, async_session
-    ):
+    async def test_a_redelivered_collection_is_a_no_op(self, db_session, async_session):
         """Razorpay delivers at least once. The second delivery must not be a
         second month of rent."""
         from api.services.billing.rentals import record_mandate_collection
@@ -622,9 +616,7 @@ class TestOneMandatePerAccount:
         org = await _org(async_session, "one-live")
         first = await _mandate(async_session, org, sub="sub_one")
 
-        again = await mandate_service.get_mandate(
-            async_session, organization_id=org.id
-        )
+        again = await mandate_service.get_mandate(async_session, organization_id=org.id)
         assert again is not None and again.id == first.id
 
     async def test_a_cancelled_mandate_leaves_room_for_a_new_one(

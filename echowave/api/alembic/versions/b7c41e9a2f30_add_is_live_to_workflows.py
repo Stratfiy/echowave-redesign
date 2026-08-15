@@ -13,8 +13,8 @@ Existing agents backfill to live. Anything else would silently stop answering
 every phone number already pointed at one, on deploy.
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "b7c41e9a2f30"
 down_revision = "e1f5b2c94a70"

@@ -109,7 +109,9 @@ class TestTheAppHostDoesNotSwallowTheUIsOwnRoutes:
         assert routes, "expected to find Next.js API routes; did the tree move?"
 
         stolen = [
-            r for r in routes if r.startswith(app_prefix) and not r.startswith("/api/v1")
+            r
+            for r in routes
+            if r.startswith(app_prefix) and not r.startswith("/api/v1")
         ]
         assert not stolen, f"nginx sends these Next.js routes to FastAPI: {stolen}"
 
@@ -319,8 +321,14 @@ class TestTheAppAndTheRendererAgree:
             {"DECIBYL_DOCS_HOST": "docs.decibyl.ai"},
             {"DECIBYL_ROOT_HOST": "decibyl.ai"},
             {"DECIBYL_APP_HOST": "decibyl.ai"},
-            {"DECIBYL_APP_HOST": "app.decibyl.ai", "DECIBYL_API_HOST": "edge.decibyl.ai"},
-            {"DECIBYL_ROOT_HOST": "example.co.uk", "DECIBYL_APP_HOST": "app.example.co.uk"},
+            {
+                "DECIBYL_APP_HOST": "app.decibyl.ai",
+                "DECIBYL_API_HOST": "edge.decibyl.ai",
+            },
+            {
+                "DECIBYL_ROOT_HOST": "example.co.uk",
+                "DECIBYL_APP_HOST": "app.example.co.uk",
+            },
         ],
     )
     def test_both_sides_name_the_same_api_host(self, monkeypatch, env):

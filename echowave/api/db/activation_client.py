@@ -32,7 +32,6 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import distinct, func, select
 
 from api.db.base_client import BaseDBClient
-from api.enums import CreditLedgerKind
 from api.db.models import (
     CreditLedgerModel,
     OrganizationMembershipModel,
@@ -40,6 +39,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
+from api.enums import CreditLedgerKind
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -124,9 +124,7 @@ class ActivationClient(BaseDBClient):
 
             def orgs_reaching(org_ids: set[int]) -> set[int]:
                 return {
-                    user_id
-                    for user_id, orgs in orgs_by_user.items()
-                    if orgs & org_ids
+                    user_id for user_id, orgs in orgs_by_user.items() if orgs & org_ids
                 }
 
             # Ever, not "in the window" — see the module docstring.

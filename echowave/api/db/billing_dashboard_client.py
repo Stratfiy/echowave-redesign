@@ -1719,9 +1719,7 @@ async def call_analytics(
     # back as NULL and are reported as such — collapsing them into "unknown"
     # here would hide the difference between a call that ended without one and
     # a call the pipeline never finished writing.
-    disposition = WorkflowRunModel.gathered_context.op("->>")(
-        "mapped_call_disposition"
-    )
+    disposition = WorkflowRunModel.gathered_context.op("->>")("mapped_call_disposition")
     by_disposition = [
         {
             "disposition": row.disposition,
@@ -1831,9 +1829,7 @@ async def call_analytics(
             # None rather than 0 on an empty range: "no calls" and "calls that
             # averaged nothing" are different answers and only one of them is
             # a problem.
-            "average_seconds": (
-                round(billable_seconds / calls, 1) if calls else None
-            ),
+            "average_seconds": (round(billable_seconds / calls, 1) if calls else None),
             "answer_rate": round(answered_calls / calls, 3) if calls else None,
         },
         "by_disposition": by_disposition,

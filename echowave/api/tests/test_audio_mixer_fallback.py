@@ -26,10 +26,10 @@ import wave
 from pathlib import Path
 
 import pytest
-
-from api.services.pipecat.audio_mixer import _is_playable, build_audio_out_mixer
 from pipecat.audio.mixers.silence_mixer import SilenceAudioMixer
 from pipecat.audio.mixers.soundfile_mixer import SoundfileMixer
+
+from api.services.pipecat.audio_mixer import _is_playable, build_audio_out_mixer
 
 
 @pytest.fixture
@@ -60,9 +60,7 @@ class TestIsPlayable:
 class TestTheMixerFallsBackToSilence:
     async def test_a_missing_default_asset_yields_silence(self, monkeypatch, tmp_path):
         """The production case: ambient noise on, asset absent from the image."""
-        monkeypatch.setattr(
-            "api.services.pipecat.audio_mixer.APP_ROOT_DIR", tmp_path
-        )
+        monkeypatch.setattr("api.services.pipecat.audio_mixer.APP_ROOT_DIR", tmp_path)
 
         mixer = await build_audio_out_mixer(16000, {"enabled": True})
 
@@ -77,9 +75,7 @@ class TestTheMixerFallsBackToSilence:
             f.setsampwidth(2)
             f.setframerate(16000)
             f.writeframes(b"\x00\x00" * 16000)
-        monkeypatch.setattr(
-            "api.services.pipecat.audio_mixer.APP_ROOT_DIR", tmp_path
-        )
+        monkeypatch.setattr("api.services.pipecat.audio_mixer.APP_ROOT_DIR", tmp_path)
 
         mixer = await build_audio_out_mixer(16000, {"enabled": True})
 
@@ -105,9 +101,7 @@ class TestTheMixerFallsBackToSilence:
             "api.services.pipecat.audio_mixer.get_cached_ambient_noise_path",
             fake_cache,
         )
-        monkeypatch.setattr(
-            "api.services.pipecat.audio_mixer.APP_ROOT_DIR", tmp_path
-        )
+        monkeypatch.setattr("api.services.pipecat.audio_mixer.APP_ROOT_DIR", tmp_path)
 
         mixer = await build_audio_out_mixer(
             16000,

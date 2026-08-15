@@ -27,17 +27,15 @@ from api.enums import CallType, WorkflowRunMode, WorkflowRunState
 from api.errors.telephony_errors import TelephonyError
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
-from api.services.compliance import dnd
-from api.services.workflow import liveness
-from api.services.telephony import verified_numbers
 from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     WorkflowRunSlotAlreadyBoundError,
     call_concurrency,
 )
+from api.services.compliance import dnd
 from api.services.kyc import service as kyc_service
-from api.services.telephony import number_lifecycle
 from api.services.quota_service import authorize_workflow_run_start
+from api.services.telephony import number_lifecycle, verified_numbers
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.factory import (
     get_all_telephony_providers,
@@ -49,6 +47,7 @@ from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
 )
+from api.services.workflow import liveness
 from api.utils.common import get_backend_endpoints
 from api.utils.telephony_helper import (
     generic_hangup_response,

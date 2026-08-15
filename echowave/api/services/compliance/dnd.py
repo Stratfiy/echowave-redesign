@@ -218,9 +218,7 @@ async def assert_may_call(
     if normalised is None:
         # Not dialable. Refusing here rather than downstream keeps a malformed
         # row from consuming a concurrency slot to fail at the trunk.
-        raise DoNotDisturbListed(
-            f"{phone_number!r} is not a dialable phone number."
-        )
+        raise DoNotDisturbListed(f"{phone_number!r} is not a dialable phone number.")
 
     if not within_calling_hours(timezone_name=timezone_name, now=now):
         raise OutsideCallingHours(

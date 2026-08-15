@@ -26,7 +26,6 @@ from loguru import logger
 from api.constants import REDIS_URL
 from api.db import db_client
 from api.enums import CallType, WorkflowRunMode
-from api.services.workflow import liveness
 from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     call_concurrency,
@@ -37,6 +36,7 @@ from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
 )
+from api.services.workflow import liveness
 
 # Redis key pattern and TTL for channel-to-run mapping
 _CHANNEL_KEY_PREFIX = "ari:channel:"

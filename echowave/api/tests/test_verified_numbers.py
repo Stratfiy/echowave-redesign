@@ -134,9 +134,7 @@ class TestStarting:
 
 
 class TestConfirming:
-    async def test_the_right_code_verifies_the_number(
-        self, db_session, async_session
-    ):
+    async def test_the_right_code_verifies_the_number(self, db_session, async_session):
         org_id = await _org(async_session, "confirm")
         started = await vn.start_verification(org_id, NUMBER)
 
@@ -226,15 +224,11 @@ class TestConfirming:
 
 
 class TestTheGate:
-    async def test_an_unknown_number_is_not_verified(
-        self, db_session, async_session
-    ):
+    async def test_an_unknown_number_is_not_verified(self, db_session, async_session):
         org_id = await _org(async_session, "unknown")
         assert not await vn.is_verified(org_id, NUMBER)
 
-    async def test_a_pending_number_is_not_verified(
-        self, db_session, async_session
-    ):
+    async def test_a_pending_number_is_not_verified(self, db_session, async_session):
         """The property the whole feature exists for: asking for a code is not
         the same as answering one."""
         org_id = await _org(async_session, "pending")
@@ -306,9 +300,7 @@ class TestTheSender:
         assert not result.ok
         assert "not enabled" in (result.error or "")
 
-    async def test_an_unknown_channel_is_refused_rather_than_guessed(
-        self, monkeypatch
-    ):
+    async def test_an_unknown_channel_is_refused_rather_than_guessed(self, monkeypatch):
         from api.services.telephony import verification_sender as sender
 
         monkeypatch.setattr(sender, "VERIFICATION_CHANNEL", "carrier-pigeon")

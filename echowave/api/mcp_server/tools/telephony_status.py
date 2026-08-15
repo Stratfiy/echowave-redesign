@@ -62,9 +62,7 @@ async def get_telephony_verification() -> dict:
             "required": REQUIRE_MANDATE_FOR_NUMBERS,
             "authorised": mandate_service.is_authorised(mandate),
             "status": mandate.status if mandate else "not_started",
-            "last_failure_reason": (
-                mandate.last_failure_reason if mandate else None
-            ),
+            "last_failure_reason": (mandate.last_failure_reason if mandate else None),
         },
         "status": view.status,
         "telephony_enabled": view.telephony_enabled,
@@ -75,9 +73,7 @@ async def get_telephony_verification() -> dict:
         "can_submit": view.can_submit,
         "rejection_reason": view.rejection_reason,
         "carrier_rejection_reason": view.carrier_rejection_reason,
-        "submitted_at": view.submitted_at.isoformat()
-        if view.submitted_at
-        else None,
+        "submitted_at": view.submitted_at.isoformat() if view.submitted_at else None,
     }
 
 
@@ -226,9 +222,7 @@ async def get_billing_summary() -> dict:
     organization_id = user.selected_organization_id
 
     async with db_client.async_session() as session:
-        balance = await current_balance_paise(
-            session, organization_id=organization_id
-        )
+        balance = await current_balance_paise(session, organization_id=organization_id)
         charges = list(
             (
                 await session.scalars(

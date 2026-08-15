@@ -200,9 +200,7 @@ class _RateLimiter:
         reset = headers.get("X-RateLimit-Reset")
         try:
             if remaining is not None and int(remaining) <= 0:
-                self._blocked_until = time.monotonic() + max(
-                    1.0, float(reset or 60.0)
-                )
+                self._blocked_until = time.monotonic() + max(1.0, float(reset or 60.0))
         except (TypeError, ValueError):
             # A header we cannot parse is not a reason to fail a request that
             # otherwise succeeded.
@@ -267,9 +265,7 @@ class PlivoComplianceClient:
                     limiter.observe(response.headers)
 
                     if response.status == 429:
-                        retry_after = float(
-                            response.headers.get("Retry-After") or 5.0
-                        )
+                        retry_after = float(response.headers.get("Retry-After") or 5.0)
                         limiter.block_for(retry_after)
                         raise PlivoRateLimited(
                             f"Plivo rate limited {method} {path}",
@@ -439,8 +435,7 @@ class PlivoComplianceClient:
         if callback_url is not None:
             if not callback_url.lower().startswith("https://"):
                 raise PlivoComplianceError(
-                    "Plivo requires an HTTPS callback_url; got "
-                    f"{callback_url!r}."
+                    f"Plivo requires an HTTPS callback_url; got {callback_url!r}."
                 )
             data["callback_url"] = callback_url
             data["callback_method"] = callback_method

@@ -366,7 +366,8 @@ class TestWhatTheServiceKeysScreenSaysWithoutMPS:
     async def test_an_unreachable_service_explains_rather_than_erroring(
         self, monkeypatch, test_client_factory, async_session
     ):
-        from api.db.models import OrganizationModel, UserModel as UserRow
+        from api.db.models import OrganizationModel
+        from api.db.models import UserModel as UserRow
 
         org = OrganizationModel(provider_id="org-svckeys", quota_decibyl_tokens=0)
         async_session.add(org)

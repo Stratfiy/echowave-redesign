@@ -27,7 +27,6 @@ from api.services.billing.document_email import (
 )
 
 
-
 def email_tax_document_job_id(document_id: int) -> str:
     """Deterministic job id so a duplicate issue-then-enqueue collapses to one send."""
     return f"email-tax-document-{document_id}"

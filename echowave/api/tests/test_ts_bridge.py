@@ -12,7 +12,12 @@ from typing import Any, get_args
 
 import pytest
 
-from api.mcp_server.ts_bridge import TsBridgeError, generate_code, parse_code
+from api.mcp_server.ts_bridge import (
+    _VALIDATOR_ENTRY,
+    TsBridgeError,
+    generate_code,
+    parse_code,
+)
 from api.services.workflow.dto import EdgeDataDTO
 from api.services.workflow.node_specs import (
     NodeSpec,
@@ -20,8 +25,6 @@ from api.services.workflow.node_specs import (
     PropertyType,
     all_specs,
 )
-
-from api.mcp_server.ts_bridge import _VALIDATOR_ENTRY
 
 _NODE_MODULES = _VALIDATOR_ENTRY.parents[1] / "node_modules"
 

@@ -46,9 +46,7 @@ def _validation_detail(exc: kyc_service.KycValidationError) -> dict[str, Any]:
     """
     return {
         "message": "Fix these before submitting for verification.",
-        "problems": [
-            {"field": p.field, "message": p.message} for p in exc.problems
-        ],
+        "problems": [{"field": p.field, "message": p.message} for p in exc.problems],
     }
 
 
@@ -174,9 +172,7 @@ async def submit_kyc(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     except kyc_service.KycValidationError as exc:
         # Before the bare ValueError clause: KycValidationError is one, and the
         # field-keyed body is the whole point of raising it.
-        raise HTTPException(
-            status_code=422, detail=_validation_detail(exc)
-        ) from exc
+        raise HTTPException(status_code=422, detail=_validation_detail(exc)) from exc
     except KycTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
@@ -207,9 +203,13 @@ async def carrier_callback(request: Request) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Unexpected callback body.")
 
-    signature_params = payload if request.headers.get(
-        "content-type", ""
-    ).startswith("application/x-www-form-urlencoded") else {}
+    signature_params = (
+        payload
+        if request.headers.get("content-type", "").startswith(
+            "application/x-www-form-urlencoded"
+        )
+        else {}
+    )
 
     if not kyc_callback.verify_signature(
         url=str(request.url),

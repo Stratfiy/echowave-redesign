@@ -106,8 +106,7 @@ async def set_platform_managed(
                     f"{len(held)} number(s) bought on our carrier account are "
                     "still attached to this configuration. Clearing the managed "
                     "flag would leave us paying rent on numbers nothing tracks. "
-                    "Release them first: "
-                    + ", ".join(n.address for n in held[:5])
+                    "Release them first: " + ", ".join(n.address for n in held[:5])
                 ),
             )
 

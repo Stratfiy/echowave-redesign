@@ -8,9 +8,8 @@ from pydantic import BaseModel
 
 from api.db import db_client
 from api.db.models import UserModel
-from api.enums import WebhookCredentialType
+from api.enums import OrganizationRole, WebhookCredentialType
 from api.sdk_expose import sdk_expose
-from api.enums import OrganizationRole
 from api.services.auth.depends import get_user, require_organization_role
 
 router = APIRouter(prefix="/credentials")

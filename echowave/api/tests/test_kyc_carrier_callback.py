@@ -193,9 +193,7 @@ class TestHandling:
         with pytest.raises(kyc_service.TelephonyNotVerified):
             await kyc_service.assert_may_place_calls(org_id)
 
-    async def test_a_reinstatement_reopens_the_gate(
-        self, db_session, async_session
-    ):
+    async def test_a_reinstatement_reopens_the_gate(self, db_session, async_session):
         org_id = await _forwarded(async_session, "cb-rein", "app-rein")
         await kyc_callback.handle({"compliance_id": "app-rein", "status": "accepted"})
         await kyc_callback.handle({"compliance_id": "app-rein", "status": "suspended"})
@@ -301,14 +299,10 @@ class TestOverHttp:
     async def test_an_unsigned_request_is_refused_with_403(
         self, db_session, async_session
     ):
-        response = await self._post(
-            {"compliance_id": "app-x", "status": "accepted"}
-        )
+        response = await self._post({"compliance_id": "app-x", "status": "accepted"})
         assert response.status_code == 403
 
-    async def test_an_unsigned_request_changes_nothing(
-        self, db_session, async_session
-    ):
+    async def test_an_unsigned_request_changes_nothing(self, db_session, async_session):
         """The property that matters more than the status code."""
         org_id = await _forwarded(async_session, "cb-http", "app-http")
 

@@ -318,8 +318,9 @@ class TestEachCallPathRefuses:
         assert guard < run, "liveness must be checked before a run is created"
 
     async def test_the_inbound_webhook_path_rejects_before_spending_anything(self):
-        from api.routes import telephony as telephony_routes
         import inspect
+
+        from api.routes import telephony as telephony_routes
 
         source = inspect.getsource(telephony_routes.handle_inbound_run)
         guard = source.index("assert_workflow_may_take_calls")

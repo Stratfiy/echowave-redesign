@@ -69,8 +69,9 @@ async def _daily_burn_paise(session, *, organization_id: int, since: date) -> in
     hurts: an account that calls on weekdays still runs out on a Sunday.
     """
     total = await session.scalar(
-        select(func.coalesce(func.sum(DailyOrganizationRollupModel.charged_paise), 0))
-        .where(
+        select(
+            func.coalesce(func.sum(DailyOrganizationRollupModel.charged_paise), 0)
+        ).where(
             DailyOrganizationRollupModel.organization_id == organization_id,
             DailyOrganizationRollupModel.day >= since,
         )
@@ -138,7 +139,9 @@ async def notify_low_balances(ctx=None, *, now: datetime | None = None) -> dict:
 
     for organization_id in organization_ids:
         try:
-            await _notify_one(organization_id, today=today, since=since, counters=counters)
+            await _notify_one(
+                organization_id, today=today, since=since, counters=counters
+            )
         except Exception:
             # One account must not stop the rest. A missing email address or a
             # deleted organization is the normal case here.
@@ -155,15 +158,15 @@ async def notify_low_balances(ctx=None, *, now: datetime | None = None) -> dict:
     return counters
 
 
-async def _notify_one(organization_id: int, *, today: date, since: date, counters: dict):
+async def _notify_one(
+    organization_id: int, *, today: date, since: date, counters: dict
+):
     async with db_client.async_session() as session:
         balance = await current_balance_paise(session, organization_id=organization_id)
         burn = await _daily_burn_paise(
             session, organization_id=organization_id, since=since
         )
-        assessment = low_balance.assess(
-            balance_paise=balance, daily_burn_paise=burn
-        )
+        assessment = low_balance.assess(balance_paise=balance, daily_burn_paise=burn)
         if not assessment.should_warn:
             counters["skipped"] += 1
             return
