@@ -76,17 +76,29 @@ class FakeEmbeddingService:
 def stubbed_ingestion(monkeypatch, tmp_path):
     """Wire the task to a local file, a fake store and a fake embedder."""
     store = FakeDocumentStore()
+    downloads: list[str] = []
 
     async def fake_download(s3_key, destination):
         # The task hands us the temp path it created; fill it with the fixture.
+        downloads.append(s3_key)
         source = tmp_path / "source"
         with open(source, "rb") as src, open(destination, "wb") as dst:
             dst.write(src.read())
         return True
 
+    # What the pre-download size check reads. A dict the tests can rewrite, so
+    # a suite can say "storage reports this object as 40MB" without inventing
+    # a 40MB file.
+    head = {"size": 512}
+
+    async def fake_head(s3_key):
+        return dict(head) if head is not None else None
+
     monkeypatch.setattr(task_module, "db_client", store)
     monkeypatch.setattr(
-        task_module, "storage_fs", SimpleNamespace(adownload_file=fake_download)
+        task_module,
+        "storage_fs",
+        SimpleNamespace(adownload_file=fake_download, aget_file_metadata=fake_head),
     )
 
     async def fake_build_embedding_service(**kwargs):
@@ -124,7 +136,18 @@ def stubbed_ingestion(monkeypatch, tmp_path):
     def write_source(content: bytes):
         (tmp_path / "source").write_bytes(content)
 
-    return SimpleNamespace(store=store, write_source=write_source)
+    def storage_reports_size(size):
+        """What a HEAD on the uploaded object returns. ``None`` for a store
+        that will not say."""
+        nonlocal head
+        head = None if size is None else {"size": size}
+
+    return SimpleNamespace(
+        store=store,
+        write_source=write_source,
+        storage_reports_size=storage_reports_size,
+        downloads=downloads,
+    )
 
 
 async def _run(filename="refunds.txt", **kwargs):
@@ -283,3 +306,58 @@ class TestWhatTheCustomerReads:
         status, message = stubbed_ingestion.store.statuses[-1]
         assert status == "failed"
         assert "Model Configurations" in message
+
+
+class TestAnObjectTooLargeToAccept:
+    """The size ceiling, checked before the bytes are pulled down.
+
+    A presigned PUT cannot carry a size limit — SigV4 signs a URL, not a body
+    — so the ceiling the upload endpoint claims is not enforced by the object
+    store. Anything holding an upload URL can push an arbitrarily large
+    object. The worker used to find out by downloading all of it to a container
+    with a fixed disk allowance and measuring the file afterwards, which turns
+    one oversized upload into a worker that cannot write anything at all.
+    """
+
+    async def test_an_oversized_object_is_never_downloaded(self, stubbed_ingestion):
+        stubbed_ingestion.write_source(b"Refunds take fourteen days.")
+        stubbed_ingestion.storage_reports_size(task_module.MAX_FILE_SIZE_BYTES + 1)
+
+        await _run()
+
+        assert stubbed_ingestion.downloads == [], (
+            "the oversized object was downloaded anyway"
+        )
+        status, message = stubbed_ingestion.store.statuses[-1]
+        assert status == "failed"
+        assert "exceeds the maximum" in message
+
+    async def test_a_document_at_the_limit_is_still_accepted(self, stubbed_ingestion):
+        """Off-by-one on a ceiling rejects the largest legitimate upload."""
+        stubbed_ingestion.write_source(b"Refunds take fourteen days.")
+        stubbed_ingestion.storage_reports_size(task_module.MAX_FILE_SIZE_BYTES)
+
+        await _run()
+
+        assert stubbed_ingestion.store.statuses[-1][0] == "completed"
+
+    async def test_a_store_that_will_not_report_a_size_does_not_block_ingestion(
+        self, stubbed_ingestion
+    ):
+        """A HEAD that fails is not a verdict. The post-download check still
+        catches an oversized file; refusing the document because storage was
+        briefly unhelpful would fail uploads that are perfectly fine."""
+        stubbed_ingestion.write_source(b"Refunds take fourteen days.")
+        stubbed_ingestion.storage_reports_size(None)
+
+        await _run()
+
+        assert stubbed_ingestion.store.statuses[-1][0] == "completed"
+
+    async def test_the_ceiling_the_upload_endpoint_claims_is_the_one_enforced(self):
+        """These used to disagree: the endpoint minted URLs claiming 100MB
+        while ingestion refused anything over five, so a customer could watch a
+        90MB upload reach 100% and then be told it was too big."""
+        from api.constants import KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
+
+        assert task_module.MAX_FILE_SIZE_BYTES == KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES

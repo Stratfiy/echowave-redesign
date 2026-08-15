@@ -6,6 +6,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 
+from api.constants import KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
 from api.db import db_client
 from api.enums import PostHogEvent
 from api.schemas.knowledge_base import (
@@ -62,12 +63,17 @@ async def get_upload_url(
             user.selected_organization_id, document_uuid, request.filename
         )
 
-        # Generate presigned PUT URL (valid for 30 minutes)
+        # Generate presigned PUT URL (valid for 30 minutes).
+        #
+        # max_size is advisory — a presigned PUT cannot carry a size limit, see
+        # BaseFileSystem.aget_presigned_put_url — so it is stated here to match
+        # what the worker will actually accept rather than the 100MB it used to
+        # claim while ingestion refused anything over five.
         upload_url = await storage_fs.aget_presigned_put_url(
             file_path=s3_key,
             expiration=1800,  # 30 minutes
             content_type=request.mime_type,
-            max_size=100_000_000,  # 100MB max
+            max_size=KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES,
         )
 
         if not upload_url:

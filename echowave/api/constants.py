@@ -143,6 +143,17 @@ MPS_API_URL_IS_DEFAULT = not os.getenv("MPS_API_URL")
 # document and either gets a knowledge base or gets nothing — so the default
 # must be the one that works on a deployment where nothing else is stood up.
 KB_DOCUMENT_PROCESSOR = (os.getenv("KB_DOCUMENT_PROCESSOR") or "local").strip().lower()
+
+# The largest document that will be ingested. Lives here rather than in the
+# ingestion task because three places have to agree about it and they used not
+# to: the browser refuses larger files, the presigned URL is minted claiming
+# this ceiling, and the worker enforces it. A worker limit the upload path does
+# not know about is a customer watching a progress bar reach 100% and then
+# being told the file is too big.
+KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES = int(
+    os.getenv("KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES", str(5 * 1024 * 1024))
+)
+
 DECIBYL_DEVOPS_SECRET = os.getenv("DECIBYL_DEVOPS_SECRET") or None
 
 # Decibyl's own Plivo account — the parent under which managed numbers are

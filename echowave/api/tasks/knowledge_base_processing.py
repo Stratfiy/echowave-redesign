@@ -21,6 +21,7 @@ import tempfile
 
 from loguru import logger
 
+from api.constants import KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
 from api.db import db_client
 from api.db.models import KnowledgeBaseChunkModel
 from api.services.gen_ai import build_embedding_service
@@ -32,8 +33,42 @@ from api.services.knowledge_base import (
 )
 from api.services.storage import storage_fs
 
-MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
+MAX_FILE_SIZE_BYTES = KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
 EMBEDDING_BATCH_SIZE = 64
+
+
+def _too_large_message(size_bytes: int) -> str:
+    return (
+        f"File size ({size_bytes / (1024 * 1024):.1f}MB) exceeds the "
+        f"maximum allowed size of {MAX_FILE_SIZE_BYTES // (1024 * 1024)}MB."
+    )
+
+
+async def _oversized_before_download(s3_key: str) -> int | None:
+    """The object's size, if storage already says it is too big to accept.
+
+    A presigned PUT cannot carry a size limit — SigV4 signs a URL, not a
+    request body — so the ceiling the upload endpoint claims is not something
+    the object store enforces. Anything holding an upload URL can push an
+    arbitrarily large object, and the worker used to find out by downloading
+    all of it to a container with a fixed disk allowance and measuring the file
+    afterwards. One HEAD first turns a filled disk into a failed document.
+
+    ``None`` means proceed: either the object is within the limit, or storage
+    would not say, in which case the post-download check still catches it.
+    """
+    try:
+        metadata = await storage_fs.aget_file_metadata(s3_key)
+    except Exception as exc:  # noqa: BLE001 — a HEAD that fails is not a verdict
+        logger.warning(
+            f"Could not check the size of {s3_key} before downloading: {exc}"
+        )
+        return None
+
+    size = (metadata or {}).get("size")
+    if isinstance(size, int) and size > MAX_FILE_SIZE_BYTES:
+        return size
+    return None
 
 
 async def _embed_texts_in_batches(
@@ -89,6 +124,15 @@ async def process_knowledge_base_document(
         temp_file_path = temp_file.name
         temp_file.close()
 
+        oversized = await _oversized_before_download(s3_key)
+        if oversized is not None:
+            error_message = _too_large_message(oversized)
+            logger.warning(f"Document {document_id}: {error_message} (not downloaded)")
+            await db_client.update_document_status(
+                document_id, "failed", error_message=error_message
+            )
+            return
+
         logger.info(f"Downloading file from S3: {s3_key}")
         download_success = await storage_fs.adownload_file(s3_key, temp_file_path)
         if not download_success:
@@ -100,10 +144,8 @@ async def process_knowledge_base_document(
         logger.info(f"Downloaded file size: {file_size} bytes")
 
         if file_size > MAX_FILE_SIZE_BYTES:
-            error_message = (
-                f"File size ({file_size / (1024 * 1024):.1f}MB) exceeds the "
-                f"maximum allowed size of {MAX_FILE_SIZE_BYTES // (1024 * 1024)}MB."
-            )
+            # Reached when storage would not report a size before the download.
+            error_message = _too_large_message(file_size)
             logger.warning(f"Document {document_id}: {error_message}")
             await db_client.update_document_status(
                 document_id, "failed", error_message=error_message

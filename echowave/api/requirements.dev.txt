@@ -2,3 +2,8 @@ mypy==2.0.0
 watchfiles==1.1.1
 datamodel-code-generator==0.56.1
 twine==6.2.0
+# A real S3 implementation over real HTTP, for the one hop the rest of the
+# suite stubs: the browser's PUT to a presigned URL. The [server] extra is the
+# part that matters — the in-process mock intercepts boto3 calls, which is no
+# use when the point is that something outside our client writes the bytes.
+moto[s3,server]==5.2.2

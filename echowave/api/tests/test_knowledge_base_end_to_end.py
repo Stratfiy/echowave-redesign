@@ -343,8 +343,9 @@ class TestTheWholeChain:
 # broader than it is:
 #
 #   * The browser's PUT to the presigned URL. There is no object store here,
-#     so the S3 download is stubbed. The presigned-URL route has its own tests
-#     in test_s3_signed_url.py.
+#     so the S3 download is stubbed. That hop is covered against a real S3
+#     server in test_presigned_upload_hop.py, and who may point at which key
+#     in test_knowledge_base_upload_keys.py.
 #   * A real embedding vendor. The embedder here is deterministic and local;
 #     what is exercised for real is the pgvector storage, the cosine ordering
 #     and the per-organization scoping around it.
