@@ -518,6 +518,30 @@ def _blocks_from_docling(path: str, metadata: dict[str, Any]) -> list[TextBlock]
     return _blocks_from_markdown(markdown)
 
 
+def _blocks_from_ocr(path: str, metadata: dict[str, Any]) -> list[TextBlock]:
+    """Recognised text from a scanned PDF, one block per page.
+
+    Empty when OCR is unavailable on this deployment or recognised nothing, in
+    which case the caller raises the same "this looks like a scan" message it
+    always did. ``extractor`` is overwritten so the provenance on every chunk
+    says the text was read by machine rather than lifted from a text layer —
+    OCR is approximate, and a quote the agent reads out should be traceable to
+    that.
+    """
+    from api.services.knowledge_base import ocr
+
+    pages = ocr.pages_from_pdf(path)
+    if not pages:
+        return []
+
+    metadata["extractor"] = "tesseract"
+    metadata["ocr_pages"] = len(pages)
+    return [
+        TextBlock(text=text, page_number=number)
+        for number, text in enumerate(pages, start=1)
+    ]
+
+
 def extract_document(
     file_path: str,
     filename: str,
@@ -589,6 +613,19 @@ def extract_document(
     blocks = [block for block in blocks if block.text.strip()]
     metadata["block_count"] = len(blocks)
     metadata["character_count"] = sum(len(block.text) for block in blocks)
+
+    # A PDF with no text layer is a scan — pictures of words. Recognising them
+    # is slow and approximate, so it happens only here, after the readers that
+    # would have done better have already come back with nothing.
+    if (
+        extension in PDF_EXTENSIONS
+        and metadata["character_count"] < MIN_MEANINGFUL_CHARS
+    ):
+        recognised = _blocks_from_ocr(file_path, metadata)
+        if recognised:
+            blocks = recognised
+            metadata["block_count"] = len(blocks)
+            metadata["character_count"] = sum(len(block.text) for block in blocks)
 
     if not blocks or metadata["character_count"] < MIN_MEANINGFUL_CHARS:
         # The scanned-PDF case gets its own sentence. Telling somebody their

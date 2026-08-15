@@ -13,7 +13,7 @@ An embedding API key (configured in **AI Models Configuration → Embedding**) i
 
 ## How It Works
 
-1. You **upload** a document (PDF, DOCX, TXT, or JSON) to the Knowledge Base
+1. You **upload** a document (see [Supported File Types](#supported-file-types)) to the Knowledge Base
 2. You **choose a retrieval mode** — Full Document or Chunked Search
 3. Decibyl **processes** the document based on the selected mode
 4. You **attach** the document to one or more workflow nodes
@@ -21,14 +21,29 @@ An embedding API key (configured in **AI Models Configuration → Embedding**) i
 
 ## Supported File Types
 
-| Format | Extension |
-|--------|-----------|
-| PDF    | `.pdf`    |
-| Word   | `.docx`, `.doc` |
-| Text   | `.txt`    |
-| JSON   | `.json`   |
+| Format   | Extension          |
+|----------|--------------------|
+| PDF      | `.pdf`             |
+| Word     | `.docx`            |
+| Text     | `.txt`             |
+| Markdown | `.md`              |
+| JSON     | `.json`            |
+| CSV      | `.csv`             |
+| HTML     | `.html`            |
 
 Maximum file size: **5 MB**
+
+The older `.doc` format cannot be read. Open the file in Word and save it as
+`.docx`, or export it as PDF.
+
+### Scanned PDFs
+
+A PDF that is images of pages — anything straight off a scanner — has no text
+to lift out of it. These are read with OCR, so you can upload the file your
+scanner produced without converting it first. Recognition is approximate: it
+copes well with a clean scan of printed text and poorly with a crooked
+photograph, handwriting, or a faint photocopy. If the agent quotes something
+oddly from a scanned document, check that page of the original.
 
 ## Uploading Documents
 

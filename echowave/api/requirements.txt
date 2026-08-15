@@ -28,3 +28,10 @@ reportlab==4.4.4
 # a service with no fallback, which is what made ingestion a ship blocker.
 pypdf==6.16.1
 python-docx==1.2.0
+# Thin bindings over the tesseract and poppler binaries installed in the
+# Dockerfile, for PDFs that are scans. Both are small; neither is imported
+# unless a document turns out to have no text layer, and both are checked for
+# at runtime, so an image built without the binaries degrades to the old
+# "please OCR this yourself" message rather than failing.
+pytesseract==0.3.13
+pdf2image==1.17.0

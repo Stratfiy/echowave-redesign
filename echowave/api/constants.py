@@ -153,6 +153,26 @@ KB_DOCUMENT_PROCESSOR = (os.getenv("KB_DOCUMENT_PROCESSOR") or "local").strip().
 KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES = int(
     os.getenv("KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES", str(5 * 1024 * 1024))
 )
+# Reading scanned PDFs — pictures of words, with no text layer for pypdf to
+# find. On by default because the alternative is telling a customer to go and
+# OCR their own scan, and it costs nothing on a deployment without tesseract
+# installed: the code checks for the binaries and falls back to that same
+# message. Set to "false" to refuse scans outright.
+KNOWLEDGE_BASE_OCR_ENABLED = os.getenv(
+    "KNOWLEDGE_BASE_OCR_ENABLED", "true"
+).strip().lower() not in {"false", "0", "no", "off"}
+# Languages passed to tesseract, '+'-separated. English plus Hindi by default,
+# and each one needs its trained data installed (tesseract-ocr-hin and so on);
+# tesseract fails the whole page for a language it does not have, so this stays
+# to what the base package ships until a deployment says otherwise.
+KNOWLEDGE_BASE_OCR_LANGUAGES = os.getenv("KNOWLEDGE_BASE_OCR_LANGUAGES", "eng")
+# 300 is the resolution scanners produce and tesseract is tuned for. Lower
+# loses small print; higher costs time and memory for no accuracy.
+KNOWLEDGE_BASE_OCR_DPI = int(os.getenv("KNOWLEDGE_BASE_OCR_DPI", "300"))
+# A ceiling on how much of one document is worth seconds-per-page. Fifty pages
+# is a long policy and about a minute of worker time; a scanned book is not
+# something to discover by watching a queue stop moving.
+KNOWLEDGE_BASE_OCR_MAX_PAGES = int(os.getenv("KNOWLEDGE_BASE_OCR_MAX_PAGES", "50"))
 
 DECIBYL_DEVOPS_SECRET = os.getenv("DECIBYL_DEVOPS_SECRET") or None
 

@@ -117,8 +117,16 @@ WORKDIR /app
 # binaries it is COPY --from'd for, so a package added there is built, cached,
 # and thrown away. That failure is silent — the image builds, the app runs, and
 # only the backup job discovers it.
+# tesseract and poppler read scanned PDFs — pictures of words, with no text
+# layer to lift. Same stage and same reason as pg_dump above. Without them
+# ingestion still works and a scan is refused with a message asking the
+# customer to OCR it themselves, so their absence is a degraded product rather
+# than a broken one; that is what makes it safe, not a reason to skip them.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends postgresql-client \
+ && apt-get install -y --no-install-recommends \
+      postgresql-client \
+      tesseract-ocr \
+      poppler-utils \
  && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system decibyl \

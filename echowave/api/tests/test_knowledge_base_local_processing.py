@@ -24,6 +24,7 @@ from api.services.knowledge_base import (
     chunking,
     errors,
     extract_document,
+    extraction,
     process_document_locally,
     resolve_backend,
 )
@@ -469,3 +470,40 @@ class TestCustomerFacingErrors:
         message = errors.user_facing_message(RuntimeError("list index out of range"))
         assert "index" not in message
         assert "our side" in message
+
+
+class TestThePickerAndTheReaderAgree:
+    """A format the upload picker accepts and the reader refuses is the worst
+    ordering of the two: the customer selects the file, watches it upload, and
+    is told afterwards that we cannot read it. The docs claimed .doc worked
+    long after extraction started refusing it, which is the same drift one step
+    further out.
+    """
+
+    def test_every_extension_the_picker_offers_can_be_read(self):
+        import re
+        from pathlib import Path
+
+        picker = (
+            Path(__file__).resolve().parents[2]
+            / "ui"
+            / "src"
+            / "app"
+            / "files"
+            / "DocumentUpload.tsx"
+        )
+        source = picker.read_text(encoding="utf-8")
+
+        declaration = re.search(
+            r"const ACCEPTED_FILE_TYPES = \[(.*?)\]", source, re.DOTALL
+        )
+        assert declaration, "could not find ACCEPTED_FILE_TYPES in the upload screen"
+
+        offered = set(re.findall(r"'(\.[a-z0-9]+)'", declaration.group(1)))
+        assert offered, "the upload screen offers no file types at all"
+
+        unreadable = offered - extraction.SUPPORTED_EXTENSIONS
+        assert not unreadable, (
+            f"the upload screen accepts {sorted(unreadable)}, which ingestion "
+            "refuses — the customer finds out after the upload finishes"
+        )
