@@ -300,6 +300,29 @@ bash scripts/rehearse_restore.sh
 would have failed nightly with nothing to show for it. Confirm the binary
 exists before trusting the schedule.
 
+### Step 10 — rehearse the spend ceiling before a campaign finds it
+
+```bash
+docker compose exec api python -m scripts.rehearse_concurrency
+```
+
+An account's balance is protected by a reservation taken under a
+per-organization row lock. Whether that lock actually serializes is a property
+of *this* database and whatever sits in front of it — a connection pooler in
+transaction mode, a read replica, a changed isolation level — none of which
+exists where the tests run. And `BALANCE_ENFORCEMENT_ENABLED=false` is a valid
+setting that turns the whole thing off while looking identical from the outside.
+
+The script fires a burst of simultaneous starts on a throwaway account funded
+for a known number of them, checks that exactly that many were allowed, then
+strands the holds and runs the sweeper to confirm the funds come back. It
+places no calls, spends nothing at a provider, and deletes every row it wrote.
+Pass `--calls 40` to rehearse a real campaign's shape.
+
+The one effect that reaches past its own account: it runs the real sweeper, so
+stale holds anywhere on the deployment are released. That is what the scheduled
+job does anyway, and it returns funds rather than taking them.
+
 ---
 
 ## 5. Pre-launch sign-off
@@ -312,6 +335,7 @@ exists before trusting the schedule.
 - [ ] Razorpay webhook configured and a live ₹10 payment reconciled
 - [ ] `privacy/readiness` shows `action_required: 0`
 - [ ] `pg_dump` present, one backup taken, one restore rehearsed
+- [ ] `rehearse_concurrency` passes every check on this box
 
 **Blocking before the tender campaign**
 

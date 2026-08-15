@@ -334,6 +334,20 @@ Pool exhaustion is the one that misleads: it does not raise, callers *queue* on
 a connection while a live caller hears silence. It presents as latency and gets
 blamed on the model.
 
+After changing any of these, **rehearse the spend ceiling at the new numbers**:
+
+```bash
+docker compose exec api python -m scripts.rehearse_concurrency --calls 40
+```
+
+Raising concurrency raises how many calls can start in the same instant, which
+is exactly the condition the per-organization reservation lock exists for. The
+script fires that burst at the real database on a throwaway funded account and
+checks that only what the balance covers was allowed. It places no calls and
+deletes every row it writes. It also runs the real sweeper, so stale holds
+anywhere on the deployment are released — the same thing the scheduled job
+does.
+
 ---
 
 ## 9. What still needs a human

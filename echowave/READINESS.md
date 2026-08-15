@@ -25,7 +25,12 @@ What remains is real, and none of it is code.
 | Backup blast radius | Beside the data | Mirror supported; unconfigured state reported |
 | Backup decryptability | Unchecked | Checked on every readiness poll |
 | `admin` role | Gates nothing | Gates secrets, mandates, tax identity, DND removal |
-| Test suite | 39 failures | **3,126 passed, 4 skipped, 0 failed** |
+| Cross-tenant uploads | Any org's key accepted | **Closed** — the key is rebuilt, not trusted |
+| Scanned PDFs | Refused with advice | **Read** — OCR fallback, degrades on an older image |
+| Embedding-model switch | Silently hides every document | Detected and shown, per document |
+| A broken retrieval | Indistinguishable from an empty one | Named apart, with an instruction |
+| Spend ceiling under load | Unit-tested only | Rehearsable against the real deployment |
+| Test suite | 39 failures | **3,266 passed, 4 skipped, 0 failed** |
 
 The suite figure was confirmed twice in a row against the same database rather
 than a fresh one, because "passes on an empty database" is a different claim.
@@ -234,6 +239,55 @@ Decibyl-managed model tier?** If yes, `MPS_API_URL` must point somewhere real.
 If every account brings its own provider keys, you can leave it unset and
 nothing is missing.
 
+### 2.8 One customer could ingest another customer's upload — closed
+
+Uploading is two requests with a browser PUT between them, so the second one
+carries the storage key of the file that was just written. That key arrived
+from the client and was used as given, and whatever was at it was chunked,
+embedded and stored under the caller's organization — where the caller's agent
+would read it out to anyone who asked. The bucket is shared across every
+organization on the deployment and the prefix is
+`knowledge_base/{organization_id}/{uuid}/{filename}`, which is guessable in
+shape.
+
+The key is now rebuilt from what the server already knows and the submitted one
+has to match exactly — stricter than a prefix check, which would accept a key
+that starts correctly and then leaves via `..`. Both endpoints call the same
+module, so the rule that builds a key and the rule that validates one cannot
+drift apart.
+
+This was found by writing the test for the presigned upload hop, which is the
+argument for writing that kind of test: it was the one step in the whole
+knowledge base path that nothing crossed.
+
+### 2.9 Documents hidden by an embedding-model switch — closed
+
+Changing embedding provider strands every document already ingested. The
+search filters on the model each chunk was embedded with, and it is right to —
+vectors from two models are not comparable — but the consequence was a files
+screen full of documents marked "Completed" that the agent could not retrieve a
+word from. No error, no log line at the moment it started, and the first sign
+was an agent that had apparently forgotten everything.
+
+It is now detected and shown, per document and as a banner, with one grouped
+query per page rather than one per row. It does **not** re-ingest automatically:
+that spends the customer's money at their embedding provider, at a moment
+nobody chose, and the bill for a few thousand documents is not small.
+
+### 2.10 A broken lookup and an empty one read the same — closed
+
+Both came back as zero chunks, so the agent could not tell "we have nothing on
+that" from "I could not reach the search", and a caller asking about a policy
+we document perfectly well was told we do not have that information. A wrong
+answer delivered confidently is worse than an admission of trouble. The
+retrieval result now carries a status and, when something is wrong, a sentence
+telling the model what to do about it.
+
+The same change stopped provider exception text — base URLs, host names, "set
+your API key in Model Configurations" — from being serialised into the model's
+context, which is to say handed to something whose job is to say things out
+loud to strangers.
+
 ---
 
 ## 3. The gates before you take a customer
@@ -300,17 +354,30 @@ invisible one accrues.
 7. **The pricing decision the PRD already argues for.** Margin per minute is
    fixed at $0.020 regardless of what the customer runs, so a premium-stack
    customer consumes four times the vendor risk and working capital and pays
-   exactly the same. A percentage-of-provider-cost fee with a floor fixes it,
-   the rate card already stores per-account rates, and it can be piloted on new
-   accounts without touching existing ones. **This is a pricing decision, not
-   an engineering one** — the engine supports either today.
-8. **OCR for scanned documents.** Ingestion now refuses them with a clear
-   message, which is honest and is not the same as handling them. Every
-   insurance and lending customer will upload a scan in their first week.
-9. **A concurrency and cost ceiling rehearsal.** Per-account concurrency is
-   split 5 in / 10 out with a daily spend circuit breaker. Nobody has watched
-   those two interact under a real campaign, and the tender assessment assumes
-   throughput that has not been observed.
+   exactly the same. A percentage-of-provider-cost fee with a floor fixes it.
+   **Still a pricing decision, and now unambiguously not an engineering one:**
+   both halves of that mechanism are already in the engine and under test —
+   `markup_bps` is the percentage of provider cost (per line, effective-dated,
+   1.4x by default, changeable only with a code from the company inbox) and
+   `platform_rate_mpaise` is the per-minute floor. What is outstanding is
+   choosing the two numbers. Adding a *second* percentage-of-provider-cost fee
+   on top would be a margin on a margin, which `cost_engine.py` and
+   `test_provider_markup.py` both refuse by design.
+8. **OCR for scanned documents — closed.** Scans are now read rather than
+   refused, as a fallback after the ordinary readers find nothing, with
+   tesseract and poppler in the image and a runtime check so an older image
+   degrades to the previous message instead of failing. The tests build real
+   scans and assert against real recognition. Every insurance and lending
+   customer uploads one in their first week; they no longer bounce.
+9. **A concurrency and cost ceiling rehearsal — closed.**
+   `scripts/rehearse_concurrency.py` fires a burst of simultaneous starts at
+   the real database on a throwaway funded account, checks that exactly what
+   the balance covers was allowed, then strands the holds and sweeps them to
+   confirm the funds return. It places no calls and deletes every row it
+   writes. It is on the pre-launch checklist because the three things it
+   catches — enforcement switched off, a lock the database does not actually
+   serialize, a sweeper that never runs — are properties of a deployment that
+   no test can see.
 
 ### Standing
 
@@ -350,6 +417,15 @@ gap:
 
 **The honest summary: this is a system whose hard parts are done and whose
 remaining risk is entirely in things nobody has yet run once.**
+
+That sentence is now more literally true than when it was first written. Every
+engineering item on the roadmap above is closed, and three of the things that
+"nobody had run once" can now be run on the box in a minute each —
+`verify_payment_round_trip`, `rehearse_restore`, `rehearse_concurrency`. What
+is left is not code. It is a ₹1 payment somebody has to actually make, a
+restore somebody has to actually time, and two decisions — the recovery point
+and the managed model tier — that the deployment behaves identically under
+until the day it does not.
 
 ---
 
