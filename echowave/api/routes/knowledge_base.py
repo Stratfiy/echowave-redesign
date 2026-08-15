@@ -19,6 +19,7 @@ from api.schemas.knowledge_base import (
 )
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
+from api.services.knowledge_base import staleness
 from api.services.posthog_client import capture_event
 from api.services.storage import storage_fs
 from api.tasks.arq import enqueue_job
@@ -220,6 +221,22 @@ async def list_documents(
             offset=offset,
         )
 
+        # Which of these the agent can no longer retrieve from, because the
+        # organization changed embedding model after they were ingested. One
+        # grouped query for the whole page rather than one per row.
+        async with db_client.async_session() as session:
+            stranded = await staleness.stranded_document_ids(
+                session, user.selected_organization_id
+            )
+        if stranded:
+            logger.warning(
+                "Organization {} has {} document(s) embedded with a superseded "
+                "model; the agent retrieves nothing from them until they are "
+                "re-ingested.",
+                user.selected_organization_id,
+                len(stranded),
+            )
+
         # Convert to response schema
         document_list = [
             DocumentResponseSchema(
@@ -231,6 +248,7 @@ async def list_documents(
                 mime_type=doc.mime_type,
                 processing_status=doc.processing_status,
                 processing_error=doc.processing_error,
+                needs_reingest=doc.id in stranded,
                 total_chunks=doc.total_chunks,
                 retrieval_mode=doc.retrieval_mode,
                 custom_metadata=doc.custom_metadata,

@@ -2614,6 +2614,10 @@ export type DocumentResponseSchema = {
      */
     processing_error?: string | null;
     /**
+     * Needs Reingest
+     */
+    needs_reingest?: boolean;
+    /**
      * Total Chunks
      */
     total_chunks: number;

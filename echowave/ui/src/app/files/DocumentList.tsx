@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, FileText, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -129,6 +129,10 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
     doc.filename.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Counted across every document, not just the filtered view: a search box
+  // with something typed in it must not make the warning disappear.
+  const strandedCount = documents.filter((doc) => doc.needs_reingest).length;
+
   if (isLoading && documents.length === 0) {
     return (
       <div className="space-y-4">
@@ -155,6 +159,30 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
 
   return (
     <div className="space-y-4">
+      {/* The failure this exists for is silent: every document below still says
+          "Completed", and the agent retrieves nothing from any of them, because
+          they were embedded with a model the organization has since moved off.
+          Nothing else on this screen would tell anyone. */}
+      {strandedCount > 0 && (
+        <div className="flex items-start gap-3 p-4 rounded-lg border border-amber-500/30 bg-amber-500/10">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium">
+              {strandedCount === 1
+                ? '1 document needs re-ingesting'
+                : `${strandedCount} documents need re-ingesting`}
+            </p>
+            <p className="text-muted-foreground mt-1">
+              These were processed with a different embedding model than the one
+              your organization uses now, so your agent cannot retrieve anything
+              from them. Delete and re-upload them to fix it. Re-ingesting calls
+              your embedding provider again, so it is charged to your account —
+              which is why it does not happen on its own.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Search and Refresh */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1">
@@ -201,6 +229,15 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium truncate">{doc.filename}</span>
                     {getStatusBadge(doc.processing_status)}
+                    {doc.needs_reingest && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs border-amber-500/40 text-amber-700 dark:text-amber-500"
+                        title="Embedded with a model your organization no longer uses. The agent cannot retrieve from this document until it is re-ingested."
+                      >
+                        Needs re-ingesting
+                      </Badge>
+                    )}
                     {doc.retrieval_mode === 'full_document' ? (
                       <Badge variant="outline" className="text-xs">Full Document</Badge>
                     ) : (

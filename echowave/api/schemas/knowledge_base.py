@@ -46,6 +46,11 @@ class DocumentResponseSchema(BaseModel):
     mime_type: str
     processing_status: str  # pending, processing, completed, failed
     processing_error: Optional[str] = None
+    # True when this document was embedded with a model the organization has
+    # since changed away from. The document is intact and listed as completed,
+    # and the agent cannot retrieve a word of it — vectors from two different
+    # models are not comparable, so the search filters it out. Re-ingest to fix.
+    needs_reingest: bool = False
     total_chunks: int
     retrieval_mode: str = "chunked"
     custom_metadata: Dict[str, Any]
