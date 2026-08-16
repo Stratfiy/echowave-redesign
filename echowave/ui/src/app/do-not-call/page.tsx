@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
@@ -47,6 +48,7 @@ const PAGE_SIZE = 100;
  * nothing reads is a spreadsheet.
  */
 export default function DoNotCallPage() {
+  const roles = useAccessRoles();
   const { user, loading: authLoading } = useAuth();
 
   const [entries, setEntries] = useState<DoNotCallEntry[]>([]);
@@ -274,14 +276,29 @@ export default function DoNotCallPage() {
                           {entry.note || "—"}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Remove ${entry.phone_number}`}
-                            onClick={() => void handleRemove(entry.phone_number)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {/* Only removal is admin-gated, and deliberately:
+                              taking a number off the suppression list is a
+                              regulatory act and the one entry nobody notices
+                              going missing. Listing and adding stay open to
+                              every member, so the screen itself is not
+                              gated — just this control. */}
+                          {roles.isOrganizationAdmin ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Remove ${entry.phone_number}`}
+                              onClick={() => void handleRemove(entry.phone_number)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <span
+                              className="text-xs text-muted-foreground"
+                              title="Only an organization Admin or Owner can remove a number from this list."
+                            >
+                              Admin only
+                            </span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
