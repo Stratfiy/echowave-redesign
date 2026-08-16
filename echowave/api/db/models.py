@@ -30,6 +30,7 @@ from ..enums import (
     CallType,
     IntegrationAction,
     OrganizationRole,
+    PartnerApplicationStatus,
     ToolCategory,
     ToolStatus,
     TriggerState,
@@ -1723,6 +1724,137 @@ class OrganizationRateHistoryModel(Base):
             "(platform_rate_micros_usd IS NOT NULL)::int "
             "+ (platform_rate_mpaise IS NOT NULL)::int = 1",
             name="ck_org_rate_history_one_currency",
+        ),
+    )
+
+
+class PartnerApplicationModel(Base):
+    """A customer asking to be treated as a partner, and what we decided.
+
+    The account already exists and already works — a partner account is an
+    ordinary account with a commercial arrangement attached, not a different
+    product — so this asks four questions rather than running a second signup.
+
+    Kept as a record of the decision rather than a workflow that deletes
+    itself: "why is this account on 12%?" is asked months later, and the answer
+    is the application it was granted against. A rejected row stays for the
+    same reason, so a second application can be read next to the first.
+    """
+
+    __tablename__ = "partner_applications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    # Self-declared. See PartnerKind — it shapes the review rather than
+    # granting anything.
+    kind = Column(String(32), nullable=False)
+    #: Their own forecast, in minutes per month. The single most useful number
+    #: on the form: it is what a commission is quoted against, and comparing it
+    #: against what the account goes on to actually do is how a rate gets
+    #: revisited.
+    expected_minutes_per_month = Column(Integer, nullable=True)
+    #: Free text. Who their clients are, what they are replacing, anything the
+    #: four fixed answers cannot carry.
+    note = Column(Text, nullable=True)
+    company_website = Column(String, nullable=True)
+
+    status = Column(
+        String(16),
+        nullable=False,
+        default=PartnerApplicationStatus.PENDING.value,
+        server_default=text(f"'{PartnerApplicationStatus.PENDING.value}'"),
+    )
+    submitted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    submitted_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    decided_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    decided_at = Column(DateTime(timezone=True), nullable=True)
+    #: Why. Shown to the applicant on a rejection, so it is written for them.
+    decision_note = Column(Text, nullable=True)
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index("ix_partner_applications_status", "status"),
+        # One open application per account. Without it a customer who clicks
+        # submit twice puts two rows in the queue and a reviewer approves the
+        # one that is already stale.
+        Index(
+            "uq_partner_applications_pending",
+            "organization_id",
+            unique=True,
+            postgresql_where=text(
+                f"status = '{PartnerApplicationStatus.PENDING.value}'"
+            ),
+        ),
+    )
+
+
+class PartnerCommissionModel(Base):
+    """Effective-dated commission for a partner account.
+
+    Same shape and the same reason as ``organization_rate_history``: a
+    commission is never updated in place. Changing one closes the current row
+    and inserts a new one, so a statement for March still reproduces March's
+    number after an April renegotiation. Paying a partner a percentage that
+    silently moved under an already-issued statement is the failure this
+    prevents.
+
+    ``basis`` travels with the rate rather than sitting on the organization,
+    because moving a partner from a share of margin to a share of spend is a
+    bigger change than moving the percentage, and it has to be reproducible
+    the same way.
+    """
+
+    __tablename__ = "partner_commissions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    #: Basis points, so 1250 is 12.5%. Integer for the same reason every other
+    #: money field here is: a float rate multiplied across a month of calls
+    #: does not reconcile against a statement.
+    commission_bps = Column(Integer, nullable=False)
+    #: See CommissionBasis. What the percentage is a percentage of.
+    basis = Column(String(32), nullable=False)
+    #: The application this was granted against, so the rate and the answers it
+    #: was quoted from stay joined up.
+    application_id = Column(
+        Integer,
+        ForeignKey("partner_applications.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    effective_from = Column(DateTime(timezone=True), nullable=False)
+    #: NULL means "still in effect". At most one open row per organization.
+    effective_to = Column(DateTime(timezone=True), nullable=True)
+    set_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index(
+            "ix_partner_commissions_org_effective",
+            "organization_id",
+            "effective_from",
+        ),
+        Index(
+            "uq_partner_commissions_open",
+            "organization_id",
+            unique=True,
+            postgresql_where=text("effective_to IS NULL"),
+        ),
+        # A negative commission is a charge, and 100% of total spend is the
+        # whole invoice. Neither is a thing anybody means to type, and both are
+        # cheap to refuse here rather than discover on a payout run.
+        CheckConstraint(
+            "commission_bps >= 0 AND commission_bps <= 10000",
+            name="ck_partner_commissions_bps_range",
         ),
     )
 

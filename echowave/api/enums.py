@@ -423,6 +423,68 @@ class AccountType(str, Enum):
     ENTERPRISE = "enterprise"
 
 
+class PartnerKind(str, Enum):
+    """What a partner applicant says they are.
+
+    Self-declared on the application and never enforced — it decides how the
+    application reads to whoever reviews it, and it is the main input to the
+    commission staff then set. Somebody who builds one agent for their own
+    clinic and somebody reselling to forty of them are the same product and
+    very different commercial conversations.
+
+    DEVELOPER
+        Builds on the API for their own product or a client's. Usually low
+        volume, usually wants the SDK rather than the dashboard.
+    AGENCY
+        Runs accounts on behalf of clients, billed through their own account.
+    RESELLER
+        Sells Decibyl under a commercial arrangement and is paid a commission
+        on what their accounts spend.
+    """
+
+    DEVELOPER = "developer"
+    AGENCY = "agency"
+    RESELLER = "reseller"
+
+
+class PartnerApplicationStatus(str, Enum):
+    """Where an application has got to.
+
+    Deliberately three states and no "claimed": the KYC queue has claiming
+    because a document review takes minutes of somebody's attention, and two
+    reviewers doing it at once is wasted work. Reading four answers is not
+    that, and a claim that is never released is a queue that silently stops.
+    """
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class CommissionBasis(str, Enum):
+    """What a partner's percentage is a percentage *of*.
+
+    The two answers are not interchangeable and the gap between them is most
+    of the margin, so this is stored per partner rather than assumed.
+
+    PLATFORM_FEE
+        A share of what we keep — the charge minus what the providers cost us.
+        Safe by construction: the commission cannot exceed the margin, so a
+        partner account can never be sold at a loss however the rate card
+        moves underneath it.
+    TOTAL_SPEND
+        A share of everything the account is charged, provider cost included.
+        The number a reseller usually asks for because it is simple to
+        forecast, and the one that can go underwater — 20% of total spend on
+        an account running at a 15% margin loses money on every minute. Staff
+        setting this one are quoting against the rate card, not against a
+        percentage they can reason about in isolation.
+    """
+
+    PLATFORM_FEE = "platform_fee"
+    TOTAL_SPEND = "total_spend"
+
+
 class OrganizationRole(str, Enum):
     """A member's standing within one organization.
 

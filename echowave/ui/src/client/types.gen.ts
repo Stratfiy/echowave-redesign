@@ -344,6 +344,30 @@ export type AppendTextChatMessageRequest = {
 };
 
 /**
+ * ApproveRequest
+ */
+export type ApproveRequest = {
+    /**
+     * Commission Bps
+     *
+     * Basis points, so 1250 is 12.5%
+     */
+    commission_bps: number;
+    /**
+     * Basis
+     *
+     * platform_fee (a share of what we keep — cannot go underwater) or total_spend (a share of everything the account is charged)
+     */
+    basis: string;
+    /**
+     * Note
+     *
+     * Why this rate. Shown to the applicant.
+     */
+    note?: string | null;
+};
+
+/**
  * AssemblyAI
  */
 export type AssemblyAisttConfiguration = {
@@ -4915,6 +4939,34 @@ export type OutcomesResponse = {
 };
 
 /**
+ * PartnerApplicationRequest
+ */
+export type PartnerApplicationRequest = {
+    /**
+     * Kind
+     *
+     * developer, agency or reseller
+     */
+    kind: string;
+    /**
+     * Expected Minutes Per Month
+     *
+     * Their own forecast. The number a commission is quoted against.
+     */
+    expected_minutes_per_month?: number | null;
+    /**
+     * Company Website
+     */
+    company_website?: string | null;
+    /**
+     * Note
+     *
+     * Anything the fixed answers cannot carry.
+     */
+    note?: string | null;
+};
+
+/**
  * PhoneNumberCreateRequest
  *
  * Create a new phone number under a telephony configuration.
@@ -5732,16 +5784,6 @@ export type RedialCampaignRequest = {
 };
 
 /**
- * RejectRequest
- */
-export type RejectRequest = {
-    /**
-     * Reason
-     */
-    reason: string;
-};
-
-/**
  * ReleaseRequest
  */
 export type ReleaseRequest = {
@@ -6137,6 +6179,32 @@ export type ServiceKeyResponse = {
      * Created By
      */
     created_by?: string | null;
+};
+
+/**
+ * SetCommissionRequest
+ *
+ * A renegotiation with no new application behind it.
+ */
+export type SetCommissionRequest = {
+    /**
+     * Commission Bps
+     *
+     * Basis points, so 1250 is 12.5%
+     */
+    commission_bps: number;
+    /**
+     * Basis
+     *
+     * platform_fee (a share of what we keep — cannot go underwater) or total_spend (a share of everything the account is charged)
+     */
+    basis: string;
+    /**
+     * Note
+     *
+     * Why this rate. Shown to the applicant.
+     */
+    note?: string | null;
 };
 
 /**
@@ -8552,6 +8620,28 @@ export type XaittsConfiguration = {
      * BCP-47 language code for synthesis (e.g. 'en', 'fr', 'de'), or 'auto' for automatic language detection.
      */
     language?: string;
+};
+
+/**
+ * RejectRequest
+ */
+export type ApiRoutesKycAdminRejectRequest = {
+    /**
+     * Reason
+     */
+    reason: string;
+};
+
+/**
+ * RejectRequest
+ */
+export type ApiRoutesPartnerAdminRejectRequest = {
+    /**
+     * Note
+     *
+     * Why not. Shown to the applicant, so write it for them.
+     */
+    note?: string | null;
 };
 
 /**
@@ -11231,7 +11321,7 @@ export type ClaimApiV1AdminKycOrganizationIdClaimPostResponses = {
 export type ClaimApiV1AdminKycOrganizationIdClaimPostResponse = ClaimApiV1AdminKycOrganizationIdClaimPostResponses[keyof ClaimApiV1AdminKycOrganizationIdClaimPostResponses];
 
 export type RejectApiV1AdminKycOrganizationIdRejectPostData = {
-    body: RejectRequest;
+    body: ApiRoutesKycAdminRejectRequest;
     headers?: {
         /**
          * Authorization
@@ -11373,6 +11463,332 @@ export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses
 };
 
 export type CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponse = CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses[keyof CarrierVerdictApiV1AdminKycOrganizationIdCarrierVerdictPostResponses];
+
+export type GetApplicationApiV1PartnersApplicationGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/partners/application';
+};
+
+export type GetApplicationApiV1PartnersApplicationGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetApplicationApiV1PartnersApplicationGetError = GetApplicationApiV1PartnersApplicationGetErrors[keyof GetApplicationApiV1PartnersApplicationGetErrors];
+
+export type GetApplicationApiV1PartnersApplicationGetResponses = {
+    /**
+     * Response Get Application Api V1 Partners Application Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetApplicationApiV1PartnersApplicationGetResponse = GetApplicationApiV1PartnersApplicationGetResponses[keyof GetApplicationApiV1PartnersApplicationGetResponses];
+
+export type SubmitApplicationApiV1PartnersApplicationPostData = {
+    body: PartnerApplicationRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/partners/application';
+};
+
+export type SubmitApplicationApiV1PartnersApplicationPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SubmitApplicationApiV1PartnersApplicationPostError = SubmitApplicationApiV1PartnersApplicationPostErrors[keyof SubmitApplicationApiV1PartnersApplicationPostErrors];
+
+export type SubmitApplicationApiV1PartnersApplicationPostResponses = {
+    /**
+     * Response Submit Application Api V1 Partners Application Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SubmitApplicationApiV1PartnersApplicationPostResponse = SubmitApplicationApiV1PartnersApplicationPostResponses[keyof SubmitApplicationApiV1PartnersApplicationPostResponses];
+
+export type GetQueueApiV1AdminPartnersQueueGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: string;
+    };
+    url: '/api/v1/admin/partners/queue';
+};
+
+export type GetQueueApiV1AdminPartnersQueueGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetQueueApiV1AdminPartnersQueueGetError = GetQueueApiV1AdminPartnersQueueGetErrors[keyof GetQueueApiV1AdminPartnersQueueGetErrors];
+
+export type GetQueueApiV1AdminPartnersQueueGetResponses = {
+    /**
+     * Response Get Queue Api V1 Admin Partners Queue Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetQueueApiV1AdminPartnersQueueGetResponse = GetQueueApiV1AdminPartnersQueueGetResponses[keyof GetQueueApiV1AdminPartnersQueueGetResponses];
+
+export type ApproveApplicationApiV1AdminPartnersApplicationIdApprovePostData = {
+    body: ApproveRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Application Id
+         */
+        application_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/partners/{application_id}/approve';
+};
+
+export type ApproveApplicationApiV1AdminPartnersApplicationIdApprovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApproveApplicationApiV1AdminPartnersApplicationIdApprovePostError = ApproveApplicationApiV1AdminPartnersApplicationIdApprovePostErrors[keyof ApproveApplicationApiV1AdminPartnersApplicationIdApprovePostErrors];
+
+export type ApproveApplicationApiV1AdminPartnersApplicationIdApprovePostResponses = {
+    /**
+     * Response Approve Application Api V1 Admin Partners  Application Id  Approve Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApproveApplicationApiV1AdminPartnersApplicationIdApprovePostResponse = ApproveApplicationApiV1AdminPartnersApplicationIdApprovePostResponses[keyof ApproveApplicationApiV1AdminPartnersApplicationIdApprovePostResponses];
+
+export type RejectApplicationApiV1AdminPartnersApplicationIdRejectPostData = {
+    body: ApiRoutesPartnerAdminRejectRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Application Id
+         */
+        application_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/partners/{application_id}/reject';
+};
+
+export type RejectApplicationApiV1AdminPartnersApplicationIdRejectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RejectApplicationApiV1AdminPartnersApplicationIdRejectPostError = RejectApplicationApiV1AdminPartnersApplicationIdRejectPostErrors[keyof RejectApplicationApiV1AdminPartnersApplicationIdRejectPostErrors];
+
+export type RejectApplicationApiV1AdminPartnersApplicationIdRejectPostResponses = {
+    /**
+     * Response Reject Application Api V1 Admin Partners  Application Id  Reject Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RejectApplicationApiV1AdminPartnersApplicationIdRejectPostResponse = RejectApplicationApiV1AdminPartnersApplicationIdRejectPostResponses[keyof RejectApplicationApiV1AdminPartnersApplicationIdRejectPostResponses];
+
+export type GetCommissionHistoryApiV1AdminPartnersAccountsOrganizationIdCommissionGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/partners/accounts/{organization_id}/commission';
+};
+
+export type GetCommissionHistoryApiV1AdminPartnersAccountsOrganizationIdCommissionGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCommissionHistoryApiV1AdminPartnersAccountsOrganizationIdCommissionGetError = GetCommissionHistoryApiV1AdminPartnersAccountsOrganizationIdCommissionGetErrors[keyof GetCommissionHistoryApiV1AdminPartnersAccountsOrganizationIdCommissionGetErrors];
+
+export type GetCommissionHistoryApiV1AdminPartnersAccountsOrganizationIdCommissionGetResponses = {
+    /**
+     * Response Get Commission History Api V1 Admin Partners Accounts  Organization Id  Commission Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCommissionHistoryApiV1AdminPartnersAccountsOrganizationIdCommissionGetResponse = GetCommissionHistoryApiV1AdminPartnersAccountsOrganizationIdCommissionGetResponses[keyof GetCommissionHistoryApiV1AdminPartnersAccountsOrganizationIdCommissionGetResponses];
+
+export type SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutData = {
+    body: SetCommissionRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/partners/accounts/{organization_id}/commission';
+};
+
+export type SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutError = SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutErrors[keyof SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutErrors];
+
+export type SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutResponses = {
+    /**
+     * Response Set Commission Api V1 Admin Partners Accounts  Organization Id  Commission Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutResponse = SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutResponses[keyof SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutResponses];
 
 export type SearchNumbersApiV1ManagedNumbersSearchPostData = {
     body: NumberSearchRequest;
