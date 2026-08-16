@@ -195,6 +195,18 @@ export type AcceptAgreementRequest = {
 };
 
 /**
+ * AcceptInvitationRequest
+ */
+export type AcceptInvitationRequest = {
+    /**
+     * Token
+     *
+     * The token from the invitation link
+     */
+    token: string;
+};
+
+/**
  * ActiveCallsResponse
  */
 export type ActiveCallsResponse = {
@@ -3934,6 +3946,24 @@ export type InitiateCallRequest = {
      * From Phone Number Id
      */
     from_phone_number_id?: number | null;
+};
+
+/**
+ * InviteRequest
+ */
+export type InviteRequest = {
+    /**
+     * Email
+     *
+     * Who to invite
+     */
+    email: string;
+    /**
+     * Role
+     *
+     * The seat they get. member, admin or owner.
+     */
+    role?: string;
 };
 
 /**
@@ -12054,6 +12084,221 @@ export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponses = {
 };
 
 export type UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponse = UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponses[keyof UpdateMemberRoleApiV1OrganizationsMembersUserIdPatchResponses];
+
+export type ListInvitationsApiV1OrganizationsInvitationsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/invitations';
+};
+
+export type ListInvitationsApiV1OrganizationsInvitationsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListInvitationsApiV1OrganizationsInvitationsGetError = ListInvitationsApiV1OrganizationsInvitationsGetErrors[keyof ListInvitationsApiV1OrganizationsInvitationsGetErrors];
+
+export type ListInvitationsApiV1OrganizationsInvitationsGetResponses = {
+    /**
+     * Response List Invitations Api V1 Organizations Invitations Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListInvitationsApiV1OrganizationsInvitationsGetResponse = ListInvitationsApiV1OrganizationsInvitationsGetResponses[keyof ListInvitationsApiV1OrganizationsInvitationsGetResponses];
+
+export type CreateInvitationApiV1OrganizationsInvitationsPostData = {
+    body: InviteRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/invitations';
+};
+
+export type CreateInvitationApiV1OrganizationsInvitationsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateInvitationApiV1OrganizationsInvitationsPostError = CreateInvitationApiV1OrganizationsInvitationsPostErrors[keyof CreateInvitationApiV1OrganizationsInvitationsPostErrors];
+
+export type CreateInvitationApiV1OrganizationsInvitationsPostResponses = {
+    /**
+     * Response Create Invitation Api V1 Organizations Invitations Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateInvitationApiV1OrganizationsInvitationsPostResponse = CreateInvitationApiV1OrganizationsInvitationsPostResponses[keyof CreateInvitationApiV1OrganizationsInvitationsPostResponses];
+
+export type RevokeInvitationApiV1OrganizationsInvitationsInvitationIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Invitation Id
+         */
+        invitation_id: number;
+    };
+    query?: never;
+    url: '/api/v1/organizations/invitations/{invitation_id}';
+};
+
+export type RevokeInvitationApiV1OrganizationsInvitationsInvitationIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeInvitationApiV1OrganizationsInvitationsInvitationIdDeleteError = RevokeInvitationApiV1OrganizationsInvitationsInvitationIdDeleteErrors[keyof RevokeInvitationApiV1OrganizationsInvitationsInvitationIdDeleteErrors];
+
+export type RevokeInvitationApiV1OrganizationsInvitationsInvitationIdDeleteResponses = {
+    /**
+     * Response Revoke Invitation Api V1 Organizations Invitations  Invitation Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RevokeInvitationApiV1OrganizationsInvitationsInvitationIdDeleteResponse = RevokeInvitationApiV1OrganizationsInvitationsInvitationIdDeleteResponses[keyof RevokeInvitationApiV1OrganizationsInvitationsInvitationIdDeleteResponses];
+
+export type PreviewInvitationApiV1OrganizationsInvitationsPreviewGetData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Token
+         */
+        token: string;
+    };
+    url: '/api/v1/organizations/invitations/preview';
+};
+
+export type PreviewInvitationApiV1OrganizationsInvitationsPreviewGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewInvitationApiV1OrganizationsInvitationsPreviewGetError = PreviewInvitationApiV1OrganizationsInvitationsPreviewGetErrors[keyof PreviewInvitationApiV1OrganizationsInvitationsPreviewGetErrors];
+
+export type PreviewInvitationApiV1OrganizationsInvitationsPreviewGetResponses = {
+    /**
+     * Response Preview Invitation Api V1 Organizations Invitations Preview Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PreviewInvitationApiV1OrganizationsInvitationsPreviewGetResponse = PreviewInvitationApiV1OrganizationsInvitationsPreviewGetResponses[keyof PreviewInvitationApiV1OrganizationsInvitationsPreviewGetResponses];
+
+export type AcceptInvitationApiV1OrganizationsInvitationsAcceptPostData = {
+    body: AcceptInvitationRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/invitations/accept';
+};
+
+export type AcceptInvitationApiV1OrganizationsInvitationsAcceptPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AcceptInvitationApiV1OrganizationsInvitationsAcceptPostError = AcceptInvitationApiV1OrganizationsInvitationsAcceptPostErrors[keyof AcceptInvitationApiV1OrganizationsInvitationsAcceptPostErrors];
+
+export type AcceptInvitationApiV1OrganizationsInvitationsAcceptPostResponses = {
+    /**
+     * Response Accept Invitation Api V1 Organizations Invitations Accept Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AcceptInvitationApiV1OrganizationsInvitationsAcceptPostResponse = AcceptInvitationApiV1OrganizationsInvitationsAcceptPostResponses[keyof AcceptInvitationApiV1OrganizationsInvitationsAcceptPostResponses];
 
 export type DeleteProviderKeyApiV1AdminProviderKeysDeleteData = {
     body?: never;

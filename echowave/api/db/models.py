@@ -1728,6 +1728,72 @@ class OrganizationRateHistoryModel(Base):
     )
 
 
+class OrganizationInvitationModel(Base):
+    """An offer of a seat in an organization.
+
+    Until this existed there was no way for a second person to join an account
+    on a self-hosted deployment at all. Membership was mirrored from Stack Auth
+    in SaaS mode and created once at signup otherwise, so every local
+    organization had exactly one member forever — which made the whole
+    member/admin/owner system unreachable in practice: there was never anybody
+    to be a member *of*.
+
+    The token is stored hashed and never again in the clear, the same way an
+    API key is. A pending invitation is a bearer credential for a seat in
+    somebody's account; a database dump that leaks them is a database dump that
+    hands out seats.
+    """
+
+    __tablename__ = "organization_invitations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    #: Lower-cased on write. The invitation is *to an address*, and accepting
+    #: requires signing in as it — otherwise a forwarded link is a seat for
+    #: whoever opens it first.
+    email = Column(String, nullable=False)
+    #: The role the seat carries. Decided when the invitation is written so
+    #: that accepting grants exactly what was offered, rather than a default
+    #: that has drifted since.
+    role = Column(
+        String(16),
+        nullable=False,
+        default=OrganizationRole.MEMBER.value,
+        server_default=text(f"'{OrganizationRole.MEMBER.value}'"),
+    )
+    #: SHA-256 of the token in the link. Unique so a lookup is a single
+    #: indexed read rather than a scan over live invitations.
+    token_hash = Column(String, nullable=False, unique=True, index=True)
+    invited_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    #: Invitations expire. One that does not is a credential with no end,
+    #: sitting in a mailbox somebody eventually loses control of.
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    accepted_at = Column(DateTime(timezone=True), nullable=True)
+    accepted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    #: Withdrawn before it was used. Kept rather than deleted so "who offered
+    #: this person a seat, and who took it back" survives.
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index("ix_organization_invitations_org", "organization_id"),
+        # One live invitation per address per organization. Without it, three
+        # clicks of Invite put three valid tokens in somebody's inbox and
+        # revoking the one you can see leaves two behind.
+        Index(
+            "uq_organization_invitations_open",
+            "organization_id",
+            "email",
+            unique=True,
+            postgresql_where=text("accepted_at IS NULL AND revoked_at IS NULL"),
+        ),
+    )
+
+
 class PartnerApplicationModel(Base):
     """A customer asking to be treated as a partner, and what we decided.
 
