@@ -109,16 +109,28 @@ function AcceptInvitation() {
                     This invitation was sent to a specific address. Sign in as that
                     address and open the link again.
                 </p>
+                {/* `/auth/login`, not `/login`. There is no route at `/login`
+                    — the sign-in page has always lived under `/auth`, which is
+                    also what `middleware.ts` treats as public — so the button
+                    that got somebody into the account they were invited to
+                    answered with a 404. */}
                 <Button
                     className="mt-6"
                     onClick={() =>
                         router.push(
-                            `/login?next=${encodeURIComponent(`/invitations/accept?token=${token}`)}`,
+                            `/auth/login?next=${encodeURIComponent(`/invitations/accept?token=${token}`)}`,
                         )
                     }
                 >
                     Sign in
                 </Button>
+                {/* The link, spelled out. Signing in lands on the dashboard
+                    rather than back here — `/auth/login` does not read `next`
+                    — so the invitee has to open the link a second time, and
+                    the one place it certainly still exists is the email. */}
+                <p className="mt-3 text-xs text-muted-foreground">
+                    Then open this invitation link again from your email.
+                </p>
             </Centred>
         );
     }
