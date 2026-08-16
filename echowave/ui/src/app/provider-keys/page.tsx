@@ -11,6 +11,7 @@ import {
     setProviderKeyActiveApiV1ProviderKeysActivePost,
     setProviderKeyApiV1ProviderKeysPut,
 } from "@/client/sdk.gen";
+import { RequiresOrganizationAdmin } from "@/components/RequiresOrganizationAdmin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -122,6 +123,16 @@ async function googleCalendarFetch(
 }
 
 export default function ProviderKeysPage() {
+    // Every route under /api/v1/provider-keys requires ADMIN, so a member who
+    // reaches this screen can only collect 403s from it.
+    return (
+        <RequiresOrganizationAdmin what="provider keys">
+            <ProviderKeysScreen />
+        </RequiresOrganizationAdmin>
+    );
+}
+
+function ProviderKeysScreen() {
     const auth = useAuth();
     const router = useRouter();
     const hasFetched = useRef(false);

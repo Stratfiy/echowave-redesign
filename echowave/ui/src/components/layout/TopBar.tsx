@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { type AccessRoles, useAccessRoles } from "@/hooks/useAccessRoles";
 import type { LocalUser } from "@/lib/auth";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -30,11 +31,20 @@ import { NAV_SECTIONS, type SidebarNavItem, STAFF_SECTION } from "./navigation";
  * calls but silently only matches page titles is worse than one that says what
  * it does. The placeholder says "Search pages" for that reason.
  */
-function useNavSearch(query: string) {
+function useNavSearch(query: string, roles: AccessRoles) {
   return useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    const all: SidebarNavItem[] = [...NAV_SECTIONS, STAFF_SECTION].flatMap((s) => s.items);
+    // The search index is a second door to every destination, so it has to
+    // apply the same rules the sidebar does. It did not: STAFF_SECTION was
+    // concatenated unconditionally, so a customer typing "admin", "kyc" or
+    // "approve" was offered the staff review queue — the exact thing
+    // navigation.ts says is worse than making a reviewer reload. A hidden
+    // sidebar entry is not hidden if the search box still hands it over.
+    const sections = roles.isStaff ? [...NAV_SECTIONS, STAFF_SECTION] : NAV_SECTIONS;
+    const all: SidebarNavItem[] = sections
+      .flatMap((s) => s.items)
+      .filter((item) => !item.requiresOrganizationAdmin || roles.isOrganizationAdmin);
     return all
       .map((item) => {
         const title = item.title.toLowerCase();
@@ -51,7 +61,7 @@ function useNavSearch(query: string) {
       .sort((a, b) => a.score - b.score)
       .slice(0, 7)
       .map((r) => r.item);
-  }, [query]);
+  }, [query, roles.isStaff, roles.isOrganizationAdmin]);
 }
 
 function GlobalSearch() {
@@ -61,7 +71,8 @@ function GlobalSearch() {
   const [active, setActive] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const results = useNavSearch(query);
+  const roles = useAccessRoles();
+  const results = useNavSearch(query, roles);
 
   useEffect(() => setActive(0), [query]);
 

@@ -15,6 +15,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { useAuth } from "@/lib/auth";
 
 interface CredentialSelectorProps {
@@ -40,6 +41,7 @@ export function CredentialSelector({
 
     const [credentials, setCredentials] = useState<CredentialResponse[]>([]);
     const [loading, setLoading] = useState(false);
+    const { isOrganizationAdmin } = useAccessRoles();
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
     const fetchCredentials = useCallback(async () => {
@@ -108,21 +110,30 @@ export function CredentialSelector({
                         ))}
                     </SelectContent>
                 </Select>
-                <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setIsAddDialogOpen(true)}
-                    title="Add new credential"
-                    disabled={disabled}
-                >
-                    <PlusIcon className="h-4 w-4" />
-                </Button>
+                {/* Creating a credential is admin-gated on the server: a
+                    credential is a secret and spend under someone else's
+                    contract. Selecting an existing one is not, so a member can
+                    still wire up a tool with what the account already holds —
+                    the picker stays, only the + goes. */}
+                {isOrganizationAdmin && (
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setIsAddDialogOpen(true)}
+                        title="Add new credential"
+                        disabled={disabled}
+                    >
+                        <PlusIcon className="h-4 w-4" />
+                    </Button>
+                )}
             </div>
 
             {credentials.length === 0 && !loading && (
                 <div className="p-3 border rounded-md bg-muted/20">
                     <p className="text-sm text-muted-foreground">
-                        No credentials found. Click the + button to create one.
+                        {isOrganizationAdmin
+                            ? "No credentials found. Click the + button to create one."
+                            : "No credentials found. An organization Admin or Owner can add one."}
                     </p>
                 </div>
             )}

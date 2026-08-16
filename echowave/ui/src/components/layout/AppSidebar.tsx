@@ -9,9 +9,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 
-import { getAuthUserApiV1UserAuthUserGet } from "@/client/sdk.gen";
 import { BrandLogo } from "@/components/BrandLogo";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
 import { Button } from "@/components/ui/button";
@@ -33,6 +32,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAppConfig } from "@/context/AppConfigContext";
 import { useLeadForms } from "@/context/LeadFormsContext";
 import { useTelephonyConfigWarnings } from "@/context/TelephonyConfigWarningsContext";
+import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { useLatestReleaseVersion } from "@/hooks/useLatestReleaseVersion";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -48,7 +48,7 @@ const TELEPHONY_WARNING_COPY = "Action required";
 export function AppSidebar() {
   const pathname = usePathname();
   const { state, isMobile, setOpenMobile } = useSidebar();
-  const { provider, user } = useAuth();
+  const { provider } = useAuth();
   const { config } = useAppConfig();
   const { openHireExpert } = useLeadForms();
   const {
@@ -69,26 +69,25 @@ export function AppSidebar() {
     { enabled: config?.deploymentMode === "oss" },
   );
 
-  // Staff-ness is a server fact, so it is read from the server rather than
-  // inferred from anything the browser already has. A failure here simply
-  // leaves the section hidden: showing a staff link to a customer is worse
-  // than making a reviewer reload.
-  const [isStaff, setIsStaff] = useState(false);
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    void (async () => {
-      const response = await getAuthUserApiV1UserAuthUserGet();
-      if (!cancelled && !response.error) {
-        setIsStaff(Boolean(response.data?.staff_role));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
+  // Staff-ness and organization standing are server facts, read from the
+  // server rather than inferred from anything the browser already holds. A
+  // failure leaves both unprivileged: showing a staff link to a customer is
+  // worse than making a reviewer reload.
+  const roles = useAccessRoles();
 
-  const navSections = isStaff ? [...NAV_SECTIONS, STAFF_SECTION] : NAV_SECTIONS;
+  // Two filters, and they answer different questions. The staff section is
+  // about who you work for; requiresOrganizationAdmin is about your standing
+  // inside the customer account you are currently looking at. A section left
+  // empty by the second filter is dropped rather than rendered as a bare
+  // heading.
+  const navSections = (roles.isStaff ? [...NAV_SECTIONS, STAFF_SECTION] : NAV_SECTIONS)
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) => !item.requiresOrganizationAdmin || roles.isOrganizationAdmin
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const isActive = (path: string) => pathname.startsWith(path);
 

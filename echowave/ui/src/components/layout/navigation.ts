@@ -30,6 +30,16 @@ export type SidebarNavItem = {
    *  someone reads; it is rarely what they type. "Agent Runs" is where calls
    *  are listed, and nobody searching for a call types "runs". */
   keywords?: string[];
+  /** Hide from members below organization admin.
+   *
+   *  Set it on a destination whose *whole* purpose is admin-gated on the
+   *  server, never on one that merely contains an admin control. Billing is
+   *  the counter-example: topping up is deliberately open to every member —
+   *  "a member who cannot top up when the balance runs out is a member who
+   *  cannot work" — so hiding the screen would stop a member paying us. Gate
+   *  the mandate and the tax profile inside that screen instead, and leave
+   *  the door open. */
+  requiresOrganizationAdmin?: boolean;
 };
 
 export type SidebarNavSection = {
@@ -92,11 +102,16 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // a slot in the model picker offers "your own key", and this is where the
       // key goes. Storing keys and choosing models are separate jobs, which is
       // why they are separate screens.
+      // Admin-gated end to end: every route under /api/v1/provider-keys
+      // requires ADMIN, because a key is a secret and spend under someone
+      // else's contract. A member who is shown this screen can only collect a
+      // 403 from it.
       {
         title: "Provider Keys",
         url: "/provider-keys",
         icon: KeyRound,
         keywords: ["byok", "api key", "credential", "secret", "vault"],
+        requiresOrganizationAdmin: true,
       },
       {
         title: "Telephony",
