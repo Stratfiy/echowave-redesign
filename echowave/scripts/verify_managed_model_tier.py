@@ -135,7 +135,18 @@ async def check_the_tiers() -> None:
     for component, tier in _every_tier():
         upstream = managed_tiers.resolve(component, tier)
         needed = _credential_component(component)
-        key = (needed.value, upstream.provider.lower())
+        vendor = upstream.provider.lower()
+        key = (needed.value, vendor)
+
+        # Speech-to-speech authenticates on the vendor's ordinary key, so a
+        # stored 'openai' serves 'openai_realtime'. Mirrors the fallback in
+        # platform_credentials.resolve_api_key — only the suffix is stripped,
+        # never a general "before the underscore", because azure_speech is a
+        # different account from azure.
+        if key not in active and vendor.endswith(platform_credentials.REALTIME_SUFFIX):
+            base = vendor[: -len(platform_credentials.REALTIME_SUFFIX)]
+            if (needed.value, base) in active:
+                key = (needed.value, base)
 
         label = f"{component}/{tier} → {upstream.provider}:{upstream.model}"
 
@@ -166,20 +177,6 @@ async def check_the_tiers() -> None:
             "section as provider=decibyl, so the call fails somewhere that\n"
             "reads nothing like 'you never added this key'."
         )
-
-        # A vendor name that differs from the credential name it needs is worth
-        # calling out, because the remedy reads as absurd otherwise: store the
-        # same OpenAI key a second time under a second name. platform_credentials
-        # matches the provider string exactly — it lowercases and strips, and
-        # maps nothing — so 'openai' does not serve 'openai_realtime'.
-        base = provider.split("_", 1)[0]
-        if base != provider and (_credential_component("llm").value, base) in active:
-            detail += (
-                f"\n\nNote: you already hold a '{base}' key. It does NOT serve\n"
-                f"'{provider}' — the lookup matches the provider string exactly.\n"
-                f"Store the same key again under the name '{provider}', or move\n"
-                f"the tier with MANAGED_REALTIME_DEFAULT=<provider>:<model>."
-            )
 
         record(
             FAIL,
