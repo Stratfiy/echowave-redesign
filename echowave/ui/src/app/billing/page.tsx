@@ -51,6 +51,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatDateTimeIST, formatPaise } from "@/lib/billing/format";
@@ -221,6 +222,7 @@ export default function BillingPage() {
     const [awaitingCredit, setAwaitingCredit] = useState(false);
     const [profile, setProfile] = useState<BillingProfileFields>(EMPTY_PROFILE);
     const [profileComplete, setProfileComplete] = useState(true);
+    const { isOrganizationAdmin } = useAccessRoles();
     const [savingProfile, setSavingProfile] = useState(false);
     const [emailingDocumentId, setEmailingDocumentId] = useState<number | null>(null);
     const [documents, setDocuments] = useState<TaxDocument[]>([]);
@@ -728,6 +730,21 @@ export default function BillingPage() {
                     your GSTIN.
                 </p>
 
+                {/* Editing this is admin-gated on the server (PUT
+                    /api/v1/billing/profile), because it decides what tax every
+                    customer of this account is charged. A member can read it —
+                    it is their own company's details and useful to check — but
+                    the fieldset is disabled rather than the section hidden, so
+                    they can see what is on file and who to ask. Topping up,
+                    just above, stays open to everyone deliberately. */}
+                {!isOrganizationAdmin && (
+                    <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                        Only an organization Admin or Owner can change these.
+                        Ask one of them if something here is wrong.
+                    </p>
+                )}
+
+                <fieldset disabled={!isOrganizationAdmin} className="contents">
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
                     <div className="sm:col-span-2">
                         <Label htmlFor="legal-name">Registered business name</Label>
@@ -868,6 +885,7 @@ export default function BillingPage() {
                         "Save billing details"
                     )}
                 </Button>
+                </fieldset>
             </section>
 
             <section className="rounded-xl border bg-card p-6">
