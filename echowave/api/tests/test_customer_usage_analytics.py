@@ -137,36 +137,6 @@ class TestTenantIsolation:
         # Their spend must not appear in my breakdown.
         assert response.json()["spent_paise"] == 0
 
-    async def test_another_orgs_tokens_are_not_in_my_breakdown(
-        self, db_session, async_session
-    ):
-        """`by_model` names the model and the spend behind it.
-
-        Leaking it tells one customer which models a competitor runs and what
-        they pay per thousand tokens — the same failure as /usage/spend, on a
-        route that had no test holding it.
-        """
-        _mine, my_user = await _account(async_session, "iso-tok-mine")
-        theirs, their_user = await _account(async_session, "iso-tok-theirs")
-
-        await _costed_call(
-            async_session,
-            theirs,
-            their_user,
-            items=[(CostComponent.LLM.value, "openai", "gpt-4o", 9999, 400000)],
-        )
-
-        async with _client(my_user) as client:
-            response = await client.get(
-                "/api/v1/organizations/usage/tokens",
-                params={"organization_id": theirs.id},
-            )
-
-        assert response.status_code == 200
-        body = response.json()
-        assert body["by_model"] == []
-        assert all(row.get("tokens", 0) == 0 for row in body["series"])
-
     async def test_another_orgs_calls_are_not_in_my_analytics(
         self, db_session, async_session
     ):
@@ -230,14 +200,14 @@ class TestTenantIsolation:
         await async_session.flush()
 
         async with _client(user) as client:
-            response = await client.get("/api/v1/organizations/usage/tokens")
+            response = await client.get("/api/v1/organizations/usage/spend")
         assert response.status_code == 400
 
-    @pytest.mark.parametrize("path", ["usage/calls", "usage/tokens", "usage/spend"])
+    @pytest.mark.parametrize("path", ["usage/calls", "usage/spend"])
     async def test_every_analytics_route_requires_an_organization(
         self, db_session, async_session, path
     ):
-        """None of the three may fall back to "all accounts" when unscoped.
+        """Neither may fall back to "all accounts" when unscoped.
 
         A missing `selected_organization_id` passes `None` to the query layer,
         where `organization_id is not None` drops the filter entirely — the
@@ -312,70 +282,3 @@ class TestSpend:
         assert body["spent_paise"] == 0
         # No spend means no meaningful projection — null, not a divide by zero.
         assert body["burn"]["days_remaining"] is None
-
-
-class TestTokens:
-    async def test_tokens_are_broken_down_by_model(self, db_session, async_session):
-        """The half customers ask for: a total says spend rose, the split says
-        which model did it and whether a cheaper one would serve."""
-        org, user = await _account(async_session, "tok")
-        await _costed_call(
-            async_session,
-            org,
-            user,
-            items=[
-                (CostComponent.LLM.value, "openai", "gpt-4o", 800, 4000),
-                (CostComponent.LLM.value, "openai", "gpt-4o-mini", 100, 6000),
-            ],
-        )
-
-        async with _client(user) as client:
-            body = (await client.get("/api/v1/organizations/usage/tokens")).json()
-
-        models = {row["model"] for row in body["by_model"]}
-        assert {"gpt-4o", "gpt-4o-mini"} <= models
-
-    async def test_the_response_carries_series_and_context_growth(
-        self, db_session, async_session
-    ):
-        org, user = await _account(async_session, "tok-shape")
-
-        async with _client(user) as client:
-            body = (await client.get("/api/v1/organizations/usage/tokens")).json()
-
-        assert {"range", "granularity", "series", "by_model", "context_growth"} <= set(
-            body
-        )
-
-    @pytest.mark.parametrize("granularity", ["day", "week", "month"])
-    async def test_each_granularity_is_accepted(
-        self, db_session, async_session, granularity
-    ):
-        org, user = await _account(async_session, f"gran-{granularity}")
-
-        async with _client(user) as client:
-            response = await client.get(
-                "/api/v1/organizations/usage/tokens",
-                params={"granularity": granularity},
-            )
-        assert response.status_code == 200
-
-    async def test_an_unknown_granularity_is_refused(self, db_session, async_session):
-        org, user = await _account(async_session, "gran-bad")
-
-        async with _client(user) as client:
-            response = await client.get(
-                "/api/v1/organizations/usage/tokens",
-                params={"granularity": "fortnight"},
-            )
-        assert response.status_code == 422
-
-    async def test_the_window_is_bounded(self, db_session, async_session):
-        """An unbounded range is a table scan a customer can trigger at will."""
-        org, user = await _account(async_session, "window")
-
-        async with _client(user) as client:
-            response = await client.get(
-                "/api/v1/organizations/usage/tokens", params={"days": 100000}
-            )
-        assert response.status_code == 422

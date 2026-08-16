@@ -365,17 +365,28 @@ async def get_daily_usage_breakdown(
 
 
 # ---------------------------------------------------------------------------
-# Spend and token analytics, for the account that owns them
+# Spend and call analytics, for the account that owns them
 #
 # The aggregation behind these already existed — it powers the superadmin
 # screens — and it already accepted an ``organization_id``. What did not exist
 # was any way for a *customer* to see their own numbers: their usage page was
-# a table of runs and a single token total, while staff had spend composition,
-# per-model breakdown and context growth.
+# a table of runs, which answers "what happened" and none of "why is my bill
+# that number".
 #
 # So these routes are deliberately thin. They force the organization from the
 # authenticated user and never read it from the request, which is the whole
 # security difference between them and the superadmin equivalents.
+#
+# Token analytics are deliberately *not* here. A per-account token series
+# stripped of per-model cost still divides into the account's own spend, and
+# that quotient is a blended per-token price — on a single-model account, our
+# price for that model, one step from the vendor's public rate card and
+# therefore one step from our markup. That matters most for the accounts most
+# motivated to work it out: a reseller earning a commission on the platform
+# fee. Staff keep the full picture at `/api/v1/admin/billing/tokens`, which
+# already takes an `organization_id`, so nothing is lost on our side of the
+# glass. Spend stays: it is the customer's own bill, and a bill discloses
+# what they paid, not what it cost us.
 # ---------------------------------------------------------------------------
 
 
@@ -383,90 +394,6 @@ def _range(days: int) -> tuple[date_cls, date_cls]:
     """A start/end date pair covering the last ``days`` days inclusive."""
     end = datetime.now().date()
     return end - timedelta(days=max(1, min(days, 365)) - 1), end
-
-
-@router.get("/usage/tokens")
-async def get_token_usage(
-    days: int = Query(30, ge=1, le=365),
-    granularity: str = Query("day", pattern="^(day|week|month)$"),
-    user: UserModel = Depends(get_user),
-) -> Dict[str, Any]:
-    """Token consumption over time and by model, for this account.
-
-    ``by_model`` is the half customers ask for and could not previously get:
-    a total tells you spend went up, the split tells you which model did it and
-    whether a cheaper one would serve.
-
-    ``context_growth`` is the shape a per-call total cannot show. A voice agent
-    resends the whole conversation every turn, so language-model spend grows
-    with the square of call length — the fix for which is structural and never
-    appears as a line item.
-    """
-    if not user.selected_organization_id:
-        raise HTTPException(status_code=400, detail="No organization selected")
-
-    from api.db import billing_dashboard_client as dash
-
-    start, end = _range(days)
-    async with db_client.async_session() as session:
-        return {
-            "range": {"start": start.isoformat(), "end": end.isoformat()},
-            "granularity": granularity,
-            # Same reason as `by_model` below, one step less obvious: spend and
-            # tokens for the same period divide into a blended per-token price,
-            # and on an account running a single model "blended" is that
-            # model's price. Money for this account lives on /usage/spend,
-            # split by component, which is their bill without naming a rate.
-            "series": [
-                {
-                    "period": row["period"],
-                    "tokens": row["tokens"],
-                    "calls": row["calls"],
-                    "minutes": row["minutes"],
-                    "tokens_per_minute": row["tokens_per_minute"],
-                }
-                for row in await dash.token_usage_series(
-                    session,
-                    start=start,
-                    end=end,
-                    granularity=granularity,
-                    organization_id=user.selected_organization_id,
-                )
-            ],
-            # Re-projected, not passed through. The staff version carries
-            # `cost_paise` and `paise_per_1k_tokens` *per named model*, and on a
-            # managed key those are our price for that model — one division
-            # away from the vendor's public rate card, and therefore one
-            # division away from our markup, on every account that opens this
-            # page. The account-wide spend on /usage/spend is their bill and
-            # stays; what is removed is the per-model unit price, which is the
-            # only part that discloses the margin.
-            #
-            # Tokens, calls and tokens-per-call survive, because the question
-            # this table exists to answer — which model is burning the context,
-            # would a cheaper one serve — is answered in tokens, not rupees.
-            "by_model": [
-                {
-                    "provider": row["provider"],
-                    "model": row["model"],
-                    "tokens": row["tokens"],
-                    "calls": row["calls"],
-                    "tokens_per_call": row["tokens_per_call"],
-                }
-                for row in await dash.token_usage_by_model(
-                    session,
-                    start=start,
-                    end=end,
-                    organization_id=user.selected_organization_id,
-                )
-            ],
-            "context_growth": await dash.context_growth_by_turn(
-                session,
-                start=start,
-                end=end,
-                organization_id=user.selected_organization_id,
-            ),
-        }
 
 
 @router.get("/usage/spend")

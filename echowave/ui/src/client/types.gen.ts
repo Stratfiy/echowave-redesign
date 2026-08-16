@@ -17995,58 +17995,6 @@ export type GetDailyUsageBreakdownApiV1OrganizationsUsageDailyBreakdownGetRespon
 
 export type GetDailyUsageBreakdownApiV1OrganizationsUsageDailyBreakdownGetResponse = GetDailyUsageBreakdownApiV1OrganizationsUsageDailyBreakdownGetResponses[keyof GetDailyUsageBreakdownApiV1OrganizationsUsageDailyBreakdownGetResponses];
 
-export type GetTokenUsageApiV1OrganizationsUsageTokensGetData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path?: never;
-    query?: {
-        /**
-         * Days
-         */
-        days?: number;
-        /**
-         * Granularity
-         */
-        granularity?: string;
-    };
-    url: '/api/v1/organizations/usage/tokens';
-};
-
-export type GetTokenUsageApiV1OrganizationsUsageTokensGetErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetTokenUsageApiV1OrganizationsUsageTokensGetError = GetTokenUsageApiV1OrganizationsUsageTokensGetErrors[keyof GetTokenUsageApiV1OrganizationsUsageTokensGetErrors];
-
-export type GetTokenUsageApiV1OrganizationsUsageTokensGetResponses = {
-    /**
-     * Response Get Token Usage Api V1 Organizations Usage Tokens Get
-     *
-     * Successful Response
-     */
-    200: {
-        [key: string]: unknown;
-    };
-};
-
-export type GetTokenUsageApiV1OrganizationsUsageTokensGetResponse = GetTokenUsageApiV1OrganizationsUsageTokensGetResponses[keyof GetTokenUsageApiV1OrganizationsUsageTokensGetResponses];
-
 export type GetSpendBreakdownApiV1OrganizationsUsageSpendGetData = {
     body?: never;
     headers?: {

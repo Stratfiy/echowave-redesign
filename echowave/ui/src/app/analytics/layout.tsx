@@ -3,13 +3,20 @@
 /**
  * The account's own numbers.
  *
- * Everything here already existed for staff and for nobody else: spend
- * composition, per-model token usage, context growth, call shape. A customer
- * on a prepaid balance could see a table of runs and a single token total,
- * which answers "what happened" and none of "why is my bill that number".
+ * Spend composition and call shape existed for staff and for nobody else. A
+ * customer on a prepaid balance could see a table of runs, which answers "what
+ * happened" and none of "why is my bill that number".
  *
- * Three tabs, in the order the questions get asked: how are my calls going,
- * what are they consuming, and what is that costing me.
+ * Two tabs, in the order the questions get asked: how are my calls going, and
+ * what is that costing me.
+ *
+ * There was a third — Tokens — and it is deliberately gone. Even stripped of
+ * per-model cost, a token series divides into the spend on the next tab, and
+ * that quotient is a blended per-token price: on a single-model account, our
+ * price for that model, one step from the vendor's public rate card and so one
+ * step from our markup. The accounts most motivated to do that division are
+ * resellers earning a commission on the platform fee. Staff keep the full
+ * per-model picture at /superadmin/billing/tokens, which filters by account.
  */
 
 import Link from "next/link";
@@ -20,7 +27,6 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
     { href: "/analytics", label: "Calls", exact: true },
-    { href: "/analytics/tokens", label: "Tokens" },
     { href: "/analytics/spend", label: "Spend" },
 ];
 
