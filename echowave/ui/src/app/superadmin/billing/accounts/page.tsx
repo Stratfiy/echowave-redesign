@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowUpDown, Clock, TrendingDown, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowUpDown, Clock, Search, TrendingDown, Users, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -8,6 +8,7 @@ import { listAccountsApiV1AdminBillingAccountsGet } from "@/client/sdk.gen";
 import { PanelMessage, useAuthReady } from "@/components/charts/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
     Select,
     SelectContent,
@@ -44,6 +45,10 @@ const STALE_DAYS = 14;
 type Account = {
     organization_id: number;
     name: string;
+    /** Whoever answers for the account: Owner, else Admin, else earliest member. */
+    owner_email: string | null;
+    owner_role: string | null;
+    member_count: number;
     account_type: string | null;
     status: string | null;
     billable_minutes: number;
@@ -62,6 +67,7 @@ type Account = {
 
 type SortKey =
     | "name"
+    | "owner_email"
     | "billable_minutes"
     | "revenue_paise"
     | "provider_cost_paise"
@@ -143,10 +149,19 @@ export default function AccountsPage() {
     const [error, setError] = useState<string | null>(null);
     const [typeFilter, setTypeFilter] = useState<string>("all");
     const [statusFilter, setStatusFilter] = useState<string>("all");
+    // `search` is what the box shows; `query` is what has been sent. Debounced
+    // apart so typing an address does not fire a request per keystroke.
+    const [search, setSearch] = useState("");
+    const [query, setQuery] = useState("");
     const [sortKey, setSortKey] = useState<SortKey>("revenue_paise");
     const [sortAsc, setSortAsc] = useState(false);
 
     const authReady = useAuthReady();
+
+    useEffect(() => {
+        const timer = setTimeout(() => setQuery(search), 250);
+        return () => clearTimeout(timer);
+    }, [search]);
 
     useEffect(() => {
         if (!authReady) return;
@@ -157,6 +172,10 @@ export default function AccountsPage() {
                 query: {
                     ...(typeFilter !== "all" ? { account_type: typeFilter } : {}),
                     ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+                    // Filtered server-side: support pastes an address out of a
+                    // ticket, and that has to find the account once there are
+                    // more of them than fit on one screen.
+                    ...(query.trim() ? { q: query.trim() } : {}),
                 },
             });
             if (cancelled) return;
@@ -171,7 +190,7 @@ export default function AccountsPage() {
         return () => {
             cancelled = true;
         };
-    }, [authReady, typeFilter, statusFilter]);
+    }, [authReady, typeFilter, statusFilter, query]);
 
     const sorted = useMemo(() => {
         const rows = [...accounts];
@@ -225,6 +244,16 @@ export default function AccountsPage() {
         <Card>
             <CardContent className="pt-5">
                 <div className="mb-4 flex flex-wrap items-center gap-2">
+                    <div className="relative w-full sm:w-[260px]">
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search email or account name"
+                            aria-label="Search accounts by email or name"
+                            className="pl-8"
+                        />
+                    </div>
                     <Select value={typeFilter} onValueChange={setTypeFilter}>
                         <SelectTrigger className="w-[160px]">
                             <SelectValue placeholder="All types" />
@@ -271,6 +300,7 @@ export default function AccountsPage() {
                             <TableHeader>
                                 <TableRow>
                                     <SortableHead label="Account" sortBy="name" />
+                                    <SortableHead label="Contact" sortBy="owner_email" />
                                     <TableHead>Type</TableHead>
                                     <SortableHead label="Minutes" sortBy="billable_minutes" numeric />
                                     <SortableHead label="Revenue" sortBy="revenue_paise" numeric />
@@ -298,6 +328,44 @@ export default function AccountsPage() {
                                             <div className="mt-0.5">
                                                 <AccountFlags account={account} />
                                             </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            {account.owner_email ? (
+                                                <>
+                                                    {/* A mailto rather than plain text: the
+                                                        reason staff want the address on this
+                                                        screen is to write to the customer. */}
+                                                    <a
+                                                        href={`mailto:${account.owner_email}`}
+                                                        className="hover:underline"
+                                                    >
+                                                        {account.owner_email}
+                                                    </a>
+                                                    {account.member_count > 1 && (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <span className="ml-2 inline-flex items-center gap-1 align-middle text-xs text-muted-foreground">
+                                                                    <Users className="h-3 w-3" />
+                                                                    {account.member_count}
+                                                                </span>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>
+                                                                    {account.member_count} people on this
+                                                                    account
+                                                                </p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                // An organization with no membership row at all.
+                                                // Rare and worth seeing rather than blanking:
+                                                // it means nobody can sign in to this account.
+                                                <span className="text-muted-foreground">
+                                                    No members
+                                                </span>
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             {account.account_type ? (

@@ -9429,6 +9429,12 @@ export type ListAccountsApiV1AdminBillingAccountsGetData = {
          */
         status?: string | null;
         /**
+         * Q
+         *
+         * Match against the account's billing name or a member's email
+         */
+        q?: string | null;
+        /**
          * Start
          *
          * Inclusive IST day, YYYY-MM-DD

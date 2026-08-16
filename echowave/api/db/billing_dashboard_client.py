@@ -39,10 +39,12 @@ from api.db.models import (
     CampaignModel,
     CreditLedgerModel,
     DailyOrganizationRollupModel,
+    OrganizationMembershipModel,
     OrganizationModel,
     OrganizationRateHistoryModel,
     PaymentModel,
     ProviderRateModel,
+    UserModel,
     WorkflowModel,
     WorkflowRunModel,
 )
@@ -522,6 +524,60 @@ async def _effective_rates(
     return resolved
 
 
+def _account_contact():
+    """One contact per organization: whoever answers for the account.
+
+    The accounts table identified an account as ``billing_name or provider_id``.
+    ``billing_name`` is only set once somebody fills in the billing profile, so
+    in practice most rows showed ``provider_id`` — ``org_user-3f9c…``, which
+    names nobody. Staff could see that an account existed, was spending money
+    and had gone idle, and could not tell whose it was or write to them.
+
+    Ranked rather than filtered to ``role = 'owner'``: an organization created
+    before the founder fix, or one mid-transfer, would otherwise show a blank
+    where a person should be. Owner first, then Admin, then the earliest
+    member — always somebody, and always the person with the most standing to
+    answer for the account.
+    """
+    return (
+        select(
+            OrganizationMembershipModel.organization_id.label("organization_id"),
+            UserModel.email.label("owner_email"),
+            OrganizationMembershipModel.role.label("owner_role"),
+        )
+        .join(UserModel, UserModel.id == OrganizationMembershipModel.user_id)
+        .distinct(OrganizationMembershipModel.organization_id)
+        .order_by(
+            OrganizationMembershipModel.organization_id,
+            case(
+                (OrganizationMembershipModel.role == "owner", 0),
+                (OrganizationMembershipModel.role == "admin", 1),
+                else_=2,
+            ),
+            OrganizationMembershipModel.created_at,
+            OrganizationMembershipModel.id,
+        )
+        .subquery()
+    )
+
+
+def _member_counts():
+    """How many people are in each organization.
+
+    Reads as the difference between a solo signup and a team, which is the
+    distinction that decides whether the role tiers mean anything on that
+    account at all.
+    """
+    return (
+        select(
+            OrganizationMembershipModel.organization_id.label("organization_id"),
+            func.count().label("member_count"),
+        )
+        .group_by(OrganizationMembershipModel.organization_id)
+        .subquery()
+    )
+
+
 async def accounts_summary(
     session: AsyncSession,
     *,
@@ -529,6 +585,7 @@ async def accounts_summary(
     end: date,
     account_type: str | None = None,
     status: str | None = None,
+    q: str | None = None,
 ) -> list[dict]:
     """One row per account for the accounts table, with the flag inputs."""
     usage = (
@@ -554,11 +611,32 @@ async def accounts_summary(
         .subquery()
     )
 
+    contact = _account_contact()
+    members = _member_counts()
+
     conditions = []
     if account_type:
         conditions.append(OrganizationModel.account_type == account_type)
     if status:
         conditions.append(OrganizationModel.billing_status == status)
+    if q and q.strip():
+        # Matched against *any* member's address, not just the contact the row
+        # displays. Someone writing in from support@ is often not the founder,
+        # and a search that only knew the owner would report their account as
+        # not existing.
+        term = f"%{q.strip().lower()}%"
+        member_match = (
+            select(OrganizationMembershipModel.organization_id)
+            .join(UserModel, UserModel.id == OrganizationMembershipModel.user_id)
+            .where(func.lower(UserModel.email).like(term))
+        )
+        conditions.append(
+            or_(
+                func.lower(OrganizationModel.billing_name).like(term),
+                func.lower(OrganizationModel.provider_id).like(term),
+                OrganizationModel.id.in_(member_match),
+            )
+        )
 
     rows = (
         await session.execute(
@@ -569,6 +647,9 @@ async def accounts_summary(
                 OrganizationModel.account_type,
                 OrganizationModel.billing_status,
                 OrganizationModel.platform_rate_mpaise,
+                contact.c.owner_email,
+                contact.c.owner_role,
+                func.coalesce(members.c.member_count, 0).label("member_count"),
                 func.coalesce(usage.c.billable_minutes, 0).label("billable_minutes"),
                 func.coalesce(usage.c.charged_paise, 0).label("charged_paise"),
                 func.coalesce(usage.c.provider_cost_paise, 0).label(
@@ -580,6 +661,8 @@ async def accounts_summary(
             )
             .outerjoin(usage, usage.c.organization_id == OrganizationModel.id)
             .outerjoin(balance, balance.c.organization_id == OrganizationModel.id)
+            .outerjoin(contact, contact.c.organization_id == OrganizationModel.id)
+            .outerjoin(members, members.c.organization_id == OrganizationModel.id)
             .where(*conditions)
             .order_by(desc("charged_paise"))
         )
@@ -595,7 +678,12 @@ async def accounts_summary(
     return [
         {
             "organization_id": r.id,
-            "name": r.billing_name or r.provider_id,
+            # Falls back to the email before the opaque provider id, so an
+            # account nobody has billed yet still reads as a person.
+            "name": r.billing_name or r.owner_email or r.provider_id,
+            "owner_email": r.owner_email,
+            "owner_role": r.owner_role,
+            "member_count": int(r.member_count or 0),
             "account_type": r.account_type,
             "status": r.billing_status,
             "billable_minutes": int(r.billable_minutes or 0),
@@ -627,10 +715,51 @@ async def account_detail(session: AsyncSession, *, organization_id: int) -> dict
             CreditLedgerModel.organization_id == organization_id
         )
     )
+
+    # Who is on the account, ranked the way the list ranks its contact. Support
+    # arrives here from a flag on the accounts table — low balance, idle, a
+    # failed payment — and the next question is always who to write to.
+    people = (
+        await session.execute(
+            select(
+                UserModel.email,
+                OrganizationMembershipModel.role,
+                OrganizationMembershipModel.created_at,
+            )
+            .join(
+                OrganizationMembershipModel,
+                OrganizationMembershipModel.user_id == UserModel.id,
+            )
+            .where(OrganizationMembershipModel.organization_id == organization_id)
+            .order_by(
+                case(
+                    (OrganizationMembershipModel.role == "owner", 0),
+                    (OrganizationMembershipModel.role == "admin", 1),
+                    else_=2,
+                ),
+                OrganizationMembershipModel.created_at,
+                OrganizationMembershipModel.id,
+            )
+        )
+    ).all()
+    members = [
+        {
+            "email": p.email,
+            "role": p.role,
+            "joined_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in people
+    ]
+
     return {
         "organization_id": org.id,
-        "name": org.billing_name or org.provider_id,
+        "name": org.billing_name
+        or (members[0]["email"] if members else None)
+        or org.provider_id,
         "provider_id": org.provider_id,
+        "owner_email": members[0]["email"] if members else None,
+        "members": members,
+        "member_count": len(members),
         "account_type": org.account_type,
         "status": org.billing_status,
         "currency": org.billing_currency,

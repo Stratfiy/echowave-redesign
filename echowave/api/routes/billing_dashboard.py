@@ -132,6 +132,10 @@ async def list_accounts(
     rng: RangeParams = Depends(),
     account_type: str | None = Query(None),
     status: str | None = Query(None),
+    q: str | None = Query(
+        None,
+        description="Match against the account's billing name or a member's email",
+    ),
 ) -> dict[str, Any]:
     async with db_client.async_session() as session:
         accounts = await dash.accounts_summary(
@@ -140,6 +144,10 @@ async def list_accounts(
             end=rng.end,
             account_type=account_type,
             status=status,
+            # Filtered in the query rather than in the browser: support looks
+            # an account up by the address the customer wrote in from, and that
+            # has to work once there are more accounts than one page.
+            q=q,
         )
         return {
             "range": {"start": rng.start.isoformat(), "end": rng.end.isoformat()},

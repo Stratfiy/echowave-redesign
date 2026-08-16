@@ -100,6 +100,12 @@ export default function AccountDetailPage() {
     }, [authReady, organizationId, load]);
 
     const account = data?.account as Record<string, never> | undefined;
+    // Owner first, then Admin, then earliest member — the API returns them in
+    // that order, so whoever is listed first is the person to escalate to.
+    const members = (account?.members ?? []) as unknown as {
+        email: string | null;
+        role: string;
+    }[];
     const daily = (data?.daily ?? []) as Array<Record<string, number | string>>;
     const cost = (data?.cost_composition ?? []) as Array<Record<string, number | string>>;
     const byLanguage = (data?.latency_by_language ?? []) as Array<Record<string, never>>;
@@ -149,6 +155,28 @@ export default function AccountDetailPage() {
                     </Badge>
                 )}
             </div>
+
+            {/* Who to write to. Support arrives on this page from a flag on the
+                accounts table — low balance, idle, a failed payment — and the
+                next question is always who to contact. Before this the page
+                showed the money and named nobody. */}
+            {members.length > 0 && (
+                <section className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                    {members.map((member) => (
+                        <span key={member.email} className="inline-flex items-center gap-1.5">
+                            <a
+                                href={`mailto:${member.email}`}
+                                className="text-muted-foreground hover:text-foreground hover:underline"
+                            >
+                                {member.email}
+                            </a>
+                            <Badge variant="outline" className="capitalize">
+                                {member.role}
+                            </Badge>
+                        </span>
+                    ))}
+                </section>
+            )}
 
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <StatTile label="Revenue" value={formatPaise(totals.revenue)} />
