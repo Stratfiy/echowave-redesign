@@ -21,13 +21,22 @@ import { toast } from "sonner";
 
 import {
     approveApplicationApiV1AdminPartnersApplicationIdApprovePost,
+    generateStatementsApiV1AdminPartnersStatementsGeneratePost,
     getQueueApiV1AdminPartnersQueueGet,
+    listStatementsApiV1AdminPartnersStatementsGet,
+    markStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPost,
     rejectApplicationApiV1AdminPartnersApplicationIdRejectPost,
 } from "@/client/sdk.gen";
 import { PanelMessage, useAuthReady } from "@/components/charts/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -38,8 +47,16 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 import { detailFromError } from "@/lib/apiError";
-import { formatDateIST } from "@/lib/billing/format";
+import { formatDateIST, formatPaise } from "@/lib/billing/format";
 
 type Application = {
     id: number;
@@ -49,6 +66,18 @@ type Application = {
     company_website: string | null;
     note: string | null;
     submitted_at: string | null;
+};
+
+/** One period's earnings for one partner, with its per-account breakdown. */
+type Statement = {
+    id: number;
+    partner_organization_id: number;
+    period_start: string;
+    period_end: string;
+    basis: string;
+    amount_paise: number;
+    status: string;
+    lines: { account: string; amount_paise: number }[];
 };
 
 const BASIS_HELP: Record<string, string> = {
@@ -212,6 +241,198 @@ function Row({
     );
 }
 
+/**
+ * What we owe, and the two buttons that move it.
+ *
+ * Generation is a staff action rather than a schedule on purpose. A month is
+ * only ready to bill once its rollups have settled, and a cron firing at
+ * midnight on the 1st bills a month whose last day may still be being costed.
+ * Regenerating a draft is free and is the ordinary way to pick up a late
+ * arrival — which is why the button says "Generate" and not "Close the month".
+ */
+function Payouts() {
+    const [statements, setStatements] = useState<Statement[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [busy, setBusy] = useState(false);
+    // Defaults to last calendar month, which is the period somebody opening
+    // this screen almost always wants.
+    const [start, setStart] = useState(() => {
+        const now = new Date();
+        return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+            .toISOString()
+            .slice(0, 10);
+    });
+    const [end, setEnd] = useState(() => {
+        const now = new Date();
+        return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0))
+            .toISOString()
+            .slice(0, 10);
+    });
+
+    const load = async () => {
+        const response = await listStatementsApiV1AdminPartnersStatementsGet();
+        if (!response.error) {
+            setStatements(
+                (response.data as unknown as { statements?: Statement[] })
+                    ?.statements ?? [],
+            );
+        }
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        void load();
+
+    }, []);
+
+    const generate = async () => {
+        setBusy(true);
+        const response =
+            await generateStatementsApiV1AdminPartnersStatementsGeneratePost({
+                body: { period_start: start, period_end: end },
+            });
+        setBusy(false);
+        if (response.error) {
+            toast.error(detailFromError(response.error, "Could not generate"));
+            return;
+        }
+        const body = response.data as unknown as {
+            generated: unknown[];
+            refused: { reason: string }[];
+        };
+        // Refusals are named rather than swallowed: the usual one is a period
+        // already issued, and somebody who thinks they just regenerated it
+        // would otherwise pay the old number.
+        if (body.refused?.length) {
+            toast.warning(
+                `${body.generated.length} generated, ${body.refused.length} refused — ${body.refused[0].reason}`,
+            );
+        } else {
+            toast.success(`${body.generated.length} statements generated`);
+        }
+        await load();
+    };
+
+    const markPaid = async (statement: Statement) => {
+        const reference = window.prompt(
+            "Payment reference (UTR or bank reference). The transfer itself happens outside this system.",
+        );
+        if (reference === null) return;
+        const response =
+            await markStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPost({
+                path: { statement_id: statement.id },
+                body: { payment_reference: reference || null, note: null },
+            });
+        if (response.error) {
+            toast.error(detailFromError(response.error, "Could not mark it paid"));
+            return;
+        }
+        toast.success("Marked paid");
+        await load();
+    };
+
+    const owed = statements.reduce((sum, s) => sum + s.amount_paise, 0);
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-base">Partner payouts</CardTitle>
+                <CardDescription>
+                    Outstanding statements, oldest period first. {formatPaise(owed)} owed
+                    across {statements.length} statement
+                    {statements.length === 1 ? "" : "s"}.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex flex-wrap items-end gap-2">
+                    <div className="space-y-1">
+                        <Label htmlFor="period-start" className="text-xs">
+                            Period start
+                        </Label>
+                        <Input
+                            id="period-start"
+                            type="date"
+                            value={start}
+                            onChange={(e) => setStart(e.target.value)}
+                            className="w-40"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="period-end" className="text-xs">
+                            Period end
+                        </Label>
+                        <Input
+                            id="period-end"
+                            type="date"
+                            value={end}
+                            onChange={(e) => setEnd(e.target.value)}
+                            className="w-40"
+                        />
+                    </div>
+                    <Button onClick={() => void generate()} disabled={busy}>
+                        {busy ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        Generate
+                    </Button>
+                </div>
+
+                {loading ? (
+                    <Skeleton className="h-24 w-full" />
+                ) : statements.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                        Nothing outstanding. Generate a period to accrue it.
+                    </p>
+                ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Partner</TableHead>
+                                <TableHead>Period</TableHead>
+                                <TableHead>Accounts</TableHead>
+                                <TableHead className="text-right">Owed</TableHead>
+                                <TableHead className="text-right">Status</TableHead>
+                                <TableHead />
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {statements.map((statement) => (
+                                <TableRow key={statement.id}>
+                                    <TableCell className="font-medium">
+                                        #{statement.partner_organization_id}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                        {statement.period_start} → {statement.period_end}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                        {statement.lines.length}
+                                    </TableCell>
+                                    <TableCell className="text-right tabular-nums">
+                                        {formatPaise(statement.amount_paise)}
+                                    </TableCell>
+                                    <TableCell className="text-right text-sm text-muted-foreground">
+                                        {statement.status}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => void markPaid(statement)}
+                                        >
+                                            Mark paid
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+
 export default function PartnerQueuePage() {
     const authReady = useAuthReady();
     const [applications, setApplications] = useState<Application[]>([]);
@@ -261,29 +482,38 @@ export default function PartnerQueuePage() {
         );
     }
 
-    if (applications.length === 0) {
-        return <PanelMessage height={180}>Nothing waiting.</PanelMessage>;
-    }
-
     return (
-        <div className="space-y-4">
-            <div>
-                <h1 className="text-lg font-semibold">Partner applications</h1>
-                <p className="text-sm text-muted-foreground">
-                    Oldest first. Approving sets the commission and the account tier
-                    together.
-                </p>
+        <div className="space-y-6">
+            <div className="space-y-4">
+                <div>
+                    <h1 className="text-lg font-semibold">Partner applications</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Oldest first. Approving sets the commission, the account tier
+                        and the referral code together.
+                    </p>
+                </div>
+                {/* Inline rather than an early return: an empty queue must not
+                    hide the payouts below it, which is the half of this screen
+                    with money on it. */}
+                {applications.length === 0 ? (
+                    <PanelMessage height={120}>Nothing waiting.</PanelMessage>
+                ) : (
+                    applications.map((application) => (
+                        <Row
+                            key={application.id}
+                            application={application}
+                            bases={bases}
+                            onDone={(id) =>
+                                setApplications((prev) =>
+                                    prev.filter((a) => a.id !== id),
+                                )
+                            }
+                        />
+                    ))
+                )}
             </div>
-            {applications.map((application) => (
-                <Row
-                    key={application.id}
-                    application={application}
-                    bases={bases}
-                    onDone={(id) =>
-                        setApplications((prev) => prev.filter((a) => a.id !== id))
-                    }
-                />
-            ))}
+
+            <Payouts />
         </div>
     );
 }

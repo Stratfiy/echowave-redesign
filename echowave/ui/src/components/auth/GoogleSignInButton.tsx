@@ -31,7 +31,19 @@ function GoogleMark() {
     );
 }
 
-export function GoogleSignInButton({ label = "Continue with Google" }: { label?: string }) {
+export function GoogleSignInButton({
+    label = "Continue with Google",
+    referralCode,
+}: {
+    label?: string;
+    /** A partner's code, from `?ref=` on the signup link.
+     *
+     *  Passed to `/auth/google/start`, which folds it into the signed OAuth
+     *  state. That is the only thing that survives the round trip through
+     *  Google's own page, so without it a partner's link would attribute every
+     *  password signup and no Google one. */
+    referralCode?: string | null;
+}) {
     const [available, setAvailable] = useState<boolean | null>(null);
     const [starting, setStarting] = useState(false);
     const { config } = useAppConfig();
@@ -67,7 +79,12 @@ export function GoogleSignInButton({ label = "Continue with Google" }: { label?:
     const start = async () => {
         setStarting(true);
         try {
-            const res = await fetch(`${apiBase}/api/v1/auth/google/start`);
+            const query = referralCode
+                ? `?ref=${encodeURIComponent(referralCode)}`
+                : "";
+            const res = await fetch(
+                `${apiBase}/api/v1/auth/google/start${query}`,
+            );
             const body = await res.json();
             if (!res.ok || !body.authorization_url) {
                 toast.error(body.detail || "Could not start sign-in with Google");

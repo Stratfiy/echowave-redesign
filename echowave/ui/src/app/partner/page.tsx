@@ -13,12 +13,21 @@
  * partner programme is rarely the one holding the billing profile.
  */
 
-import { AlertTriangle, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import {
+    AlertTriangle,
+    CheckCircle2,
+    Clock,
+    Copy,
+    Loader2,
+    Users,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
     getApplicationApiV1PartnersApplicationGet,
+    getReferralsApiV1PartnersReferralsGet,
+    getStatementsApiV1PartnersStatementsGet,
     submitApplicationApiV1PartnersApplicationPost,
 } from "@/client/sdk.gen";
 import { Button } from "@/components/ui/button";
@@ -39,9 +48,18 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { formatPaise } from "@/lib/billing/format";
 
 type Application = {
     id: number;
@@ -55,6 +73,45 @@ type Application = {
 type Commission = {
     commission_bps: number;
     basis: string;
+};
+
+/** An account that signed up through this partner's link. */
+type ReferredAccount = {
+    name: string;
+    referred_at: string | null;
+};
+
+type Referrals = {
+    referral_code: string | null;
+    referral_link: string | null;
+    accounts: ReferredAccount[];
+};
+
+type StatementLine = {
+    account: string;
+    basis_amount_paise: number;
+    amount_paise: number;
+};
+
+/**
+ * One period's earnings.
+ *
+ * Drafts never reach here — the server withholds them. A draft is our working
+ * number, regenerated whenever a late rollup or a recost moves it, and showing
+ * a partner a figure that changes under them is how a number becomes an
+ * argument.
+ */
+type Statement = {
+    id: number;
+    period_start: string;
+    period_end: string;
+    basis: string;
+    amount_paise: number;
+    basis_amount_paise: number;
+    status: string;
+    paid_at: string | null;
+    payment_reference: string | null;
+    lines: StatementLine[];
 };
 
 const KIND_LABELS: Record<string, string> = {
@@ -74,6 +131,8 @@ export default function PartnerPage() {
     const [application, setApplication] = useState<Application | null>(null);
     const [commission, setCommission] = useState<Commission | null>(null);
     const [kinds, setKinds] = useState<string[]>([]);
+    const [referrals, setReferrals] = useState<Referrals | null>(null);
+    const [statements, setStatements] = useState<Statement[]>([]);
     const [loading, setLoading] = useState(true);
 
     const [kind, setKind] = useState("agency");
@@ -100,6 +159,27 @@ export default function PartnerPage() {
                 setCommission(body.commission);
                 setKinds(body.kinds ?? []);
                 if (body.kinds?.length) setKind(body.kinds.includes("agency") ? "agency" : body.kinds[0]);
+
+                // Only for an approved partner. Before that there is no code
+                // to show and no period to have earned in, and two requests
+                // that can only 400 are two requests worth not making.
+                if (body.application?.status === "approved") {
+                    const [referralsResponse, statementsResponse] = await Promise.all([
+                        getReferralsApiV1PartnersReferralsGet(),
+                        getStatementsApiV1PartnersStatementsGet(),
+                    ]);
+                    if (cancelled) return;
+                    if (!referralsResponse.error) {
+                        setReferrals(referralsResponse.data as unknown as Referrals);
+                    }
+                    if (!statementsResponse.error) {
+                        setStatements(
+                            (statementsResponse.data as unknown as {
+                                statements?: Statement[];
+                            })?.statements ?? [],
+                        );
+                    }
+                }
             }
             setLoading(false);
         })();
@@ -171,6 +251,169 @@ export default function PartnerPage() {
                             {application.decision_note}
                         </CardContent>
                     )}
+                </Card>
+            )}
+
+            {/* The link is the only mechanism by which anything is attributed.
+                A rate with nobody signing up through it earns nothing, so this
+                sits directly under the rate rather than further down. */}
+            {approved && referrals?.referral_link && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Your referral link</CardTitle>
+                        <CardDescription>
+                            An account that signs up through this link is attributed to
+                            you from that moment. Attribution happens once, at signup —
+                            it cannot be added to an account afterwards, so send the
+                            link before they sign up rather than after.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <code className="flex-1 overflow-x-auto whitespace-nowrap rounded-md border bg-muted px-3 py-2 text-xs">
+                                {referrals.referral_link}
+                            </code>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    void navigator.clipboard.writeText(
+                                        referrals.referral_link ?? "",
+                                    );
+                                    toast.success("Link copied");
+                                }}
+                            >
+                                <Copy className="mr-2 h-3.5 w-3.5" />
+                                Copy
+                            </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Your code is{" "}
+                            <span className="font-mono font-medium">
+                                {referrals.referral_code}
+                            </span>
+                            . It never changes, so a link already printed on a slide
+                            keeps working.
+                        </p>
+
+                        <div className="rounded-lg border p-3">
+                            <p className="flex items-center gap-2 text-sm font-medium">
+                                <Users className="h-4 w-4" />
+                                {referrals.accounts.length === 0
+                                    ? "No accounts yet"
+                                    : `${referrals.accounts.length} account${
+                                          referrals.accounts.length === 1 ? "" : "s"
+                                      }`}
+                            </p>
+                            {referrals.accounts.length === 0 ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Accounts that sign up through your link appear here
+                                    straight away, before they have spent anything.
+                                </p>
+                            ) : (
+                                <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                                    {referrals.accounts.map((account) => (
+                                        <li
+                                            key={`${account.name}-${account.referred_at}`}
+                                            className="flex justify-between gap-4"
+                                        >
+                                            <span>{account.name}</span>
+                                            <span className="text-xs tabular-nums">
+                                                {account.referred_at
+                                                    ? new Date(
+                                                          account.referred_at,
+                                                      ).toLocaleDateString()
+                                                    : "—"}
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Statements. Each one carries its own breakdown, because "why is
+                this number what it is" is the question a partner asks and a
+                total on its own cannot answer. */}
+            {approved && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Earnings</CardTitle>
+                        <CardDescription>
+                            One statement per period, with what each account you
+                            referred contributed.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {statements.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                                No statements yet. A period appears here once it has
+                                been closed and issued — the accounts you referred can
+                                already be spending before that happens.
+                            </p>
+                        ) : (
+                            <div className="space-y-6">
+                                {statements.map((statement) => (
+                                    <div key={statement.id} className="space-y-2">
+                                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                            <p className="text-sm font-medium">
+                                                {statement.period_start} to{" "}
+                                                {statement.period_end}
+                                            </p>
+                                            <p className="text-sm tabular-nums">
+                                                <span className="font-semibold">
+                                                    {formatPaise(statement.amount_paise)}
+                                                </span>{" "}
+                                                <span className="text-muted-foreground">
+                                                    {statement.status === "paid"
+                                                        ? `paid${
+                                                              statement.payment_reference
+                                                                  ? ` · ${statement.payment_reference}`
+                                                                  : ""
+                                                          }`
+                                                        : "due"}
+                                                </span>
+                                            </p>
+                                        </div>
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Account</TableHead>
+                                                    <TableHead className="text-right">
+                                                        {BASIS_LABELS[statement.basis]
+                                                            ? BASIS_LABELS[
+                                                                  statement.basis
+                                                              ].replace("of ", "")
+                                                            : "Basis"}
+                                                    </TableHead>
+                                                    <TableHead className="text-right">
+                                                        You earned
+                                                    </TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {statement.lines.map((line) => (
+                                                    <TableRow key={line.account}>
+                                                        <TableCell>{line.account}</TableCell>
+                                                        <TableCell className="text-right tabular-nums">
+                                                            {formatPaise(
+                                                                line.basis_amount_paise,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-right tabular-nums">
+                                                            {formatPaise(line.amount_paise)}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
                 </Card>
             )}
 

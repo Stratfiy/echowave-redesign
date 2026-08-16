@@ -31,6 +31,7 @@ from ..enums import (
     IntegrationAction,
     OrganizationRole,
     PartnerApplicationStatus,
+    PartnerStatementStatus,
     ToolCategory,
     ToolStatus,
     TriggerState,
@@ -191,6 +192,33 @@ class OrganizationModel(Base):
     billing_status = Column(
         String(16), nullable=False, default="active", server_default=text("'active'")
     )
+
+    # ------------------------------------------------------------------
+    # Referral attribution (see api/services/partners)
+    # ------------------------------------------------------------------
+    #: This account's own code, as a partner. Minted when an application is
+    #: approved and never reissued — it goes in links and email signatures, and
+    #: a code that changes silently stops attributing the traffic it was given
+    #: to. NULL on every account that is not a partner.
+    referral_code = Column(String(16), unique=True, nullable=True, index=True)
+    #: The partner this account arrived through. Written **once**, at
+    #: provisioning, and never updated.
+    #:
+    #: Never updated is the whole design. Attribution that can be changed later
+    #: is attribution somebody can argue about after the money is calculated,
+    #: and the argument always happens at the end of a month. An account that
+    #: signed up without a code was not referred, and adding one afterwards
+    #: would retroactively create earnings on spend that nobody introduced.
+    #:
+    #: SET NULL rather than CASCADE: deleting a partner must not delete their
+    #: referred customers, who are ordinary accounts with their own balance.
+    referred_by_organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    referred_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     memberships = relationship(
@@ -1923,6 +1951,116 @@ class PartnerCommissionModel(Base):
             name="ck_partner_commissions_bps_range",
         ),
     )
+
+
+class PartnerStatementModel(Base):
+    """What a partner earned in one period, and whether we have paid it.
+
+    A statement is generated, then issued, then paid — and only the first of
+    those is reversible. Regenerating a draft is how a period that closed early
+    or a rollup that arrived late gets corrected; regenerating an issued one is
+    how a partner is told a different number than the one they were sent, so
+    the service refuses.
+
+    ``amount_paise`` is the sum of this statement's lines and nothing else, the
+    same definition ``total_charged_paise`` uses on a call receipt, so a
+    statement always reconciles against its own breakdown.
+    """
+
+    __tablename__ = "partner_statements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    partner_organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    #: Inclusive IST calendar days, matching daily_organization_rollup.day.
+    #: A partner month has to line up with the days the dashboard shows, or the
+    #: partner and the account they referred read different months.
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+
+    #: Snapshotted from the commission in force, for the reader. Where a rate
+    #: changed mid-period there is no single basis on the lines, so this
+    #: records what it was at period end and the lines carry the arithmetic.
+    basis = Column(String(32), nullable=False)
+    #: Sum of the lines. Never computed at read time.
+    amount_paise = Column(BigInteger, nullable=False, default=0)
+    #: What the commission applied to — margin or spend, per ``basis``. Kept so
+    #: the effective rate is derivable even when the rate moved mid-period.
+    basis_amount_paise = Column(BigInteger, nullable=False, default=0)
+
+    #: draft | issued | paid — see PartnerStatementStatus.
+    status = Column(
+        String(16),
+        nullable=False,
+        default=PartnerStatementStatus.DRAFT.value,
+        server_default=text(f"'{PartnerStatementStatus.DRAFT.value}'"),
+    )
+    generated_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    issued_at = Column(DateTime(timezone=True), nullable=True)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+    #: Whatever identifies the transfer on our side — a UTR, a bank reference.
+    #: Free text because the payment happens outside this system entirely.
+    payment_reference = Column(String(128), nullable=True)
+    note = Column(Text, nullable=True)
+
+    organization = relationship("OrganizationModel")
+    lines = relationship(
+        "PartnerStatementLineModel",
+        back_populates="statement",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        # One statement per partner per period. Without it a second generate
+        # run doubles what we owe, which is the one arithmetic error nobody
+        # notices until it has been paid.
+        UniqueConstraint(
+            "partner_organization_id",
+            "period_start",
+            name="uq_partner_statements_period",
+        ),
+        Index("ix_partner_statements_status", "status"),
+    )
+
+
+class PartnerStatementLineModel(Base):
+    """One referred account's contribution to one statement.
+
+    The answer to "why is this number what it is". A partner asking gets the
+    accounts, what each of them generated, and what that earned — rather than a
+    total they have to take on trust.
+
+    No effective rate column. Where a commission changed mid-period the
+    arithmetic is per-day and no single percentage produced this line, so
+    storing one would be a number that does not reproduce. ``amount_paise``
+    over ``basis_amount_paise`` is the effective rate, and it is honest about
+    having been blended.
+    """
+
+    __tablename__ = "partner_statement_lines"
+
+    id = Column(Integer, primary_key=True, index=True)
+    statement_id = Column(
+        Integer, ForeignKey("partner_statements.id", ondelete="CASCADE"), nullable=False
+    )
+    #: SET NULL, not CASCADE: a referred account closing must not erase the
+    #: line that says we owe somebody for the months it was open.
+    referred_organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
+    #: Kept alongside the id so a closed account still reads as a name.
+    referred_name = Column(String, nullable=True)
+    #: Margin or total spend for this account over the period, per the
+    #: statement's basis.
+    basis_amount_paise = Column(BigInteger, nullable=False, default=0)
+    amount_paise = Column(BigInteger, nullable=False, default=0)
+
+    statement = relationship("PartnerStatementModel", back_populates="lines")
+
+    __table_args__ = (Index("ix_partner_statement_lines_statement", "statement_id"),)
 
 
 class PlatformVolumeTierModel(Base):

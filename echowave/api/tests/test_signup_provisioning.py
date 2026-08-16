@@ -31,6 +31,7 @@ from api.db.models import OrganizationMembershipModel, OrganizationModel, UserMo
 from api.enums import OrganizationRole
 from api.services.auth.depends import require_organization_role
 from api.services.auth.provisioning import provision_new_account
+from api.services.partners import referrals
 
 
 @pytest.fixture
@@ -109,6 +110,84 @@ class TestANewAccountOwnsItself:
 
         await async_session.refresh(user)
         assert user.selected_organization_id == organization.id
+
+
+@pytest.mark.asyncio
+class TestProvisioningAttributesAReferral:
+    """The one moment a customer becomes a partner's.
+
+    Provisioning is the only place attribution happens, and both front doors
+    go through here — so if it works here it works for a password signup and a
+    Google one alike, and if it does not, a partner's commission is a
+    percentage of nothing.
+    """
+
+    async def test_a_partners_code_attributes_the_new_account(
+        self, async_session, db_session, no_default_model_config
+    ):
+        partner = OrganizationModel(
+            provider_id="org-attr-partner", quota_decibyl_tokens=0
+        )
+        async_session.add(partner)
+        await async_session.flush()
+        code = await referrals.ensure_code(async_session, partner)
+        await async_session.commit()
+
+        user = await _new_user(async_session, "referred")
+        organization = await provision_new_account(user, referral_code=code)
+
+        refreshed = await async_session.get(OrganizationModel, organization.id)
+        await async_session.refresh(refreshed)
+        assert refreshed.referred_by_organization_id == partner.id
+        assert refreshed.referred_at is not None
+
+    async def test_a_code_typed_in_any_case_still_attributes(
+        self, async_session, db_session, no_default_model_config
+    ):
+        """Codes arrive off slides and out of email signatures."""
+        partner = OrganizationModel(
+            provider_id="org-case-partner", quota_decibyl_tokens=0
+        )
+        async_session.add(partner)
+        await async_session.flush()
+        code = await referrals.ensure_code(async_session, partner)
+        await async_session.commit()
+
+        user = await _new_user(async_session, "case-referred")
+        organization = await provision_new_account(
+            user, referral_code=f"  {code.lower()}  "
+        )
+
+        refreshed = await async_session.get(OrganizationModel, organization.id)
+        await async_session.refresh(refreshed)
+        assert refreshed.referred_by_organization_id == partner.id
+
+    async def test_an_unknown_code_still_produces_a_working_account(
+        self, async_session, db_session, no_default_model_config
+    ):
+        """The trade that matters. Somebody signing up did not choose the code
+        and cannot fix a bad one, so a broken referral must cost them nothing —
+        they get an ordinary, unattributed, fully-owned account."""
+        user = await _new_user(async_session, "bad-code")
+
+        organization = await provision_new_account(user, referral_code="NOTACODE")
+
+        membership = await db_session.get_membership(user.id, organization.id)
+        assert membership.role == OrganizationRole.OWNER.value
+        refreshed = await async_session.get(OrganizationModel, organization.id)
+        await async_session.refresh(refreshed)
+        assert refreshed.referred_by_organization_id is None
+
+    async def test_no_code_attributes_nobody(
+        self, async_session, db_session, no_default_model_config
+    ):
+        user = await _new_user(async_session, "organic")
+
+        organization = await provision_new_account(user)
+
+        refreshed = await async_session.get(OrganizationModel, organization.id)
+        await async_session.refresh(refreshed)
+        assert refreshed.referred_by_organization_id is None
 
 
 @pytest.mark.asyncio

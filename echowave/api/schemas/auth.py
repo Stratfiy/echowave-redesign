@@ -5,6 +5,11 @@ class SignupRequest(BaseModel):
     email: EmailStr
     password: str
     name: str | None = None
+    #: A partner's referral code, carried from `?ref=` on the signup link.
+    #: Never validated here: an unknown code provisions an unattributed account
+    #: rather than refusing the signup, because the person signing up did not
+    #: choose the code and cannot fix it.
+    referral_code: str | None = None
 
     @field_validator("password")
     @classmethod

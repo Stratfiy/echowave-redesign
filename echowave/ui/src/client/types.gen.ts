@@ -3128,6 +3128,24 @@ export type ForwardRequest = {
 };
 
 /**
+ * GenerateStatementsRequest
+ */
+export type GenerateStatementsRequest = {
+    /**
+     * Period Start
+     *
+     * First IST day of the period
+     */
+    period_start: string;
+    /**
+     * Period End
+     *
+     * Last IST day, inclusive
+     */
+    period_end: string;
+};
+
+/**
  * Gladia
  */
 export type GladiaSttConfiguration = {
@@ -4106,6 +4124,22 @@ export type LoginRequest = {
      * Mfa Code
      */
     mfa_code?: string | null;
+};
+
+/**
+ * MarkPaidRequest
+ */
+export type MarkPaidRequest = {
+    /**
+     * Payment Reference
+     *
+     * UTR or bank reference. The transfer happens outside this.
+     */
+    payment_reference?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
 };
 
 /**
@@ -6253,6 +6287,10 @@ export type SignupRequest = {
      * Name
      */
     name?: string | null;
+    /**
+     * Referral Code
+     */
+    referral_code?: string | null;
 };
 
 /**
@@ -11580,6 +11618,92 @@ export type SubmitApplicationApiV1PartnersApplicationPostResponses = {
 
 export type SubmitApplicationApiV1PartnersApplicationPostResponse = SubmitApplicationApiV1PartnersApplicationPostResponses[keyof SubmitApplicationApiV1PartnersApplicationPostResponses];
 
+export type GetReferralsApiV1PartnersReferralsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/partners/referrals';
+};
+
+export type GetReferralsApiV1PartnersReferralsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetReferralsApiV1PartnersReferralsGetError = GetReferralsApiV1PartnersReferralsGetErrors[keyof GetReferralsApiV1PartnersReferralsGetErrors];
+
+export type GetReferralsApiV1PartnersReferralsGetResponses = {
+    /**
+     * Response Get Referrals Api V1 Partners Referrals Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetReferralsApiV1PartnersReferralsGetResponse = GetReferralsApiV1PartnersReferralsGetResponses[keyof GetReferralsApiV1PartnersReferralsGetResponses];
+
+export type GetStatementsApiV1PartnersStatementsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/partners/statements';
+};
+
+export type GetStatementsApiV1PartnersStatementsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetStatementsApiV1PartnersStatementsGetError = GetStatementsApiV1PartnersStatementsGetErrors[keyof GetStatementsApiV1PartnersStatementsGetErrors];
+
+export type GetStatementsApiV1PartnersStatementsGetResponses = {
+    /**
+     * Response Get Statements Api V1 Partners Statements Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetStatementsApiV1PartnersStatementsGetResponse = GetStatementsApiV1PartnersStatementsGetResponses[keyof GetStatementsApiV1PartnersStatementsGetResponses];
+
 export type GetQueueApiV1AdminPartnersQueueGetData = {
     body?: never;
     headers?: {
@@ -11819,6 +11943,195 @@ export type SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutRe
 };
 
 export type SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutResponse = SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutResponses[keyof SetCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPutResponses];
+
+export type GenerateStatementsApiV1AdminPartnersStatementsGeneratePostData = {
+    body: GenerateStatementsRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/partners/statements/generate';
+};
+
+export type GenerateStatementsApiV1AdminPartnersStatementsGeneratePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GenerateStatementsApiV1AdminPartnersStatementsGeneratePostError = GenerateStatementsApiV1AdminPartnersStatementsGeneratePostErrors[keyof GenerateStatementsApiV1AdminPartnersStatementsGeneratePostErrors];
+
+export type GenerateStatementsApiV1AdminPartnersStatementsGeneratePostResponses = {
+    /**
+     * Response Generate Statements Api V1 Admin Partners Statements Generate Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GenerateStatementsApiV1AdminPartnersStatementsGeneratePostResponse = GenerateStatementsApiV1AdminPartnersStatementsGeneratePostResponses[keyof GenerateStatementsApiV1AdminPartnersStatementsGeneratePostResponses];
+
+export type ListStatementsApiV1AdminPartnersStatementsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Status
+         *
+         * draft, issued or paid. Omit for everything outstanding.
+         */
+        status?: string | null;
+    };
+    url: '/api/v1/admin/partners/statements';
+};
+
+export type ListStatementsApiV1AdminPartnersStatementsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListStatementsApiV1AdminPartnersStatementsGetError = ListStatementsApiV1AdminPartnersStatementsGetErrors[keyof ListStatementsApiV1AdminPartnersStatementsGetErrors];
+
+export type ListStatementsApiV1AdminPartnersStatementsGetResponses = {
+    /**
+     * Response List Statements Api V1 Admin Partners Statements Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListStatementsApiV1AdminPartnersStatementsGetResponse = ListStatementsApiV1AdminPartnersStatementsGetResponses[keyof ListStatementsApiV1AdminPartnersStatementsGetResponses];
+
+export type IssueStatementApiV1AdminPartnersStatementsStatementIdIssuePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Statement Id
+         */
+        statement_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/partners/statements/{statement_id}/issue';
+};
+
+export type IssueStatementApiV1AdminPartnersStatementsStatementIdIssuePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type IssueStatementApiV1AdminPartnersStatementsStatementIdIssuePostError = IssueStatementApiV1AdminPartnersStatementsStatementIdIssuePostErrors[keyof IssueStatementApiV1AdminPartnersStatementsStatementIdIssuePostErrors];
+
+export type IssueStatementApiV1AdminPartnersStatementsStatementIdIssuePostResponses = {
+    /**
+     * Response Issue Statement Api V1 Admin Partners Statements  Statement Id  Issue Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type IssueStatementApiV1AdminPartnersStatementsStatementIdIssuePostResponse = IssueStatementApiV1AdminPartnersStatementsStatementIdIssuePostResponses[keyof IssueStatementApiV1AdminPartnersStatementsStatementIdIssuePostResponses];
+
+export type MarkStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPostData = {
+    body: MarkPaidRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Statement Id
+         */
+        statement_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/partners/statements/{statement_id}/mark-paid';
+};
+
+export type MarkStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MarkStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPostError = MarkStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPostErrors[keyof MarkStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPostErrors];
+
+export type MarkStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPostResponses = {
+    /**
+     * Response Mark Statement Paid Api V1 Admin Partners Statements  Statement Id  Mark Paid Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type MarkStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPostResponse = MarkStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPostResponses[keyof MarkStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPostResponses];
 
 export type SearchNumbersApiV1ManagedNumbersSearchPostData = {
     body: NumberSearchRequest;
@@ -20397,6 +20710,10 @@ export type GoogleStartApiV1AuthGoogleStartGetData = {
          * Next
          */
         next?: string | null;
+        /**
+         * Ref
+         */
+        ref?: string | null;
     };
     url: '/api/v1/auth/google/start';
 };

@@ -31,6 +31,7 @@ from api.enums import (
     PartnerApplicationStatus,
     PartnerKind,
 )
+from api.services.partners import referrals
 
 
 class PartnerError(Exception):
@@ -192,6 +193,24 @@ async def history_for(
     )
 
 
+async def organizations_with_commission(session: AsyncSession) -> list[int]:
+    """Every account that has ever held a commission.
+
+    Ever, not currently: a partner whose arrangement ended last week is still
+    owed for the days before it did, and a generate run that skipped them would
+    quietly drop the final month of every partner who left.
+    """
+    return list(
+        (
+            await session.scalars(
+                select(PartnerCommissionModel.organization_id)
+                .distinct()
+                .order_by(PartnerCommissionModel.organization_id)
+            )
+        ).all()
+    )
+
+
 async def set_commission(
     session: AsyncSession,
     *,
@@ -279,6 +298,16 @@ async def approve(
         .where(OrganizationModel.id == application.organization_id)
         .values(account_type=ACCOUNT_TYPE_FOR_KIND[application.kind])
     )
+
+    # The code, minted here rather than on first view of the partner screen.
+    # A rate with no way to attribute anything to it is a percentage of
+    # nothing, so approval is the moment both halves have to exist — and
+    # `ensure_code` returns any code the account already has, so re-approving
+    # after a rejection cannot orphan links already in circulation.
+    organization = await session.get(OrganizationModel, application.organization_id)
+    if organization is not None:
+        await referrals.ensure_code(session, organization)
+
     await session.flush()
     return commission
 

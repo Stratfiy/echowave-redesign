@@ -485,6 +485,31 @@ class CommissionBasis(str, Enum):
     TOTAL_SPEND = "total_spend"
 
 
+class PartnerStatementStatus(str, Enum):
+    """How far along a period's earnings are.
+
+    The three states exist because only one of them is reversible, and knowing
+    which is the difference between correcting a number and changing one a
+    partner has already been told.
+
+    DRAFT
+        Generated from the rollups, not shown to the partner as final.
+        Regenerating replaces it — which is how a late-arriving rollup or a
+        recosted call gets picked up.
+    ISSUED
+        Sent. The number is now something somebody has read, so regeneration
+        is refused: a correction after this point is a new statement with a
+        note, not a quiet edit of the old one.
+    PAID
+        Money has left. Carries the reference for the transfer, which happens
+        outside this system — there is no payout rail here, deliberately.
+    """
+
+    DRAFT = "draft"
+    ISSUED = "issued"
+    PAID = "paid"
+
+
 class OrganizationRole(str, Enum):
     """A member's standing within one organization.
 

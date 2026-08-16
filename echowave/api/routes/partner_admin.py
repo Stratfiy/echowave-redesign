@@ -12,6 +12,7 @@ percentage against it. Nothing here is automatic.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -22,6 +23,7 @@ from api.db.models import PartnerApplicationModel, UserModel
 from api.enums import CommissionBasis, PartnerApplicationStatus
 from api.services.auth.depends import get_superuser
 from api.services.partners import applications as partners
+from api.services.partners import earnings
 from api.services.partners.applications import PartnerError
 
 router = APIRouter(
@@ -208,3 +210,146 @@ async def set_commission(
                 "effective_from": commission.effective_from.isoformat(),
             }
         }
+
+
+# ---------------------------------------------------------------------------
+# Statements and payouts
+#
+# The half that turns a percentage into a number somebody is paid. Generation
+# is a staff action rather than a schedule, deliberately: a month is only ready
+# to bill once its rollups have settled, and a cron that fires at midnight on
+# the 1st bills a month whose last day may still be being costed. Regenerating
+# a draft is free and is the ordinary way to pick up a late arrival.
+# ---------------------------------------------------------------------------
+
+
+class GenerateStatementsRequest(BaseModel):
+    period_start: date = Field(..., description="First IST day of the period")
+    period_end: date = Field(..., description="Last IST day, inclusive")
+
+
+class MarkPaidRequest(BaseModel):
+    payment_reference: str | None = Field(
+        None, description="UTR or bank reference. The transfer happens outside this."
+    )
+    note: str | None = None
+
+
+def _statement_view(statement, lines=()) -> dict[str, Any]:
+    return {
+        "id": statement.id,
+        "partner_organization_id": statement.partner_organization_id,
+        "period_start": statement.period_start.isoformat(),
+        "period_end": statement.period_end.isoformat(),
+        "basis": statement.basis,
+        "amount_paise": statement.amount_paise,
+        "basis_amount_paise": statement.basis_amount_paise,
+        "status": statement.status,
+        "generated_at": statement.generated_at.isoformat()
+        if statement.generated_at
+        else None,
+        "issued_at": statement.issued_at.isoformat() if statement.issued_at else None,
+        "paid_at": statement.paid_at.isoformat() if statement.paid_at else None,
+        "payment_reference": statement.payment_reference,
+        "lines": [
+            {
+                "referred_organization_id": line.referred_organization_id,
+                "account": line.referred_name or "Closed account",
+                "basis_amount_paise": line.basis_amount_paise,
+                "amount_paise": line.amount_paise,
+            }
+            for line in lines
+        ],
+    }
+
+
+@router.post("/statements/generate")
+async def generate_statements(
+    request: GenerateStatementsRequest,
+) -> dict[str, Any]:
+    """Accrue the period for every partner holding a commission.
+
+    Runs across all of them rather than one at a time: the question staff ask
+    at the end of a month is "what do we owe", not "what do we owe this
+    partner", and generating them individually is how one gets missed.
+
+    A partner whose accounts spent nothing still gets a statement, at zero.
+    A missing statement and a zero one look identical in a list and mean
+    opposite things — one of them is a month nobody ran.
+    """
+    async with db_client.async_session() as session:
+        partner_ids = await partners.organizations_with_commission(session)
+        generated, refused = [], []
+        for organization_id in partner_ids:
+            try:
+                statement = await earnings.generate(
+                    session,
+                    partner_organization_id=organization_id,
+                    period_start=request.period_start,
+                    period_end=request.period_end,
+                )
+            except PartnerError as exc:
+                # One partner with an already-issued statement must not stop
+                # the other forty being generated.
+                refused.append({"organization_id": organization_id, "reason": str(exc)})
+                continue
+            generated.append(_statement_view(statement))
+        await session.commit()
+        return {"generated": generated, "refused": refused}
+
+
+@router.get("/statements")
+async def list_statements(
+    status: str | None = Query(
+        None, description="draft, issued or paid. Omit for everything outstanding."
+    ),
+) -> dict[str, Any]:
+    """What is owed, oldest period first."""
+    async with db_client.async_session() as session:
+        if status:
+            rows = await earnings.by_status(session, status)
+        else:
+            rows = await earnings.outstanding(session)
+        return {
+            "statements": [
+                _statement_view(row, await earnings.lines_for(session, row.id))
+                for row in rows
+            ]
+        }
+
+
+@router.post("/statements/{statement_id}/issue")
+async def issue_statement(statement_id: int) -> dict[str, Any]:
+    """Mark it sent. Freezes the number against regeneration."""
+    async with db_client.async_session() as session:
+        statement = await earnings.load(session, statement_id)
+        if statement is None:
+            raise HTTPException(status_code=404, detail="No such statement")
+        try:
+            await earnings.issue(session, statement)
+        except PartnerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+        return {"statement": _statement_view(statement)}
+
+
+@router.post("/statements/{statement_id}/mark-paid")
+async def mark_statement_paid(
+    statement_id: int, request: MarkPaidRequest
+) -> dict[str, Any]:
+    """Record that the money left. There is no payout rail here, deliberately."""
+    async with db_client.async_session() as session:
+        statement = await earnings.load(session, statement_id)
+        if statement is None:
+            raise HTTPException(status_code=404, detail="No such statement")
+        try:
+            await earnings.mark_paid(
+                session,
+                statement,
+                payment_reference=request.payment_reference,
+                note=request.note,
+            )
+        except PartnerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+        return {"statement": _statement_view(statement)}

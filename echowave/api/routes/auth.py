@@ -63,7 +63,9 @@ async def signup(request: SignupRequest):
 
     # Organization, membership and default configuration. Shared with the
     # Google callback so both doors produce an identically-provisioned account.
-    organization = await provision_new_account(user)
+    organization = await provision_new_account(
+        user, referral_code=request.referral_code
+    )
 
     # Send the verification code, best effort.
     #
@@ -282,12 +284,17 @@ def _redirect_uri() -> str:
 
 
 @router.get("/google/start", dependencies=[Depends(require_local_auth)])
-async def google_start(next: str | None = None) -> dict:
-    """Begin sign-in. Returns the URL to send the browser to."""
+async def google_start(next: str | None = None, ref: str | None = None) -> dict:
+    """Begin sign-in. Returns the URL to send the browser to.
+
+    ``ref`` is a partner's referral code, carried in the signed state so it
+    survives the trip through Google and can attribute the account on the way
+    back. Ignored for anyone who already has an account.
+    """
     try:
         return {
             "authorization_url": google_oauth.build_authorization_url(
-                redirect_uri=_redirect_uri(), next_path=next
+                redirect_uri=_redirect_uri(), next_path=next, referral_code=ref
             )
         }
     except google_oauth.GoogleAuthError as exc:
@@ -316,7 +323,7 @@ async def google_callback(
         )
 
     try:
-        identity, next_path = await google_oauth.complete_sign_in(
+        identity, next_path, referral_code = await google_oauth.complete_sign_in(
             code=code, state=state, redirect_uri=_redirect_uri()
         )
     except google_oauth.GoogleAuthError as exc:
@@ -329,7 +336,7 @@ async def google_callback(
         user = await db_client.create_user_with_email(
             email=identity.email, password_hash=None, name=identity.name
         )
-        organization = await provision_new_account(user)
+        organization = await provision_new_account(user, referral_code=referral_code)
         event = PostHogEvent.SIGNED_UP
 
     # Google already proved this address — complete_sign_in refuses any token

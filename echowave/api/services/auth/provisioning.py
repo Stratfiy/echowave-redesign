@@ -24,10 +24,21 @@ from api.services.auth.depends import create_user_configuration_with_mps_key
 from api.services.configuration.ai_model_configuration import (
     convert_legacy_ai_model_configuration_to_v2,
 )
+from api.services.partners import referrals
 
 
-async def provision_new_account(user: UserModel) -> OrganizationModel:
-    """Give ``user`` an organization, select it, and seed a default config."""
+async def provision_new_account(
+    user: UserModel, *, referral_code: str | None = None
+) -> OrganizationModel:
+    """Give ``user`` an organization, select it, and seed a default config.
+
+    ``referral_code`` attributes the new account to the partner it came
+    through. This is the only moment attribution happens — see
+    ``OrganizationModel.referred_by_organization_id`` — so both doors pass it,
+    and a code that does not resolve is ignored rather than refused. Somebody
+    signing up did not choose the code and cannot fix a bad one; costing them
+    the account over it would be the wrong trade every time.
+    """
     org_provider_id = f"org_{user.provider_id}"
     organization, _ = await db_client.get_or_create_organization_by_provider_id(
         org_provider_id=org_provider_id, user_id=user.id
@@ -51,6 +62,25 @@ async def provision_new_account(user: UserModel) -> OrganizationModel:
         user.id, organization.id, role=OrganizationRole.OWNER.value
     )
     await db_client.update_user_selected_organization(user.id, organization.id)
+
+    # Attribution, before the best-effort block below and inside its own, so a
+    # referral is never lost to a model-configuration failure and a referral
+    # failure never costs somebody their account. Both are true only if it sits
+    # here rather than in either neighbour.
+    if referral_code:
+        try:
+            async with db_client.async_session() as session:
+                await referrals.attribute(
+                    session,
+                    organization=await session.merge(organization),
+                    code=referral_code,
+                )
+                await session.commit()
+        except Exception:
+            logger.warning(
+                f"Could not attribute new organization {organization.id} to a partner",
+                exc_info=True,
+            )
 
     # Best-effort, exactly as it was in signup. A default model configuration
     # is a convenience; failing to build one must not cost somebody the account

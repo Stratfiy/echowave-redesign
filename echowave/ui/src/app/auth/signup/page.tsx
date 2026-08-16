@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { toast } from "sonner";
 
 import { signupApiV1AuthSignupPost } from "@/client/sdk.gen";
@@ -12,7 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default function SignupPage() {
+function SignupForm() {
+  // A partner's referral code, from the link they handed out. Read here and
+  // sent with the signup rather than stored anywhere: attribution happens once,
+  // at provisioning, and a code that lingers in a cookie would attribute an
+  // account somebody created weeks later from a different link.
+  const referralCode = useSearchParams().get("ref");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -35,7 +42,7 @@ export default function SignupPage() {
 
     try {
       const res = await signupApiV1AuthSignupPost({
-        body: { email, password },
+        body: { email, password, referral_code: referralCode },
       });
 
       if (res.error || !res.data) {
@@ -66,7 +73,7 @@ export default function SignupPage() {
         <p className="text-sm text-muted-foreground">Start building voice agents in minutes — no credit card required.</p>
       </div>
 
-      <GoogleSignInButton label="Sign up with Google" />
+      <GoogleSignInButton label="Sign up with Google" referralCode={referralCode} />
 
       <form onSubmit={handleSubmit} className="space-y-4" data-testid="signup-form">
         <div className="space-y-2">
@@ -124,5 +131,17 @@ export default function SignupPage() {
         </Link>
       </p>
     </AuthShell>
+  );
+}
+
+/**
+ * `useSearchParams` needs a Suspense boundary, or this route opts out of static
+ * rendering at build time.
+ */
+export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
   );
 }

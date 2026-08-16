@@ -102,12 +102,20 @@ class GoogleIdentity:
     picture: str | None
 
 
-def _issue_state(*, nonce: str, next_path: str | None) -> str:
+def _issue_state(
+    *, nonce: str, next_path: str | None, referral_code: str | None = None
+) -> str:
     """A signed, expiring state parameter.
 
     Carries the nonce so the callback can check the ID token was minted for
     this request without needing server-side storage — which would otherwise
     mean a Redis round trip on a path that must work while Redis is degraded.
+
+    It also carries the referral code, because a Google signup leaves our site
+    entirely and comes back on a URL Google composed. The state is the only
+    thing that survives that round trip, so without this a partner's link
+    attributes every password signup and no Google one — a gap that shows up
+    as a partner's statement being mysteriously short.
     """
     now = datetime.now(UTC)
     return jwt.encode(
@@ -115,6 +123,7 @@ def _issue_state(*, nonce: str, next_path: str | None) -> str:
             "aud": _STATE_AUDIENCE,
             "nonce": nonce,
             "next": next_path or None,
+            "ref": referral_code or None,
             "iat": now,
             "exp": now + timedelta(seconds=STATE_TTL_SECONDS),
         },
@@ -141,7 +150,12 @@ def _read_state(state: str) -> dict:
         ) from exc
 
 
-def build_authorization_url(*, redirect_uri: str, next_path: str | None = None) -> str:
+def build_authorization_url(
+    *,
+    redirect_uri: str,
+    next_path: str | None = None,
+    referral_code: str | None = None,
+) -> str:
     """Where to send the browser to begin sign-in."""
     _require_enabled()
     nonce = secrets.token_urlsafe(24)
@@ -150,7 +164,9 @@ def build_authorization_url(*, redirect_uri: str, next_path: str | None = None) 
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": " ".join(SCOPES),
-        "state": _issue_state(nonce=nonce, next_path=next_path),
+        "state": _issue_state(
+            nonce=nonce, next_path=next_path, referral_code=referral_code
+        ),
         "nonce": nonce,
         # Ask for an account choice rather than silently reusing whichever
         # Google session the browser happens to hold. People have more than one
@@ -236,12 +252,13 @@ def _verify_id_token(id_token: str, *, expected_nonce: str) -> GoogleIdentity:
 
 async def complete_sign_in(
     *, code: str, state: str, redirect_uri: str
-) -> tuple[GoogleIdentity, str | None]:
+) -> tuple[GoogleIdentity, str | None, str | None]:
     """Verify a callback end to end.
 
-    Returns the identity Google vouched for and the path the user was heading
-    to when they started. Raises :class:`GoogleAuthError` for anything that
-    should send them back to the login page with a message.
+    Returns the identity Google vouched for, the path the user was heading to
+    when they started, and the referral code they arrived with. Raises
+    :class:`GoogleAuthError` for anything that should send them back to the
+    login page with a message.
     """
     _require_enabled()
     state_claims = _read_state(state)
@@ -257,4 +274,4 @@ async def complete_sign_in(
             "so it cannot be used to sign in."
         )
 
-    return identity, state_claims.get("next")
+    return identity, state_claims.get("next"), state_claims.get("ref")

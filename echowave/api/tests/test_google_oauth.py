@@ -176,7 +176,7 @@ class TestCompletingSignIn:
     ):
         _patch_google(monkeypatch, _identity())
 
-        identity, next_path = await g.complete_sign_in(
+        identity, next_path, referral_code = await g.complete_sign_in(
             code="c",
             state=g._issue_state(nonce="n", next_path="/billing"),
             redirect_uri="https://x/cb",
@@ -184,6 +184,24 @@ class TestCompletingSignIn:
 
         assert identity.email == "founder@example.com"
         assert next_path == "/billing"
+        assert referral_code is None
+
+    async def test_a_referral_code_survives_the_trip_through_google(self, monkeypatch):
+        """The state is the only thing that comes back from Google's own page.
+
+        Without this a partner's link attributes every password signup and no
+        Google one — which shows up as a partner's statement being short, long
+        after anybody could work out why.
+        """
+        _patch_google(monkeypatch, _identity())
+
+        _identity_out, _next, referral_code = await g.complete_sign_in(
+            code="c",
+            state=g._issue_state(nonce="n", next_path=None, referral_code="ABCD2345"),
+            redirect_uri="https://x/cb",
+        )
+
+        assert referral_code == "ABCD2345"
 
     async def test_the_nonce_from_the_state_is_what_the_token_is_checked_against(
         self, monkeypatch
