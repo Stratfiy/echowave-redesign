@@ -4,6 +4,7 @@ import {
   ChartColumnBig,
   Database,
   FileText,
+  Handshake,
   Home,
   Key,
   KeyRound,
@@ -62,6 +63,15 @@ export const STAFF_SECTION: SidebarNavSection = {
       url: "/superadmin",
       icon: ShieldCheck,
       keywords: ["staff", "admin", "approve", "kyc"],
+    },
+    // Its own entry rather than a tab under the KYC queue: the two are read by
+    // different people for different reasons — one is a compliance check, the
+    // other is a commercial decision that sets a recurring cost.
+    {
+      title: "Partner applications",
+      url: "/superadmin/partners",
+      icon: Handshake,
+      keywords: ["reseller", "agency", "commission", "developer", "partner"],
     },
   ],
 };
@@ -207,6 +217,17 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         url: "/billing",
         icon: Wallet,
         keywords: ["credit", "top up", "invoice", "payment", "balance"],
+      },
+      // Under MANAGE beside Billing because that is what it is about: this
+      // screen changes nothing about the product, only the commercial
+      // arrangement behind it. Open to every member — asking is not spending,
+      // and the person who notices there is a partner programme is rarely the
+      // one holding the billing profile.
+      {
+        title: "Partner programme",
+        url: "/partner",
+        icon: Handshake,
+        keywords: ["reseller", "agency", "commission", "developer", "referral"],
       },
       // Retention, erasure and export are obligations the account holder owes
       // the people they called, so they belong where an account is managed
