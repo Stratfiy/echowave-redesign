@@ -51,6 +51,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatPaise } from "@/lib/billing/format";
@@ -154,6 +155,12 @@ export default function BuyNumberPage() {
     const [selected, setSelected] = useState<string | null>(null);
 
     const [startingMandate, setStartingMandate] = useState(false);
+    // `POST /api/v1/billing/mandate` requires ADMIN — a standing authority to
+    // debit the account's bank account is not a member's to grant. Without
+    // this, step 3 of the rental flow handed a member a button whose only
+    // possible answer was "Could not start autopay", three steps into a
+    // journey they cannot finish.
+    const { isOrganizationAdmin, loaded: rolesLoaded } = useAccessRoles();
     const [buying, setBuying] = useState(false);
     const [bought, setBought] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -501,6 +508,20 @@ export default function BuyNumberPage() {
                             <p className="text-sm text-muted-foreground">
                                 Autopay is not configured on this deployment yet.
                                 Contact support — this one is ours to fix.
+                            </p>
+                        ) : rolesLoaded && !isOrganizationAdmin ? (
+                            // Named so the member knows the flow is not broken
+                            // and knows exactly what to ask for. The steps
+                            // above stay usable: they can still search and pick
+                            // the number, so the request they make is specific.
+                            <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                                <span>
+                                    Autopay authorises a monthly debit for the whole
+                                    account, so an Owner or Admin has to set it up. Your
+                                    choice above is kept — ask one of them to authorise
+                                    autopay, then come back and issue the number.
+                                </span>
                             </p>
                         ) : (
                             <>

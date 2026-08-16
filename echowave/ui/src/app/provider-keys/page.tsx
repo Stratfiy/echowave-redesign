@@ -11,7 +11,6 @@ import {
     setProviderKeyActiveApiV1ProviderKeysActivePost,
     setProviderKeyApiV1ProviderKeysPut,
 } from "@/client/sdk.gen";
-import { RequiresOrganizationAdmin } from "@/components/RequiresOrganizationAdmin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
@@ -123,19 +123,35 @@ async function googleCalendarFetch(
 }
 
 export default function ProviderKeysPage() {
-    // Every route under /api/v1/provider-keys requires ADMIN, so a member who
-    // reaches this screen can only collect 403s from it.
-    return (
-        <RequiresOrganizationAdmin what="provider keys">
-            <ProviderKeysScreen />
-        </RequiresOrganizationAdmin>
-    );
+    // Open to every member, on purpose.
+    //
+    // This screen was briefly wrapped in an admin wall on the theory that
+    // "every route under /api/v1/provider-keys requires ADMIN". That was
+    // wrong: the list endpoint takes plain `get_user`, and only PUT,
+    // POST /active and DELETE require ADMIN. The wall broke the thing the
+    // screen exists for — BYOK is a member's job. A member picks "your own
+    // key" in a model slot, and needs to know which keys the account actually
+    // holds to tell an empty slot from a filled one, or to name the key they
+    // are asking an admin for. Three places in the model editor link straight
+    // here; each of them was a dead end.
+    //
+    // Same shape as Billing and the Do-not-call list: the door stays open and
+    // the writes are gated inside. Keys are masked to their last four
+    // characters by the API, so reading shows what exists, never the secret.
+    return <ProviderKeysScreen />;
 }
 
 function ProviderKeysScreen() {
     const auth = useAuth();
     const router = useRouter();
     const hasFetched = useRef(false);
+    // Presentation only — the server refuses these three regardless. This
+    // stops a member being handed a button whose only possible answer is 403.
+    //
+    // `rolesLoaded` matters for the footer specifically: the hook reports
+    // unprivileged until the server answers, so keying copy off the role alone
+    // would flash "ask an Owner or Admin" at an actual admin on every load.
+    const { isOrganizationAdmin, loaded: rolesLoaded } = useAccessRoles();
 
     const [credentials, setCredentials] = useState<ProviderCredential[]>([]);
     const [providersByComponent, setProvidersByComponent] = useState<Record<string, string[]>>({});
@@ -476,15 +492,17 @@ function ProviderKeysScreen() {
                                 <CardTitle className="text-lg">{component.title}</CardTitle>
                                 <CardDescription>{component.blurb}</CardDescription>
                             </div>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openDialog(component.value)}
-                                disabled={!encryptionConfigured}
-                            >
-                                <Plus className="mr-1.5 h-4 w-4" />
-                                Add key
-                            </Button>
+                            {isOrganizationAdmin && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openDialog(component.value)}
+                                    disabled={!encryptionConfigured}
+                                >
+                                    <Plus className="mr-1.5 h-4 w-4" />
+                                    Add key
+                                </Button>
+                            )}
                         </CardHeader>
                         <CardContent>
                             {stored.length === 0 ? (
@@ -521,26 +539,38 @@ function ProviderKeysScreen() {
                                                     while rotating at the vendor: agents fail over
                                                     to managed instead of authenticating with a key
                                                     that is being revoked. */}
-                                                <div className="flex items-center gap-2">
-                                                    <Switch
-                                                        checked={credential.is_active}
-                                                        onCheckedChange={(checked) =>
-                                                            toggleActive(credential, checked)
-                                                        }
-                                                        aria-label={`Use this ${credential.provider} key`}
-                                                    />
+                                                {isOrganizationAdmin ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <Switch
+                                                            checked={credential.is_active}
+                                                            onCheckedChange={(checked) =>
+                                                                toggleActive(credential, checked)
+                                                            }
+                                                            aria-label={`Use this ${credential.provider} key`}
+                                                        />
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {credential.is_active ? "In use" : "Paused"}
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    // A member still needs to know whether the key
+                                                    // is carrying traffic — that is the difference
+                                                    // between "my slot is on our own key" and "it
+                                                    // quietly fell back to Decibyl's".
                                                     <span className="text-xs text-muted-foreground">
                                                         {credential.is_active ? "In use" : "Paused"}
                                                     </span>
-                                                </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => removeKey(credential)}
-                                                    aria-label={`Remove the ${credential.provider} key`}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
+                                                )}
+                                                {isOrganizationAdmin && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => removeKey(credential)}
+                                                        aria-label={`Remove the ${credential.provider} key`}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                )}
                                             </div>
                                         </li>
                                     ))}
@@ -552,8 +582,23 @@ function ProviderKeysScreen() {
             })}
 
             <p className="text-xs text-muted-foreground">
-                Keys are encrypted before they are stored and are never shown again — only
-                the last four characters. To change one, add it again.
+                {!rolesLoaded || isOrganizationAdmin ? (
+                    <>
+                        Keys are encrypted before they are stored and are never shown again —
+                        only the last four characters. To change one, add it again.
+                    </>
+                ) : (
+                    // Says what a member can do here rather than leaving them to
+                    // discover the missing buttons: they came to find out which
+                    // keys exist so they can pick one in a model slot, and that
+                    // still works. Adding and removing needs an admin.
+                    <>
+                        Keys are stored encrypted and only ever shown as their last four
+                        characters. You can see which keys this account holds and choose them
+                        in a model slot; adding, pausing or removing one needs an Owner or
+                        Admin.
+                    </>
+                )}
             </p>
 
             <Dialog

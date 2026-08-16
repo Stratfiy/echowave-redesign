@@ -75,14 +75,37 @@ describe("the staff area is not offered to customers", () => {
 });
 
 describe("admin-only destinations are hidden from members", () => {
-    it("hides provider keys from a member", () => {
-        // Every route under /api/v1/provider-keys requires ADMIN, so this
-        // screen can only answer a member with a 403.
-        expect(urls(MEMBER)).not.toContain("/provider-keys");
+    it("offers provider keys to everyone, including members", () => {
+        // This one was gated and should not have been. The reasoning was "every
+        // route under /api/v1/provider-keys requires ADMIN"; the list endpoint
+        // in fact takes plain `get_user`, and only PUT, POST /active and DELETE
+        // require ADMIN. Hiding it broke BYOK for the people who use it: a
+        // member picks "your own key" in a model slot and has to know which
+        // keys the account holds to tell an empty slot from a filled one — and
+        // three links in the model editor point straight here. Adding, pausing
+        // and removing are gated inside the screen instead.
+        for (const roles of [MEMBER, ADMIN]) {
+            expect(urls(roles)).toContain("/provider-keys");
+        }
     });
 
-    it("shows provider keys to an admin", () => {
-        expect(urls(ADMIN)).toContain("/provider-keys");
+    it("still has a way to gate a destination", () => {
+        // `requiresOrganizationAdmin` is now unused by every nav item, which is
+        // the correct state and also the state in which a filter silently
+        // rotting goes unnoticed. Exercised against a synthetic item so the
+        // mechanism keeps working for whichever destination needs it next.
+        const gated: SidebarNavItem = {
+            title: "Synthetic",
+            url: "/synthetic-admin-only",
+            icon: NAV_SECTIONS[0].items[0].icon,
+            requiresOrganizationAdmin: true,
+        };
+        const keep = (roles: Roles) =>
+            [gated].filter(
+                (item) => !item.requiresOrganizationAdmin || roles.isOrganizationAdmin
+            );
+        expect(keep(MEMBER)).toHaveLength(0);
+        expect(keep(ADMIN)).toHaveLength(1);
     });
 });
 
@@ -107,6 +130,12 @@ describe("what stays open to every member", () => {
         for (const url of ["/workflow", "/campaigns", "/files", "/usage"]) {
             expect(urls(MEMBER)).toContain(url);
         }
+    });
+
+    it("leaves the BYOK vault reachable", () => {
+        // The screen a member is sent to from three places in the model editor
+        // the moment they choose "your own key" for a slot.
+        expect(urls(MEMBER)).toContain("/provider-keys");
     });
 
     it("gives a member most of the product, not a stub", () => {

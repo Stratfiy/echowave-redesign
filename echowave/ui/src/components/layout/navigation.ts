@@ -102,16 +102,20 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // a slot in the model picker offers "your own key", and this is where the
       // key goes. Storing keys and choosing models are separate jobs, which is
       // why they are separate screens.
-      // Admin-gated end to end: every route under /api/v1/provider-keys
-      // requires ADMIN, because a key is a secret and spend under someone
-      // else's contract. A member who is shown this screen can only collect a
-      // 403 from it.
+      // Not admin-gated, despite storing secrets. `GET /api/v1/provider-keys`
+      // deliberately takes plain `get_user` — only PUT, POST /active and
+      // DELETE require ADMIN. Reading is open because BYOK is a member's job:
+      // the model picker offers "your own key" per slot, and a member who
+      // cannot see which keys the account holds cannot tell an empty slot from
+      // one somebody already filled, or name the key they need in order to ask
+      // for it. Keys are masked to their last four characters, so the screen
+      // shows what exists rather than what it is. Adding, pausing and removing
+      // are gated inside the screen.
       {
         title: "Provider Keys",
         url: "/provider-keys",
         icon: KeyRound,
         keywords: ["byok", "api key", "credential", "secret", "vault"],
-        requiresOrganizationAdmin: true,
       },
       {
         title: "Telephony",
