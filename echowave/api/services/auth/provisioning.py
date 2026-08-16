@@ -19,7 +19,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.db.models import OrganizationModel, UserModel
-from api.enums import OrganizationConfigurationKey
+from api.enums import OrganizationConfigurationKey, OrganizationRole
 from api.services.auth.depends import create_user_configuration_with_mps_key
 from api.services.configuration.ai_model_configuration import (
     convert_legacy_ai_model_configuration_to_v2,
@@ -33,7 +33,23 @@ async def provision_new_account(user: UserModel) -> OrganizationModel:
         org_provider_id=org_provider_id, user_id=user.id
     )
 
-    await db_client.add_user_to_organization(user.id, organization.id)
+    # OWNER, not the MEMBER default.
+    #
+    # The organization is derived from this user's own provider id, so the
+    # person being provisioned is the only person who can ever have founded
+    # it. Leaving them on the default made a new account's first and only
+    # member a MEMBER of a company they had just created: every route behind
+    # `require_organization_role(ADMIN)` answered them with a 403 — provider
+    # keys, the billing profile, removing a number from the do-not-call list,
+    # minting a tool credential — and the one route that could have fixed it,
+    # promoting a member, is itself OWNER-gated. There was no way out from
+    # inside the product.
+    #
+    # `add_user_to_organization` is conflict-do-nothing, so a re-provision of a
+    # half-finished signup cannot use this to escalate an existing membership.
+    await db_client.add_user_to_organization(
+        user.id, organization.id, role=OrganizationRole.OWNER.value
+    )
     await db_client.update_user_selected_organization(user.id, organization.id)
 
     # Best-effort, exactly as it was in signup. A default model configuration
