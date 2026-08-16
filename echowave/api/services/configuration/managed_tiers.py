@@ -140,6 +140,13 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # speech-to-speech tier already need one — and text-embedding-3-small
         # is the factory's own default, so the managed path and the fallback
         # path now agree.
+        #
+        # That claim was true of embeddings and false of speech-to-speech until
+        # platform_credentials learned to fall back from ``<vendor>_realtime``
+        # to ``<vendor>``. Before that, this tier resolved provider
+        # "openai_realtime", matched no stored key, and managed_resolution
+        # logged and continued — so the one managed tier sold on latency was
+        # the one that did not work.
         (EMBEDDINGS_COMPONENT, "default"): _tier(
             EMBEDDINGS_COMPONENT, "default", "openai", "text-embedding-3-small"
         ),

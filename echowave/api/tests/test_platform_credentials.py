@@ -314,3 +314,123 @@ class TestLifecycle:
         offered = await creds.managed_providers(async_session)
 
         assert offered == {"llm": ["openai"]}
+
+
+@pytest.mark.asyncio
+class TestSpeechToSpeechSharesTheVendorKey:
+    """A ``<vendor>_realtime`` provider is the same account as the vendor.
+
+    OpenAI Realtime authenticates with your OpenAI key and Gemini Live with
+    your Google key. Requiring a separate row would mean an admin pasting the
+    same key twice, and the realtime tier breaking silently the day they
+    rotated only one of them — the trap the embeddings component already avoids
+    by sharing the LLM credential.
+
+    Until this existed the managed speech-to-speech tier resolved no key at
+    all: ``managed_resolution`` logs and *continues*, leaving the section as
+    ``provider=decibyl``, so the call failed somewhere that read nothing like
+    "nobody stored an openai_realtime key".
+    """
+
+    async def test_the_openai_key_serves_openai_realtime(self, async_session):
+        staff = await _staff(async_session)
+        await creds.set_credential(
+            async_session,
+            actor_user_id=staff.id,
+            component=CostComponent.LLM,
+            provider="openai",
+            api_key=OPENAI_KEY,
+        )
+
+        resolved = await creds.resolve_api_key(
+            async_session, component=CostComponent.LLM, provider="openai_realtime"
+        )
+        assert resolved == OPENAI_KEY
+
+    async def test_an_exact_realtime_row_still_wins(self, async_session):
+        """A deployment that already stored one under the realtime name keeps
+        working, and keeps whatever value it put there."""
+        staff = await _staff(async_session)
+        await creds.set_credential(
+            async_session,
+            actor_user_id=staff.id,
+            component=CostComponent.LLM,
+            provider="openai",
+            api_key=OPENAI_KEY,
+        )
+        await creds.set_credential(
+            async_session,
+            actor_user_id=staff.id,
+            component=CostComponent.LLM,
+            provider="openai_realtime",
+            api_key="sk-a-different-realtime-key-0001",
+        )
+
+        resolved = await creds.resolve_api_key(
+            async_session, component=CostComponent.LLM, provider="openai_realtime"
+        )
+        assert resolved == "sk-a-different-realtime-key-0001"
+
+    async def test_only_the_realtime_suffix_is_stripped(self, async_session):
+        """The dangerous generalisation. ``azure_speech`` is a different
+        account from ``azure`` — a "everything before the underscore" rule
+        would hand Azure Speech an Azure OpenAI key and fail at the vendor."""
+        staff = await _staff(async_session)
+        await creds.set_credential(
+            async_session,
+            actor_user_id=staff.id,
+            component=CostComponent.LLM,
+            provider="azure",
+            api_key="azure-openai-key-1234",
+        )
+
+        assert (
+            await creds.resolve_api_key(
+                async_session, component=CostComponent.STT, provider="azure_speech"
+            )
+            is None
+        )
+
+    async def test_a_multi_word_vendor_falls_back_to_its_own_base(self, async_session):
+        """``google_vertex_realtime`` must reach ``google_vertex``, not
+        ``google`` — they are different projects with different keys."""
+        staff = await _staff(async_session)
+        await creds.set_credential(
+            async_session,
+            actor_user_id=staff.id,
+            component=CostComponent.LLM,
+            provider="google",
+            api_key="plain-google-key-1111",
+        )
+        await creds.set_credential(
+            async_session,
+            actor_user_id=staff.id,
+            component=CostComponent.LLM,
+            provider="google_vertex",
+            api_key="vertex-key-2222",
+        )
+
+        resolved = await creds.resolve_api_key(
+            async_session,
+            component=CostComponent.LLM,
+            provider="google_vertex_realtime",
+        )
+        assert resolved == "vertex-key-2222"
+
+    async def test_no_vendor_key_at_all_still_resolves_to_nothing(self, async_session):
+        """The fallback must not invent a key from a different vendor."""
+        staff = await _staff(async_session)
+        await creds.set_credential(
+            async_session,
+            actor_user_id=staff.id,
+            component=CostComponent.LLM,
+            provider="google",
+            api_key="plain-google-key-1111",
+        )
+
+        assert (
+            await creds.resolve_api_key(
+                async_session, component=CostComponent.LLM, provider="openai_realtime"
+            )
+            is None
+        )

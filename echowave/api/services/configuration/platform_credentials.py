@@ -37,6 +37,10 @@ from api.enums import CostComponent
 #: per-account carrier accounts and the KYC that goes with them.
 CREDENTIAL_COMPONENTS = (CostComponent.STT, CostComponent.LLM, CostComponent.TTS)
 
+#: Speech-to-speech providers are named ``<vendor>_realtime`` and authenticate
+#: with the vendor's ordinary key — see the fallback in :func:`resolve_api_key`.
+REALTIME_SUFFIX = "_realtime"
+
 
 class PlatformCredentialError(ValueError):
     """A credential could not be stored or read."""
@@ -220,6 +224,16 @@ async def list_credentials(session: AsyncSession) -> list[PlatformCredential]:
     return [_view(r) for r in rows]
 
 
+async def _active_row(session: AsyncSession, component: str, provider: str):
+    return await session.scalar(
+        select(PlatformProviderCredentialModel).where(
+            PlatformProviderCredentialModel.component == component,
+            PlatformProviderCredentialModel.provider == provider,
+            PlatformProviderCredentialModel.is_active.is_(True),
+        )
+    )
+
+
 async def resolve_api_key(
     session: AsyncSession, *, component: CostComponent | str, provider: str
 ) -> str | None:
@@ -239,13 +253,31 @@ async def resolve_api_key(
     except PlatformCredentialError:
         return None
 
-    row = await session.scalar(
-        select(PlatformProviderCredentialModel).where(
-            PlatformProviderCredentialModel.component == component_value,
-            PlatformProviderCredentialModel.provider == provider,
-            PlatformProviderCredentialModel.is_active.is_(True),
-        )
-    )
+    row = await _active_row(session, component_value, provider)
+
+    if row is None and provider.endswith(REALTIME_SUFFIX):
+        # A speech-to-speech provider is the same vendor account as its
+        # ordinary sibling: OpenAI Realtime authenticates with your OpenAI key,
+        # Gemini Live with your Google key. Requiring a separate row would mean
+        # an admin pasting the same key twice and the realtime tier breaking
+        # silently whenever they rotated only one — the exact trap the
+        # embeddings component avoids by sharing the LLM credential.
+        #
+        # Only the suffix is stripped, never a general "before the underscore":
+        # azure_speech is a different account from azure, and
+        # google_vertex_realtime must fall back to google_vertex rather than to
+        # google. An exact row still wins, so a deployment that already stored
+        # one under the realtime name keeps working untouched.
+        base = provider[: -len(REALTIME_SUFFIX)]
+        row = await _active_row(session, component_value, base)
+        if row is not None:
+            logger.debug(
+                "Serving managed {} for {} with the stored '{}' key.",
+                component_value,
+                provider,
+                base,
+            )
+
     if row is None:
         return None
 
