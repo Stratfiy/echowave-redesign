@@ -1041,6 +1041,13 @@ export const listProviderKeysApiV1AdminProviderKeysGet = <ThrowOnError extends b
  * Set Provider Key
  *
  * Store or rotate one key. The value is write-only from here on.
+ *
+ * Same two behaviours as the customer vault, and for the same reasons: the key
+ * is checked against the vendor first and a rejected one is refused, and
+ * ``apply_to_all_components`` stores it against every component that vendor
+ * serves in one transaction. A platform key is worse to get wrong than a
+ * customer's — it is what every managed account runs on — so it is not the
+ * place to have the weaker of the two checks.
  */
 export const setProviderKeyApiV1AdminProviderKeysPut = <ThrowOnError extends boolean = false>(options: Options<SetProviderKeyApiV1AdminProviderKeysPutData, ThrowOnError>): RequestResult<SetProviderKeyApiV1AdminProviderKeysPutResponses, SetProviderKeyApiV1AdminProviderKeysPutErrors, ThrowOnError> => (options.client ?? client).put<SetProviderKeyApiV1AdminProviderKeysPutResponses, SetProviderKeyApiV1AdminProviderKeysPutErrors, ThrowOnError>({
     url: '/api/v1/admin/provider-keys',
@@ -1085,6 +1092,13 @@ export const listProviderKeysApiV1ProviderKeysGet = <ThrowOnError extends boolea
  * With ``apply_to_all_components`` the same key is stored against every
  * component this vendor serves, in one transaction — so a Sarvam key entered
  * once covers speech-to-text, the language model and synthesis together.
+ *
+ * The key is checked against the vendor first. A key the vendor **rejects** is
+ * refused here with the vendor's own complaint, rather than being stored to
+ * fail later on a live call where it looks like "the agent didn't answer". A
+ * key we simply could not check — no probe for that vendor, or the vendor is
+ * unreachable — is stored, and the response says so; our incompleteness or a
+ * vendor's outage should not stop a customer configuring their account.
  */
 export const setProviderKeyApiV1ProviderKeysPut = <ThrowOnError extends boolean = false>(options: Options<SetProviderKeyApiV1ProviderKeysPutData, ThrowOnError>): RequestResult<SetProviderKeyApiV1ProviderKeysPutResponses, SetProviderKeyApiV1ProviderKeysPutErrors, ThrowOnError> => (options.client ?? client).put<SetProviderKeyApiV1ProviderKeysPutResponses, SetProviderKeyApiV1ProviderKeysPutErrors, ThrowOnError>({
     url: '/api/v1/provider-keys',

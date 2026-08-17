@@ -6278,6 +6278,42 @@ export type SetCommissionRequest = {
 };
 
 /**
+ * SetCredentialRequest
+ */
+export type SetCredentialRequest = {
+    /**
+     * Component
+     *
+     * stt | llm | tts
+     */
+    component: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Api Key
+     */
+    api_key: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Apply To All Components
+     *
+     * Store this key for every component this provider serves.
+     */
+    apply_to_all_components?: boolean;
+    /**
+     * Verify
+     *
+     * Check the key against the vendor before storing it. A rejected key is refused; a vendor we cannot reach is stored and reported as unverified.
+     */
+    verify?: boolean;
+};
+
+/**
  * SignupRequest
  */
 export type SignupRequest = {
@@ -8716,60 +8752,6 @@ export type ApiRoutesPartnerAdminRejectRequest = {
      * Why not. Shown to the applicant, so write it for them.
      */
     note?: string | null;
-};
-
-/**
- * SetCredentialRequest
- */
-export type ApiRoutesPlatformCredentialsSetCredentialRequest = {
-    /**
-     * Component
-     *
-     * stt | llm | tts
-     */
-    component: string;
-    /**
-     * Provider
-     */
-    provider: string;
-    /**
-     * Api Key
-     */
-    api_key: string;
-    /**
-     * Label
-     */
-    label?: string | null;
-};
-
-/**
- * SetCredentialRequest
- */
-export type ApiRoutesProviderKeysSetCredentialRequest = {
-    /**
-     * Component
-     *
-     * stt | llm | tts
-     */
-    component: string;
-    /**
-     * Provider
-     */
-    provider: string;
-    /**
-     * Api Key
-     */
-    api_key: string;
-    /**
-     * Label
-     */
-    label?: string | null;
-    /**
-     * Apply To All Components
-     *
-     * Store this key for every component this provider serves.
-     */
-    apply_to_all_components?: boolean;
 };
 
 export type InitiateCallApiV1TelephonyInitiateCallPostData = {
@@ -12715,7 +12697,7 @@ export type ListProviderKeysApiV1AdminProviderKeysGetResponses = {
 export type ListProviderKeysApiV1AdminProviderKeysGetResponse = ListProviderKeysApiV1AdminProviderKeysGetResponses[keyof ListProviderKeysApiV1AdminProviderKeysGetResponses];
 
 export type SetProviderKeyApiV1AdminProviderKeysPutData = {
-    body: ApiRoutesPlatformCredentialsSetCredentialRequest;
+    body: SetCredentialRequest;
     headers?: {
         /**
          * Authorization
@@ -12896,7 +12878,7 @@ export type ListProviderKeysApiV1ProviderKeysGetResponses = {
 export type ListProviderKeysApiV1ProviderKeysGetResponse = ListProviderKeysApiV1ProviderKeysGetResponses[keyof ListProviderKeysApiV1ProviderKeysGetResponses];
 
 export type SetProviderKeyApiV1ProviderKeysPutData = {
-    body: ApiRoutesProviderKeysSetCredentialRequest;
+    body: SetCredentialRequest;
     headers?: {
         /**
          * Authorization

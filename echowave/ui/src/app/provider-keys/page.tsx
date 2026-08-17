@@ -1,8 +1,16 @@
 "use client";
 
-import { AlertTriangle, CalendarClock, CheckCircle2, KeyRound, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+    AlertTriangle,
+    CalendarClock,
+    CheckCircle2,
+    KeyRound,
+    Loader2,
+    ShieldQuestion,
+    Trash2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
     deleteProviderKeyApiV1ProviderKeysDelete,
@@ -17,7 +25,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
@@ -45,29 +52,29 @@ interface ProviderCredential {
 // The three slots a key can serve. Telephony is deliberately absent: carrier
 // credentials live on a telephony configuration, which also models the KYC that
 // comes with a phone number.
+//
+// These are categories for *reading* — a filter over one list of vendors — not
+// three lists to fill in one at a time. That was the old shape of this page and
+// the reason a customer with one Sarvam account met their one Sarvam key three
+// times and reasonably concluded we wanted three different things.
 const COMPONENTS = [
-    {
-        value: "stt",
-        title: "Transcriber",
-        blurb: "Turns what the caller says into text.",
-    },
-    {
-        value: "llm",
-        title: "Language model",
-        blurb: "Decides what the agent says next. Also used for speech-to-speech models and embeddings.",
-    },
-    {
-        value: "tts",
-        title: "Voice",
-        blurb: "Speaks the agent's replies.",
-    },
+    { value: "stt", title: "Transcription", noun: "transcription" },
+    { value: "llm", title: "Model", noun: "model" },
+    { value: "tts", title: "Voice", noun: "voice" },
 ] as const;
 
-/** The slot's own name, as the cards above already title it. */
-function componentLabel(component: string): string {
-    return (
-        COMPONENTS.find((c) => c.value === component)?.title.toLowerCase() ?? component
-    );
+type ComponentValue = (typeof COMPONENTS)[number]["value"];
+
+function componentNoun(component: string): string {
+    return COMPONENTS.find((c) => c.value === component)?.noun ?? component;
+}
+
+/** "transcription, model and voice" — the vendor's coverage, said once. */
+function describeComponents(components: readonly string[]): string {
+    const nouns = components.map(componentNoun);
+    if (nouns.length === 0) return "";
+    if (nouns.length === 1) return nouns[0];
+    return `${nouns.slice(0, -1).join(", ")} and ${nouns[nouns.length - 1]}`;
 }
 
 // Vendors capitalise their own names, and title-casing produces "Openai" and
@@ -84,6 +91,8 @@ const PROVIDER_NAMES: Record<string, string> = {
     huggingface: "Hugging Face",
     minimax: "MiniMax",
     xai: "xAI",
+    assemblyai: "AssemblyAI",
+    azure_speech: "Azure Speech",
 };
 
 function providerLabel(provider: string): string {
@@ -141,6 +150,14 @@ export default function ProviderKeysPage() {
     return <ProviderKeysScreen />;
 }
 
+interface ProviderRow {
+    provider: string;
+    /** Every slot this vendor can serve, from the registry. */
+    serves: ComponentValue[];
+    /** What is stored today, one row per component. */
+    stored: ProviderCredential[];
+}
+
 function ProviderKeysScreen() {
     const auth = useAuth();
     const router = useRouter();
@@ -158,6 +175,7 @@ function ProviderKeysScreen() {
     const [encryptionConfigured, setEncryptionConfigured] = useState(true);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [filter, setFilter] = useState<"all" | ComponentValue>("all");
 
     const [gcalStatus, setGcalStatus] = useState<GoogleCalendarStatus | null>(null);
     const [gcalLoading, setGcalLoading] = useState(true);
@@ -166,16 +184,22 @@ function ProviderKeysScreen() {
         { kind: "success" | "error"; text: string } | null
     >(null);
 
-    const [dialogComponent, setDialogComponent] = useState<string | null>(null);
-    const [formProvider, setFormProvider] = useState("");
+    // The vendor being connected. Provider-first: the dialog opens knowing who
+    // it is for, and asks only for the key.
+    const [dialogProvider, setDialogProvider] = useState<ProviderRow | null>(null);
     const [formKey, setFormKey] = useState("");
     const [formLabel, setFormLabel] = useState("");
-    // On by default: a vendor account is normally one account, and the same key
-    // works across everything it serves. The customer who genuinely holds two
-    // keys with one vendor turns it off.
-    const [formApplyAll, setFormApplyAll] = useState(true);
+    // The escape hatch, off by default. Holding two keys with one vendor on
+    // separate billing is a real case — it is why apply_to_all_components
+    // exists — but it is not the common one, and making it the default is what
+    // produced the three-times-pasted key.
+    const [advanced, setAdvanced] = useState(false);
+    const [chosenComponents, setChosenComponents] = useState<ComponentValue[]>([]);
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
+    const [notice, setNotice] = useState<
+        { kind: "verified" | "unverified"; text: string } | null
+    >(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -256,67 +280,82 @@ function ProviderKeysScreen() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const connectGoogleCalendar = async () => {
-        setGcalBusy(true);
-        setGcalMessage(null);
-        const accessToken = await auth.getAccessToken();
-        const result = await googleCalendarFetch("/authorize-url", accessToken);
-        if (result.error || !result.data) {
-            setGcalMessage({
-                kind: "error",
-                text: (result.error as string) || "Could not start the connect flow",
+    /**
+     * One row per vendor, not per slot.
+     *
+     * This is the whole inversion. The registry already knows which components
+     * each vendor serves, so the page asks the question Vapi asks — *which
+     * vendor do you have an account with* — and derives the rest.
+     */
+    const providers: ProviderRow[] = useMemo(() => {
+        const serves = new Map<string, ComponentValue[]>();
+        for (const { value } of COMPONENTS) {
+            for (const provider of providersByComponent[value] ?? []) {
+                serves.set(provider, [...(serves.get(provider) ?? []), value]);
+            }
+        }
+        return [...serves.entries()]
+            .map(([provider, components]) => ({
+                provider,
+                serves: components,
+                stored: credentials.filter((c) => c.provider === provider),
+            }))
+            .sort((a, b) => {
+                // Connected vendors first — what you came to check is what you
+                // already have — then alphabetically.
+                const connected = Number(b.stored.length > 0) - Number(a.stored.length > 0);
+                return connected || providerLabel(a.provider).localeCompare(providerLabel(b.provider));
             });
-            setGcalBusy(false);
-            return;
-        }
-        window.location.href = (result.data as { url: string }).url;
-    };
+    }, [providersByComponent, credentials]);
 
-    const disconnectGoogleCalendar = async () => {
-        setGcalBusy(true);
-        setGcalMessage(null);
-        const accessToken = await auth.getAccessToken();
-        const result = await googleCalendarFetch("/disconnect", accessToken, { method: "POST" });
-        if (result.error) {
-            setGcalMessage({ kind: "error", text: result.error });
-        } else {
-            setGcalMessage({ kind: "success", text: "Google Calendar disconnected." });
-            await loadGoogleCalendarStatus();
-        }
-        setGcalBusy(false);
-    };
+    const visibleProviders = useMemo(
+        () =>
+            filter === "all"
+                ? providers
+                : providers.filter((row) => row.serves.includes(filter)),
+        [providers, filter],
+    );
 
-    const openDialog = (component: string) => {
-        setDialogComponent(component);
-        setFormProvider("");
+    const connectedCount = providers.filter((row) => row.stored.length > 0).length;
+
+    const openDialog = (row: ProviderRow) => {
+        setDialogProvider(row);
         setFormKey("");
-        setFormLabel("");
+        setFormLabel(row.stored[0]?.label ?? "");
+        setAdvanced(false);
+        setChosenComponents(row.serves);
         setFormError(null);
     };
-
-    // The other slots this vendor also serves, read off the same provider lists
-    // the pickers use — so the offer can never name a component the vendor does
-    // not actually support.
-    const alsoServes = dialogComponent
-        ? ["stt", "llm", "tts"].filter(
-              (component) =>
-                  component !== dialogComponent &&
-                  (providersByComponent[component] ?? []).includes(formProvider),
-          )
-        : [];
 
     const saveKey = async () => {
-        if (!dialogComponent) return;
+        if (!dialogProvider) return;
         setSaving(true);
         setFormError(null);
+        setNotice(null);
+
+        // Which slots this key covers. The default is every slot the vendor
+        // serves — one account, one key — with the per-component choice behind
+        // "advanced" for the customer who genuinely holds several.
+        const components = advanced ? chosenComponents : dialogProvider.serves;
+        if (components.length === 0) {
+            setFormError("Choose at least one thing this key is for.");
+            setSaving(false);
+            return;
+        }
+
+        // Covering everything the vendor serves is one request the backend
+        // writes in a single transaction. A subset — only reachable through
+        // "advanced" — has to be stored a slot at a time, so the slots the
+        // customer did *not* choose keep whatever key they already had.
+        const coversEverything = components.length === dialogProvider.serves.length;
 
         const result = await setProviderKeyApiV1ProviderKeysPut({
             body: {
-                component: dialogComponent,
-                provider: formProvider,
+                component: components[0],
+                provider: dialogProvider.provider,
                 api_key: formKey.trim(),
                 label: formLabel.trim() || null,
-                apply_to_all_components: formApplyAll && alsoServes.length > 0,
+                apply_to_all_components: coversEverything,
             },
         });
 
@@ -326,33 +365,77 @@ function ProviderKeysScreen() {
             return;
         }
 
+        if (!coversEverything) {
+            for (const component of components.slice(1)) {
+                const extra = await setProviderKeyApiV1ProviderKeysPut({
+                    body: {
+                        component,
+                        provider: dialogProvider.provider,
+                        api_key: formKey.trim(),
+                        label: formLabel.trim() || null,
+                        apply_to_all_components: false,
+                    },
+                });
+                if (extra.error) {
+                    setFormError(detailFromError(extra.error, "Failed to save the key"));
+                    setSaving(false);
+                    await load();
+                    return;
+                }
+            }
+        }
+
+        // Whether the vendor actually confirmed the key, or we only stored it.
+        // Showing the same tick for both is what made a Connect button a lie.
+        const verification = (result.data as { verification?: string; verification_message?: string }) ?? {};
+        if (verification.verification === "unverified") {
+            setNotice({
+                kind: "unverified",
+                text:
+                    verification.verification_message ??
+                    "The key was stored but could not be checked.",
+            });
+        } else {
+            setNotice({
+                kind: "verified",
+                text: `${providerLabel(dialogProvider.provider)} accepted the key.`,
+            });
+        }
+
         setSaving(false);
-        setDialogComponent(null);
+        setDialogProvider(null);
         await load();
     };
 
-    const toggleActive = async (credential: ProviderCredential, isActive: boolean) => {
-        const result = await setProviderKeyActiveApiV1ProviderKeysActivePost({
-            body: {
-                component: credential.component,
-                provider: credential.provider,
-                is_active: isActive,
-            },
-        });
-        if (result.error) {
-            setError(detailFromError(result.error, "Failed to update the key"));
-            return;
+    /** Disconnecting a vendor removes every slot it was covering. */
+    const removeProvider = async (row: ProviderRow) => {
+        for (const credential of row.stored) {
+            const result = await deleteProviderKeyApiV1ProviderKeysDelete({
+                query: { component: credential.component, provider: credential.provider },
+            });
+            if (result.error) {
+                setError(detailFromError(result.error, "Failed to remove the key"));
+                await load();
+                return;
+            }
         }
         await load();
     };
 
-    const removeKey = async (credential: ProviderCredential) => {
-        const result = await deleteProviderKeyApiV1ProviderKeysDelete({
-            query: { component: credential.component, provider: credential.provider },
-        });
-        if (result.error) {
-            setError(detailFromError(result.error, "Failed to remove the key"));
-            return;
+    const setProviderActive = async (row: ProviderRow, isActive: boolean) => {
+        for (const credential of row.stored) {
+            const result = await setProviderKeyActiveApiV1ProviderKeysActivePost({
+                body: {
+                    component: credential.component,
+                    provider: credential.provider,
+                    is_active: isActive,
+                },
+            });
+            if (result.error) {
+                setError(detailFromError(result.error, "Failed to update the key"));
+                await load();
+                return;
+            }
         }
         await load();
     };
@@ -372,11 +455,12 @@ function ProviderKeysScreen() {
             <div>
                 <h1 className="text-3xl font-bold">Provider keys</h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                    Your own API keys for the model vendors you have accounts with. Store a
-                    key here once, then choose it on any agent.{" "}
+                    Connect the vendors you already have an account with. One key per
+                    vendor, entered once — we work out which parts of the pipeline it
+                    covers.{" "}
                     <span className="text-foreground">
-                        Anything you do not store a key for runs on Decibyl&apos;s keys and is
-                        billed at the published rate
+                        Anything you do not connect runs on Decibyl&apos;s keys and is billed
+                        at the published rate
                     </span>{" "}
                     — you never have to bring a key to get an agent working.
                 </p>
@@ -403,6 +487,23 @@ function ProviderKeysScreen() {
                 </div>
             )}
 
+            {notice && (
+                <div
+                    className={
+                        notice.kind === "verified"
+                            ? "flex items-start gap-2 rounded-md border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-400"
+                            : "flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400"
+                    }
+                >
+                    {notice.kind === "verified" ? (
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                    ) : (
+                        <ShieldQuestion className="mt-0.5 h-4 w-4 shrink-0" />
+                    )}
+                    {notice.text}
+                </div>
+            )}
+
             {gcalMessage && (
                 <div
                     className={
@@ -415,6 +516,142 @@ function ProviderKeysScreen() {
                     {gcalMessage.text}
                 </div>
             )}
+
+            {/* Categories as a filter over one list of vendors, which is what
+                makes them a way of reading rather than three things to fill in. */}
+            <div className="flex flex-wrap items-center gap-2">
+                <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
+                    All providers
+                    <span className="ml-1.5 text-xs opacity-70">{providers.length}</span>
+                </FilterChip>
+                {COMPONENTS.map((component) => (
+                    <FilterChip
+                        key={component.value}
+                        active={filter === component.value}
+                        onClick={() => setFilter(component.value)}
+                    >
+                        {component.title}
+                        <span className="ml-1.5 text-xs opacity-70">
+                            {providers.filter((row) => row.serves.includes(component.value)).length}
+                        </span>
+                    </FilterChip>
+                ))}
+                <span className="ml-auto text-xs text-muted-foreground">
+                    {connectedCount === 0
+                        ? "Nothing connected — everything runs on Decibyl's keys"
+                        : `${connectedCount} connected`}
+                </span>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+                {visibleProviders.map((row) => {
+                    const connected = row.stored.length > 0;
+                    const paused = connected && row.stored.every((c) => !c.is_active);
+                    return (
+                        <Card key={row.provider} className="flex flex-col">
+                            <CardHeader className="space-y-1 pb-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <CardTitle className="text-base">
+                                        {providerLabel(row.provider)}
+                                    </CardTitle>
+                                    {connected ? (
+                                        paused ? (
+                                            <Badge variant="secondary">Paused</Badge>
+                                        ) : (
+                                            <Badge className="bg-green-600 hover:bg-green-600">
+                                                Connected
+                                            </Badge>
+                                        )
+                                    ) : (
+                                        <Badge variant="outline" className="text-muted-foreground">
+                                            Not connected
+                                        </Badge>
+                                    )}
+                                </div>
+                                <CardDescription>
+                                    Covers {describeComponents(row.serves)}
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="mt-auto space-y-3">
+                                {connected ? (
+                                    <>
+                                        <p className="font-mono text-xs text-muted-foreground">
+                                            {row.stored[0].masked_key}
+                                            {row.stored[0].label ? ` · ${row.stored[0].label}` : ""}
+                                        </p>
+                                        {/* When a vendor serves several slots but only
+                                            some are on this key, say so rather than
+                                            implying full coverage. */}
+                                        {row.stored.length < row.serves.length && (
+                                            <p className="text-xs text-amber-700 dark:text-amber-400">
+                                                Used for{" "}
+                                                {describeComponents(row.stored.map((c) => c.component))}{" "}
+                                                only.
+                                            </p>
+                                        )}
+                                        {isOrganizationAdmin && (
+                                            <div className="flex flex-wrap items-center gap-3">
+                                                {/* Pausing rather than deleting is what you
+                                                    want while rotating at the vendor. */}
+                                                <div className="flex items-center gap-2">
+                                                    <Switch
+                                                        checked={!paused}
+                                                        onCheckedChange={(checked) =>
+                                                            setProviderActive(row, checked)
+                                                        }
+                                                        aria-label={`Use the ${row.provider} key`}
+                                                    />
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {paused ? "Paused" : "In use"}
+                                                    </span>
+                                                </div>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => openDialog(row)}
+                                                    disabled={!encryptionConfigured}
+                                                >
+                                                    Replace key
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => removeProvider(row)}
+                                                    aria-label={`Disconnect ${row.provider}`}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        )}
+                                        {!isOrganizationAdmin && (
+                                            <span className="text-xs text-muted-foreground">
+                                                {paused ? "Paused" : "In use"}
+                                            </span>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                                            <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                            <span>Runs on Decibyl&apos;s key.</span>
+                                        </p>
+                                        {isOrganizationAdmin && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => openDialog(row)}
+                                                disabled={!encryptionConfigured}
+                                            >
+                                                Connect
+                                            </Button>
+                                        )}
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
+                    );
+                })}
+            </div>
 
             <Card>
                 <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
@@ -483,160 +720,45 @@ function ProviderKeysScreen() {
                 </CardContent>
             </Card>
 
-            {COMPONENTS.map((component) => {
-                const stored = credentials.filter((c) => c.component === component.value);
-                return (
-                    <Card key={component.value}>
-                        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-                            <div>
-                                <CardTitle className="text-lg">{component.title}</CardTitle>
-                                <CardDescription>{component.blurb}</CardDescription>
-                            </div>
-                            {isOrganizationAdmin && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openDialog(component.value)}
-                                    disabled={!encryptionConfigured}
-                                >
-                                    <Plus className="mr-1.5 h-4 w-4" />
-                                    Add key
-                                </Button>
-                            )}
-                        </CardHeader>
-                        <CardContent>
-                            {stored.length === 0 ? (
-                                <p className="flex items-start gap-2 text-sm text-muted-foreground">
-                                    <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                    <span>
-                                        No key stored. Agents using {component.title.toLowerCase()}{" "}
-                                        run on Decibyl&apos;s key.
-                                    </span>
-                                </p>
-                            ) : (
-                                <ul className="divide-y">
-                                    {stored.map((credential) => (
-                                        <li
-                                            key={credential.id}
-                                            className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                                        >
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-medium">
-                                                        {providerLabel(credential.provider)}
-                                                    </span>
-                                                    {!credential.is_active && (
-                                                        <Badge variant="secondary">Paused</Badge>
-                                                    )}
-                                                </div>
-                                                <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                                                    {credential.masked_key}
-                                                    {credential.label ? ` · ${credential.label}` : ""}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                {/* Pausing rather than deleting is what you want
-                                                    while rotating at the vendor: agents fail over
-                                                    to managed instead of authenticating with a key
-                                                    that is being revoked. */}
-                                                {isOrganizationAdmin ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <Switch
-                                                            checked={credential.is_active}
-                                                            onCheckedChange={(checked) =>
-                                                                toggleActive(credential, checked)
-                                                            }
-                                                            aria-label={`Use this ${credential.provider} key`}
-                                                        />
-                                                        <span className="text-xs text-muted-foreground">
-                                                            {credential.is_active ? "In use" : "Paused"}
-                                                        </span>
-                                                    </div>
-                                                ) : (
-                                                    // A member still needs to know whether the key
-                                                    // is carrying traffic — that is the difference
-                                                    // between "my slot is on our own key" and "it
-                                                    // quietly fell back to Decibyl's".
-                                                    <span className="text-xs text-muted-foreground">
-                                                        {credential.is_active ? "In use" : "Paused"}
-                                                    </span>
-                                                )}
-                                                {isOrganizationAdmin && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => removeKey(credential)}
-                                                        aria-label={`Remove the ${credential.provider} key`}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </CardContent>
-                    </Card>
-                );
-            })}
-
             <p className="text-xs text-muted-foreground">
                 {!rolesLoaded || isOrganizationAdmin ? (
                     <>
-                        Keys are encrypted before they are stored and are never shown again —
-                        only the last four characters. To change one, add it again.
+                        Keys are checked against the vendor when you connect, then encrypted
+                        and never shown again — only the last four characters. To change one,
+                        connect it again.
                     </>
                 ) : (
                     // Says what a member can do here rather than leaving them to
                     // discover the missing buttons: they came to find out which
                     // keys exist so they can pick one in a model slot, and that
-                    // still works. Adding and removing needs an admin.
+                    // still works. Connecting and removing needs an admin.
                     <>
                         Keys are stored encrypted and only ever shown as their last four
-                        characters. You can see which keys this account holds and choose them
-                        in a model slot; adding, pausing or removing one needs an Owner or
-                        Admin.
+                        characters. You can see which vendors this account is connected to and
+                        choose them in a model slot; connecting, pausing or removing one needs
+                        an Owner or Admin.
                     </>
                 )}
             </p>
 
             <Dialog
-                open={dialogComponent !== null}
-                onOpenChange={(open) => !open && setDialogComponent(null)}
+                open={dialogProvider !== null}
+                onOpenChange={(open) => !open && setDialogProvider(null)}
             >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
-                            Add a{" "}
-                            {COMPONENTS.find((c) => c.value === dialogComponent)?.title.toLowerCase()}{" "}
-                            key
+                            Connect {dialogProvider ? providerLabel(dialogProvider.provider) : ""}
                         </DialogTitle>
                         <DialogDescription>
-                            Paste the whole key. It is encrypted immediately and cannot be read
-                            back.
+                            Paste the key from your{" "}
+                            {dialogProvider ? providerLabel(dialogProvider.provider) : ""} account.
+                            We check it with them before storing it. It is encrypted immediately
+                            and cannot be read back.
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>Provider</Label>
-                            <Select value={formProvider} onValueChange={setFormProvider}>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Choose the vendor this key is for" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {(providersByComponent[dialogComponent ?? ""] ?? []).map(
-                                        (provider) => (
-                                            <SelectItem key={provider} value={provider}>
-                                                {providerLabel(provider)}
-                                            </SelectItem>
-                                        ),
-                                    )}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
                         <div className="space-y-2">
                             <Label htmlFor="provider-api-key">API key</Label>
                             <Input
@@ -649,30 +771,58 @@ function ProviderKeysScreen() {
                             />
                         </div>
 
-                        {/* Only shown when it is true. A checkbox offering to
-                            apply a key to nothing else reads as a broken
-                            control. */}
-                        {alsoServes.length > 0 && (
-                            <label className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm">
-                                <input
-                                    type="checkbox"
-                                    className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--primary)]"
-                                    checked={formApplyAll}
-                                    onChange={(event) =>
-                                        setFormApplyAll(event.currentTarget.checked)
-                                    }
-                                />
-                                <span>
-                                    <span className="font-medium">
-                                        Also use for {alsoServes.map(componentLabel).join(" and ")}
-                                    </span>
-                                    <span className="block text-xs text-muted-foreground">
-                                        {providerLabel(formProvider)} serves them too, and one
-                                        account normally means one key. Turn this off if you hold
-                                        separate keys.
-                                    </span>
-                                </span>
-                            </label>
+                        {dialogProvider && dialogProvider.serves.length > 1 && (
+                            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm">
+                                {!advanced ? (
+                                    <div className="flex items-start justify-between gap-3">
+                                        <span>
+                                            <span className="font-medium">
+                                                Used for {describeComponents(dialogProvider.serves)}
+                                            </span>
+                                            <span className="block text-xs text-muted-foreground">
+                                                One account normally means one key.
+                                            </span>
+                                        </span>
+                                        <button
+                                            type="button"
+                                            className="shrink-0 text-xs underline text-muted-foreground"
+                                            onClick={() => setAdvanced(true)}
+                                        >
+                                            Use a different key per part
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <p className="text-xs text-muted-foreground">
+                                            Choose what this key is for. Do this when you hold
+                                            separate {providerLabel(dialogProvider.provider)} keys on
+                                            different billing.
+                                        </p>
+                                        {dialogProvider.serves.map((component) => (
+                                            <label
+                                                key={component}
+                                                className="flex items-center gap-2.5"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    className="h-4 w-4 shrink-0 accent-[color:var(--primary)]"
+                                                    checked={chosenComponents.includes(component)}
+                                                    onChange={(event) =>
+                                                        setChosenComponents((current) =>
+                                                            event.currentTarget.checked
+                                                                ? [...current, component]
+                                                                : current.filter((c) => c !== component),
+                                                        )
+                                                    }
+                                                />
+                                                <span>
+                                                    {COMPONENTS.find((c) => c.value === component)?.title}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         )}
 
                         <div className="space-y-2">
@@ -691,19 +841,73 @@ function ProviderKeysScreen() {
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setDialogComponent(null)}>
+                        <Button variant="outline" onClick={() => setDialogProvider(null)}>
                             Cancel
                         </Button>
                         <Button
                             onClick={saveKey}
-                            disabled={saving || !formProvider || formKey.trim().length < 8}
+                            disabled={saving || formKey.trim().length < 8}
                         >
                             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save key
+                            {saving ? "Checking the key…" : "Connect"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
+    );
+
+    async function connectGoogleCalendar() {
+        setGcalBusy(true);
+        setGcalMessage(null);
+        const accessToken = await auth.getAccessToken();
+        const result = await googleCalendarFetch("/authorize-url", accessToken);
+        if (result.error || !result.data) {
+            setGcalMessage({
+                kind: "error",
+                text: (result.error as string) || "Could not start the connect flow",
+            });
+            setGcalBusy(false);
+            return;
+        }
+        window.location.href = (result.data as { url: string }).url;
+    }
+
+    async function disconnectGoogleCalendar() {
+        setGcalBusy(true);
+        setGcalMessage(null);
+        const accessToken = await auth.getAccessToken();
+        const result = await googleCalendarFetch("/disconnect", accessToken, { method: "POST" });
+        if (result.error) {
+            setGcalMessage({ kind: "error", text: result.error });
+        } else {
+            setGcalMessage({ kind: "success", text: "Google Calendar disconnected." });
+            await loadGoogleCalendarStatus();
+        }
+        setGcalBusy(false);
+    }
+}
+
+function FilterChip({
+    active,
+    onClick,
+    children,
+}: {
+    active: boolean;
+    onClick: () => void;
+    children: React.ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={
+                active
+                    ? "rounded-full border border-transparent bg-[color:var(--primary)] px-3 py-1.5 text-sm font-medium text-[color:var(--primary-foreground)]"
+                    : "rounded-full border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted"
+            }
+        >
+            {children}
+        </button>
     );
 }

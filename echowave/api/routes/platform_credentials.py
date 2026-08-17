@@ -18,7 +18,9 @@ from pydantic import BaseModel, Field
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_superuser
+from api.services.configuration import key_validation
 from api.services.configuration import platform_credentials as creds
+from api.services.configuration.registry import components_for_provider
 
 router = APIRouter(
     prefix="/admin/provider-keys",
@@ -32,6 +34,18 @@ class SetCredentialRequest(BaseModel):
     provider: str = Field(..., min_length=1, max_length=64)
     api_key: str = Field(..., min_length=8)
     label: str | None = Field(None, max_length=128)
+    apply_to_all_components: bool = Field(
+        False,
+        description="Store this key for every component this provider serves.",
+    )
+    verify: bool = Field(
+        True,
+        description=(
+            "Check the key against the vendor before storing it. A rejected "
+            "key is refused; a vendor we cannot reach is stored and reported "
+            "as unverified."
+        ),
+    )
 
 
 class ActiveRequest(BaseModel):
@@ -69,21 +83,62 @@ async def list_provider_keys() -> dict[str, Any]:
 async def set_provider_key(
     request: SetCredentialRequest, user: UserModel = Depends(get_superuser)
 ) -> dict[str, Any]:
-    """Store or rotate one key. The value is write-only from here on."""
+    """Store or rotate one key. The value is write-only from here on.
+
+    Same two behaviours as the customer vault, and for the same reasons: the key
+    is checked against the vendor first and a rejected one is refused, and
+    ``apply_to_all_components`` stores it against every component that vendor
+    serves in one transaction. A platform key is worse to get wrong than a
+    customer's — it is what every managed account runs on — so it is not the
+    place to have the weaker of the two checks.
+    """
+    validation = (
+        await key_validation.validate_key(request.provider, request.api_key)
+        if request.verify
+        else key_validation.ValidationResult(
+            "unverified", "The key was stored without being checked."
+        )
+    )
+    if not validation.may_store:
+        raise HTTPException(status_code=400, detail=validation.message)
+
+    components = [request.component]
+    if request.apply_to_all_components:
+        serves = components_for_provider(request.provider)
+        # The requested component leads, so it is the one reported back. An
+        # unknown provider falls through to the single component and lets
+        # set_credential reject it, rather than silently storing nothing.
+        components = [request.component] + [
+            component for component in serves if component != request.component
+        ]
+
     async with db_client.async_session() as session:
+        stored = []
         try:
-            credential = await creds.set_credential(
-                session,
-                actor_user_id=user.id,
-                component=request.component,
-                provider=request.provider,
-                api_key=request.api_key,
-                label=request.label,
-            )
+            for component in components:
+                stored.append(
+                    await creds.set_credential(
+                        session,
+                        actor_user_id=user.id,
+                        component=component,
+                        provider=request.provider,
+                        api_key=request.api_key,
+                        label=request.label,
+                    )
+                )
         except creds.PlatformCredentialError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        # One commit for the whole set: a key that landed on two of three
+        # components would leave the platform half-configured, with the failure
+        # that caused it invisible.
         await session.commit()
-    return _view(credential)
+
+    return {
+        **_view(stored[0]),
+        "applied_to": [c.component for c in stored],
+        "verification": validation.outcome,
+        "verification_message": validation.message,
+    }
 
 
 @router.post("/active")

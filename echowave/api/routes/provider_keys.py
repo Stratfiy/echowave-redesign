@@ -25,6 +25,7 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationRole
 from api.services.auth.depends import get_user, require_organization_role
+from api.services.configuration import key_validation
 from api.services.configuration import organization_credentials as creds
 from api.services.configuration.registry import components_for_provider
 
@@ -46,6 +47,18 @@ class SetCredentialRequest(BaseModel):
     apply_to_all_components: bool = Field(
         False,
         description="Store this key for every component this provider serves.",
+    )
+    # An escape hatch, not a default. A vendor we cannot reach already stores
+    # the key and reports it unverified, so this exists only for the case where
+    # the customer knows the probe itself is wrong — a proxied endpoint, a key
+    # scoped so narrowly the probe's own call is refused.
+    verify: bool = Field(
+        True,
+        description=(
+            "Check the key against the vendor before storing it. A rejected "
+            "key is refused; a vendor we cannot reach is stored and reported "
+            "as unverified."
+        ),
     )
 
 
@@ -101,8 +114,25 @@ async def set_provider_key(
     With ``apply_to_all_components`` the same key is stored against every
     component this vendor serves, in one transaction — so a Sarvam key entered
     once covers speech-to-text, the language model and synthesis together.
+
+    The key is checked against the vendor first. A key the vendor **rejects** is
+    refused here with the vendor's own complaint, rather than being stored to
+    fail later on a live call where it looks like "the agent didn't answer". A
+    key we simply could not check — no probe for that vendor, or the vendor is
+    unreachable — is stored, and the response says so; our incompleteness or a
+    vendor's outage should not stop a customer configuring their account.
     """
     organization_id = _organization_id(user)
+
+    validation = (
+        await key_validation.validate_key(request.provider, request.api_key)
+        if request.verify
+        else key_validation.ValidationResult(
+            "unverified", "The key was stored without being checked."
+        )
+    )
+    if not validation.may_store:
+        raise HTTPException(status_code=400, detail=validation.message)
 
     components = [request.component]
     if request.apply_to_all_components:
@@ -137,7 +167,15 @@ async def set_provider_key(
         # that caused it invisible.
         await session.commit()
 
-    return {**_view(stored[0]), "applied_to": [c.component for c in stored]}
+    return {
+        **_view(stored[0]),
+        "applied_to": [c.component for c in stored],
+        # So the screen can say "Connected" only when the vendor actually said
+        # so, and "Stored, not verified" otherwise, rather than showing the same
+        # tick for both.
+        "verification": validation.outcome,
+        "verification_message": validation.message,
+    }
 
 
 @router.post("/active")
