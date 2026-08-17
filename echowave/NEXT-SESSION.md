@@ -200,12 +200,31 @@ git submodule update --init --recursive echowave/pipecat   # the FORK, not PyPI
 venv/bin/pip install -e ./pipecat
 venv/bin/pip install soundfile aiortc deepgram-sdk google-genai groq \
     azure-cognitiveservices-speech google-api-core google-cloud-speech \
-    sarvamai speechmatics-voice opencv-python-headless pgvector
+    sarvamai speechmatics-voice opencv-python-headless pgvector \
+    google-cloud-texttospeech camb-sdk
 apt-get install -y postgresql-16-pgvector    # the SERVER extension, not the wheel
 pg_ctlcluster 16 main start && redis-server --daemonize yes
 su postgres -c "createdb decibyl"
 su postgres -c "psql -c \"ALTER ROLE postgres WITH PASSWORD 'postgres'\""
 ```
+
+**The last two packages are new to this list and each costs an hour to
+rediscover.** Without `google-cloud-texttospeech` 43 modules fail to collect;
+without `camb-sdk` exactly one test fails
+(`test_camb_tts_integration::test_create_tts_service_camb`), which reads like a
+real regression and is not one. The extra `pip install pytest` line matters for
+the same reason: `scripts/setup_requirements.sh --dev` does **not** install
+pytest, so a bare `pytest` runs a system copy from outside the venv and dies on
+`ModuleNotFoundError: dotenv` — which looks like a broken conftest.
+
+With all of it in place the suite is green with no collection errors, so the
+"41 collection errors on unmodified main" note above is a description of a
+missing environment rather than of the repository.
+
+`tests/test_tts_endframe_with_audio_write_failure.py` failed once in one full
+run and passed in isolation and in a clean re-run. Pre-existing flakiness; do
+not chase it as a regression, but do not assume every failure there is flaky
+either.
 
 Postgres and Redis stop between long gaps — a sudden wall of
 `ConnectionRefusedError ('127.0.0.1', 5432)` means restart them, not that you
@@ -229,6 +248,27 @@ Chromium is at `/opt/pw-browsers/chromium`; launch with `--no-sandbox`.
 
 A stub returning `[]` for everything makes some pages throw
 `Cannot read properties of undefined`. That is the stub, not the page.
+
+**Dump the real payloads rather than hand-writing them.** `/model-configurations`
+reads deep into the defaults shape and throws on anything approximate; calling
+`api.routes.organization.get_model_configuration_v2_defaults` offline and
+serving the JSON is faster than guessing. `/provider-keys` needs
+`/api/v1/user/auth/user` to carry `staff_role` and `organization_role`, or
+`useAccessRoles` reports unprivileged and every admin control is hidden.
+
+Three traps that each cost real time:
+
+* **`pkill -f "next start"` does not stop it.** It runs npm exec → sh → node,
+  and the node child keeps port 3014, serving the *previous* build. The symptom
+  is a code change with no effect, or a 404 for a chunk from a build that no
+  longer exists. Kill by port instead.
+* **Only `/api/v1` belongs to the stub.** `/api/config/*` and `/api/auth/*` are
+  Next's own route handlers; intercept them and the app decides the backend is
+  unreachable and renders skeletons.
+* **Strip `Accept-Encoding` when proxying to Next**, or a gzipped body reaches
+  the browser labelled as plain text and the page screenshots as binary noise.
+  Node's `urllib` also honours the container's `http_proxy` for localhost, which
+  hangs; pass an empty `ProxyHandler`.
 
 **A fresh account gets the welcome questionnaire**, which covers the screen and
 blocks Playwright clicks. Answer all four `[role="combobox"]` selects and click
