@@ -24,9 +24,54 @@ know before a real payment, not during one.
 
 ## 2. Provider keys — the I/O contract
 
-You asked specifically about this. Here is exactly what goes in and comes out.
+You asked specifically about this, and specifically about the **customer-facing**
+page. The headline is in §2.1: the shape is wrong, and it is a UI problem rather
+than a schema one, which makes it cheap to fix.
 
-### There are two separate vaults
+### 2.1 The actual complaint — one key, pasted three times
+
+**Our page is component-first. Vapi's is provider-first. That is the whole
+difference.**
+
+Today `/provider-keys` renders three sections — Transcriber, Language model,
+Voice — each with its own *Add key* button. So the customer's first decision is
+*which slot am I filling*, and the provider is the second. A customer with one
+Sarvam account holding one Sarvam key therefore meets that key three times, once
+per slot, and reasonably concludes we are asking for three different things.
+
+Vapi asks the opposite question first: *which vendor do you have an account
+with*. One key per provider, entered once. Categories are how the list is
+grouped for reading, not a thing you fill in one at a time.
+
+**The good news: the backend already supports the right shape.** `PUT
+/api/v1/provider-keys` takes `apply_to_all_components`, which stores one key
+against every component that vendor serves in a single transaction, and the UI
+already computes the "also serves" set from the registry
+(`components_for_provider`). Sarvam and ElevenLabs each serve all three.
+
+So the fix is an **inversion of the page, not a migration**:
+
+- List **providers**, grouped by category for reading (Transcription / Model /
+  Voice), the way Vapi groups them. Telephony is deliberately *not* one of these
+  categories: carrier credentials live on a telephony configuration, which also
+  models the KYC that comes with a phone number. Do not fold it in.
+- One *Connect* action per provider. Ask for the key once.
+- Derive the components from `components_for_provider` and send them; stop making
+  the customer tell us something the registry already knows.
+- Show state per provider — **Connected / Not connected**, with the masked last
+  four and the label — rather than a key repeated across three sections.
+- Keep the multi-component case honest: when a vendor serves several slots, say
+  so on the card ("covers transcription, model and voice") rather than silently
+  writing three rows.
+- Keep the escape hatch. Two keys with one vendor on separate billing is a real
+  case — it is why `apply_to_all_components` defaults false. Make it an
+  "advanced: use a different key per component" affordance, not the default path.
+
+The storage model stays `(organization_id, component, provider)`. That is fine
+and should not change — it is what lets the escape hatch exist at all. Only the
+question order changes.
+
+### 2.2 There are two separate vaults
 
 | | Customer BYOK | Platform (yours) |
 |---|---|---|
@@ -40,7 +85,7 @@ You asked specifically about this. Here is exactly what goes in and comes out.
 there are what makes an account "managed" — a customer with no key of their own
 runs on yours and is metered against your rate card.
 
-### Input
+### 2.3 Input
 
 `PUT /api/v1/provider-keys` (and the platform equivalent):
 
@@ -60,7 +105,7 @@ covers STT, LLM and TTS in a single transaction. It is off by default because
 holding two keys with one vendor on separate billing is a real case, and
 silently overwriting the other one would be worse than the extra typing.
 
-### Output — there is no read path, by design
+### 2.4 Output — there is no read path, by design
 
 Every response returns:
 
@@ -85,7 +130,7 @@ stolen session into every key the account holds.
 Practical consequence for you: **keep your keys in your own password manager.**
 Once pasted here they are one-way. Rotation is re-paste, not read-modify-write.
 
-### The other three operations
+### 2.5 The other three operations
 
 - `GET ""` — list, masked. Also returns `encryption_configured` so the screen can
   say *why* saving fails rather than showing a generic error.
@@ -95,7 +140,7 @@ Once pasted here they are one-way. Rotation is re-paste, not read-modify-write.
   that is being revoked mid-rotation.
 - `DELETE ""` — `?component=&provider=` as query params, not a body.
 
-### ⚠️ The gap that will bite you tomorrow
+### 2.6 ⚠️ The gap that will bite you tomorrow
 
 **Nothing validates the key when you save it.** I checked — there is no live
 call to the vendor anywhere in the save path. A typo'd, revoked, or
@@ -110,7 +155,7 @@ numbers to clients.
 Until it does: after adding each key, place one test call on that provider
 before trusting it.
 
-### Supported providers, by component
+### 2.7 Supported providers, by component
 
 Read out of the registry on `7f5ae49`:
 
@@ -233,8 +278,8 @@ Not blockers for a test, but do not be surprised:
 
 | Thing | State |
 |---|---|
-| Provider key validation on save | **Missing** — top of the providers-page rebuild |
-| Providers page grouping | Flat list; Vapi-style categories not built |
+| `/provider-keys` shape | **Component-first** — the same vendor key must be entered once per slot. Should be provider-first, like Vapi. See §2.1 |
+| Provider key validation on save | **Missing** — a dead key is accepted and fails on a live call |
 | Call transfer on Plivo | `NotImplementedError` |
 | Knowledge-base document upload | Broken — calls MPS, which does not resolve |
 | `stt:openai` rate | May still be missing → undercosted calls |
@@ -252,9 +297,11 @@ Not blockers for a test, but do not be surprised:
 
 1. Re-run the **money** and **provider-keys/telephony** audits (they never ran).
 2. Fix whatever they find.
-3. **Provider key validation on save** — before you hand out test numbers.
-4. Providers page in the Vapi shape (four categories, connected/not-connected
-   state, validate on add).
+3. **Rebuild `/provider-keys` provider-first** (§2.1) **and validate the key on
+   save** (§2.6). One piece of work, not two — both change the same dialog, and
+   the validation call is what makes a *Connect* button honest. This should land
+   **before** clients get test numbers, because both failures currently surface
+   as "the agent didn't answer".
 5. Notifications + OTP, built on Resend. The competitor research is done and the
    headline is: your low-balance ladder already beats Vapi, Retell, Bland and
    Synthflow — none of them documents a low-balance email at all. The real gaps
