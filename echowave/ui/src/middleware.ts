@@ -5,8 +5,31 @@ import { getServerBackendUrl } from '@/lib/apiClient';
 
 const OSS_TOKEN_COOKIE = 'decibyl_auth_token';
 
-// Paths that don't require authentication in OSS mode
-const PUBLIC_PATHS = ['/auth/login', '/auth/signup'];
+// Paths that don't require authentication in OSS mode.
+//
+// Every entry here is a page whose whole job is to run *before* a session
+// exists, so guarding it is guaranteed to break the thing it guards.
+//
+//   /auth/login, /auth/signup  — the obvious two.
+//   /auth/google               — where the backend callback hands the browser
+//                                back with `?token=`. This page is what calls
+//                                /api/auth/session and creates the cookie the
+//                                middleware looks for, so requiring the cookie
+//                                to reach it made Google sign-in impossible on
+//                                every deployment: the redirect below dropped
+//                                the query string, and the token with it, and
+//                                the user landed back on /auth/login with no
+//                                error to explain why.
+//   /invitations/accept        — an invitee following an emailed link is by
+//                                definition not a member yet, and often has no
+//                                account at all. Bouncing them to /auth/login
+//                                discarded the invitation token the same way.
+const PUBLIC_PATHS = [
+  '/auth/login',
+  '/auth/signup',
+  '/auth/google',
+  '/invitations/accept',
+];
 
 let cachedAuthProvider: string | null = null;
 

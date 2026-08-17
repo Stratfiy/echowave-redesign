@@ -20,6 +20,28 @@ import { Suspense, useEffect, useRef, useState } from "react";
 
 import { getAuthUserApiV1UserAuthUserGet } from "@/client/sdk.gen";
 
+/**
+ * Where we are willing to send the browser after a sign-in.
+ *
+ * `next` travels from a query parameter on `/auth/google/start`, through the
+ * signed OAuth state, to here — and signing it proves *we* issued it, not that
+ * it is safe. Anyone can call `/auth/google/start?next=https://evil.example`
+ * and get back a genuine Google authorization URL; the victim signs in for
+ * real and is handed straight to the attacker's page, at the exact moment they
+ * are most likely to trust what they are looking at and re-enter a credential.
+ *
+ * So: same-origin paths only. A leading `//` or `/\` is rejected because the
+ * browser reads both as protocol-relative — `//evil.example` is a different
+ * host, not a path on this one.
+ */
+function safeNext(next: string | null): string {
+    const fallback = "/after-sign-in";
+    if (!next) return fallback;
+    if (!next.startsWith("/")) return fallback;
+    if (next.startsWith("//") || next.startsWith("/\\")) return fallback;
+    return next;
+}
+
 function Handoff() {
     const params = useSearchParams();
     const router = useRouter();
@@ -47,14 +69,25 @@ function Handoff() {
                     headers: { Authorization: `Bearer ${token}` },
                 });
 
+                // Checked explicitly. The generated client resolves to
+                // `{data, error}` and does NOT throw on a 4xx/5xx, so the
+                // previous `user.data ?? null` turned a failed identity lookup
+                // into a *successful* sign-in carrying `user: null`. The
+                // session cookie was then written with the literal string
+                // "null", `getOSSUser` threw on every subsequent read, and the
+                // app rendered as signed-out-but-not-redirected — permanently,
+                // with no error ever shown and no way back except clearing
+                // cookies by hand.
+                if (user.error || !user.data) throw new Error("identity");
+
                 const res = await fetch("/api/auth/session", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ token, user: user.data ?? null }),
+                    body: JSON.stringify({ token, user: user.data }),
                 });
                 if (!res.ok) throw new Error("session");
 
-                window.location.href = next || "/after-sign-in";
+                window.location.href = safeNext(next);
             } catch {
                 setError("We could not finish signing you in. Please try again.");
             }

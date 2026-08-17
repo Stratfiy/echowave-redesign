@@ -34,6 +34,15 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  // The second factor, once the server has told us this account has one.
+  //
+  // The backend has always answered `401 detail="mfa_required"` and this form
+  // had nowhere to put a code — it rendered the literal string "mfa_required"
+  // in a toast and stopped. Anyone who enabled MFA was locked out of the
+  // product permanently, because the only route that can disable it needs the
+  // session they can no longer get.
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,11 +50,22 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
 
     try {
       const res = await loginApiV1AuthLoginPost({
-        body: { email, password },
+        body: {
+          email,
+          password,
+          // Only once asked for. Sending an empty string on the first attempt
+          // would be a wrong code rather than no code.
+          ...(mfaRequired && mfaCode.trim() ? { mfa_code: mfaCode.trim() } : {}),
+        },
       });
 
       if (res.error || !res.data) {
         const detail = (res.error as { detail?: string })?.detail;
+        if (detail === "mfa_required") {
+          // Not a failure to report — the password was right. Ask for the code.
+          setMfaRequired(true);
+          return;
+        }
         toast.error(detail || "Login failed");
         return;
       }
@@ -101,13 +121,35 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
             data-testid="login-password-input"
           />
         </div>
+        {/* Only after the server has asked. Rendering it always would prompt
+            every user for a code most of them do not have. */}
+        {mfaRequired && (
+          <div className="space-y-2">
+            <Label htmlFor="mfa-code">Authentication code</Label>
+            <Input
+              id="mfa-code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              placeholder="6-digit code, or a recovery code"
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value)}
+              required
+              data-testid="login-mfa-input"
+            />
+            <p className="text-xs text-muted-foreground">
+              From your authenticator app. If you have lost it, use one of the
+              recovery codes you saved when you turned this on.
+            </p>
+          </div>
+        )}
         <Button
           type="submit"
           className="w-full bg-brand-blue text-primary-foreground shadow-[0_10px_30px_-12px_rgba(238,120,35,0.55)] hover:bg-brand-blue-hover"
           disabled={loading}
           data-testid="login-submit-btn"
         >
-          {loading ? "Signing in..." : "Sign in →"}
+          {loading ? "Signing in..." : mfaRequired ? "Verify →" : "Sign in →"}
         </Button>
       </form>
 

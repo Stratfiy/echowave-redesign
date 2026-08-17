@@ -329,8 +329,22 @@ async def google_callback(
     except google_oauth.GoogleAuthError as exc:
         return _google_failure(str(exc))
 
+    # Two independent questions, deliberately answered separately.
+    #
+    # They used to share one if/else — "is this email unverified" chose between
+    # marking it verified and resolving the organization — which quietly made
+    # them the same question. They are not. An existing account with
+    # `email_verified_at` NULL took the first branch, so `organization` and
+    # `event` were never bound and the next line raised UnboundLocalError: a
+    # 500 and a raw error page instead of a sign-in. That is not an edge case —
+    # every account predating email verification has NULL (see the section
+    # below), so it fired on the *first* Google sign-in of every existing
+    # account.
+    #
+    # Question one: does this person have an account and an organization.
     user = await db_client.get_user_by_email(identity.email)
-    if user is None:
+    is_new_account = user is None
+    if is_new_account:
         if not ENABLE_SIGNUP:
             return _google_failure("Signup is disabled on this deployment.")
         user = await db_client.create_user_with_email(
@@ -338,19 +352,12 @@ async def google_callback(
         )
         organization = await provision_new_account(user, referral_code=referral_code)
         event = PostHogEvent.SIGNED_UP
-
-    # Google already proved this address — complete_sign_in refuses any token
-    # whose email Google has not verified, which is the check that stands
-    # between us and somebody claiming an address on a domain Google does not
-    # control. Mailing a code to confirm what we just confirmed would be
-    # theatre, and would leave every Google account permanently unverified.
-    if getattr(user, "email_verified_at", None) is None:
-        await db_client.mark_email_verified(user.id, verified_at=datetime.now(UTC))
     else:
         # Linking to an existing account, which is only safe because
         # complete_sign_in has already refused any unverified email — see the
         # module docstring in services/auth/google_oauth.py. An account with a
         # password keeps it; this adds a way in rather than replacing one.
+        #
         # A returning account already has its organization selected. Only an
         # account that never finished provisioning — a signup that failed
         # part-way — needs it built now, and doing it here is what stops that
@@ -363,6 +370,34 @@ async def google_callback(
         if organization is None:
             organization = await provision_new_account(user)
         event = PostHogEvent.SIGNED_IN
+
+    # A second factor is a second factor, whichever door you come through.
+    #
+    # The password path refuses to mint a session until the code is supplied;
+    # this path did not consult `mfa_enabled` at all, so anybody who could get
+    # Google to vouch for the address walked straight past it. That negates the
+    # factor entirely for any account whose email is a Google identity — which
+    # is the majority of them.
+    #
+    # Sent back to the password form rather than prompted for a code here: the
+    # code exchange belongs to one flow, and building a second one on the OAuth
+    # callback is how the two drift apart. An account with MFA on has a
+    # password by construction — `/auth/mfa/enroll` is behind `get_user` and
+    # enrolment is only reachable from an account that already signed in.
+    if not is_new_account and getattr(user, "mfa_enabled", False):
+        return _google_failure(
+            "This account has two-factor authentication enabled. "
+            "Sign in with your email and password, then enter your code."
+        )
+
+    # Question two: has this address been proved. Google already proved it —
+    # complete_sign_in refuses any token whose email Google has not verified,
+    # which is the check that stands between us and somebody claiming an
+    # address on a domain Google does not control. Mailing a code to confirm
+    # what we just confirmed would be theatre, and would leave every Google
+    # account permanently unverified.
+    if getattr(user, "email_verified_at", None) is None:
+        await db_client.mark_email_verified(user.id, verified_at=datetime.now(UTC))
 
     token = create_jwt_token(user.id, identity.email)
     capture_event(
