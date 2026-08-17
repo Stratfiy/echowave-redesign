@@ -98,14 +98,6 @@ def test_trigger_route_executes_as_workflow_owner():
             "api.routes.public_agent.number_lifecycle.assert_configuration_may_serve",
             new=AsyncMock(return_value=None),
         ),
-        # The provider-key gate resolves the account's model configuration
-        # through its own clients, not the one patched above. Stubbed for the
-        # same reason as the suspension gate; it is covered in
-        # test_byok_key_readiness.py.
-        patch(
-            "api.routes.public_agent.key_readiness.assert_workflow_may_run",
-            new=AsyncMock(return_value=None),
-        ),
     ):
         slot = object()
         mock_concurrency.acquire_org_slot = AsyncMock(return_value=slot)
@@ -204,14 +196,6 @@ def test_workflow_uuid_route_uses_scoped_lookup_and_shared_execution():
             "api.routes.public_agent.number_lifecycle.assert_configuration_may_serve",
             new=AsyncMock(return_value=None),
         ),
-        # The provider-key gate resolves the account's model configuration
-        # through its own clients, not the one patched above. Stubbed for the
-        # same reason as the suspension gate; it is covered in
-        # test_byok_key_readiness.py.
-        patch(
-            "api.routes.public_agent.key_readiness.assert_workflow_may_run",
-            new=AsyncMock(return_value=None),
-        ),
     ):
         slot = object()
         mock_concurrency.acquire_org_slot = AsyncMock(return_value=slot)
@@ -283,14 +267,6 @@ def test_trigger_route_rejects_when_concurrency_limit_reached():
             "api.routes.public_agent.number_lifecycle.assert_configuration_may_serve",
             new=AsyncMock(return_value=None),
         ),
-        # The provider-key gate resolves the account's model configuration
-        # through its own clients, not the one patched above. Stubbed for the
-        # same reason as the suspension gate; it is covered in
-        # test_byok_key_readiness.py.
-        patch(
-            "api.routes.public_agent.key_readiness.assert_workflow_may_run",
-            new=AsyncMock(return_value=None),
-        ),
     ):
         mock_concurrency.acquire_org_slot = AsyncMock(
             side_effect=CallConcurrencyLimitError(
@@ -359,14 +335,6 @@ def test_trigger_route_releases_concurrency_slot_when_quota_fails():
         # stub, same reason, as test_telephony_routes.py.
         patch(
             "api.routes.public_agent.number_lifecycle.assert_configuration_may_serve",
-            new=AsyncMock(return_value=None),
-        ),
-        # The provider-key gate resolves the account's model configuration
-        # through its own clients, not the one patched above. Stubbed for the
-        # same reason as the suspension gate; it is covered in
-        # test_byok_key_readiness.py.
-        patch(
-            "api.routes.public_agent.key_readiness.assert_workflow_may_run",
             new=AsyncMock(return_value=None),
         ),
     ):

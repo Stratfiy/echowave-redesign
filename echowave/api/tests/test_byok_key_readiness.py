@@ -29,6 +29,7 @@ def _byok_llm_with_no_inline_key():
         tts=None,
         realtime=None,
         embeddings=None,
+        is_realtime=False,
     )
 
 
@@ -122,6 +123,81 @@ class TestOptingIntoFallback:
             organization_id=7,
             allow_managed_fallback=True,
         )
+
+
+@pytest.mark.asyncio
+class TestSlotsTheCallNeverUses:
+    """The regression that took inbound calling down in production.
+
+    `byok_resolution.missing_keys` reports on every BYOK section it knows
+    about, and that set includes `embeddings` — which a voice call never
+    touches. An account with a leftover embeddings vendor and no key for it had
+    every inbound call refused over a slot the call would not have used, on a
+    pipeline that was configured correctly.
+    """
+
+    async def test_an_empty_embeddings_slot_does_not_refuse_a_voice_call(
+        self, empty_vault
+    ):
+        effective = SimpleNamespace(
+            llm=OpenAILLMService(api_key="sk-inline", model="gpt-4o"),
+            stt=None,
+            tts=None,
+            realtime=None,
+            # A vendor named, no key anywhere. Irrelevant to a voice call.
+            embeddings=OpenAILLMService(api_key="", model="text-embedding-3-small"),
+            is_realtime=False,
+        )
+
+        await byok_resolution.apply(effective, organization_id=7)
+        await key_readiness.assert_keys_available(
+            effective,
+            organization_id=7,
+            allow_managed_fallback=False,
+        )
+
+    async def test_an_empty_realtime_slot_does_not_refuse_a_pipeline_call(
+        self, empty_vault
+    ):
+        """`realtime` is only reached when the agent is speech-to-speech."""
+        effective = SimpleNamespace(
+            llm=OpenAILLMService(api_key="sk-inline", model="gpt-4o"),
+            stt=None,
+            tts=None,
+            realtime=OpenAILLMService(api_key="", model="gpt-realtime"),
+            embeddings=None,
+            is_realtime=False,
+        )
+
+        await byok_resolution.apply(effective, organization_id=7)
+        await key_readiness.assert_keys_available(
+            effective,
+            organization_id=7,
+            allow_managed_fallback=False,
+        )
+
+    async def test_a_realtime_agent_is_still_refused_on_its_realtime_slot(
+        self, empty_vault
+    ):
+        """Narrowing the check must not turn it off for the agent that does
+        use the slot."""
+        effective = SimpleNamespace(
+            llm=None,
+            stt=None,
+            tts=None,
+            realtime=OpenAILLMService(api_key="", model="gpt-realtime"),
+            embeddings=None,
+            is_realtime=True,
+        )
+
+        await byok_resolution.apply(effective, organization_id=7)
+
+        with pytest.raises(key_readiness.ProviderKeyMissing):
+            await key_readiness.assert_keys_available(
+                effective,
+                organization_id=7,
+                allow_managed_fallback=False,
+            )
 
 
 @pytest.mark.asyncio

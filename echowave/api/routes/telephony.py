@@ -964,18 +964,25 @@ async def handle_inbound_run(request: Request):
                 TelephonyError.WORKFLOW_NOT_FOUND
             )
 
-        # An agent whose own key is missing cannot hold a conversation either.
-        # The caller cannot be told why — they are a member of the public — but
-        # the provider's rejection is a far better answer than being connected
-        # to an agent that will not speak, and the operator gets the reason in
-        # the log.
-        try:
-            await key_readiness.assert_workflow_may_run(workflow)
-        except key_readiness.ProviderKeyMissing as exc:
-            logger.warning(f"/inbound/run: {exc}")
-            return provider_class.generate_validation_error_response(
-                TelephonyError.WORKFLOW_NOT_FOUND
-            )
+        # NOTE: the provider-key readiness gate deliberately does NOT run here.
+        #
+        # It did, briefly, and it broke inbound calling in production. Two
+        # reasons, either of which is enough:
+        #
+        # * It asks about every BYOK section, including `realtime` and
+        #   `embeddings`. A voice pipeline uses neither, so an account with a
+        #   leftover embeddings vendor and no key for it had every inbound call
+        #   refused over a slot the call would never touch.
+        # * It resolves `workflow.workflow_configurations`, while the call
+        #   actually runs on `workflow_run.definition.workflow_configurations`.
+        #   Refusing a call based on a configuration it will not use is a guess
+        #   dressed as a check.
+        #
+        # An inbound caller is a member of the public who cannot fix any of
+        # this, so the cost of a false refusal is entirely theirs and entirely
+        # invisible to the operator. The outbound test-call path keeps the gate:
+        # there a human is watching, the message is actionable, and a false
+        # refusal is an inconvenience rather than a phone that stops working.
 
         user_id = workflow.user_id
 

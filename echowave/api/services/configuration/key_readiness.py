@@ -58,6 +58,20 @@ class ProviderKeyMissing(Exception):
         self.sections = sections or []
 
 
+def _sections_in_use(effective) -> set[str]:
+    """The slots this call will actually run through.
+
+    ``byok_resolution`` reports on every BYOK section it knows about, which
+    includes ``embeddings`` and — on a pipeline agent — ``realtime``. Neither is
+    touched by a voice call, so refusing on them refuses a call over a slot it
+    would never have used. That is not a hypothetical: it took inbound calling
+    down, on accounts whose pipeline was configured correctly.
+    """
+    if getattr(effective, "is_realtime", False):
+        return {"realtime", "llm"}
+    return {"stt", "llm", "tts"}
+
+
 def _describe(sections: list[str]) -> str:
     labels = [_SECTION_LABELS.get(name, name) for name in sections]
     if len(labels) == 1:
@@ -84,9 +98,13 @@ async def assert_keys_available(
     if organization_id is None or allow_managed_fallback:
         return
 
-    missing = await byok_resolution.missing_keys(
-        effective, organization_id=organization_id
-    )
+    missing = [
+        name
+        for name in await byok_resolution.missing_keys(
+            effective, organization_id=organization_id
+        )
+        if name in _sections_in_use(effective)
+    ]
     if not missing:
         return
 

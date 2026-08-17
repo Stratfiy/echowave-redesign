@@ -20,7 +20,6 @@ from api.services.campaign.errors import (
 )
 from api.services.campaign.rate_limiter import rate_limiter
 from api.services.compliance import dnd
-from api.services.configuration import key_readiness
 from api.services.organization_preferences import get_organization_preferences
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony import number_lifecycle
@@ -302,21 +301,15 @@ class CampaignCallDispatcher:
                 )
                 return
 
-            # An agent with an unfillable model slot is refused the same way and
-            # for the same reason: retrying dials the same missing key again,
-            # and forty thousand rows of it would look like a carrier fault to
-            # the circuit breaker.
-            try:
-                await key_readiness.assert_workflow_may_run(workflow)
-            except key_readiness.ProviderKeyMissing as exc:
-                logger.warning(
-                    f"Campaign {campaign.id} queued run {queued_run.id} not "
-                    f"dialled: {exc}"
-                )
-                await self.mark_queued_run_refused(
-                    queued_run, reason=exc.reason, detail=str(exc)
-                )
-                return
+            # NOTE: the provider-key readiness gate deliberately does NOT run
+            # here. It refuses on any BYOK section without a key, including
+            # `realtime` and `embeddings` that a voice pipeline never touches,
+            # and it reads the workflow's configuration rather than the run's.
+            # A false positive on this path is worse than anywhere else: a
+            # campaign refusal is terminal, so one unused empty slot would burn
+            # every row in a forty-thousand-row campaign, permanently, with no
+            # retry. It stays on the outbound test call, where a human sees the
+            # message and can act on it.
 
             # Extract phone number
             phone_number = queued_run.context_variables.get("phone_number")
