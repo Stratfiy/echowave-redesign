@@ -18,7 +18,9 @@ from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     call_concurrency,
 )
+from api.services.compliance import dnd
 from api.services.quota_service import authorize_workflow_run_start
+from api.services.telephony import number_lifecycle
 from api.services.telephony.factory import (
     get_default_telephony_provider,
     get_telephony_provider_by_id,
@@ -223,6 +225,46 @@ async def _execute_resolved_target(
             status_code=400,
             detail="Telephony provider not configured for this organization",
         )
+
+    # Verified is not the same as paid for. A number whose rental is overdue
+    # past the suspension threshold stops carrying calls, and dunning is
+    # meaningless if the highest-volume dial path ignores it.
+    if resolved_cfg_id is not None:
+        try:
+            await number_lifecycle.assert_configuration_may_serve(resolved_cfg_id)
+        except number_lifecycle.NumberSuspended as exc:
+            raise HTTPException(status_code=402, detail=str(exc)) from exc
+
+    # TCCCPR: the do-not-disturb list and the calling window. This endpoint
+    # dials numbers the customer supplies as data, which is exactly the traffic
+    # those rules govern — and it is the endpoint an integration uses in volume,
+    # so leaving it unscrubbed made the list and the window advisory in
+    # practice. Checked before the run is created so a refusal costs neither a
+    # run nor a concurrency slot.
+    #
+    # 451 rather than 403: refused for a legal reason, not for lack of
+    # permission. The two have completely different remedies.
+    from api.services.organization_preferences import get_organization_preferences
+
+    preferences = await get_organization_preferences(
+        target.organization_id,
+        # Same reason the db= below is passed: otherwise this opens its own
+        # session on its own engine, which is a second event loop's worth of
+        # connections for one lookup.
+        db=db_client,
+    )
+    try:
+        request.phone_number = await dnd.assert_may_call(
+            target.organization_id,
+            request.phone_number,
+            timezone_name=preferences.timezone,
+            # The module-level client this route uses for everything else;
+            # otherwise assert_may_call imports its own, which is a second
+            # engine on a second event loop.
+            db=db_client,
+        )
+    except dnd.CallRefused as exc:
+        raise HTTPException(status_code=451, detail=str(exc)) from exc
 
     # 7. Determine the workflow run mode based on provider type
     workflow_run_mode = provider.PROVIDER_NAME

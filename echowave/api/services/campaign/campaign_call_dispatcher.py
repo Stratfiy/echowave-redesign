@@ -22,6 +22,7 @@ from api.services.campaign.rate_limiter import rate_limiter
 from api.services.compliance import dnd
 from api.services.organization_preferences import get_organization_preferences
 from api.services.quota_service import authorize_workflow_run_start
+from api.services.telephony import number_lifecycle
 from api.services.workflow import liveness
 from api.utils.common import get_backend_endpoints
 
@@ -332,6 +333,26 @@ class CampaignCallDispatcher:
                 )
                 await self.mark_queued_run_refused(
                     queued_run, reason=exc.reason, detail=str(exc)
+                )
+                return
+
+            # Verified is not the same as paid for. A number whose rental is
+            # overdue past the suspension threshold stops carrying calls; a
+            # campaign that kept dialling on it would make dunning advisory for
+            # the one path that dials in volume. Refused like a DND hit rather
+            # than raised: it is a fact about the account, so retrying the row
+            # would fail identically and must not trip the circuit breaker.
+            try:
+                await number_lifecycle.assert_configuration_may_serve(
+                    campaign.telephony_configuration_id
+                )
+            except number_lifecycle.NumberSuspended as exc:
+                logger.info(
+                    f"Campaign {campaign.id} queued run {queued_run.id} not "
+                    f"dialled: {exc}"
+                )
+                await self.mark_queued_run_refused(
+                    queued_run, reason="number_suspended", detail=str(exc)
                 )
                 return
 

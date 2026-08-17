@@ -90,7 +90,17 @@ async def measure(
             CallCostItemModel.provider,
             CallCostItemModel.component,
             func.sum(CallCostItemModel.units).label("units"),
-            func.sum(CallCostItemModel.cost_paise).label("cost_paise"),
+            # The **vendor** figure, not the customer-facing one. This report
+            # exists to answer "is the rate card still what the vendor charges",
+            # so it has to compare like with like: `cost_paise` is the line
+            # after markup, so summing it made every marked-up component report
+            # a realized rate of exactly the markup multiple — 1.40x on the
+            # default 14000 bps — and read as "the card understates cost".
+            # Telephony carries no markup and so reported 1.00x, which made the
+            # false signal look selective and therefore credible. An operator
+            # acting on it would raise the card to 1.4x vendor cost and then
+            # charge the markup on top of that.
+            func.sum(CallCostItemModel.provider_cost_paise).label("cost_paise"),
             func.count(func.distinct(CallCostItemModel.workflow_run_id)).label("calls"),
         )
         .join(

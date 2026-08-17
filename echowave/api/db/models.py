@@ -2809,6 +2809,21 @@ class CreditLedgerModel(Base):
             "created_at",
             postgresql_where=text("kind = 'reservation'"),
         ),
+        # A captured payment credits at most once. `handle_webhook` takes a row
+        # lock on the payment before crediting, which is what makes the ordinary
+        # retry a no-op; this is the backstop for the case the lock cannot cover
+        # — two deliveries handled by different API processes against different
+        # sessions, where the application-level check is the only thing between
+        # them and a second credit. Razorpay delivers at least once, so this is
+        # an expected event rather than a defensive one.
+        Index(
+            "uq_credit_ledger_topup_ref",
+            "organization_id",
+            "ref_type",
+            "ref_id",
+            unique=True,
+            postgresql_where=text("kind = 'topup' AND ref_id IS NOT NULL"),
+        ),
         # A rental period debits at most once. recurring_charge_periods already
         # refuses a duplicate period row, but the debit and that row are two
         # writes: this is what makes the ledger side safe on its own, so a

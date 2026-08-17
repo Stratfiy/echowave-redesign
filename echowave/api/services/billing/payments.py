@@ -12,8 +12,11 @@ lose money:
    reporting "payment succeeded" is not evidence — it is an unauthenticated
    client asserting it should be given credit.
 2. **The webhook is idempotent.** Razorpay delivers at least once, not exactly
-   once. A retry must be a no-op, enforced by a partial unique index on the
-   payment id rather than by a check-then-write race.
+   once. A retry must be a no-op, enforced by a row lock on the payment plus a
+   partial unique index on the credited ledger row rather than by a
+   check-then-write race. The check on its own is not enough: two deliveries of
+   one event both read ``status='created'`` under READ COMMITTED and both write
+   a credit, because nothing they touch before the money moves contends.
 3. **The amount comes from the order we created**, not from the payload. A
    payload claiming ₹50,000 against an order for ₹100 credits ₹100 and is
    logged.
@@ -46,6 +49,7 @@ from api.constants import (
 from api.db.models import CreditLedgerModel, PaymentModel
 from api.enums import CreditLedgerKind
 from api.services.billing.billing_profile import get_profile
+from api.services.billing.money import round_half_up_div
 from api.services.billing.tax import TaxError, compute_tax
 
 PROVIDER = "razorpay"
@@ -320,10 +324,17 @@ async def handle_webhook(
     if not payment_id or not order_id:
         raise PaymentError("Webhook is missing a payment or order id")
 
+    # Locked, not merely read. Razorpay delivers at least once and will retry a
+    # delivery that has not been acknowledged yet — so the retry routinely
+    # overlaps the first attempt, which is slow because issuing the receipt
+    # voucher takes the document-sequence lock. Without this, both transactions
+    # read `status='created'`, both pass the idempotency check below, and both
+    # write a credit: the first row either of them touches in common is the
+    # payments row, and by then the money has already moved.
     payment = await session.scalar(
-        select(PaymentModel).where(
-            PaymentModel.provider == PROVIDER, PaymentModel.order_id == order_id
-        )
+        select(PaymentModel)
+        .where(PaymentModel.provider == PROVIDER, PaymentModel.order_id == order_id)
+        .with_for_update()
     )
     if payment is None:
         # An order we never created. Logged rather than credited: this is either
@@ -347,8 +358,27 @@ async def handle_webhook(
 
     # --- payment.captured ---
 
-    if payment.status == "paid" and payment.payment_id == payment_id:
-        # The idempotent path. Razorpay delivers at least once.
+    if payment.status == "paid":
+        if payment.payment_id == payment_id:
+            # The idempotent path. Razorpay delivers at least once.
+            return {"status": "already_credited", "order_id": order_id}
+
+        # A *different* captured payment against an order we have already
+        # credited. Matching on the payment id alone let this fall through to
+        # the crediting branch and pay out a second time, and the top-up
+        # uniqueness index does not catch it either — a different payment id is
+        # a different ref, so the row is distinct.
+        #
+        # An order is for one payment, so this is refused rather than credited,
+        # and loudly: it is either a duplicate capture at the provider or a
+        # forged order id, and both want a human rather than a credit.
+        logger.error(
+            "Razorpay order {} was already credited for payment {}, but a "
+            "second capture {} arrived. Refusing to credit it again.",
+            order_id,
+            payment.payment_id,
+            payment_id,
+        )
         return {"status": "already_credited", "order_id": order_id}
 
     paid_paise = int(entity.get("amount") or 0)
@@ -363,7 +393,6 @@ async def handle_webhook(
     # Falls back to the net amount for rows written before GST existed, where
     # gross and net were the same number.
     expected_gross = int(payment.gross_paise or payment.amount_paise)
-    tax_paise = expected_gross - int(payment.amount_paise)
 
     if paid_paise <= 0:
         raise PaymentError("Refusing to credit a non-positive amount")
@@ -380,17 +409,27 @@ async def handle_webhook(
         )
         credited = int(payment.amount_paise)
     elif paid_paise < expected_gross:
-        # A partial capture. Credit what was actually paid, net of the tax
-        # proportion already accounted for, so an underpayment cannot buy full
-        # credit.
+        # A partial capture. Credit the **proportional** share of net credit,
+        # so an underpayment cannot buy full credit and cannot buy less than it
+        # paid for either.
+        #
+        # Subtracting the whole order's tax from a part payment was wrong in the
+        # customer's disfavour, and increasingly so as the shortfall grew: on a
+        # ₹1,000 order (gross ₹1,180, tax ₹180) a ₹590 capture credited
+        # 59000 − 18000 = ₹410 rather than ₹500, and a ₹200 capture credited
+        # ₹20. It also left the tax inside the part payment accounted to nobody.
+        # Splitting it in the ratio the order was priced at keeps the net/tax
+        # proportion of a partial payment the same as a whole one.
         logger.error(
             "Razorpay webhook amount {} is short of order {} gross {}; crediting "
-            "the shortfall net of tax",
+            "the proportional net share",
             paid_paise,
             order_id,
             expected_gross,
         )
-        credited = max(0, paid_paise - tax_paise)
+        credited = round_half_up_div(
+            paid_paise * int(payment.amount_paise), expected_gross
+        )
     else:
         credited = int(payment.amount_paise)
 
@@ -426,7 +465,30 @@ async def handle_webhook(
     # the document can be issued afterwards.
     from api.services.billing.documents import issue_receipt_voucher
 
-    voucher = await issue_receipt_voucher(session, payment=payment)
+    # That rule has to hold for every failure, not only the configured-supplier
+    # one it was written for. `issue_receipt_voucher` recomputes tax from the
+    # live billing profile, and `compute_tax` raises `TaxError` — a `ValueError`,
+    # not a `PaymentError` — for an export with no LUT. Uncaught, that escaped
+    # the route's `except PaymentError`, the commit never ran, and the money was
+    # collected by Razorpay while the credit and the payment record were rolled
+    # back. Every redelivery then hit the same profile and failed identically,
+    # so the customer stayed charged and uncredited permanently.
+    #
+    # Inside a savepoint so a failure that got as far as writing cannot poison
+    # the outer transaction that holds the credit.
+    voucher = None
+    try:
+        async with session.begin_nested():
+            voucher = await issue_receipt_voucher(session, payment=payment)
+    except Exception as exc:  # noqa: BLE001 — the credit outranks the document
+        logger.error(
+            "Credited org {} for Razorpay payment {} but could not issue the "
+            "receipt voucher: {}. The payment stands; the document has to be "
+            "issued separately.",
+            payment.organization_id,
+            payment_id,
+            exc,
+        )
 
     logger.info(
         "Credited org {} with {} paise from Razorpay payment {}{}",

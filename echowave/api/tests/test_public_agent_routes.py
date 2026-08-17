@@ -1,11 +1,32 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.routes.public_agent import router
 from api.services.call_concurrency import CallConcurrencyLimitError
+
+
+@pytest.fixture(autouse=True)
+def _calling_window_open(monkeypatch):
+    """Hold the TCCCPR calling window open for this module.
+
+    These tests are about the trigger API's routing and quota behaviour, not
+    about the window — but the route checks the window immediately before
+    dialling, using the wall clock. Left alone, every test here passes between
+    09:00 and 21:00 IST and returns 451 the rest of the day: green all
+    afternoon, red all evening, and looking exactly like a flake rather than a
+    timezone.
+
+    Same fixture, same reasoning, as test_telephony_routes.py. The window itself
+    is covered properly in test_dnd_gate.py, which pins ``now`` instead.
+    """
+    monkeypatch.setattr(
+        "api.services.compliance.dnd.within_calling_hours",
+        lambda **kwargs: True,
+    )
 
 
 def _make_test_app() -> FastAPI:
@@ -70,6 +91,13 @@ def test_trigger_route_executes_as_workflow_owner():
             "api.routes.public_agent.get_backend_endpoints",
             new=AsyncMock(return_value=("https://api.example.com", "wss://ignored")),
         ),
+        # The rental-suspension gate resolves the config's caller ID through its
+        # own module-level client, which is not the one patched above. Same
+        # stub, same reason, as test_telephony_routes.py.
+        patch(
+            "api.routes.public_agent.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         slot = object()
         mock_concurrency.acquire_org_slot = AsyncMock(return_value=slot)
@@ -77,6 +105,12 @@ def test_trigger_route_executes_as_workflow_owner():
         mock_concurrency.release_workflow_run_slot = AsyncMock()
         mock_concurrency.release_slot = AsyncMock()
 
+        # The trigger API scrubs against the org's do-not-disturb list
+        # immediately before dialling, using this same client. Left as a bare
+        # Mock the await fails, the gate fails closed (correctly), and every
+        # test here returns 451 — which looks like a broken route rather than an
+        # unstubbed dependency. The gate itself is covered in test_dnd_gate.py.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.validate_api_key = AsyncMock(
             return_value=SimpleNamespace(id=7, organization_id=11, created_by=22)
         )
@@ -155,6 +189,13 @@ def test_workflow_uuid_route_uses_scoped_lookup_and_shared_execution():
             "api.routes.public_agent.get_backend_endpoints",
             new=AsyncMock(return_value=("https://api.example.com", "wss://ignored")),
         ),
+        # The rental-suspension gate resolves the config's caller ID through its
+        # own module-level client, which is not the one patched above. Same
+        # stub, same reason, as test_telephony_routes.py.
+        patch(
+            "api.routes.public_agent.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         slot = object()
         mock_concurrency.acquire_org_slot = AsyncMock(return_value=slot)
@@ -162,6 +203,12 @@ def test_workflow_uuid_route_uses_scoped_lookup_and_shared_execution():
         mock_concurrency.release_workflow_run_slot = AsyncMock()
         mock_concurrency.release_slot = AsyncMock()
 
+        # The trigger API scrubs against the org's do-not-disturb list
+        # immediately before dialling, using this same client. Left as a bare
+        # Mock the await fails, the gate fails closed (correctly), and every
+        # test here returns 451 — which looks like a broken route rather than an
+        # unstubbed dependency. The gate itself is covered in test_dnd_gate.py.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.validate_api_key = AsyncMock(
             return_value=SimpleNamespace(id=8, organization_id=11, created_by=22)
         )
@@ -213,6 +260,13 @@ def test_trigger_route_rejects_when_concurrency_limit_reached():
             "api.routes.public_agent.get_default_telephony_provider",
             new=AsyncMock(return_value=provider),
         ),
+        # The rental-suspension gate resolves the config's caller ID through its
+        # own module-level client, which is not the one patched above. Same
+        # stub, same reason, as test_telephony_routes.py.
+        patch(
+            "api.routes.public_agent.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         mock_concurrency.acquire_org_slot = AsyncMock(
             side_effect=CallConcurrencyLimitError(
@@ -222,6 +276,12 @@ def test_trigger_route_rejects_when_concurrency_limit_reached():
                 max_concurrent=2,
             )
         )
+        # The trigger API scrubs against the org's do-not-disturb list
+        # immediately before dialling, using this same client. Left as a bare
+        # Mock the await fails, the gate fails closed (correctly), and every
+        # test here returns 451 — which looks like a broken route rather than an
+        # unstubbed dependency. The gate itself is covered in test_dnd_gate.py.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.validate_api_key = AsyncMock(
             return_value=SimpleNamespace(id=7, organization_id=11, created_by=22)
         )
@@ -270,12 +330,25 @@ def test_trigger_route_releases_concurrency_slot_when_quota_fails():
             "api.routes.public_agent.get_default_telephony_provider",
             new=AsyncMock(return_value=provider),
         ),
+        # The rental-suspension gate resolves the config's caller ID through its
+        # own module-level client, which is not the one patched above. Same
+        # stub, same reason, as test_telephony_routes.py.
+        patch(
+            "api.routes.public_agent.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         mock_concurrency.acquire_org_slot = AsyncMock(return_value=object())
         mock_concurrency.bind_workflow_run = AsyncMock()
         mock_concurrency.release_workflow_run_slot = AsyncMock()
         mock_concurrency.release_slot = AsyncMock()
 
+        # The trigger API scrubs against the org's do-not-disturb list
+        # immediately before dialling, using this same client. Left as a bare
+        # Mock the await fails, the gate fails closed (correctly), and every
+        # test here returns 451 — which looks like a broken route rather than an
+        # unstubbed dependency. The gate itself is covered in test_dnd_gate.py.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.validate_api_key = AsyncMock(
             return_value=SimpleNamespace(id=7, organization_id=11, created_by=22)
         )
@@ -311,6 +384,12 @@ def test_workflow_uuid_route_rejects_archived_workflows():
     workflow.status = "archived"
 
     with patch("api.routes.public_agent.db_client") as mock_db:
+        # The trigger API scrubs against the org's do-not-disturb list
+        # immediately before dialling, using this same client. Left as a bare
+        # Mock the await fails, the gate fails closed (correctly), and every
+        # test here returns 451 — which looks like a broken route rather than an
+        # unstubbed dependency. The gate itself is covered in test_dnd_gate.py.
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
         mock_db.validate_api_key = AsyncMock(
             return_value=SimpleNamespace(id=9, organization_id=11, created_by=22)
         )

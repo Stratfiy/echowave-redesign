@@ -272,6 +272,73 @@ class TestIdempotency:
         )
         assert rows == 1
 
+    async def test_a_second_payment_id_on_one_order_does_not_credit_again(
+        self, async_session
+    ):
+        """An order is for one payment.
+
+        The idempotency check used to be "status is paid *and* the payment id
+        matches", so a second captured payment id against an order already
+        credited fell straight through it into the crediting branch. The top-up
+        uniqueness index does not cover this one — a different payment id is a
+        different ref, so the second ledger row is legitimately distinct — which
+        is why the refusal has to be here.
+        """
+        org = await _org(async_session, "twoids")
+        await _order(async_session, org, order_id="order_T", amount_paise=50_000)
+
+        first = _event(order_id="order_T", payment_id="pay_T1", amount=50_000)
+        await payments.handle_webhook(
+            async_session, raw_body=first, signature=_sign(first)
+        )
+        assert await _ledger_total(async_session, org) == 50_000
+
+        second = _event(order_id="order_T", payment_id="pay_T2", amount=50_000)
+        result = await payments.handle_webhook(
+            async_session, raw_body=second, signature=_sign(second)
+        )
+
+        assert result["status"] == "already_credited"
+        assert await _ledger_total(async_session, org) == 50_000
+
+    async def test_the_database_refuses_a_duplicate_topup_credit(self, async_session):
+        """The backstop the row lock cannot provide on its own.
+
+        Two overlapping deliveries handled by different API processes hold
+        different sessions, so the application-level check is all that stands
+        between them. This asserts the partial unique index behind it, by
+        writing the second credit directly — which is what a lost race would
+        have produced.
+        """
+        from sqlalchemy.exc import IntegrityError
+
+        org = await _org(async_session, "dupidx")
+        await _order(async_session, org, order_id="order_D", amount_paise=50_000)
+        body = _event(order_id="order_D", payment_id="pay_D", amount=50_000)
+        await payments.handle_webhook(
+            async_session, raw_body=body, signature=_sign(body)
+        )
+
+        # In a savepoint so the expected IntegrityError rolls back only this
+        # insert, leaving the session usable for the assertion after it.
+        with pytest.raises(IntegrityError):
+            async with async_session.begin_nested():
+                async_session.add(
+                    CreditLedgerModel(
+                        organization_id=org.id,
+                        delta_paise=50_000,
+                        kind=CreditLedgerKind.TOPUP.value,
+                        ref_type="payment",
+                        ref_id="pay_D",
+                        balance_after_paise=100_000,
+                        note="the second credit a lost race would have written",
+                    )
+                )
+                await async_session.flush()
+
+        # The first credit stands; the duplicate never landed.
+        assert await _ledger_total(async_session, org) == 50_000
+
     async def test_a_late_failure_does_not_uncredit_a_paid_order(self, async_session):
         """A customer whose first attempt failed and second succeeded can
         produce a late ``payment.failed`` for the same order. Marking the row
@@ -335,6 +402,33 @@ class TestAmountComesFromTheOrder:
 
         assert result["credited_paise"] == 30_000
         assert await _ledger_total(async_session, org) == 30_000
+
+    async def test_a_short_payment_on_a_taxed_order_credits_the_net_proportion(
+        self, async_session
+    ):
+        """Half the gross buys half the net credit, not the gross minus the
+        whole order's tax.
+
+        Subtracting the full tax from a part payment was wrong in the customer's
+        disfavour and got worse as the shortfall grew: on this order it credited
+        ₹410 for a ₹590 payment, and a ₹200 payment would have bought ₹20. It
+        also left the tax inside the part payment accounted to nobody.
+        """
+        org = await _org(async_session, "shorttax")
+        order = await _order(
+            async_session, org, order_id="order_ST", amount_paise=100_000
+        )
+        order.gross_paise = 118_000
+        await async_session.flush()
+
+        body = _event(order_id="order_ST", payment_id="pay_ST", amount=59_000)
+        result = await payments.handle_webhook(
+            async_session, raw_body=body, signature=_sign(body)
+        )
+
+        # 59000 * 100000 / 118000 == 50000 exactly: half the gross, half the net.
+        assert result["credited_paise"] == 50_000
+        assert await _ledger_total(async_session, org) == 50_000
 
     async def test_a_zero_amount_is_refused(self, async_session):
         org = await _org(async_session, "zero")

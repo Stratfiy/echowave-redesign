@@ -406,6 +406,80 @@ class TestTheStatement:
                 period_end=PERIOD_END,
             )
 
+    async def test_a_period_overlapping_a_settled_one_is_refused(
+        self, db_session, async_session
+    ):
+        """`period_start` is not an identity for a period, and this pays out.
+
+        A statement for 1–31 March that has been issued and paid does not
+        collide on `period_start` with a "catch-up" run for 15 March–30 April,
+        so the second one re-accrued the fortnight already settled and would
+        have paid for those days a second time.
+        """
+        partner = await _partner(
+            async_session,
+            "overlap",
+            bps=1500,
+            basis=CommissionBasis.PLATFORM_FEE.value,
+        )
+        client = await _referred(async_session, "overlap-client", partner)
+        await _day(
+            async_session, client, date(2026, 3, 20), charged=400_000, provider_cost=0
+        )
+
+        settled = await earnings.generate(
+            async_session,
+            partner_organization_id=partner.id,
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+        )
+        await earnings.issue(async_session, settled)
+        await earnings.mark_paid(async_session, settled, payment_reference="neft-1")
+
+        with pytest.raises(PartnerError, match="overlaps"):
+            await earnings.generate(
+                async_session,
+                partner_organization_id=partner.id,
+                period_start=date(2026, 3, 15),
+                period_end=date(2026, 4, 30),
+            )
+
+    async def test_a_period_after_a_settled_one_is_allowed(
+        self, db_session, async_session
+    ):
+        """The guard is about overlap, not about having a past. A period that
+        starts the day after a paid one is the ordinary next statement."""
+        partner = await _partner(
+            async_session,
+            "sequential",
+            bps=1500,
+            basis=CommissionBasis.PLATFORM_FEE.value,
+        )
+        client = await _referred(async_session, "sequential-client", partner)
+        await _day(
+            async_session, client, date(2026, 3, 20), charged=400_000, provider_cost=0
+        )
+        await _day(
+            async_session, client, date(2026, 4, 10), charged=200_000, provider_cost=0
+        )
+
+        first = await earnings.generate(
+            async_session,
+            partner_organization_id=partner.id,
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+        )
+        await earnings.issue(async_session, first)
+        await earnings.mark_paid(async_session, first, payment_reference="neft-2")
+
+        second = await earnings.generate(
+            async_session,
+            partner_organization_id=partner.id,
+            period_start=date(2026, 4, 1),
+            period_end=date(2026, 4, 30),
+        )
+        assert second.amount_paise == 30_000  # 15% of 200000, April only
+
     async def test_paying_records_the_reference(self, db_session, async_session):
         partner = await _partner(
             async_session, "paid", bps=1000, basis=CommissionBasis.PLATFORM_FEE.value

@@ -141,10 +141,33 @@ async def apply(effective, *, organization_id: int | None) -> list[str]:
             )
             if not api_key:
                 unresolved.append(name)
+                # Fail over to managed rather than leaving the section pointing
+                # at a vendor with an empty key.
+                #
+                # This is the behaviour `POST /provider-keys/active` promises in
+                # so many words — "the agents pointing at it fail over to
+                # managed rather than authenticating with a key that is being
+                # revoked" — and the reason an admin is told pausing is the safe
+                # move while rotating at the vendor. Without it the section kept
+                # `provider` and an empty key, the call connected, and the
+                # caller heard silence for the length of the call while we paid
+                # the carrier for it. Silence is the worst of the three
+                # outcomes: worse than running on our key, and worse than
+                # refusing the call, because nothing anywhere says what
+                # happened.
+                #
+                # `key_source` has to move with it. It was stamped "byok" above,
+                # and billing reads it back off `usage_info` to decide whether a
+                # component was ours to charge for; leaving it would run the
+                # call on our vendor key and then decline to bill it.
+                section.use_platform_key = True
+                section.key_source = "managed"
                 logger.warning(
-                    "{} is set to {} on this account's own key, but no key for "
-                    "{} is stored. Add one under Provider Keys, or switch the "
-                    "slot to managed.",
+                    "{} is set to {} on this account's own key, but no active "
+                    "key for {} is stored — falling back to the managed key and "
+                    "billing this component at the published rate. Add a key "
+                    "under Provider Keys, or set the slot to managed to make "
+                    "this the intended state.",
                     name,
                     provider,
                     provider,

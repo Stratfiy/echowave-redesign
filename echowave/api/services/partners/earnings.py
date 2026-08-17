@@ -30,7 +30,7 @@ breakdown the way an invoice does.
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,6 +42,7 @@ from api.db.models import (
     PartnerStatementModel,
 )
 from api.enums import CommissionBasis, PartnerStatementStatus
+from api.services.billing import rollup
 from api.services.billing.money import round_half_up_div
 from api.services.partners.applications import (
     PartnerError,
@@ -133,11 +134,18 @@ async def compute_lines(
 
     async def rate_on(day: date) -> tuple[int, str] | None:
         if day not in rate_cache:
-            # End of the IST day, expressed in UTC-aware terms. A commission
-            # granted at 3pm applies to that whole day rather than to none of
-            # it: the rollup has no finer resolution, and a rate is negotiated
-            # for a period rather than for an hour.
-            at = datetime.combine(day, time(23, 59, 59), tzinfo=UTC)
+            # The last instant of the IST day. A commission granted at 3pm
+            # applies to that whole day rather than to none of it: the rollup
+            # has no finer resolution, and a rate is negotiated for a period
+            # rather than for an hour.
+            #
+            # Taken from `ist_day_bounds_utc`, which is what defines an IST day
+            # for the rollups being priced here. Writing it as 23:59:59 *UTC*
+            # named an instant 5h30m past the end of the IST day, so a rate
+            # change made between 00:00 and 05:29 IST was back-applied to the
+            # whole of the previous day — at a higher rate, that is money paid
+            # out for a rate that did not exist during any minute of it.
+            at = rollup.ist_day_bounds_utc(day)[1] - timedelta(seconds=1)
             commission = await commission_at(session, partner_organization_id, at)
             rate_cache[day] = (
                 (commission.commission_bps, commission.basis) if commission else None
@@ -216,6 +224,30 @@ async def generate(
         raise PartnerError(
             f"The statement for {period_start} was already "
             f"{existing.status}. Issue a correction rather than regenerating it."
+        )
+
+    # `period_start` alone is not an identity for a period, and this module pays
+    # money out. A statement for 1–31 August that has been issued and paid does
+    # not collide with a "catch-up" run for 15 August–30 September, so the
+    # second one silently re-accrues the fortnight already settled and pays for
+    # it twice. Overlap is the thing that must not happen, so overlap is what is
+    # checked — against issued and paid statements only, since replacing a draft
+    # is the ordinary way to pick up a late rollup.
+    overlapping = await session.scalar(
+        select(PartnerStatementModel).where(
+            PartnerStatementModel.partner_organization_id == partner_organization_id,
+            PartnerStatementModel.status != PartnerStatementStatus.DRAFT.value,
+            PartnerStatementModel.period_start <= period_end,
+            PartnerStatementModel.period_end >= period_start,
+        )
+    )
+    if overlapping is not None:
+        raise PartnerError(
+            f"{period_start}–{period_end} overlaps the statement for "
+            f"{overlapping.period_start}–{overlapping.period_end}, which was "
+            f"already {overlapping.status}. Those days have been settled; "
+            "generate a period that starts after "
+            f"{overlapping.period_end}, or issue a correction."
         )
 
     lines, basis = await compute_lines(
