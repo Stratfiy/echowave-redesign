@@ -20,6 +20,7 @@ from api.services.campaign.errors import (
 )
 from api.services.campaign.rate_limiter import rate_limiter
 from api.services.compliance import dnd
+from api.services.configuration import key_readiness
 from api.services.organization_preferences import get_organization_preferences
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony import number_lifecycle
@@ -293,6 +294,22 @@ class CampaignCallDispatcher:
                 liveness.assert_workflow_may_take_calls(workflow)
             except liveness.AgentNotTakingCalls as exc:
                 logger.info(
+                    f"Campaign {campaign.id} queued run {queued_run.id} not "
+                    f"dialled: {exc}"
+                )
+                await self.mark_queued_run_refused(
+                    queued_run, reason=exc.reason, detail=str(exc)
+                )
+                return
+
+            # An agent with an unfillable model slot is refused the same way and
+            # for the same reason: retrying dials the same missing key again,
+            # and forty thousand rows of it would look like a carrier fault to
+            # the circuit breaker.
+            try:
+                await key_readiness.assert_workflow_may_run(workflow)
+            except key_readiness.ProviderKeyMissing as exc:
+                logger.warning(
                     f"Campaign {campaign.id} queued run {queued_run.id} not "
                     f"dialled: {exc}"
                 )

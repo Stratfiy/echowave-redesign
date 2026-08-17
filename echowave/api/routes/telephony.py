@@ -33,6 +33,7 @@ from api.services.call_concurrency import (
     call_concurrency,
 )
 from api.services.compliance import dnd
+from api.services.configuration import key_readiness
 from api.services.kyc import service as kyc_service
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony import number_lifecycle, verified_numbers
@@ -219,6 +220,15 @@ async def initiate_call(
     try:
         liveness.assert_workflow_may_take_calls(workflow)
     except liveness.AgentNotTakingCalls as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    # Same 409, same reasoning: a slot set to the account's own key with no
+    # usable key behind it is a state the caller can fix. Refused here rather
+    # than at pipeline start, where it would already have cost a real call that
+    # answered with silence.
+    try:
+        await key_readiness.assert_workflow_may_run(workflow)
+    except key_readiness.ProviderKeyMissing as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     execution_user_id = _get_execution_user_id(workflow)
@@ -924,6 +934,19 @@ async def handle_inbound_run(request: Request):
             liveness.assert_workflow_may_take_calls(workflow)
         except liveness.AgentNotTakingCalls as exc:
             logger.info(f"/inbound/run: {exc}")
+            return provider_class.generate_validation_error_response(
+                TelephonyError.WORKFLOW_NOT_FOUND
+            )
+
+        # An agent whose own key is missing cannot hold a conversation either.
+        # The caller cannot be told why — they are a member of the public — but
+        # the provider's rejection is a far better answer than being connected
+        # to an agent that will not speak, and the operator gets the reason in
+        # the log.
+        try:
+            await key_readiness.assert_workflow_may_run(workflow)
+        except key_readiness.ProviderKeyMissing as exc:
+            logger.warning(f"/inbound/run: {exc}")
             return provider_class.generate_validation_error_response(
                 TelephonyError.WORKFLOW_NOT_FOUND
             )

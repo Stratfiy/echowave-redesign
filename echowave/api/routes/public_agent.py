@@ -19,6 +19,7 @@ from api.services.call_concurrency import (
     call_concurrency,
 )
 from api.services.compliance import dnd
+from api.services.configuration import key_readiness
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony import number_lifecycle
 from api.services.telephony.factory import (
@@ -265,6 +266,16 @@ async def _execute_resolved_target(
         )
     except dnd.CallRefused as exc:
         raise HTTPException(status_code=451, detail=str(exc)) from exc
+
+    # A slot set to the account's own key with no usable key behind it. 409:
+    # the agent exists and the caller may use it, but it cannot hold a
+    # conversation until somebody adds a key. Refused before the run is created,
+    # so an integration retrying in a loop does not place a call each time to
+    # produce silence.
+    try:
+        await key_readiness.assert_workflow_may_run(target.workflow)
+    except key_readiness.ProviderKeyMissing as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     # 7. Determine the workflow run mode based on provider type
     workflow_run_mode = provider.PROVIDER_NAME

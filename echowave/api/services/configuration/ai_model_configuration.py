@@ -97,6 +97,13 @@ async def get_effective_ai_model_configuration_for_workflow(
     workflow_configurations: dict | None,
 ) -> EffectiveAIModelConfiguration:
     workflow_configurations = workflow_configurations or {}
+
+    # What this account wants done when a slot is on its own key and no usable
+    # key is stored. Off by default, meaning the call is refused rather than
+    # quietly billed to them at our rate — see
+    # ``OrganizationPreferences.byok_fallback_to_managed``.
+    allow_managed_fallback = await _managed_fallback_allowed(organization_id)
+
     v2_override = workflow_configurations.get(
         WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY
     )
@@ -104,7 +111,11 @@ async def get_effective_ai_model_configuration_for_workflow(
         effective = compile_ai_model_configuration_v2(
             OrganizationAIModelConfigurationV2.model_validate(v2_override)
         )
-        await byok_resolution.apply(effective, organization_id=organization_id)
+        await byok_resolution.apply(
+            effective,
+            organization_id=organization_id,
+            allow_managed_fallback=allow_managed_fallback,
+        )
         await managed_resolution.apply(effective)
         return effective
 
@@ -122,13 +133,33 @@ async def get_effective_ai_model_configuration_for_workflow(
     # managed resolution a managed section *also* names a vendor — running this
     # second would send it to the vault for a key the customer was never asked
     # for.
-    await byok_resolution.apply(effective, organization_id=organization_id)
+    await byok_resolution.apply(
+        effective,
+        organization_id=organization_id,
+        allow_managed_fallback=allow_managed_fallback,
+    )
     # A section still saying "decibyl" has no vendor and no key. Resolve it to
     # the provider serving that tier, on our platform key, so everything
     # downstream sees an ordinary configured provider. Last, so it applies to
     # workflow overrides too.
     await managed_resolution.apply(effective)
     return effective
+
+
+async def _managed_fallback_allowed(organization_id: int | None) -> bool:
+    """Whether this account has opted into running on Decibyl's keys.
+
+    Imported inside the function: ``organization_preferences`` reaches the DB
+    client, and importing it at module scope makes this module import-heavy for
+    the several callers that only want to compile a configuration.
+    """
+    if organization_id is None:
+        return False
+
+    from api.services.organization_preferences import get_organization_preferences
+
+    preferences = await get_organization_preferences(organization_id)
+    return bool(preferences.byok_fallback_to_managed)
 
 
 async def get_organization_ai_model_configuration_v2(

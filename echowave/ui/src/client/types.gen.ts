@@ -4948,6 +4948,12 @@ export type OrganizationPreferences = {
      * Timezone
      */
     timezone?: string | null;
+    /**
+     * Byok Fallback To Managed
+     *
+     * When a slot is set to your own key and no usable key is stored, run the call on Decibyl's key and bill it at the published rate. Off means the call is refused instead.
+     */
+    byok_fallback_to_managed?: boolean;
 };
 
 /**

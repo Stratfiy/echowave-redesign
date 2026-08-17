@@ -85,6 +85,14 @@ def test_initiate_call_executes_as_workflow_owner_for_shared_org_workflow():
             "api.routes.telephony.number_lifecycle.assert_configuration_may_serve",
             new=AsyncMock(return_value=None),
         ),
+        # The provider-key gate resolves the account's model configuration
+        # through its own clients, not the one patched above. Stubbed for the
+        # same reason as the suspension gate; it is covered in
+        # test_byok_key_readiness.py.
+        patch(
+            "api.routes.telephony.key_readiness.assert_workflow_may_run",
+            new=AsyncMock(return_value=None),
+        ),
         patch(
             "api.routes.telephony.authorize_workflow_run_start",
             new=quota_mock,
@@ -188,6 +196,14 @@ def test_initiate_call_uses_organization_preference_phone_number():
             "api.routes.telephony.number_lifecycle.assert_configuration_may_serve",
             new=AsyncMock(return_value=None),
         ),
+        # The provider-key gate resolves the account's model configuration
+        # through its own clients, not the one patched above. Stubbed for the
+        # same reason as the suspension gate; it is covered in
+        # test_byok_key_readiness.py.
+        patch(
+            "api.routes.telephony.key_readiness.assert_workflow_may_run",
+            new=AsyncMock(return_value=None),
+        ),
         patch(
             "api.routes.telephony.authorize_workflow_run_start",
             new=quota_mock,
@@ -264,6 +280,14 @@ def test_initiate_call_rejects_existing_run_for_different_workflow():
             "api.routes.telephony.number_lifecycle.assert_configuration_may_serve",
             new=AsyncMock(return_value=None),
         ),
+        # The provider-key gate resolves the account's model configuration
+        # through its own clients, not the one patched above. Stubbed for the
+        # same reason as the suspension gate; it is covered in
+        # test_byok_key_readiness.py.
+        patch(
+            "api.routes.telephony.key_readiness.assert_workflow_may_run",
+            new=AsyncMock(return_value=None),
+        ),
         patch(
             "api.routes.telephony.authorize_workflow_run_start",
             new=quota_mock,
@@ -335,6 +359,14 @@ def test_initiate_call_rejects_when_concurrency_limit_reached():
         # real database; this is one more of them.
         patch(
             "api.routes.telephony.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
+        # The provider-key gate resolves the account's model configuration
+        # through its own clients, not the one patched above. Stubbed for the
+        # same reason as the suspension gate; it is covered in
+        # test_byok_key_readiness.py.
+        patch(
+            "api.routes.telephony.key_readiness.assert_workflow_may_run",
             new=AsyncMock(return_value=None),
         ),
         patch(
@@ -466,6 +498,14 @@ async def test_smallwebrtc_run_reaching_telephony_websocket_closes_without_runni
         # real database; this is one more of them.
         patch(
             "api.routes.telephony.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
+        # The provider-key gate resolves the account's model configuration
+        # through its own clients, not the one patched above. Stubbed for the
+        # same reason as the suspension gate; it is covered in
+        # test_byok_key_readiness.py.
+        patch(
+            "api.routes.telephony.key_readiness.assert_workflow_may_run",
             new=AsyncMock(return_value=None),
         ),
         patch(
