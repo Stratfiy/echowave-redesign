@@ -36,7 +36,11 @@ from api.services.compliance import dnd
 from api.services.configuration import key_readiness
 from api.services.kyc import service as kyc_service
 from api.services.quota_service import authorize_workflow_run_start
-from api.services.telephony import number_lifecycle, verified_numbers
+from api.services.telephony import (
+    number_lifecycle,
+    shared_outbound,
+    verified_numbers,
+)
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.factory import (
     get_all_telephony_providers,
@@ -102,8 +106,9 @@ async def initiate_call(
     )
 
     # Resolve which telephony config to use: explicit request value, otherwise
-    # the org's default outbound config.
+    # the org's default outbound config, otherwise Decibyl's shared pool.
     telephony_configuration_id = request.telephony_configuration_id
+    using_shared_caller_id = False
 
     if telephony_configuration_id:
         try:
@@ -119,12 +124,30 @@ async def initiate_call(
             provider = await get_default_telephony_provider(
                 user.selected_organization_id
             )
+            default_cfg = await db_client.get_default_telephony_configuration(
+                user.selected_organization_id
+            )
+            telephony_configuration_id = default_cfg.id if default_cfg else None
         except ValueError:
-            raise HTTPException(status_code=400, detail="telephony_not_configured")
-        default_cfg = await db_client.get_default_telephony_configuration(
-            user.selected_organization_id
-        )
-        telephony_configuration_id = default_cfg.id if default_cfg else None
+            # No carrier account of their own. Rather than the dead end this
+            # used to be — `telephony_not_configured`, which is true and
+            # useless to someone evaluating the product — fall back to
+            # Decibyl's own shared caller IDs.
+            #
+            # Gated on the destination being a number this account has proved
+            # it holds, and that gate is not optional here even when it is off
+            # for accounts dialling on their own carrier: on their trunk an
+            # unverified number is their problem, on ours it is us ringing a
+            # stranger for free.
+            try:
+                (
+                    telephony_configuration_id,
+                    provider,
+                    _shared_numbers,
+                ) = await shared_outbound.get_provider()
+            except shared_outbound.NoSharedNumber:
+                raise HTTPException(status_code=400, detail="telephony_not_configured")
+            using_shared_caller_id = True
 
     # Validate provider is configured
     if not provider.validate_config():
@@ -174,7 +197,15 @@ async def initiate_call(
     # dial numbers the customer supplies as data; those are governed by the DND
     # list and the calling window below, not by ownership proof, because a
     # customer does not own their contact list's phone numbers.
-    if REQUIRE_VERIFIED_TEST_NUMBER and not await verified_numbers.is_verified(
+    # `using_shared_caller_id` forces the check on regardless of the global
+    # default. The flag is off platform-wide because `VERIFICATION_CHANNEL` is
+    # `log` on every real deployment, so nobody could obtain the permission —
+    # but that argument is about an account dialling on *its own* trunk, where
+    # an unverified destination is its own affair. On ours it is Decibyl ringing
+    # a stranger, for free, from a number that identifies us.
+    if (
+        REQUIRE_VERIFIED_TEST_NUMBER or using_shared_caller_id
+    ) and not await verified_numbers.is_verified(
         user.selected_organization_id, phone_number
     ):
         raise HTTPException(
@@ -183,6 +214,13 @@ async def initiate_call(
                 "Verify this number before calling it. Add it under Verified "
                 "numbers and enter the code we send you."
             ),
+        )
+
+    if using_shared_caller_id:
+        logger.info(
+            f"Org {user.selected_organization_id} has no carrier account; "
+            f"placing this test call on Decibyl's shared caller ID pool "
+            f"(configuration {telephony_configuration_id})."
         )
 
     # TCCCPR: the do-not-disturb list and the calling window. Checked here, at

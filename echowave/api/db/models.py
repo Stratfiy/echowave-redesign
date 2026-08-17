@@ -405,6 +405,26 @@ class TelephonyPhoneNumberModel(Base):
         ForeignKey("workflows.id", ondelete="SET NULL"),
         nullable=True,
     )
+    #: Decibyl's own number, lent to every account as an outbound caller ID.
+    #:
+    #: This is the shape Twilio uses for the same job — one shared number
+    #: (+14157234000) places every caller-ID verification call it makes, and it
+    #: never becomes a customer's number. A trial account can therefore place a
+    #: real call without buying a number first, which is the thing that gates
+    #: anyone evaluating the product.
+    #:
+    #: **Outbound only, and that is enforced rather than intended.** Inbound
+    #: dispatch resolves an organization from `(provider, account_id, called
+    #: number)` with no organization in the key, so a shared number that could
+    #: be dialled *in* would hand one customer's caller to whichever tenant the
+    #: database returned first. Both inbound lookups exclude these rows, and so
+    #: does the routing-conflict check, because a number nobody can dial in to
+    #: cannot conflict with anything.
+    #:
+    #: Also never rented to a customer: we pay this carrier rent ourselves.
+    is_shared_outbound = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     is_active = Column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )

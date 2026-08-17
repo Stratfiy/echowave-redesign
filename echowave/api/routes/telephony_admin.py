@@ -122,3 +122,84 @@ async def set_platform_managed(
         user.id,
     )
     return _configuration_summary(updated)
+
+
+class SharedOutboundRequest(BaseModel):
+    shared: bool = True
+
+
+@router.get("/shared-outbound")
+async def list_shared_outbound() -> dict[str, Any]:
+    """Decibyl's own caller IDs, lent to every account for outbound calls.
+
+    This is the pool a trial account dials from when it has no carrier account
+    of its own — the same job Twilio's +14157234000 does for caller-ID
+    verification. Small by design and shared platform-wide, so the count here
+    is the number of simultaneous trial calls the platform can place.
+    """
+    rows = await db_client.list_shared_outbound_numbers()
+    return {
+        "numbers": [
+            {
+                "id": row.id,
+                "address": row.address,
+                "telephony_configuration_id": row.telephony_configuration_id,
+                "organization_id": row.organization_id,
+                "is_active": row.is_active,
+            }
+            for row in rows
+        ],
+        # Said plainly because it is the operational limit that bites: a third
+        # simultaneous trial call waits for one of these to free up.
+        "concurrent_trial_calls": len(rows),
+    }
+
+
+@router.post("/phone-numbers/{phone_number_id}/shared-outbound")
+async def set_shared_outbound(
+    phone_number_id: int,
+    request: SharedOutboundRequest,
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Lend one of our numbers to every account as an outbound caller ID.
+
+    Staff-only, and a commercial decision rather than a customer one: the
+    number stays ours, we keep paying its rent, and every account may dial out
+    on it.
+
+    Refuses a number that answers inbound calls. Inbound dispatch resolves the
+    organization from the called number alone, so a number that is both shared
+    and inbound-routable would answer one customer's caller inside whichever
+    tenant the database returned first — the ambiguity the routing-conflict
+    check exists to prevent.
+    """
+    row = await db_client.get_phone_number(phone_number_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Phone number not found")
+
+    if request.shared and row.inbound_workflow_id is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{row.address} answers inbound calls, so it cannot also be a "
+                "shared outbound caller ID — an inbound call to it could not "
+                "say which account it belongs to. Detach the inbound agent "
+                "first, or use a different number."
+            ),
+        )
+
+    updated = await db_client.set_shared_outbound(
+        phone_number_id, shared=request.shared
+    )
+    logger.warning(
+        "Phone number {} ({}) marked shared_outbound={} by user {}",
+        phone_number_id,
+        updated.address,
+        request.shared,
+        user.id,
+    )
+    return {
+        "id": updated.id,
+        "address": updated.address,
+        "is_shared_outbound": updated.is_shared_outbound,
+    }

@@ -186,6 +186,11 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                     TelephonyPhoneNumberModel.address_normalized
                     == normalized.canonical,
                     TelephonyPhoneNumberModel.is_active.is_(True),
+                    # Decibyl's own shared caller IDs are outbound only. They
+                    # sit on one row borrowed by every account, so matching one
+                    # here would answer an inbound call as whichever tenant the
+                    # database happened to return.
+                    TelephonyPhoneNumberModel.is_shared_outbound.is_(False),
                 )
             )
             if organization_id is not None:
@@ -197,6 +202,40 @@ class TelephonyPhoneNumberClient(BaseDBClient):
             if not row:
                 return None
             return row[0], row[1]
+
+    async def set_shared_outbound(self, phone_number_id: int, *, shared: bool = True):
+        """Lend one of our numbers to every account, or take it back.
+
+        Staff-only at the route. No organization scope on purpose: the number is
+        Decibyl's, and which customer's configuration it happens to hang off is
+        an implementation detail of where we parked it.
+        """
+        async with self.async_session() as session:
+            row = await session.get(TelephonyPhoneNumberModel, phone_number_id)
+            if row is None:
+                return None
+            row.is_shared_outbound = shared
+            await session.commit()
+            await session.refresh(row)
+            return row
+
+    async def list_shared_outbound_numbers(self):
+        """Decibyl's own caller IDs, in service, across every configuration.
+
+        Deliberately not organization-scoped: these are ours and are lent to
+        every account, which is the whole point. The rows they return are never
+        matched for inbound — see `is_shared_outbound` on the model.
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(TelephonyPhoneNumberModel)
+                .where(
+                    TelephonyPhoneNumberModel.is_shared_outbound.is_(True),
+                    TelephonyPhoneNumberModel.is_active.is_(True),
+                )
+                .order_by(TelephonyPhoneNumberModel.id)
+            )
+            return list(result.scalars().all())
 
     async def find_inbound_route_by_number(
         self,
@@ -240,6 +279,7 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                     TelephonyPhoneNumberModel.address_normalized
                     == normalized.canonical,
                     TelephonyPhoneNumberModel.is_active.is_(True),
+                    TelephonyPhoneNumberModel.is_shared_outbound.is_(False),
                 )
                 # Two is enough to know it is ambiguous; there is no reason to
                 # read every row on the platform to find that out.
@@ -297,6 +337,11 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                     == account_id,
                     TelephonyPhoneNumberModel.address_normalized
                     == normalized.canonical,
+                    # A shared outbound caller ID is not reachable inbound, so
+                    # it cannot make anything ambiguous — and excluding it is
+                    # what lets the same number be lent to every account
+                    # without tripping the global uniqueness this enforces.
+                    TelephonyPhoneNumberModel.is_shared_outbound.is_(False),
                 )
             )
             result = await session.execute(stmt)
