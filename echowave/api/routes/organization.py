@@ -81,6 +81,7 @@ from api.services.organization_preferences import (
     upsert_organization_preferences,
 )
 from api.services.posthog_client import capture_event
+from api.services.telephony import credential_encryption
 from api.services.telephony import registry as telephony_registry
 from api.services.telephony.factory import get_telephony_provider_by_id
 from api.services.worker_sync.manager import get_worker_sync_manager
@@ -722,8 +723,13 @@ async def update_telephony_configuration(
                 detail="Provider cannot be changed; create a new configuration instead.",
             )
         credentials = _credentials_from_payload(request.config)
+        # Against the *decrypted* stored values: the client echoes back a mask
+        # derived from the real credential, so comparing it to ciphertext never
+        # matches and the mask itself would be stored as the token.
         preserve_masked_fields(
-            existing.provider, credentials, existing.credentials or {}
+            existing.provider,
+            credentials,
+            credential_encryption.decrypt(existing.provider, existing.credentials),
         )
         credentials = await _run_preprocess_hook(existing.provider, credentials)
 
@@ -773,7 +779,14 @@ async def delete_telephony_configuration(
 
 
 def _detail_response(row) -> TelephonyConfigurationDetail:
-    masked = _mask_sensitive(row.provider, row.credentials or {})
+    # Decrypt before masking. A mask is the last four characters of the real
+    # value, and masking ciphertext would show four characters of base64 —
+    # which the customer cannot recognise, and which `preserve_masked_fields`
+    # would then fail to match on the way back in.
+    masked = _mask_sensitive(
+        row.provider,
+        credential_encryption.decrypt(row.provider, row.credentials),
+    )
     return TelephonyConfigurationDetail(
         id=row.id,
         name=row.name,

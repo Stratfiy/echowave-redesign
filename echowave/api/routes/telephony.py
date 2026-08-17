@@ -877,6 +877,32 @@ async def handle_inbound_run(request: Request):
         )
 
         if not match:
+            # The account id is not always there to match on. Plivo omits
+            # AuthID from some webhooks — `PlivoProvider.validate_account_id`
+            # says so and tolerates it — and a number held on a subaccount
+            # reports the subaccount's id, which never equals the parent
+            # credential we stored. Both cases refused a correctly configured
+            # number with "not configured", which is unfalsifiable from the
+            # caller's end: the phone just does not work.
+            #
+            # The fallback matches on the called number alone and refuses when
+            # more than one active row matches, so it can resolve the missing
+            # account id but never resolve an ambiguity by guessing. The
+            # signature check below still runs against the matched config's own
+            # credentials, so this widens which row we find, not who we trust.
+            match = await db_client.find_inbound_route_by_number(
+                provider=provider_class.PROVIDER_NAME,
+                to_number=normalized_data.to_number,
+                country_hint=normalized_data.to_country,
+            )
+            if match:
+                logger.info(
+                    f"/inbound/run: matched {normalized_data.to_number} by "
+                    f"number after the account lookup missed "
+                    f"(account_id={normalized_data.account_id!r})"
+                )
+
+        if not match:
             logger.warning(
                 f"/inbound/run: no inbound route matched "
                 f"provider={provider_class.PROVIDER_NAME} "

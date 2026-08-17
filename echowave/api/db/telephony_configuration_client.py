@@ -153,6 +153,13 @@ class TelephonyConfigurationClient(BaseDBClient):
     ) -> TelephonyConfigurationModel:
         """Create a new config row. Duplicate-account guarding is the caller's
         responsibility; this method does not enforce it."""
+        # Imported here, not at module scope: `credential_encryption` reaches
+        # the telephony registry, which reaches the provider packages, which
+        # import `api.db.db_client` — a cycle that leaves whichever module lost
+        # the race half-initialised, and shows up as an unrelated attribute
+        # going missing depending on import order.
+        from api.services.telephony import credential_encryption
+
         async with self.async_session() as session:
             existing_count = await session.scalar(
                 select(func.count(TelephonyConfigurationModel.id)).where(
@@ -168,7 +175,11 @@ class TelephonyConfigurationClient(BaseDBClient):
                 organization_id=organization_id,
                 name=name,
                 provider=provider,
-                credentials=credentials,
+                # Encrypted here rather than in the route, so every writer gets
+                # it — including any future one that forgets. The account id is
+                # deliberately left readable; inbound dispatch matches it in
+                # SQL. See services/telephony/credential_encryption.
+                credentials=credential_encryption.encrypt(provider, credentials),
                 is_default_outbound=is_default_outbound,
             )
             session.add(row)
@@ -187,6 +198,8 @@ class TelephonyConfigurationClient(BaseDBClient):
         name: Optional[str] = None,
         credentials: Optional[Dict[str, Any]] = None,
     ) -> Optional[TelephonyConfigurationModel]:
+        from api.services.telephony import credential_encryption
+
         async with self.async_session() as session:
             row = await session.get(TelephonyConfigurationModel, config_id)
             if not row or row.organization_id != organization_id:
@@ -195,7 +208,9 @@ class TelephonyConfigurationClient(BaseDBClient):
             if name is not None:
                 row.name = name
             if credentials is not None:
-                row.credentials = credentials
+                row.credentials = credential_encryption.encrypt(
+                    row.provider, credentials
+                )
 
             try:
                 await session.commit()

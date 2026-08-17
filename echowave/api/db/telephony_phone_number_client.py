@@ -7,6 +7,7 @@ selection and inbound call routing.
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from loguru import logger
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
@@ -196,6 +197,68 @@ class TelephonyPhoneNumberClient(BaseDBClient):
             if not row:
                 return None
             return row[0], row[1]
+
+    async def find_inbound_route_by_number(
+        self,
+        provider: str,
+        to_number: str,
+        country_hint: Optional[str] = None,
+    ) -> Optional[Tuple[TelephonyConfigurationModel, TelephonyPhoneNumberModel]]:
+        """Fallback dispatch when the webhook carries no usable account id.
+
+        ``find_inbound_route_by_account`` is the primary path and needs the
+        carrier's account id. Plivo does not always send one — this repo's own
+        Plivo provider says so in as many words ("AuthID is not always present
+        in Plivo webhooks (undocumented field)") — and a number held on a
+        *subaccount* sends the subaccount's id, which never equals the parent
+        credential we stored. In both cases the primary lookup misses and the
+        caller hears "this number is not configured" on a number that is
+        configured correctly.
+
+        Matches on provider plus the called number alone, and **refuses to
+        guess**: if more than one active row matches, this returns None rather
+        than picking whichever Postgres happened to return first. That
+        ambiguity is exactly what the account id disambiguates, so resolving it
+        arbitrarily would route one customer's caller into another customer's
+        agent — a worse outcome than a refused call.
+        """
+        if not (provider and to_number):
+            return None
+
+        normalized = normalize_telephony_address(to_number, country_hint=country_hint)
+
+        async with self.async_session() as session:
+            stmt = (
+                select(TelephonyConfigurationModel, TelephonyPhoneNumberModel)
+                .join(
+                    TelephonyPhoneNumberModel,
+                    TelephonyPhoneNumberModel.telephony_configuration_id
+                    == TelephonyConfigurationModel.id,
+                )
+                .where(
+                    TelephonyConfigurationModel.provider == provider,
+                    TelephonyPhoneNumberModel.address_normalized
+                    == normalized.canonical,
+                    TelephonyPhoneNumberModel.is_active.is_(True),
+                )
+                # Two is enough to know it is ambiguous; there is no reason to
+                # read every row on the platform to find that out.
+                .limit(2)
+            )
+            result = await session.execute(stmt)
+            rows = result.all()
+
+        if len(rows) != 1:
+            if len(rows) > 1:
+                logger.warning(
+                    "Inbound fallback for {} {} matched {} active rows; "
+                    "refusing to guess which organization the call belongs to.",
+                    provider,
+                    normalized.canonical,
+                    len(rows),
+                )
+            return None
+        return rows[0][0], rows[0][1]
 
     async def find_inbound_routing_conflict(
         self,

@@ -13,6 +13,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import TelephonyCallStatus, WorkflowRunMode
+from api.services.telephony import credential_encryption
 from api.services.telephony.base import (
     CallInitiationResult,
     NormalizedInboundData,
@@ -609,7 +610,12 @@ class CloudonixProvider(TelephonyProvider):
                 )
                 return
 
-            bearer_token = (config.credentials or {}).get("bearer_token")
+            # The provider name is this module's own, not read off the row:
+            # the row is whatever the caller loaded, and inside the Cloudonix
+            # provider there is only one answer.
+            bearer_token = credential_encryption.decrypt(
+                "cloudonix", config.credentials
+            ).get("bearer_token")
             if not bearer_token:
                 logger.error(
                     f"Cloudonix agent-stream: telephony configuration {config.id} "

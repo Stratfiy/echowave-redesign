@@ -48,6 +48,7 @@ from api.services.kyc.plivo_compliance import (
     PlivoComplianceClient,
     PlivoComplianceError,
 )
+from api.services.telephony import registry as telephony_registry
 from api.services.telephony.base import AvailableNumber
 
 
@@ -192,6 +193,53 @@ async def provision(
     # add-a-number path uses, so a number already routed for anyone — this org
     # or another on the same carrier account — cannot be bought into an
     # ambiguous routing state.
+    #
+    # That was the intent all along and the call was missing: the only
+    # protection here was `create_phone_number`'s unique constraint, which is
+    # scoped to (organization_id, address_normalized) and therefore says
+    # nothing about another org. Inbound dispatch keys on (provider,
+    # account_id, address_normalized) — no organization — so two orgs sharing
+    # the platform carrier account could both hold the same number, and
+    # `find_inbound_route_by_account` would hand the call to whichever row the
+    # database returned first.
+    configuration = await db_client.get_telephony_configuration(
+        telephony_configuration_id
+    )
+    spec = telephony_registry.get_optional(
+        configuration.provider if configuration else ""
+    )
+    account_field = spec.account_id_credential_field if spec else ""
+    account_id = (
+        (
+            (configuration.credentials or {}).get(account_field)
+            if configuration
+            else None
+        )
+        if account_field
+        else None
+    )
+    if account_id:
+        conflict = await db_client.find_inbound_routing_conflict(
+            provider=configuration.provider,
+            account_id_field=account_field,
+            account_id=account_id,
+            address=address,
+            country_hint=country_code,
+        )
+        if conflict:
+            existing_cfg, _existing_phone = conflict
+            same_org = existing_cfg.organization_id == organization_id
+            where = (
+                f"telephony configuration '{existing_cfg.name}'"
+                if same_org
+                else "another organization on the same carrier account"
+            )
+            raise ProvisioningError(
+                f"{address} is already routed for inbound calls by {where}. "
+                "Buying it again would make inbound routing for this number "
+                "ambiguous, so the purchase was not made."
+            )
+
     try:
         placeholder = await db_client.create_phone_number(
             organization_id=organization_id,

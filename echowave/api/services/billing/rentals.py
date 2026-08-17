@@ -405,7 +405,53 @@ async def _mandate_collects(
     from api.enums import MandateStatus
 
     mandate = await session.get(PaymentMandateModel, charge.mandate_id)
-    return bool(mandate and mandate.status in MandateStatus.authorised())
+    if not (mandate and mandate.status in MandateStatus.authorised()):
+        return False
+
+    # One mandate is one Razorpay subscription against a one-number plan, and
+    # there is exactly one live mandate per organization (enforced by a partial
+    # unique index). So it collects for *one* number, not for every number the
+    # account rents.
+    #
+    # Keying the skip on `mandate_id` alone meant an org with three numbers had
+    # all three charges carrying the same mandate id, all three skipped, and
+    # none of them ever advancing `next_charge_at` — so they were re-skipped
+    # every night, for ever. We collected one rental and paid the carrier for
+    # three.
+    #
+    # Until the subscription can carry a quantity, the mandate covers the
+    # earliest open charge and the rest bill from the prepaid balance as they
+    # would with no autopay at all. `record_mandate_collection` resolves the
+    # same charge the same way, so the two cannot disagree about which number
+    # the bank paid for.
+    covered_id = await _mandate_covered_charge_id(session, charge.mandate_id)
+    return covered_id == charge.id
+
+
+async def _mandate_covered_charge_id(
+    session: AsyncSession, mandate_id: int
+) -> int | None:
+    """Which single charge this mandate collects for.
+
+    The earliest still-open charge, by id. Deterministic on purpose: both the
+    nightly skip and the webhook that records a collection ask this question,
+    and an answer that could differ between them would either double-charge a
+    number or bill none of them.
+    """
+    return await session.scalar(
+        select(RecurringChargeModel.id)
+        .where(
+            RecurringChargeModel.mandate_id == mandate_id,
+            RecurringChargeModel.status.notin_(
+                [
+                    RecurringChargeStatus.RELEASED.value,
+                    RecurringChargeStatus.CANCELLED.value,
+                ]
+            ),
+        )
+        .order_by(RecurringChargeModel.id)
+        .limit(1)
+    )
 
 
 async def record_mandate_collection(
@@ -437,8 +483,13 @@ async def record_mandate_collection(
     """
     now = now or datetime.now(UTC)
 
+    # Ordered, not arbitrary. This picked whichever row the database happened
+    # to return, while `_mandate_collects` skipped *every* charge sharing the
+    # mandate — so with more than one number the collection could land on a
+    # different charge each month. Both now resolve the same single charge.
     charge = await session.scalar(
-        select(RecurringChargeModel).where(
+        select(RecurringChargeModel)
+        .where(
             RecurringChargeModel.mandate_id == mandate_id,
             RecurringChargeModel.status.notin_(
                 [
@@ -447,6 +498,8 @@ async def record_mandate_collection(
                 ]
             ),
         )
+        .order_by(RecurringChargeModel.id)
+        .limit(1)
     )
     if charge is None:
         # A collection with nothing to apply it to. Loud, because the customer

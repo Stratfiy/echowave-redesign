@@ -1229,7 +1229,7 @@ class ARIManager:
 
         configs = []
         for row in rows:
-            credentials = row.credentials or {}
+            credentials = credential_encryption.decrypt(row.provider, row.credentials)
             ari_endpoint = credentials.get("ari_endpoint")
             app_name = credentials.get("app_name")
             app_password = credentials.get("app_password")

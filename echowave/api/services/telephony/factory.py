@@ -23,7 +23,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.db.models import TelephonyConfigurationModel, WorkflowRunModel
-from api.services.telephony import registry
+from api.services.telephony import credential_encryption, registry
 from api.services.telephony.base import TelephonyProvider
 
 
@@ -206,7 +206,10 @@ async def _normalize_with_phone_numbers(
     """Run the provider's config_loader over the credentials, then attach the
     active phone numbers as a ``from_numbers`` list (raw address strings)."""
     spec = registry.get(row.provider)
-    raw = dict(row.credentials or {})
+    # The single read point for building a provider: everything that places or
+    # answers a call comes through here, so decrypting here is what makes the
+    # encrypted column invisible to every provider implementation.
+    raw = credential_encryption.decrypt(row.provider, row.credentials)
     raw["provider"] = row.provider
     base = spec.config_loader(raw)
 

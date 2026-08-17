@@ -48,6 +48,8 @@ from api.constants import (
 )
 from api.db.models import PaymentMandateModel
 from api.enums import MandateStatus
+from api.services.billing.billing_profile import get_profile
+from api.services.billing.tax import TaxError, gross_up
 
 PROVIDER = "razorpay"
 PURPOSE_NUMBER_RENTAL = "number_rental"
@@ -236,8 +238,27 @@ async def create_rental_mandate(
     if existing is not None:
         return existing
 
-    price_paise = int(price_paise or NUMBER_RENTAL_PRICE_PAISE)
-    plan_id = await ensure_rental_plan(price_paise=price_paise, client=client)
+    # NUMBER_RENTAL_PRICE_PAISE is a **net** figure everywhere else: the
+    # prepaid path debits it from the credit ledger, which is defined as
+    # GST-exclusive. Creating the plan at that number told the bank to collect
+    # the net amount, so every autopay rental collected no GST at all while the
+    # same rental billed prepaid collected it — two paths disagreeing about
+    # what ₹349 means, with the difference coming out of margin.
+    net_paise = int(price_paise or NUMBER_RENTAL_PRICE_PAISE)
+    profile = await get_profile(session, organization_id=organization_id)
+    try:
+        gross_paise = gross_up(
+            taxable_paise=net_paise,
+            country_code=profile.country_code,
+            state_code=profile.state_code,
+        )
+    except TaxError as exc:
+        # An export with no LUT on file. Surfaced rather than swallowed: it is
+        # fixed by filing the LUT, not by collecting an amount we cannot
+        # invoice, month after month, by standing instruction.
+        raise MandateError(str(exc)) from exc
+
+    plan_id = await ensure_rental_plan(price_paise=gross_paise, client=client)
 
     created = await _post(
         "/subscriptions",

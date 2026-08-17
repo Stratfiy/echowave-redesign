@@ -390,7 +390,9 @@ async def _send_follow_up_messages(
         )
         return
 
-    credentials = telephony_config.credentials or {}
+    credentials = credential_encryption.decrypt(
+        telephony_config.provider, telephony_config.credentials
+    )
 
     # `from_numbers` is the shape every provider in this codebase stores —
     # Twilio, Plivo, Telnyx, Vonage, Vobiz, Cloudonix and ARI all read
