@@ -221,3 +221,79 @@ class TestAccountsApprovedBeforeThisExisted:
             await provisioning.assert_may_provision(organization_id)
 
         assert await db_client.list_telephony_configurations(organization_id) == []
+
+
+@pytest.mark.asyncio
+class TestTheScreenThatReadsFirst:
+    """The buy screen loads the KYC status before it offers anything else.
+
+    That ordering is what made the earlier heal useless: `assert_may_provision`
+    only runs on search, and the screen will not offer a search until a managed
+    configuration exists. An account approved before any of this shipped was
+    stuck in a loop it could not act its way out of.
+    """
+
+    async def test_reading_the_status_heals_an_approved_account(
+        self, db_session, async_session, platform_credentials
+    ):
+        from api.db import db_client
+        from api.routes import kyc as kyc_routes
+
+        organization_id = await _org(async_session, "read-heals")
+        await db_client.get_or_create_kyc(organization_id)
+        await db_client.update_kyc(
+            organization_id,
+            status=KycStatus.CARRIER_APPROVED.value,
+            carrier="plivo",
+            carrier_reference="app-read",
+        )
+
+        await kyc_routes.get_kyc(
+            user=type("U", (), {"selected_organization_id": organization_id})()
+        )
+
+        rows = await db_client.list_telephony_configurations(organization_id)
+        assert [r.is_platform_managed for r in rows] == [True]
+
+    async def test_an_unapproved_account_is_left_alone(
+        self, db_session, async_session, platform_credentials
+    ):
+        from api.db import db_client
+        from api.routes import kyc as kyc_routes
+
+        organization_id = await _org(async_session, "read-unapproved")
+        await db_client.get_or_create_kyc(organization_id)
+
+        await kyc_routes.get_kyc(
+            user=type("U", (), {"selected_organization_id": organization_id})()
+        )
+
+        assert await db_client.list_telephony_configurations(organization_id) == []
+
+    async def test_the_status_still_renders_when_healing_fails(
+        self, db_session, async_session, monkeypatch
+    ):
+        """Reading a status must not fail because a configuration could not be
+        written — that would take the whole screen down over a repairable
+        problem."""
+        from api.db import db_client
+        from api.routes import kyc as kyc_routes
+
+        organization_id = await _org(async_session, "read-explodes")
+        await db_client.get_or_create_kyc(organization_id)
+        await db_client.update_kyc(
+            organization_id, status=KycStatus.CARRIER_APPROVED.value
+        )
+
+        async def _explode(_organization_id):
+            raise RuntimeError("configuration store is down")
+
+        monkeypatch.setattr(
+            kyc_routes.kyc_service, "ensure_managed_configuration", _explode
+        )
+
+        response = await kyc_routes.get_kyc(
+            user=type("U", (), {"selected_organization_id": organization_id})()
+        )
+
+        assert response["status"] == KycStatus.CARRIER_APPROVED.value
