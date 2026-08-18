@@ -60,6 +60,7 @@ async def send_document(
     """Send one document's PDF. Never raises — see ``send_email``."""
     title = _KIND_TITLES.get(document.kind, document.kind)
     result = await send_email(
+        sender="billing",
         to=recipient,
         subject=f"{title} {document.number}",
         body_text=(

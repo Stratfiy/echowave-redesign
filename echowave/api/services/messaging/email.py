@@ -23,13 +23,28 @@ from loguru import logger
 
 from api.constants import (
     EMAIL_FROM_ADDRESS,
+    EMAIL_FROM_BILLING,
     EMAIL_FROM_NAME,
+    EMAIL_FROM_NOTIFICATIONS,
     SMTP_HOST,
     SMTP_PASSWORD,
     SMTP_PORT,
     SMTP_USE_TLS,
     SMTP_USERNAME,
 )
+
+#: Which address a message goes out as. Money and everything else, because
+#: that is the distinction customers filter their inbox on — a receipt they
+#: keep, an alert they act on. Unknown names fall back rather than raising: a
+#: typo in a caller must not stop a receipt being delivered.
+SENDERS = {
+    "billing": EMAIL_FROM_BILLING,
+    "notifications": EMAIL_FROM_NOTIFICATIONS,
+}
+
+
+def sender_address(sender: str | None) -> str | None:
+    return SENDERS.get(sender or "", None) or EMAIL_FROM_ADDRESS
 
 
 @dataclass(frozen=True)
@@ -49,10 +64,11 @@ def _send_sync(
     body_text: str,
     attachment_bytes: bytes | None,
     attachment_filename: str | None,
+    from_address: str,
 ) -> None:
     message = EmailMessage()
     message["Subject"] = subject
-    message["From"] = f"{EMAIL_FROM_NAME} <{EMAIL_FROM_ADDRESS}>"
+    message["From"] = f"{EMAIL_FROM_NAME} <{from_address}>"
     message["To"] = to
     message.set_content(body_text)
 
@@ -84,8 +100,14 @@ async def send_email(
     body_text: str,
     attachment_bytes: bytes | None = None,
     attachment_filename: str | None = None,
+    sender: str = "notifications",
 ) -> SendResult:
     """Send one email, best-effort.
+
+    ``sender`` picks the from address: ``billing`` for anything about money,
+    ``notifications`` for everything else. Both fall back to
+    ``EMAIL_FROM_ADDRESS`` when unset, so a deployment that configures only
+    that keeps behaving exactly as it did.
 
     Never raises: a failed send is a fact to log and report, not an exception
     that should unwind whatever triggered it -- the underlying event (a
@@ -106,6 +128,7 @@ async def send_email(
             body_text=body_text,
             attachment_bytes=attachment_bytes,
             attachment_filename=attachment_filename,
+            from_address=sender_address(sender),
         )
     except Exception as exc:  # noqa: BLE001 -- reported, not propagated; see docstring
         logger.error("Failed to send email to {}: {}", to, exc)

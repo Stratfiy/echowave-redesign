@@ -219,7 +219,9 @@ async def _notify_one(
     # One message per recipient. The shared sender takes a single `to`, and a
     # billing notice has no reason to publish one member's address to another.
     results = [
-        await email.send_email(to=address, subject=subject, body_text=body)
+        await email.send_email(
+            sender="billing", to=address, subject=subject, body_text=body
+        )
         for address in recipients
     ]
     sent = any(result.ok for result in results)
