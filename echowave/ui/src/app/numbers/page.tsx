@@ -59,6 +59,26 @@ import { useAuth } from "@/lib/auth";
 import { formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
+/** The dialling prefix a number belongs to, as customers name it.
+ *
+ * Indian landline numbers are known by their STD code — 022 is Mumbai, 080 is
+ * Bengaluru — and that is how anyone buying one asks for it. Deriving it from
+ * the E.164 number means the label is always right, including for cities the
+ * carrier reports under a name we do not recognise.
+ */
+function areaCode(number: string): string | null {
+    const digits = number.replace(/\D/g, "");
+    if (digits.startsWith("91") && digits.length >= 12) {
+        // Indian STD codes are 2-4 digits after the country code; the common
+        // metros are two, written with a leading zero.
+        return `0${digits.slice(2, 4)}`;
+    }
+    if (digits.startsWith("1") && digits.length >= 11) {
+        return digits.slice(1, 4);
+    }
+    return null;
+}
+
 type AvailableNumber = {
     number: string;
     country_iso: string;
@@ -150,10 +170,15 @@ export default function BuyNumberPage() {
     const [configId, setConfigId] = useState<string>("");
     const [mandateView, setMandateView] = useState<MandateView | null>(null);
 
+    const [country, setCountry] = useState("IN");
     const [city, setCity] = useState("");
     const [pattern, setPattern] = useState("");
     const [results, setResults] = useState<AvailableNumber[] | null>(null);
     const [searching, setSearching] = useState(false);
+    // False when the carrier had nothing for the filters and we are showing
+    // what it does have instead. The distinction is the whole point: a list
+    // presented as matching a search it did not match is worse than no list.
+    const [exactMatch, setExactMatch] = useState(true);
     const [selected, setSelected] = useState<string | null>(null);
 
     const [startingMandate, setStartingMandate] = useState(false);
@@ -236,30 +261,46 @@ export default function BuyNumberPage() {
     const mandateRequired = mandateView?.required_for_numbers !== false;
     const autopayDone = !mandateRequired || Boolean(mandate?.authorised);
 
-    const handleSearch = async () => {
-        if (!configId) return;
-        setSearching(true);
-        setError(null);
-        const result = await searchNumbersApiV1ManagedNumbersSearchPost({
-            body: {
-                telephony_configuration_id: Number(configId),
-                country_iso: "IN",
-                number_type: "local",
-                city: city || null,
-                pattern: pattern || null,
-                limit: 20,
-            },
-        });
-        setSearching(false);
-        if (result.error) {
-            setError(detailFromError(result.error, "Could not search for numbers"));
-            return;
-        }
-        const numbers =
-            (result.data as unknown as { numbers: AvailableNumber[] })?.numbers ?? [];
-        setResults(numbers);
-        setSelected(null);
-    };
+    const runSearch = useCallback(
+        async (filtered: boolean) => {
+            if (!configId) return;
+            setSearching(true);
+            setError(null);
+            const result = await searchNumbersApiV1ManagedNumbersSearchPost({
+                body: {
+                    telephony_configuration_id: Number(configId),
+                    country_iso: country,
+                    number_type: "local",
+                    city: filtered ? city || null : null,
+                    pattern: filtered ? pattern || null : null,
+                    limit: filtered ? 20 : 5,
+                },
+            });
+            setSearching(false);
+            if (result.error) {
+                setError(detailFromError(result.error, "Could not search for numbers"));
+                return;
+            }
+            const data = result.data as unknown as {
+                numbers: AvailableNumber[];
+                exact_match?: boolean;
+            };
+            setResults(data?.numbers ?? []);
+            setExactMatch(data?.exact_match !== false);
+            setSelected(null);
+        },
+        [configId, country, city, pattern],
+    );
+
+    const handleSearch = () => void runSearch(true);
+
+    // A first handful without being asked. Somebody who has just been approved
+    // wants to see that numbers exist at all; making them guess a city before
+    // the page shows anything is a search box in front of an empty room.
+    useEffect(() => {
+        if (!configId || results !== null) return;
+        void runSearch(false);
+    }, [configId, results, runSearch]);
 
     const handleStartAutopay = async () => {
         setStartingMandate(true);
@@ -434,6 +475,34 @@ export default function BuyNumberPage() {
                                         </div>
                                     )}
                                     <div className="space-y-1.5">
+                                        <Label>Country</Label>
+                                        <Select
+                                            value={country}
+                                            onValueChange={(value) => {
+                                                setCountry(value);
+                                                // The results on screen belong
+                                                // to the old country. Clearing
+                                                // them stops somebody buying a
+                                                // US number they are no longer
+                                                // looking at.
+                                                setResults(null);
+                                                setSelected(null);
+                                            }}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="IN">
+                                                    India (+91)
+                                                </SelectItem>
+                                                <SelectItem value="US">
+                                                    United States (+1)
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-1.5">
                                         <Label htmlFor="city">City</Label>
                                         <Input
                                             id="city"
@@ -468,11 +537,20 @@ export default function BuyNumberPage() {
 
                                 {results !== null && results.length === 0 && (
                                     <p className="text-sm text-muted-foreground">
-                                        Nothing available matching that right now.
-                                        Try a different city, or search again in a
-                                        few minutes — inventory turns over.
+                                        Nothing available right now, here or
+                                        anywhere else on this carrier. Inventory
+                                        turns over — try again in a few minutes.
                                     </p>
                                 )}
+
+                                {results !== null &&
+                                    results.length > 0 &&
+                                    !exactMatch && (
+                                        <p className="text-sm text-muted-foreground">
+                                            No exact match for that search. Here is
+                                            what is available now.
+                                        </p>
+                                    )}
 
                                 {results !== null && results.length > 0 && (
                                     <ul className="space-y-2">
@@ -492,9 +570,14 @@ export default function BuyNumberPage() {
                                                             {row.number}
                                                         </span>
                                                         <span className="block text-xs text-muted-foreground">
-                                                            {[row.city, row.region]
+                                                            {[
+                                                                areaCode(row.number) &&
+                                                                    `${areaCode(row.number)} series`,
+                                                                row.city,
+                                                                row.region,
+                                                            ]
                                                                 .filter(Boolean)
-                                                                .join(", ") || "India"}
+                                                                .join(" · ")}
                                                         </span>
                                                     </span>
                                                     <span className="text-xs text-muted-foreground">

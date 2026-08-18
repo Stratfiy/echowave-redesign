@@ -85,6 +85,14 @@ async def search_numbers(
 
     An empty list is a normal answer — India local inventory is thin and
     moves — not an error to retry.
+
+    When a filtered search finds nothing, this retries without the filters and
+    says so with ``exact_match: false``. Indian local inventory is thin enough
+    that asking for a city *and* a digit pattern usually returns nothing, and
+    "Nothing available matching that right now" is a dead end that tells a
+    customer nothing about what they could actually buy. Showing what exists,
+    labelled as not what they asked for, answers the question behind the
+    question.
     """
     organization_id = _organization_id(user)
     await _ensure_config_belongs_to_org(
@@ -106,7 +114,27 @@ async def search_numbers(
     except (ValueError, PlivoComplianceError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    exact_match = True
+    if not results and (request.city or request.pattern):
+        exact_match = False
+        try:
+            results = await provisioning.search(
+                organization_id=organization_id,
+                telephony_configuration_id=request.telephony_configuration_id,
+                country_iso=request.country_iso,
+                number_type=request.number_type,
+                city=None,
+                pattern=None,
+                limit=request.limit,
+            )
+        except (ValueError, PlivoComplianceError):
+            # The unfiltered retry is a courtesy. If it fails, the honest
+            # answer is still the empty result the customer's own search got,
+            # not an error about a query they did not make.
+            results = []
+
     return {
+        "exact_match": exact_match,
         "numbers": [
             {
                 "number": n.number,
@@ -118,7 +146,7 @@ async def search_numbers(
                 "setup_price": n.setup_price,
             }
             for n in results
-        ]
+        ],
     }
 
 
