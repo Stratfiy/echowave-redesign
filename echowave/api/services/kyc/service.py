@@ -656,6 +656,85 @@ async def approve_and_forward(
     return build_view(updated)
 
 
+MANAGED_CONFIGURATION_NAME = "Decibyl managed"
+
+
+async def ensure_managed_configuration(organization_id: int) -> int | None:
+    """Give an approved account the carrier configuration it needs to buy a number.
+
+    Until this existed, carrier approval left the customer on a screen saying
+    "No managed carrier account is set up for this organisation yet. Contact
+    support" — a dead end, reachable only by a staff member calling an admin
+    endpoint that has no UI, once per customer, forever. Bolna and everyone
+    else let an approved account buy a number without a human in the loop, and
+    the only thing standing in the way here was a row nobody was creating.
+
+    The configuration holds **our** Plivo credentials, not the customer's. That
+    is what "managed" means: the numbers sit on Decibyl's carrier account, we
+    pay the rent, and `is_platform_managed` is the flag every other part of the
+    system reads to know it. See `routes/telephony_admin` for why the flag is
+    staff-owned — this is Decibyl granting it, not a customer claiming it.
+
+    Idempotent, and returns the existing id rather than a second row: this runs
+    from a webhook Plivo re-delivers, and two managed configurations for one
+    organization would make "the managed one" ambiguous everywhere it is looked
+    up.
+
+    Returns None when it did not create one, which is not a failure. A
+    deployment with no platform Plivo credentials cannot host managed numbers
+    at all; saying so in the log beats raising inside a carrier callback, where
+    the verdict is a fact we must record whatever else goes wrong.
+    """
+    from api.constants import (
+        PLATFORM_PLIVO_APPLICATION_ID,
+        PLATFORM_PLIVO_AUTH_ID,
+        PLATFORM_PLIVO_AUTH_TOKEN,
+    )
+
+    existing = await db_client.list_telephony_configurations(organization_id)
+    for row in existing:
+        if row.is_platform_managed:
+            return row.id
+
+    if not (PLATFORM_PLIVO_AUTH_ID and PLATFORM_PLIVO_AUTH_TOKEN):
+        logger.warning(
+            "Organization {} is carrier-approved but this deployment has no "
+            "platform Plivo credentials, so no managed configuration was "
+            "created. Set PLATFORM_PLIVO_AUTH_ID and PLATFORM_PLIVO_AUTH_TOKEN.",
+            organization_id,
+        )
+        return None
+
+    credentials = {
+        "auth_id": PLATFORM_PLIVO_AUTH_ID,
+        "auth_token": PLATFORM_PLIVO_AUTH_TOKEN,
+    }
+    if PLATFORM_PLIVO_APPLICATION_ID:
+        credentials["application_id"] = PLATFORM_PLIVO_APPLICATION_ID
+
+    row = await db_client.create_telephony_configuration(
+        organization_id=organization_id,
+        name=MANAGED_CONFIGURATION_NAME,
+        provider="plivo",
+        credentials=credentials,
+        # False, and the client decides. `create_telephony_configuration`
+        # promotes a configuration to default outbound only when it is the
+        # organization's first, which is exactly the behaviour wanted at both
+        # ends: an account with no carrier of its own must route through this
+        # one or it cannot dial at all, and an account already running its own
+        # carrier keeps its route — silently redirecting its existing traffic
+        # onto our account would move somebody else's call volume onto our bill.
+        is_default_outbound=False,
+    )
+    await db_client.set_platform_managed(row.id, managed=True)
+    logger.info(
+        "Created managed telephony configuration {} for approved organization {}",
+        row.id,
+        organization_id,
+    )
+    return row.id
+
+
 async def record_carrier_verdict(
     *,
     organization_id: int,
@@ -715,4 +794,20 @@ async def record_carrier_verdict(
 
     updated = await db_client.update_kyc(organization_id, **fields)
     logger.info("Carrier {} KYC for org {}", verdict.value, organization_id)
+
+    if target is KycStatus.CARRIER_APPROVED:
+        # After the verdict is written, and never in a way that can undo it.
+        # The approval is the carrier's fact; failing to set up a configuration
+        # afterwards is our problem to fix, and losing the verdict over it
+        # would make Plivo redeliver a callback we already handled.
+        try:
+            await ensure_managed_configuration(organization_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Organization {} was approved but its managed telephony "
+                "configuration could not be created: {}",
+                organization_id,
+                exc,
+            )
+
     return build_view(updated)
