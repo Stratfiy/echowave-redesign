@@ -203,39 +203,83 @@ async def _send_twilio_sms(number: str, code: str) -> DeliveryResult:
     return DeliveryResult(ok=True, channel="twilio_sms", reference=result.message_id)
 
 
-async def _send_voice(number: str, code: str) -> DeliveryResult:
-    """Call the number and read the code out.
+async def _send_voice(
+    number: str, code: str, *, language: str | None = None
+) -> DeliveryResult:
+    """Call the number and read the code out, twice.
 
-    Not wired yet, and saying so is the point. `STATUS.md` records that outbound
-    on the platform account has never completed a real call in this deployment —
-    the dispatch path exists and is untested. Shipping this as though it worked
-    would produce a verification flow that silently never rings, which is worse
-    than one that says it is unavailable.
+    The channel that does not wait on DLT. Transactional voice carries no
+    registered-template requirement, and the thing a trial user is verifying is
+    precisely that Decibyl can ring them.
 
-    What it needs: one real outbound call on the platform Plivo account to prove
-    the path, then a short TTS script reading the digits individually with a
-    repeat, because a six-digit number said once at speed is not transcribable
-    by ear.
+    Dials from the shared outbound pool — Decibyl's own numbers — so an account
+    with no carrier configuration of its own can still be verified, which is the
+    entire point of verifying a trial user. No pool, no channel: this reports
+    that rather than pretending, because a verification flow that silently never
+    rings is worse than one that says it is unavailable.
+
+    The code goes into Redis under a single-use token and the token goes in the
+    answer URL. Plivo cannot carry inline XML, and the code must not travel in a
+    URL that every access log on the way will keep.
     """
+    from api.services.telephony import shared_outbound, voice_otp
+    from api.utils.common import get_backend_endpoints
+
+    try:
+        _configuration_id, provider, from_numbers = await shared_outbound.get_provider()
+    except shared_outbound.NoSharedNumber as exc:
+        logger.warning("Voice verification has no number to call from: {}", exc)
+        return DeliveryResult(
+            ok=False,
+            channel="voice",
+            error=(
+                "Voice verification is not available on this deployment yet — "
+                "no calling number is configured. Ask support to verify this "
+                "number."
+            ),
+        )
+
+    token = await voice_otp.stash(code, language=language)
+    backend_endpoint, _ = await get_backend_endpoints()
+    answer_url = f"{backend_endpoint}/api/v1/telephony/verification/voice/{token}"
+
+    try:
+        result = await provider.initiate_call(
+            to_number=number,
+            webhook_url=answer_url,
+            from_number=from_numbers[0] if from_numbers else None,
+        )
+    except Exception as exc:  # noqa: BLE001 -- an outcome to report, see module docstring
+        logger.error("Voice verification call to {} failed: {}", number, exc)
+        return DeliveryResult(
+            ok=False,
+            channel="voice",
+            error="We could not place the verification call. Try again shortly.",
+        )
+
     return DeliveryResult(
-        ok=False,
+        ok=True,
         channel="voice",
-        error=(
-            "Voice verification is not enabled on this deployment yet. "
-            "Ask support to verify this number."
-        ),
+        reference=getattr(result, "call_id", None),
     )
 
 
-async def deliver_code(number: str, code: str) -> DeliveryResult:
-    """Send the code by whichever channel this deployment is configured for."""
+async def deliver_code(
+    number: str, code: str, *, language: str | None = None
+) -> DeliveryResult:
+    """Send the code by whichever channel this deployment is configured for.
+
+    ``language`` is the caller's preference for the spoken channel and is
+    ignored by the others: an SMS body has to match the registered DLT template
+    character for character, so it is not a thing a user gets to pick.
+    """
     channel = (VERIFICATION_CHANNEL or "log").strip().lower()
     if channel == "plivo_sms":
         return await _send_plivo_sms(number, code)
     if channel == "twilio_sms":
         return await _send_twilio_sms(number, code)
     if channel == "voice":
-        return await _send_voice(number, code)
+        return await _send_voice(number, code, language=language)
     if channel == "log":
         return await _send_log(number, code)
 

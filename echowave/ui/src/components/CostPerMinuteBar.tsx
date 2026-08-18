@@ -121,7 +121,12 @@ export function CostPerMinuteBar({
         };
     }, [key, authLoading, user]);
 
-    if (error || !estimate) return null;
+    // `estimate.lines` as well as `estimate`: the generated client resolves
+    // rather than throws, so a 200 carrying an unexpected shape arrives here as
+    // a truthy object with nothing in it. Indexing into that crashes the whole
+    // Models page through the error boundary, which reads as "this page is
+    // broken" rather than "one estimate did not load".
+    if (error || !estimate || !Array.isArray(estimate.lines)) return null;
 
     const total = estimate.total_paise_per_minute;
     const values: Record<string, number> = {

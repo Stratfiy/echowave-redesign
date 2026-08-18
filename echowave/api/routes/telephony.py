@@ -12,6 +12,7 @@ from fastapi import (
     Depends,
     HTTPException,
     Request,
+    Response,
     WebSocket,
 )
 from loguru import logger
@@ -40,6 +41,7 @@ from api.services.telephony import (
     number_lifecycle,
     shared_outbound,
     verified_numbers,
+    voice_otp,
 )
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
 from api.services.telephony.factory import (
@@ -1382,6 +1384,35 @@ async def complete_transfer_function_call(transfer_id: str, request: Request):
         logger.error(f"Error completing transfer {transfer_id}: {e}")
 
     return {"status": "completed", "result": result}
+
+
+@router.post("/verification/voice/{token}")
+async def verification_voice_answer(token: str):
+    """What the carrier fetches when someone answers a verification call.
+
+    Unauthenticated by necessity — Plivo fetches it, not a signed-in user — and
+    safe because the token is the only thing it accepts: 24 random bytes, alive
+    for five minutes, and spent the first time it is read. Guessing one is
+    harder than guessing the six-digit code it protects.
+
+    Returns XML either way. A carrier that gets an error page reads it as a
+    failed call and the person who answered hears nothing, which is a worse
+    outcome than being told the call expired.
+    """
+    spoken = await voice_otp.claim(token)
+    if spoken is None:
+        logger.warning(
+            "Verification voice answer for an unknown or spent token {}...",
+            token[:6],
+        )
+        return Response(
+            content=voice_otp.unavailable_xml(), media_type="application/xml"
+        )
+
+    # The code itself is never logged. It is the secret the call exists to
+    # deliver, and a log line is a place it outlives the five minutes.
+    logger.info("Reading a verification code out on a call (token {}...).", token[:6])
+    return Response(content=voice_otp.speak_xml(spoken), media_type="application/xml")
 
 
 # Mount per-provider routers (webhook, status callbacks, answer URLs).

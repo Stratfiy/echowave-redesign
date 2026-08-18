@@ -6314,6 +6314,16 @@ export type SetCredentialRequest = {
 };
 
 /**
+ * SharedOutboundRequest
+ */
+export type SharedOutboundRequest = {
+    /**
+     * Shared
+     */
+    shared?: boolean;
+};
+
+/**
  * SignupRequest
  */
 export type SignupRequest = {
@@ -6585,6 +6595,10 @@ export type StartRequest = {
      * Label
      */
     label?: string | null;
+    /**
+     * Language
+     */
+    language?: string | null;
 };
 
 /**
@@ -6603,6 +6617,10 @@ export type StartResponse = {
      * Channel
      */
     channel: string;
+    /**
+     * Language
+     */
+    language?: string | null;
 };
 
 /**
@@ -7720,6 +7738,20 @@ export type ValidationError = {
 };
 
 /**
+ * VerificationOptions
+ */
+export type VerificationOptions = {
+    /**
+     * Channel
+     */
+    channel: string;
+    /**
+     * Languages
+     */
+    languages: Array<VoiceLanguage>;
+};
+
+/**
  * VerifiedNumber
  */
 export type VerifiedNumber = {
@@ -7867,6 +7899,20 @@ export type VoiceInfo = {
      * Preview Url
      */
     preview_url?: string | null;
+};
+
+/**
+ * VoiceLanguage
+ */
+export type VoiceLanguage = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Label
+     */
+    label: string;
 };
 
 /**
@@ -8897,6 +8943,38 @@ export type CompleteTransferFunctionCallApiV1TelephonyTransferResultTransferIdPo
     200: unknown;
 };
 
+export type VerificationVoiceAnswerApiV1TelephonyVerificationVoiceTokenPostData = {
+    body?: never;
+    path: {
+        /**
+         * Token
+         */
+        token: string;
+    };
+    query?: never;
+    url: '/api/v1/telephony/verification/voice/{token}';
+};
+
+export type VerificationVoiceAnswerApiV1TelephonyVerificationVoiceTokenPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type VerificationVoiceAnswerApiV1TelephonyVerificationVoiceTokenPostError = VerificationVoiceAnswerApiV1TelephonyVerificationVoiceTokenPostErrors[keyof VerificationVoiceAnswerApiV1TelephonyVerificationVoiceTokenPostErrors];
+
+export type VerificationVoiceAnswerApiV1TelephonyVerificationVoiceTokenPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type HandleCloudonixTransferResultApiV1TelephonyCloudonixTransferResultTransferIdPostData = {
     body?: never;
     path: {
@@ -9386,6 +9464,97 @@ export type SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformM
 };
 
 export type SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponse = SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponses[keyof SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponses];
+
+export type ListSharedOutboundApiV1AdminTelephonySharedOutboundGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/telephony/shared-outbound';
+};
+
+export type ListSharedOutboundApiV1AdminTelephonySharedOutboundGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListSharedOutboundApiV1AdminTelephonySharedOutboundGetError = ListSharedOutboundApiV1AdminTelephonySharedOutboundGetErrors[keyof ListSharedOutboundApiV1AdminTelephonySharedOutboundGetErrors];
+
+export type ListSharedOutboundApiV1AdminTelephonySharedOutboundGetResponses = {
+    /**
+     * Response List Shared Outbound Api V1 Admin Telephony Shared Outbound Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListSharedOutboundApiV1AdminTelephonySharedOutboundGetResponse = ListSharedOutboundApiV1AdminTelephonySharedOutboundGetResponses[keyof ListSharedOutboundApiV1AdminTelephonySharedOutboundGetResponses];
+
+export type SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedOutboundPostData = {
+    body: SharedOutboundRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Phone Number Id
+         */
+        phone_number_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/telephony/phone-numbers/{phone_number_id}/shared-outbound';
+};
+
+export type SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedOutboundPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedOutboundPostError = SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedOutboundPostErrors[keyof SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedOutboundPostErrors];
+
+export type SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedOutboundPostResponses = {
+    /**
+     * Response Set Shared Outbound Api V1 Admin Telephony Phone Numbers  Phone Number Id  Shared Outbound Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedOutboundPostResponse = SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedOutboundPostResponses[keyof SetSharedOutboundApiV1AdminTelephonyPhoneNumbersPhoneNumberIdSharedOutboundPostResponses];
 
 export type ImpersonateApiV1SuperuserImpersonatePostData = {
     body: ImpersonateRequest;
@@ -14243,6 +14412,45 @@ export type ListNumbersApiV1VerifiedNumbersGetResponses = {
 };
 
 export type ListNumbersApiV1VerifiedNumbersGetResponse = ListNumbersApiV1VerifiedNumbersGetResponses[keyof ListNumbersApiV1VerifiedNumbersGetResponses];
+
+export type OptionsApiV1VerifiedNumbersOptionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/verified-numbers/options';
+};
+
+export type OptionsApiV1VerifiedNumbersOptionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OptionsApiV1VerifiedNumbersOptionsGetError = OptionsApiV1VerifiedNumbersOptionsGetErrors[keyof OptionsApiV1VerifiedNumbersOptionsGetErrors];
+
+export type OptionsApiV1VerifiedNumbersOptionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: VerificationOptions;
+};
+
+export type OptionsApiV1VerifiedNumbersOptionsGetResponse = OptionsApiV1VerifiedNumbersOptionsGetResponses[keyof OptionsApiV1VerifiedNumbersOptionsGetResponses];
 
 export type StartApiV1VerifiedNumbersStartPostData = {
     body: StartRequest;

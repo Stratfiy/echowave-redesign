@@ -1,15 +1,16 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Clock, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Phone, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import {
   confirmApiV1VerifiedNumbersConfirmPost,
   listNumbersApiV1VerifiedNumbersGet,
+  optionsApiV1VerifiedNumbersOptionsGet,
   removeApiV1VerifiedNumbersPhoneNumberDelete,
   startApiV1VerifiedNumbersStartPost,
 } from "@/client/sdk.gen";
-import type { VerifiedNumber } from "@/client/types.gen";
+import type { VerificationOptions, VerifiedNumber } from "@/client/types.gen";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -63,6 +71,13 @@ export default function VerifiedNumbersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expiresIn, setExpiresIn] = useState<number | null>(null);
 
+  // How this deployment actually delivers a code. Asked rather than assumed:
+  // the language picker only means something when we are going to speak, and a
+  // control with no effect is worse than no control.
+  const [options, setOptions] = useState<VerificationOptions | null>(null);
+  const [language, setLanguage] = useState<string>("en-IN");
+  const byVoice = options?.channel === "voice";
+
   const load = useCallback(async () => {
     setIsLoading(true);
     const response = await listNumbersApiV1VerifiedNumbersGet();
@@ -80,6 +95,21 @@ export default function VerifiedNumbersPage() {
     void load();
   }, [authLoading, user, load]);
 
+  useEffect(() => {
+    if (authLoading || !user) return;
+    void (async () => {
+      const response = await optionsApiV1VerifiedNumbersOptionsGet();
+      // A failure here is not worth an error banner. The flow still works; the
+      // screen just describes it in general terms instead of naming the channel.
+      if (response.data) {
+        setOptions(response.data);
+        if (response.data.languages.length > 0) {
+          setLanguage(response.data.languages[0].code);
+        }
+      }
+    })();
+  }, [authLoading, user]);
+
   // Counts the code's life down. Its only job is to stop someone staring at a
   // code that expired four minutes ago wondering why it will not work.
   useEffect(() => {
@@ -93,7 +123,11 @@ export default function VerifiedNumbersPage() {
     setIsSubmitting(true);
     setError(null);
     const response = await startApiV1VerifiedNumbersStartPost({
-      body: { phone_number: phoneNumber, label: label || null },
+      body: {
+        phone_number: phoneNumber,
+        label: label || null,
+        language: byVoice ? language : null,
+      },
     });
     setIsSubmitting(false);
 
@@ -180,6 +214,12 @@ export default function VerifiedNumbersPage() {
               a test call. It does not affect campaigns, which dial the numbers
               in your lists.
             </CardDescription>
+            {byVoice && (
+              <p className="flex items-center gap-2 pt-1 text-sm text-muted-foreground">
+                <Phone className="h-4 w-4 shrink-0" />
+                We verify by calling you and reading the code out — no SMS.
+              </p>
+            )}
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -257,8 +297,12 @@ export default function VerifiedNumbersPage() {
             </DialogTitle>
             <DialogDescription>
               {step === "enter-number"
-                ? "We will send a six-digit code to this number. Any format works."
-                : `We sent a code to +${phoneNumber.replace(/\D/g, "")}.`}
+                ? byVoice
+                  ? "We will call this number and read out a six-digit code, twice. Any format works."
+                  : "We will send a six-digit code to this number. Any format works."
+                : byVoice
+                  ? `We are calling +${phoneNumber.replace(/\D/g, "")}. Answer it and write the code down.`
+                  : `We sent a code to +${phoneNumber.replace(/\D/g, "")}.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -294,6 +338,26 @@ export default function VerifiedNumbersPage() {
                   maxLength={64}
                 />
               </div>
+              {byVoice && options && options.languages.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="vn-language">Read the code out in</Label>
+                  <Select value={language} onValueChange={setLanguage}>
+                    <SelectTrigger id="vn-language">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.languages.map((entry) => (
+                        <SelectItem key={entry.code} value={entry.code}>
+                          {entry.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    The digits are read one at a time and repeated once.
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-2">

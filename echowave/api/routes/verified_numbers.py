@@ -13,18 +13,37 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from api.constants import VERIFICATION_CHANNEL
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.telephony import verified_numbers as service
+from api.services.telephony import voice_otp
 from api.services.telephony.verification_sender import deliver_code
 
 router = APIRouter(prefix="/verified-numbers", tags=["telephony"])
+
+#: Offered in the order a caller in India is most likely to want, with the
+#: label written in the language itself — somebody who needs Hindi is not
+#: helped by the word "Hindi" in English. Only what the carrier can actually
+#: pronounce is listed; see ``voice_otp.PLIVO_LANGUAGES`` for why Telugu and
+#: Tamil are absent rather than silently falling back from a menu entry.
+VOICE_LANGUAGES: list[tuple[str, str]] = [
+    ("en-IN", "English (India)"),
+    ("hi-IN", "हिन्दी"),
+    ("en-US", "English (US)"),
+    ("en-GB", "English (UK)"),
+]
 
 
 class StartRequest(BaseModel):
     phone_number: str = Field(..., max_length=32)
     label: str | None = Field(default=None, max_length=64)
+    #: Which language to read the code out in, when the deployment verifies by
+    #: calling. An unknown or unsupported code is not an error — it falls back
+    #: to English (India) rather than refusing to verify somebody over an
+    #: accent. See ``services/telephony/voice_otp``.
+    language: str | None = Field(default=None, max_length=16)
 
 
 class ConfirmRequest(BaseModel):
@@ -45,6 +64,22 @@ class StartResponse(BaseModel):
     #: verifies nothing — the browser could simply read it and submit it.
     expires_in_seconds: int
     channel: str
+    #: What the code will actually be spoken in, which is not always what was
+    #: asked for. Returned so the screen can say "we will call you in English"
+    #: rather than leaving someone waiting for Telugu that is not coming.
+    language: str | None = None
+
+
+class VoiceLanguage(BaseModel):
+    code: str
+    label: str
+
+
+class VerificationOptions(BaseModel):
+    channel: str
+    #: Empty unless the deployment verifies by voice — there is nothing to
+    #: choose when the code arrives as text.
+    languages: list[VoiceLanguage]
 
 
 @router.get("", response_model=list[VerifiedNumber])
@@ -59,6 +94,23 @@ async def list_numbers(user: UserModel = Depends(get_user)) -> list[VerifiedNumb
         )
         for record in records
     ]
+
+
+@router.get("/options", response_model=VerificationOptions)
+async def options(user: UserModel = Depends(get_user)) -> VerificationOptions:
+    """How this deployment verifies, so the screen can ask the right question.
+
+    Read rather than assumed. A language picker on a deployment that sends SMS
+    is a control with no effect, and the honest way to avoid one is to say
+    which channel is live.
+    """
+    channel = (VERIFICATION_CHANNEL or "log").strip().lower()
+    languages = (
+        [VoiceLanguage(code=code, label=label) for code, label in VOICE_LANGUAGES]
+        if channel == "voice"
+        else []
+    )
+    return VerificationOptions(channel=channel, languages=languages)
 
 
 @router.post("/start", response_model=StartResponse)
@@ -84,7 +136,9 @@ async def start(
         # "later", which is what a client needs to distinguish to back off.
         raise HTTPException(status_code=429, detail=str(exc)) from exc
 
-    delivery = await deliver_code(started.phone_number, started.code)
+    delivery = await deliver_code(
+        started.phone_number, started.code, language=request.language
+    )
     if not delivery.ok:
         # The code is already stored. Reporting failure without saying "ask for
         # another" would leave the user waiting for a message that is not
@@ -96,6 +150,11 @@ async def start(
         phone_number=started.phone_number,
         expires_in_seconds=max(0, int(remaining)),
         channel=delivery.channel,
+        language=(
+            voice_otp.resolve_language(request.language)
+            if delivery.channel == "voice"
+            else None
+        ),
     )
 
 

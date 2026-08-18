@@ -290,15 +290,27 @@ class TestTheSender:
         result = await sender._send_plivo_sms("919876543210", "123456")
         assert not result.ok
 
-    async def test_voice_says_it_is_not_wired_rather_than_failing_silently(self):
-        """STATUS.md records that outbound on the platform account has never
-        completed a real call here. Shipping this as though it worked would
-        produce a flow that silently never rings."""
+    async def test_voice_is_dialled_rather_than_stubbed(self, monkeypatch):
+        """The voice channel used to refuse categorically, because outbound on
+        the platform account had never placed a real call. It now dials from the
+        shared outbound pool. What is asserted here is only that ``deliver_code``
+        routes to it — the call itself, the language and the single-use token are
+        covered in ``test_voice_verification_delivery``."""
         from api.services.telephony import verification_sender as sender
 
-        result = await sender._send_voice("919876543210", "123456")
-        assert not result.ok
-        assert "not enabled" in (result.error or "")
+        seen = {}
+
+        async def _fake(number, code, *, language=None):
+            seen.update(number=number, code=code, language=language)
+            return sender.DeliveryResult(ok=True, channel="voice")
+
+        monkeypatch.setattr(sender, "VERIFICATION_CHANNEL", "voice")
+        monkeypatch.setattr(sender, "_send_voice", _fake)
+
+        result = await sender.deliver_code("919876543210", "123456", language="hi")
+
+        assert result.ok and result.channel == "voice"
+        assert seen == {"number": "919876543210", "code": "123456", "language": "hi"}
 
     async def test_an_unknown_channel_is_refused_rather_than_guessed(self, monkeypatch):
         from api.services.telephony import verification_sender as sender
