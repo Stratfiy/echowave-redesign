@@ -173,3 +173,51 @@ class TestTheVerdictComesFirst:
         assert view is not None
         record = await db_client.get_kyc(organization_id)
         assert record.status == KycStatus.CARRIER_APPROVED.value
+
+
+@pytest.mark.asyncio
+class TestAccountsApprovedBeforeThisExisted:
+    """They must not need a staff member either.
+
+    The verdict handler creates the configuration going forward, which does
+    nothing for an account already carrying `carrier_approved`. Those accounts
+    would sit on "No managed carrier account is set up for this organisation
+    yet" indefinitely, so the provisioning gate heals them on the way past.
+    """
+
+    async def test_searching_creates_the_missing_configuration(
+        self, db_session, async_session, platform_credentials
+    ):
+        from api.db import db_client
+        from api.services.telephony import provisioning
+
+        organization_id = await _org(async_session, "already-approved")
+        await db_client.get_or_create_kyc(organization_id)
+        await db_client.update_kyc(
+            organization_id,
+            status=KycStatus.CARRIER_APPROVED.value,
+            carrier="plivo",
+            carrier_reference="app-existing",
+        )
+        assert await db_client.list_telephony_configurations(organization_id) == []
+
+        await provisioning.assert_may_provision(organization_id)
+
+        rows = await db_client.list_telephony_configurations(organization_id)
+        assert [r.is_platform_managed for r in rows] == [True]
+
+    async def test_an_unapproved_account_gets_nothing(
+        self, db_session, async_session, platform_credentials
+    ):
+        """The gate refuses before it reaches the healing step, so an account
+        that has not been approved never acquires our credentials."""
+        from api.db import db_client
+        from api.services.telephony import provisioning
+
+        organization_id = await _org(async_session, "unapproved")
+        await db_client.get_or_create_kyc(organization_id)
+
+        with pytest.raises(provisioning.NotVerified):
+            await provisioning.assert_may_provision(organization_id)
+
+        assert await db_client.list_telephony_configurations(organization_id) == []
