@@ -181,6 +181,30 @@ _PLIVO_USER_TYPE = {
 }
 
 
+def _document_meta(end_user: dict) -> dict:
+    """Per-document fields Plivo requires alongside the file itself.
+
+    Plivo validates these against the *document type*, not the application, and
+    refuses the whole submission when one is missing:
+
+        Field 'business_name' is required for document type '<uuid>'.
+        Check GET /Requirements for required fields.
+
+    ``business_name`` is the registered legal name — the same string as
+    ``end_user.name`` — so it is taken from there rather than passed
+    separately, which keeps the two from ever disagreeing. Plivo compares both
+    against the registration certificate, and a submission where they differ is
+    a rejection in waiting.
+
+    Only sent for a business. An individual application has no business name,
+    and sending an empty one is a field Plivo has to reject.
+    """
+    if end_user.get("type") != "business":
+        return {}
+    name = (end_user.get("name") or "").strip()
+    return {"business_name": name} if name else {}
+
+
 def plivo_user_type(business_type: str | None) -> str:
     """Plivo's ``user_type`` for one of our business types."""
     try:
@@ -288,12 +312,14 @@ class PlivoCarrier:
             country_iso=country_iso, number_type=number_type, user_type=user_type
         )
 
+        document_meta = _document_meta(end_user or {})
         payload_documents = [
             ComplianceDocument(
                 document_type_id=resolve_document_type_id(doc["kind"], available),
                 filename=doc.get("filename") or f"{doc['kind']}.pdf",
                 content=doc["content"],
                 content_type=doc.get("content_type") or "application/pdf",
+                meta=document_meta,
             )
             for doc in documents
         ]
@@ -359,6 +385,7 @@ class PlivoCarrier:
                     filename=doc.get("filename") or f"{doc['kind']}.pdf",
                     content=doc["content"],
                     content_type=doc.get("content_type") or "application/pdf",
+                    meta=_document_meta(end_user or {}),
                 )
                 for doc in documents
             ],

@@ -21,7 +21,7 @@ import asyncio
 import json
 import time
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -106,6 +106,17 @@ class ComplianceDocument:
     filename: str
     content: bytes
     content_type: str
+    #: Extra fields Plivo requires *for this document type*, merged into the
+    #: document's entry in the ``data`` payload. Which fields those are is per
+    #: type and per country — an Indian business registration document wants
+    #: ``business_name``, and Plivo refuses the whole application without it:
+    #: "Field 'business_name' is required for document type '<uuid>'. Check
+    #: GET /Requirements for required fields."
+    #:
+    #: A free-form mapping rather than named fields because the set differs by
+    #: document type and Plivo adds to it; the caller decides what a given type
+    #: needs and this carries it through unchanged.
+    meta: dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:
         """Raise unless Plivo would accept this file.
@@ -494,7 +505,11 @@ class PlivoComplianceClient:
 
         payload = dict(data)
         payload["documents"] = [
-            {"document_type_id": d.document_type_id, "file_name": d.safe_filename()}
+            {
+                "document_type_id": d.document_type_id,
+                "file_name": d.safe_filename(),
+                **d.meta,
+            }
             for d in documents
         ]
 
