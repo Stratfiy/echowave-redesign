@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from api.constants import MANAGED_TELEPHONY_ENABLED
 from api.db.models import UserModel
+from api.enums import KycStatus
 from api.services.auth.depends import get_user
 from api.services.kyc import callback as kyc_callback
 from api.services.kyc import service as kyc_service
@@ -87,8 +88,39 @@ def _view_response(view: kyc_service.KycView) -> dict[str, Any]:
 
 @router.get("")
 async def get_kyc(user: UserModel = Depends(get_user)) -> dict[str, Any]:
-    """This account's verification status and what is still outstanding."""
-    return _view_response(await kyc_service.get_view(_organization_id(user)))
+    """This account's verification status and what is still outstanding.
+
+    Also the last place an approved account can pick up the managed carrier
+    configuration it should already have. The verdict handler creates it going
+    forward and `assert_may_provision` creates it on the way to buying — but
+    the buy screen reads the configuration list *before* it offers a search, so
+    an account approved before any of this existed saw "No managed carrier
+    account is set up for this organisation yet" and had no action available
+    that would have fixed it. The heal has to happen on a read because a read
+    is all that screen does first.
+
+    Lazy creation on a GET follows what `get_or_create_kyc` already does one
+    layer down, and for the same reason: the row is worth nothing until
+    somebody asks, and the moment they ask is exactly when it must exist.
+    Idempotent, so the repeat visits this endpoint gets are free.
+    """
+    organization_id = _organization_id(user)
+    view = await kyc_service.get_view(organization_id)
+
+    if view.status == KycStatus.CARRIER_APPROVED.value:
+        try:
+            await kyc_service.ensure_managed_configuration(organization_id)
+        except Exception as exc:  # noqa: BLE001
+            # Reading a status must not fail because a configuration could not
+            # be written. The screen still renders and staff can act on the log.
+            logger.error(
+                "Could not ensure a managed configuration for approved "
+                "organization {}: {}",
+                organization_id,
+                exc,
+            )
+
+    return _view_response(view)
 
 
 @router.put("/business-details")
