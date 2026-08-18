@@ -12,8 +12,18 @@ repository's.
 
 ```bash
 cd /home/ubuntu/echowave-redesign/echowave
-docker compose up -d api worker
+docker compose up -d --force-recreate api
 ```
+
+There is no `worker` service — `docker compose up -d api worker` fails with
+`no such service: worker`. The arq worker, the ARI manager and uvicorn all run
+inside the `api` container under supervisord (see `api/Dockerfile`), so
+restarting `api` restarts all of them.
+
+`--force-recreate` because Compose compares the service definition, not the
+*contents* of `env_file`: without it a changed `.env` can leave the old
+container running with the old values, which reads as "the new key did not
+work".
 
 The schema migration (`e1f5b2c94a70`, the managed-markup history) needs no
 separate step — `ci_deploy.sh` runs `alembic upgrade head` on every deploy.
