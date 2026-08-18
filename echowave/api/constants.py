@@ -269,6 +269,65 @@ BYOK_ORCHESTRATION_ENABLED = (
 )
 
 
+# --- The in-product agent builder -------------------------------------------
+#
+# The chat on the overview screen that builds a working agent from a
+# conversation. It runs on Decibyl's own provider key, not the customer's, so
+# everything here exists to bound what that costs.
+
+# Which LLM the builder talks to, and in what order of preference.
+#
+# The builder uses the first of these for which a platform LLM key is installed
+# at /superadmin/provider-keys, so the choice of model is made by installing a
+# key rather than by editing a setting. Pin one explicitly with
+# AGENT_BUILDER_PROVIDER when more than one key is present and the cheaper
+# default is not the one wanted.
+AGENT_BUILDER_PROVIDER_PREFERENCE = tuple(
+    p.strip().lower()
+    for p in os.getenv(
+        "AGENT_BUILDER_PROVIDER_PREFERENCE", "anthropic,openai,google"
+    ).split(",")
+    if p.strip()
+)
+AGENT_BUILDER_PROVIDER = (os.getenv("AGENT_BUILDER_PROVIDER") or "").strip().lower()
+
+# The model used per provider. Defaults are the mid-tier models: the builder
+# reasons over a tool catalogue and a template's prompts, which the smallest
+# models do poorly, and it runs a handful of times per account rather than per
+# call.
+AGENT_BUILDER_MODELS = {
+    "anthropic": os.getenv("AGENT_BUILDER_MODEL_ANTHROPIC", "claude-sonnet-4-5"),
+    "openai": os.getenv("AGENT_BUILDER_MODEL_OPENAI", "gpt-4.1"),
+    "google": os.getenv("AGENT_BUILDER_MODEL_GOOGLE", "gemini-2.5-flash"),
+}
+
+# How many builder messages one organization may send in a day, IST.
+#
+# The builder spends our money, so it is capped per account rather than
+# globally: a global cap would let one enthusiastic account exhaust the day for
+# everybody. Counted per user message, not per token, because a message is what
+# a person understands and what a rate-limit notice can honestly state.
+#
+# Zero disables the builder without removing it, which is the setting to use if
+# the spend needs stopping before anyone can look at why.
+AGENT_BUILDER_DAILY_MESSAGE_LIMIT = int(
+    os.getenv("AGENT_BUILDER_DAILY_MESSAGE_LIMIT", "60")
+)
+
+# How many tool calls one builder turn may make before it must answer.
+#
+# A loop that never converges is the failure mode here — a model that keeps
+# re-reading node types burns the day's budget without producing an agent. The
+# ceiling is generous enough for template, docs, build and price in one turn.
+AGENT_BUILDER_MAX_TOOL_CALLS_PER_TURN = int(
+    os.getenv("AGENT_BUILDER_MAX_TOOL_CALLS_PER_TURN", "16")
+)
+
+# Whether the builder is reachable at all. Off by default: it spends money on
+# our key, so switching it on is a deliberate act.
+AGENT_BUILDER_ENABLED = os.getenv("AGENT_BUILDER_ENABLED", "false").lower() == "true"
+
+
 # Whether customers can start telephony verification at all.
 #
 # The flow depends on an ISV/reseller arrangement with the carrier — subaccounts

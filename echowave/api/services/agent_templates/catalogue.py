@@ -145,7 +145,7 @@ def _all() -> tuple[AgentTemplate, ...]:
                     },
                 ),
                 TemplateNode(
-                    type="agent",
+                    type="agentNode",
                     name="Book appointment",
                     prompt=(
                         "Book the appointment. You need three things, and you ask for "
@@ -173,7 +173,7 @@ def _all() -> tuple[AgentTemplate, ...]:
                     },
                 ),
                 TemplateNode(
-                    type="agent",
+                    type="agentNode",
                     name="Clinical callback",
                     prompt=(
                         "The caller has a clinical question you must not answer.\n\n"
@@ -310,7 +310,7 @@ def _all() -> tuple[AgentTemplate, ...]:
                     },
                 ),
                 TemplateNode(
-                    type="agent",
+                    type="agentNode",
                     name="Qualify",
                     prompt=(
                         "Qualify the enquiry. Ask one at a time, in this order, and "
@@ -336,7 +336,7 @@ def _all() -> tuple[AgentTemplate, ...]:
                     },
                 ),
                 TemplateNode(
-                    type="agent",
+                    type="agentNode",
                     name="Book site visit",
                     prompt=(
                         "This lead is worth a site visit. Offer one.\n\n"
@@ -470,7 +470,7 @@ def _all() -> tuple[AgentTemplate, ...]:
                     },
                 ),
                 TemplateNode(
-                    type="agent",
+                    type="agentNode",
                     name="Remind",
                     prompt=(
                         "State the reminder plainly and without pressure: the "
@@ -497,7 +497,7 @@ def _all() -> tuple[AgentTemplate, ...]:
                     },
                 ),
                 TemplateNode(
-                    type="agent",
+                    type="agentNode",
                     name="Hand off",
                     prompt=(
                         "This call needs a person. That is the case if the borrower "
@@ -643,7 +643,7 @@ def _all() -> tuple[AgentTemplate, ...]:
                     },
                 ),
                 TemplateNode(
-                    type="agent",
+                    type="agentNode",
                     name="Understand",
                     prompt=(
                         "Understand what they are looking for, one question at a time:\n\n"
@@ -669,7 +669,7 @@ def _all() -> tuple[AgentTemplate, ...]:
                     },
                 ),
                 TemplateNode(
-                    type="agent",
+                    type="agentNode",
                     name="Book counselling",
                     prompt=(
                         "Offer a counselling call with an advisor who can go through "
@@ -886,7 +886,7 @@ def _all() -> tuple[AgentTemplate, ...]:
                     extract={"intent": "One of: booking, information, large_party"},
                 ),
                 TemplateNode(
-                    type="agent",
+                    type="agentNode",
                     name="Take booking",
                     prompt=(
                         "Take the booking. One question at a time:\n\n"
