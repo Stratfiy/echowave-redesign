@@ -220,3 +220,76 @@ class TestTheEndUserObject:
                 "individual",
                 "business",
             }
+
+
+class TestPerDocumentFields:
+    """Fields Plivo validates against the document type, not the application.
+
+    A business registration document needs ``business_name`` beside the file,
+    and without it Plivo refuses the entire submission:
+
+        Field 'business_name' is required for document type '<uuid>'.
+        Check GET /Requirements for required fields.
+
+    Nothing carried these fields at all, so every business application failed
+    here — one layer past the ``end_user.type`` bug, and invisible until that
+    one was fixed.
+    """
+
+    def test_a_business_sends_its_registered_name(self):
+        from api.services.kyc.carrier import _document_meta
+
+        meta = _document_meta({"type": "business", "name": "Acme Private Limited"})
+
+        assert meta == {"business_name": "Acme Private Limited"}
+
+    def test_it_is_the_same_string_as_the_end_user_name(self):
+        """Taken from ``end_user`` rather than passed separately, so the two
+        cannot disagree. Plivo compares both against the registration
+        certificate and a mismatch is a rejection in waiting."""
+        from api.services.kyc.carrier import _document_meta
+
+        end_user = {"type": "business", "name": "Nautomation Labs Private Limited"}
+
+        assert _document_meta(end_user)["business_name"] == end_user["name"]
+
+    def test_an_individual_sends_nothing(self):
+        """An individual has no business name, and an empty one is a field
+        Plivo has to reject."""
+        from api.services.kyc.carrier import _document_meta
+
+        assert _document_meta({"type": "individual", "name": "A Person"}) == {}
+
+    def test_a_business_with_no_name_sends_nothing_rather_than_blank(self):
+        from api.services.kyc.carrier import _document_meta
+
+        assert _document_meta({"type": "business", "name": "   "}) == {}
+
+    def test_the_meta_reaches_the_document_payload(self):
+        """The mechanism, not just the value: meta is merged into the document
+        entry that goes to Plivo, alongside the type id and file name."""
+        import json
+
+        from api.services.kyc.plivo_compliance import (
+            ComplianceDocument,
+            PlivoComplianceClient,
+        )
+
+        client = PlivoComplianceClient(auth_id="MA", auth_token="tok")
+        form = client._build_form(
+            data={"alias": "decibyl-org-1"},
+            documents=[
+                ComplianceDocument(
+                    document_type_id="525a6b3a-2050-4556-8e2c-367cf30cd6ca",
+                    filename="incorporation.pdf",
+                    content=b"%PDF-1.4 fake",
+                    content_type="application/pdf",
+                    meta={"business_name": "Acme Private Limited"},
+                )
+            ],
+        )
+
+        data_field = next(f for f in form._fields if f[0].get("name") == "data")
+        payload = json.loads(data_field[2])
+        assert payload["documents"][0]["business_name"] == "Acme Private Limited"
+        assert payload["documents"][0]["file_name"] == "incorporation.pdf"
