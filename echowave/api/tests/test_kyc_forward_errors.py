@@ -323,3 +323,47 @@ def test_a_document_with_no_extra_fields_omits_data_fields_entirely():
 
     data_field = next(f for f in form._fields if f[0].get("name") == "data")
     assert "data_fields" not in json.loads(data_field[2])["documents"][0]
+
+
+class TestTheNameInTheCarriersDashboard:
+    """What a compliance application is called where staff actually read it.
+
+    It was `decibyl-org-30` — correct, unambiguous, and meaningless to whoever
+    is looking down a list of applications in Plivo trying to work out which
+    customer each one belongs to.
+    """
+
+    def test_it_leads_with_the_email(self):
+        from api.services.kyc.carrier import compliance_alias
+
+        alias = compliance_alias(organization_id=30, email="ops@acme.example")
+
+        assert alias.startswith("ops@acme.example")
+
+    def test_the_organization_id_survives(self):
+        """The only part that ties back to us. Two organizations can share a
+        billing contact, and an alias that cannot be traced to a row is a
+        support ticket waiting to happen."""
+        from api.services.kyc.carrier import compliance_alias
+
+        assert "(org 30)" in compliance_alias(
+            organization_id=30, email="ops@acme.example"
+        )
+
+    def test_no_email_falls_back_to_the_old_name(self):
+        """An account with no address on file still needs an alias, and the id
+        is the thing we always have."""
+        from api.services.kyc.carrier import compliance_alias
+
+        assert compliance_alias(organization_id=30, email=None) == "decibyl-org-30"
+        assert compliance_alias(organization_id=30, email="   ") == "decibyl-org-30"
+
+    def test_a_very_long_address_is_trimmed(self):
+        """Carriers are not reliably tolerant of long aliases, and this one has
+        to survive whatever Plivo does to it."""
+        from api.services.kyc.carrier import compliance_alias
+
+        alias = compliance_alias(organization_id=30, email="a" * 200 + "@example.com")
+
+        assert len(alias) < 80
+        assert alias.endswith("(org 30)")

@@ -94,6 +94,7 @@ class KycCarrier(Protocol):
         legal_name: str | None,
         gstin: str | None,
         documents: list[dict],
+        alias: str | None = None,
     ) -> CarrierSubmission: ...
 
     async def check(self, reference: str) -> CarrierStatus: ...
@@ -205,6 +206,26 @@ def _document_meta(end_user: dict) -> dict:
     return {"business_name": name} if name else {}
 
 
+def compliance_alias(*, organization_id: int, email: str | None) -> str:
+    """The name a compliance application carries in the carrier's dashboard.
+
+    It was the organization id alone — correct, unambiguous, and meaningless to
+    whoever is looking at a list of applications in Plivo trying to work out
+    which customer each one belongs to. The email is what a human recognises.
+
+    The id stays on the end regardless, because it is the only part that ties
+    back to us: two organizations can share a billing contact, and an alias
+    that cannot be traced to a row is a support ticket waiting to happen.
+
+    Kept short and plain — carriers are not reliably tolerant of long or
+    decorated aliases, and this one has to survive whatever Plivo does to it.
+    """
+    address = (email or "").strip()
+    if not address:
+        return f"decibyl-org-{organization_id}"
+    return f"{address[:60]} (org {organization_id})"
+
+
 def plivo_user_type(business_type: str | None) -> str:
     """Plivo's ``user_type`` for one of our business types."""
     try:
@@ -304,8 +325,14 @@ class PlivoCarrier:
         callback_url: str = "",
         country_iso: str = "IN",
         number_type: str = "local",
+        alias: str | None = None,
     ) -> CarrierSubmission:
-        """File a new compliance application and return Plivo's id for it."""
+        """File a new compliance application and return Plivo's id for it.
+
+        ``alias`` is the name the application carries in Plivo's dashboard. It
+        defaults to the organization id, which is unambiguous and means nothing
+        to the person reading the list — see :func:`compliance_alias`.
+        """
         api = self._api()
         user_type = plivo_user_type(business_type)
         available = await api.document_type_ids(
@@ -325,7 +352,7 @@ class PlivoCarrier:
         ]
 
         response = await api.create_application(
-            alias=f"decibyl-org-{organization_id}",
+            alias=alias or f"decibyl-org-{organization_id}",
             country_iso=country_iso,
             number_type=number_type,
             end_user=end_user or {},
