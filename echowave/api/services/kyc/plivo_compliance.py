@@ -106,12 +106,17 @@ class ComplianceDocument:
     filename: str
     content: bytes
     content_type: str
-    #: Extra fields Plivo requires *for this document type*, merged into the
-    #: document's entry in the ``data`` payload. Which fields those are is per
-    #: type and per country — an Indian business registration document wants
+    #: Extra fields Plivo requires *for this document type*, sent as this
+    #: document's ``data_fields`` object. Which fields those are is per type and
+    #: per country — an Indian business registration document wants
     #: ``business_name``, and Plivo refuses the whole application without it:
     #: "Field 'business_name' is required for document type '<uuid>'. Check
     #: GET /Requirements for required fields."
+    #:
+    #: The names come from the ``required_fields`` list in the requirements
+    #: response, where each entry's ``key`` is documented as being "for use in
+    #: documents[].data_fields" — which is why these are nested rather than set
+    #: on the document object itself.
     #:
     #: A free-form mapping rather than named fields because the set differs by
     #: document type and Plivo adds to it; the caller decides what a given type
@@ -508,7 +513,14 @@ class PlivoComplianceClient:
             {
                 "document_type_id": d.document_type_id,
                 "file_name": d.safe_filename(),
-                **d.meta,
+                # Nested under `data_fields`, not spread across the document
+                # object. Plivo's requirements response says so explicitly: each
+                # entry in `required_fields` carries a `key` "for use in
+                # documents[].data_fields". Spreading them one level up gets the
+                # same refusal as sending nothing — "Field 'business_name' is
+                # required for document type <uuid>" — because Plivo never looks
+                # there. Omitted entirely when empty rather than sent as {}.
+                **({"data_fields": d.meta} if d.meta else {}),
             }
             for d in documents
         ]

@@ -291,5 +291,35 @@ class TestPerDocumentFields:
 
         data_field = next(f for f in form._fields if f[0].get("name") == "data")
         payload = json.loads(data_field[2])
-        assert payload["documents"][0]["business_name"] == "Acme Private Limited"
-        assert payload["documents"][0]["file_name"] == "incorporation.pdf"
+        document = payload["documents"][0]
+        # Nested, not spread. Plivo reads these from `data_fields` and nowhere
+        # else — one level up gets the same refusal as sending nothing.
+        assert document["data_fields"] == {"business_name": "Acme Private Limited"}
+        assert document["file_name"] == "incorporation.pdf"
+
+
+def test_a_document_with_no_extra_fields_omits_data_fields_entirely():
+    """An empty ``data_fields: {}`` is a thing Plivo has to interpret. Leaving
+    the key out says the same thing and cannot be misread."""
+    import json
+
+    from api.services.kyc.plivo_compliance import (
+        ComplianceDocument,
+        PlivoComplianceClient,
+    )
+
+    client = PlivoComplianceClient(auth_id="MA", auth_token="tok")
+    form = client._build_form(
+        data={"alias": "decibyl-org-1"},
+        documents=[
+            ComplianceDocument(
+                document_type_id="type-1",
+                filename="id.pdf",
+                content=b"%PDF-1.4 fake",
+                content_type="application/pdf",
+            )
+        ],
+    )
+
+    data_field = next(f for f in form._fields if f[0].get("name") == "data")
+    assert "data_fields" not in json.loads(data_field[2])["documents"][0]
