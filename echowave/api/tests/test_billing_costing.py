@@ -41,6 +41,26 @@ async def _org_with_workflow(async_session, slug: str):
         template_context_variables={},
         call_disposition_codes={},
     )
+    # Pin this account's platform rate rather than inheriting whatever the
+    # commercial default happens to be. Every arithmetic assertion below is
+    # written against ₹1.92/min, and a pricing decision — the uncommitted rate
+    # moving to ₹3.50, a volume tier being added — must not break tests whose
+    # subject is pulse rounding, idempotency and ledger writes.
+    #
+    # Closed-ended rather than open, because `uq_org_rate_history_open` allows
+    # exactly one open row per account and one test here writes its own rate
+    # history on top of this. The far end date makes it cover every call the
+    # suite makes while still leaving that slot free.
+    async_session.add(
+        OrganizationRateHistoryModel(
+            organization_id=org.id,
+            platform_rate_micros_usd=20_000,  # $0.02/min -> ₹1.92 at ₹96
+            effective_from=datetime(2020, 1, 1, tzinfo=UTC),
+            effective_to=datetime(2100, 1, 1, tzinfo=UTC),
+            note="pinned for tests",
+        )
+    )
+
     async_session.add(workflow)
     await async_session.flush()
     return org, workflow

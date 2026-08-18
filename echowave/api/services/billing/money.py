@@ -37,10 +37,29 @@ MPAISE_PER_PAISE = 1000
 # figures go smaller still — cents would round the rate itself to zero.
 MICROS_PER_USD = 1_000_000
 
-# Global default platform rate: $0.02 per billable minute.
-# Matches the cheapest platform fee in the market; the differentiator is the
-# pulse below, not the headline number.
-DEFAULT_PLATFORM_RATE_MICROS_USD = 20_000
+# Global default platform rate: the **uncommitted** price, $0.0365/min — ₹3.50
+# at the fallback exchange rate below.
+#
+# The committed price is $0.02, which is what Bolna charges and therefore the
+# number the market reads as the platform fee. Accounts reach it one of two
+# ways, both of which already exist and neither of which is code: a volume tier
+# once their minutes in the period cross a threshold, or an account override
+# written when they sign a commitment. See services/billing/rates.py for the
+# resolution order.
+#
+# This constant is the floor those two fall back to, so it is deliberately the
+# *higher* of the two prices. It applies when the rate card has no tier row at
+# all — a fresh install, or a deployment where nobody has configured pricing
+# yet — and a default that silently charged the committed rate would give every
+# unconfigured account the discounted price and nobody would notice, because
+# an under-charge produces no error and no complaint.
+DEFAULT_PLATFORM_RATE_MICROS_USD = 36_500
+
+#: The committed rate, quoted in marketing as "$0.02/min". Not used by the
+#: resolver — it is here so the number in the pricing page and the number an
+#: operator types into the rate card have one source, and so the gap between
+#: committed and uncommitted is visible in one place.
+COMMITTED_PLATFORM_RATE_MICROS_USD = 20_000
 
 #: Fallback USD→INR rate, in paise per dollar (₹96.00), used only when the
 #: history table has no row covering the call. It is a floor against total

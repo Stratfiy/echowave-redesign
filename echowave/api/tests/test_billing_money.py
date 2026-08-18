@@ -4,6 +4,7 @@ import pytest
 
 from api.enums import RateUnit
 from api.services.billing.money import (
+    COMMITTED_PLATFORM_RATE_MICROS_USD,
     DEFAULT_PLATFORM_RATE_MICROS_USD,
     DEFAULT_PLATFORM_RATE_MPAISE,
     DEFAULT_PULSE_SECONDS,
@@ -33,26 +34,50 @@ def test_global_default_is_two_rupees_per_minute():
     assert format_paise(200) == "₹2.00"
 
 
-def test_the_list_price_is_two_cents_a_minute():
-    """$0.02/min in micro-dollars.
+def test_the_committed_price_is_two_cents_a_minute():
+    """$0.02/min in micro-dollars — the number quoted in marketing.
 
     Guards the units the same way the rupee test above does: a factor-of-1000
     slip here misprices every call on the platform.
     """
-    assert DEFAULT_PLATFORM_RATE_MICROS_USD == 20_000
-    assert format_micros_usd(DEFAULT_PLATFORM_RATE_MICROS_USD) == "$0.02"
+    assert COMMITTED_PLATFORM_RATE_MICROS_USD == 20_000
+    assert format_micros_usd(COMMITTED_PLATFORM_RATE_MICROS_USD) == "$0.02"
+
+
+def test_the_default_is_the_uncommitted_price_not_the_committed_one():
+    """The constant is a floor for a rate card with no tier configured, so it
+    has to be the dearer of the two prices.
+
+    Defaulting to the committed rate would hand the discount to every
+    unconfigured account, and nothing would surface it — an under-charge
+    produces no error and no complaint, so it would be found in a margin
+    report months later or not at all.
+    """
+    assert DEFAULT_PLATFORM_RATE_MICROS_USD > COMMITTED_PLATFORM_RATE_MICROS_USD
+    assert format_micros_usd(DEFAULT_PLATFORM_RATE_MICROS_USD) == "$0.0365"
 
 
 class TestUsdToInr:
-    def test_the_list_price_converts_to_the_expected_rupee_rate(self):
+    def test_the_committed_price_converts_to_the_expected_rupee_rate(self):
         """$0.02 at ₹96 is ₹1.92 a minute — 192 paise, 192_000 millipaise."""
         rate = usd_to_mpaise(
-            micros_usd=DEFAULT_PLATFORM_RATE_MICROS_USD,
+            micros_usd=COMMITTED_PLATFORM_RATE_MICROS_USD,
             usd_inr_paise=DEFAULT_USD_INR_PAISE,
         )
         assert rate == 192_000
         assert platform_fee_paise(billable_minutes=1, rate_mpaise=rate) == 192
         assert format_paise(192) == "₹1.92"
+
+    def test_the_uncommitted_price_is_three_fifty(self):
+        """₹3.50/min is the number the pricing page shows without a
+        commitment, so the constant has to land on it exactly at the fallback
+        exchange rate — not ₹3.49 or ₹3.51."""
+        rate = usd_to_mpaise(
+            micros_usd=DEFAULT_PLATFORM_RATE_MICROS_USD,
+            usd_inr_paise=DEFAULT_USD_INR_PAISE,
+        )
+        assert platform_fee_paise(billable_minutes=1, rate_mpaise=rate) == 350
+        assert format_paise(350) == "₹3.50"
 
     def test_the_rupee_price_moves_with_the_dollar(self):
         """The point of pricing in USD: the dollar figure holds while the rupee

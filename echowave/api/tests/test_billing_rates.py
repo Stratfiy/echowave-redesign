@@ -50,12 +50,15 @@ class TestPlatformRateResolution:
             async_session, organization_id=org.id, at=JUN
         )
 
-        # $0.02/min converted at the seeded ₹96 — the receipt carries both, so
-        # a customer quoted in dollars can check the rupee figure.
+        # The uncommitted rate, $0.0365/min, converted at the seeded ₹96 —
+        # the receipt carries both, so a customer quoted in dollars can check
+        # the rupee figure. This is the price with no tier configured and no
+        # commitment; $0.02 is reached through a volume tier or an account
+        # override, neither of which exists on this account.
         assert resolved.source == "global_default"
         assert resolved.rate_micros_usd == DEFAULT_PLATFORM_RATE_MICROS_USD
         assert resolved.usd_inr_paise == DEFAULT_USD_INR_PAISE
-        assert resolved.rate_mpaise == 192_000
+        assert resolved.rate_mpaise == 350_400
         assert resolved.pulse_seconds == DEFAULT_PULSE_SECONDS
 
     async def test_account_override_wins_over_default(self, async_session):
@@ -235,7 +238,7 @@ class TestEffectiveDating:
         )
 
         assert resolved.source == "global_default"
-        assert resolved.rate_mpaise == 192_000
+        assert resolved.rate_mpaise == 350_400
 
     async def test_rates_are_scoped_to_their_own_account(self, async_session):
         """One account's enterprise deal must never leak onto another."""
@@ -503,10 +506,15 @@ class TestExchangeRateResolution:
             at=DEC,
         )
 
-        # Same $0.02 both times; different rupee amounts.
-        assert june.rate_micros_usd == december.rate_micros_usd == 20_000
-        assert june.rate_mpaise == 192_000  # at ₹96
-        assert december.rate_mpaise == 220_000  # at ₹110
+        # Same dollar rate both times; different rupee amounts. The point of
+        # the test is that FX moves and the dollar price does not.
+        assert (
+            june.rate_micros_usd
+            == december.rate_micros_usd
+            == DEFAULT_PLATFORM_RATE_MICROS_USD
+        )
+        assert june.rate_mpaise == 350_400  # at ₹96
+        assert december.rate_mpaise == 401_500  # at ₹110
 
     async def test_a_gap_in_the_history_is_flagged_not_hidden(self, async_session):
         """Billing at a stale rate quietly erodes margin, and the only symptom

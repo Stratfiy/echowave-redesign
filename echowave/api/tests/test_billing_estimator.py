@@ -155,8 +155,10 @@ class TestEstimate:
             async_session, organization_id=negotiated_org.id
         )
 
-        # The list price is $0.02/min, converted at the seeded ₹96.
-        assert listed.platform_paise_per_minute == 192
+        # The uncommitted price, $0.0365/min, converted at the seeded ₹96.
+        # An account with no commitment and no volume tier pays this; ₹1.92 is
+        # what a commitment or a tier buys.
+        assert listed.platform_paise_per_minute == 350
         assert negotiated.platform_paise_per_minute == 50
         assert negotiated.total_paise_per_minute < listed.total_paise_per_minute
 
