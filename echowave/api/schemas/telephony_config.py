@@ -114,7 +114,15 @@ class TelephonyConfigurationListItem(BaseModel):
     # account. It is what decides whether a customer can buy a number through
     # us at all, so the purchase screen needs it to avoid offering a choice
     # that the provisioning route would refuse.
-    is_platform_managed: bool = False
+    #
+    # Required, with no default. It carried `= False` and the one route that
+    # builds this never passed it, so every configuration was reported as
+    # unmanaged and the purchase screen could not find one however correct the
+    # database was — it told fully approved accounts "No managed carrier
+    # account is set up for this organisation yet. Contact support". A default
+    # on a field that decides whether a customer can spend money is a silent
+    # wrong answer; without one the omission is a startup error.
+    is_platform_managed: bool
     phone_number_count: int = 0
     created_at: datetime
     updated_at: datetime
