@@ -159,3 +159,64 @@ class TestValidationProblems:
 
         assert caught.value.status_code == 422
         assert isinstance(caught.value.detail, dict)
+
+
+class TestTheEndUserObject:
+    """The shape Plivo is actually sent.
+
+    This dict goes to the carrier verbatim as the ``end_user`` object, and it
+    reached production with the field named ``user_type`` — which Plivo refuses
+    outright: "end_user.type is required. Allowed values: individual,
+    business." Every forward failed and nothing tested this shape, so the only
+    signal was a 400 nobody could see.
+
+    The wrong name came from a real place: the compliance *requirements* lookup
+    on the same client does take ``user_type``. Two Plivo endpoints, two names
+    for one idea.
+    """
+
+    @staticmethod
+    def _record(business_type: str):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            legal_name="Nautomation Labs Private Limited",
+            business_type=business_type,
+            country_iso="IN",
+            address_line1="1 Example Road",
+            address_line2="",
+            city="Chennai",
+            region="TN",
+            postal_code="600001",
+            gstin="33AALCN7211L1ZB",
+        )
+
+    def test_the_field_is_type_not_user_type(self):
+        from api.services.kyc.service import build_end_user
+
+        end_user = build_end_user(self._record("company"))
+
+        assert "type" in end_user
+        assert "user_type" not in end_user
+
+    def test_a_company_is_a_business(self):
+        from api.services.kyc.service import build_end_user
+
+        assert build_end_user(self._record("company"))["type"] == "business"
+
+    def test_anything_else_is_an_individual(self):
+        """Plivo allows exactly two values, so everything that is not a
+        registered company has to land on the other one."""
+        from api.services.kyc.service import build_end_user
+
+        assert build_end_user(self._record("individual"))["type"] == "individual"
+        assert build_end_user(self._record("proprietorship"))["type"] == "individual"
+
+    def test_the_value_is_one_plivo_accepts(self):
+        from api.services.kyc.service import build_end_user
+
+        for business_type in ("company", "individual", "proprietorship", ""):
+            assert build_end_user(self._record(business_type))["type"] in {
+                "individual",
+                "business",
+            }
