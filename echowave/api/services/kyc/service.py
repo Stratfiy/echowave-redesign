@@ -18,7 +18,7 @@ from api.db.models import KycDocumentModel, OrganizationKycModel
 from api.enums import KycBusinessType, KycDocumentKind, KycStatus
 from api.services.kyc import documents as document_store
 from api.services.kyc import validation
-from api.services.kyc.carrier import CarrierVerdict, get_carrier
+from api.services.kyc.carrier import CarrierVerdict, compliance_alias, get_carrier
 from api.services.kyc.state import (
     KycTransitionError,
     assert_transition,
@@ -633,6 +633,10 @@ async def approve_and_forward(
             documents=payload,
             end_user=end_user,
             callback_url=callback_url,
+            alias=compliance_alias(
+                organization_id=organization_id,
+                email=await _reference_email(organization_id),
+            ),
         )
 
     updated = await db_client.update_kyc(
@@ -733,6 +737,29 @@ async def ensure_managed_configuration(organization_id: int) -> int | None:
         organization_id,
     )
     return row.id
+
+
+async def _reference_email(organization_id: int) -> str | None:
+    """Who this account is, to a person reading the carrier's dashboard.
+
+    The billing email first, because that is the address the customer chose to
+    be reached at about money and is the one most likely to be a real inbox.
+    Falls back to the first user on the organization, because an application
+    named after nobody is the thing this is fixing.
+    """
+    from api.services.billing.billing_profile import get_profile
+
+    async with db_client.async_session() as session:
+        profile = await get_profile(session, organization_id=organization_id)
+        if profile.billing_email:
+            return profile.billing_email
+
+    users = await db_client.get_organization_users(organization_id)
+    for user in users:
+        email = getattr(user, "email", None)
+        if email:
+            return email
+    return None
 
 
 async def record_carrier_verdict(
