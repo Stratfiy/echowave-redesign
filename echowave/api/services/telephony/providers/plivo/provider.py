@@ -118,7 +118,7 @@ class PlivoProvider(TelephonyProvider):
                 )
 
     async def get_call_status(self, call_id: str) -> Dict[str, Any]:
-        if not self.validate_config():
+        if not self.has_credentials():
             raise ValueError("Plivo provider not properly configured")
 
         endpoint = f"{self.base_url}/Call/{call_id}/"
@@ -136,7 +136,28 @@ class PlivoProvider(TelephonyProvider):
         return self.from_numbers
 
     def validate_config(self) -> bool:
+        """Whether this configuration can place a call.
+
+        Includes ``from_numbers`` because a call needs a caller ID. Do not use
+        it to gate account operations — see :meth:`has_credentials`.
+        """
         return bool(self.auth_id and self.auth_token and self.from_numbers)
+
+    def has_credentials(self) -> bool:
+        """Whether we can talk to the Plivo account at all.
+
+        Split from :meth:`validate_config` because conflating the two made
+        buying a first number impossible: searching Plivo's inventory was gated
+        on already owning a number, and a configuration created to buy one has
+        none. An approved customer got "Plivo provider not properly
+        configured" on a configuration that was perfectly good for the thing
+        they were trying to do.
+
+        Everything that acts on the *account* — searching, buying, releasing,
+        listing, reading a call's status — needs authentication and nothing
+        else. Only placing a call needs a number to place it from.
+        """
+        return bool(self.auth_id and self.auth_token)
 
     @staticmethod
     def _stringify_signature_value(value: Any) -> Any:
@@ -440,7 +461,7 @@ class PlivoProvider(TelephonyProvider):
             )
             return ProviderSyncResult(ok=True)
 
-        if not self.validate_config():
+        if not self.has_credentials():
             return ProviderSyncResult(
                 ok=False, message="Plivo provider not properly configured"
             )
@@ -510,7 +531,7 @@ class PlivoProvider(TelephonyProvider):
         normal answer rather than a fault — the caller shows "none available
         right now" and does not retry in a loop.
         """
-        if not self.validate_config():
+        if not self.has_credentials():
             raise ValueError("Plivo provider not properly configured")
 
         params: Dict[str, Any] = {
@@ -573,7 +594,7 @@ class PlivoProvider(TelephonyProvider):
         purchase is the caller reserving the number in our database first —
         see ``api/services/telephony/provisioning.py``.
         """
-        if not self.validate_config():
+        if not self.has_credentials():
             raise ValueError("Plivo provider not properly configured")
 
         bare = number.lstrip("+")
@@ -625,7 +646,7 @@ class PlivoProvider(TelephonyProvider):
         state the caller wanted. Treating it as a failure would make a
         reconciliation job retry for ever on a number nobody holds.
         """
-        if not self.validate_config():
+        if not self.has_credentials():
             return ProviderSyncResult(
                 ok=False, message="Plivo provider not properly configured"
             )
@@ -668,7 +689,7 @@ class PlivoProvider(TelephonyProvider):
         reports every number beyond it as missing from the carrier, which is
         the opposite of the truth and would drive a release.
         """
-        if not self.validate_config():
+        if not self.has_credentials():
             raise ValueError("Plivo provider not properly configured")
 
         numbers: List[str] = []
