@@ -214,7 +214,7 @@ PLATFORM_PLIVO_APPLICATION_ID = os.getenv("PLATFORM_PLIVO_APPLICATION_ID") or No
 # Defaults are the India local-DID figures the launch plan was costed on.
 # Confirm against Plivo's live price list before relying on the margin.
 NUMBER_RENTAL_COST_PAISE = int(os.getenv("NUMBER_RENTAL_COST_PAISE", "25000"))
-NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "34900"))
+NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "49900"))
 
 # What we charge for provider usage on *our* keys, as basis points of what the
 # vendor charges us. 13000 = 1.30x; 10000 would be at cost.
@@ -233,6 +233,41 @@ NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "34900"))
 # provider_rates hold retail, and every margin figure on the unit-economics
 # screen would silently read zero.
 MANAGED_PROVIDER_MARKUP_BPS = int(os.getenv("MANAGED_PROVIDER_MARKUP_BPS", "14000"))
+
+# What a call costs when it runs on the customer's own model keys, in
+# micro-dollars per billable minute. Quoted in dollars for the same reason the
+# platform fee is: our price is compared against dollar-denominated
+# competitors, so fixing it in rupees would make it drift with the currency.
+#
+# A BYOK call produces no provider line at all (services/billing/usage.py), so
+# MANAGED_PROVIDER_MARKUP_BPS has nothing to apply to and the account pays the
+# platform fee alone — while consuming the same orchestration, concurrency,
+# storage and support as a managed call. This is the charge for that.
+#
+# Set to 0 to go back to charging BYOK accounts the platform fee only.
+BYOK_ORCHESTRATION_MICROS_USD = int(os.getenv("BYOK_ORCHESTRATION_MICROS_USD", "30000"))
+
+# Priced features, in micro-dollars per billable minute of the call they were
+# used on. Zero disables a feature's charge without removing its plumbing, so
+# switching one off is an environment change and not a deploy.
+#
+# These are list prices, not the cost of providing the feature. Post-call QA in
+# particular runs a real LLM inference per call; its tokens are recorded on the
+# run but resolve to no rate, so today they are reported as uncosted and the
+# spend is ours.
+ADDON_KNOWLEDGE_BASE_MICROS_USD = int(
+    os.getenv("ADDON_KNOWLEDGE_BASE_MICROS_USD", "5000")
+)
+ADDON_CALL_QA_MICROS_USD = int(os.getenv("ADDON_CALL_QA_MICROS_USD", "20000"))
+
+# Whether the two charges above are applied at all. Off by default: they change
+# what existing accounts pay, so they are a commercial decision that should be
+# taken deliberately rather than inherited by upgrading.
+ADDON_BILLING_ENABLED = os.getenv("ADDON_BILLING_ENABLED", "false").lower() == "true"
+BYOK_ORCHESTRATION_ENABLED = (
+    os.getenv("BYOK_ORCHESTRATION_ENABLED", "false").lower() == "true"
+)
+
 
 # Whether customers can start telephony verification at all.
 #

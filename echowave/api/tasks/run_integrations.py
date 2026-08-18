@@ -26,6 +26,8 @@ from api.services.workflow.dto import (
     WebhookNodeData,
     WebhookRFNode,
 )
+from api.services.billing.addons import CALL_QA as ADDON_CALL_QA
+from api.services.billing.addons import record_addon_used
 from api.services.workflow.qa import run_per_node_qa_analysis
 from api.tasks.function_names import FunctionNames
 from api.utils.recording_artifacts import get_recording_storage_key
@@ -157,6 +159,12 @@ async def _update_usage_info_with_qa_tokens(
                 llm_usage[key] = token_usage
 
         usage_info["llm"] = llm_usage
+        # QA is a priced feature, and this is the point at which it is known to
+        # have produced a result rather than been configured. Recorded here so
+        # the same write that persists its token usage also persists the fact
+        # that it ran.
+        if any(result.get("token_usage") for result in qa_results.values()):
+            record_addon_used(usage_info, ADDON_CALL_QA)
         await db_client.update_workflow_run(
             run_id=workflow_run_id, usage_info=usage_info
         )

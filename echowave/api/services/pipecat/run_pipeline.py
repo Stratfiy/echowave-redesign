@@ -992,6 +992,10 @@ async def _run_pipeline_impl(
                 getattr(user_config.tts, "key_source", None) or "managed"
             )
     pipeline_metrics_aggregator.register_key_sources(key_sources)
+    # The engine reports priced features here as they run — knowledge-base
+    # retrieval today. Set after the aggregator exists rather than passed to
+    # the engine's constructor, which runs earlier.
+    engine.set_metrics_aggregator(pipeline_metrics_aggregator)
 
     user_context_aggregator = context_aggregator.user()
     assistant_context_aggregator = context_aggregator.assistant()

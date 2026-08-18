@@ -57,6 +57,7 @@ from api.services.workflow.pipecat_engine_custom_tools import (
 from api.services.workflow.pipecat_engine_variable_extractor import (
     VariableExtractionManager,
 )
+from api.services.billing.addons import KNOWLEDGE_BASE as ADDON_KNOWLEDGE_BASE
 from api.services.workflow.tools.knowledge_base import (
     retrieval_unavailable,
     retrieve_from_knowledge_base,
@@ -116,6 +117,11 @@ class PipecatEngine:
         self.workflow = workflow
         self._call_context_vars = call_context_vars
         self._workflow_run_id = workflow_run_id
+        # Set after construction by run_pipeline, which builds the aggregator
+        # further down than it builds this engine. Optional throughout: a text
+        # chat and every test construct an engine without one, and neither
+        # should have to know about billing to run a conversation.
+        self._metrics_aggregator = None
         self._node_transition_callback = node_transition_callback
         # Whether this run is a phone or WebRTC call rather than a text chat.
         # Only calls announce that they are recorded: saying "this call is
@@ -388,6 +394,27 @@ class PipecatEngine:
             is_node_transition=True,
         )
 
+    def set_metrics_aggregator(self, aggregator) -> None:
+        """Attach the aggregator this engine should report priced features to.
+
+        Separate from construction because the pipeline builds the aggregator
+        after the engine; passing it through the constructor would mean
+        reordering pipeline setup to satisfy billing.
+        """
+        self._metrics_aggregator = aggregator
+
+    def _record_addon_used(self, addon_key: str) -> None:
+        """Note that a priced feature ran, if anything is listening.
+
+        Never raises. This is bookkeeping alongside a live conversation, and
+        dropping a call to record a fraction of a cent would be a bad trade.
+        """
+        try:
+            if self._metrics_aggregator is not None:
+                self._metrics_aggregator.register_addon_used(addon_key)
+        except Exception:  # noqa: BLE001 - see docstring
+            logger.debug("Could not record add-on usage for {}", addon_key)
+
     async def _register_knowledge_base_function(
         self, document_uuids: list[str]
     ) -> None:
@@ -434,6 +461,13 @@ class PipecatEngine:
                     ),
                     tracing_context=self._get_otel_context(),
                 )
+
+                # Billable only once retrieval has actually returned
+                # something. The failure path below hands the model an
+                # "unavailable" payload, and charging for a lookup the caller
+                # never benefited from is the kind of line item that loses an
+                # account.
+                self._record_addon_used(ADDON_KNOWLEDGE_BASE)
 
                 await function_call_params.result_callback(result)
 

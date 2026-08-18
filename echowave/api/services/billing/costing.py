@@ -23,12 +23,17 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
+from api import constants
 from api.enums import CreditLedgerKind
+from api.services.billing.addons import addon_keys_from_usage_info
+from api.services.billing.addons import by_key as addon_by_key
+from api.services.billing.money import round_half_up_div, usd_to_mpaise
 from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_cost
 from api.services.billing.markup import resolve_markup_bps
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
 from api.services.billing.usage import (
     billable_seconds_from_usage_info,
+    byok_model_share,
     usage_items_from_usage_info,
 )
 
@@ -51,6 +56,49 @@ async def _period_minutes(
         )
     )
     return -(-int(total or 0) // 60)
+
+
+def _fee_rates_mpaise(
+    *,
+    usage_info: dict | None,
+    usd_inr_paise: int | None,
+) -> tuple[int, dict[str, int]]:
+    """The orchestration rate and add-on rates for this call, in mpaise.
+
+    Both are quoted in dollars and settled in rupees, so they need the same FX
+    rate the platform fee was resolved at — passing a different one would put
+    two conversions of the same currency on one receipt. A rupee-native
+    contract has no FX rate at all, and gets no dollar-quoted fee: there is no
+    honest number to convert.
+    """
+    if usd_inr_paise is None:
+        return 0, {}
+
+    orchestration_mpaise = 0
+    orchestration_micros = constants.BYOK_ORCHESTRATION_MICROS_USD
+    if constants.BYOK_ORCHESTRATION_ENABLED and orchestration_micros > 0:
+        byok_count, keyed_count = byok_model_share(usage_info)
+        if byok_count > 0:
+            full = usd_to_mpaise(
+                micros_usd=orchestration_micros,
+                usd_inr_paise=usd_inr_paise,
+            )
+            # Scale the rate rather than the fee. The receipt's invariant is
+            # that units times unit rate reproduces the line, and discounting
+            # the total instead would break it for every part-BYOK call.
+            orchestration_mpaise = round_half_up_div(full * byok_count, keyed_count)
+
+    addon_mpaise: dict[str, int] = {}
+    if constants.ADDON_BILLING_ENABLED:
+        for key in addon_keys_from_usage_info(usage_info):
+            addon = addon_by_key(key)
+            if addon is None or not addon.is_billable:
+                continue
+            addon_mpaise[key] = usd_to_mpaise(
+                micros_usd=addon.micros_usd_per_minute,
+                usd_inr_paise=usd_inr_paise,
+            )
+    return orchestration_mpaise, addon_mpaise
 
 
 async def cost_workflow_run(
@@ -118,12 +166,19 @@ async def cost_workflow_run(
                 rate_mpaise=resolved.rate_mpaise, unit=resolved.unit
             )
 
+    orchestration_rate_mpaise, addon_rates = _fee_rates_mpaise(
+        usage_info=run.usage_info,
+        usd_inr_paise=platform.usd_inr_paise,
+    )
+
     cost = compute_call_cost(
         billable_seconds=billable_seconds,
         platform_rate_mpaise=platform.rate_mpaise,
         pulse_seconds=platform.pulse_seconds,
         usage=usage,
         provider_rates=provider_rates,
+        orchestration_rate_mpaise=orchestration_rate_mpaise,
+        addon_rates=addon_rates,
         # Only managed usage reaches here — a BYOK component produced no usage
         # item at all (services/billing/usage.py), so there is nothing of the
         # customer's own spend to mark up.
