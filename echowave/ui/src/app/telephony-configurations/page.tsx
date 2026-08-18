@@ -25,6 +25,7 @@ import type {
   TelephonyConfigurationListItem,
 } from "@/client/types.gen";
 import { ConfigFormDialog } from "@/components/telephony/ConfigFormDialog";
+import { TelephonyTabs } from "@/components/telephony/TelephonyTabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -150,6 +151,7 @@ export default function TelephonyConfigurationsPage() {
 
   return (
     <div className="min-h-screen">
+      <TelephonyTabs />
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>

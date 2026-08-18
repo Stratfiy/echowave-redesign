@@ -30,6 +30,7 @@ import {
     submitKycApiV1KycSubmitPost,
     uploadDocumentApiV1KycDocumentsPost,
 } from "@/client/sdk.gen";
+import { TelephonyTabs } from "@/components/telephony/TelephonyTabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -267,6 +268,7 @@ export default function VerificationPage() {
 
     return (
         <div className="glass-canvas min-h-full">
+            <TelephonyTabs />
             <div className="mx-auto w-full max-w-3xl px-6 pb-12 pt-8">
                 <header className="mb-6">
                     <h1 className="text-[2.125rem] font-semibold leading-[1.1] tracking-[-0.045em] text-foreground">
