@@ -950,6 +950,14 @@ export const markStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPos
  *
  * An empty list is a normal answer — India local inventory is thin and
  * moves — not an error to retry.
+ *
+ * When a filtered search finds nothing, this retries without the filters and
+ * says so with ``exact_match: false``. Indian local inventory is thin enough
+ * that asking for a city *and* a digit pattern usually returns nothing, and
+ * "Nothing available matching that right now" is a dead end that tells a
+ * customer nothing about what they could actually buy. Showing what exists,
+ * labelled as not what they asked for, answers the question behind the
+ * question.
  */
 export const searchNumbersApiV1ManagedNumbersSearchPost = <ThrowOnError extends boolean = false>(options: Options<SearchNumbersApiV1ManagedNumbersSearchPostData, ThrowOnError>): RequestResult<SearchNumbersApiV1ManagedNumbersSearchPostResponses, SearchNumbersApiV1ManagedNumbersSearchPostErrors, ThrowOnError> => (options.client ?? client).post<SearchNumbersApiV1ManagedNumbersSearchPostResponses, SearchNumbersApiV1ManagedNumbersSearchPostErrors, ThrowOnError>({
     url: '/api/v1/managed-numbers/search',
