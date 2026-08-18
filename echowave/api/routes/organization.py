@@ -626,6 +626,7 @@ async def list_telephony_configurations(user: UserModel = Depends(get_user)):
                 name=row.name,
                 provider=row.provider,
                 is_default_outbound=row.is_default_outbound,
+                is_platform_managed=row.is_platform_managed,
                 phone_number_count=len([n for n in numbers if n.is_active]),
                 created_at=row.created_at,
                 updated_at=row.updated_at,

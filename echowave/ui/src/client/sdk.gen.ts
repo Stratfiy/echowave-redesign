@@ -636,6 +636,20 @@ export const compareRealtimeApiV1CostEstimateRealtimePost = <ThrowOnError extend
  * Get Kyc
  *
  * This account's verification status and what is still outstanding.
+ *
+ * Also the last place an approved account can pick up the managed carrier
+ * configuration it should already have. The verdict handler creates it going
+ * forward and `assert_may_provision` creates it on the way to buying — but
+ * the buy screen reads the configuration list *before* it offers a search, so
+ * an account approved before any of this existed saw "No managed carrier
+ * account is set up for this organisation yet" and had no action available
+ * that would have fixed it. The heal has to happen on a read because a read
+ * is all that screen does first.
+ *
+ * Lazy creation on a GET follows what `get_or_create_kyc` already does one
+ * layer down, and for the same reason: the row is worth nothing until
+ * somebody asks, and the moment they ask is exactly when it must exist.
+ * Idempotent, so the repeat visits this endpoint gets are free.
  */
 export const getKycApiV1KycGet = <ThrowOnError extends boolean = false>(options?: Options<GetKycApiV1KycGetData, ThrowOnError>): RequestResult<GetKycApiV1KycGetResponses, GetKycApiV1KycGetErrors, ThrowOnError> => (options?.client ?? client).get<GetKycApiV1KycGetResponses, GetKycApiV1KycGetErrors, ThrowOnError>({ url: '/api/v1/kyc', ...options });
 

@@ -6872,7 +6872,7 @@ export type TelephonyConfigurationListItem = {
     /**
      * Is Platform Managed
      */
-    is_platform_managed?: boolean;
+    is_platform_managed: boolean;
     /**
      * Phone Number Count
      */
