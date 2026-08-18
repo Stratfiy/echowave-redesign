@@ -97,7 +97,14 @@ def build_end_user(record: OrganizationKycModel) -> dict:
     return {
         "name": (record.legal_name or "").strip(),
         "last_name": "",
-        "user_type": "business"
+        # ``type``, not ``user_type``. This dict is sent to Plivo verbatim as
+        # the ``end_user`` object, and Plivo names the field ``type`` there —
+        # it refuses the whole application with "end_user.type is required.
+        # Allowed values: individual, business." The requirements *lookup*
+        # endpoint elsewhere in plivo_compliance.py really does take
+        # ``user_type``, which is where the wrong name came from; the two
+        # endpoints disagree and only one of them is this one.
+        "type": "business"
         if record.business_type == KycBusinessType.COMPANY.value
         else "individual",
         "country_iso": record.country_iso or "IN",
