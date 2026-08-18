@@ -523,6 +523,7 @@ class PlivoProvider(TelephonyProvider):
         number_type: str = "local",
         pattern: Optional[str] = None,
         city: Optional[str] = None,
+        services: Optional[str] = "voice",
         limit: int = 20,
     ) -> List[AvailableNumber]:
         """Numbers Plivo currently has for sale in this country.
@@ -530,6 +531,16 @@ class PlivoProvider(TelephonyProvider):
         Plivo's India inventory is thin and moves, so an empty result is a
         normal answer rather than a fault — the caller shows "none available
         right now" and does not retry in a loop.
+
+        **``pattern`` is a prefix, not a substring.** Plivo matches it against
+        the start of the number after the country code, so searching "1234" on
+        an Indian account asks for +91 1234… — numbers that do not exist, on
+        any account, ever. A prefix search dressed up as "contains" returns
+        nothing forever and looks exactly like empty inventory.
+
+        ``services`` defaults to voice because that is the only capability this
+        platform can use. An SMS-only number sold to a voice agent is a number
+        that cannot take a call.
         """
         if not self.has_credentials():
             raise ValueError("Plivo provider not properly configured")
@@ -543,6 +554,8 @@ class PlivoProvider(TelephonyProvider):
             params["pattern"] = pattern
         if city:
             params["city"] = city
+        if services:
+            params["services"] = services
 
         endpoint = f"{self.base_url}/PhoneNumber/"
         async with aiohttp.ClientSession() as session:
