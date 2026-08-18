@@ -10,6 +10,7 @@ import {
     updateRecordingApiV1WorkflowRecordingsIdPatch,
 } from "@/client/sdk.gen";
 import type { RecordingResponseSchema } from "@/client/types.gen";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +20,7 @@ import logger from "@/lib/logger";
 export default function RecordingsList({ refreshKey }: { refreshKey?: number }) {
     const [recordings, setRecordings] = useState<RecordingResponseSchema[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const { confirm, dialog: confirmDialog } = useConfirm();
     const [searchQuery, setSearchQuery] = useState("");
     const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +58,14 @@ export default function RecordingsList({ refreshKey }: { refreshKey?: number }) 
     }, [fetchRecordings, refreshKey]);
 
     const handleDelete = async (recordingId: string) => {
-        if (!confirm("Are you sure you want to delete this recording?")) return;
+        const ok = await confirm({
+            title: "Delete this recording?",
+            description:
+                "The audio and its transcript are removed for everyone in your organization. This cannot be undone.",
+            confirmLabel: "Delete recording",
+            destructive: true,
+        });
+        if (!ok) return;
 
         try {
             const response = await deleteRecordingApiV1WorkflowRecordingsRecordingIdDelete({
@@ -172,6 +181,7 @@ export default function RecordingsList({ refreshKey }: { refreshKey?: number }) 
 
     return (
         <div className="space-y-4">
+            {confirmDialog}
             {/* Search and Refresh */}
             <div className="flex items-center gap-4">
                 <div className="relative flex-1">

@@ -105,6 +105,26 @@ async def assert_may_provision(organization_id: int) -> str:
     return record.carrier_reference
 
 
+async def _assert_agreements(organization_id: int) -> None:
+    """Refuse to sell a number to an account that has accepted nothing.
+
+    Buying is the first moment the terms have teeth: it commits the customer to
+    rent every month and commits us to a carrier contract in their name. A
+    click-wrap is enforceable given notice, an affirmative act and a record —
+    and the record is the part that matters in a dispute, which is why this is
+    checked against stored acceptances rather than a checkbox in the request.
+
+    Only the purchase path. Reading, signing in and everything an existing
+    account already does are deliberately untouched: every account predating the
+    agreements table has accepted nothing, and gating those would be an outage
+    dressed as a compliance improvement.
+    """
+    from api.services.compliance import agreements
+
+    async with db_client.async_session() as session:
+        await agreements.require_accepted(session, organization_id=organization_id)
+
+
 async def _assert_autopay(organization_id: int) -> int | None:
     """Refuse to hand over a number without a standing instruction behind it.
 
@@ -170,6 +190,10 @@ async def provision(
     numbers bought and one recorded.
     """
     compliance_id = await assert_may_provision(organization_id)
+    # Agreements before autopay, because nobody should authorise a standing
+    # instruction under terms they have not been shown, and because accepting is
+    # the cheaper of the two to fix.
+    await _assert_agreements(organization_id)
     # Autopay is checked here and not in `search`, because the purchase flow is
     # documents -> approved -> search -> select -> mandate -> number. Showing a
     # customer the numbers on offer before asking them to authorise a standing

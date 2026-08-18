@@ -20,6 +20,7 @@ from sqlalchemy import select
 
 from api.db import db_client
 from api.db.models import (
+    AgreementAcceptanceModel,
     OrganizationKycModel,
     OrganizationModel,
     PaymentMandateModel,
@@ -34,6 +35,7 @@ from api.enums import (
     PhoneNumberStatus,
     RecurringChargeStatus,
 )
+from api.services.compliance.agreements import CURRENT_VERSIONS
 from api.services.telephony import number_lifecycle, provisioning
 from api.services.telephony.base import (
     AvailableNumber,
@@ -129,13 +131,22 @@ def fake_provider(monkeypatch):
 
 
 async def _approved_org(
-    session, slug: str, *, status=KycStatus.CARRIER_APPROVED, autopay=True
+    session,
+    slug: str,
+    *,
+    status=KycStatus.CARRIER_APPROVED,
+    autopay=True,
+    agreements_accepted=True,
 ):
-    """An account that may buy a number: verified, and with autopay authorised.
+    """An account that may buy a number: verified, autopay authorised, terms
+    accepted.
 
-    ``autopay`` is a parameter rather than always-on because the two gates are
-    independent — an account can be approved by the carrier and still have no
-    standing instruction behind the rent, which is its own refusal.
+    ``autopay`` and ``agreements_accepted`` are parameters rather than
+    always-on because the three gates are independent — an account can be
+    approved by the carrier and still have no standing instruction behind the
+    rent, or have both and never have been shown the terms. Each is its own
+    refusal, and the tests for one must not be able to pass because another
+    happened to fire first.
     """
     org = OrganizationModel(provider_id=f"org-{slug}", quota_decibyl_tokens=0)
     user = UserModel(provider_id=f"user-{slug}")
@@ -161,6 +172,16 @@ async def _approved_org(
                 price_paise=34900,
             )
         )
+    if agreements_accepted:
+        for key, version in CURRENT_VERSIONS.items():
+            session.add(
+                AgreementAcceptanceModel(
+                    organization_id=org.id,
+                    user_id=user.id,
+                    agreement=key,
+                    version=version,
+                )
+            )
     config = TelephonyConfigurationModel(
         organization_id=org.id,
         name=f"cfg-{slug}",
@@ -171,6 +192,75 @@ async def _approved_org(
     session.add(config)
     await session.flush()
     return org.id, user.id, config.id
+
+
+class TestAgreementsGate:
+    """Terms before rent.
+
+    Buying is the first moment the terms have teeth: the customer owes rent
+    every month and we sign a carrier contract in their name. A click-wrap is
+    enforceable given notice, an affirmative act and a record — and the record
+    is the half that decides a dispute, which is why this is checked against
+    stored acceptances rather than a checkbox in the request.
+
+    Nothing else is gated on it. Every account predating the agreements table
+    has accepted nothing, so applying this to reading or signing in would be an
+    outage dressed as a compliance improvement.
+    """
+
+    async def test_an_account_that_accepted_nothing_cannot_buy(
+        self, db_session, async_session, fake_provider
+    ):
+        from api.services.compliance.agreements import AgreementsOutstanding
+
+        org_id, _, config_id = await _approved_org(
+            async_session, "no-terms", agreements_accepted=False
+        )
+
+        with pytest.raises(AgreementsOutstanding):
+            await provisioning.provision(
+                organization_id=org_id,
+                telephony_configuration_id=config_id,
+                address=NUMBER,
+            )
+        # Before the purchase, like every other gate here, so there is no
+        # compensating release to get wrong.
+        assert fake_provider.bought == []
+
+    async def test_it_is_refused_before_autopay_is_asked_for(
+        self, db_session, async_session, fake_provider
+    ):
+        """Order matters to the customer, not to the code. Nobody should
+        authorise a standing instruction to debit their bank under terms they
+        have not been shown, and accepting is the cheaper of the two to fix."""
+        from api.services.compliance.agreements import AgreementsOutstanding
+
+        org_id, _, config_id = await _approved_org(
+            async_session, "no-terms-no-pay", autopay=False, agreements_accepted=False
+        )
+
+        with pytest.raises(AgreementsOutstanding):
+            await provisioning.provision(
+                organization_id=org_id,
+                telephony_configuration_id=config_id,
+                address=NUMBER,
+            )
+
+    async def test_searching_does_not_need_them(
+        self, db_session, async_session, fake_provider
+    ):
+        """Same reasoning as autopay: showing somebody what is for sale commits
+        nobody to anything, and demanding signatures before they have seen the
+        product is the wrong order."""
+        org_id, _, config_id = await _approved_org(
+            async_session, "search-no-terms", agreements_accepted=False
+        )
+
+        found = await provisioning.search(
+            organization_id=org_id, telephony_configuration_id=config_id
+        )
+
+        assert found
 
 
 class TestAutopayGate:

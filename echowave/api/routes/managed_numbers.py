@@ -21,6 +21,7 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.billing.mandates import MandateNotAuthorised
+from api.services.compliance.agreements import AgreementsOutstanding
 from api.services.kyc.plivo_compliance import PlivoComplianceError
 from api.services.telephony import number_lifecycle, provisioning
 
@@ -147,6 +148,19 @@ async def provision_number(
             inbound_workflow_id=request.inbound_workflow_id,
             country_code=request.country_code,
         )
+    except AgreementsOutstanding as exc:
+        # 403 with the keys in it, so the screen can open the right documents
+        # rather than showing a sentence the customer cannot act on. Not 402 or
+        # 409: nothing is wrong with the request, something is missing from the
+        # account and the customer is the one who can supply it.
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "agreements_outstanding",
+                "agreements": list(exc.keys),
+                "message": str(exc),
+            },
+        ) from exc
     except provisioning.NotVerified as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except MandateNotAuthorised as exc:

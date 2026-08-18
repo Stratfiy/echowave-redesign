@@ -9,6 +9,7 @@ import {
   listDocumentsApiV1KnowledgeBaseDocumentsGet,
 } from '@/client/sdk.gen';
 import type { DocumentResponseSchema } from '@/client/types.gen';
+import { useConfirm } from "@/components/ConfirmDialog";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,7 @@ interface DocumentListProps {
 export default function DocumentList({ refreshTrigger }: DocumentListProps) {
   const [documents, setDocuments] = useState<DocumentResponseSchema[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -72,7 +74,14 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
   }, [documents, fetchDocuments]);
 
   const handleDelete = async (documentUuid: string, filename: string) => {
-    if (!confirm(`Are you sure you want to delete "${filename}"?`)) return;
+    const ok = await confirm({
+      title: `Delete "${filename}"?`,
+      description:
+        "The file and everything indexed from it are removed. Agents that were answering from it will stop being able to. This cannot be undone.",
+      confirmLabel: "Delete file",
+      destructive: true,
+    });
+    if (!ok) return;
 
     try {
       const response = await deleteDocumentApiV1KnowledgeBaseDocumentsDocumentUuidDelete({
@@ -159,6 +168,7 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
 
   return (
     <div className="space-y-4">
+      {confirmDialog}
       {/* The failure this exists for is silent: every document below still says
           "Completed", and the agent retrieves nothing from any of them, because
           they were embedded with a model the organization has since moved off.

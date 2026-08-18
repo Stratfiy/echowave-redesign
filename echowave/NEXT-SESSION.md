@@ -186,6 +186,25 @@ in **Testing** refuses everyone not on the test-user list, and an unset
   email and phone verification, and a test asserts they are the same function.
   Two copies of those decisions drift, always towards the weaker one.
 
+### The container is reclaimed, and it takes the environment with it
+
+`venv/`, `api/.env`, `api/.env.test` and `ui/.env` are all gitignored and all
+disappear when the session's container is recycled — but Postgres, Redis and
+the `test_db` database survive, so the symptom is `ModuleNotFoundError:
+fastapi` rather than anything that looks like a lost machine. There is no
+`.env.example` in this repository to copy from. `api/constants.py` requires
+exactly two variables; everything else has a default:
+
+```
+ENVIRONMENT=test
+LOG_LEVEL=WARNING
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/test_db
+REDIS_URL=redis://127.0.0.1:6379/1
+```
+
+`conftest.py` points at the test database directly — it does not append
+`_test` — so `DATABASE_URL` must name `test_db` itself.
+
 ### Running the API in a fresh container
 
 The test suite cannot collect ~40 modules out of the box because optional
@@ -256,7 +275,16 @@ serving the JSON is faster than guessing. `/provider-keys` needs
 `/api/v1/user/auth/user` to carry `staff_role` and `organization_role`, or
 `useAccessRoles` reports unprivileged and every admin control is hidden.
 
-Three traps that each cost real time:
+Four traps that each cost real time:
+
+* **`ss` is not installed in this container.** Any "kill whatever holds the
+  port" incantation built on `ss -ltnp` silently kills nothing, and the
+  previous server keeps the port — which presents as a clean rebuild having no
+  effect. Use `fuser -k -9 3014/tcp`. Worse, a leftover `next dev` on the same
+  port while `next build` writes `.next` corrupts the build: `next start` then
+  dies with `Cannot find module './vendor-chunks/source-map-support.js'`. The
+  cure is `rm -rf .next && npx next build` with nothing else running.
+
 
 * **`pkill -f "next start"` does not stop it.** It runs npm exec → sh → node,
   and the node child keeps port 3014, serving the *previous* build. The symptom

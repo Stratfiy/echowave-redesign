@@ -40,6 +40,7 @@ import {
     provisionNumberApiV1ManagedNumbersPost,
     searchNumbersApiV1ManagedNumbersSearchPost,
 } from "@/client/sdk.gen";
+import { AgreementsDialog, useAgreements } from "@/components/AgreementsDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -163,6 +164,14 @@ export default function BuyNumberPage() {
     const { isOrganizationAdmin, loaded: rolesLoaded } = useAccessRoles();
     const [buying, setBuying] = useState(false);
     const [bought, setBought] = useState<string | null>(null);
+
+    // The terms are asked for at the buy step, not at sign-up. This is the
+    // first moment they have teeth: rent every month from the customer, and a
+    // carrier contract in their name from us. The server enforces the same
+    // thing in `provisioning`, so a client that skipped this gets a 403 rather
+    // than a number.
+    const agreements = useAgreements(ready);
+    const [agreementsOpen, setAgreementsOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const refreshMandate = useCallback(async () => {
@@ -262,7 +271,15 @@ export default function BuyNumberPage() {
         }
     };
 
-    const handleBuy = async () => {
+    const handleBuy = () => {
+        if (agreements.outstanding.length > 0) {
+            setAgreementsOpen(true);
+            return;
+        }
+        void doBuy();
+    };
+
+    const doBuy = async () => {
         if (!selected || !configId) return;
         setBuying(true);
         setError(null);
@@ -605,9 +622,31 @@ export default function BuyNumberPage() {
                             )}
                             Buy {selected}
                         </Button>
+                        {agreements.outstanding.length > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                                We will ask you to accept the{" "}
+                                {agreements.agreements
+                                    .filter((a) =>
+                                        agreements.outstanding.includes(a.key),
+                                    )
+                                    .map((a) => a.title)
+                                    .join(" and ")}{" "}
+                                first.
+                            </p>
+                        )}
                     </div>
                 )}
             </Step>
+
+            <AgreementsDialog
+                open={agreementsOpen}
+                state={agreements}
+                onOpenChange={setAgreementsOpen}
+                onAccepted={() => void doBuy()}
+                reason={
+                    "Buying a number commits you to rent every month and commits us to a carrier contract in your name, so we need these before we can issue it."
+                }
+            />
         </div>
     );
 }

@@ -11,6 +11,7 @@ import {
     unarchiveToolApiV1ToolsToolUuidUnarchivePost,
 } from "@/client/sdk.gen";
 import type { CreateToolRequest, ToolResponse } from "@/client/types.gen";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { CredentialSelector } from "@/components/http";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,7 @@ export default function ToolsPage() {
 
     const [tools, setTools] = useState<ToolResponse[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const { confirm, dialog: confirmDialog } = useConfirm();
     const [searchQuery, setSearchQuery] = useState("");
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [newToolName, setNewToolName] = useState("");
@@ -195,7 +197,14 @@ export default function ToolsPage() {
 
     const handleDeleteTool = async (toolUuid: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!confirm("Are you sure you want to archive this tool?")) return;
+        const ok = await confirm({
+            title: "Archive this tool?",
+            description:
+                "Workflows that call it will stop being able to. You can still see it in your history; it just will not be offered to an agent again.",
+            confirmLabel: "Archive tool",
+            destructive: true,
+        });
+        if (!ok) return;
 
         try {
             setError(null);
@@ -294,6 +303,7 @@ export default function ToolsPage() {
 
     return (
         <div className="min-h-screen">
+            {confirmDialog}
             <div className="container mx-auto px-4 py-8">
                 <div className="max-w-6xl mx-auto">
                     <div className="mb-8">

@@ -185,3 +185,80 @@ class TestThePublishedSet:
         for agreement in agreements.AGREEMENTS:
             assert agreement.version
             assert agreement.url.startswith("https://")
+
+
+@pytest.mark.asyncio
+class TestRequiringThemBeforeBuying:
+    """The gate that turns a record into a rule.
+
+    Applied at the purchase of a number and nowhere else. Buying is the first
+    moment the terms have teeth — rent every month from the customer, a carrier
+    contract in their name from us — and it is a new action, so nobody is
+    mid-flight when it starts refusing. Gating anything an existing account
+    already does would be an outage dressed as a compliance improvement: every
+    account predating this table has accepted nothing.
+    """
+
+    async def test_an_account_that_accepted_nothing_is_refused(self, async_session):
+        org, _user = await _account(async_session, "gate-none")
+
+        with pytest.raises(agreements.AgreementsOutstanding) as caught:
+            await agreements.require_accepted(async_session, organization_id=org.id)
+
+        assert set(caught.value.keys) == {"dpa", "terms"}
+
+    async def test_the_refusal_names_the_documents(self, async_session):
+        """It is shown to the customer, who can fix it in one click. "Permission
+        denied" would send them to support for something they can do."""
+        org, _user = await _account(async_session, "gate-name")
+
+        with pytest.raises(agreements.AgreementsOutstanding) as caught:
+            await agreements.require_accepted(async_session, organization_id=org.id)
+
+        message = str(caught.value)
+        assert "Data Processing Agreement" in message
+        assert "Terms of Service" in message
+
+    async def test_accepting_everything_opens_the_gate(self, async_session):
+        org, user = await _account(async_session, "gate-ok")
+        for key in agreements.CURRENT_VERSIONS:
+            await agreements.record_acceptance(
+                async_session,
+                organization_id=org.id,
+                user_id=user.id,
+                agreement=key,
+            )
+
+        await agreements.require_accepted(async_session, organization_id=org.id)
+
+    async def test_a_stale_acceptance_does_not(self, async_session):
+        """The version is the point. An account that accepted last year's DPA is
+        in exactly the position of one that accepted nothing, because the
+        obligations may have changed."""
+        org, user = await _account(async_session, "gate-stale")
+        for key in agreements.CURRENT_VERSIONS:
+            row = AgreementAcceptanceModel(
+                organization_id=org.id,
+                user_id=user.id,
+                agreement=key,
+                version="1999-01",
+            )
+            async_session.add(row)
+        await async_session.flush()
+
+        with pytest.raises(agreements.AgreementsOutstanding):
+            await agreements.require_accepted(async_session, organization_id=org.id)
+
+    async def test_one_of_two_is_still_a_refusal(self, async_session):
+        org, user = await _account(async_session, "gate-half")
+        await agreements.record_acceptance(
+            async_session,
+            organization_id=org.id,
+            user_id=user.id,
+            agreement="dpa",
+        )
+
+        with pytest.raises(agreements.AgreementsOutstanding) as caught:
+            await agreements.require_accepted(async_session, organization_id=org.id)
+
+        assert caught.value.keys == ("terms",)
