@@ -185,8 +185,17 @@ export default function BuyNumberPage() {
         let cancelled = false;
         (async () => {
             setLoading(true);
-            const [kyc, configList, mandate] = await Promise.all([
-                getKycApiV1KycGet(),
+            // Verification first, and on its own. Reading it is what gives an
+            // approved account its managed carrier configuration if it does not
+            // have one yet, so fetching the configuration list alongside it
+            // races that write and loses: the list comes back empty and the
+            // screen says "No managed carrier account is set up for this
+            // organisation yet. Contact support" to somebody who is fully
+            // approved and one reload away from the truth.
+            const kyc = await getKycApiV1KycGet();
+            if (cancelled) return;
+
+            const [configList, mandate] = await Promise.all([
                 listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet(),
                 getMandateApiV1BillingMandateGet(),
             ]);
