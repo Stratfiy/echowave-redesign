@@ -14,6 +14,7 @@ storage bucket's policy being right.
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from loguru import logger
 from pydantic import BaseModel
 
 from api.db import db_client
@@ -22,6 +23,7 @@ from api.services.auth.depends import get_staff
 from api.services.kyc import service as kyc_service
 from api.services.kyc.carrier import CarrierNotConfigured, CarrierVerdict
 from api.services.kyc.documents import read_document
+from api.services.kyc.plivo_compliance import PlivoComplianceError
 from api.services.kyc.state import KycTransitionError
 
 router = APIRouter(
@@ -175,6 +177,44 @@ async def approve(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except CarrierNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except kyc_service.KycValidationError as exc:
+        # Before the bare ValueError clause — KycValidationError is one, and the
+        # field-keyed body is the whole point of raising it. Matches what the
+        # customer-facing submit route returns, so staff and customer see the
+        # same problems in the same shape.
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Fix these before forwarding to the operator.",
+                "problems": [
+                    {"field": p.field, "message": p.message} for p in exc.problems
+                ],
+            },
+        ) from exc
+    except PlivoComplianceError as exc:
+        # The most likely way this endpoint fails, and it used to escape
+        # uncaught — which meant a 500 and "Could not forward to the operator",
+        # a sentence that names neither the problem nor anything to do about
+        # it. PlivoComplianceError exists precisely to carry the carrier's own
+        # words: its docstring says the body is where Plivo says *which* field
+        # it disliked. Passing that through is the difference between a staff
+        # member fixing a GSTIN and a staff member filing a support ticket.
+        logger.error(
+            "Plivo refused the compliance submission for organization {}: "
+            "status={} body={}",
+            organization_id,
+            exc.status,
+            exc.body,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": f"The operator refused this submission: {exc}",
+                "problems": (
+                    [{"field": "carrier", "message": exc.body}] if exc.body else []
+                ),
+            },
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _view(view)
