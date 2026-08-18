@@ -59,6 +59,23 @@ import { useAuth } from "@/lib/auth";
 import { formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
+/** The STD codes the carrier actually sells, per country.
+ *
+ * Chips rather than a free-text city box, which is what Plivo's own buy screen
+ * offers and for a good reason: a customer types "mumbai" and gets nothing,
+ * with no way to tell whether they spelled it wrong, whether the carrier calls
+ * it something else, or whether there is genuinely no stock. Three chips are
+ * three questions already answered.
+ */
+const PREFIXES: Record<string, { code: string; label: string }[]> = {
+    IN: [
+        { code: "80", label: "080 · Bengaluru" },
+        { code: "22", label: "022 · Mumbai" },
+        { code: "160", label: "160 · Chandigarh" },
+    ],
+    US: [],
+};
+
 /** The dialling prefix a number belongs to, as customers name it.
  *
  * Indian landline numbers are known by their STD code — 022 is Mumbai, 080 is
@@ -171,7 +188,7 @@ export default function BuyNumberPage() {
     const [mandateView, setMandateView] = useState<MandateView | null>(null);
 
     const [country, setCountry] = useState("IN");
-    const [city, setCity] = useState("");
+    const [prefix, setPrefix] = useState<string | null>(null);
     const [pattern, setPattern] = useState("");
     const [results, setResults] = useState<AvailableNumber[] | null>(null);
     const [searching, setSearching] = useState(false);
@@ -266,13 +283,20 @@ export default function BuyNumberPage() {
             if (!configId) return;
             setSearching(true);
             setError(null);
+            // Plivo matches `pattern` against the *start* of the number
+            // after the country code, so the STD code and any extra digits
+            // concatenate into one prefix. Sending them separately, or sending
+            // digits meant as "contains", asks for numbers that cannot exist.
+            const composed = filtered
+                ? `${prefix ?? ""}${pattern.replace(/\D/g, "")}`
+                : "";
             const result = await searchNumbersApiV1ManagedNumbersSearchPost({
                 body: {
                     telephony_configuration_id: Number(configId),
                     country_iso: country,
                     number_type: "local",
-                    city: filtered ? city || null : null,
-                    pattern: filtered ? pattern || null : null,
+                    city: null,
+                    pattern: composed || null,
                     limit: filtered ? 20 : 5,
                 },
             });
@@ -289,7 +313,7 @@ export default function BuyNumberPage() {
             setExactMatch(data?.exact_match !== false);
             setSelected(null);
         },
-        [configId, country, city, pattern],
+        [configId, country, prefix, pattern],
     );
 
     const handleSearch = () => void runSearch(true);
@@ -450,6 +474,40 @@ export default function BuyNumberPage() {
                             </p>
                         ) : (
                             <>
+                                {PREFIXES[country]?.length > 0 && (
+                                    <div className="space-y-1.5">
+                                        <Label>Number prefix</Label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {PREFIXES[country].map((option) => {
+                                                const active =
+                                                    prefix === option.code;
+                                                return (
+                                                    <button
+                                                        key={option.code}
+                                                        type="button"
+                                                        aria-pressed={active}
+                                                        onClick={() =>
+                                                            setPrefix(
+                                                                active
+                                                                    ? null
+                                                                    : option.code,
+                                                            )
+                                                        }
+                                                        className={cn(
+                                                            "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                                                            active
+                                                                ? "border-foreground bg-foreground text-background"
+                                                                : "border-border text-muted-foreground hover:text-foreground",
+                                                        )}
+                                                    >
+                                                        {option.label}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="grid gap-3 sm:grid-cols-3">
                                     {configs.length > 1 && (
                                         <div className="space-y-1.5">
@@ -480,6 +538,7 @@ export default function BuyNumberPage() {
                                             value={country}
                                             onValueChange={(value) => {
                                                 setCountry(value);
+                                                setPrefix(null);
                                                 // The results on screen belong
                                                 // to the old country. Clearing
                                                 // them stops somebody buying a
@@ -503,20 +562,14 @@ export default function BuyNumberPage() {
                                         </Select>
                                     </div>
                                     <div className="space-y-1.5">
-                                        <Label htmlFor="city">City</Label>
-                                        <Input
-                                            id="city"
-                                            value={city}
-                                            placeholder="Hyderabad"
-                                            onChange={(e) => setCity(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="pattern">Contains</Label>
+                                        <Label htmlFor="pattern">
+                                            Starts with (optional)
+                                        </Label>
                                         <Input
                                             id="pattern"
                                             value={pattern}
-                                            placeholder="7890"
+                                            placeholder="6423"
+                                            inputMode="numeric"
                                             onChange={(e) => setPattern(e.target.value)}
                                         />
                                     </div>
