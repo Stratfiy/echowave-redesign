@@ -5,8 +5,12 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
+from pydantic import BaseModel
 
-from api.constants import KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
+from api.constants import (
+    KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES,
+    KNOWLEDGE_BASE_MAX_TOTAL_BYTES,
+)
 from api.db import db_client
 from api.enums import PostHogEvent
 from api.schemas.knowledge_base import (
@@ -27,6 +31,11 @@ from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
 router = APIRouter(prefix="/knowledge-base", tags=["knowledge-base"])
+
+
+def _mb(value: int) -> int:
+    """Bytes as whole megabytes, for a message a person can act on."""
+    return value // (1024 * 1024)
 
 
 @router.post(
@@ -51,6 +60,21 @@ async def get_upload_url(
     Access Control:
     * All authenticated users can upload documents scoped to their organization.
     """
+
+    # Checked before the URL is minted, not after the upload. A presigned PUT
+    # cannot carry a size limit, so the only honest place to refuse is before
+    # the browser starts sending — the alternative is a progress bar reaching
+    # 100% and then being told there was no room.
+    used = await db_client.get_knowledge_base_bytes_used(user.selected_organization_id)
+    if used >= KNOWLEDGE_BASE_MAX_TOTAL_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "Your knowledge base is full "
+                f"({_mb(used)} of {_mb(KNOWLEDGE_BASE_MAX_TOTAL_BYTES)} MB used). "
+                "Delete a document to make room, or contact support to raise the limit."
+            ),
+        )
 
     try:
         # Generate unique document UUID for S3 organization
@@ -123,6 +147,21 @@ async def process_document(
     Access Control:
     * Users can only process documents in their organization.
     """
+
+    # Checked again here, not only when the URL was minted. This is the call
+    # that creates the record and queues the embedding job, so it is the gate
+    # that actually costs money — and it can be reached directly, or with a
+    # presigned URL issued before the account filled up.
+    used = await db_client.get_knowledge_base_bytes_used(user.selected_organization_id)
+    if used >= KNOWLEDGE_BASE_MAX_TOTAL_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "Your knowledge base is full "
+                f"({_mb(used)} of {_mb(KNOWLEDGE_BASE_MAX_TOTAL_BYTES)} MB used). "
+                "Delete a document to make room, or contact support to raise the limit."
+            ),
+        )
 
     try:
         # The key arrives from the client, and whatever is at it gets ingested
@@ -221,6 +260,35 @@ async def process_document(
         raise HTTPException(
             status_code=500, detail="Failed to process document"
         ) from exc
+
+
+class KnowledgeBaseUsageSchema(BaseModel):
+    """How much of the knowledge-base allowance is spent.
+
+    Shown before somebody hits the wall rather than after. A cap a customer
+    cannot see is indistinguishable from a bug the first time it refuses them.
+    """
+
+    bytes_used: int
+    bytes_limit: int
+    documents: int
+
+
+@router.get(
+    "/usage",
+    response_model=KnowledgeBaseUsageSchema,
+    summary="Knowledge base storage used",
+)
+async def get_usage(user=Depends(get_user)) -> KnowledgeBaseUsageSchema:
+    used = await db_client.get_knowledge_base_bytes_used(user.selected_organization_id)
+    documents = await db_client.get_documents_for_organization(
+        organization_id=user.selected_organization_id, limit=100
+    )
+    return KnowledgeBaseUsageSchema(
+        bytes_used=used,
+        bytes_limit=KNOWLEDGE_BASE_MAX_TOTAL_BYTES,
+        documents=len(documents),
+    )
 
 
 @router.get(

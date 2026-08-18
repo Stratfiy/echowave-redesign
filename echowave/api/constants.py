@@ -153,6 +153,25 @@ KB_DOCUMENT_PROCESSOR = (os.getenv("KB_DOCUMENT_PROCESSOR") or "local").strip().
 KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES = int(
     os.getenv("KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES", str(5 * 1024 * 1024))
 )
+
+# How much an organization may keep in its knowledge base in total.
+#
+# The per-file limit above bounds one upload; it bounds nothing about how many
+# uploads there are. Every document is embedded at ingestion, on *our* model
+# key for a managed account, and embeddings have no cost component, no rate and
+# no ledger debit anywhere — so an account that re-uploads a corpus nightly
+# costs real money and bills nothing. This is the ceiling on that.
+#
+# A cap rather than a meter, because that is what the category does: ElevenLabs
+# sells RAG as a per-tier allowance (1MB free through 1GB enterprise) and Vapi
+# folds it into the plan silently. Nobody charges per embedded token, and being
+# the only platform that does would cost more to build than it could recover.
+#
+# 250MB of original files is a generous default — a few hundred manuals — set
+# high on purpose so no existing account trips it on the day this ships.
+KNOWLEDGE_BASE_MAX_TOTAL_BYTES = int(
+    os.getenv("KNOWLEDGE_BASE_MAX_TOTAL_BYTES", str(250 * 1024 * 1024))
+)
 # Reading scanned PDFs — pictures of words, with no text layer for pypdf to
 # find. On by default because the alternative is telling a customer to go and
 # OCR their own scan, and it costs nothing on a deployment without tesseract

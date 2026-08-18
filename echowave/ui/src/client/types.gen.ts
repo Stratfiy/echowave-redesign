@@ -4042,6 +4042,29 @@ export type InworldTtsConfiguration = {
 export type ItemKind = 'node' | 'edge' | 'workflow';
 
 /**
+ * KnowledgeBaseUsageSchema
+ *
+ * How much of the knowledge-base allowance is spent.
+ *
+ * Shown before somebody hits the wall rather than after. A cap a customer
+ * cannot see is indistinguishable from a bug the first time it refuses them.
+ */
+export type KnowledgeBaseUsageSchema = {
+    /**
+     * Bytes Used
+     */
+    bytes_used: number;
+    /**
+     * Bytes Limit
+     */
+    bytes_limit: number;
+    /**
+     * Documents
+     */
+    documents: number;
+};
+
+/**
  * LangfuseCredentialsRequest
  */
 export type LangfuseCredentialsRequest = {
@@ -20059,6 +20082,45 @@ export type ProcessDocumentApiV1KnowledgeBaseProcessDocumentPostResponses = {
 };
 
 export type ProcessDocumentApiV1KnowledgeBaseProcessDocumentPostResponse = ProcessDocumentApiV1KnowledgeBaseProcessDocumentPostResponses[keyof ProcessDocumentApiV1KnowledgeBaseProcessDocumentPostResponses];
+
+export type GetUsageApiV1KnowledgeBaseUsageGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/knowledge-base/usage';
+};
+
+export type GetUsageApiV1KnowledgeBaseUsageGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetUsageApiV1KnowledgeBaseUsageGetError = GetUsageApiV1KnowledgeBaseUsageGetErrors[keyof GetUsageApiV1KnowledgeBaseUsageGetErrors];
+
+export type GetUsageApiV1KnowledgeBaseUsageGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: KnowledgeBaseUsageSchema;
+};
+
+export type GetUsageApiV1KnowledgeBaseUsageGetResponse = GetUsageApiV1KnowledgeBaseUsageGetResponses[keyof GetUsageApiV1KnowledgeBaseUsageGetResponses];
 
 export type ListDocumentsApiV1KnowledgeBaseDocumentsGetData = {
     body?: never;

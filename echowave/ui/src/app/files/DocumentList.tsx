@@ -8,6 +8,7 @@ import {
   deleteDocumentApiV1KnowledgeBaseDocumentsDocumentUuidDelete,
   listDocumentsApiV1KnowledgeBaseDocumentsGet,
 } from '@/client/sdk.gen';
+import { getUsageApiV1KnowledgeBaseUsageGet } from "@/client/sdk.gen";
 import type { DocumentResponseSchema } from '@/client/types.gen';
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +25,14 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
   const [documents, setDocuments] = useState<DocumentResponseSchema[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { confirm, dialog: confirmDialog } = useConfirm();
+
+  // How much of the allowance is spent. Shown before somebody hits the wall:
+  // a cap a customer cannot see is indistinguishable from a bug the first time
+  // it refuses them.
+  const [usage, setUsage] = useState<{
+    bytes_used: number;
+    bytes_limit: number;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -53,6 +62,16 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
   }, []);
 
   // Fetch documents on mount and when refreshTrigger changes
+  useEffect(() => {
+    void (async () => {
+      const response = await getUsageApiV1KnowledgeBaseUsageGet();
+      // A failure here costs the reader a progress bar, not the screen.
+      if (response.data) {
+        setUsage(response.data as unknown as { bytes_used: number; bytes_limit: number });
+      }
+    })();
+  }, [documents.length]);
+
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments, refreshTrigger]);
@@ -173,6 +192,36 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
           "Completed", and the agent retrieves nothing from any of them, because
           they were embedded with a model the organization has since moved off.
           Nothing else on this screen would tell anyone. */}
+      {usage && usage.bytes_limit > 0 && (
+        <div className="rounded-lg border p-4">
+          <div className="flex items-baseline justify-between gap-4 text-sm">
+            <span className="font-medium">Knowledge base storage</span>
+            <span className="text-muted-foreground tabular-nums">
+              {formatFileSize(usage.bytes_used)} of{" "}
+              {formatFileSize(usage.bytes_limit)}
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={
+                usage.bytes_used / usage.bytes_limit > 0.9
+                  ? "h-full bg-destructive"
+                  : "h-full bg-primary"
+              }
+              style={{
+                width: `${Math.min(100, (usage.bytes_used / usage.bytes_limit) * 100)}%`,
+              }}
+            />
+          </div>
+          {usage.bytes_used / usage.bytes_limit > 0.9 && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Nearly full. Delete a document to make room, or contact support to
+              raise the limit.
+            </p>
+          )}
+        </div>
+      )}
+
       {strandedCount > 0 && (
         <div className="flex items-start gap-3 p-4 rounded-lg border border-amber-500/30 bg-amber-500/10">
           <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />

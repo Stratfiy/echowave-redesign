@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from loguru import logger
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import selectinload
 
 from api.db.base_client import BaseDBClient
@@ -154,6 +154,32 @@ class KnowledgeBaseClient(BaseDBClient):
 
             result = await session.execute(query)
             return result.scalars().first()
+
+    async def get_knowledge_base_bytes_used(self, organization_id: int) -> int:
+        """Total original bytes this organization is keeping in its knowledge base.
+
+        Counts active documents only, so deleting one gives the allowance back
+        — the point of the cap is the ongoing cost of holding and re-embedding a
+        corpus, not a lifetime upload tally.
+
+        ``file_size_bytes`` is nullable and is written by the ingestion worker
+        after the fact, so a document uploaded seconds ago can still be NULL.
+        Those count as zero here rather than blocking, which errs toward letting
+        an upload through — the alternative is a customer refused because our
+        own worker had not caught up yet.
+        """
+        async with self.async_session() as session:
+            total = await session.scalar(
+                select(
+                    func.coalesce(
+                        func.sum(KnowledgeBaseDocumentModel.file_size_bytes), 0
+                    )
+                ).where(
+                    KnowledgeBaseDocumentModel.organization_id == organization_id,
+                    KnowledgeBaseDocumentModel.is_active == True,  # noqa: E712
+                )
+            )
+            return int(total or 0)
 
     async def get_documents_for_organization(
         self,
