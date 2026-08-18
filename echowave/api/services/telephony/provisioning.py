@@ -102,6 +102,17 @@ async def assert_may_provision(organization_id: int) -> str:
             "This account is approved but carries no carrier application id, "
             "so a number cannot be linked to it. Re-run verification."
         )
+
+    # Self-healing, for accounts approved before the verdict handler started
+    # creating this. Idempotent and a no-op once one exists, so the cost is one
+    # indexed read on the path where an approved account is about to search for
+    # or buy a number — which is exactly the moment the configuration has to be
+    # there. Without it those accounts sit on "No managed carrier account is
+    # set up for this organisation yet" with no way forward that does not
+    # involve a staff member.
+    from api.services.kyc.service import ensure_managed_configuration
+
+    await ensure_managed_configuration(organization_id)
     return record.carrier_reference
 
 
