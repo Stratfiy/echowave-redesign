@@ -569,6 +569,22 @@ SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
 EMAIL_FROM_ADDRESS = os.getenv("EMAIL_FROM_ADDRESS") or None
 EMAIL_FROM_NAME = os.getenv("EMAIL_FROM_NAME", "Decibyl")
 
+# Per-purpose senders, because a receipt and a security alert are different
+# conversations and customers filter on the address. Both fall back to
+# EMAIL_FROM_ADDRESS, so a deployment that sets only that keeps working exactly
+# as it does today.
+#
+# One domain covers both at the provider: Resend verifies decibyl.ai once and
+# any address on it may send. Setting an address on a domain the provider has
+# not verified is the usual reason mail is accepted by the API and never
+# delivered.
+EMAIL_FROM_BILLING = (
+    os.getenv("EMAIL_FROM_BILLING") or EMAIL_FROM_ADDRESS
+)  # receipts, invoices, low balance
+EMAIL_FROM_NOTIFICATIONS = (
+    os.getenv("EMAIL_FROM_NOTIFICATIONS") or EMAIL_FROM_ADDRESS
+)  # verification, invitations, alerts
+
 # Fernet key encrypting the platform's own provider API keys at rest. Generate
 # with: python -c "from cryptography.fernet import Fernet;
 # print(Fernet.generate_key().decode())"
