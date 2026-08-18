@@ -4,7 +4,10 @@ import { AlertTriangle, ExternalLink, KeyRound, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
-import { getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet } from '@/client/sdk.gen';
+import {
+    getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet,
+    listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet,
+} from '@/client/sdk.gen';
 import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -271,6 +274,12 @@ export function ServiceConfigurationForm({
         };
     };
 
+    // The carrier this account actually dials on. Without it the estimate
+    // below silently omits telephony, which is not a rounding error: it is an
+    // exact per-minute rate and routinely a third of the cost of a minute. A
+    // number that confident about being incomplete is worse than no number.
+    const [telephonyProvider, setTelephonyProvider] = useState<string | null>(null);
+
     const [apiError, setApiError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isRealtime, setIsRealtime] = useState(forceRealtime ?? false);
@@ -347,6 +356,28 @@ export function ServiceConfigurationForm({
         }
         return merged as typeof userConfig;
     }, [mode, userConfig, currentOverrides, initialConfig]);
+
+    // Read once, not per keystroke: the estimate re-prices as the model
+    // selection changes, and the carrier does not change with it.
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const response = await listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet();
+            if (cancelled || response.error) return;
+            const rows =
+                (response.data as unknown as {
+                    configurations?: { provider: string; is_default_outbound: boolean }[];
+                })?.configurations ?? [];
+            // The default outbound configuration is the one a call actually
+            // leaves on. Falling back to the first is right for the common case
+            // of a single carrier and no default flagged.
+            const chosen = rows.find((row) => row.is_default_outbound) ?? rows[0];
+            setTelephonyProvider(chosen?.provider ?? null);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
         const fetchConfigurations = async () => {
@@ -1220,6 +1251,7 @@ export function ServiceConfigurationForm({
                     ...pricedSlot("stt", isRealtime ? null : serviceProviders.stt, watch("stt_model") as string),
                     ...pricedSlot("llm", serviceProviders.llm, watch("llm_model") as string),
                     ...pricedSlot("tts", isRealtime ? null : serviceProviders.tts, watch("tts_model") as string),
+                    telephony_provider: telephonyProvider,
                 }}
             />
 

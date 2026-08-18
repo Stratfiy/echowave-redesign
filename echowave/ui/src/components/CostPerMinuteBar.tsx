@@ -1,6 +1,6 @@
 "use client";
 
-import { Info } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { getCostPerMinuteApiV1CostEstimatePerMinutePost } from "@/client/sdk.gen";
@@ -139,6 +139,14 @@ export function CostPerMinuteBar({
     // out loud: it is the difference between a projection and a quote.
     const assumed = estimate.lines.filter((line) => line.basis === "default");
 
+    // Telephony is an exact per-minute rate and routinely a third of what a
+    // minute costs. A total with no telephony in it is not slightly low, it is
+    // the wrong number — and the old behaviour was to hide the row and show the
+    // total anyway, which reads as a complete quote. Say it instead.
+    const missingTelephony =
+        !stack.telephony_provider ||
+        estimate.unpriced.some((entry) => entry.startsWith("telephony:"));
+
     return (
         <TooltipProvider>
             <div
@@ -227,7 +235,8 @@ export function CostPerMinuteBar({
 
                 {/* Only groups that contribute. A "Telephony ₹0.00" row on a
                     page where no telephony provider is chosen reads as a claim
-                    that calls are free, rather than that none is selected. */}
+                    that calls are free, rather than that none is selected —
+                    which is what `missingTelephony` says in words below. */}
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                     {GROUPS.filter((group) => (values[group.key] ?? 0) > 0).map(
                         (group) => (
@@ -248,6 +257,18 @@ export function CostPerMinuteBar({
                         ),
                     )}
                 </div>
+
+                {missingTelephony && (
+                    <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                        <span>
+                            Excludes telephony — no carrier is configured for
+                            this account yet. Carriage is charged per minute on
+                            top of this, and is often a third of the cost of a
+                            call.
+                        </span>
+                    </p>
+                )}
 
                 {/* The itemisation. A headline number nobody can decompose is a
                     number nobody can argue with, which is the wrong property
