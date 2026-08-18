@@ -41,6 +41,7 @@ import {
     searchNumbersApiV1ManagedNumbersSearchPost,
 } from "@/client/sdk.gen";
 import { AgreementsDialog, useAgreements } from "@/components/AgreementsDialog";
+import { TelephonyTabs } from "@/components/telephony/TelephonyTabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -347,7 +348,9 @@ export default function BuyNumberPage() {
     }
 
     return (
-        <div className="container mx-auto max-w-3xl space-y-4 p-6">
+        <>
+            <TelephonyTabs />
+            <div className="container mx-auto max-w-3xl space-y-4 p-6">
             <div>
                 <h1 className="mb-1 text-3xl font-bold">Get a phone number</h1>
                 <p className="text-muted-foreground">
@@ -657,5 +660,6 @@ export default function BuyNumberPage() {
                 }
             />
         </div>
+        </>
     );
 }

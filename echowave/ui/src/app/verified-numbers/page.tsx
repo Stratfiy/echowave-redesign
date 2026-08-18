@@ -12,6 +12,7 @@ import {
 } from "@/client/sdk.gen";
 import type { VerificationOptions, VerifiedNumber } from "@/client/types.gen";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { TelephonyTabs } from "@/components/telephony/TelephonyTabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -179,6 +180,7 @@ export default function VerifiedNumbersPage() {
 
   return (
     <>
+      <TelephonyTabs />
       <PageHeader
         title="Verified numbers"
         description="Numbers you have proved you can answer. A test call only goes to a number on this list."

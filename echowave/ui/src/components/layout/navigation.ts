@@ -11,9 +11,7 @@ import {
   type LucideIcon,
   Megaphone,
   Phone,
-  PhoneCall,
   PhoneOff,
-  PhoneOutgoing,
   Shield,
   ShieldCheck,
   TrendingUp,
@@ -127,37 +125,40 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         icon: KeyRound,
         keywords: ["byok", "api key", "credential", "secret", "vault"],
       },
+      // One entry, four screens. Verification, buying a number, carriers and
+      // test numbers are one job done in sequence — get verified, buy a
+      // number, point it at an agent — and as four peers in this list they
+      // read as four unrelated features and took a quarter of the navigation.
+      // The sequence now lives in a tab strip on the screens themselves
+      // (components/telephony/TelephonyTabs); every route is unchanged, so
+      // deep links and the keywords below still land where they did.
       {
         title: "Telephony",
         url: "/telephony-configurations",
         icon: Phone,
         showsTelephonyWarning: true,
-        keywords: ["plivo", "twilio", "telnyx", "vonage", "sip", "carrier"],
-      },
-      // Sits beside Telephony because that is where someone discovers they
-      // need it — a phone number is the only thing verification gates.
-      {
-        title: "Verification",
-        url: "/verification",
-        icon: ShieldCheck,
-        keywords: ["kyc", "gst", "compliance", "documents"],
-      },
-      // Between Verification and "Get a number" because it is the cheaper way
-      // to reach the same goal: hearing an agent on a real phone. Someone who
-      // finds this first does not need to rent a number to try the product.
-      {
-        title: "Verified numbers",
-        url: "/verified-numbers",
-        icon: PhoneCall,
-        keywords: ["otp", "test number", "my number", "trial", "verify phone"],
-      },
-      // Directly under Verification: approval is the first gate on this flow,
-      // so the thing it unlocks belongs next to it.
-      {
-        title: "Get a number",
-        url: "/numbers",
-        icon: PhoneOutgoing,
-        keywords: ["phone number", "did", "rent", "buy"],
+        keywords: [
+          "plivo",
+          "twilio",
+          "telnyx",
+          "vonage",
+          "sip",
+          "carrier",
+          "kyc",
+          "gst",
+          "compliance",
+          "documents",
+          "verification",
+          "phone number",
+          "did",
+          "rent",
+          "buy",
+          "otp",
+          "test number",
+          "my number",
+          "trial",
+          "verify phone",
+        ],
       },
       {
         title: "Tools",
