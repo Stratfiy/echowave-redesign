@@ -44,6 +44,12 @@ from api.services.configuration.resolve import (
 from api.services.posthog_client import capture_event
 from api.services.reports import generate_workflow_report_csv
 from api.services.storage import storage_fs
+from api.services.workflow.agent_brief import (
+    AgentBrief,
+    apply_brief,
+    compose_activity_description,
+    workflow_name,
+)
 from api.services.workflow.dto import ReactFlowDTO, sanitize_workflow_definition
 from api.services.workflow.duplicate import duplicate_workflow
 from api.services.workflow.errors import ItemKind, WorkflowError
@@ -336,9 +342,57 @@ class CreateWorkflowRunResponse(BaseModel):
 
 
 class CreateWorkflowTemplateRequest(BaseModel):
+    """The create wizard's brief.
+
+    Only ``call_type`` and ``use_case`` are required. ``activity_description``
+    stays for the three-field form this replaced and for API callers that
+    already send it; when the wizard's structured fields are present it is
+    composed from them instead, so both shapes reach generation as one thing.
+    """
+
     call_type: Literal[CallType.INBOUND.value, CallType.OUTBOUND.value]
     use_case: str
-    activity_description: str
+    activity_description: str = ""
+
+    # Step 1 — identity
+    objective: str = ""
+    agent_name: str = Field("", max_length=80)
+    agent_designation: str = Field("", max_length=120)
+    company_name: str = Field("", max_length=120)
+    company_description: str = Field("", max_length=2000)
+    industry: str = Field("", max_length=80)
+    languages: list[str] = Field(default_factory=list, max_length=12)
+    gender: str = Field("", max_length=16)
+    tone: str = Field("", max_length=40)
+
+    # Step 2 — conversation
+    welcome_message: str = Field("", max_length=2000)
+    conversation_flow: str = Field("", max_length=8000)
+    guardrails: list[str] = Field(default_factory=list, max_length=40)
+
+    # Step 3 — closing
+    closing_line: str = Field("", max_length=1000)
+    hangup_prompt: str = Field("", max_length=4000)
+
+    def to_brief(self) -> AgentBrief:
+        return AgentBrief(
+            call_type=self.call_type,
+            use_case=self.use_case,
+            objective=self.objective,
+            agent_name=self.agent_name,
+            agent_designation=self.agent_designation,
+            company_name=self.company_name,
+            company_description=self.company_description,
+            industry=self.industry,
+            languages=list(self.languages),
+            gender=self.gender,
+            tone=self.tone,
+            welcome_message=self.welcome_message,
+            conversation_flow=self.conversation_flow,
+            guardrails=list(self.guardrails),
+            closing_line=self.closing_line,
+            hangup_prompt=self.hangup_prompt,
+        )
 
 
 @router.post("/{workflow_id}/validate")
@@ -508,13 +562,19 @@ async def create_workflow_from_template(
     Raises:
         HTTPException: If MPS API call fails
     """
+    brief = request.to_brief()
+    # The wizard's fields, or the plain description an older caller sent. One
+    # of the two is always present; composing gives generation the structured
+    # version whenever there is one to give.
+    description = compose_activity_description(brief) or request.activity_description
+
     try:
         # Generate the workflow — MPS when it is available, local starter otherwise
         if DEPLOYMENT_MODE == "oss":
             workflow_data = await generate_workflow_definition(
                 call_type=request.call_type.upper(),
                 use_case=request.use_case,
-                activity_description=request.activity_description,
+                activity_description=description,
                 created_by=str(user.provider_id),
             )
         else:
@@ -524,7 +584,7 @@ async def create_workflow_from_template(
             workflow_data = await generate_workflow_definition(
                 call_type=request.call_type.upper(),
                 use_case=request.use_case,
-                activity_description=request.activity_description,
+                activity_description=description,
                 organization_id=user.selected_organization_id,
             )
 
@@ -533,6 +593,9 @@ async def create_workflow_from_template(
         workflow_def = regenerate_trigger_uuids(
             workflow_data.get("workflow_definition", {})
         )
+        # Guardrails, greeting and closing line are written in rather than
+        # hoped for — see services/workflow/agent_brief.py.
+        workflow_def = apply_brief(workflow_def, brief)
 
         trigger_paths = extract_trigger_paths(workflow_def) if workflow_def else []
         if trigger_paths:
@@ -544,7 +607,7 @@ async def create_workflow_from_template(
                 raise HTTPException(status_code=409, detail=str(e))
 
         workflow = await db_client.create_workflow(
-            name=workflow_data.get("name", f"{request.use_case} - {request.call_type}"),
+            name=workflow_data.get("name") or workflow_name(brief),
             workflow_definition=workflow_def,
             user_id=user.id,
             organization_id=user.selected_organization_id,
