@@ -220,10 +220,10 @@ class CostComponent(str, Enum):
     TTS = "tts"
     TELEPHONY = "telephony"
     PLATFORM = "platform"
-    #: The per-minute fee charged on a call that ran on the customer's own
-    #: model keys. Decibyl revenue, not a vendor cost: a BYOK call consumes the
-    #: same orchestration, concurrency and support as a managed one but
-    #: produces no provider line to earn a margin on.
+    #: Retired. A BYOK call now carries an uplifted *platform* rate rather
+    #: than a second fee line — see ``billing/usage.py:byok_platform_tier``.
+    #: The member stays so a receipt written while the separate line existed
+    #: still resolves rather than raising on read.
     ORCHESTRATION = "orchestration"
     #: A priced feature used on the call — knowledge-base retrieval, post-call
     #: QA. Also Decibyl revenue. One component rather than one per feature, so

@@ -1,14 +1,15 @@
-"""The two charges that bill Decibyl's own work rather than a vendor's.
+"""Charging for Decibyl's own work rather than a vendor's.
 
-Both exist because the platform fee alone under-collects on calls that cost us
-the same to run as any other. A BYOK call produces no provider line to earn a
-markup on; a call that used the knowledge base or post-call QA consumed a
-feature every competitor charges separately for.
+Two mechanisms. A BYOK call produces no provider line to earn a markup on, so
+its **platform rate** is uplifted — by how much depends on which key the
+customer brought, because the voice is worth about thirty times what the
+language model is. And a call that used the knowledge base or post-call QA
+consumed a feature every competitor bills separately and we shipped free.
 
-What these tests defend is that adding them did not disturb the invariants the
-rest of billing rests on: an invoice still reconciles against its own line
-items, provider cost still counts only money paid to third parties, and a
-managed call with no add-ons produces exactly the receipt it did before.
+What these tests defend is that neither disturbed the invariants the rest of
+billing rests on: an invoice still reconciles against its own line items,
+provider cost still counts only money paid to third parties, and a managed call
+with no add-ons produces exactly the receipt it did before.
 """
 
 import random
@@ -25,7 +26,7 @@ from api.services.billing.addons import (
 )
 from api.services.billing.cost_engine import RateSpec, UsageItem, compute_call_cost
 from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
-from api.services.billing.usage import byok_model_share
+from api.services.billing.usage import byok_platform_tier
 
 RATE = DEFAULT_PLATFORM_RATE_MPAISE  # ₹2.00 per minute
 
@@ -56,7 +57,6 @@ def test_managed_call_receipt_is_unchanged_when_no_fee_applies():
     )
 
     assert [line.component for line in cost.line_items] == ["tts", "platform"]
-    assert cost.orchestration_fee_paise == 0
     assert cost.addon_fee_paise == 0
 
 
@@ -69,78 +69,51 @@ def test_a_zero_rate_emits_no_line_rather_than_a_zero_one():
     cost = compute_call_cost(
         billable_seconds=60,
         platform_rate_mpaise=RATE,
-        orchestration_rate_mpaise=0,
         addon_rates={CALL_QA: 0},
     )
 
-    assert _lines(cost, CostComponent.ORCHESTRATION.value) == []
     assert _lines(cost, CostComponent.ADDON.value) == []
 
 
-# --- the orchestration fee --------------------------------------------------
-
-
-def test_orchestration_fee_is_charged_per_billable_minute():
-    cost = compute_call_cost(
-        billable_seconds=60,
-        platform_rate_mpaise=RATE,
-        orchestration_rate_mpaise=300_000,  # ₹3.00/min
-    )
-
-    (line,) = _lines(cost, CostComponent.ORCHESTRATION.value)
-    assert line.cost_paise == 300
-    assert line.provider is None
-
-
-def test_orchestration_fee_is_our_revenue_not_a_pass_through():
-    """It must never inflate reported provider cost.
-
-    If it did, the unit-economics screen would show our own fee as money paid
-    to a vendor and every margin figure on it would be understated.
-    """
-    cost = compute_call_cost(
-        billable_seconds=60,
-        platform_rate_mpaise=RATE,
-        usage=USAGE,
-        provider_rates=PROVIDER_RATES,
-        orchestration_rate_mpaise=300_000,
-    )
-
-    (line,) = _lines(cost, CostComponent.ORCHESTRATION.value)
-    assert line.provider_cost_paise == 0
-    assert cost.total_provider_cost_paise == sum(
-        item.provider_cost_paise for item in cost.line_items
-    )
+# --- which BYOK tier a call falls in -----------------------------------------
 
 
 @pytest.mark.parametrize(
     ("key_sources", "expected"),
     [
-        ({"llm": "byok", "stt": "byok", "tts": "byok"}, (3, 3)),
-        ({"llm": "byok", "stt": "managed", "tts": "managed"}, (1, 3)),
-        ({"llm": "managed", "stt": "managed", "tts": "managed"}, (0, 3)),
-        ({"llm": "managed"}, (0, 1)),
-        ({}, (0, 0)),
+        # The voice is the expensive one and wins whenever it is theirs.
+        ({"llm": "byok", "stt": "byok", "tts": "byok"}, "tts"),
+        ({"llm": "managed", "stt": "managed", "tts": "byok"}, "tts"),
+        ({"llm": "byok", "stt": "byok", "tts": "managed"}, "stt"),
+        ({"llm": "managed", "stt": "byok", "tts": "managed"}, "stt"),
+        # The language model alone never moves the tier.
+        ({"llm": "byok", "stt": "managed", "tts": "managed"}, "managed"),
+        ({"llm": "managed", "stt": "managed", "tts": "managed"}, "managed"),
     ],
 )
-def test_byok_share_is_a_fraction_not_a_boolean(key_sources, expected):
-    """Part-BYOK is the common case and must not be billed as if it were full.
+def test_the_tier_is_cut_on_which_key_not_how_many(key_sources, expected):
+    """Counting components prices a cheap key like an expensive one.
 
-    An account that brings only its TTS key still pays a marked-up rate on the
-    STT and LLM we bought for it. Charging that account the same orchestration
-    fee as one that brought every key would bill it twice for one call.
+    On a typical Indic minute the margin given up is ~$0.014 for the voice,
+    ~$0.002 for transcription and ~$0.0005 for the language model. A flat
+    per-component uplift overcharges the last by an order of magnitude — far
+    enough that the account's bill *rose* when they brought their own key.
     """
-    assert byok_model_share({"key_sources": key_sources}) == expected
+    assert byok_platform_tier({"key_sources": key_sources}) == expected
 
 
-def test_a_run_with_no_recorded_key_sources_is_charged_nothing_extra():
-    """Calls costed before key sources were tracked have no facts to bill on.
+def test_the_language_model_is_never_a_tier_on_its_own():
+    """Explicit, because it is the case the arithmetic turns on: charging for
+    a BYOK language model costs the customer more in fee than it saves us in
+    margin, which is an invoice nobody can defend."""
+    assert byok_platform_tier({"key_sources": {"llm": "byok"}}) == "managed"
 
-    Inventing a fee for them would be charging for a property of the call that
-    nobody recorded.
-    """
-    assert byok_model_share({}) == (0, 0)
-    assert byok_model_share(None) == (0, 0)
+
+def test_a_run_with_no_recorded_key_sources_reads_as_managed():
+    """Calls costed before key sources were tracked have no facts to bill on,
+    so they keep paying what the account was already paying."""
+    assert byok_platform_tier({}) == "managed"
+    assert byok_platform_tier(None) == "managed"
 
 
 # --- add-ons ----------------------------------------------------------------
@@ -192,13 +165,12 @@ def test_fees_are_charged_on_pulse_rounded_time_like_the_platform_fee():
     """
     cost = compute_call_cost(
         billable_seconds=40,
-        platform_rate_mpaise=RATE,
-        orchestration_rate_mpaise=240_000,  # ₹2.40/min
+        platform_rate_mpaise=240_000,  # ₹2.40/min, as an uplifted BYOK rate
         addon_rates={CALL_QA: 240_000},
     )
 
     assert cost.billed_seconds == 45
-    for component in (CostComponent.ORCHESTRATION.value, CostComponent.ADDON.value):
+    for component in (CostComponent.PLATFORM.value, CostComponent.ADDON.value):
         (line,) = _lines(cost, component)
         assert line.units == 45
         # 45s at ₹2.40/min is 180 paise; a whole minute would be 240.
@@ -263,11 +235,10 @@ def test_invoice_reconciles_against_its_own_line_items_with_fees_applied():
     for _ in range(2_000):
         cost = compute_call_cost(
             billable_seconds=rng.randint(1, 900),
-            platform_rate_mpaise=RATE,
+            platform_rate_mpaise=rng.choice([RATE, RATE + 20_000, RATE + 150_000]),
             markup_bps=14_000,
             usage=USAGE,
             provider_rates=PROVIDER_RATES,
-            orchestration_rate_mpaise=rng.choice([0, 100_000, 300_000]),
             addon_rates=rng.choice(
                 [{}, {CALL_QA: 20_000}, {CALL_QA: 20_000, KNOWLEDGE_BASE: 5_000}]
             ),

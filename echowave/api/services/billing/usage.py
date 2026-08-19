@@ -121,31 +121,39 @@ def key_sources_from_usage_info(usage_info: dict[str, Any] | None) -> dict[str, 
     }
 
 
-#: The model services a customer can hold their own key for. Telephony is
-#: absent: a phone call has no key-ownership concept, it is always carriage we
-#: buy and resell.
-_KEYED_COMPONENTS = ("llm", "stt", "tts")
+def byok_platform_tier(usage_info: dict[str, Any] | None) -> str:
+    """Which BYOK tier this call falls in: ``managed``, ``stt`` or ``tts``.
 
+    The tier decides how much the platform fee is uplifted, and it is cut on
+    **which** component the customer brought rather than **how many**. That is
+    the whole point: the three are not worth remotely the same to us. On a
+    typical Indic minute the markup margin is about $0.014 on speech synthesis,
+    $0.002 on transcription and $0.0005 on the language model. Counting
+    components would price a customer who brings their cheap LLM key the same
+    as one who brings the expensive voice.
 
-def byok_model_share(usage_info: dict[str, Any] | None) -> tuple[int, int]:
-    """How much of this call's model stack ran on the customer's own keys.
+    * ``tts``     — the customer's own voice. The expensive one, and the only
+                    case that materially changes what we earn on a call.
+    * ``stt``     — the customer's own transcription, with the voice still
+                    ours.
+    * ``managed`` — everything we care about is ours.
 
-    Returns ``(byok_components, keyed_components)`` — a fraction, not a
-    boolean, because part-BYOK is the common case and the two ends of it
-    deserve different treatment. A customer who brings every key produces no
-    provider line at all and pays the platform fee alone; one who brings only
-    the TTS key still pays a marked-up rate on the STT and LLM we bought for
-    them. Charging both the same orchestration fee would bill the second
-    account twice for the same call.
+    The language model is deliberately not a tier. It is worth about a
+    twentieth of a cent, so charging for it would cost the account more in fee
+    than we lose in margin — the arithmetic that made the customer's bill go
+    *up* when they brought their own key, which is not a bill anyone can
+    defend.
 
-    The denominator counts only components the pipeline actually reported a key
-    source for. A run recorded before key sources were tracked returns
-    ``(0, 0)`` and is charged nothing extra — the alternative is inventing a
-    fee for calls whose facts we do not have.
+    A run whose key sources were never recorded reads as ``managed``. That is
+    the safe direction: it bills what the account was already paying rather
+    than inventing an uplift from facts nobody captured.
     """
     key_sources = key_sources_from_usage_info(usage_info)
-    keyed = [key_sources[c] for c in _KEYED_COMPONENTS if c in key_sources]
-    return sum(1 for source in keyed if source == "byok"), len(keyed)
+    if key_sources.get("tts") == "byok":
+        return "tts"
+    if key_sources.get("stt") == "byok":
+        return "stt"
+    return "managed"
 
 
 def usage_items_from_usage_info(

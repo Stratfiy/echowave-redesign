@@ -1,7 +1,6 @@
 """Per-call cost computation.
 
-    total_charged = platform fee
-                  + orchestration fee (BYOK calls only)
+    total_charged = platform fee (uplifted when the customer brought keys)
                   + Σ(add-on fees for features the call used)
                   + Σ(provider costs × the managed markup)
 
@@ -9,16 +8,18 @@ Two kinds of line exist and the distinction is structural rather than
 conventional. **Provider lines** multiply measured usage by a rate read from
 ``provider_rates`` and record what the vendor charged us in
 ``provider_cost_paise`` alongside what the customer pays. **Revenue lines** —
-the platform fee, the orchestration fee, add-ons — are ours, so they carry a
+the platform fee and add-ons — are ours, so they carry a
 provider cost of zero and are never marked up; marking up our own fee would be
 a margin on a margin. Nothing in the schema sums the two into one number, which
 is what keeps every margin figure downstream honest.
 
 Not every call has provider costs. An account that brings its own model keys
 pays those vendors directly, so Decibyl incurs no inference cost and there is
-no provider line to earn a margin on — which is precisely why such a call
-carries an orchestration fee instead. It consumed the same orchestration,
-concurrency and support as a managed one.
+no provider line to earn a margin on. That is why the platform rate arriving
+here is already uplifted for such a call — the uplift replaces the margin the
+missing provider line would have carried, and it is sized per component
+because speech synthesis is worth thirty times what the language model is.
+See ``billing/usage.py:byok_platform_tier``.
 
 The pure computation lives in :func:`compute_call_cost` so the rounding
 invariant can be tested without a database.
@@ -113,10 +114,9 @@ class CallCost:
     platform_fee_paise: int
     total_provider_cost_paise: int
     total_charged_paise: int
-    #: Decibyl revenue beyond the platform fee, reported separately so the
-    #: unit-economics screen can show what the new charges earn without
-    #: re-summing line items. Both are already inside ``total_charged_paise``.
-    orchestration_fee_paise: int = 0
+    #: Add-on revenue, reported separately so the unit-economics screen can
+    #: show what priced features earn without re-summing line items. Already
+    #: inside ``total_charged_paise``.
     addon_fee_paise: int = 0
     # The pulse this call was billed at, and the time it was billed for after
     # rounding up to a whole pulse. Reported so a receipt can show that a
@@ -137,7 +137,6 @@ def compute_call_cost(
     pulse_seconds: int = DEFAULT_PULSE_SECONDS,
     usage: tuple[UsageItem, ...] | list[UsageItem] = (),
     provider_rates: Mapping[tuple[str, str], RateSpec] | None = None,
-    orchestration_rate_mpaise: int = 0,
     addon_rates: Mapping[str, int] | None = None,
 ) -> CallCost:
     """Cost one call. Pure — no I/O, no clock, no database.
@@ -150,11 +149,6 @@ def compute_call_cost(
     not to a whole minute. At ``pulse_seconds=60`` this reproduces whole-minute
     billing exactly, which is what makes the comparison against competitors a
     matter of one parameter rather than of two different code paths.
-
-    ``orchestration_rate_mpaise`` is charged per billable minute and should be
-    non-zero only for a call that ran on the customer's own model keys. This
-    function does not decide that — the caller does, because whether a call was
-    BYOK is a fact about recorded usage, not about rates.
 
     ``addon_rates`` maps a catalogue key to a per-minute rate for the features
     this call actually used. Both are charged on pulse-rounded time, the same
@@ -239,28 +233,6 @@ def compute_call_cost(
         )
     )
 
-    # The orchestration fee, on a BYOK call. Priced on the same pulse-rounded
-    # seconds as the platform fee because it is the same kind of charge: our
-    # time, not a vendor's usage. A zero rate emits no line at all rather than
-    # a zero-value one, so a managed receipt is unchanged by this existing.
-    orchestration_fee = 0
-    if orchestration_rate_mpaise > 0:
-        orchestration_fee = cost_paise(
-            quantity=billed,
-            rate_mpaise=orchestration_rate_mpaise,
-            unit=RateUnit.MINUTE,
-        )
-        lines.append(
-            CostLine(
-                component=CostComponent.ORCHESTRATION.value,
-                provider=None,
-                units=billed,
-                unit_rate_mpaise=orchestration_rate_mpaise,
-                cost_paise=orchestration_fee,
-                provider_cost_paise=0,
-            )
-        )
-
     # One line per priced feature the call used. The catalogue key rides in
     # ``provider`` so a receipt can name which feature was charged without the
     # schema growing a column per feature — and so adding one to the catalogue
@@ -295,7 +267,6 @@ def compute_call_cost(
         billable_minutes=minutes,
         platform_rate_mpaise=platform_rate_mpaise,
         platform_fee_paise=fee,
-        orchestration_fee_paise=orchestration_fee,
         addon_fee_paise=addon_fee,
         total_provider_cost_paise=provider_total,
         total_charged_paise=total,
