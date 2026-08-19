@@ -27,7 +27,12 @@ Model settings are organization-scoped. If no agent-level override is set, every
 
 Use **Speech to Speech** when you want a realtime model to handle the live spoken conversation directly. In this mode, the realtime model handles speech input and speech output, so you do not configure separate Voice and Transcriber services.
 
-![Speech to Speech model configuration](../images/model-configuration-speech-to-speech.png)
+<Screenshot
+  src="model-configuration-speech-to-speech.png"
+  alt="Model configuration on the speech-to-speech arrangement"
+  caption="Speech to speech: one realtime model handles the conversation."
+  shot="Model configuration showing the speech-to-speech arrangement in the CURRENT UI. The old three-tab strip (Speech to Speech / Dograh / BYOK) no longer exists, so this needs recapturing against the redesigned screen — and the surrounding prose on this page may need rewriting to match."
+/>
 
 The Speech to Speech section has nested tabs:
 
@@ -45,7 +50,12 @@ An LLM is still required when you use Speech to Speech. The realtime model handl
 
 Use **Decibyl** when you want Decibyl to manage the model providers for you. This path uses one Decibyl Service Key for Decibyl-managed models instead of separate provider keys for LLM, Voice, and Transcriber.
 
-![Decibyl model configuration](../images/model-configuration-decibyl.png)
+<Screenshot
+  src="model-configuration-managed.png"
+  alt="Model configuration on managed Decibyl models"
+  caption="Managed: nothing to configure but the voice and the language."
+  shot="Model configuration showing the managed-models arrangement in the CURRENT UI. The tab in the old image is literally labelled 'Dograh'. Recapture against the redesigned screen."
+/>
 
 Configure:
 
@@ -68,7 +78,12 @@ When you use BYOK or external model providers, Decibyl sends only the data requi
 Provider data handling varies. Review each provider's data processing, retention, model training, and regional hosting policies before using sensitive data.
 </Warning>
 
-![BYOK model configuration](../images/model-configuration-byok.png)
+<Screenshot
+  src="model-configuration-byok.png"
+  alt="Model configuration with your own provider keys"
+  caption="Bring your own key: pick the exact provider and model, and paste the key."
+  shot="Model configuration showing the BYOK arrangement in the CURRENT UI. Same redesign caveat as the other two on this page."
+/>
 
 The BYOK section has nested tabs:
 

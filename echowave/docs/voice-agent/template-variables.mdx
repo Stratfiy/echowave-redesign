@@ -48,7 +48,12 @@ Payload value: `{{initial_context.user.name}}` or `{{gathered_context.call_dispo
 
 Template variables defined in your workflow **Settings > Context Variables** are included in test calls (both web and phone) made from the workflow editor. This is useful for simulating data that would normally come from telephony or an API trigger.
 
-<img src="../images/template-variables.png" alt="Template Variables panel in workflow Settings, showing a customer_name variable and fields to add new key/value pairs" style={{border: "1px solid #d1d5db", borderRadius: "8px", maxWidth: "100%"}} />
+<Screenshot
+  src="template-variables.png"
+  alt="The Template Variables panel in agent settings, showing a customer_name variable and the fields to add another"
+  caption="Template Variables in agent settings. These are test values, not production data."
+  shot="The Template Variables card in agent settings with one or two variables listed and the Add New Variable key/value fields below. Crop to the card — the old image included a 'Join Slack' button from the header."
+/>
 
 For example, you can set `caller_number` and `called_number` as context variables to test [Pre-Call Data Fetch](/voice-agent/pre-call-data-fetch#testing-with-test-calls) without needing a real inbound call.
 

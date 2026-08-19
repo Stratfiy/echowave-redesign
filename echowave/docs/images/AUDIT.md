@@ -1,82 +1,88 @@
-# Images that need replacing
+# Image audit
 
-Not a list of missing screenshots — see `SHOTLIST.md` for those. These are
-images **already live on docs.decibyl.ai** that should come down.
+Companion to `SHOTLIST.md`, which lists the screenshots still to capture. This
+one records what was **taken down** and why.
 
-Decibyl's docs tree was inherited from Dograh, the upstream project, and the
-`.mdx` pages were rewritten at the rebrand. The images were not. Fifteen of
-them still show Dograh's product, Dograh's marketing site, or a Dograh URL, and
-they are being served to every visitor today.
+## What was wrong
 
-Each one is a screenshot of somebody else's product presented as ours, so the
-priority here is not tidiness. Replacing them needs nothing but a session in
-the current app and a screenshot tool.
+The docs tree came from Dograh, the upstream project. The `.mdx` pages were
+rewritten at the rebrand; the images were not. Fifteen images live on
+docs.decibyl.ai showed Dograh's dashboard, Dograh's marketing homepage, or a
+Dograh URL — a reader following `voice-agent/add-to-website` went through
+another company's product from top to bottom.
 
-## Off-brand — replace before anything else
+Four of them additionally documented a model-configuration screen whose tabs
+were *Speech to Speech / Dograh / BYOK*, a layout the product no longer has.
 
-**Seven of the fifteen are on one page.** `voice-agent/add-to-website` is
-illustrated end to end with Dograh's dashboard and Dograh's marketing site; a
-reader following it sees another company's product in every image. Start there.
+## What changed
 
-| Image | What is visible | Appears on |
+**All fifteen references are gone**, and so are the files. Each one is now a
+`<Screenshot>` slot carrying a capture brief, so the pages read correctly today
+and the image appears the moment somebody drops a replacement into
+`docs/images/` under the named filename. Nothing off-brand is published while
+that happens; a slot with no file renders as nothing.
+
+| Removed | What was visible | Now a slot on |
 |---|---|---|
-| `floating-widget-example.png` | **Dograh's marketing homepage** — "Powerful Features for Building AI Voice Agents", "all Open Source", "Star us on GitHub", "Try Cloud", an "Ask Dograh" widget | `voice-agent/add-to-website` |
-| `inline-widget-example.png` | Same homepage, plus a card headed "Dograh Assistant" and body text about "Dograh's AI voice technology" | `voice-agent/add-to-website` |
-| `headless-widget-example.png` | Same homepage, plus sample questions reading "How does Dograh handle objections in real-time?" | `voice-agent/add-to-website` |
-| `copy-deployment-code.png` | Dograh sidebar, "Join Slack", GitHub star button, an embed snippet pointing at `localhost:3010` with a live-looking token and an ngrok URL | `voice-agent/add-to-website` |
-| `open-settings.png` | Sidebar reading "Dograh v1.27.0", GitHub star button, and an editor header that no longer matches the product | `voice-agent/add-to-website` |
+| `floating-widget-example.png` | Dograh's marketing homepage — "all Open Source", "Star us on GitHub", an "Ask Dograh" widget | *replaced outright, see below* |
+| `inline-widget-example.png` | Same homepage, plus a card headed "Dograh Assistant" | *replaced outright* |
+| `headless-widget-example.png` | Same homepage, sample questions naming Dograh | *replaced outright* |
+| `open-settings.png` | Sidebar reading "Dograh v1.27.0", GitHub star button, an editor header the product no longer has | `voice-agent/add-to-website` |
 | `add-to-website.png` | Dograh sidebar, "Join Slack", GitHub star button | `voice-agent/add-to-website` |
-| `save-configurations.png` | Widget preview with the button text "Ask Dograh", twice | `voice-agent/add-to-website` |
-| `service-keys.png` | Heading "Dograh Service Keys", subtitle "Manage service keys for accessing Dograh AI services", a key named "Dograh Production Service Keys" | `configurations/api-keys` |
-| `api-keys.png` | "Manage your API keys to access Dograh services", keys shown with the retired `dgr_` prefix | `configurations/api-keys` |
+| `save-configurations.png` | Widget preview with button text "Ask Dograh", twice | `voice-agent/add-to-website` |
+| `copy-deployment-code.png` | Dograh sidebar; an embed snippet pointing at `localhost:3010` with a live-looking token and an ngrok URL | `voice-agent/add-to-website` |
+| `api-keys.png` | "Manage your API keys to access Dograh services"; keys on the retired `dgr_` prefix | `configurations/api-keys` |
+| `service-keys.png` | "Dograh Service Keys"; a key named "Dograh Production Service Keys" | `configurations/api-keys` |
 | `accessing-traces.png` | A trace URL reading `https://langfuse.dograh.com/…` | `configurations/tracing` |
 | `models_dropdown.png` | Provider dropdown set to `dograh` | `configurations/llm` |
 | `add_model_manually.png` | Provider dropdown set to `dograh` | `configurations/llm` |
-| `model-configuration-decibyl.png` | Filename says decibyl; the tab in the image says **Dograh** | `configurations/inference-providers` |
+| `model-configuration-decibyl.png` | Filename said decibyl; the tab in the image said **Dograh** | `configurations/inference-providers` |
 | `model-configuration-byok.png` | Same tab strip, same "Dograh" tab | `configurations/inference-providers` |
+| `model-configuration-speech-to-speech.png` | Same retired tab strip | `configurations/inference-providers` |
 | `template-variables.png` | "Join Slack" button in the header | `voice-agent/template-variables` |
 
-## Also stale, independent of branding
+### Replaced outright, not slotted
 
-The model configuration screen was redesigned. Its three tabs used to be
-*Speech to Speech* / *Dograh* / *BYOK*; that is what these four images show and
-it is not what the screen looks like now, so recapturing them is a rewrite of
-those pages' instructions rather than a swap of the files:
+The three embed-mode images were never screenshots of *our* product — they were
+screenshots of Dograh's marketing site with Dograh's widget on it. What the
+page actually needs there is a picture of **where each mode puts the widget on
+your own page**, which is a diagram, not a capture.
 
-- `model-configuration-decibyl.png`
-- `model-configuration-byok.png`
-- `model-configuration-speech-to-speech.png`
-- `models_dropdown.png`
+So they are now authored SVGs, drawn against a deliberately generic wireframe
+page: `embed-mode-floating.svg`, `embed-mode-inline.svg`,
+`embed-mode-headless.svg`. They carry their own light and dark palettes, scale
+without going soft, and weigh about 3 KB each. Nothing to recapture.
 
-Separately, `node.png` — a Start Call settings panel, and one of the few clean
-images in here — shows a **Detect Voicemail** toggle that no longer exists on
-the node; voicemail detection moved to a workflow-level dialog. It is left
-unreferenced for that reason. `voice-agent/start-call` declares a
-`start-call-panel.png` slot for the replacement.
+### Also deleted, unreferenced
 
-## Unreferenced and safe to delete
+`tool attachment.png`, `tool description.png`, `tool params.png` (Dograh's tool
+screens, on no page — `voice-agent/tools/http-api` still has no images and
+wants replacements), plus `checks-passed.png`, `go-to-deployment.png`,
+`star-history.png`, `video_thumbnail_1.png`, `hero.gif`, `hero-light.png`,
+`hero-dark.png`, `view_trace.png`, `vobiz-inbound-config-1.png`,
+`vobiz-inbound-config-2.png` — artefacts of the open-source README this tree no
+longer publishes.
 
-In the tree, on nobody's page, and all showing Dograh's product:
+`node.png` went too. It was Decibyl-clean and the only Start Call panel shot in
+the tree, but it shows a **Detect Voicemail** toggle that no longer exists on
+the node — voicemail detection moved to a workflow-level dialog.
+`voice-agent/start-call` declares `start-call-panel.png` for the replacement.
 
-- `tool attachment.png`, `tool description.png`, `tool params.png` — the tool
-  configuration screens, with Dograh's sidebar and a red annotation arrow.
-  `voice-agent/tools/http-api` has no images and wants replacements for these.
-- `checks-passed.png`, `go-to-deployment.png`, `star-history.png`,
-  `video_thumbnail_1.png`, `hero.gif`, `hero-light.png`, `hero-dark.png` —
-  artefacts of the open-source README that this tree no longer publishes.
-- `view_trace.png`, `vobiz-inbound-config-1.png`, `vobiz-inbound-config-2.png`
+## Two of these need prose changes, not just a new file
 
-## Clean, keep as they are
+`configurations/inference-providers` and `configurations/llm` describe the
+model-configuration screen as it was before the redesign. Recapturing the
+images will not be enough on those two — the instructions around them describe
+tabs that are gone.
+
+## Left alone
 
 `create-a-voice-agent.png`, `edge.png`, `global-node.png`,
 `extracted_variables.png`, `add_tts_manually.png`, `conversation-history.png`,
-`llm-response.png`, and the vendor-console captures (`twilio-*`,
-`cloudonix-*`, `vobiz-inbound-config-3`), which are screenshots of those
-vendors' own products and correctly show their branding.
-
-## Worth improving, not urgent
+`llm-response.png`, and the vendor-console captures (`twilio-*`, `cloudonix-*`,
+`vobiz-inbound-config-3`), which are screenshots of those vendors' own products
+and correctly show their branding.
 
 `create-a-voice-agent.png` is accurate and current but shows an **empty** form.
-A version with all three fields filled in — a real Activity Description in the
-textarea — would teach the page's main point without the reader having to read
-the prose to get it.
+A version with all three fields filled in would teach the page's main point
+without the reader having to read the prose to get it.

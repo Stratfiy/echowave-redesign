@@ -8,7 +8,12 @@ Create and manage keys at [app.decibyl.ai/api-keys](https://app.decibyl.ai/api-k
 ### API Keys
 API keys can be used to trigger a voice agent from an external system, like n8n or programatically from your other workflows. In order to generate that, you can go to `/api-keys` and create a new key. 
 
-![Create a new API Key](../images/api-keys.png)
+<Screenshot
+  src="developer-portal-api-keys.png"
+  alt="The Developer Portal API keys list with the Create New Key button"
+  caption="Developer Portal → API Keys. Keys are shown once, at creation."
+  shot="The Developer Portal API keys screen with two or three keys listed. Keys are issued with the dcb_ prefix now — make sure none of the rows show the retired dgr_ prefix. Redact the visible key fragments."
+/>
 
 Please note that you must copy and keep the API key secretly, since this is the only time that you would be able to copy it. If you lose it, you can always delete that, if its not being used anywhere, and create a new API key. 
 
@@ -19,7 +24,12 @@ Service Keys are the keys which you generate to be used in [Model Configurations
 A Service Key is what lets an agent use Decibyl-managed inference providers instead of your own provider keys. Model usage is billed to the account that owns the key, drawn from that account's Decibyl balance.
 </Note>
 
-![Create a new Service Key](../images/service-keys.png)
+<Screenshot
+  src="service-keys.png"
+  alt="The service keys screen with the create-key control"
+  caption="Service keys are separate from API keys and are used by managed model access."
+  shot="The service keys screen. The heading and subtitle must read Decibyl, not Dograh, and no key should be named 'Dograh Production Service Keys'. Redact key fragments."
+/>
 
 <Warning>
 Service Keys are scoped to the account that created them. A key from one account cannot be used in another — create a new Service Key from the account you want the usage billed to.
