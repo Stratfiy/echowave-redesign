@@ -38,6 +38,7 @@ _TOOL_VERB_PREFIXES = frozenset(
         "search",
         "read",
         "list",
+        "estimate",
         "get",
         "save",
         "create",

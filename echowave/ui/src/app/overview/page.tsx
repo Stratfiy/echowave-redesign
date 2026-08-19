@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 
+import { AgentBuilderPanel } from '@/components/agent-builder/AgentBuilderPanel';
 import { GitHubStarBadge } from '@/components/layout/GitHubStarBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,6 +43,9 @@ export default function OverviewPage() {
                         )}
                     </CardContent>
                 </Card>
+
+                {/* The fastest path to a working agent, before the link tiles. */}
+                <AgentBuilderPanel />
 
                 {/* Quick Actions */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

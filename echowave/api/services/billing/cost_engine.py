@@ -1,18 +1,24 @@
 """Per-call cost computation.
 
-    total_charged = platform_rate + Σ(provider costs at cost)
+    total_charged = platform fee
+                  + orchestration fee (BYOK calls only)
+                  + Σ(add-on fees for features the call used)
+                  + Σ(provider costs × the managed markup)
 
-Provider costs are passed through with **no markup**. That property is not a
-convention here, it is structural: provider cost and the platform fee are
-computed as separate line items, stored in separate columns, and never summed
-into a single number anywhere in the schema. There is no code path that can
-inflate a provider rate, because provider line items only ever multiply
-measured usage by a rate read from ``provider_rates``.
+Two kinds of line exist and the distinction is structural rather than
+conventional. **Provider lines** multiply measured usage by a rate read from
+``provider_rates`` and record what the vendor charged us in
+``provider_cost_paise`` alongside what the customer pays. **Revenue lines** —
+the platform fee, the orchestration fee, add-ons — are ours, so they carry a
+provider cost of zero and are never marked up; marking up our own fee would be
+a margin on a margin. Nothing in the schema sums the two into one number, which
+is what keeps every margin figure downstream honest.
 
 Not every call has provider costs. An account that brings its own model keys
-pays those providers directly, so Decibyl incurs no inference cost and the
-receipt is a platform fee alone. An account on Decibyl-managed model services
-does incur them, and they appear as itemised pass-through lines.
+pays those vendors directly, so Decibyl incurs no inference cost and there is
+no provider line to earn a margin on — which is precisely why such a call
+carries an orchestration fee instead. It consumed the same orchestration,
+concurrency and support as a managed one.
 
 The pure computation lives in :func:`compute_call_cost` so the rounding
 invariant can be tested without a database.
@@ -107,6 +113,11 @@ class CallCost:
     platform_fee_paise: int
     total_provider_cost_paise: int
     total_charged_paise: int
+    #: Decibyl revenue beyond the platform fee, reported separately so the
+    #: unit-economics screen can show what the new charges earn without
+    #: re-summing line items. Both are already inside ``total_charged_paise``.
+    orchestration_fee_paise: int = 0
+    addon_fee_paise: int = 0
     # The pulse this call was billed at, and the time it was billed for after
     # rounding up to a whole pulse. Reported so a receipt can show that a
     # 62-second call was charged for 75 seconds and not 120.
@@ -126,6 +137,8 @@ def compute_call_cost(
     pulse_seconds: int = DEFAULT_PULSE_SECONDS,
     usage: tuple[UsageItem, ...] | list[UsageItem] = (),
     provider_rates: Mapping[tuple[str, str], RateSpec] | None = None,
+    orchestration_rate_mpaise: int = 0,
+    addon_rates: Mapping[str, int] | None = None,
 ) -> CallCost:
     """Cost one call. Pure — no I/O, no clock, no database.
 
@@ -137,6 +150,16 @@ def compute_call_cost(
     not to a whole minute. At ``pulse_seconds=60`` this reproduces whole-minute
     billing exactly, which is what makes the comparison against competitors a
     matter of one parameter rather than of two different code paths.
+
+    ``orchestration_rate_mpaise`` is charged per billable minute and should be
+    non-zero only for a call that ran on the customer's own model keys. This
+    function does not decide that — the caller does, because whether a call was
+    BYOK is a fact about recorded usage, not about rates.
+
+    ``addon_rates`` maps a catalogue key to a per-minute rate for the features
+    this call actually used. Both are charged on pulse-rounded time, the same
+    basis as the platform fee, so a 40-second call is charged 45 seconds of
+    every fee and not a full minute of any of them.
 
     The returned ``total_charged_paise`` is exactly ``sum(line.cost_paise for
     line in line_items)``. It is never computed as a separately-rounded figure,
@@ -216,6 +239,54 @@ def compute_call_cost(
         )
     )
 
+    # The orchestration fee, on a BYOK call. Priced on the same pulse-rounded
+    # seconds as the platform fee because it is the same kind of charge: our
+    # time, not a vendor's usage. A zero rate emits no line at all rather than
+    # a zero-value one, so a managed receipt is unchanged by this existing.
+    orchestration_fee = 0
+    if orchestration_rate_mpaise > 0:
+        orchestration_fee = cost_paise(
+            quantity=billed,
+            rate_mpaise=orchestration_rate_mpaise,
+            unit=RateUnit.MINUTE,
+        )
+        lines.append(
+            CostLine(
+                component=CostComponent.ORCHESTRATION.value,
+                provider=None,
+                units=billed,
+                unit_rate_mpaise=orchestration_rate_mpaise,
+                cost_paise=orchestration_fee,
+                provider_cost_paise=0,
+            )
+        )
+
+    # One line per priced feature the call used. The catalogue key rides in
+    # ``provider`` so a receipt can name which feature was charged without the
+    # schema growing a column per feature — and so adding one to the catalogue
+    # never needs a migration.
+    addon_fee = 0
+    for key in sorted(addon_rates or {}):
+        rate = (addon_rates or {})[key]
+        if rate <= 0:
+            continue
+        line_fee = cost_paise(
+            quantity=billed,
+            rate_mpaise=rate,
+            unit=RateUnit.MINUTE,
+        )
+        addon_fee += line_fee
+        lines.append(
+            CostLine(
+                component=CostComponent.ADDON.value,
+                provider=key,
+                units=billed,
+                unit_rate_mpaise=rate,
+                cost_paise=line_fee,
+                provider_cost_paise=0,
+            )
+        )
+
     # Defined as the sum of the rounded line items — see money.py.
     total = sum(line.cost_paise for line in lines)
 
@@ -224,6 +295,8 @@ def compute_call_cost(
         billable_minutes=minutes,
         platform_rate_mpaise=platform_rate_mpaise,
         platform_fee_paise=fee,
+        orchestration_fee_paise=orchestration_fee,
+        addon_fee_paise=addon_fee,
         total_provider_cost_paise=provider_total,
         total_charged_paise=total,
         pulse_seconds=pulse_seconds,

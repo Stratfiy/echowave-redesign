@@ -66,6 +66,12 @@ class PipelineMetricsAggregator(FrameProcessor):
         # resolved configuration's key_source; see register_key_sources.
         self._key_sources: Dict[str, str] = {}
 
+        # Priced features that actually ran on this call — see
+        # services/billing/addons.py. Recorded on use rather than on
+        # configuration: a knowledge base attached to a node the conversation
+        # never reached has cost the customer nothing.
+        self._addons_used: set = set()
+
         # Per-turn latency instrumentation. TTFB arrives continuously as
         # MetricsFrames; the turn is only *closed* when the latency observer
         # reports a measured user-to-bot latency, so these accumulate against
@@ -343,6 +349,16 @@ class PipelineMetricsAggregator(FrameProcessor):
             if source in ("byok", "managed"):
                 self._key_sources[component] = source
 
+    def register_addon_used(self, addon_key: str) -> None:
+        """Record that a priced feature ran on this call.
+
+        Idempotent, and called from the feature's own execution path rather
+        than from the code that enabled it, so what reaches the invoice is what
+        the caller actually received.
+        """
+        if addon_key:
+            self._addons_used.add(addon_key)
+
     def get_llm_usage_metrics(self) -> Dict[str, LLMTokenUsage]:
         """Get the aggregated LLM usage metrics grouped by processor|||model."""
         return self._llm_usage_metrics
@@ -395,6 +411,10 @@ class PipelineMetricsAggregator(FrameProcessor):
             "stt": stt,
             "call_duration_seconds": call_duration,
             "key_sources": dict(self._key_sources),
+            # Sorted so two calls that used the same features serialize
+            # identically; a set's iteration order would make otherwise equal
+            # receipts differ.
+            "addons": sorted(self._addons_used),
         }
 
     def reset_metrics(self):
@@ -403,6 +423,7 @@ class PipelineMetricsAggregator(FrameProcessor):
         self._tts_usage_metrics.clear()
         self._stt_usage_metrics.clear()
         self._key_sources.clear()
+        self._addons_used.clear()
         self._turn_stage_ttfb.clear()
         self._turns.clear()
         self._start_time = None

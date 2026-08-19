@@ -220,11 +220,30 @@ class CostComponent(str, Enum):
     TTS = "tts"
     TELEPHONY = "telephony"
     PLATFORM = "platform"
+    #: The per-minute fee charged on a call that ran on the customer's own
+    #: model keys. Decibyl revenue, not a vendor cost: a BYOK call consumes the
+    #: same orchestration, concurrency and support as a managed one but
+    #: produces no provider line to earn a margin on.
+    ORCHESTRATION = "orchestration"
+    #: A priced feature used on the call — knowledge-base retrieval, post-call
+    #: QA. Also Decibyl revenue. One component rather than one per feature, so
+    #: adding a feature to the catalogue never needs a migration; which feature
+    #: a line is for is carried in ``provider``. See ``billing/addons.py``.
+    ADDON = "addon"
 
     @classmethod
     def provider_components(cls) -> tuple["CostComponent", ...]:
         """Components that represent money paid to a third party."""
         return (cls.STT, cls.LLM, cls.TTS, cls.TELEPHONY)
+
+    @classmethod
+    def revenue_components(cls) -> tuple["CostComponent", ...]:
+        """Components that are Decibyl revenue rather than a pass-through.
+
+        These never carry a provider cost and are never marked up — a markup
+        on our own fee would be a margin on a margin.
+        """
+        return (cls.PLATFORM, cls.ORCHESTRATION, cls.ADDON)
 
 
 class RateUnit(str, Enum):

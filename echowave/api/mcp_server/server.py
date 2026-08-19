@@ -2,12 +2,17 @@ from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from api.mcp_server.instructions import DECIBYL_MCP_INSTRUCTIONS
+from api.mcp_server.tools.agent_templates import (
+    get_agent_template,
+    list_agent_templates,
+)
 from api.mcp_server.tools.catalog import (
     list_credentials,
     list_documents,
     list_recordings,
     list_tools,
 )
+from api.mcp_server.tools.cost_estimate import estimate_agent_cost
 from api.mcp_server.tools.create_workflow import create_workflow
 from api.mcp_server.tools.docs_search import list_docs, read_doc, search_docs
 from api.mcp_server.tools.get_workflow_code import get_workflow_code
@@ -59,6 +64,19 @@ _DOCS_TOOL_ANNOTATIONS = ToolAnnotations(
 
 for _tool in (list_docs, read_doc, search_docs):
     mcp.tool(_tool, annotations=_DOCS_TOOL_ANNOTATIONS)
+
+# Starting points and their price. Both only read: a template describes an
+# agent and the estimator quotes one, and neither creates anything, so a model
+# can call them freely while the user is still deciding.
+_ADVISORY_TOOL_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=True,
+    idempotentHint=True,
+    destructiveHint=False,
+    openWorldHint=False,
+)
+
+for _tool in (list_agent_templates, get_agent_template, estimate_agent_cost):
+    mcp.tool(_tool, annotations=_ADVISORY_TOOL_ANNOTATIONS)
 
 # Telephony status. Read-only and annotated as such, so a client that respects
 # hints knows none of these change anything.

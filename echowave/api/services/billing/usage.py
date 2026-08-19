@@ -121,6 +121,33 @@ def key_sources_from_usage_info(usage_info: dict[str, Any] | None) -> dict[str, 
     }
 
 
+#: The model services a customer can hold their own key for. Telephony is
+#: absent: a phone call has no key-ownership concept, it is always carriage we
+#: buy and resell.
+_KEYED_COMPONENTS = ("llm", "stt", "tts")
+
+
+def byok_model_share(usage_info: dict[str, Any] | None) -> tuple[int, int]:
+    """How much of this call's model stack ran on the customer's own keys.
+
+    Returns ``(byok_components, keyed_components)`` — a fraction, not a
+    boolean, because part-BYOK is the common case and the two ends of it
+    deserve different treatment. A customer who brings every key produces no
+    provider line at all and pays the platform fee alone; one who brings only
+    the TTS key still pays a marked-up rate on the STT and LLM we bought for
+    them. Charging both the same orchestration fee would bill the second
+    account twice for the same call.
+
+    The denominator counts only components the pipeline actually reported a key
+    source for. A run recorded before key sources were tracked returns
+    ``(0, 0)`` and is charged nothing extra — the alternative is inventing a
+    fee for calls whose facts we do not have.
+    """
+    key_sources = key_sources_from_usage_info(usage_info)
+    keyed = [key_sources[c] for c in _KEYED_COMPONENTS if c in key_sources]
+    return sum(1 for source in keyed if source == "byok"), len(keyed)
+
+
 def usage_items_from_usage_info(
     usage_info: dict[str, Any] | None,
 ) -> tuple[UsageItem, ...]:
