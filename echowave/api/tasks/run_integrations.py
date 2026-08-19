@@ -13,6 +13,8 @@ from api.constants import BACKEND_API_ENDPOINT, DEFAULT_WEBHOOK_DELIVERY_CONFIG
 from api.db import db_client
 from api.db.models import WorkflowRunModel
 from api.enums import OrganizationConfigurationKey
+from api.services.billing.addons import CALL_QA as ADDON_CALL_QA
+from api.services.billing.addons import record_addon_used
 from api.services.integrations import (
     IntegrationCompletionContext,
     has_completion_handlers,
@@ -26,8 +28,6 @@ from api.services.workflow.dto import (
     WebhookNodeData,
     WebhookRFNode,
 )
-from api.services.billing.addons import CALL_QA as ADDON_CALL_QA
-from api.services.billing.addons import record_addon_used
 from api.services.workflow.qa import run_per_node_qa_analysis
 from api.tasks.function_names import FunctionNames
 from api.utils.recording_artifacts import get_recording_storage_key
