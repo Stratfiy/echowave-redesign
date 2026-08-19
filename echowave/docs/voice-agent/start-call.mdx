@@ -1,7 +1,195 @@
 ---
 title: "Start Call"
-description: "You can use Start Call node to Start the call and configure how Agent greets the user when the conversation starts."
+description: "The node every call begins on — the greeting, the recording disclosure, and anything the agent should know before it speaks."
 ---
+
+Exactly one Start Call node exists per agent, it has no incoming edges, and
+every call begins on it. It does three jobs in order: fetch anything the agent
+should already know, say the disclosure and the greeting, then run the first
+conversational turn.
+
+<Screenshot
+  src="start-call-panel.png"
+  alt="The Start Call node settings panel showing name, greeting, disclosure and prompt fields"
+  caption="The Start Call node's settings. Greeting and prompt are different things — see below."
+  shot="The Start Call node settings panel, scrolled to show Greeting Type, Greeting Text, the recording disclosure toggle, and the top of the Prompt field. Current UI, dark theme, Decibyl branding."
+/>
+
+## Greeting and prompt are not the same field
+
+This is the one thing worth getting right before anything else.
+
+| | **Greeting** | **Prompt** |
+|---|---|---|
+| What it is | Fixed text, spoken verbatim | Instructions to the model |
+| Who writes the words | You | The model, guided by you |
+| Varies per call | Only through `{{variables}}` | Yes, it responds to the caller |
+| Costs a model call | No | Yes |
+
+A greeting is played and then the conversation begins. It is the right place for
+anything that must come out identically every time — a company name, a
+regulatory line, a fixed opening. The prompt handles everything after that.
+
+Leave the greeting empty and the agent says nothing until the caller speaks. On
+an **inbound** call that is often correct; the caller rang you and will say
+hello. On an **outbound** call it is nearly always wrong — the person who
+answered hears silence and hangs up.
+
+## Fields
+
+<ParamField path="name" type="string" default="Start Call">
+Short label shown on the canvas and in call logs. No runtime effect.
+</ParamField>
+
+<ParamField path="greeting_type" type="text | audio" default="text">
+Whether the greeting is spoken by the voice model from text, or played from a
+[pre-recorded audio file](/voice-agent/pre-recorded-audio).
+</ParamField>
+
+<ParamField path="greeting" type="string">
+The text spoken at the start of the call. Supports `{{template_variables}}`.
+Empty means no greeting.
+</ParamField>
+
+<ParamField path="greeting_recording_id" type="recording">
+The audio file played instead, when `greeting_type` is `audio`.
+</ParamField>
+
+<ParamField path="recording_disclosure_enabled" type="boolean" default="on">
+Speak a short disclosure before the greeting. Unset follows the platform
+default, which is **on**. See [Recording disclosure](#recording-disclosure).
+</ParamField>
+
+<ParamField path="recording_disclosure" type="string">
+What the agent says. Blank uses the platform default wording.
+</ParamField>
+
+<ParamField path="prompt" type="string" required>
+The system prompt for the opening turn. Supports `{{template_variables}}` from
+pre-call fetch and the initial context.
+</ParamField>
+
+<ParamField path="allow_interrupt" type="boolean" default="false">
+Whether the caller can talk over the agent mid-utterance. Leave it off for a
+node whose words are a disclosure that must be heard in full.
+</ParamField>
+
+<ParamField path="add_global_prompt" type="boolean" default="true">
+Prepend the [Global node](/voice-agent/global)'s prompt to this one at runtime.
+</ParamField>
+
+<ParamField path="delayed_start" type="boolean" default="false">
+Wait before speaking after the line is answered.
+</ParamField>
+
+<ParamField path="delayed_start_duration" type="number" default="2.0">
+How long to wait, in seconds. Between 0.1 and 10.
+</ParamField>
+
+<ParamField path="extraction_enabled" type="boolean" default="false">
+Run a variable-extraction pass on this node's exchange. See
+[Context and variables](/core-concepts/context-and-variables).
+</ParamField>
+
+<ParamField path="tool_uuids" type="string[]">
+[Tools](/voice-agent/tools/introduction) the agent may call during the opening
+turn.
+</ParamField>
+
+<ParamField path="document_uuids" type="string[]">
+[Knowledge Base documents](/voice-agent/knowledge-base) available on this node.
+</ParamField>
+
+<ParamField path="pre_call_fetch_enabled" type="boolean" default="false">
+Look the caller up before the call starts. See
+[Pre-call data fetch](#pre-call-data-fetch).
+</ParamField>
+
+## Recording disclosure
+
+Every call on Decibyl is recorded, and three separate regimes expect the person
+on the other end to be told:
+
+- **India** — under the DPDP Act a call recording is personal data collected
+  from the person who answered, and telecom practice expects disclosure.
+- **Two-party-consent US states** — twelve of them require consent from
+  everyone on the call, not just the party recording.
+- **Your own customers' expectations**, which are usually stricter than either.
+
+So it defaults to **on**, and stays on until somebody deliberately turns it off.
+The setting lives on the node rather than in organisation settings, which means
+it travels with the agent — versioned alongside everything else, and readable at
+call start without a database round-trip on the critical path.
+
 <Note>
-You should have only one Start Call node per Voice Agent.
+If you write your own disclosure wording, write it to be *heard*, not read.
+"This call may be recorded for quality and training purposes" takes two seconds
+and everyone recognises it. A paragraph of policy gets talked over.
 </Note>
+
+## Delayed start
+
+An outbound call connects the moment the network says it did, which is often a
+fraction before the person has the phone at their ear. An agent that starts
+talking immediately loses its first few words.
+
+Switching on **Delayed Start** waits — two seconds by default — before speaking.
+It costs you nothing on the model side, because nothing is generated during the
+wait.
+
+<Tip>
+Delayed start is for outbound. On inbound, the caller has been listening to a
+ring tone and is already waiting; a pause reads as a broken line.
+</Tip>
+
+## Pre-call data fetch
+
+With **Pre-Call Data Fetch** on, Decibyl POSTs to a URL of yours before the call
+begins, and merges the JSON it gets back into the call context as template
+variables. The request body carries the calling and called numbers, so your
+endpoint can look the person up.
+
+The difference it makes:
+
+```text title="Without"
+Agent:  Thanks for calling Sunrise Dental. Can I take your name?
+Caller: Priya Menon.
+Agent:  And do you have an appointment with us already?
+```
+
+```text title="With"
+Agent:  Hello Priya — I can see you're booked with Dr Rao on Thursday.
+        Is that what you're calling about?
+```
+
+Two turns saved on every single call, which on a few thousand calls is real
+money as well as a better experience.
+
+The full setup, including authentication and what happens when your endpoint is
+slow or down, is in
+[Pre-call data fetch](/voice-agent/pre-call-data-fetch).
+
+## Rules
+
+- **Exactly one** Start Call node per agent. The editor will not let you save a
+  second, or none.
+- **No incoming edges.** Nothing transitions *to* the start of a call. If you
+  need to return to the opening behaviour later, use an agent node.
+- At least one outgoing edge, unless the whole conversation is the greeting.
+
+## See also
+
+<CardGroup cols={2}>
+  <Card title="Agent node" href="/voice-agent/agent">
+    Every conversational step after this one.
+  </Card>
+  <Card title="Global node" href="/voice-agent/global">
+    Rules that apply on every turn, not just this one.
+  </Card>
+  <Card title="Pre-recorded audio" href="/voice-agent/pre-recorded-audio">
+    Playing a file instead of synthesising the greeting.
+  </Card>
+  <Card title="Pre-call data fetch" href="/voice-agent/pre-call-data-fetch">
+    Knowing who is on the line before they say a word.
+  </Card>
+</CardGroup>

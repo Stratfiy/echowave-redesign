@@ -1,14 +1,184 @@
 ---
-title: "QA"
-description: "QA node allows you to run post-call quality analysis on your Voice Agent runs"
+title: "QA Analysis"
+description: "Score every call against your own criteria, automatically, without anyone listening to them."
 ---
 
-The QA node lets you define quality analysis criteria that are automatically evaluated after each call ends. Use it to score agent performance, check compliance, or extract structured insights from conversations.
+A QA node runs a language model over the transcript after the call ends and
+writes structured results onto the run. Nobody listens to anything; the review
+happens whether or not you look at it.
 
-### Creating a QA Node
+It sits off to the side of the conversation — no incoming edges, no outgoing
+edges, nothing to connect. Adding one to the canvas is the whole setup.
 
-You can add a QA node to your workflow from the Voice Agent Builder. Once added, configure the analysis criteria that you want to evaluate for each call.
+<Screenshot
+  src="qa-node-panel.png"
+  alt="The QA node settings panel showing the system prompt, minimum duration, sampling and model fields"
+  caption="Sampling and the duration floor are what keep this affordable at volume."
+  shot="The QA node settings panel with a realistic compliance system prompt, minimum call duration 30, sample rate below 100, and the Use Workflow's LLM toggle visible."
+/>
 
-### Viewing QA Results
+## What it is for
 
-After a call completes, the QA analysis runs automatically. You can view the results on the **Run Detail** page for each individual run.
+Call QA is normally a person listening to a sample of recordings with a
+spreadsheet open. That scales to about one percent of calls and lags by a week.
+A QA node reviews whichever share you ask for, within a minute of the call
+ending.
+
+Three things people actually use it for:
+
+- **Compliance.** Did the agent give the disclosure? Did it state the interest
+  rate? Did it stop when asked to? These are questions with defensible answers,
+  and a per-call record of them is the difference between a policy and a
+  control.
+- **Quality.** Where did callers get confused, interrupt, or give up? Which node
+  produces the most abandonment?
+- **Outcome tagging.** A structured summary and disposition per call, without
+  relying on the agent to extract it during the conversation.
+
+<Note>
+QA runs **after** the call, so it costs nothing in latency and cannot affect
+what the caller hears. It is also the only place a review can see the whole
+conversation at once — an extraction pass mid-call only ever sees its own node.
+</Note>
+
+## Fields
+
+<ParamField path="name" type="string" default="QA">
+Short label shown on the canvas and in run records.
+</ParamField>
+
+<ParamField path="qa_enabled" type="boolean" default="true">
+Switch the review off without deleting the node and losing its configuration.
+</ParamField>
+
+<ParamField path="qa_system_prompt" type="string">
+Instructions to the reviewing model. Placeholders available: `{node_summary}`,
+`{previous_conversation_summary}`, `{transcript}`, `{metrics}`. Blank uses the
+platform default.
+</ParamField>
+
+<ParamField path="qa_min_call_duration" type="number" default="15">
+Calls shorter than this many seconds are skipped. A five-second wrong number has
+nothing to review and reviewing it costs the same as reviewing a real call.
+</ParamField>
+
+<ParamField path="qa_voicemail_calls" type="boolean" default="false">
+Whether to review calls flagged as voicemail. Off by default for the same
+reason.
+</ParamField>
+
+<ParamField path="qa_sample_rate" type="number" default="100">
+Percent of eligible calls reviewed, 1–100. Below 100 the selection is random.
+</ParamField>
+
+<ParamField path="qa_use_workflow_llm" type="boolean" default="true">
+Review with the same model the agent runs on. Switch off to name a separate
+provider and model.
+</ParamField>
+
+<ParamField path="qa_provider" type="openai | azure | openrouter | anthropic">
+Provider for the review, when not using the workflow's model.
+</ParamField>
+
+<ParamField path="qa_model" type="string" default="default">
+Model identifier, e.g. `gpt-4o`. Provider-specific.
+</ParamField>
+
+<ParamField path="qa_api_key" type="string">
+API key for that provider.
+</ParamField>
+
+<ParamField path="qa_endpoint" type="url">
+Required for the Azure provider only.
+</ParamField>
+
+## What it costs, and how to control it
+
+A QA pass is a language model call over a full transcript, so it is not free and
+it scales with your call volume rather than with your team.
+
+Three levers, in the order worth reaching for them:
+
+<Steps>
+
+<Step title="Set a minimum duration">
+The default of 15 seconds already excludes wrong numbers and instant hangups.
+For outbound campaigns, 30 seconds excludes most of the calls that never became
+conversations.
+</Step>
+
+<Step title="Sample rather than review everything">
+For quality trends, 10–20% is plenty — you are looking for patterns, and a
+random fifth shows you the same patterns as the whole.
+
+For **compliance**, keep it at 100. The point of a compliance control is that it
+applies to every call; a sampled one tells you what probably happened.
+</Step>
+
+<Step title="Review on a cheaper model than you talk on">
+Switch off **Use Workflow's LLM** and name a smaller model. Reviewing a
+transcript against fixed criteria is a much easier task than holding a
+conversation, and it has no latency budget at all.
+</Step>
+
+</Steps>
+
+## Writing the review prompt
+
+Ask for structured output and name the fields. A review that comes back as a
+paragraph is a paragraph nobody reads.
+
+```text title="A compliance review prompt"
+You are a compliance reviewer for outbound collections calls in India.
+
+Review the transcript and return a JSON object with exactly these keys:
+
+  "disclosure_given"     true if the agent stated the call was recorded
+                         before any other substantive statement
+  "identified_caller"    true if the agent named itself and the company
+                         in its first turn
+  "honoured_opt_out"     true if the caller asked not to be contacted and
+                         the agent ended the call without further pitching;
+                         null if they never asked
+  "pressure_language"    a list of any phrases that threatened consequences
+                         the caller was not legally exposed to
+  "summary"              one sentence, factual
+  "call_quality_score"   1-5
+
+Judge only what is in the transcript. Do not infer intent. Where the
+transcript is ambiguous, return null rather than a guess.
+```
+
+That last paragraph matters more than the rest. A reviewing model asked for a
+verdict will produce one, and a confidently wrong compliance record is worse
+than no record.
+
+## Where the results appear
+
+On the **Run Detail** page for each call, alongside the transcript and
+recording. They are also available to a [Webhook node](/voice-agent/webhook) as
+`{{annotations.qa_*}}`, so a failing compliance review can raise a ticket in
+your own system without anyone opening Decibyl.
+
+## Rules
+
+- No incoming and no outgoing edges — a QA node is never part of the
+  conversation.
+- One per agent is the normal shape.
+
+## See also
+
+<CardGroup cols={2}>
+  <Card title="Webhook node" href="/voice-agent/webhook">
+    Pushing QA results into your own systems.
+  </Card>
+  <Card title="Calls and runs" href="/core-concepts/calls-and-runs">
+    Where run records live and what they hold.
+  </Card>
+  <Card title="Analytics" href="/account/analytics">
+    Aggregate views across runs.
+  </Card>
+  <Card title="Tracing" href="/configurations/tracing">
+    Turn-by-turn detail when a single call needs explaining.
+  </Card>
+</CardGroup>
