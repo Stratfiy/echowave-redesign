@@ -1,87 +1,172 @@
 ---
 title: "Use External Tools, Knowledge"
-description: "Make your agent do something during the call, not just talk. Connect it to live data and your company documents."
+description: "Let the agent check a live system mid-call, and answer policy questions from your own documents."
 ---
 
-You've made the agent reachable through real phone calls. Now let's make it useful during the call.
+An agent that can only talk is a script with a nicer voice. This page connects
+it to two things it does not know: your live systems, and your written policies.
 
-Your agent can hold a conversation. But can it check an order, or answer a policy question correctly? That's what this page is about.
+Which one you need depends on whether the answer changes:
 
-There are two ways to connect real information to your agent. A **tool** is for anything live, data that changes, or an action that needs to happen, like checking an order or looking up availability. A **Knowledge Base** is for anything written down, like your return policy or an FAQ, that doesn't change from call to call.
+| | Use a **tool** | Use the **Knowledge Base** |
+| --- | --- | --- |
+| The answer | Changes per caller, per minute | Is the same every time |
+| Examples | Order status, slot availability, account balance | Return policy, shipping FAQ, price list |
+| Mechanism | An HTTP request the agent makes mid-call | Text retrieved from a document you uploaded |
 
-Here's the setup used in the video: an order support agent named Maya, for a store called QuickMart. A customer can ask what's in their cart, and Maya calls an API to check it. A customer can also ask a policy question, and Maya answers from a document you uploaded.
+The example on this page is **Maya**, an order-support agent for a store called
+**QuickMart**. She can check what is in a caller's cart (a tool) and answer
+questions about returns (a document).
 
-## Step 1: Create the tool
+<Steps>
 
-Open the node where most of the conversation happens, in this case Maya's main support node. Scroll down and click **Create a Tool**, then choose **External HTTP API**. Name it `get_cart_details`.
+<Step title="Create the tool">
+
+Open the node where the conversation happens — Maya's main support node — scroll
+to **Tools**, and click **Create a Tool → External HTTP API**. Name it
+`get_cart_details`.
+
+<Screenshot
+  src="tools-create-http-tool.png"
+  alt="The tool creation form with name, description, HTTP method and endpoint URL"
+  caption="The description is the only field the model reads. Write it for the model, not for yourself."
+  shot="The Create Tool / HTTP API form filled in for get_cart_details: name, a full sentence description, GET method, and the dummyjson endpoint. Decibyl branding, dark theme."
+/>
 
 <Note>
-The description matters more than anything else here. It's what the agent reads to decide when to call the tool. Write it plainly: *"Use this tool when the caller asks about cart details. It returns the cart's products, quantities, total, and discounted total."*
+**The description does all the work.** It is the only thing the model sees when
+deciding whether to call this tool. Write a sentence that says when to use it
+and what comes back:
+
+> *Use this tool when the caller asks about cart details. It returns the cart's
+> products, quantities, total, and discounted total.*
+
+A description like "gets cart" leaves the model guessing, and a model guessing
+about tools either calls the wrong one or calls none.
 </Note>
 
-For the endpoint, this demo uses [dummyjson.com](https://dummyjson.com), a public sample API. Copy this exact URL and test it yourself, no backend required:
+For the endpoint, this example uses a public sample API so you can try it with
+no backend of your own:
 
-```
+```http
 GET https://dummyjson.com/carts/1
 ```
 
-No auth, no parameters. It's a GET request because you're fetching information, not changing anything. In your own setup, this would point at your CRM or order system instead.
+No authentication, no parameters. It is a `GET` because it reads rather than
+changes anything. In your own build this would point at your order system.
 
 Save the tool.
 
-## Step 2: Attach the tool to the node
+</Step>
 
-Creating the tool isn't enough by itself. Go back to Maya's node and select `get_cart_details` under Tools, then save.
+<Step title="Attach the tool to the node">
 
-<Warning>
-A tool only becomes available once it's attached to the node that needs it. If you skip this, the tool exists but the agent will never call it.
-</Warning>
+Creating a tool does not give it to anybody. Go back to Maya's node, find
+**Tools**, and select `get_cart_details`. Save.
 
-## Step 3: Upload a Knowledge Base document
-
-Click **Upload Document**, or go straight to **Knowledge Base Files**. Pick the document you want the agent to read from, a return policy, a shipping FAQ, whatever your customers actually ask about.
-
-Decibyl asks how it should retrieve from this document:
-
-- **Full Document** works best for small files, where the agent can see the whole thing at once. It does not require an embeddings model.
-- **Chunked Search** is for large documents, where the agent should only pull the relevant section. Configure an embeddings model before selecting this mode; otherwise document processing or retrieval will fail.
-
-A short policy document is a Full Document case. Upload it, then wait for the status to say **Completed**.
-
-## Step 4: Attach the document to the node
-
-Same rule as the tool. Go back to Maya's node, scroll to **Knowledge Base Documents**, and attach the file.
+<Screenshot
+  src="tools-attach-to-node.png"
+  alt="An Agent node's Tools selector with get_cart_details selected"
+  caption="A tool is available on the nodes you attach it to, and nowhere else."
+  shot="An Agent node settings panel scrolled to the Tools section, with get_cart_details selected in the picker."
+/>
 
 <Warning>
-Uploading isn't enough on its own. The document has to be attached to the node where the agent should use it.
+This is the step people skip. An unattached tool exists in your workspace, shows
+up in the tools list, and will never be called — because the agent is only told
+about tools attached to the node it is currently on. Attaching per node is
+deliberate: it stops a checkout tool being reachable during the greeting.
 </Warning>
 
-## Step 5: Tell the agent when to use each
+</Step>
 
-In the node's prompt, spell out which mechanism handles which question. Don't leave it to guesswork:
+<Step title="Upload a Knowledge Base document">
 
-```
-If the caller asks about cart contents, order items, quantities, total, or discounts,
-use the get_cart_details tool before answering.
+Click **Upload Document**, or go to **Knowledge Base Files**. Pick something
+your customers actually ask about — a returns policy, a shipping FAQ.
 
-For questions about returns, refunds, or cancellations,
-use the attached Knowledge Base document.
+Decibyl asks how the agent should read it:
+
+- **Full Document** — the agent sees the whole file. Best for anything short.
+  Needs no embedding model.
+- **Chunked Search** — the agent retrieves only the relevant section. For long
+  documents. **Configure an embedding model first**, under Model Configurations;
+  without one, processing or retrieval fails.
+
+A two-page policy is a Full Document case. Upload it and wait for the status to
+read **Completed** before going further.
+
+<Screenshot
+  src="knowledge-base-upload.png"
+  alt="The Knowledge Base file list showing an uploaded document with Completed status"
+  caption="Wait for Completed. A document still processing is not yet retrievable."
+  shot="The Knowledge Base Files list with one document (e.g. 'QuickMart returns policy.pdf') showing retrieval mode Full Document and status Completed."
+/>
+
+</Step>
+
+<Step title="Attach the document to the node">
+
+Same rule as the tool. Back on Maya's node, scroll to **Knowledge Base
+Documents**, and attach the file.
+
+Uploading makes the document available to your workspace. Attaching makes it
+available to the conversation.
+
+</Step>
+
+<Step title="Tell the agent which is which">
+
+The model does not infer your architecture. Say it in the node's prompt:
+
+```text title="Added to Maya's prompt"
+If the caller asks about cart contents, order items, quantities, total, or
+discounts, use the get_cart_details tool before answering. Never guess at
+cart contents.
+
+For questions about returns, refunds, or cancellations, answer from the
+attached Knowledge Base document.
 ```
 
 Save the node.
 
-## Step 6: Test it
+</Step>
 
-Start a Web Call and try both:
+<Step title="Test both paths">
 
-- *"Hi Maya, what's inside my cart?"* Watch the transcript. Maya decides the tool is relevant, calls the API, and answers from the response instead of guessing.
-- *"What's the return policy?"* Maya retrieves the answer from the document and responds from that context.
+Start a **Test Agent → Test Audio** call and try one of each:
 
-That's the difference that matters: for cart details, Maya uses the tool because the data changes call to call. For the return policy, she uses the Knowledge Base because that answer lives in a document and doesn't change. Tools connect your agent to systems. Knowledge Base connects it to documents. Together, your agent starts to feel connected to your actual business, not just reciting a script.
+- *"Hi Maya, what's in my cart?"* — watch the transcript. She decides the tool
+  applies, calls the API, and answers from the response.
+- *"What's your return policy?"* — she answers from the document instead.
 
-## Next Steps
+<Screenshot
+  src="tools-test-call-tool-invocation.png"
+  alt="A test call transcript showing the get_cart_details tool being called with its arguments and response"
+  caption="Tool calls appear inline in the transcript, with arguments and response."
+  shot="A live test transcript showing a tool call entry for get_cart_details expanded to show arguments and the JSON response, followed by the agent's spoken answer."
+/>
 
-You've now got the full loop: calls trigger automatically, data flows in and out, your number is connected, and the agent can act on live data and your own documents.
+If she answers a cart question without calling the tool, the description is the
+thing to fix — not the prompt.
 
-- **Full tool reference**: parameter types, authentication, and best practices in [HTTP API Tools](/voice-agent/tools/http-api).
-- **Full Knowledge Base reference**: chunking behavior and embedding setup in [Knowledge Base](/voice-agent/knowledge-base).
+</Step>
+
+</Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Full tool reference" href="/voice-agent/tools/http-api">
+    Parameters, authentication, timeouts, and what a tool should never be allowed to do.
+  </Card>
+  <Card title="Full Knowledge Base reference" href="/voice-agent/knowledge-base">
+    Chunking behaviour, embedding setup, and when each retrieval mode wins.
+  </Card>
+  <Card title="Built-in tools" href="/voice-agent/tools/introduction">
+    Call transfer, end call, and Google Calendar — no endpoint to write.
+  </Card>
+  <Card title="Connect an MCP server" href="/voice-agent/tools/mcp-tool">
+    Expose a whole set of existing tools to the agent at once.
+  </Card>
+</CardGroup>

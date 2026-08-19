@@ -1,27 +1,68 @@
 ---
 title: "Sync Data using Webhook"
-description: "Get everything Decibyl learned during the call back into your system the moment it ends."
+description: "Get everything the agent learned on the call into your own system, the moment it ends."
 ---
 
-The last page covered sending data into a call with API Trigger and `initial_context`. Now the opposite side: how Decibyl sends what it learned back out to your system once the call ends.
+The last page sent data *into* a call. This one gets it back out.
 
-That extracted data lives in `gathered_context`. So the full picture is: `initial_context` is what your backend sends into the call, `gathered_context` is what Decibyl extracts from it. A **Webhook** node is how you get `gathered_context` back out.
+Two words to keep straight, because every payload uses both:
 
-## Step 1: Add the node
+| | What it is | Where it comes from |
+| --- | --- | --- |
+| `initial_context` | What you told the agent before it dialled | Your API trigger request |
+| `gathered_context` | What the agent worked out during the call | Variable extraction on the nodes |
 
-Click **Add node**, scroll down, and you'll find the **Webhook** node. Add it and open it up.
+A **Webhook** node POSTs both to a URL of your choosing when the call ends.
 
-## Step 2: Set the endpoint
+**Before you start:** an agent that extracts something. If no node has
+**Enable Variable Extraction** switched on, `gathered_context` will be empty and
+the webhook will faithfully deliver nothing. See
+[Context and variables](/core-concepts/context-and-variables).
 
-First thing you'll see is the endpoint URL. Paste your backend's webhook URL here. Still testing? Use a free URL from [webhook.site](https://webhook.site), copy your unique URL there and paste it into Decibyl.
+<Steps>
 
-Set the method to **POST**. If your backend needs auth, add a bearer token or API key right here too.
+<Step title="Add the Webhook node">
 
-## Step 3: Build the payload template
+Click the **+** button on the canvas (*Add node*) and scroll down to **Webhook**.
 
-This is the important part, it decides exactly what JSON Decibyl sends. Include both kinds of context: `initial_context` fields like debtor name, client name, and debt amount, and `gathered_context` fields like amount to pay, payment method, and sentiment.
+<Screenshot
+  src="webhook-add-node.png"
+  alt="The add-node menu with the Webhook entry"
+  caption="Webhook sits further down the add-node list than the call nodes."
+  shot="The add-node popover scrolled to show the Webhook entry highlighted."
+/>
 
-```json
+A webhook node is not part of the conversation — it does not sit between two
+call nodes and the caller never waits for it. You can have several, pointing at
+different systems.
+
+</Step>
+
+<Step title="Point it at a URL">
+
+Paste your endpoint into the URL field and set the method to **POST**. If your
+backend needs authentication, add the header here rather than in the payload.
+
+<Screenshot
+  src="webhook-endpoint.png"
+  alt="The Webhook node settings with the endpoint URL, POST method and authentication fields"
+  caption="Endpoint, method, and auth. The payload template is below these."
+  shot="The Webhook node's settings panel showing the URL field filled with a webhook.site URL, method set to POST, and the authentication section visible."
+/>
+
+<Tip>
+No backend ready yet? Open [webhook.site](https://webhook.site), copy the unique
+URL it gives you, and paste that in. You will see the exact JSON Decibyl sends,
+which is the fastest way to get the template right before you write any code.
+</Tip>
+
+</Step>
+
+<Step title="Write the payload template">
+
+This decides exactly what JSON goes out. Reference both kinds of context:
+
+```json title="Payload template"
 {
   "debtor_name": "{{initial_context.debtor_name}}",
   "client_name": "{{initial_context.client_name}}",
@@ -33,20 +74,74 @@ This is the important part, it decides exactly what JSON Decibyl sends. Include 
 ```
 
 <Warning>
-Variable names in your payload have to match your context fields exactly. If a variable cannot be resolved, its field remains in the payload with an empty string value.
+Names must match your context fields exactly. An unresolvable variable does not
+drop the field or fail the request — it delivers the field with an **empty
+string**. So a typo looks like "the agent did not capture anything", which sends
+you looking in the wrong place. Check the spelling first.
 </Warning>
 
-## Step 4: Save and publish
+There are call-level variables available too — `{{workflow_run_id}}`,
+`{{call_time}}`, `{{cost_info.call_duration_seconds}}` and others. The full list
+is in the [Webhook reference](/voice-agent/webhook).
 
-Save the webhook node, then publish the agent.
+</Step>
 
-## Step 5: Test it
+<Step title="Save, publish, and make a call">
 
-Run a test call. When it ends, go back to your webhook receiver. You'll see one request with both `initial_context`, the data you sent into the call, and `gathered_context`, what Decibyl extracted from the conversation, sitting in the same JSON payload.
+Save the node, then **Publish** the agent. Run a call and let it finish — the
+webhook fires on call end, not during.
 
-That's the complete loop: your backend sends `initial_context` into Decibyl, Decibyl runs the call and extracts `gathered_context`, and the webhook node sends the final structured data back to your backend. For production, swap the webhook.site URL for your real backend URL.
+<Screenshot
+  src="webhook-received-payload.png"
+  alt="A received webhook payload showing initial_context and gathered_context fields together"
+  caption="One request, both halves: what you sent in and what the agent got out."
+  shot="A webhook.site (or equivalent) request view showing the delivered JSON body with both initial_context-derived and gathered_context-derived fields populated. Use fictional data."
+/>
 
-## Next Steps
+That is the loop closed: your backend briefs the call, the call gathers what you
+asked for, and your backend gets it back without anyone opening a dashboard.
 
-- **Connect a real phone number**: [Connect with Telephony](/getting-started/connect-telephony) covers hooking up Twilio so these calls go out for real.
-- **Full variable list and authentication options**: see the [Webhook reference](/voice-agent/webhook) and the [Webhook Payloads developer reference](/developer/webhooks).
+</Step>
+
+</Steps>
+
+## When nothing arrives
+
+<AccordionGroup>
+
+<Accordion title="No request at all">
+The webhook fires when the run completes. A call that is still in progress, or
+that failed before connecting, will not have fired one. Check the run under
+**Usage** first — if there is no completed run, the problem is the call, not the
+webhook.
+
+If the run completed and nothing arrived, check that you **published** after
+adding the node.
+</Accordion>
+
+<Accordion title="The request arrives but every gathered field is empty">
+Nothing was extracted. Open the node where that information comes up in the
+conversation, switch on **Enable Variable Extraction**, and declare the
+variables you want with a short hint each. Extraction is per node and off by
+default.
+</Accordion>
+
+<Accordion title="Your endpoint returns an error">
+Decibyl POSTs once when the call ends. If your endpoint is behind an
+authenticating proxy, or rejects an unexpected content type, that shows up as a
+non-2xx in your own logs rather than anywhere in Decibyl. Test the same payload
+against your endpoint with `curl` before blaming the node.
+</Accordion>
+
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Connect a phone number" href="/getting-started/connect-telephony">
+    Hook up a carrier so these calls go out for real.
+  </Card>
+  <Card title="Every variable you can send" href="/developer/webhooks">
+    The full payload reference, including call metadata and cost fields.
+  </Card>
+</CardGroup>

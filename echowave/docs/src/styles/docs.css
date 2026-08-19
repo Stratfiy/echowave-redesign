@@ -72,3 +72,90 @@
   color: var(--sl-color-red);
   margin-left: 0.5rem;
 }
+
+/* Screenshots.
+ *
+ * The border and shadow are the whole point: a raw PNG of a dark UI dropped
+ * into a light page has no edge, so the reader cannot tell where the product
+ * stops and the documentation starts. Framing it fixes that in both themes. */
+.ml-shot {
+  margin-block: 1.5rem;
+}
+.ml-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%), 0 8px 24px rgb(0 0 0 / 8%);
+}
+.ml-shot figcaption {
+  margin-top: 0.5rem;
+}
+
+/* Placeholder for a slot whose image has not been captured yet. Rendered only
+ * by `astro dev` and by a build with DOCS_SHOW_SHOTS=1 — never on the public
+ * site, where a missing screenshot renders as nothing at all. */
+.ml-shot-pending {
+  margin-block: 1.5rem;
+}
+.ml-shot-pending-box {
+  border: 1px dashed var(--sl-color-gray-4);
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  background: var(--sl-color-gray-7, transparent);
+  text-align: center;
+}
+.ml-shot-pending-tag {
+  display: inline-block;
+  font-size: var(--sl-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sl-color-gray-3);
+}
+.ml-shot-pending-box code {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: var(--sl-text-sm);
+}
+.ml-shot-pending-box p {
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-2);
+}
+
+/* Linked cards. Styled from Starlight's custom properties rather than its
+ * class names so the theme carries through without depending on internals. */
+.ml-link-card {
+  display: block;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  text-decoration: none;
+  color: inherit;
+  height: 100%;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.ml-link-card:hover {
+  border-color: var(--sl-color-accent);
+  background: var(--sl-color-gray-7, transparent);
+}
+.ml-link-card-title {
+  display: block;
+  font-weight: 600;
+  color: var(--sl-color-white);
+  line-height: 1.3;
+}
+.ml-link-card:hover .ml-link-card-title {
+  color: var(--sl-color-accent-high);
+}
+.ml-link-card-body {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-2);
+}
+.ml-link-card-body :last-child {
+  margin-bottom: 0;
+}

@@ -1,0 +1,72 @@
+---
+/**
+ * A screenshot slot that is safe to write before the screenshot exists.
+ *
+ * Authoring a walkthrough and capturing the images for it are two different
+ * jobs, usually done by two different people on two different days. The
+ * ordinary way to write the first without the second is `![](../images/x.png)`
+ * pointing at a file nobody has taken yet — which fails the build, so in
+ * practice nobody writes it, and the walkthrough ships with no image slots and
+ * never grows any.
+ *
+ * This component inverts that. The slot is declared in the page with the
+ * filename it will one day hold and a `shot` brief describing what to capture.
+ * If the file is there, it renders framed and captioned. If it is not:
+ *
+ * - the published site renders **nothing** — a reader never sees a TODO box;
+ * - `npm run dev` renders a dashed placeholder carrying the brief, so whoever
+ *   is capturing can see exactly where each image goes and what it must show;
+ * - `npm run shots` lists every outstanding one with its brief.
+ *
+ * So a missing screenshot degrades to the page as it reads today, and never to
+ * a broken build or a broken image.
+ */
+import { Image } from "astro:assets";
+
+interface Props {
+  /** Filename inside `docs/images/`, e.g. `"first-agent-create-modal.png"`. */
+  src: string;
+  /** Alt text. Required — a screenshot with no alt text is invisible content. */
+  alt: string;
+  /** Caption under the image. Defaults to the alt text. */
+  caption?: string;
+  /** Max width, for shots of a narrow panel that would look silly full-bleed. */
+  width?: string;
+  /** What to capture. Shown in the dev placeholder and in `npm run shots`. */
+  shot?: string;
+}
+
+const { src, alt, caption, width, shot } = Astro.props as Props;
+
+// Eager so the lookup is a plain object read at build time; Astro's asset
+// pipeline still only emits the images actually referenced.
+const images = import.meta.glob<{ default: ImageMetadata }>(
+  "../../../images/*.{png,jpg,jpeg,webp,gif,avif,svg}",
+  { eager: true },
+);
+
+const asset = images[`../../../images/${src}`]?.default;
+const label = caption ?? alt;
+
+// Placeholders are a working aid, not content. `astro dev` sets DEV; a build
+// can opt in with DOCS_SHOW_SHOTS=1 to preview the slots on a staging deploy.
+const showPlaceholder =
+  import.meta.env.DEV || process.env.DOCS_SHOW_SHOTS === "1";
+---
+
+{
+  asset ? (
+    <figure class="ml-frame ml-shot" style={width ? `max-width:${width}` : undefined}>
+      <Image src={asset} alt={alt} />
+      {label && <figcaption>{label}</figcaption>}
+    </figure>
+  ) : showPlaceholder ? (
+    <figure class="ml-shot-pending" data-shot-file={src}>
+      <div class="ml-shot-pending-box">
+        <span class="ml-shot-pending-tag">Screenshot pending</span>
+        <code>{src}</code>
+        <p>{shot ?? alt}</p>
+      </div>
+    </figure>
+  ) : null
+}

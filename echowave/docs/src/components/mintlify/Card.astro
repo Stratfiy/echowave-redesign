@@ -1,14 +1,30 @@
 ---
-// Mintlify <Card> -> Starlight's Card, or LinkCard when it has an href.
-// Starlight's LinkCard renders the whole card as one hit target, which is what
-// a card with a destination should be.
-import { Card as StarlightCard, LinkCard } from "@astrojs/starlight/components";
+/**
+ * Mintlify `<Card>`, in both of its shapes.
+ *
+ * Without `href` it is Starlight's own card. With one it is a link card — and
+ * Starlight's `<LinkCard>` is not usable for that here, because it renders a
+ * `description` string and drops its children. Every linked card in this tree
+ * carries a sentence or two of MDX as children, so routing them through
+ * `<LinkCard>` silently published a grid of bare titles: the landing page's
+ * four "get started" cards lost their explanations, which were the reason
+ * anyone would pick one over another.
+ *
+ * So the linked shape is rendered here instead, as one anchor wrapping title
+ * and body. Styled from Starlight's own custom properties rather than its
+ * class names, so it tracks the theme without depending on internals.
+ */
+import { Card as StarlightCard } from "@astrojs/starlight/components";
+
 const { title, icon, href } = Astro.props;
 ---
 
 {
   href ? (
-    <LinkCard title={title} href={href} />
+    <a class="ml-link-card" href={href}>
+      <span class="ml-link-card-title">{title}</span>
+      <span class="ml-link-card-body"><slot /></span>
+    </a>
   ) : (
     <StarlightCard title={title} icon={icon}>
       <slot />
