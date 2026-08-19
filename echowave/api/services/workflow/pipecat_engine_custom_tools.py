@@ -28,6 +28,7 @@ from api.services.integrations.google_calendar.client import (
 )
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
+from api.services.telephony.escalation import briefing_from_config
 from api.services.telephony.factory import get_telephony_provider_for_run
 from api.services.telephony.transfer_event_protocol import TransferContext
 from api.services.workflow.tools.calculator import get_calculator_tools, safe_calculator
@@ -809,11 +810,24 @@ class CustomToolManager:
                         f"resolution_id={resolved_transfer.resolution_id or ''} "
                         f"destination={masked_destination} timeout={timeout_seconds}"
                     )
+                    # What the human hears before the caller is bridged in.
+                    # The resolver's wins when it gave one — a routing service
+                    # that chose the destination knows best why it chose it —
+                    # otherwise it renders the tool's template against the
+                    # call. Built from what was extracted rather than
+                    # summarised by a model: this is the critical path, with
+                    # the caller on hold and a handset ringing.
+                    briefing = resolved_transfer.briefing or briefing_from_config(
+                        config,
+                        initial_context=workflow_run.initial_context,
+                        gathered_context=workflow_run.gathered_context,
+                    )
                     transfer_result = await provider.transfer_call(
                         destination=destination,
                         transfer_id=transfer_id,
                         conference_name=conference_name,
                         timeout=timeout_seconds,
+                        briefing=briefing,
                     )
                 except Exception as e:
                     logger.error(f"Transfer provider failed: {e}")

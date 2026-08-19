@@ -714,9 +714,16 @@ class TelnyxProvider(TelephonyProvider):
         transfer_id: str,
         conference_name: str,
         timeout: int = 30,
+        briefing: Optional[str] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Dial the destination as a plain call; conference is seeded later.
+
+        ``briefing`` is accepted and not spoken: the conference is seeded by the
+        ``call.answered`` webhook rather than by an inline document, so there is
+        no place to speak from the way Twilio and Cloudonix have. It is declared
+        rather than left to ``**kwargs`` because ``payload.update(kwargs)``
+        below would otherwise send it to Telnyx as an unknown field.
 
         Webhook (``call.answered``) seeds the conference with this leg;
         ``TelnyxConferenceStrategy`` joins the caller on pipeline teardown.

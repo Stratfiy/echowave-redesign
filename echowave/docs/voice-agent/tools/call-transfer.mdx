@@ -107,7 +107,9 @@ Follow this response shape exactly. Decibyl reads specific keys from the resolve
 Field behavior:
 
 - `destination`: Required. E.164 phone number or SIP endpoint.
-- `custom_message`: Optional. If returned, this message is played before the provider transfer starts.
+- `custom_message`: Optional. Played to the **caller** before the transfer starts.
+- `briefing`: Optional. Played to the **destination** when they answer, before
+  the caller is bridged in. See [Briefing the person who answers](#briefing-the-person-who-answers).
 
 If the resolver fails, times out, returns invalid JSON, or omits `transfer_context.destination`, the transfer fails gracefully and the agent can continue handling the caller.
 
@@ -145,6 +147,61 @@ For dynamic transfers:
 4. Decibyl starts the provider transfer.
 
 Resolver `custom_message` overrides the configured pre-transfer message for that transfer attempt.
+
+## Briefing the person who answers
+
+A pre-transfer message is played to the **caller**. A **briefing** is played to
+the **destination**, on their leg alone, in the moment between them answering
+and the caller being bridged in. The caller never hears it.
+
+Without one, the person who picks up knows nothing — not who is on the line,
+not what they have already explained, not what they want. So they ask again,
+and a caller who has just spent three minutes explaining repeats the whole
+thing to a second party. That is the moment people decide a voice agent made
+things worse.
+
+Set `briefing` on the tool. It renders `{{variables}}` the same way a webhook
+payload does:
+
+```text
+{{gathered_context.caller_name}} on the line about {{gathered_context.issue}}.
+Account {{initial_context.account_id}}. They have already verified their
+identity.
+```
+
+<Note>
+**Composed from what was extracted, not written by a model.** A summary
+generated at transfer time is a language-model call on the critical path —
+caller on hold, handset ringing — to paraphrase variables the agent already
+captured exactly. A template is instant, and it cannot invent an amount or a
+symptom into a briefing a person will then act on.
+</Note>
+
+A dynamic resolver can return its own `briefing` alongside `destination`, and
+it wins: a routing service that chose who takes the call is best placed to say
+why.
+
+```json
+{
+  "transfer_context": {
+    "destination": "+1234567890",
+    "custom_message": "Connecting you to our billing team now.",
+    "briefing": "Enterprise billing escalation. Priya Menon, account 4471, disputing a duplicate charge."
+  }
+}
+```
+
+Two limits worth knowing:
+
+- **It is capped at 240 characters** — about twelve seconds spoken. Past that
+  the human has stopped listening and the caller, sitting in silence, starts
+  saying "hello?". Longer text is cut at the last sentence that fits.
+- **It is spoken on Twilio and Cloudonix.** Telnyx and Asterisk ARI dial the
+  destination in a way that has no point to speak from, so a briefing set on
+  those is ignored and the transfer proceeds as before.
+
+If no briefing is set, the destination hears a short generic line rather than
+silence.
 
 ## Transfer timeout
 

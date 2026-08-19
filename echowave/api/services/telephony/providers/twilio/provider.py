@@ -5,6 +5,7 @@ Twilio implementation of the TelephonyProvider interface.
 import json
 import random
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from xml.sax.saxutils import escape
 
 import aiohttp
 from fastapi import HTTPException
@@ -19,6 +20,7 @@ from api.services.telephony.base import (
     ProviderSyncResult,
     TelephonyProvider,
 )
+from api.services.telephony.escalation import DEFAULT_BRIEFING
 from api.utils.common import get_backend_endpoints
 from api.utils.telephony_address import normalize_telephony_address
 
@@ -588,6 +590,7 @@ class TwilioProvider(TelephonyProvider):
         transfer_id: str,
         conference_name: str,
         timeout: int = 30,
+        briefing: Optional[str] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
@@ -623,10 +626,14 @@ class TwilioProvider(TelephonyProvider):
             f"{backend_endpoint}/api/v1/telephony/transfer-result/{transfer_id}"
         )
 
-        # Inline TwiML: when the destination answers, put them into the conference
+        # Inline TwiML: when the destination answers, brief them, then put them
+        # into the conference. The <Say> runs before <Dial>, so it plays into
+        # this leg alone — the caller is not in the conference yet and never
+        # hears it. That ordering is the whole warm-transfer mechanism.
+        whisper = escape(briefing or DEFAULT_BRIEFING)
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say>You have answered a transfer call. Connecting you now.</Say>
+    <Say>{whisper}</Say>
     <Dial>
         <Conference endConferenceOnExit="true">{conference_name}</Conference>
     </Dial>

@@ -6,6 +6,7 @@ import asyncio
 import json
 import random
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from xml.sax.saxutils import escape
 
 import aiohttp
 from fastapi import HTTPException
@@ -20,6 +21,7 @@ from api.services.telephony.base import (
     ProviderSyncResult,
     TelephonyProvider,
 )
+from api.services.telephony.escalation import DEFAULT_BRIEFING
 from api.utils.common import get_backend_endpoints
 
 if TYPE_CHECKING:
@@ -1073,12 +1075,18 @@ class CloudonixProvider(TelephonyProvider):
 
     # ======== CALL TRANSFER METHODS ========
     @staticmethod
-    def _conference_join_cxml(conference_name: str, callback_url: str) -> str:
-        """CXML the destination leg runs once it answers: join the conference."""
+    def _conference_join_cxml(
+        conference_name: str, callback_url: str, briefing: str | None = None
+    ) -> str:
+        """CXML the destination leg runs once it answers: brief, then join.
+
+        The ``<Say>`` precedes ``<Dial>``, so it plays into this leg alone —
+        the caller is not in the conference yet and never hears it.
+        """
         return (
             '<?xml version="1.0" encoding="UTF-8"?>'
             "<Response>"
-            "<Say>You have answered a transfer call. Connecting you now.</Say>"
+            f"<Say>{escape(briefing or DEFAULT_BRIEFING)}</Say>"
             "<Dial>"
             f'<Conference endConferenceOnExit="true" statusCallback="{callback_url}" statusCallbackEvent="join" holdMusic="false">{conference_name}</Conference>'
             "</Dial>"
@@ -1091,6 +1099,7 @@ class CloudonixProvider(TelephonyProvider):
         transfer_id: str,
         conference_name: str,
         timeout: int = 30,
+        briefing: Optional[str] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Dial the transfer destination into a conference via Cloudonix.
@@ -1123,7 +1132,7 @@ class CloudonixProvider(TelephonyProvider):
         data: Dict[str, Any] = {
             "destination": destination,
             "caller-id": from_number,
-            "cxml": self._conference_join_cxml(conference_name, callback_url),
+            "cxml": self._conference_join_cxml(conference_name, callback_url, briefing),
             "callback": callback_url,
             "timeout": timeout,
         }

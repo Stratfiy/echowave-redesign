@@ -523,6 +523,7 @@ class TelephonyProvider(ABC):
         transfer_id: str,
         conference_name: str,
         timeout: int = 30,
+        briefing: Optional[str] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
@@ -533,6 +534,11 @@ class TelephonyProvider(ABC):
             transfer_id: Unique identifier for tracking this transfer
             conference_name: Name of the conference to join the destination into
             timeout: Transfer timeout in seconds
+            briefing: Spoken to the destination when they answer, before the
+                caller is bridged in — so the human knows who is being handed
+                to them and why. The caller never hears it. Providers that
+                cannot speak on the destination leg ignore it and the transfer
+                proceeds cold, which is what they did before it existed.
             **kwargs: Provider-specific additional parameters
 
         Returns:
