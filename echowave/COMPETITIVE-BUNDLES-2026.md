@@ -1,0 +1,178 @@
+# Bundles, concurrency, and a correction
+
+**Researched 19 Aug 2026** against live vendor pricing pages. Read this before
+`COMPETITIVE-PRICING-STUDY.md`, which it corrects on a central point.
+
+## The correction
+
+The study's headline says:
+
+> `PROVIDER-PRICING.md §4` claims we charge *"60% less than the cheapest major
+> platform."* **Bolna's published platform fee is $0.02/min — identical to
+> ours.** We are not the cheapest by a distance; we are roughly at market.
+
+**That is wrong, and the study's own India table disproves it.** The table
+quotes Bolna at ₹5.52/min. Bolna's pricing page prints that figure as
+`6.00¢ (₹5.52)` — ₹5.52 *is* six cents. The study read Bolna's platform-fee
+band ($0.045 at volume to $0.060 at list) as an all-in price, and then recorded
+$0.020 as the fee. Both halves of that row are wrong.
+
+The real position:
+
+| Platform | Platform fee / min | What it excludes |
+|---|---|---|
+| **Decibyl** | **$0.020** | STT, LLM, TTS, telephony |
+| Vapi | $0.050 | STT, LLM, TTS (at cost), telephony |
+| Retell | $0.055 | STT, LLM, TTS, telephony, and priced add-ons |
+| Bolna | $0.060 list, $0.045 at ~$3k/mo | STT, LLM, TTS, telephony |
+
+Every one of those excludes the same things we exclude, so this is a
+like-for-like comparison. **We are at roughly one-third of the going rate**, and
+`PROVIDER-PRICING.md`'s "60% less than the cheapest major platform" was
+approximately correct all along — $0.020 against Vapi's $0.050 is 60% less.
+
+That inverts the study's strategic conclusion. The problem was never that we
+are at market and leaking. It is that **we are a third of the market price and
+leaking**, which is a much easier problem: there is room to raise the platform
+fee before we stop being the cheapest name on any buyer's shortlist.
+
+The leak ledger in the study stands. Its framing does not.
+
+## How the market packages bundles
+
+Nobody sells minutes alone. Every plan bundles **minutes + concurrency**, which
+is the shape our own bundles should take.
+
+| Plan | Price/mo | Minutes | Concurrency | Rate |
+|---|---|---|---|---|
+| Bolna Starter | $350 | 5,000 | 20 | 7¢ |
+| Bolna Growth | $1,200 | 20,000 | 50 | 6¢ |
+| Bolna Scale | $2,500 | 50,000 | 75 | 5¢ |
+| Bolna Pilot *(one-time)* | $500 | 10,000 +20% bonus | 50 | 5¢ |
+| Vapi Build | usage | — | 10 incl., then $10/line | 5¢ |
+| Aixclerate Starter | $99 | 500 | 2 | — |
+| Aixclerate Business | $299 | 2,000 | 4 | — |
+
+Three patterns worth stealing:
+
+1. **The rate falls as the plan rises.** 7¢ → 6¢ → 5¢. The discount is the
+   reason to commit, and it is legible on one line.
+2. **Concurrency rises with the plan** rather than being sold separately. It
+   costs the vendor almost nothing and reads as generous.
+3. **A one-time pilot exists** and is priced *below* the equivalent monthly
+   commitment, with a bonus on top. It converts a buyer who will not sign a
+   subscription yet.
+
+### The Indian field, which is who we actually sell to
+
+| | Price | Included | Concurrency | Numbers |
+|---|---|---|---|---|
+| **Agni (Ravan.ai) Starter** | **₹2,999/mo** | **300 min** | **5** | India DID ₹350/mo + ₹0.80/min |
+| Dvaarik | ₹2.00/min | whole billed minute | — | — |
+| Trikon | ₹5.00/min | bundled all-in | — | — |
+| Ringg | ₹9–12/min | fee + pass-through | — | — |
+
+Market benchmarks for India 2026: **₹2–12/min headline, ₹3–6 the common
+mid-market band, and a platform subscription "typically from ₹2,999/month".**
+
+## What this says about the proposed bundles
+
+**₹2,999 is exactly the right number.** It is the Indian market's entry
+subscription anchor — Agni charges it, and the survey literature names it as
+the typical floor. A buyer comparing us to Agni sees the same price and does
+not have to think about it.
+
+**The included balance is far too generous.** Agni gives **300 minutes** for
+₹2,999. Our ₹2,999 grants ₹2,500 of balance, which at an Indic all-in cost in
+the ₹2.5–4/min region buys somewhere around **600–1,000 minutes** — two to
+three times the direct comparable, at the same price.
+
+That is the "not less" the brief asks about. Two ways to spend the gap:
+
+- **Keep ₹2,500 and say so loudly.** "Three times the minutes at the same
+  price" is a sales line that survives contact with a spreadsheet. Costs us the
+  difference, buys share in a market where we are already the cheapest
+  infrastructure.
+- **Cut the grant to ₹1,500 and keep ₹1,000.** Still comfortably ahead of Agni
+  (~₹1,500 buys 375–600 minutes against their 300), and the margin funds the
+  concurrency and support the plan promises.
+
+**Recommend the second.** We are a third of the platform-fee market already;
+the price advantage does not need doubling at the bundle layer, and ₹1,000 per
+account per month is real money at any volume. The advantage is more
+persuasive stated as a per-minute rate than given away as balance.
+
+Whichever is chosen, **the balance must be measured, not assumed.** Section 6 of
+`scripts/pricing/measure.sql` returns minutes per organisation per month; the
+grant should be sized so a typical account uses 70–80% of it. Below that the
+bundle feels like a waste and people churn to pay-as-you-go; above it, overage
+surprises them.
+
+### Number entitlement
+
+Agni charges ₹350/month for an India DID **on top of** the ₹2,999. We include
+one at ₹499 of value inside the bundle. Keep that — an included number is the
+single clearest way the bundle reads as better, and it removes the step where a
+new customer has to buy something a second time.
+
+## Concurrency
+
+| | Included | Then |
+|---|---|---|
+| Retell | 20 | $8 / concurrency / mo |
+| Vapi | 10 | $10 / line / mo |
+| Bolna | 20 / 50 / 75, by plan | not sold separately |
+| Agni | 5 (at ₹2,999) | — |
+| **Decibyl** | **enforced, never billed** | **—** |
+
+Two viable models and they are not compatible:
+
+- **Sell it per line** (Vapi, Retell). More revenue, and it prices a real
+  constraint. But it is a second meter on the invoice, and the Indian SMB buyer
+  we are aiming at reacts badly to a second meter.
+- **Bundle it into the tier** (Bolna). Simpler, and the increment costs us
+  almost nothing until it is genuinely large.
+
+**Recommend bundling, with a per-line price above the top tier.** Concretely:
+
+| Plan | Concurrency included |
+|---|---|
+| Pay-as-you-go | 5 |
+| ₹2,999 | 10 |
+| ₹6,999 | 25 |
+| Above that | ₹400 / line / month |
+
+Ten at ₹2,999 is double Agni's five at the same price, and the increment costs
+us nothing until those lines are actually all busy. ₹400/line sits below
+Retell's $8 (~₹700) and Vapi's $10 (~₹880), which keeps the "cheapest
+infrastructure" claim true at every layer rather than only at the headline.
+
+**Size the top of this against reality, not the limiter.** Section 6b of the
+measurement pack returns peak concurrency actually reached. If nobody has ever
+exceeded four, the tiers above are theatre and should be flattened.
+
+## Prebuilt agents — the other thing Bolna does well
+
+Bolna ships **17 production-ready agent templates across 8 industries**
+(e-commerce cart recovery and delivery confirmation, BFSI payment reminders,
+hospitality and salon booking, recruitment screening, ed-tech lead
+qualification, health-tech onboarding, real-estate qualification). Each has an
+**"Import this agent →" link — one click to a working agent**, pre-configured
+with prompts, workflow and settings, most in English + Hindi.
+
+We already have six of these built and tested in
+`api/services/agent_templates/catalogue.py` — clinic appointments, real-estate
+qualification, lending payment reminders, ed-tech admissions, COD confirmation,
+restaurant reservations — with per-vertical legal guardrails Bolna does not
+appear to have. **They are reachable through the MCP surface and the agent
+builder, and there is no gallery in the product.** A customer who does not ask
+an assistant never sees them.
+
+That is a one-click-import gallery's worth of work against a catalogue that
+already exists, and it is the cheapest conversion improvement on this list.
+
+## Sources
+
+Live vendor pages and dated 2026 analyses, fetched 19 Aug 2026:
+Bolna pricing and docs, Vapi pricing, Retell pricing, Dvaarik's India AI Voice
+Agent Pricing Index, Caller Digital's India pricing survey.
