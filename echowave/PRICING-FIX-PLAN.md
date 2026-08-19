@@ -187,6 +187,23 @@ what the limiter permits.
 is accurate *only while the Phase 2 flags are off*. The moment they flip, both
 pages are wrong, and so is every quote anyone has pasted from them.
 
+What they need to say instead — the fee is tiered on **which** component the
+customer brought, not how many, and the tiers do not stack:
+
+| | Platform fee / min |
+|---|---|
+| Everything on our keys | $0.020 |
+| Your transcription, our voice | $0.022 |
+| Your voice | $0.035 |
+
+The language model is never tiered. Bringing your own costs nothing extra,
+because at a twentieth of a cent a fee for it would exceed the margin it costs
+us and your bill would go *up* for bringing a key — which is not an invoice
+anybody can defend.
+
+Worth stating plainly on the page rather than burying: **every one of those
+rows is still under Vapi ($0.050), Retell ($0.055) and Bolna ($0.060).**
+
 Nothing here reaches a customer until this is done.
 
 ## Still unmeasured, and worth saying so

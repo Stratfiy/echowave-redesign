@@ -17,24 +17,41 @@ quotes Bolna at ₹5.52/min. Bolna's pricing page prints that figure as
 band ($0.045 at volume to $0.060 at list) as an all-in price, and then recorded
 $0.020 as the fee. Both halves of that row are wrong.
 
-The real position:
+The real position. **Ours is a range, not a number** — the platform fee is
+tiered on which keys the customer brought (`BYOK_TIERED_FEE_ENABLED`), because
+the components are not worth the same to us: the markup margin on a typical
+Indic minute is about $0.014 on speech synthesis, $0.002 on transcription and
+$0.0005 on the language model.
 
-| Platform | Platform fee / min | What it excludes |
-|---|---|---|
-| **Decibyl** | **$0.020** | STT, LLM, TTS, telephony |
-| Vapi | $0.050 | STT, LLM, TTS (at cost), telephony |
-| Retell | $0.055 | STT, LLM, TTS, telephony, and priced add-ons |
-| Bolna | $0.060 list, $0.045 at ~$3k/mo | STT, LLM, TTS, telephony |
+| | Platform fee / min |
+|---|---|
+| **Decibyl — everything managed** | **$0.020** |
+| **Decibyl — their transcription, our voice** | **$0.022** |
+| **Decibyl — their voice** | **$0.035** |
+| Vapi | $0.050 |
+| Retell | $0.055 |
+| Bolna | $0.060 list, $0.045 at ~$3k/mo |
 
-Every one of those excludes the same things we exclude, so this is a
-like-for-like comparison. **We are at roughly one-third of the going rate**, and
-`PROVIDER-PRICING.md`'s "60% less than the cheapest major platform" was
-approximately correct all along — $0.020 against Vapi's $0.050 is 60% less.
+The tiers are cut on *which* component, not how many, and they do not stack —
+a customer who brings their own voice pays $0.035 whether or not they also
+brought transcription. The language model is deliberately never tiered: at a
+twentieth of a cent, any fee for it would exceed the margin it costs us, and
+the account's bill would *rise* when they brought their own key.
 
-That inverts the study's strategic conclusion. The problem was never that we
-are at market and leaking. It is that **we are a third of the market price and
-leaking**, which is a much easier problem: there is room to raise the platform
-fee before we stop being the cheapest name on any buyer's shortlist.
+**Compare on the right row.** Every competitor charges one platform fee whether
+or not you bring keys, so their headline is the whole of what they earn on a
+BYOK minute. Ours is $0.035 in that case — **30–42% under them**, not a third
+of them. The $0.020 row is not comparable to their headline at all: on a
+managed minute we also earn the 1.4x provider markup, so what we make per
+minute is well above the fee.
+
+So `PROVIDER-PRICING.md`'s "60% less than the cheapest major platform" holds
+for a managed minute's headline fee and overstates it for a BYOK one.
+
+That still inverts the study's strategic conclusion — we are cheapest on every
+row against every competitor, not "roughly at market". But the headroom is
+30–42% on the BYOK book, not 3x, and the BYOK book is where the platform fee
+is all we get.
 
 The leak ledger in the study stands. Its framing does not.
 
@@ -97,10 +114,11 @@ That is the "not less" the brief asks about. Two ways to spend the gap:
   (~₹1,500 buys 375–600 minutes against their 300), and the margin funds the
   concurrency and support the plan promises.
 
-**Recommend the second.** We are a third of the platform-fee market already;
-the price advantage does not need doubling at the bundle layer, and ₹1,000 per
-account per month is real money at any volume. The advantage is more
-persuasive stated as a per-minute rate than given away as balance.
+**Recommend the second.** We undercut every competitor on the platform fee
+already — by 30–42% on a BYOK minute and more on a managed one — so the price
+advantage does not need doubling at the bundle layer, and ₹1,000 per account
+per month is real money at any volume. The advantage is more persuasive stated
+as a per-minute rate than given away as balance.
 
 Whichever is chosen, **the balance must be measured, not assumed.** Section 6 of
 `scripts/pricing/measure.sql` returns minutes per organisation per month; the
