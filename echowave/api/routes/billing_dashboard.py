@@ -36,6 +36,7 @@ from api.services.billing import (
     fx_source,
     kpis,
     markup,
+    pricing_inputs,
     rate_card,
     readiness,
     realized_rates,
@@ -441,6 +442,30 @@ async def get_tokens(
 async def get_unit_economics(rng: RangeParams = Depends()) -> dict[str, Any]:
     async with db_client.async_session() as session:
         report = await kpis.unit_economics_report(session, start=rng.start, end=rng.end)
+    return {
+        "range": {"start": rng.start.isoformat(), "end": rng.end.isoformat()},
+        **report,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 3.7b Pricing inputs
+#
+# Not "what did we earn" — "what is true about the calls", so a price can be
+# set rather than guessed. Every figure here settles a decision that is
+# otherwise somebody's estimate: the TTS characters a minute the rate card is
+# most sensitive to, the components billing zero because no rate row matches
+# them, the concurrency anyone has actually needed, and the monthly minutes a
+# bundle's balance has to be sized against.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/pricing-inputs")
+async def get_pricing_inputs(rng: RangeParams = Depends()) -> dict[str, Any]:
+    async with db_client.async_session() as session:
+        report = await pricing_inputs.pricing_inputs_report(
+            session, start=rng.start, end=rng.end
+        )
     return {
         "range": {"start": rng.start.isoformat(), "end": rng.end.isoformat()},
         **report,

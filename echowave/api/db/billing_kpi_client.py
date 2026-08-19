@@ -18,12 +18,13 @@ from __future__ import annotations
 import json
 from datetime import date, datetime
 
-from sqlalchemy import Integer, Text, case, cast, desc, func, select
+from sqlalchemy import Float, Integer, Text, case, cast, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import (
     CallCostItemModel,
     OrganizationModel,
+    ProviderRateModel,
     UsdInrRateHistoryModel,
     WorkflowModel,
     WorkflowRunModel,
@@ -407,4 +408,243 @@ async def margin_by_account(
             "provider_cost_paise": int(r.provider_cost_paise or 0),
         }
         for r in rows
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Pricing inputs
+#
+# The queries above answer "what did a minute earn". These answer the question
+# that comes before it: what are the physical facts a price has to be set
+# against. They exist because three internal documents assumed 850, 900 and
+# 2,300 TTS characters per minute — a 2.7x spread nobody had ever measured —
+# and every margin figure in the pricing study rests on which one is true.
+#
+# Percentiles rather than averages throughout. One call where the agent read a
+# policy document aloud moves a mean by a third and quietly re-prices the
+# product; a median ignores it, and the p90 is what capacity and worst-case
+# margin are actually set by.
+# ---------------------------------------------------------------------------
+
+
+def _per_minute_expr(units_column):
+    """Units divided by the call's connected minutes, as a float expression."""
+    return cast(units_column, Float) / (
+        cast(WorkflowRunModel.billable_seconds, Float) / SECONDS_PER_MINUTE
+    )
+
+
+#: Calls shorter than this make a per-minute rate meaningless — a four-second
+#: wrong number with one word of greeting reads as 900 characters a minute.
+MIN_SECONDS_FOR_RATE = 30
+
+#: Below this many calls a percentile is an anecdote, so the row is dropped
+#: rather than shown with false precision.
+MIN_CALLS_FOR_PERCENTILE = 5
+
+
+async def tts_chars_per_minute(
+    session: AsyncSession, *, start: date, end: date
+) -> list[dict]:
+    """Characters synthesised per connected minute, by provider and model.
+
+    The single number the rate card is most sensitive to: TTS is quoted per
+    1,000 characters and is the largest line on an Indic call, so an error here
+    scales straight into every margin figure the dashboard shows.
+    """
+    rate = _per_minute_expr(CallCostItemModel.units)
+    rows = (
+        await session.execute(
+            select(
+                CallCostItemModel.provider,
+                CallCostItemModel.model,
+                func.count().label("calls"),
+                func.avg(WorkflowRunModel.billable_seconds).label("avg_seconds"),
+                func.percentile_cont(0.5).within_group(rate).label("median"),
+                func.avg(rate).label("mean"),
+                func.percentile_cont(0.9).within_group(rate).label("p90"),
+            )
+            .join(
+                WorkflowRunModel,
+                WorkflowRunModel.id == CallCostItemModel.workflow_run_id,
+            )
+            .where(
+                *_costed_runs(start, end),
+                CallCostItemModel.component == "tts",
+                CallCostItemModel.units > 0,
+                WorkflowRunModel.billable_seconds >= MIN_SECONDS_FOR_RATE,
+            )
+            .group_by(CallCostItemModel.provider, CallCostItemModel.model)
+            .having(func.count() >= MIN_CALLS_FOR_PERCENTILE)
+            .order_by(desc("calls"))
+        )
+    ).all()
+
+    return [
+        {
+            "provider": row.provider or "",
+            "model": row.model or "",
+            "calls": int(row.calls or 0),
+            "avg_call_seconds": round(float(row.avg_seconds or 0)),
+            "median_chars_per_minute": round(float(row.median or 0)),
+            "mean_chars_per_minute": round(float(row.mean or 0)),
+            "p90_chars_per_minute": round(float(row.p90 or 0)),
+        }
+        for row in rows
+    ]
+
+
+async def tts_chars_per_minute_by_language(
+    session: AsyncSession, *, start: date, end: date
+) -> list[dict]:
+    """The same figure per language.
+
+    Devanagari and Telugu encode a syllable in fewer characters than the Latin
+    transliteration of the same sentence, so a per-1k-character rate is not
+    language-neutral even when the vendor's price is. If these diverge, the
+    rate card should too.
+    """
+    rate = _per_minute_expr(CallCostItemModel.units)
+    rows = (
+        await session.execute(
+            select(
+                WorkflowRunModel.language,
+                func.count().label("calls"),
+                func.percentile_cont(0.5).within_group(rate).label("median"),
+                func.percentile_cont(0.9).within_group(rate).label("p90"),
+            )
+            .join(
+                WorkflowRunModel,
+                WorkflowRunModel.id == CallCostItemModel.workflow_run_id,
+            )
+            .where(
+                *_costed_runs(start, end),
+                CallCostItemModel.component == "tts",
+                CallCostItemModel.units > 0,
+                WorkflowRunModel.billable_seconds >= MIN_SECONDS_FOR_RATE,
+            )
+            .group_by(WorkflowRunModel.language)
+            .having(func.count() >= MIN_CALLS_FOR_PERCENTILE)
+            .order_by(desc("calls"))
+        )
+    ).all()
+
+    return [
+        {
+            "language": row.language or "",
+            "calls": int(row.calls or 0),
+            "median_chars_per_minute": round(float(row.median or 0)),
+            "p90_chars_per_minute": round(float(row.p90 or 0)),
+        }
+        for row in rows
+    ]
+
+
+async def rate_card_gaps(
+    session: AsyncSession, *, start: date, end: date
+) -> list[dict]:
+    """Provider/model/component seen on a call with no live rate row.
+
+    A missing rate row does not raise. It costs zero, marks the run uncosted,
+    and inflates reported margin by exactly the amount it failed to charge —
+    which is how a model can be resold below cost for a year without anything
+    going red. Resolution is "exact model, else provider-wide", so a
+    combination counts as missing only when neither row exists.
+    """
+    live_rate = (
+        select(ProviderRateModel.id)
+        .where(
+            ProviderRateModel.provider == CallCostItemModel.provider,
+            ProviderRateModel.component == CallCostItemModel.component,
+            ProviderRateModel.model.in_(
+                [func.lower(func.coalesce(CallCostItemModel.model, "")), ""]
+            ),
+            ProviderRateModel.effective_to.is_(None),
+        )
+        .exists()
+    )
+
+    rows = (
+        await session.execute(
+            select(
+                CallCostItemModel.provider,
+                CallCostItemModel.model,
+                CallCostItemModel.component,
+                func.count().label("cost_items"),
+                func.coalesce(func.sum(CallCostItemModel.units), 0).label("units"),
+                func.coalesce(func.sum(CallCostItemModel.cost_paise), 0).label(
+                    "charged_paise"
+                ),
+            )
+            .join(
+                WorkflowRunModel,
+                WorkflowRunModel.id == CallCostItemModel.workflow_run_id,
+            )
+            .where(*_costed_runs(start, end), ~live_rate)
+            .group_by(
+                CallCostItemModel.provider,
+                CallCostItemModel.model,
+                CallCostItemModel.component,
+            )
+            .order_by(desc("cost_items"))
+        )
+    ).all()
+
+    return [
+        {
+            "provider": row.provider or "",
+            "model": row.model or "",
+            "component": row.component,
+            "cost_items": int(row.cost_items or 0),
+            "units": int(row.units or 0),
+            "charged_paise": int(row.charged_paise or 0),
+        }
+        for row in rows
+    ]
+
+
+async def monthly_minutes_by_account(
+    session: AsyncSession, *, start: date, end: date
+) -> list[dict]:
+    """Connected minutes per organisation per month.
+
+    What a bundle's included balance has to be sized against. A grant a typical
+    account uses a fifth of reads as a waste and churns to pay-as-you-go; one
+    they exhaust in a fortnight produces an overage conversation nobody enjoys.
+    Neither is guessable — this is the distribution that settles it.
+    """
+    # A run has no organization of its own — it belongs to a workflow, and the
+    # workflow belongs to the organization. Every account-scoped query here
+    # takes the same two hops.
+    month = func.date_trunc(
+        "month", func.timezone("Asia/Kolkata", WorkflowRunModel.created_at)
+    )
+    seconds = func.coalesce(func.sum(WorkflowRunModel.billable_seconds), 0)
+    rows = (
+        await session.execute(
+            select(
+                month.label("month"),
+                WorkflowModel.organization_id.label("organization_id"),
+                func.count().label("calls"),
+                seconds.label("billable_seconds"),
+                func.coalesce(func.sum(WorkflowRunModel.total_charged_paise), 0).label(
+                    "charged_paise"
+                ),
+            )
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(*_costed_runs(start, end))
+            .group_by(month, WorkflowModel.organization_id)
+            .order_by(desc("month"), desc(seconds))
+        )
+    ).all()
+
+    return [
+        {
+            "month": row.month.date().isoformat() if row.month else None,
+            "organization_id": int(row.organization_id or 0),
+            "calls": int(row.calls or 0),
+            "minutes": round(int(row.billable_seconds or 0) / SECONDS_PER_MINUTE),
+            "charged_paise": int(row.charged_paise or 0),
+        }
+        for row in rows
     ]
