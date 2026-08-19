@@ -61,14 +61,13 @@ _INDIC = RecommendedStack(
 _INDIC_FAST = RecommendedStack(
     stt_provider="sarvam",
     llm_provider="google",
-    llm_model="gemini-2.5-flash-lite",
+    llm_model="gemini-3.5-flash-lite",
     tts_provider="sarvam",
     tts_model="bulbul:v2",
     telephony_provider="plivo",
     rationale=(
         "A confirmation call is short and scripted, so the smaller model is "
-        "indistinguishable to the caller and noticeably faster to first word. "
-        "Note Flash-Lite's retirement date before committing a campaign to it."
+        "indistinguishable to the caller and noticeably faster to first word."
     ),
 )
 

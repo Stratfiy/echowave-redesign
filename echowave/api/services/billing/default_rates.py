@@ -155,16 +155,36 @@ LLM_RATES = (
         _blend(0.15, 1.25),
         "$0.15/$1.25 per 1M, blended",
     ),
-    # Retiring 2026-10-16; Gemini 3.1 Flash-Lite ($0.25/$1.50) replaces it and
-    # is 2.5x dearer, so the fast/lite/zen tiers get materially more expensive
-    # on that date unless they are repointed.
+    # Retired 2026-10-16. The row stays because rate rows are effective-dated
+    # history: a call priced against this model last quarter still has to be
+    # re-derivable at the rate it was actually billed at. Nothing points at it
+    # any more — the fast/lite/zen tiers moved to 3.5 Flash-Lite below.
     DefaultRate(
         "google",
         "gemini-2.5-flash-lite",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,
         _blend(0.10, 0.40),
-        "$0.10/$0.40 per 1M, blended. Model retires 2026-10-16.",
+        "$0.10/$0.40 per 1M, blended. Retired 2026-10-16 — historical only.",
+    ),
+    # The successor the fast/lite/zen tiers now resolve to.
+    #
+    # PRICE UNCONFIRMED. The figure below is Gemini 3.1 Flash-Lite's published
+    # $0.25/$1.50, used because it is the nearest Lite tier Google has actually
+    # priced in public — not because anyone has read 3.5 Flash-Lite's own page.
+    # It is deliberately the dearer of the two plausible numbers so the card
+    # under-reports margin rather than over-reports it, which is the direction
+    # this file errs in everywhere else.
+    #
+    # Confirm against Google's live price list and correct this row. A wrong
+    # rate here is a wrong invoice on every managed call in three of five tiers.
+    DefaultRate(
+        "google",
+        "gemini-3.5-flash-lite",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(0.25, 1.50),
+        "ASSUMED $0.25/$1.50 per 1M from 3.1 Flash-Lite — confirm before relying on it.",
     ),
     # Sarvam publishes in rupees: ₹4/1M in, ₹16/1M out (₹2.5 cached, which this
     # single-rate schema cannot express). Roughly a quarter of what the previous

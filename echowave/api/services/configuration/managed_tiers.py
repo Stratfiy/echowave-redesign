@@ -91,11 +91,16 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
     return {
         # --- LLM -----------------------------------------------------------
         ("llm", "default"): _tier("llm", "default", "google", "gemini-2.5-flash"),
-        ("llm", "fast"): _tier("llm", "fast", "google", "gemini-2.5-flash-lite"),
-        ("llm", "lite"): _tier("llm", "lite", "google", "gemini-2.5-flash-lite"),
+        # Flash-Lite 2.5 retired on 2026-10-16 and these three tiers all pointed
+        # at it, so three of the five managed LLM tiers would have stopped
+        # resolving on the same morning. 3.5 Flash-Lite is the successor on the
+        # direct Google API; Vertex customers get 3.1 Flash-Lite, which is why
+        # the two option lists differ.
+        ("llm", "fast"): _tier("llm", "fast", "google", "gemini-3.5-flash-lite"),
+        ("llm", "lite"): _tier("llm", "lite", "google", "gemini-3.5-flash-lite"),
         ("llm", "accurate"): _tier("llm", "accurate", "openai", "gpt-4o"),
         # "zen" is the quiet tier — cheapest that still holds a conversation.
-        ("llm", "zen"): _tier("llm", "zen", "google", "gemini-2.5-flash-lite"),
+        ("llm", "zen"): _tier("llm", "zen", "google", "gemini-3.5-flash-lite"),
         # --- Speech --------------------------------------------------------
         # saarika:v2.5, not v2. Sarvam's own configuration class defaults to
         # v2.5 and offers only v2.5 and saaras:v3 — "saarika:v2" is a name from
