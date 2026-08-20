@@ -795,6 +795,89 @@ async def list_managed_tiers(
     return {"tiers": [vars(view) for view in views]}
 
 
+class BundleRequest(BaseModel):
+    """Create or update a bundle.
+
+    Every field except ``slug`` is optional and omitting one leaves it. Sending
+    an explicit null clears it, which is how a bundle is switched between
+    pipeline and speech-to-speech — the tiers that no longer apply have to go.
+    """
+
+    slug: str
+    label: str | None = None
+    blurb: str | None = None
+    architecture: str | None = None
+    stt_tier: str | None = None
+    tts_tier: str | None = None
+    llm_tier: str | None = None
+    realtime_tier: str | None = None
+    display_order: int | None = None
+    is_enabled: bool | None = None
+
+
+@router.get("/bundles")
+async def list_bundles(user: UserModel = Depends(get_superuser)) -> dict[str, Any]:
+    """Every bundle, and what each one runs on today.
+
+    ``slots`` is the part worth reading: a bundle names tiers and a tier names
+    a vendor somewhere else, so without it you would need two screens open to
+    answer "what does Natural actually use?".
+    """
+    from api.services.configuration import bundles as bundle_service
+
+    async with db_client.async_session() as session:
+        rows = await bundle_service.list_bundles(session)
+        await session.commit()
+        return {
+            "bundles": [
+                {
+                    "slug": row.slug,
+                    "label": row.label,
+                    "blurb": row.blurb,
+                    "architecture": row.architecture,
+                    "stt_tier": row.stt_tier,
+                    "tts_tier": row.tts_tier,
+                    "llm_tier": row.llm_tier,
+                    "realtime_tier": row.realtime_tier,
+                    "display_order": row.display_order,
+                    "is_enabled": row.is_enabled,
+                    "slots": bundle_service.resolved_slots(row),
+                }
+                for row in rows
+            ]
+        }
+
+
+@router.put("/bundles")
+async def upsert_bundle(
+    request: BundleRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Create or change a bundle.
+
+    Changes what a bundle is *called* and whether it is offered. Changing what
+    it *runs on* is a tier edit — see ``/managed-tiers`` — because a customer's
+    stored configuration names a tier, so moving a vendor there reaches every
+    agent already built rather than only the ones created next.
+    """
+    from api.services.configuration import bundles as bundle_service
+
+    fields = request.model_dump(exclude={"slug"}, exclude_unset=True)
+    async with db_client.async_session() as session:
+        try:
+            row = await bundle_service.upsert_bundle(
+                session, slug=request.slug, actor_user_id=user.id, **fields
+            )
+        except bundle_service.BundleError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+        return {
+            "slug": row.slug,
+            "label": row.label,
+            "architecture": row.architecture,
+            "is_enabled": row.is_enabled,
+        }
+
+
 @router.get("/managed-tiers/choices")
 async def managed_tier_choices(
     component: str = Query(...),

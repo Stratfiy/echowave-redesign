@@ -142,33 +142,70 @@ def approximate_minutes(balance_paise: int, paise_per_minute: int) -> int | None
     return balance_paise // paise_per_minute
 
 
-def managed_stack_override(*, voice: str, llm_tier: str) -> dict:
-    """The wizard's voice and brain, as an agent-level model override.
+def managed_stack_override(
+    *,
+    voice: str,
+    llm_tier: str,
+    realtime_tier: str = "",
+    stt_tier: str = "default",
+    tts_tier: str = "default",
+) -> dict:
+    """A bundle choice, as an agent-level model override.
 
     Written as a v3 stack with every slot still saying ``decibyl``. That
     matters: a slot naming a tier is resolved to a vendor at call time by
     ``managed_resolution``, so this records *the product choice* rather than
     pinning a vendor model that would then not move when the tier does.
 
-    Returns an empty dict when neither was chosen, so a caller that did not ask
+    ``realtime_tier`` selects the speech-to-speech shape instead of the
+    cascade. The two are mutually exclusive by construction rather than by
+    validation: one model that hears and speaks replaces the transcriber and
+    the voice, so emitting both would describe an agent that cannot exist.
+
+    Returns an empty dict when nothing was chosen, so a caller that did not ask
     — an API client posting the old three-field body — inherits the
     organization default exactly as it did before.
     """
+    managed = ServiceProviders.DECIBYL.value
+    realtime = (realtime_tier or "").strip()
+
+    if realtime:
+        # No stt or tts slot at all. A realtime section that also named a
+        # transcriber would be two answers to one question, and the compiler
+        # would have to pick one.
+        stack: dict[str, object] = {
+            "architecture": "realtime",
+            "realtime": {"provider": managed, "model": realtime, "api_key": ""},
+            # The v3 schema requires an llm section under both architectures —
+            # a realtime model *is* the language model, and this is the slot
+            # that records which tier serves it.
+            "llm": {"provider": managed, "model": realtime, "api_key": ""},
+        }
+        return {
+            WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY: {
+                "version": 3,
+                "stack": stack,
+            }
+        }
+
     if not (voice or "").strip() and not (llm_tier or "").strip():
         return {}
 
-    managed = ServiceProviders.DECIBYL.value
-    stack: dict[str, object] = {
+    stack = {
         "architecture": "pipeline",
         "llm": {
             "provider": managed,
             "model": (llm_tier or "default").strip(),
             "api_key": "",
         },
-        "stt": {"provider": managed, "model": "default", "api_key": ""},
+        "stt": {
+            "provider": managed,
+            "model": (stt_tier or "default").strip(),
+            "api_key": "",
+        },
         "tts": {
             "provider": managed,
-            "model": "default",
+            "model": (tts_tier or "default").strip(),
             "api_key": "",
             "voice": (voice or "").strip() or DECIBYL_DEFAULT_VOICE,
         },

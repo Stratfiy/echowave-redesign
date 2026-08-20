@@ -2664,6 +2664,59 @@ class NotificationModel(Base):
     )
 
 
+class ManagedBundleModel(Base):
+    """A named combination of tiers, as the Simple picker offers it.
+
+    "Everyday", "Natural", "Premium" — one card, one price, one choice. The
+    buyer this is for does not know Sarvam from OpenAI and should not have to
+    learn in order to answer a phone.
+
+    A bundle references **tiers, not vendors**, and that indirection is the
+    whole point. A customer's stored configuration names a tier, so moving a
+    vendor is a change in one place that reaches every agent already built. If
+    a bundle named a provider and model directly, changing one would leave
+    every existing agent on the old vendor and every new one on the new — the
+    drift the tier system exists to prevent. Changing what a bundle *runs on*
+    is therefore a tier edit; changing what it is *called*, what it costs to
+    show, whether it appears at all and in what order, is a bundle edit.
+
+    Seeded on first read rather than by migration, so a deployment that has
+    never opened the screen still has something to offer, and so the compiled
+    defaults stay the single description of what ships.
+    """
+
+    __tablename__ = "managed_bundles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    #: Stable identity. What an agent's configuration records, so renaming a
+    #: bundle for the storefront never rewrites what anybody chose.
+    slug = Column(String(32), nullable=False, unique=True)
+    label = Column(String(64), nullable=False)
+    blurb = Column(String(240), nullable=False, default="", server_default=text("''"))
+    #: pipeline | realtime. Decides which tier columns below are meaningful and
+    #: what the agent configuration is compiled into.
+    architecture = Column(String(16), nullable=False)
+    #: Pipeline bundles. ``llm_tier`` null means the customer picks the brain —
+    #: which is what makes Everyday three variants rather than three bundles.
+    stt_tier = Column(String(32), nullable=True)
+    tts_tier = Column(String(32), nullable=True)
+    llm_tier = Column(String(32), nullable=True)
+    #: Speech-to-speech bundles.
+    realtime_tier = Column(String(32), nullable=True)
+    display_order = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    #: Off rather than deleted. A bundle an agent already runs on must keep
+    #: resolving after it stops being offered to new customers.
+    is_enabled = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
 class ManagedTierMappingModel(Base):
     """Which real vendor and model serve a managed tier, chosen by an operator.
 
