@@ -50,6 +50,27 @@ _SERVICE_SUFFIXES = (
     "Service",
 )
 
+#: Class names that are one vendor wearing two hats, mapped to the vendor the
+#: rate card prices.
+#:
+#: Stripping the service suffix gets ``ElevenLabsRealtimeSTTService`` down to
+#: ``elevenlabsrealtime``, and the rate card says ``elevenlabs`` — same vendor,
+#: same published price, no match. The usage lands in ``uncosted``, the line
+#: costs nothing, and margin reads better than it is. Same for Google's Vertex
+#: endpoint, which is the same models billed through a different door.
+#:
+#: Deliberately *not* a prefix match. ``cartesia`` prices synthesis and does not
+#: price transcription, so folding ``CartesiaTurnsSTTService`` into ``cartesia``
+#: would price a transcript at a text-to-speech rate — silently, and wrongly, in
+#: a way an uncosted warning would at least have made visible. A vendor only
+#: appears here when the rate it resolves to is genuinely the rate it is billed
+#: at.
+_PROVIDER_ALIASES = {
+    "elevenlabsrealtime": "elevenlabs",
+    "googlevertex": "google",
+    "decibylgooglevertex": "decibylgeminilivevertex",
+}
+
 
 def provider_from_processor(processor: str) -> str:
     """Best-effort provider name from a pipeline processor class name.
@@ -71,7 +92,8 @@ def provider_from_processor(processor: str) -> str:
         if name.endswith(suffix):
             name = name[: -len(suffix)]
             break
-    return name.lower() or "unknown"
+    resolved = name.lower() or "unknown"
+    return _PROVIDER_ALIASES.get(resolved, resolved)
 
 
 def _split_key(key: str) -> tuple[str, str]:
