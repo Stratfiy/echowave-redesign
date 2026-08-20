@@ -108,8 +108,19 @@ const INDUSTRIES = [
 
 const STEPS = ["Identity", "Conversation", "Closing"] as const;
 
-/** The bundle balance, so the wizard can say what it buys. */
-const BUNDLE_BALANCE_PAISE = 250000;
+/**
+ * The account's real credit, read rather than assumed.
+ *
+ * This was a hardcoded 250000 paise — Rs2,500 — and no account has ever had
+ * that. The signup bonus is `SIGNUP_BONUS_MICROS_USD`, $5 by default, about
+ * Rs480. So the wizard told a first-time customer their balance bought roughly
+ * 483 minutes when it bought about 93, and the first campaign would stop a
+ * fifth of the way in with no warning anybody could have read.
+ *
+ * `/billing/balance` is the same figure the billing screen shows and the same
+ * one calls are actually drawn against, so the number here cannot drift from
+ * the number that runs out.
+ */
 
 type Brain = {
     tier: string;
@@ -219,6 +230,7 @@ export default function CreateWorkflowPage() {
     // What it sounds like and how clever it is, in that order — the voice is
     // the thing a caller notices and the buyer has an opinion about.
     const [options, setOptions] = useState<AgentOptions | null>(null);
+    const [balancePaise, setBalancePaise] = useState<number | null>(null);
     const [voice, setVoice] = useState<string>("");
     const [brain, setBrain] = useState<string>("default");
     // One player, reused. Seven audio elements would let two voices talk over
@@ -261,6 +273,17 @@ export default function CreateWorkflowPage() {
             const data = response.data as AgentOptions | undefined;
             if (!data) return;
             setOptions(data);
+
+            // Separate request, and deliberately not awaited together with the
+            // options: a balance we cannot read should cost the customer the
+            // minutes line, not the whole picker.
+            void (async () => {
+                const balance = await client.get({ url: "/api/v1/billing/balance" });
+                if (cancelled || balance.error) return;
+                const paise = (balance.data as { balance_paise?: number } | undefined)
+                    ?.balance_paise;
+                if (typeof paise === "number") setBalancePaise(paise);
+            })();
             setVoice((current) => current || (data.voices[0]?.voice_id ?? ""));
         })();
         return () => {
@@ -272,9 +295,13 @@ export default function CreateWorkflowPage() {
     // Shown with a "roughly" in front of it. It moves with the rate card and
     // with how much the agent actually says, so it is an estimate in the
     // honest sense rather than an entitlement.
+    //
+    // Null until the balance has loaded, and null if it fails: no line at all
+    // reads as "we are not telling you", which is true. A figure computed from
+    // a balance we could not fetch would read as a promise.
     const approxMinutes =
-        chosenBrain && chosenBrain.paise_per_minute > 0
-            ? Math.floor(BUNDLE_BALANCE_PAISE / chosenBrain.paise_per_minute)
+        chosenBrain && chosenBrain.paise_per_minute > 0 && balancePaise !== null
+            ? Math.floor(balancePaise / chosenBrain.paise_per_minute)
             : null;
 
     const guardrailCount = useMemo(
@@ -648,9 +675,9 @@ export default function CreateWorkflowPage() {
                                 <strong>
                                     {rupees(chosenBrain.paise_per_minute)} a minute
                                 </strong>
-                                {approxMinutes !== null && (
+                                {approxMinutes !== null && balancePaise !== null && (
                                     <>
-                                        {" — a ₹2,500 balance is roughly "}
+                                        {` — your ${rupees(balancePaise)} balance is roughly `}
                                         <strong>{approxMinutes} minutes</strong> of
                                         talking.
                                     </>
