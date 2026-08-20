@@ -6,7 +6,7 @@ introducing a circular import on the routes module.
 """
 
 from datetime import UTC, datetime
-from typing import Optional
+from typing import Any, Optional
 
 from loguru import logger
 from pydantic import BaseModel
@@ -18,7 +18,7 @@ from api.services.campaign.campaign_event_publisher import (
     get_campaign_event_publisher,
 )
 from api.services.campaign.circuit_breaker import circuit_breaker
-from api.services.telephony.carriage import carriage_key_source
+from api.services.telephony.carriage import MANAGED, carriage_key_source
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
@@ -151,25 +151,41 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
         # cost and overstating margin on every phone call. usage_info merges,
         # so this coexists with the pipeline's own llm/tts/stt write whichever
         # order the two land in.
+        #
+        # **Only for numbers we provide.** A call placed on the customer's own
+        # carrier account is not our usage to record: they hold the account,
+        # the carrier invoices them directly, and the seconds are a fact about
+        # their relationship with Plivo rather than about anything we sell.
+        # Recording it and then declining to bill it would leave a telephony
+        # figure on every internal report that nobody could act on — and one
+        # that looks, to anybody reading a margin screen, exactly like carriage
+        # we paid for and forgot to charge.
+        #
+        # The platform fee does not depend on this. Billable time comes from
+        # ``call_duration_seconds``, written by the pipeline, so a call on a
+        # customer's own number still bills for the minutes it ran.
         telephony_seconds = _duration_seconds(status.duration)
         if telephony_seconds:
-            # Whose carrier account served the call, recorded beside the
-            # minutes it served. Carriage on a customer's own Twilio or
-            # Asterisk is already on their carrier invoice, so billing a
-            # per-minute line for it here charges twice for one phone call.
-            # Resolved now rather than at costing time because it is a fact
-            # about this call's configuration, and configurations move.
-            key_source = await carriage_key_source(
+            carriage = await carriage_key_source(
                 workflow_id=workflow_run.workflow_id,
                 numbers=[status.from_number, status.to_number],
             )
+            # None, not an empty dict: the client skips a falsy usage_info
+            # either way, and None says "nothing to record" rather than
+            # reading as an update that happens to be empty.
+            usage: dict[str, Any] | None = None
+            if carriage == MANAGED:
+                usage = {
+                    "telephony": {workflow_run.mode: telephony_seconds},
+                    "key_sources": {"telephony": carriage},
+                }
+            # ``ended_at`` is written either way. It is when the call finished,
+            # which is true regardless of whose carrier carried it, and post-call
+            # processing keys off it.
             await db_client.update_workflow_run(
                 run_id=workflow_run_id,
                 ended_at=datetime.now(UTC),
-                usage_info={
-                    "telephony": {workflow_run.mode: telephony_seconds},
-                    "key_sources": {"telephony": key_source},
-                },
+                usage_info=usage,
             )
 
         await campaign_call_dispatcher.release_call_slot(workflow_run_id)

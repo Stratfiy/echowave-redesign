@@ -150,3 +150,46 @@ class TestCarriageIsOnlyBilledWhenWeBoughtIt:
         """Unchanged, and the asymmetry is the point of the two defaults."""
         items = usage_items_from_usage_info({"tts": {"sarvam|||bulbul:v2": 2300}})
         assert [i.component for i in items] == [CostComponent.TTS]
+
+
+class TestOnlyOurOwnCarriageIsMeasured:
+    """Not measured, not merely unbilled.
+
+    Recording seconds on a customer's own carrier and then declining to charge
+    for them would leave a telephony figure on every internal report that
+    nobody could act on — and one that reads, on a margin screen, exactly like
+    carriage we paid for and forgot to bill.
+
+    The platform fee is unaffected either way: billable time comes from
+    ``call_duration_seconds``, written by the pipeline, so a call on the
+    customer's own number still bills for the minutes it ran.
+    """
+
+    def test_a_run_with_no_telephony_block_still_has_billable_time(self):
+        from api.services.billing.usage import billable_seconds_from_usage_info
+
+        # What a completed call on a customer's own carrier now looks like.
+        usage_info = {
+            "call_duration_seconds": 143,
+            "tts": {"sarvam|||bulbul:v2": 2300},
+        }
+
+        assert billable_seconds_from_usage_info(usage_info) == 143
+        assert not [
+            i
+            for i in usage_items_from_usage_info(usage_info)
+            if i.component is CostComponent.TELEPHONY
+        ]
+
+    def test_our_own_number_still_records_and_bills(self):
+        usage_info = {
+            "call_duration_seconds": 143,
+            "telephony": {"plivo": 143},
+            "key_sources": {"telephony": "managed"},
+        }
+        items = usage_items_from_usage_info(usage_info)
+        telephony = [i for i in items if i.component is CostComponent.TELEPHONY]
+
+        assert len(telephony) == 1
+        assert telephony[0].provider == "plivo"
+        assert telephony[0].quantity == 143
