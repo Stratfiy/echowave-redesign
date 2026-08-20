@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from loguru import logger
 
 from api.constants import MPS_API_URL
+from api.schemas.ai_model_configuration import DECIBYL_DEFAULT_VOICE
 from api.services.configuration.options import (
     DEEPGRAM_FLUX_MODELS,
     DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
@@ -716,15 +717,24 @@ def create_tts_service(
         language = getattr(user_config.tts, "language", None)
         pipecat_language = language_mapping.get(language, Language.HI)
 
-        voice = (
-            getattr(user_config.tts, "voice", None) or ""
-        ).strip().lower() or "anushka"
+        # "default" is *our* sentinel for "the customer never picked one", and
+        # it is the value a managed configuration carries until they do. It is
+        # not a Sarvam speaker: their v2 model takes one of seven names, and
+        # pipecat only substitutes its own default when the voice is *unset* —
+        # a voice of "default" is set, so it went to the vendor verbatim.
+        #
+        # Omitting the key instead lets pipecat apply the right default for
+        # whichever model the tier resolves to, which is "anushka" on v2 and
+        # "shubh" on v3. Hardcoding either here would be wrong the day the
+        # tier moves.
+        voice = (getattr(user_config.tts, "voice", None) or "").strip().lower()
         speed = getattr(user_config.tts, "speed", None)
         settings_kwargs = {
             "model": user_config.tts.model,
-            "voice": voice,
             "language": pipecat_language,
         }
+        if voice and voice != DECIBYL_DEFAULT_VOICE:
+            settings_kwargs["voice"] = voice
         if speed and speed != 1.0:
             settings_kwargs["pace"] = speed
         return SarvamTTSService(

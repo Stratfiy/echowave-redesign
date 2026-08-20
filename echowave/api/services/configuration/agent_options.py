@@ -52,6 +52,11 @@ class VoiceOption:
     name: str
     gender: str | None
     description: str | None = None
+    #: The one a caller hears if nobody chooses. Derived from position rather
+    #: than hardcoded: the catalogue lists each model's speakers in the
+    #: vendor's own order and the vendor's default is first — anushka on
+    #: bulbul:v2, shubh on v3 — so this stays right when the tier moves.
+    is_default: bool = False
 
 
 @dataclass(frozen=True)
@@ -84,8 +89,9 @@ def voices() -> list[VoiceOption]:
             name=voice.name,
             gender=voice.gender,
             description=voice.description,
+            is_default=index == 0,
         )
-        for voice in catalogue.voices
+        for index, voice in enumerate(catalogue.voices)
     ]
 
 

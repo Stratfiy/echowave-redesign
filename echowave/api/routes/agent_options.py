@@ -55,6 +55,7 @@ async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, An
                 "name": voice.name,
                 "gender": voice.gender,
                 "description": voice.description,
+                "is_default": voice.is_default,
             }
             for voice in agent_options.voices()
         ],

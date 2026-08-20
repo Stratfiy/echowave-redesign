@@ -123,6 +123,7 @@ type VoiceOption = {
     name: string;
     gender: string | null;
     description: string | null;
+    is_default: boolean;
 };
 
 type AgentOptions = { brains: Brain[]; voices: VoiceOption[] };
@@ -505,34 +506,59 @@ export default function CreateWorkflowPage() {
                             label="Voice"
                             hint="What the caller hears. Changeable later without rebuilding the agent."
                         >
-                            <div className="flex flex-wrap gap-2">
-                                {(options?.voices ?? []).map((option) => (
-                                    <Chip
-                                        key={option.voice_id}
-                                        label={
-                                            option.description
-                                                ? `${option.name} — ${option.description}`
-                                                : option.name
-                                        }
-                                        selected={voice === option.voice_id}
-                                        onClick={() => {
-                                            setVoice(option.voice_id);
-                                            if (option.gender) {
-                                                setGender(
-                                                    option.gender === "female"
-                                                        ? "Female"
-                                                        : "Male",
-                                                );
-                                            }
-                                        }}
-                                    />
-                                ))}
-                                {!options && (
-                                    <span className="text-sm text-muted-foreground">
-                                        Loading voices…
-                                    </span>
-                                )}
-                            </div>
+                            {!options ? (
+                                <span className="text-sm text-muted-foreground">
+                                    Loading voices…
+                                </span>
+                            ) : (
+                                <div className="space-y-3">
+                                    {/* Grouped, because seven Indian first names in one
+                                        row is a list to read rather than a choice to
+                                        make. Gender is the only thing we can say about
+                                        these voices without having heard them — it is
+                                        the vendor's own metadata, not a guess from the
+                                        name — so it is the only thing we sort by. */}
+                                    {(
+                                        [
+                                            ["female", "Female"],
+                                            ["male", "Male"],
+                                        ] as const
+                                    ).map(([key, heading]) => {
+                                        const group = options.voices.filter(
+                                            (v) => v.gender === key,
+                                        );
+                                        if (!group.length) return null;
+                                        return (
+                                            <div key={key}>
+                                                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                                    {heading}
+                                                </p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {group.map((option) => (
+                                                        <Chip
+                                                            key={option.voice_id}
+                                                            label={
+                                                                option.description
+                                                                    ? `${option.name} — ${option.description}`
+                                                                    : option.is_default
+                                                                      ? `${option.name} · default`
+                                                                      : option.name
+                                                            }
+                                                            selected={
+                                                                voice === option.voice_id
+                                                            }
+                                                            onClick={() => {
+                                                                setVoice(option.voice_id);
+                                                                setGender(heading);
+                                                            }}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </Field>
 
                         <Field

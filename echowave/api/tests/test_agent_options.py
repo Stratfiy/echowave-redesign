@@ -31,6 +31,14 @@ class TestOptions:
     def test_the_labels_are_the_product_not_the_key(self):
         assert [b.label for b in brains()] == ["Lite", "Normal", "Smart"]
 
+    def test_exactly_one_voice_is_the_default(self):
+        # Derived from position rather than hardcoded, so it stays right when
+        # the managed tier moves from bulbul:v2 to v3 — the vendor lists its
+        # own default first in both.
+        defaults = [v for v in voices() if v.is_default]
+        assert len(defaults) == 1
+        assert defaults[0].voice_id == voices()[0].voice_id
+
     def test_voices_come_from_the_catalogue_with_a_gender(self):
         # Gender is Sarvam's own metadata; the picker filters on it and
         # guessing from a name would be both wrong and rude.
