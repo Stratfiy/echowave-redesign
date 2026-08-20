@@ -85,9 +85,7 @@ class TestTheOperatorIsToldWhatOutranksTheirEdit:
         self, db_session, async_session
     ):
         """The case the operator assumes: the edit reaches every call."""
-        async_session.add(
-            _rate("deepgram", CostComponent.STT, RateUnit.MINUTE, 770)
-        )
+        async_session.add(_rate("deepgram", CostComponent.STT, RateUnit.MINUTE, 770))
         await async_session.flush()
         rows = list(
             (
@@ -193,12 +191,16 @@ class TestTheCustomerIsToldThePriceIsApproximate:
         await async_session.flush()
 
         a = await estimate_cost_per_minute(
-            async_session, organization_id=org.id,
-            llm_provider="openai", llm_model="model-a",
+            async_session,
+            organization_id=org.id,
+            llm_provider="openai",
+            llm_model="model-a",
         )
         b = await estimate_cost_per_minute(
-            async_session, organization_id=org.id,
-            llm_provider="openai", llm_model="model-b",
+            async_session,
+            organization_id=org.id,
+            llm_provider="openai",
+            llm_model="model-b",
         )
 
         assert a.total_paise_per_minute == b.total_paise_per_minute
@@ -243,9 +245,7 @@ class TestACustomerKeyedSlotCostsThemNothing:
         assert [line.component for line in est.lines if line.component == "tts"]
         assert not est.unpriced
 
-    async def test_an_unkeyed_component_is_unaffected(
-        self, db_session, async_session
-    ):
+    async def test_an_unkeyed_component_is_unaffected(self, db_session, async_session):
         org = await _org(async_session, "mixed")
         async_session.add_all(
             [
@@ -285,3 +285,62 @@ class TestACustomerKeyedSlotCostsThemNothing:
 
         assert est.platform_paise_per_minute > 0
         assert est.total_paise_per_minute == est.platform_paise_per_minute
+
+
+class TestSpeechToSpeechIsQuotedAtWhatItCosts:
+    """Two independent pricing paths, made to agree.
+
+    ``realtime_pricing`` models a speech-to-speech session properly — audio
+    tokens, and the conversation re-sent on every turn as context grows. The
+    estimator prices from the rate card at an assumed tokens-per-minute, and
+    that assumption was the *text* one: 1,400 tokens a minute against a real
+    4,815. It under-quoted an OpenAI realtime minute by 3.4x, on the exact
+    bundle we are about to offer as a one-click choice.
+
+    Billing was never wrong — a real call records real token counts — but a
+    customer choosing speech-to-speech was shown a quarter of its price.
+    """
+
+    def test_the_two_paths_agree_per_model(self):
+        from api.services.billing.default_rates import DEFAULT_RATES
+        from api.services.billing.estimator import REALTIME_TOKENS_PER_MINUTE
+        from api.services.billing.realtime_pricing import (
+            CallShape,
+            estimate_realtime_call,
+        )
+        from api.services.billing.realtime_rates import REALTIME_PRICES
+        from api.services.billing.estimator import _REALTIME_RATE_CARD_NAMES
+
+        rates = {r.provider: r.usd_per_unit for r in DEFAULT_RATES}
+        for price in REALTIME_PRICES:
+            name = _REALTIME_RATE_CARD_NAMES.get(price.provider)
+            if not name or name not in rates:
+                continue
+            modelled = estimate_realtime_call(price, CallShape())
+            from_module = modelled.micros_usd_per_minute / 1e6
+            from_card = rates[name] * REALTIME_TOKENS_PER_MINUTE[name] / 1000
+
+            # Within a tenth of a percent: the two round differently, they do
+            # not disagree.
+            assert abs(from_module - from_card) / from_module < 0.001, (
+                f"{price.label}: rate card says ${from_card:.4f}/min, the "
+                f"realtime model says ${from_module:.4f}/min"
+            )
+
+    def test_the_assumption_is_per_model_not_one_number(self):
+        """Gemini tokenises audio about three times denser than OpenAI, so a
+        single realtime constant would be wrong for one vendor whichever value
+        it took."""
+        from api.services.billing.estimator import REALTIME_TOKENS_PER_MINUTE as T
+
+        assert T["decibylgeminilive"] != T["decibylopenairealtime"]
+        assert min(T.values()) > 0
+
+    def test_an_ordinary_language_model_keeps_the_text_assumption(self):
+        from api.services.billing.estimator import (
+            DEFAULT_TOKENS_PER_MINUTE,
+            REALTIME_TOKENS_PER_MINUTE,
+        )
+
+        assert "openai" not in REALTIME_TOKENS_PER_MINUTE
+        assert DEFAULT_TOKENS_PER_MINUTE == 1_400

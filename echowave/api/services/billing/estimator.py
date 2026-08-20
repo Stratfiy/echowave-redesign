@@ -49,6 +49,60 @@ from api.services.billing.rates import resolve_platform_rate, resolve_provider_r
 DEFAULT_TOKENS_PER_MINUTE = 1_400
 DEFAULT_CHARACTERS_PER_MINUTE = 2_300
 
+
+#: Speech-to-speech consumes tokens on a completely different scale, and the
+#: text figure above under-quotes it badly.
+#:
+#: A realtime model is billed on *audio* tokens, and the conversation so far is
+#: re-sent every turn — so a three-minute OpenAI call bills roughly 1,350 fresh
+#: input tokens, 11,475 repeated ones and 1,620 output tokens. Fourteen
+#: thousand where the text assumption expects four.
+#:
+#: **Per model, not one number.** Gemini's audio tokenisation runs about three
+#: times denser than OpenAI's — 14,355 tokens a minute against 4,815 — so a
+#: single realtime constant would be wrong for one vendor whichever value it
+#: took. That is the mistake this table exists to prevent.
+#:
+#: Derived from ``realtime_pricing``'s own default call shape rather than
+#: typed, because that module models context growth turn by turn and is the
+#: thing that knows what a realtime minute consumes. Keyed by the name the
+#: *rate lookup* sees — derived from the pipecat service class, which is why
+#: these read as one run-on word. See ``usage.provider_from_processor``.
+#:
+#: These describe an **uncached** session, which is what we run. Prompt caching
+#: cuts the repeated share by roughly two thirds; switch it on and these have
+#: to come down with it.
+_REALTIME_RATE_CARD_NAMES = {
+    "openai_realtime": "decibylopenairealtime",
+    "azure_realtime": "decibylazurerealtime",
+    "google_realtime": "decibylgeminilive",
+    "google_vertex_realtime": "decibylgeminilivevertex",
+}
+
+
+def _realtime_tokens_per_minute() -> dict[str, int]:
+    from api.services.billing.realtime_pricing import CallShape, estimate_realtime_call
+    from api.services.billing.realtime_rates import REALTIME_PRICES
+
+    shape = CallShape()
+    minutes = shape.duration_seconds / 60
+    out: dict[str, int] = {}
+    for price in REALTIME_PRICES:
+        name = _REALTIME_RATE_CARD_NAMES.get(price.provider)
+        if not name:
+            continue
+        sample = estimate_realtime_call(price, shape)
+        total = (
+            sample.fresh_input_tokens
+            + sample.repeated_input_tokens
+            + sample.output_tokens
+        )
+        out[name] = round(total / minutes)
+    return out
+
+
+REALTIME_TOKENS_PER_MINUTE = _realtime_tokens_per_minute()
+
 # Below this many costed calls the median is noise, so the default is used.
 MIN_CALLS_FOR_MEASURED_ASSUMPTION = 20
 
@@ -334,7 +388,9 @@ async def estimate_cost_per_minute(
                 provider=llm_provider,
                 model=llm_model,
                 at=at,
-                default_units=DEFAULT_TOKENS_PER_MINUTE,
+                default_units=REALTIME_TOKENS_PER_MINUTE.get(
+                    llm_provider.strip().lower(), DEFAULT_TOKENS_PER_MINUTE
+                ),
                 markup_bps=markup_bps,
             )
             lines.append(line) if line else unpriced.append(f"llm:{llm_provider}")
