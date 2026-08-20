@@ -106,10 +106,11 @@ class TestEstimate:
         assert stt.paise_per_minute == 35
         assert stt.basis == "exact"
 
-        # Telephony is not marked up: 55000 mpaise/min is the sell price an
-        # operator typed, so it reaches the customer unchanged.
+        # Telephony carries the markup too: 55000 mpaise/min is what the
+        # carrier charges us, and carriage is bought and resold like any other
+        # component. 55 x 1.4 = 77.
         telephony = next(l for l in est.lines if l.component == "telephony")
-        assert telephony.paise_per_minute == 55
+        assert telephony.paise_per_minute == 77
 
     async def test_the_quote_is_what_the_receipt_will_charge(self, async_session):
         """The estimate and the invoice, computed the same way from the same rows.

@@ -32,15 +32,29 @@ from dataclasses import dataclass, field
 
 from api.enums import CostComponent, RateUnit
 
-#: Components the managed markup applies to — the model services a customer
-#: would otherwise bring their own API key for. Telephony is deliberately
-#: absent: it is priced directly in the rate card, so the figure an operator
-#: sets there is the figure a customer pays.
+#: Components the managed markup applies to — everything we buy from a vendor
+#: and resell.
+#:
+#: Telephony was excluded on the grounds that its rate card row held the *sell*
+#: price, so what an operator typed was what a customer paid. The rows never
+#: held that. Every seeded figure is a vendor's published price to us — Plivo's
+#: Rs0.60 India local, Twilio's Rs1.20 to mobile — so carriage was being resold
+#: at cost, earning nothing on the one component we front the money for.
+#:
+#: One rule now, for every provider row: **the number is what the vendor
+#: charges us, and the markup is what we add.** That is the same sentence for
+#: speech, language and carriage, which is worth more than the flexibility of
+#: having one component mean something different from the rest.
+#:
+#: Only carriage we actually sell reaches here. A call on the customer's own
+#: carrier records no telephony usage at all — see
+#: ``services/telephony/status_processor.py`` — so there is no line to mark up.
 MARKED_UP_COMPONENTS = frozenset(
     {
         CostComponent.STT.value,
         CostComponent.LLM.value,
         CostComponent.TTS.value,
+        CostComponent.TELEPHONY.value,
     }
 )
 from api.services.billing.money import (

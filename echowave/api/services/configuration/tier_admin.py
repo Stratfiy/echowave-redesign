@@ -131,6 +131,61 @@ async def _model_is_priced(
     return rate is not None
 
 
+def choices(component: str) -> list[dict]:
+    """The providers and models an operator can point this component at.
+
+    Read out of the registry's own configuration classes rather than a list
+    kept here, so a provider or model added to the platform is selectable the
+    day it lands rather than the day somebody remembers this file. That matters
+    most for speech-to-speech, where the vendors are shipping new models faster
+    than anything else in the stack.
+
+    ``allow_custom`` is passed through from the configuration schema. Where a
+    vendor accepts a model string we do not enumerate — and several do — the
+    screen should let one be typed rather than making a new model wait for a
+    release. The validation in :func:`set_tier` is what stops that being
+    dangerous: an unbuildable provider or one with no platform key is refused
+    whether it was picked from a list or typed.
+    """
+    from api.services.configuration.registry import REGISTRY, ServiceType
+
+    service_type = {
+        "llm": ServiceType.LLM,
+        "stt": ServiceType.STT,
+        "tts": ServiceType.TTS,
+        managed_tiers.REALTIME_COMPONENT: ServiceType.REALTIME,
+        managed_tiers.EMBEDDINGS_COMPONENT: ServiceType.EMBEDDINGS,
+    }.get((component or "").strip().lower())
+    if service_type is None:
+        return []
+
+    out: list[dict] = []
+    for provider, config_class in sorted(
+        REGISTRY.get(service_type, {}).items(), key=lambda kv: kv[0].value
+    ):
+        models: list[str] = []
+        allow_custom = False
+        field = config_class.model_fields.get("model")
+        if field is not None:
+            extra = field.json_schema_extra or {}
+            if isinstance(extra, dict):
+                models = list(extra.get("examples") or [])
+                allow_custom = bool(extra.get("allow_custom_input"))
+        out.append(
+            {
+                "provider": provider.value,
+                "models": models,
+                "allow_custom_model": allow_custom or not models,
+                # Whether a managed tier could actually use this today. A
+                # provider with no platform key is shown but not selectable,
+                # which is more useful than hiding it: "add the key first" is
+                # an answer, an absent option is a mystery.
+                "needs_platform_key": True,
+            }
+        )
+    return out
+
+
 async def list_tiers(session: AsyncSession) -> list[TierView]:
     """Every tier, what serves it now, and whether that is safe."""
     overrides = {

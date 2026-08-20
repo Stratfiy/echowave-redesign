@@ -200,3 +200,40 @@ class TestListing:
         assert by_key[("llm", "lite")].label == "Lite"
         assert by_key[("realtime", "natural")].label == "Natural"
         assert by_key[("realtime", "premium")].blurb
+
+
+class TestWhatATierCanBePointedAt:
+    """Read from the registry, not from a list kept beside it.
+
+    A hand-maintained list of "every model we support" goes stale the first
+    time somebody adds one — and speech-to-speech vendors ship new models
+    faster than anything else in the stack, which is exactly where a stale list
+    hurts.
+    """
+
+    def test_realtime_offers_the_registered_vendors(self):
+        providers = {row["provider"] for row in tier_admin.choices("realtime")}
+
+        assert "openai_realtime" in providers
+        assert "google_realtime" in providers
+
+    def test_a_vendor_that_takes_unlisted_models_says_so(self):
+        """So the screen offers a text box and a new model does not have to
+        wait for a release."""
+        rows = {row["provider"]: row for row in tier_admin.choices("realtime")}
+
+        assert rows["openai_realtime"]["allow_custom_model"] is True
+
+    def test_the_models_listed_are_the_ones_the_vendor_serves(self):
+        rows = {row["provider"]: row for row in tier_admin.choices("realtime")}
+
+        assert "gemini-3.1-flash-live-preview" in rows["google_realtime"]["models"]
+
+    def test_an_unknown_component_offers_nothing_rather_than_raising(self):
+        assert tier_admin.choices("telepathy") == []
+
+    def test_every_component_a_tier_exists_for_has_choices(self):
+        """A tier an operator can see and cannot change would be worse than
+        one that was never offered."""
+        for component in ("llm", "stt", "tts", "realtime", "embeddings"):
+            assert tier_admin.choices(component), component

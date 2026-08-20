@@ -795,6 +795,24 @@ async def list_managed_tiers(
     return {"tiers": [vars(view) for view in views]}
 
 
+@router.get("/managed-tiers/choices")
+async def managed_tier_choices(
+    component: str = Query(...),
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """What a tier can be pointed at, read from the registry.
+
+    ``allow_custom_model`` true means the vendor takes model strings we do not
+    enumerate, so the screen should let one be typed — several realtime vendors
+    ship new models faster than we cut releases. Typing one is safe because
+    ``PUT`` refuses an unbuildable provider or one with no platform key
+    whichever way it was chosen.
+    """
+    from api.services.configuration import tier_admin
+
+    return {"component": component, "choices": tier_admin.choices(component)}
+
+
 @router.put("/managed-tiers")
 async def set_managed_tier(
     request: TierMappingRequest, user: UserModel = Depends(get_superuser)

@@ -386,9 +386,11 @@ class TestCostWorkflowRun:
 
         cost = await cost_workflow_run(async_session, run.id)
         line = next(l for l in cost.line_items if l.component == "telephony")
-        # 120s at 55000 mpaise/min = 2 min x 55 paise = 110 paise.
-        assert line.cost_paise == 110
+        # 120s at 55000 mpaise/min = 2 min x 55 paise = 110 paise of carrier
+        # cost, resold at the managed markup like every other provider line.
+        assert line.provider_cost_paise == 110
         assert cost.total_provider_cost_paise == 110
+        assert line.cost_paise > 110
 
     async def test_byok_run_has_only_a_platform_line(self, async_session):
         """No provider rates configured means no pass-through cost."""
