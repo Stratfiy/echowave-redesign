@@ -474,6 +474,42 @@ TELEPHONY_RATES = (
         _inr(0.60),
         "India outbound local Rs0.60/min published. SIP / Browser SDK is Rs0.34.",
     ),
+    # Cloudonix and Vobiz are placeholders at the Twilio India mobile rate, and
+    # they are here rather than absent on purpose. A supported carrier with no
+    # row does not cost nothing — it costs an unpriced line, which reports zero
+    # provider cost and so overstates margin on every call that uses it. A
+    # deliberate over-estimate errs the only safe way: we under-report our own
+    # margin until somebody replaces these with the published figures, rather
+    # than discovering at month end that a carrier was free all along.
+    #
+    # These bill only when the configuration is platform-managed. A customer on
+    # their own Cloudonix or Vobiz account is charged no carriage at all, so a
+    # placeholder that is too high cannot overcharge them — see
+    # ``services/telephony/carriage.py``.
+    #
+    # TODO: replace with Cloudonix's and Vobiz's published India outbound rates.
+    DefaultRate(
+        "cloudonix",
+        "",
+        CostComponent.TELEPHONY,
+        RateUnit.MINUTE,
+        _inr(1.20),
+        "PLACEHOLDER at the Twilio India mobile rate. Not the published price.",
+    ),
+    DefaultRate(
+        "vobiz",
+        "",
+        CostComponent.TELEPHONY,
+        RateUnit.MINUTE,
+        _inr(1.20),
+        "PLACEHOLDER at the Twilio India mobile rate. Not the published price.",
+    ),
+    # No ARI row, and that is not an oversight. ARI is a self-hosted Asterisk
+    # the customer runs; the trunk behind it is theirs and so is its bill.
+    # There is no vendor price for us to pass through, and carriage.py already
+    # declines to bill a customer-owned configuration — a row here would only
+    # matter if we ever ran Asterisk ourselves, and then it would need our own
+    # trunk's rate rather than a vendor's.
     DefaultRate(
         "telnyx", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 0.0070, "US outbound"
     ),

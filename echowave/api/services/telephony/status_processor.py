@@ -18,6 +18,7 @@ from api.services.campaign.campaign_event_publisher import (
     get_campaign_event_publisher,
 )
 from api.services.campaign.circuit_breaker import circuit_breaker
+from api.services.telephony.carriage import carriage_key_source
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
@@ -152,11 +153,22 @@ async def _process_status_update(workflow_run_id: int, status: StatusCallbackReq
         # order the two land in.
         telephony_seconds = _duration_seconds(status.duration)
         if telephony_seconds:
+            # Whose carrier account served the call, recorded beside the
+            # minutes it served. Carriage on a customer's own Twilio or
+            # Asterisk is already on their carrier invoice, so billing a
+            # per-minute line for it here charges twice for one phone call.
+            # Resolved now rather than at costing time because it is a fact
+            # about this call's configuration, and configurations move.
+            key_source = await carriage_key_source(
+                workflow_id=workflow_run.workflow_id,
+                numbers=[status.from_number, status.to_number],
+            )
             await db_client.update_workflow_run(
                 run_id=workflow_run_id,
                 ended_at=datetime.now(UTC),
                 usage_info={
                     "telephony": {workflow_run.mode: telephony_seconds},
+                    "key_sources": {"telephony": key_source},
                 },
             )
 

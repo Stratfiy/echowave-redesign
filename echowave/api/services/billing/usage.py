@@ -9,7 +9,7 @@ The pipeline writes ``workflow_runs.usage_info`` in the shape produced by
       "stt": {"<processor>|||<model>": <seconds>},
       "telephony": {"<provider>": <connected seconds>},
       "call_duration_seconds": <seconds>,
-      "key_sources": {"llm"|"stt"|"tts": "byok"|"managed"},
+      "key_sources": {"llm"|"stt"|"tts"|"telephony": "byok"|"managed"},
     }
 
 All four cost components are measured: LLM tokens and TTS characters from the
@@ -106,13 +106,21 @@ def _as_mapping(value: Any) -> dict[str, Any]:
 def key_sources_from_usage_info(usage_info: dict[str, Any] | None) -> dict[str, str]:
     """Which components on this run used the account's own key.
 
-    ``{"llm"|"stt"|"tts": "byok"|"managed"}``, as recorded by the pipeline at
-    call start (see ``PipelineMetricsAggregator.register_key_sources``). A
-    component absent from this mapping -- calls made before this was tracked,
-    or telephony, which has no key-ownership concept -- is treated as managed
-    everywhere it's consulted below. That is the safe default: it reproduces
-    the old behaviour of charging for it rather than silently discounting
-    usage no one confirmed was BYOK.
+    ``{"llm"|"stt"|"tts"|"telephony": "byok"|"managed"}``. The three model
+    components are recorded by the pipeline at call start (see
+    ``PipelineMetricsAggregator.register_key_sources``); telephony is recorded
+    by the status callback when the minutes are, because the owning carrier
+    configuration is not something the pipeline sees.
+
+    A component absent from this mapping does not default the same way for all
+    four, and the difference is deliberate. **Model components default to
+    managed**: a call from before this was tracked was almost certainly run on
+    our keys, so charging for it reproduces the old behaviour rather than
+    silently discounting usage nobody confirmed was BYOK. **Telephony defaults
+    to customer-owned**, because its configurations default to customer-owned
+    and an unrecorded carrier is not evidence we paid one. Each default is the
+    direction whose error is ours to absorb rather than the customer's to
+    discover on an invoice.
     """
     return {
         k: v
@@ -220,19 +228,33 @@ def usage_items_from_usage_info(
                 )
 
     # Telephony is recorded by the status callback as connected seconds, keyed
-    # by provider — there is no model dimension to a phone call, and no BYOK
-    # concept either: Decibyl always fronts the telephony cost.
-    for key, value in _as_mapping(usage_info.get("telephony")).items():
-        processor, _ = _split_key(key)
-        seconds = _as_int(value)
-        if seconds:
-            items.append(
-                UsageItem(
-                    component=CostComponent.TELEPHONY,
-                    provider=provider_from_processor(processor),
-                    quantity=seconds,
+    # by provider — there is no model dimension to a phone call.
+    #
+    # There *is* a key-ownership concept, contrary to what this comment used to
+    # say. ``telephony_configurations.is_platform_managed`` defaults to False:
+    # the ordinary configuration holds the customer's own Twilio SID or
+    # Asterisk box, and those minutes are already on their carrier invoice. A
+    # carriage line from us on top of that charged twice for one phone call.
+    # The status callback resolves the owner and records it beside the seconds;
+    # see ``services/telephony/carriage.py``.
+    #
+    # Missing reads as customer-owned, which is the opposite default from the
+    # model components above and deliberately so: an unrecorded model key
+    # source means we most likely bought the inference, while an unrecorded
+    # carrier means we cannot show we bought the minutes. Billing the customer
+    # anyway is the error that takes their money.
+    if key_sources.get("telephony", "byok") != "byok":
+        for key, value in _as_mapping(usage_info.get("telephony")).items():
+            processor, _ = _split_key(key)
+            seconds = _as_int(value)
+            if seconds:
+                items.append(
+                    UsageItem(
+                        component=CostComponent.TELEPHONY,
+                        provider=provider_from_processor(processor),
+                        quantity=seconds,
+                    )
                 )
-            )
 
     return tuple(items)
 

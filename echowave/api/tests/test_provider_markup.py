@@ -222,9 +222,13 @@ class TestByokRevenueIsThePlatformFeeAlone:
     that has to hold no matter how much speech or how many tokens the call
     consumed.
 
-    Telephony is the deliberate exception and is not a hole in the rule: we
-    front the carrier's bill whoever owns the model keys, so it is charged. It
-    is excluded from the markup, so it carries no margin either.
+    Telephony is charged separately from the model keys and is not a hole in
+    the rule: bringing your own language model says nothing about who owns the
+    phone line, so the two questions are asked independently. On a
+    platform-managed carrier we fronted the carrier's bill and charge it on,
+    excluded from the markup so it carries no margin either. On the customer's
+    own carrier it is not charged at all — see
+    ``services/telephony/carriage.py``.
     """
 
     #: A busy call — long conversation, plenty of synthesis — on the account's
@@ -241,7 +245,14 @@ class TestByokRevenueIsThePlatformFeeAlone:
         "stt": {"DeepgramSTTService|||nova-3": 600},
         "telephony": {"twilio": 600},
         "call_duration_seconds": 600,
-        "key_sources": {"llm": "byok", "stt": "byok", "tts": "byok"},
+        # Own model keys, but a Decibyl phone number — the mix this class is
+        # about, and the one where the platform fee has to be the whole margin.
+        "key_sources": {
+            "llm": "byok",
+            "stt": "byok",
+            "tts": "byok",
+            "telephony": "managed",
+        },
     }
 
     def test_no_model_usage_becomes_a_billable_item(self):
@@ -251,8 +262,8 @@ class TestByokRevenueIsThePlatformFeeAlone:
         assert CostComponent.LLM not in components
         assert CostComponent.TTS not in components
         assert CostComponent.STT not in components
-        # Telephony survives: we pay the carrier regardless of whose keys ran
-        # the models.
+        # Telephony survives: this call ran on a Decibyl number, and whose
+        # keys ran the models does not change who paid the carrier.
         assert CostComponent.TELEPHONY in components
 
     def test_the_platform_fee_is_the_entire_margin(self):

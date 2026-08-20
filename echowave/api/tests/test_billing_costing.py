@@ -122,6 +122,10 @@ class TestUsageExtraction:
                 "tts": {"ElevenLabsTTSService#0|||turbo-v2": 4000},
                 "stt": {"DeepgramSTTService#0|||nova-2": 300},
                 "telephony": {"twilio": 300},
+                # Written by the status callback alongside the seconds, and
+                # part of the realistic shape now: without it carriage reads as
+                # the customer's own carrier and is deliberately not billed.
+                "key_sources": {"telephony": "managed"},
                 "call_duration_seconds": 300,
             }
         )
@@ -375,6 +379,7 @@ class TestCostWorkflowRun:
             workflow,
             usage_info={
                 "telephony": {"twilio": 120},
+                "key_sources": {"telephony": "managed"},
                 "call_duration_seconds": 120,
             },
         )
@@ -490,12 +495,13 @@ class TestCostWorkflowRun:
         assert components == {"llm", "platform"}
         assert cost.total_provider_cost_paise == 12  # only the LLM line
 
-    async def test_telephony_is_always_charged_regardless_of_key_source(
-        self, async_session
-    ):
-        """Telephony has no key-ownership concept -- Decibyl always fronts the
-        carrier cost, so a key_sources entry (which telephony never has) can't
-        suppress it."""
+    async def test_carriage_on_our_own_carrier_is_charged(self, async_session):
+        """Telephony *does* have a key-ownership concept, and this is the half
+        we bill: a platform-managed configuration means Decibyl's carrier
+        account served the call, so the minutes are ours to pass on.
+
+        Model key sources do not enter into it — bringing your own language
+        model says nothing about who owns the phone line."""
         _org, workflow = await _org_with_workflow(async_session, "byok-telephony")
         async_session.add(
             ProviderRateModel(
@@ -513,12 +519,52 @@ class TestCostWorkflowRun:
             usage_info={
                 "telephony": {"twilio": 60},
                 "call_duration_seconds": 60,
-                "key_sources": {"llm": "byok", "stt": "byok", "tts": "byok"},
+                "key_sources": {
+                    "llm": "byok",
+                    "stt": "byok",
+                    "tts": "byok",
+                    "telephony": "managed",
+                },
             },
         )
 
         cost = await cost_workflow_run(async_session, run.id)
         assert cost.total_provider_cost_paise == 55
+
+    async def test_carriage_on_the_customers_own_carrier_is_not_charged(
+        self, async_session
+    ):
+        """The double charge, in the form it reached production.
+
+        ``is_platform_managed`` defaults to False, so the ordinary telephony
+        configuration holds the customer's own Twilio credentials and Twilio
+        has already billed them for these minutes. Adding a carriage line here
+        charged for one phone call twice.
+        """
+        _org, workflow = await _org_with_workflow(async_session, "own-carrier")
+        async_session.add(
+            ProviderRateModel(
+                provider="twilio",
+                model="",
+                component=CostComponent.TELEPHONY.value,
+                unit=RateUnit.MINUTE.value,
+                rate_mpaise=55_000,
+                effective_from=datetime(2020, 1, 1, tzinfo=UTC),
+            )
+        )
+        run = await _run(
+            async_session,
+            workflow,
+            usage_info={
+                "telephony": {"twilio": 60},
+                "call_duration_seconds": 60,
+                "key_sources": {"telephony": "byok"},
+            },
+        )
+
+        cost = await cost_workflow_run(async_session, run.id)
+        assert cost.total_provider_cost_paise == 0
+        assert "telephony" not in {i.component for i in cost.line_items}
 
     async def test_uses_the_account_rate_in_force_at_call_time(self, async_session):
         """A rate raised after the call must not change what the call cost."""
