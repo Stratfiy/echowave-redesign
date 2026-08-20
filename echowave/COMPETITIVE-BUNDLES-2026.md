@@ -99,26 +99,58 @@ subscription anchor — Agni charges it, and the survey literature names it as
 the typical floor. A buyer comparing us to Agni sees the same price and does
 not have to think about it.
 
-**The included balance is far too generous.** Agni gives **300 minutes** for
-₹2,999. Our ₹2,999 grants ₹2,500 of balance, which at an Indic all-in cost in
-the ₹2.5–4/min region buys somewhere around **600–1,000 minutes** — two to
-three times the direct comparable, at the same price.
+**The included balance is not generous. It is roughly at parity.** An earlier
+draft of this document said ₹2,500 buys 600–1,000 minutes, on an assumed
+₹2.5–4/min. That was wrong: our own study puts the all-in charge at
+**₹5.17–8.21/min**, so the grant buys
 
-That is the "not less" the brief asks about. Two ways to spend the gap:
+| Charged per minute | What ₹2,500 buys |
+|---|---|
+| ₹5.17 *(at 850 TTS chars/min)* | **483 minutes** |
+| ₹8.21 *(at 2,300 TTS chars/min)* | **304 minutes** |
 
-- **Keep ₹2,500 and say so loudly.** "Three times the minutes at the same
-  price" is a sales line that survives contact with a spreadsheet. Costs us the
-  difference, buys share in a market where we are already the cheapest
-  infrastructure.
-- **Cut the grant to ₹1,500 and keep ₹1,000.** Still comfortably ahead of Agni
-  (~₹1,500 buys 375–600 minutes against their 300), and the margin funds the
-  concurrency and support the plan promises.
+against **Agni's 300 minutes at the same ₹2,999**. At the pessimistic end we
+are level with them. At the optimistic end we are 60% better — not three times
+better.
 
-**Recommend the second.** We undercut every competitor on the platform fee
-already — by 30–42% on a BYOK minute and more on a managed one — so the price
-advantage does not need doubling at the bundle layer, and ₹1,000 per account
-per month is real money at any volume. The advantage is more persuasive stated
-as a per-minute rate than given away as balance.
+**So cutting the grant to ₹1,500 would have been a mistake**, and this document
+recommended it. ₹1,500 buys 183–290 minutes: *strictly worse than the
+competitor at the same headline price*, which is the one comparison every buyer
+actually makes. **Keep ₹2,500.**
+
+### The real problem is the unit, not the amount
+
+Every competitor advertises **minutes**. Bolna sells 5,000. Agni sells 300.
+Vapi and Retell quote a rate. We would be the only one selling a rupee balance,
+and that is worse than it sounds for two reasons.
+
+**It is not comparable.** "₹2,500 of balance" asks the buyer to divide by a
+per-minute rate they have not been told yet, against a competitor who simply
+says 300 minutes. Nobody does that arithmetic; they assume the worst or they
+leave.
+
+**It varies with a choice the customer has not made yet.** A rupee grant buys
+483 minutes on Sarvam bulbul and 304 on a heavy Western voice — the same
+bundle, the same price, 60% fewer calls, decided by a dropdown they picked
+before they understood it. That is a support conversation every month and a
+refund conversation some months.
+
+**Recommend selling minutes, not rupees.** Grant a minute entitlement priced at
+the managed Indic stack — which is the stack we want people on anyway, and the
+one the margin works best on. Overage in rupees at the published rate. That
+makes the bundle directly comparable to Agni and Bolna on the only axis buyers
+compare, and it moves the cost of an expensive stack choice to where it
+belongs: the overage, not the entitlement.
+
+<!-- The exact minute figure has to wait for section 1 of the measurement
+     pack. It is the same unmeasured number, and here it decides whether the
+     flagship bundle beats the competitor or ties with it. -->
+
+**The number to grant is a measurement, not a decision.** At 850 chars/min a
+₹2,500-equivalent grant is ~480 minutes and the bundle wins comfortably; at
+2,300 it is ~300 and the bundle ties. Section 1 of `scripts/pricing/measure.sql`
+settles which — and this is no longer only a margin question, it is whether the
+headline product has a story.
 
 Whichever is chosen, **the balance must be measured, not assumed.** Section 6 of
 `scripts/pricing/measure.sql` returns minutes per organisation per month; the

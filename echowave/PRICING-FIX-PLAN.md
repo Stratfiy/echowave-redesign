@@ -143,9 +143,12 @@ rate card with holes in it.
 extra numbers ₹559. Nothing of this exists — there is no plan, bundle or
 subscription-tier code in the repository.
 
-**Size the balances against section 6 first.** ₹2,500 is either a comfortable
-month or a fortnight depending on what real usage looks like, and the answer
-changes whether the bundle reads as generous or as a trap.
+**Size the balances against section 6 first, and grant minutes rather than
+rupees.** At our own all-in ₹5.17–8.21/min, ₹2,500 buys 304–483 minutes
+against Agni's 300 at the same ₹2,999 — parity at the pessimistic end, not the
+2–3x advantage an earlier draft assumed. A rupee grant is also not comparable
+to a competitor who advertises minutes, and it silently buys 60% fewer calls if
+the customer picks a heavy Western voice. See `COMPETITIVE-BUNDLES-2026.md`.
 
 Roughly a week of work, in this order:
 
