@@ -2664,6 +2664,56 @@ class NotificationModel(Base):
     )
 
 
+class ManagedTierMappingModel(Base):
+    """Which real vendor and model serve a managed tier, chosen by an operator.
+
+    ``managed_tiers.py`` holds the defaults and an environment-variable
+    override, and both are fine for bootstrapping a deployment. Neither is a
+    product control: moving the Normal brain to a cheaper model, or pointing
+    speech-to-speech at a vendor who has just launched an Indic model, is a
+    decision somebody makes on a Tuesday afternoon and should not require an
+    engineer, a release, or a restart of every worker.
+
+    So the mapping is a row. Resolution order is **this table, then the
+    environment variable, then the compiled default** — the table wins because
+    it is the deliberate choice made through an audited screen, and a setting
+    that silently loses to an environment variable somebody set months ago is
+    exactly the "I changed it and nothing happened" failure the rate card just
+    had. The screen reports when an environment variable is also present, so
+    the precedence is visible rather than surprising.
+
+    Overwritten in place rather than effective-dated, unlike a rate. A rate is
+    a fact about money that an old invoice has to be able to reproduce; this is
+    a fact about which vendor answers the phone today, and last month's calls
+    already recorded the model they actually ran on.
+    """
+
+    __tablename__ = "managed_tier_mappings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # "llm" | "stt" | "tts" | "realtime" | "embeddings" — the same vocabulary
+    # managed_tiers uses, deliberately not a Postgres enum so a new component
+    # is application code rather than a migration.
+    component = Column(String(32), nullable=False)
+    tier = Column(String(32), nullable=False)
+    # The vendor as the service factory names it, and the model string passed
+    # straight through to that vendor. Stored together because moving one
+    # without the other is almost always a mistake — a model name is only
+    # meaningful to the vendor that serves it.
+    provider = Column(String(64), nullable=False)
+    model = Column(String(128), nullable=False)
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("component", "tier", name="uq_managed_tier_mapping"),
+    )
+
+
 class PaymentMandateModel(Base):
     """A customer's standing authorisation for us to collect, on file.
 

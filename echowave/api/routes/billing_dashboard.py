@@ -17,6 +17,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from loguru import logger
 from sqlalchemy import select
 
 from api.db import billing_dashboard_client as dash
@@ -765,6 +766,104 @@ async def retire_provider_rate(
         await session.commit()
         card = await rate_card.get_rate_card(session)
     return {"provider_rates": card.provider_rates}
+
+
+class TierMappingRequest(BaseModel):
+    """Point a managed tier at a vendor and model."""
+
+    component: str
+    tier: str
+    provider: str
+    model: str
+
+
+@router.get("/managed-tiers")
+async def list_managed_tiers(
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Every managed tier, what serves it, and whether that is safe.
+
+    ``is_priced`` false means calls on that tier record no provider cost, so
+    margin reads high. ``env_override`` names an environment variable that is
+    set for the tier and which the stored mapping now outranks — reported so
+    the precedence is visible rather than a surprise.
+    """
+    from api.services.configuration import tier_admin
+
+    async with db_client.async_session() as session:
+        views = await tier_admin.list_tiers(session)
+    return {"tiers": [vars(view) for view in views]}
+
+
+@router.put("/managed-tiers")
+async def set_managed_tier(
+    request: TierMappingRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Change which vendor and model serve a tier. Takes effect immediately."""
+    from api.services.configuration import managed_tiers, tier_admin
+
+    async with db_client.async_session() as session:
+        try:
+            result = await tier_admin.set_tier(
+                session,
+                component=request.component,
+                tier=request.tier,
+                provider=request.provider,
+                model=request.model,
+                actor_user_id=user.id,
+            )
+        except tier_admin.TierMappingError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+
+    # Refresh this worker, then tell the others. Doing it in that order means
+    # the request that made the change sees it, even if Redis is unavailable.
+    await managed_tiers.refresh_overrides()
+    await _broadcast_tier_change()
+    return result
+
+
+@router.delete("/managed-tiers")
+async def clear_managed_tier(
+    component: str = Query(...),
+    tier: str = Query(...),
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Drop back to the compiled default for this tier."""
+    from api.services.configuration import managed_tiers, tier_admin
+
+    async with db_client.async_session() as session:
+        await tier_admin.clear_tier(session, component=component, tier=tier)
+        await session.commit()
+
+    await managed_tiers.refresh_overrides()
+    await _broadcast_tier_change()
+    return {"component": component, "tier": tier, "cleared": True}
+
+
+async def _broadcast_tier_change() -> None:
+    """Tell the other workers to re-read. Best effort, and logged when it is not.
+
+    A worker that misses this keeps serving the previous mapping until it
+    restarts — wrong, but quietly so, which is why the failure is logged rather
+    than swallowed.
+    """
+    from api.services.worker_sync.manager import get_worker_sync_manager
+    from api.services.worker_sync.protocol import WorkerSyncEventType
+
+    try:
+        manager = get_worker_sync_manager()
+    except RuntimeError:
+        # Raised, not None-returning, when the lifespan has not started one —
+        # which is the ordinary case in a test or a one-off script. The change
+        # is already saved and this worker already re-read it; the others pick
+        # it up when they restart.
+        logger.warning(
+            "Managed tier changed but no worker sync manager is running; other "
+            "workers keep the previous mapping until they restart"
+        )
+        return
+    await manager.broadcast(WorkerSyncEventType.MANAGED_TIERS, "update")
 
 
 @router.put("/rate-card/exchange-rate")

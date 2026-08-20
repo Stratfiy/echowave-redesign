@@ -35,6 +35,9 @@ from loguru import logger
 from api.constants import REDIS_URL
 from api.mcp_server import mcp
 from api.routes.main import router as main_router
+from api.services.configuration.managed_tiers import (
+    refresh_overrides as refresh_managed_tier_overrides,
+)
 from api.services.configuration.platform_credential_seed import (
     seed_from_environment as seed_platform_credentials_from_environment,
 )
@@ -81,6 +84,15 @@ def _warn_if_mps_is_inherited() -> None:
         )
 
 
+async def _handle_managed_tier_sync(event) -> None:
+    """Another worker changed a tier mapping; re-read it here.
+
+    The event is only a trigger — the authoritative state is the table, which
+    is why this reloads rather than applying anything carried in the message.
+    """
+    await refresh_managed_tier_overrides()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with mcp_app.lifespan(app):
@@ -102,10 +114,21 @@ async def lifespan(app: FastAPI):
         # before any pipeline runs, without per-call DB lookups.
         await load_all_org_langfuse_credentials()
 
+        # Operator-chosen tier mappings, before any call can resolve one. A
+        # worker that served a call before this ran would use the compiled
+        # default and bill against a vendor nobody selected.
+        await refresh_managed_tier_overrides()
+
         # Start cross-worker sync manager so config changes propagate to all workers
         sync_manager = WorkerSyncManager(REDIS_URL)
         sync_manager.register(
             WorkerSyncEventType.LANGFUSE_CREDENTIALS, handle_langfuse_sync
+        )
+        # Which vendor serves each managed tier. Cached per worker so that
+        # `managed_tiers.resolve` can stay synchronous, which is why a change
+        # made on one worker has to be announced to the rest.
+        sync_manager.register(
+            WorkerSyncEventType.MANAGED_TIERS, _handle_managed_tier_sync
         )
         await sync_manager.start()
         set_worker_sync_manager(sync_manager)

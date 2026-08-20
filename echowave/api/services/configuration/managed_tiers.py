@@ -30,6 +30,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from loguru import logger
+
 from api.enums import CostComponent
 
 #: The tiers a customer can choose. Deliberately small and behavioural — adding
@@ -69,7 +71,25 @@ LLM_TIER_LABELS: dict[str, tuple[str, str]] = {
 STT_TIERS = ("default",)
 TTS_TIERS = ("default",)
 EMBEDDINGS_TIERS = ("default",)
-REALTIME_TIERS = ("default",)
+#: Speech-to-speech tiers. Two, because the two vendors are not a quality
+#: ladder — they are a price cliff. Gemini Live runs about Rs4.72 a minute and
+#: OpenAI realtime about Rs16.45, three and a half times dearer for the same
+#: job. Offering only the expensive one, as this did, made speech-to-speech a
+#: tier almost nobody would choose once they saw the number.
+REALTIME_TIERS = ("natural", "premium", "default")
+
+#: What the customer reads, the same discipline as the brain tiers: what the
+#: choice does, not who serves it.
+REALTIME_TIER_LABELS: dict[str, tuple[str, str]] = {
+    "natural": (
+        "Natural",
+        "Replies the instant you stop talking. Best value for a live feel.",
+    ),
+    "premium": (
+        "Premium",
+        "The most capable speech model. Noticeably dearer a minute.",
+    ),
+}
 
 #: Embeddings are not a billing component — they are consumed at knowledge-base
 #: ingest rather than per call, so there is no ``CostComponent.EMBEDDINGS`` and
@@ -156,8 +176,24 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # ``OPENAI_REALTIME_MODELS`` in registry.py — because service_factory
         # passes it straight through to the vendor. A name that only exists
         # here fails at session open, after the call has already connected.
+        # ``default`` stays on OpenAI so a stored configuration naming it keeps
+        # the model it was built on rather than being moved to another vendor
+        # by an upgrade nobody asked for.
         (REALTIME_COMPONENT, "default"): _tier(
             REALTIME_COMPONENT, "default", "openai_realtime", "gpt-realtime-2"
+        ),
+        (REALTIME_COMPONENT, "premium"): _tier(
+            REALTIME_COMPONENT, "premium", "openai_realtime", "gpt-realtime-2"
+        ),
+        # Gemini Live. The model string must be one the realtime registry
+        # offers, for the same reason the OpenAI one must: service_factory
+        # passes it straight to the vendor, and a name that exists only here
+        # fails at session open, after the call has connected.
+        (REALTIME_COMPONENT, "natural"): _tier(
+            REALTIME_COMPONENT,
+            "natural",
+            "google_realtime",
+            "gemini-3.1-flash-live-preview",
         ),
         # --- Embeddings ----------------------------------------------------
         # OpenAI, and it has to be: **there is no Google embeddings service in
@@ -192,6 +228,64 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
     }
 
 
+#: Operator-chosen mappings, loaded from the database and refreshed when one
+#: changes. Kept as a module-level cache rather than read per call for one
+#: reason: ``resolve`` is called from synchronous code — the voice catalogue,
+#: the options screen — and making it async would ripple through six call
+#: sites to answer a question whose answer changes about twice a year.
+#:
+#: Empty until :func:`refresh_overrides` runs, which the app does at startup
+#: and again on every worker when a mapping changes (see
+#: ``WorkerSyncEventType.MANAGED_TIERS``). Empty is not a failure state: it
+#: simply means the compiled defaults apply, which is what a fresh deployment
+#: should do.
+_OVERRIDES: dict[tuple[str, str], ManagedUpstream] = {}
+
+
+async def refresh_overrides() -> int:
+    """Reload the operator-chosen mappings. Returns how many are in force.
+
+    Replaces the cache wholesale rather than merging, so a mapping deleted in
+    the database disappears here too and the tier falls back to its default.
+    Merging would leave a retired override applying for ever on whichever
+    worker happened to be running when it was set.
+    """
+    from sqlalchemy import select
+
+    from api.db import db_client
+    from api.db.models import ManagedTierMappingModel
+
+    global _OVERRIDES
+    try:
+        async with db_client.async_session() as session:
+            rows = (await session.scalars(select(ManagedTierMappingModel))).all()
+    except Exception as exc:  # noqa: BLE001 — a tier map must not fail startup
+        # Keep whatever is cached. A database blip must not silently move every
+        # managed customer onto a different vendor mid-shift.
+        logger.warning("Could not refresh managed tier mappings: {}", exc)
+        return len(_OVERRIDES)
+
+    _OVERRIDES = {
+        (row.component.strip().lower(), row.tier.strip().lower()): ManagedUpstream(
+            row.provider.strip(), row.model.strip()
+        )
+        for row in rows
+    }
+    logger.info("Managed tier mappings in force: {}", len(_OVERRIDES))
+    return len(_OVERRIDES)
+
+
+def env_override(component: str, tier: str) -> str | None:
+    """The environment variable set for this tier, if any.
+
+    Reported by the operator screen rather than used by it. An environment
+    variable that quietly outranked a saved choice would be the rate card's
+    "I changed it and nothing happened" all over again, so the table wins and
+    this exists to make the other setting visible instead of surprising.
+    """
+    return os.getenv(f"MANAGED_{component.upper()}_{tier.upper()}") or None
+
+
 def resolve(component: CostComponent | str, tier: str | None) -> ManagedUpstream:
     """The provider and model serving a managed tier.
 
@@ -208,6 +302,12 @@ def resolve(component: CostComponent | str, tier: str | None) -> ManagedUpstream
     if component_value == "llm":
         requested = _RETIRED_LLM_TIERS.get(requested, requested)
     key = (component_value, requested)
+
+    # The operator's choice first. See ``_OVERRIDES``.
+    override = _OVERRIDES.get(key)
+    if override is not None:
+        return override
+
     if key in mappings:
         return mappings[key]
 
@@ -224,4 +324,10 @@ def upstream_providers() -> set[tuple[str, str]]:
     platform key for is a managed customer whose calls will fail, and that is
     worth knowing before they dial rather than after.
     """
-    return {(component, up.provider) for (component, _), up in _defaults().items()}
+    resolved = dict(_defaults())
+    # An override changes which vendor we need a key for, so the readiness
+    # check has to see it. Reading only the defaults would report a platform
+    # key as present for a vendor no tier points at any more, and missing for
+    # the one that now serves it.
+    resolved.update(_OVERRIDES)
+    return {(component, up.provider) for (component, _), up in resolved.items()}

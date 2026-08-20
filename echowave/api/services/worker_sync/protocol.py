@@ -15,6 +15,10 @@ class WorkerSyncEventType(str, Enum):
     """Types of worker sync events."""
 
     LANGFUSE_CREDENTIALS = "langfuse_credentials"
+    # Which vendor serves a managed tier. Cached per worker so `resolve` can
+    # stay synchronous, which means a change made on one worker is invisible to
+    # the others until they are told.
+    MANAGED_TIERS = "managed_tiers"
 
 
 @dataclass
