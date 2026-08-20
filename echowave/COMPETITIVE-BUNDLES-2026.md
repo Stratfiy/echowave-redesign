@@ -118,39 +118,53 @@ recommended it. ₹1,500 buys 183–290 minutes: *strictly worse than the
 competitor at the same headline price*, which is the one comparison every buyer
 actually makes. **Keep ₹2,500.**
 
-### The real problem is the unit, not the amount
+### The unit: a balance, and an earlier draft was wrong about it
 
-Every competitor advertises **minutes**. Bolna sells 5,000. Agni sells 300.
-Vapi and Retell quote a rate. We would be the only one selling a rupee balance,
-and that is worse than it sounds for two reasons.
+This document previously recommended granting **minutes** rather than rupees,
+on the grounds that every competitor advertises minutes. That was wrong, and
+the arithmetic shows why.
 
-**It is not comparable.** "₹2,500 of balance" asks the buyer to divide by a
-per-minute rate they have not been told yet, against a competitor who simply
-says 300 minutes. Nobody does that arithmetic; they assume the worst or they
-leave.
+**Nobody sells all-in minutes. They sell fee-minutes.** Bolna's plan prices are
+exactly their platform fee multiplied by the included minutes:
 
-**It varies with a choice the customer has not made yet.** A rupee grant buys
-483 minutes on Sarvam bulbul and 304 on a heavy Western voice — the same
-bundle, the same price, 60% fewer calls, decided by a dropdown they picked
-before they understood it. That is a support conversation every month and a
-refund conversation some months.
+| Plan | Price | Minutes | Price ÷ minutes | Their quoted fee |
+|---|---|---|---|---|
+| Starter | $350 | 5,000 | **$0.070** | 7¢ |
+| Growth | $1,200 | 20,000 | **$0.060** | 6¢ |
+| Scale | $2,500 | 50,000 | **$0.050** | 5¢ |
 
-**Recommend selling minutes, not rupees.** Grant a minute entitlement priced at
-the managed Indic stack — which is the stack we want people on anyway, and the
-one the margin works best on. Overage in rupees at the published rate. That
-makes the bundle directly comparable to Agni and Bolna on the only axis buyers
-compare, and it moves the cost of an expensive stack choice to where it
-belongs: the overage, not the entitlement.
+To the cent, on all three. So "5,000 minutes included" means five thousand
+minutes *of Bolna's fee*. Speech, the language model, the voice and telephony
+are still pass-through on top, drawn from a separate balance — which is exactly
+what their own docs describe as Parts A, B and C.
 
-<!-- The exact minute figure has to wait for section 1 of the measurement
-     pack. It is the same unmeasured number, and here it decides whether the
-     flagship bundle beats the competitor or ties with it. -->
+**So a balance is the shape the market actually uses**, and ours is right. The
+minutes in a competitor's plan are a headline number sitting on top of a credit
+balance, not a replacement for one.
 
-**The number to grant is a measurement, not a decision.** At 850 chars/min a
-₹2,500-equivalent grant is ~480 minutes and the bundle wins comfortably; at
-2,300 it is ~300 and the bundle ties. Section 1 of `scripts/pricing/measure.sql`
-settles which — and this is no longer only a margin question, it is whether the
-headline product has a story.
+That also makes the comparison with Agni's 300 minutes less direct than the
+table above implies: theirs quotes a number for the AI stack with the number
+and PSTN priced separately, ours is a rupee balance that everything draws from.
+Same price point, different envelope. Worth confirming what Agni's 300 actually
+covers before either figure is used in a sales conversation.
+
+**Minutes only become sayable if a minute gets a fixed price.** They cannot be
+sold honestly while a minute costs ₹5.17 on one stack and ₹8.21 on another —
+the entitlement would mean something different for every customer. That is the
+dependency: `SIMPLE-MODEL-CHOICE.md` proposes fixed per-minute tier prices, and
+minute-denominated bundles are a thing that becomes possible *after* those
+land, not before. Until then, a balance is both what the market does and the
+only honest option.
+
+<!-- The chars/min measurement still decides the grant's real worth. It is the
+     same unmeasured number, and here it decides whether the flagship bundle
+     beats the competitor or ties with it. -->
+
+**What ₹2,500 is worth is still a measurement, not a decision.** At 850
+chars/min it is ~480 minutes and the bundle wins comfortably; at 2,300 it is
+~300 and it ties. Section 1 of `scripts/pricing/measure.sql` settles which —
+and this is no longer only a margin question, it is whether the headline
+product has a story.
 
 Whichever is chosen, **the balance must be measured, not assumed.** Section 6 of
 `scripts/pricing/measure.sql` returns minutes per organisation per month; the

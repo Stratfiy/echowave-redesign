@@ -61,10 +61,17 @@ the single most valuable thing in this proposal.
 <!-- It also makes the bundle work: a minute entitlement is only meaningful if
      a minute has one price, which cost-plus does not give you. -->
 
-**It also unblocks selling bundles in minutes.** A rupee balance had to be
-rupees because a minute had no fixed price. Give a minute a price and
-"500 minutes included" becomes sayable — which is what every competitor
-advertises and we cannot currently match.
+**It also unblocks selling bundles in minutes — eventually.** A balance has to
+be a balance today because a minute has no fixed price: it costs ₹5.17 on one
+stack and ₹8.21 on another, so an entitlement in minutes would mean something
+different for every customer. Give a minute a fixed all-in price and "500
+minutes included" becomes sayable.
+
+Worth being precise about what that would buy, because the competitors are not
+doing it either: Bolna's "5,000 minutes" is five thousand minutes of *their
+fee*, with providers still drawn from a balance on top — their plan price is
+the fee times the minutes, to the cent. Fixed all-in tiers would let us sell a
+minute that actually means a whole minute, which nobody currently offers.
 
 ## 3. Voices: do not invent names
 

@@ -143,12 +143,16 @@ rate card with holes in it.
 extra numbers ₹559. Nothing of this exists — there is no plan, bundle or
 subscription-tier code in the repository.
 
-**Size the balances against section 6 first, and grant minutes rather than
-rupees.** At our own all-in ₹5.17–8.21/min, ₹2,500 buys 304–483 minutes
-against Agni's 300 at the same ₹2,999 — parity at the pessimistic end, not the
-2–3x advantage an earlier draft assumed. A rupee grant is also not comparable
-to a competitor who advertises minutes, and it silently buys 60% fewer calls if
-the customer picks a heavy Western voice. See `COMPETITIVE-BUNDLES-2026.md`.
+**Size the balances against section 6 first.** At our own all-in ₹5.17–8.21/min,
+₹2,500 buys 304–483 minutes against Agni's 300 at the same ₹2,999 — parity at
+the pessimistic end, not the 2–3x advantage an earlier draft assumed.
+
+**Grant a balance, not minutes.** A competitor's "5,000 minutes" is minutes of
+*their platform fee* — Bolna's plan price is their fee times the included
+minutes to the cent — with providers still drawn from a credit balance on top.
+Minutes cannot be sold honestly while a minute costs ₹5.17 on one stack and
+₹8.21 on another; that needs the fixed tier prices in
+`SIMPLE-MODEL-CHOICE.md` first. See `COMPETITIVE-BUNDLES-2026.md`.
 
 Roughly a week of work, in this order:
 
