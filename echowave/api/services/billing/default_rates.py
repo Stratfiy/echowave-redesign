@@ -128,6 +128,19 @@ LLM_RATES = (
         _blend(0.80, 4.00),
         "Haiku-class list, blended",
     ),
+    # The OpenAI default in the picker, and it had no row of its own — so it
+    # fell through to the provider-wide fallback, which is deliberately set to
+    # the cheapest common model. That priced it at roughly a thirteenth of what
+    # it costs. Now the "Smart" managed tier resolves here, so the gap would
+    # have been a managed model billed at a thirteenth of its cost.
+    DefaultRate(
+        "openai",
+        "gpt-4.1",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(2.00, 8.00),
+        "$2.00/$8.00 per 1M, blended",
+    ),
     DefaultRate(
         "openai",
         "gpt-4.1-mini",
@@ -189,13 +202,25 @@ LLM_RATES = (
     # Sarvam publishes in rupees: ₹4/1M in, ₹16/1M out (₹2.5 cached, which this
     # single-rate schema cannot express). Roughly a quarter of what the previous
     # seeded guess assumed.
+    # Named as well as provider-wide. The "Lite" managed tier resolves to this
+    # model, and a tier that is a priced product should not be relying on a
+    # fallback that happens to describe it — the day Sarvam ships a second
+    # model, the fallback would price it as this one.
+    DefaultRate(
+        "sarvam",
+        "sarvam-105b",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(_inr(4.0), _inr(16.0)),
+        "Sarvam-105B — Rs4/Rs16 per 1M published, blended",
+    ),
     DefaultRate(
         "sarvam",
         "",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,
         _blend(_inr(4.0), _inr(16.0)),
-        "Sarvam-105B — Rs4/Rs16 per 1M published, blended",
+        "Sarvam provider-wide fallback, at the 105B price",
     ),
 )
 

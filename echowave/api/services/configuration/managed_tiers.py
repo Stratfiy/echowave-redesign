@@ -34,7 +34,38 @@ from api.enums import CostComponent
 
 #: The tiers a customer can choose. Deliberately small and behavioural — adding
 #: one is a product decision, and every tier must map for every component.
-LLM_TIERS = ("default", "fast", "lite", "accurate", "zen")
+#:
+#: Three, not five. ``fast``, ``lite`` and ``zen`` all resolved to the same
+#: model, so the picker offered a choice between three identical things and
+#: somebody choosing ``zen`` over ``lite`` for a better price was wrong in a
+#: way the screen encouraged. The retired names still resolve — see
+#: ``_RETIRED_LLM_TIERS`` — so a stored configuration naming one keeps the
+#: cheap model it chose rather than being quietly upgraded.
+LLM_TIERS = ("lite", "default", "accurate")
+
+#: Names no longer offered, mapped to what they always were. Resolving them to
+#: ``default`` instead would move an account from the cheapest model to the
+#: middle one and change their bill without anyone asking.
+_RETIRED_LLM_TIERS = {"fast": "lite", "zen": "lite"}
+
+#: What the customer reads. The tier key is a storage detail; these are the
+#: product, and they describe what the choice does rather than which vendor
+#: serves it — the buyer this is aimed at does not know one from another and
+#: should not have to.
+LLM_TIER_LABELS: dict[str, tuple[str, str]] = {
+    "lite": (
+        "Lite",
+        "Fastest and cheapest. Good for short, scripted calls.",
+    ),
+    "default": (
+        "Normal",
+        "Handles a real conversation. The right choice for most agents.",
+    ),
+    "accurate": (
+        "Smart",
+        "For calls where getting it wrong is expensive.",
+    ),
+}
 STT_TIERS = ("default",)
 TTS_TIERS = ("default",)
 EMBEDDINGS_TIERS = ("default",)
@@ -90,17 +121,20 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
     """
     return {
         # --- LLM -----------------------------------------------------------
-        ("llm", "default"): _tier("llm", "default", "google", "gemini-2.5-flash"),
-        # Flash-Lite 2.5 retired on 2026-10-16 and these three tiers all pointed
-        # at it, so three of the five managed LLM tiers would have stopped
-        # resolving on the same morning. 3.5 Flash-Lite is the successor on the
-        # direct Google API; Vertex customers get 3.1 Flash-Lite, which is why
-        # the two option lists differ.
-        ("llm", "fast"): _tier("llm", "fast", "google", "gemini-3.5-flash-lite"),
-        ("llm", "lite"): _tier("llm", "lite", "google", "gemini-3.5-flash-lite"),
-        ("llm", "accurate"): _tier("llm", "accurate", "openai", "gpt-4o"),
-        # "zen" is the quiet tier — cheapest that still holds a conversation.
-        ("llm", "zen"): _tier("llm", "zen", "google", "gemini-3.5-flash-lite"),
+        # Off Google entirely. Flash-Lite 2.5 retired and its successor came
+        # back 3.3x dearer at a price nobody had confirmed, which is a poor
+        # foundation for a tier whose whole promise is a stable price.
+        #
+        # Lite is Sarvam, and it is the interesting one: eight times cheaper
+        # per token than the Gemini it replaces, trained on Indian languages,
+        # and the same vendor already serving managed transcription and voice —
+        # so the cheap tier is one relationship and one key rather than three.
+        ("llm", "lite"): _tier("llm", "lite", "sarvam", "sarvam-105b"),
+        ("llm", "default"): _tier("llm", "default", "openai", "gpt-4.1-mini"),
+        ("llm", "accurate"): _tier("llm", "accurate", "openai", "gpt-4.1"),
+        # Retired names, kept resolving to the model they always served.
+        ("llm", "fast"): _tier("llm", "fast", "sarvam", "sarvam-105b"),
+        ("llm", "zen"): _tier("llm", "zen", "sarvam", "sarvam-105b"),
         # --- Speech --------------------------------------------------------
         # saarika:v2.5, not v2. Sarvam's own configuration class defaults to
         # v2.5 and offers only v2.5 and saaras:v3 — "saarika:v2" is a name from
@@ -170,7 +204,10 @@ def resolve(component: CostComponent | str, tier: str | None) -> ManagedUpstream
     ).lower()
 
     mappings = _defaults()
-    key = (component_value, (tier or "default").lower())
+    requested = (tier or "default").lower()
+    if component_value == "llm":
+        requested = _RETIRED_LLM_TIERS.get(requested, requested)
+    key = (component_value, requested)
     if key in mappings:
         return mappings[key]
 
