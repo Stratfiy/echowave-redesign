@@ -2812,6 +2812,21 @@ class CreditLedgerModel(Base):
             unique=True,
             postgresql_where=text("kind = 'reservation' AND ref_id IS NOT NULL"),
         ),
+        # And a plan cycle grants its balance at most once. Razorpay delivers
+        # webhooks at least once, so without this a redelivered
+        # `subscription.charged` would hand out a second Rs2,500 — real money,
+        # to an account that paid for it once. The ref is the provider's
+        # payment id, which is identical on every redelivery of the same
+        # collection; keying off the period instead would not work, because
+        # recording a collection advances the period.
+        Index(
+            "uq_credit_ledger_plan_ref",
+            "organization_id",
+            "ref_type",
+            "ref_id",
+            unique=True,
+            postgresql_where=text("kind = 'plan' AND ref_id IS NOT NULL"),
+        ),
         # One signup bonus per organization, ever. Two requests racing during
         # signup would both find no bonus and both grant one, so this is
         # enforced here rather than by the check in application code that the

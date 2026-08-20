@@ -475,6 +475,113 @@ async def create_mandate(
         return {"mandate": _mandate_view(mandate)}
 
 
+@router.get("/plan")
+async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+    """The starter plan: what it costs, what it includes, and whether they are on it.
+
+    The prices are returned rather than hardcoded in the client because they
+    are environment variables here, and a screen quoting a figure the server
+    would not collect is the class of bug the create-agent wizard already had.
+    """
+    from api.constants import (
+        NUMBER_RENTAL_PRICE_PAISE,
+        STARTER_PLAN_BALANCE_PAISE,
+        STARTER_PLAN_PRICE_PAISE,
+    )
+    from api.services.billing import mandates as mandate_service
+    from api.services.billing.tax import TaxError, gross_up
+
+    organization_id = _organization_id(user)
+    async with db_client.async_session() as session:
+        mandate = await mandate_service.get_mandate(
+            session,
+            organization_id=organization_id,
+            purpose=mandate_service.PURPOSE_STARTER_PLAN,
+        )
+        profile = await billing_profile.get_profile(
+            session, organization_id=organization_id
+        )
+
+    # What the card is actually charged. An export account with an LUT on file
+    # is charged the net figure; everyone else pays it plus GST. Returned as
+    # None rather than guessed when the profile cannot be taxed, so the screen
+    # can say "complete your billing details" instead of quoting a number that
+    # will change at the card form.
+    try:
+        gross_paise: int | None = gross_up(
+            taxable_paise=STARTER_PLAN_PRICE_PAISE,
+            country_code=profile.country_code,
+            state_code=profile.state_code,
+        )
+    except TaxError:
+        gross_paise = None
+
+    return {
+        "plan": {
+            # Every figure net, like the ledger, except gross_paise which says
+            # so in its name.
+            "price_paise": STARTER_PLAN_PRICE_PAISE,
+            "gross_paise": gross_paise,
+            "balance_paise": STARTER_PLAN_BALANCE_PAISE,
+            "number_paise": NUMBER_RENTAL_PRICE_PAISE,
+            "period": "monthly",
+        },
+        "mandate": _mandate_view(mandate),
+        "configured": mandate_service.is_configured(),
+        "billing_profile_complete": profile.is_complete,
+    }
+
+
+@router.post("/plan")
+async def subscribe_to_plan(
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> dict[str, Any]:
+    """Start the starter plan, and hand back the link where it is authorised.
+
+    Nothing is collected here and no balance is granted here. The first cycle
+    is collected by the customer's bank when it falls due, and the balance
+    arrives with it — see ``services/billing/plans.py``. Idempotent for the
+    same reason the rental mandate is: a customer who closes the authorisation
+    page and comes back must not end up with two banks collecting for one plan.
+    """
+    organization_id = _organization_id(user)
+    from api.services.billing import mandates as mandate_service
+
+    async with db_client.async_session() as session:
+        # An account already renting a number on its own mandate would end up
+        # paying for that number twice — once in the rental mandate, once
+        # inside the plan. Refused rather than silently reconciled, because
+        # which of the two they meant to keep is their decision.
+        rental = await mandate_service.get_mandate(
+            session,
+            organization_id=organization_id,
+            purpose=mandate_service.PURPOSE_NUMBER_RENTAL,
+        )
+        if rental is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This account already has a number rental on autopay. "
+                    "Cancel it before starting the plan, so the number is not "
+                    "paid for twice."
+                ),
+            )
+
+        try:
+            mandate = await mandate_service.create_plan_mandate(
+                session, organization_id=organization_id
+            )
+        except mandate_service.MandateNotConfigured as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except mandate_service.MandateError as exc:
+            logger.error(
+                "Could not start the plan for org {}: {}", organization_id, exc
+            )
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        await session.commit()
+        return {"mandate": _mandate_view(mandate)}
+
+
 @router.post("/mandate/cancel")
 async def cancel_mandate(
     user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),

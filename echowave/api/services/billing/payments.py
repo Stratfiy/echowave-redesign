@@ -46,7 +46,7 @@ from api.constants import (
     RAZORPAY_KEY_SECRET,
     RAZORPAY_WEBHOOK_SECRET,
 )
-from api.db.models import CreditLedgerModel, PaymentModel
+from api.db.models import CreditLedgerModel, PaymentMandateModel, PaymentModel
 from api.enums import CreditLedgerKind
 from api.services.billing.billing_profile import get_profile
 from api.services.billing.money import round_half_up_div
@@ -302,18 +302,37 @@ async def handle_webhook(
         # the monthly rental is collected under. Signature verification has
         # already happened above, which is the only thing that may change a
         # mandate's state.
-        from api.services.billing.mandates import apply_subscription_event
+        from api.services.billing.mandates import (
+            PURPOSE_STARTER_PLAN,
+            apply_subscription_event,
+        )
         from api.services.billing.rentals import record_mandate_collection
 
         outcome = await apply_subscription_event(session, event=event)
         if outcome.get("charged"):
-            # The bank collected. Recording the period here is what stops the
-            # monthly cron debiting the prepaid balance for the same month —
-            # two collection paths for one period is a double charge, and it is
-            # the kind that looks correct in both ledgers separately.
-            outcome["period"] = await record_mandate_collection(
-                session, mandate_id=outcome["mandate_id"], event=event
-            )
+            # The bank collected. What that buys depends on which standing
+            # instruction it was: a rental mandate pays for a number's month,
+            # the starter plan pays for that *and* a call balance. Routed on
+            # the mandate's purpose rather than on the amount, because two
+            # plans priced the same would be indistinguishable by amount and
+            # the difference is what the customer was sold.
+            mandate = await session.get(PaymentMandateModel, outcome["mandate_id"])
+            if mandate is not None and mandate.purpose == PURPOSE_STARTER_PLAN:
+                from api.services.billing.plans import grant_plan_cycle
+
+                # Settles both halves, the rent included — so this branch must
+                # not also call record_mandate_collection below.
+                outcome["plan"] = await grant_plan_cycle(
+                    session, mandate=mandate, event=event
+                )
+            else:
+                # Recording the period here is what stops the monthly cron
+                # debiting the prepaid balance for the same month — two
+                # collection paths for one period is a double charge, and it is
+                # the kind that looks correct in both ledgers separately.
+                outcome["period"] = await record_mandate_collection(
+                    session, mandate_id=outcome["mandate_id"], event=event
+                )
         return outcome
 
     if event_type not in {"payment.captured", "payment.failed"}:

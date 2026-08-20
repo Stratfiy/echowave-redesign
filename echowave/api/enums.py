@@ -277,6 +277,11 @@ class CreditLedgerKind(str, Enum):
     # dials, and a statement that folded it into usage would tell a customer
     # they were charged for calls they never made.
     RENTAL = "rental"
+    # The call balance a starter-plan cycle grants. Distinct from TOPUP because
+    # it is not credit the customer chose to buy: it arrives with the plan, on
+    # the plan's schedule, and a statement that called it a top-up would invite
+    # the question of when they bought it.
+    PLAN = "plan"
 
 
 class BillingAuditAction(str, Enum):

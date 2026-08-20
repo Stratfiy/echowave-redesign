@@ -216,6 +216,31 @@ PLATFORM_PLIVO_APPLICATION_ID = os.getenv("PLATFORM_PLIVO_APPLICATION_ID") or No
 NUMBER_RENTAL_COST_PAISE = int(os.getenv("NUMBER_RENTAL_COST_PAISE", "25000"))
 NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "49900"))
 
+# --- The starter plan ---------------------------------------------------------
+#
+# One price a month that covers a phone number and a talking allowance:
+#
+#     Rs2,500 of call balance  +  Rs499 for the number  =  Rs2,999 net
+#
+# The price is **derived**, not typed. Writing 299900 here as a third
+# independent number is how the three drift apart: somebody raises the rental to
+# Rs599, the plan keeps collecting Rs2,999, and the number is sold at a loss by
+# an arithmetic nobody re-did. Deriving it means the plan price follows the
+# rental price by construction.
+#
+# All three are **net of GST**, like every other figure the ledger deals in. The
+# customer is charged the grossed-up amount — Rs3,538.82 domestic at 18% — and
+# `mandates.create_plan_mandate` does that conversion against the account's own
+# billing profile, so an export customer with an LUT on file is charged the net
+# figure instead.
+STARTER_PLAN_BALANCE_PAISE = int(os.getenv("STARTER_PLAN_BALANCE_PAISE", "250000"))
+STARTER_PLAN_PRICE_PAISE = STARTER_PLAN_BALANCE_PAISE + NUMBER_RENTAL_PRICE_PAISE
+
+# Pin the Razorpay plan, exactly as with the rental plan: a plan created lazily
+# per environment fragments the provider's own reporting into pieces that cannot
+# be told apart afterwards.
+RAZORPAY_STARTER_PLAN_ID = os.getenv("RAZORPAY_STARTER_PLAN_ID") or None
+
 # What we charge for provider usage on *our* keys, as basis points of what the
 # vendor charges us. 13000 = 1.30x; 10000 would be at cost.
 #
