@@ -27,6 +27,7 @@ class WorkflowClient(BaseDBClient):
         workflow_definition: dict,
         user_id: int,
         organization_id: int = None,
+        workflow_configurations: dict | None = None,
     ) -> WorkflowModel:
         async with self.async_session() as session:
             try:
@@ -35,6 +36,7 @@ class WorkflowClient(BaseDBClient):
                     workflow_definition=workflow_definition,  # Keep for backwards compatibility
                     user_id=user_id,
                     organization_id=organization_id,
+                    workflow_configurations=workflow_configurations or {},
                 )
                 session.add(new_workflow)
                 await session.flush()  # Flush to get the workflow ID

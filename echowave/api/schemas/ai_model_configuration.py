@@ -67,6 +67,16 @@ class DecibylManagedAIModelConfiguration(BaseModel):
     voice: str = DECIBYL_DEFAULT_VOICE
     speed: float = Field(default=1.0, ge=DECIBYL_SPEED_MIN, le=DECIBYL_SPEED_MAX)
     language: str = DECIBYL_DEFAULT_LANGUAGE
+    #: Which language-model tier this agent talks on — ``lite``, ``default`` or
+    #: ``accurate``, shown to the customer as Lite / Normal / Smart. Managed
+    #: mode had no field for it and always ran the default, so the choice
+    #: existed in the tier map and nowhere a customer could reach it.
+    #:
+    #: Not validated against the offered list here: a retired tier name in a
+    #: stored configuration still resolves (see ``managed_tiers``), and
+    #: rejecting it at load would break an agent that has been dialling
+    #: happily for months.
+    llm_tier: str = "default"
 
 
 # The two classes below no longer reject ``decibyl`` in a slot.
@@ -171,7 +181,9 @@ def _compile_decibyl_configuration(
         llm=DecibylLLMService(
             provider=ServiceProviders.DECIBYL,
             api_key=configuration.api_key,
-            model="default",
+            # The tier, not a vendor model name — managed_resolution reads this
+            # field as the tier to resolve.
+            model=configuration.llm_tier,
         ),
         tts=DecibylTTSService(
             provider=ServiceProviders.DECIBYL,

@@ -21,6 +21,7 @@ from api.schemas.workflow import WorkflowRunResponseSchema
 from api.schemas.workflow_configurations import WorkflowConfigurationDefaults
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
+from api.services.configuration.agent_options import managed_stack_override
 from api.services.configuration.ai_model_configuration import (
     WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
     check_for_masked_keys_in_ai_model_configuration_v2,
@@ -364,6 +365,11 @@ class CreateWorkflowTemplateRequest(BaseModel):
     languages: list[str] = Field(default_factory=list, max_length=12)
     gender: str = Field("", max_length=16)
     tone: str = Field("", max_length=40)
+    #: The managed voice and language-model tier the wizard chose. Written onto
+    #: the agent as a model override so the choice survives the create — the
+    #: alternative is a wizard that asks and then quietly uses the org default.
+    voice: str = Field("", max_length=64)
+    llm_tier: str = Field("", max_length=32)
 
     # Step 2 — conversation
     welcome_message: str = Field("", max_length=2000)
@@ -597,6 +603,14 @@ async def create_workflow_from_template(
         # hoped for — see services/workflow/agent_brief.py.
         workflow_def = apply_brief(workflow_def, brief)
 
+        # The voice and brain the wizard asked about, as an agent-level model
+        # override. Both slots stay managed — they name a tier, and
+        # managed_resolution turns that into a vendor at call time — so this
+        # records a product choice rather than pinning a vendor model.
+        workflow_configurations = managed_stack_override(
+            voice=request.voice, llm_tier=request.llm_tier
+        )
+
         trigger_paths = extract_trigger_paths(workflow_def) if workflow_def else []
         if trigger_paths:
             try:
@@ -611,6 +625,7 @@ async def create_workflow_from_template(
             workflow_definition=workflow_def,
             user_id=user.id,
             organization_id=user.selected_organization_id,
+            workflow_configurations=workflow_configurations,
         )
 
         capture_event(

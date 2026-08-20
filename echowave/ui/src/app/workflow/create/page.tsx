@@ -27,8 +27,9 @@
 
 import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { client } from "@/client/client.gen";
 import { createWorkflowFromTemplateApiV1WorkflowCreateTemplatePost } from "@/client/sdk.gen";
 import { Button } from "@/components/ui/button";
 import {
@@ -106,6 +107,30 @@ const INDUSTRIES = [
 ];
 
 const STEPS = ["Identity", "Conversation", "Closing"] as const;
+
+/** The bundle balance, so the wizard can say what it buys. */
+const BUNDLE_BALANCE_PAISE = 250000;
+
+type Brain = {
+    tier: string;
+    label: string;
+    blurb: string;
+    paise_per_minute: number;
+};
+
+type VoiceOption = {
+    voice_id: string;
+    name: string;
+    gender: string | null;
+    description: string | null;
+};
+
+type AgentOptions = { brains: Brain[]; voices: VoiceOption[] };
+
+/** "₹5.20" from 520 paise. */
+function rupees(paise: number): string {
+    return `₹${(paise / 100).toFixed(2)}`;
+}
 
 function Chip({
     label,
@@ -188,6 +213,12 @@ export default function CreateWorkflowPage() {
     const [tone, setTone] = useState(TONES[0]);
     const [objective, setObjective] = useState("");
 
+    // What it sounds like and how clever it is, in that order — the voice is
+    // the thing a caller notices and the buyer has an opinion about.
+    const [options, setOptions] = useState<AgentOptions | null>(null);
+    const [voice, setVoice] = useState<string>("");
+    const [brain, setBrain] = useState<string>("default");
+
     // Step 2 — conversation
     const [welcome, setWelcome] = useState("");
     const [guardrails, setGuardrails] = useState(DEFAULT_GUARDRAILS.join("\n"));
@@ -198,6 +229,33 @@ export default function CreateWorkflowPage() {
     const [closingLine, setClosingLine] = useState("");
     const [useHangupPrompt, setUseHangupPrompt] = useState(false);
     const [hangupPrompt, setHangupPrompt] = useState("");
+
+    useEffect(() => {
+        if (!user) return;
+        let cancelled = false;
+        void (async () => {
+            // Not in the generated SDK yet; the route is newer than the last
+            // client generation.
+            const response = await client.get({ url: "/api/v1/agent-options" });
+            if (cancelled || response.error) return;
+            const data = response.data as AgentOptions | undefined;
+            if (!data) return;
+            setOptions(data);
+            setVoice((current) => current || (data.voices[0]?.voice_id ?? ""));
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [user]);
+
+    const chosenBrain = options?.brains.find((b) => b.tier === brain) ?? null;
+    // Shown with a "roughly" in front of it. It moves with the rate card and
+    // with how much the agent actually says, so it is an estimate in the
+    // honest sense rather than an entitlement.
+    const approxMinutes =
+        chosenBrain && chosenBrain.paise_per_minute > 0
+            ? Math.floor(BUNDLE_BALANCE_PAISE / chosenBrain.paise_per_minute)
+            : null;
 
     const guardrailCount = useMemo(
         () => guardrails.split("\n").filter((line) => line.trim()).length,
@@ -234,6 +292,8 @@ export default function CreateWorkflowPage() {
             languages,
             gender,
             tone,
+            voice,
+            llm_tier: brain,
             welcome_message: welcome.trim(),
             conversation_flow: flow.trim(),
             // Empty means "apply the server's own", so an untouched list is
@@ -441,19 +501,93 @@ export default function CreateWorkflowPage() {
                             </div>
                         </Field>
 
+                        <Field
+                            label="Voice"
+                            hint="What the caller hears. Changeable later without rebuilding the agent."
+                        >
+                            <div className="flex flex-wrap gap-2">
+                                {(options?.voices ?? []).map((option) => (
+                                    <Chip
+                                        key={option.voice_id}
+                                        label={
+                                            option.description
+                                                ? `${option.name} — ${option.description}`
+                                                : option.name
+                                        }
+                                        selected={voice === option.voice_id}
+                                        onClick={() => {
+                                            setVoice(option.voice_id);
+                                            if (option.gender) {
+                                                setGender(
+                                                    option.gender === "female"
+                                                        ? "Female"
+                                                        : "Male",
+                                                );
+                                            }
+                                        }}
+                                    />
+                                ))}
+                                {!options && (
+                                    <span className="text-sm text-muted-foreground">
+                                        Loading voices…
+                                    </span>
+                                )}
+                            </div>
+                        </Field>
+
+                        <Field
+                            label="How clever should it be?"
+                            hint="A bigger brain handles a caller who goes off script better, and costs more a minute."
+                        >
+                            <div className="grid gap-2 sm:grid-cols-3">
+                                {(options?.brains ?? []).map((option) => (
+                                    <button
+                                        key={option.tier}
+                                        type="button"
+                                        onClick={() => setBrain(option.tier)}
+                                        className={cn(
+                                            "rounded-lg border p-3 text-left transition-colors",
+                                            brain === option.tier
+                                                ? "border-primary bg-primary/5"
+                                                : "border-border hover:bg-muted/40",
+                                        )}
+                                    >
+                                        <span className="flex items-baseline justify-between gap-2">
+                                            <span className="font-medium">
+                                                {option.label}
+                                            </span>
+                                            <span className="text-sm tabular-nums text-muted-foreground">
+                                                {rupees(option.paise_per_minute)}/min
+                                            </span>
+                                        </span>
+                                        <span className="mt-1 block text-xs text-muted-foreground">
+                                            {option.blurb}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </Field>
+
+                        {chosenBrain && (
+                            <p className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
+                                <strong>
+                                    {rupees(chosenBrain.paise_per_minute)} a minute
+                                </strong>
+                                {approxMinutes !== null && (
+                                    <>
+                                        {" — a ₹2,500 balance is roughly "}
+                                        <strong>{approxMinutes} minutes</strong> of
+                                        talking.
+                                    </>
+                                )}
+                                <span className="mt-1 block text-xs text-muted-foreground">
+                                    An estimate. A call that says more costs more, and the
+                                    figure moves if provider prices do.
+                                </span>
+                            </p>
+                        )}
+
                         <div className="grid gap-6 sm:grid-cols-2">
-                            <Field label="Voice">
-                                <div className="flex flex-wrap gap-2">
-                                    {["Female", "Male"].map((option) => (
-                                        <Chip
-                                            key={option}
-                                            label={option}
-                                            selected={gender === option}
-                                            onClick={() => setGender(option)}
-                                        />
-                                    ))}
-                                </div>
-                            </Field>
                             <Field label="Tone">
                                 <div className="flex flex-wrap gap-2">
                                     {TONES.map((option) => (
