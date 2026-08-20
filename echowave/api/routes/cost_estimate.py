@@ -35,6 +35,9 @@ class CostEstimateRequest(BaseModel):
     tts_provider: str | None = None
     tts_model: str = ""
     telephony_provider: str | None = None
+    #: Components the account runs on its own vendor key — "stt", "llm", "tts".
+    #: Those cost the customer nothing from us, so they price at zero.
+    customer_keyed: list[str] = []
 
 
 @router.post("/per-minute")
@@ -57,6 +60,7 @@ async def get_cost_per_minute(
             tts_provider=payload.tts_provider,
             tts_model=payload.tts_model,
             telephony_provider=payload.telephony_provider,
+            customer_keyed=set(payload.customer_keyed),
         )
 
     return {
@@ -75,12 +79,19 @@ async def get_cost_per_minute(
                 "paise_per_minute": line.paise_per_minute,
                 "basis": line.basis,
                 "rate_is_provider_fallback": line.rate_is_provider_fallback,
+                "customer_keyed": line.customer_keyed,
             }
             for line in estimate.lines
         ],
         # Components asked about that we hold no rate for. Surfaced rather than
         # silently priced at zero, which would understate the estimate.
         "unpriced": list(estimate.unpriced),
+        # The two facts a model picker has to show, and the reason this screen
+        # read as a broken calculator: a component priced against the
+        # provider's default rather than the chosen model shows the same
+        # number for every unpriced model on that provider.
+        "approximated": list(estimate.approximated),
+        "customer_keyed": list(estimate.customer_keyed),
         # The two fields the estimate is *about*, and both were being computed
         # and then dropped here. Without pulse_seconds the UI rendered "billed
         # in s pulses" — the differentiator stated as a typo — and without the

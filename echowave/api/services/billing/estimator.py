@@ -74,7 +74,15 @@ class EstimateLine:
     basis: str
     # True when the rate itself came from the provider-wide fallback row rather
     # than one quoted for this specific model.
+    #
+    # Worth reading as a warning, not a footnote. It means the price shown is
+    # the vendor's default for *some* model, not this one, so switching between
+    # two unpriced models on one provider shows an unchanged number — which
+    # reads as a broken calculator rather than a missing rate.
     rate_is_provider_fallback: bool = False
+    # True when the customer runs this slot on their own key. They pay the
+    # vendor directly, so we charge nothing for it and the line is zero.
+    customer_keyed: bool = False
 
 
 @dataclass(frozen=True)
@@ -87,6 +95,13 @@ class CostEstimate:
     # Components we were asked about but hold no rate for. Reported rather than
     # priced at zero, exactly as the cost engine does for a real call.
     unpriced: tuple[str, ...]
+    # Components priced against a provider-wide fallback rather than a rate for
+    # the model actually chosen. Hoisted out of the lines because it is the
+    # difference between "this is what it costs" and "this is what something on
+    # that provider costs", and a caller should not have to go looking.
+    approximated: tuple[str, ...] = ()
+    # Components the customer runs on their own key, charged at zero.
+    customer_keyed: tuple[str, ...] = ()
     # The same total in dollars, because that is the unit every competitor
     # quotes and the unit our own list price is fixed in. Derived from the
     # rupee figure rather than computed separately, so the two can never
@@ -251,6 +266,7 @@ async def estimate_cost_per_minute(
     telephony_provider: str | None = None,
     at: datetime | None = None,
     marked_up: bool = True,
+    customer_keyed: frozenset[str] | set[str] | None = None,
 ) -> CostEstimate:
     """What one connected minute costs on this stack, itemised.
 
@@ -264,53 +280,79 @@ async def estimate_cost_per_minute(
     costs *us* — which is an operator's view and the one place the raw vendor
     rate is the right number.
 
-    A slot the customer runs on their own key is not marked up on the invoice
-    either; it produces no provider line at all, and the platform fee is
-    uplifted instead. Such a slot should simply not be passed here — an
-    estimate that prices a vendor the customer pays directly is double
-    counting whatever multiple it uses.
+    ``customer_keyed`` names the components — ``"stt"``, ``"llm"``, ``"tts"`` —
+    the account runs on its own vendor key. Those cost the customer nothing
+    *from us*: they have already paid the vendor directly, the invoice carries
+    no provider line for them (see ``usage.usage_items_from_usage_info``), and
+    the platform fee is uplifted instead. They are reported as zero-cost lines
+    rather than dropped, so the screen can show the component with a price of
+    nil and say why, instead of a row silently disappearing when a key is
+    added.
     """
     at = at or datetime.now(UTC)
     lines: list[EstimateLine] = []
     unpriced: list[str] = []
+    keyed = {c.strip().lower() for c in (customer_keyed or set())}
+
+    def _free(component: CostComponent, provider: str, model: str = ""):
+        """A slot on the customer's own key: shown, and priced at nothing."""
+        return EstimateLine(
+            component=component.value,
+            provider=provider,
+            model=model or None,
+            units_per_minute=0,
+            unit_rate_mpaise=0,
+            paise_per_minute=0,
+            basis="customer_keyed",
+            customer_keyed=True,
+        )
 
     # Read as at the estimate's own moment, the same way costing reads it, so
     # the quote and the receipt cannot be computed against different multiples.
     markup_bps = await resolve_markup_bps(session, at=at) if marked_up else 10_000
 
     if stt_provider:
-        line = await _per_minute_line(
-            session,
-            component=CostComponent.STT,
-            provider=stt_provider,
-            at=at,
-            markup_bps=markup_bps,
-        )
-        lines.append(line) if line else unpriced.append(f"stt:{stt_provider}")
+        if "stt" in keyed:
+            lines.append(_free(CostComponent.STT, stt_provider, stt_model))
+        else:
+            line = await _per_minute_line(
+                session,
+                component=CostComponent.STT,
+                provider=stt_provider,
+                at=at,
+                markup_bps=markup_bps,
+            )
+            lines.append(line) if line else unpriced.append(f"stt:{stt_provider}")
 
     if llm_provider:
-        line = await _inference_line(
-            session,
-            component=CostComponent.LLM,
-            provider=llm_provider,
-            model=llm_model,
-            at=at,
-            default_units=DEFAULT_TOKENS_PER_MINUTE,
-            markup_bps=markup_bps,
-        )
-        lines.append(line) if line else unpriced.append(f"llm:{llm_provider}")
+        if "llm" in keyed:
+            lines.append(_free(CostComponent.LLM, llm_provider, llm_model))
+        else:
+            line = await _inference_line(
+                session,
+                component=CostComponent.LLM,
+                provider=llm_provider,
+                model=llm_model,
+                at=at,
+                default_units=DEFAULT_TOKENS_PER_MINUTE,
+                markup_bps=markup_bps,
+            )
+            lines.append(line) if line else unpriced.append(f"llm:{llm_provider}")
 
     if tts_provider:
-        line = await _inference_line(
-            session,
-            component=CostComponent.TTS,
-            provider=tts_provider,
-            model=tts_model,
-            at=at,
-            default_units=DEFAULT_CHARACTERS_PER_MINUTE,
-            markup_bps=markup_bps,
-        )
-        lines.append(line) if line else unpriced.append(f"tts:{tts_provider}")
+        if "tts" in keyed:
+            lines.append(_free(CostComponent.TTS, tts_provider, tts_model))
+        else:
+            line = await _inference_line(
+                session,
+                component=CostComponent.TTS,
+                provider=tts_provider,
+                model=tts_model,
+                at=at,
+                default_units=DEFAULT_CHARACTERS_PER_MINUTE,
+                markup_bps=markup_bps,
+            )
+            lines.append(line) if line else unpriced.append(f"tts:{tts_provider}")
 
     if telephony_provider:
         line = await _per_minute_line(
@@ -363,6 +405,14 @@ async def estimate_cost_per_minute(
         telephony_paise_per_minute=telephony,
         platform_paise_per_minute=platform_line.paise_per_minute,
         unpriced=tuple(unpriced),
+        # Hoisted so a caller reads one field instead of scanning lines. This
+        # is the signal that answers "why did the price not change when I
+        # picked a different model" — it did not change because we hold no
+        # rate for either, and both fell through to the same provider row.
+        approximated=tuple(
+            line.component for line in lines if line.rate_is_provider_fallback
+        ),
+        customer_keyed=tuple(line.component for line in lines if line.customer_keyed),
         total_micros_usd_per_minute=(
             mpaise_to_micros_usd(
                 mpaise=total_paise * 1000, usd_inr_paise=platform.usd_inr_paise

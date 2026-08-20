@@ -466,6 +466,34 @@ def _tier_dict(row: PlatformVolumeTierModel) -> dict:
     }
 
 
+def shadowed_by(rows) -> dict[tuple[str, str], list[str]]:
+    """For each provider-wide row, the named model rows that override it.
+
+    Editing a provider-wide rate and watching nothing change is the most
+    confusing thing this screen can do, and it is correct behaviour: the
+    resolver takes the most specific row that matches, so a rate quoted for
+    ``gpt-4.1-mini`` beats the one quoted for ``openai``. Nothing said so, and
+    the more named rows the price book grows the more often the edit an
+    operator makes is the one that does nothing.
+
+    Keyed by ``(component, provider)`` — the identity of the fallback row —
+    with the model names that shadow it. An empty list means the edit reaches
+    every call on that provider, which is the case the operator assumes.
+    """
+    out: dict[tuple[str, str], list[str]] = {}
+    for row in rows:
+        if row.model:
+            continue
+        out[(row.component, row.provider)] = sorted(
+            other.model
+            for other in rows
+            if other.model
+            and other.provider == row.provider
+            and other.component == row.component
+        )
+    return out
+
+
 async def get_rate_card(session: AsyncSession) -> RateCard:
     """The prices in force right now, for the admin screen."""
     tiers = list(

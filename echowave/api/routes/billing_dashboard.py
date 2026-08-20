@@ -723,7 +723,20 @@ async def set_provider_rate(
             raise _rate_card_error(exc) from exc
         await session.commit()
         card = await rate_card.get_rate_card(session)
-    return {"provider_rates": card.provider_rates}
+    return {
+        "provider_rates": card.provider_rates,
+        # Which named rows override each provider-wide row. An operator who
+        # edits the provider rate and sees no change is looking at a row that
+        # something more specific outranks, and until this was returned nothing
+        # on the screen could say so.
+        "shadowed_by": {
+            f"{component}:{provider}": models
+            for (component, provider), models in rate_card.shadowed_by(
+                card.provider_rates
+            ).items()
+            if models
+        },
+    }
 
 
 @router.delete("/rate-card/providers")
