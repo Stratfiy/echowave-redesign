@@ -20,7 +20,10 @@ from api.services.telephony.base import (
     ProviderSyncResult,
     TelephonyProvider,
 )
-from api.services.telephony.escalation import DEFAULT_BRIEFING
+from api.services.telephony.escalation import (
+    DEFAULT_BRIEFING,
+    TRANSFER_AMD_TIMEOUT_SECONDS,
+)
 from api.utils.common import get_backend_endpoints
 from api.utils.telephony_address import normalize_telephony_address
 
@@ -655,6 +658,13 @@ class TwilioProvider(TelephonyProvider):
                 "completed",
             ],
             "StatusCallbackMethod": "POST",
+            # Populates AnsweredBy on the callback, so the caller is not
+            # bridged into a voicemail greeting. Twilio holds the TwiML until
+            # detection resolves, which delays the briefing by a second or two
+            # — paid on the destination's leg, where the caller is on hold
+            # either way, and cheap against handing them to a recording.
+            "MachineDetection": "Enable",
+            "MachineDetectionTimeout": TRANSFER_AMD_TIMEOUT_SECONDS,
         }
 
         # Add any additional kwargs

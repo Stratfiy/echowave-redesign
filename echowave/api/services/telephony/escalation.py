@@ -106,3 +106,45 @@ def briefing_from_config(
         initial_context=initial_context,
         gathered_context=gathered_context,
     )
+
+
+#: Values a carrier reports for who picked up. Twilio's vocabulary; the others
+#: that do AMD report a subset of the same words.
+#:
+#: ``unknown`` is deliberately **not** here. Detection is probabilistic and it
+#: fails towards "unknown" on exactly the lines this product runs over — a noisy
+#: Indian mobile, a handset answered mid-sentence. Refusing to bridge on an
+#: uncertain result would abandon transfers to real people to avoid the rarer
+#: mistake, so an uncertain destination is treated as a person.
+MACHINE_ANSWERS = frozenset(
+    {
+        "machine_start",
+        "machine_end_beep",
+        "machine_end_silence",
+        "machine_end_other",
+        "fax",
+    }
+)
+
+
+def destination_is_human(answered_by: str | None) -> bool:
+    """Whether the thing that picked up is worth handing a caller to.
+
+    "Answered" is not "answered by a person". An out-of-hours desk phone rolls
+    to voicemail and reports as answered, and the caller — who asked for a human
+    and has been told one is coming — gets bridged into a recorded greeting and
+    then silence. That is a worse outcome than the transfer failing, because a
+    failed transfer hands the conversation back to the agent, which can say so
+    and offer a callback.
+    """
+    if not answered_by:
+        return True
+    return answered_by.strip().lower() not in MACHINE_ANSWERS
+
+
+#: How long a carrier may spend deciding whether a person answered, before it
+#: gives up and reports ``unknown``. Twilio holds the briefing until this
+#: resolves, so it is dead air on the destination's leg — bounded low, because
+#: past a few seconds the human who picked up says "hello?" into silence and
+#: starts to hang up.
+TRANSFER_AMD_TIMEOUT_SECONDS = 5

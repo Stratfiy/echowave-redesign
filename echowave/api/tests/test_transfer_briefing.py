@@ -13,6 +13,7 @@ from api.services.telephony.escalation import (
     MAX_BRIEFING_CHARS,
     briefing_from_config,
     build_briefing,
+    destination_is_human,
 )
 
 
@@ -81,3 +82,32 @@ class TestFromConfig:
 
     def test_an_absent_config_gives_the_default(self):
         assert briefing_from_config({}) == DEFAULT_BRIEFING
+
+
+class TestWhoAnswered:
+    """Answered is not answered by a person."""
+
+    @pytest.mark.parametrize(
+        "answered_by",
+        ["machine_start", "machine_end_beep", "machine_end_silence", "fax"],
+    )
+    def test_a_machine_is_not_worth_bridging_a_caller_to(self, answered_by):
+        assert destination_is_human(answered_by) is False
+
+    def test_case_and_spacing_from_a_carrier_do_not_matter(self):
+        assert destination_is_human(" Machine_Start ") is False
+
+    def test_a_human_is(self):
+        assert destination_is_human("human") is True
+
+    def test_unknown_is_treated_as_a_person(self):
+        # Detection fails towards "unknown" on a noisy Indian mobile. Refusing
+        # to bridge on an uncertain result abandons transfers to real people to
+        # avoid the rarer mistake.
+        assert destination_is_human("unknown") is True
+
+    def test_a_carrier_that_reports_nothing_is_treated_as_a_person(self):
+        # Telnyx, ARI and Cloudonix do not populate it on this leg. Their
+        # transfers must keep working exactly as they did.
+        assert destination_is_human(None) is True
+        assert destination_is_human("") is True

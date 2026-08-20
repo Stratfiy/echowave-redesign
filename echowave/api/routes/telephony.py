@@ -44,6 +44,7 @@ from api.services.telephony import (
     voice_otp,
 )
 from api.services.telephony.call_transfer_manager import get_call_transfer_manager
+from api.services.telephony.escalation import destination_is_human
 from api.services.telephony.factory import (
     get_all_telephony_providers,
     get_default_telephony_provider,
@@ -1310,7 +1311,29 @@ async def complete_transfer_function_call(transfer_id: str, request: Request):
     conference_name = transfer_context.conference_name if transfer_context else None
 
     # Determine the result based on call status with user-friendly messaging
-    if call_status in ("in-progress", "answered"):
+    if call_status in ("in-progress", "answered") and not destination_is_human(
+        data.get("AnsweredBy")
+    ):
+        # Answered, but by a machine. Bridging here would put a caller who
+        # asked for a person into a voicemail greeting and then silence;
+        # failing hands the conversation back to the agent, which can say the
+        # line was unavailable and offer a callback.
+        logger.info(
+            f"Transfer {transfer_id} answered by {data.get('AnsweredBy')}; "
+            "not bridging the caller"
+        )
+        result = {
+            "status": "transfer_failed",
+            "reason": "answered_by_machine",
+            "message": (
+                "The transfer reached a voicemail rather than a person. "
+                "Let me take a message instead."
+            ),
+            "action": "transfer_failed",
+            "call_sid": call_sid,
+            "end_call": True,
+        }
+    elif call_status in ("in-progress", "answered"):
         result = {
             "status": "success",
             "message": "Great! The destination number answered. Let me transfer you now.",

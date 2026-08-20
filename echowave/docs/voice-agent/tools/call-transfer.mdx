@@ -203,6 +203,32 @@ Two limits worth knowing:
 If no briefing is set, the destination hears a short generic line rather than
 silence.
 
+## Voicemail is not a person
+
+"Answered" and "answered by a person" are different things. An out-of-hours
+desk phone rolls to voicemail and reports as answered — and a caller who asked
+for a human, and was told one was coming, gets bridged into a recorded greeting
+and then silence.
+
+On Twilio, Decibyl asks the carrier who picked up and **does not bridge the
+caller into a machine**. The transfer fails instead, which hands the
+conversation back to the agent — it can say the line was unavailable and offer
+a callback, which is a far better ending than a caller talking to an answering
+machine.
+
+<Note>
+**An uncertain answer counts as a person.** Detection is probabilistic and
+fails towards "unknown" on exactly the lines this runs over — a noisy mobile, a
+handset picked up mid-sentence. Refusing to bridge on an uncertain result would
+abandon transfers to real people in order to avoid the rarer mistake, so only a
+clear machine or fax stops the transfer.
+</Note>
+
+Detection costs a second or two before the briefing plays, spent on the
+destination's leg where the caller is on hold either way. Carriers that do not
+report who answered — Telnyx, Cloudonix and Asterisk ARI on this leg — transfer
+exactly as they did before.
+
 ## Transfer timeout
 
 Transfer timeout is the maximum time Decibyl waits for the destination to answer after the provider transfer starts.
