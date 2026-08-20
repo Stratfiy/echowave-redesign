@@ -25,9 +25,9 @@
  * was honoured by looking at the result.
  */
 
-import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2, Play, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { client } from "@/client/client.gen";
 import { createWorkflowFromTemplateApiV1WorkflowCreateTemplatePost } from "@/client/sdk.gen";
@@ -124,6 +124,8 @@ type VoiceOption = {
     gender: string | null;
     description: string | null;
     is_default: boolean;
+    sample_url: string | null;
+    sample_url_hi: string | null;
 };
 
 type AgentOptions = { brains: Brain[]; voices: VoiceOption[] };
@@ -219,6 +221,23 @@ export default function CreateWorkflowPage() {
     const [options, setOptions] = useState<AgentOptions | null>(null);
     const [voice, setVoice] = useState<string>("");
     const [brain, setBrain] = useState<string>("default");
+    // One player, reused. Seven audio elements would let two voices talk over
+    // each other, which is a comic way to fail an audition.
+    const playerRef = useRef<HTMLAudioElement | null>(null);
+    const [playing, setPlaying] = useState<string | null>(null);
+
+    const playSample = (option: VoiceOption) => {
+        const url = option.sample_url ?? option.sample_url_hi;
+        if (!url) return;
+        const player = playerRef.current ?? new Audio();
+        playerRef.current = player;
+        player.pause();
+        player.src = url;
+        setPlaying(option.voice_id);
+        player.onended = () => setPlaying(null);
+        player.onerror = () => setPlaying(null);
+        void player.play().catch(() => setPlaying(null));
+    };
 
     // Step 2 — conversation
     const [welcome, setWelcome] = useState("");
@@ -535,23 +554,53 @@ export default function CreateWorkflowPage() {
                                                 </p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {group.map((option) => (
-                                                        <Chip
+                                                        <span
                                                             key={option.voice_id}
-                                                            label={
-                                                                option.description
-                                                                    ? `${option.name} — ${option.description}`
-                                                                    : option.is_default
-                                                                      ? `${option.name} · default`
-                                                                      : option.name
-                                                            }
-                                                            selected={
-                                                                voice === option.voice_id
-                                                            }
-                                                            onClick={() => {
-                                                                setVoice(option.voice_id);
-                                                                setGender(heading);
-                                                            }}
-                                                        />
+                                                            className="inline-flex items-center"
+                                                        >
+                                                            <Chip
+                                                                label={
+                                                                    option.description
+                                                                        ? `${option.name} — ${option.description}`
+                                                                        : option.is_default
+                                                                          ? `${option.name} · default`
+                                                                          : option.name
+                                                                }
+                                                                selected={
+                                                                    voice ===
+                                                                    option.voice_id
+                                                                }
+                                                                onClick={() => {
+                                                                    setVoice(
+                                                                        option.voice_id,
+                                                                    );
+                                                                    setGender(heading);
+                                                                }}
+                                                            />
+                                                            {/* Only where there is
+                                                                something to play — a
+                                                                button that fails on
+                                                                click is worse than no
+                                                                button. */}
+                                                            {(option.sample_url ||
+                                                                option.sample_url_hi) && (
+                                                                <button
+                                                                    type="button"
+                                                                    aria-label={`Hear ${option.name}`}
+                                                                    onClick={() =>
+                                                                        playSample(option)
+                                                                    }
+                                                                    className="-ml-1 rounded-full p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+                                                                >
+                                                                    {playing ===
+                                                                    option.voice_id ? (
+                                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                                    ) : (
+                                                                        <Play className="h-3.5 w-3.5" />
+                                                                    )}
+                                                                </button>
+                                                            )}
+                                                        </span>
                                                     ))}
                                                 </div>
                                             </div>

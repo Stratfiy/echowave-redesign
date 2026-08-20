@@ -100,3 +100,41 @@ class TestOverride:
         effective = compile_ai_model_configuration_v3(stack)
         assert effective.tts.voice == "vidya"
         assert effective.llm.model == "default"
+
+
+class TestVoiceSamples:
+    """A sample is an optional asset — nothing may depend on it existing."""
+
+    def test_the_path_is_derived_and_normalised(self):
+        from api.services.configuration.voice_samples import sample_path
+
+        assert sample_path("Anushka", "hi") == "voice-samples/anushka-hi.wav"
+        assert sample_path("  KARUN  ", "en") == "voice-samples/karun-en.wav"
+
+    def test_samples_live_apart_from_call_audio(self):
+        # Product assets, not customer data — a retention sweep over call
+        # recordings must never reach them.
+        from api.services.configuration.voice_samples import SAMPLE_PREFIX, sample_path
+
+        assert sample_path("anushka", "en").startswith(f"{SAMPLE_PREFIX}/")
+
+    async def test_an_unknown_language_has_no_sample(self):
+        from api.services.configuration.voice_samples import sample_url
+
+        assert await sample_url("anushka", "ta") is None
+
+    async def test_storage_being_down_returns_no_sample_rather_than_raising(self):
+        # Storage failing must cost the picker its play buttons, not its
+        # existence — this runs with nothing listening on the storage port.
+        from api.services.configuration.voice_samples import sample_url
+
+        assert await sample_url("anushka", "en") is None
+
+    def test_every_sample_language_has_a_line_to_say(self):
+        from api.services.configuration.voice_samples import (
+            SAMPLE_LANGUAGES,
+            SAMPLE_LINES,
+        )
+
+        for language in SAMPLE_LANGUAGES:
+            assert SAMPLE_LINES.get(language, "").strip()

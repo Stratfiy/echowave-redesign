@@ -136,14 +136,18 @@ def compute_call_cost(
     markup_bps: int = 10_000,
     pulse_seconds: int = DEFAULT_PULSE_SECONDS,
     usage: tuple[UsageItem, ...] | list[UsageItem] = (),
-    provider_rates: Mapping[tuple[str, str], RateSpec] | None = None,
+    provider_rates: Mapping[tuple[str, str, str], RateSpec] | None = None,
     addon_rates: Mapping[str, int] | None = None,
 ) -> CallCost:
     """Cost one call. Pure — no I/O, no clock, no database.
 
-    ``provider_rates`` is keyed by ``(component, provider)``. A missing key
-    means no rate is on file; that usage is reported in ``uncosted`` instead of
-    being priced at zero.
+    ``provider_rates`` is keyed by ``(component, provider, model)`` — the model
+    included, because rates differ by more than an order of magnitude between
+    models from one vendor. A caller keys the same map twice: once under the
+    exact model, and once under ``""`` for the provider-wide fallback. The
+    lookup below tries the exact model first. A key matching neither means no
+    rate is on file; that usage is reported in ``uncosted`` instead of being
+    priced at zero, so an unpriced model understates nothing silently.
 
     The platform fee is charged on time rounded up to a whole ``pulse_seconds``,
     not to a whole minute. At ``pulse_seconds=60`` this reproduces whole-minute

@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pytest
 from pipecat.services.sarvam.llm import SarvamLLMService as RealSarvamLLMService
+from pipecat.services.settings import is_given
 from pipecat.transcriptions.language import Language
 
 from api.services.configuration.registry import (
@@ -193,13 +194,52 @@ class TestSarvamTTSServiceFactory:
         kwargs = mock_service.call_args.kwargs
         assert kwargs["settings"].voice == "rehan"
 
-    def test_create_sarvam_tts_service_defaults_blank_voice_id(self):
+    def test_create_sarvam_tts_service_omits_a_blank_voice_id(self):
+        """A blank voice must not be sent, and must not be filled in here.
+
+        Pipecat resolves an unset voice against the *model*: anushka on
+        bulbul:v2, shubh on v3. Naming a default here would hardcode the v2
+        answer and silently send a v2 speaker to a v3 model — so the setting is
+        left out entirely and the vendor library picks.
+        """
+        for model in ("bulbul:v2", "bulbul:v3"):
+            user_config = SimpleNamespace(
+                tts=SimpleNamespace(
+                    provider=ServiceProviders.SARVAM.value,
+                    api_key="test-key",
+                    model=model,
+                    voice="   ",
+                    language="hi-IN",
+                    speed=1.0,
+                )
+            )
+            audio_config = AudioConfig(
+                transport_in_sample_rate=16000, transport_out_sample_rate=16000
+            )
+
+            with patch(
+                "api.services.pipecat.service_factory.SarvamTTSService"
+            ) as mock_service:
+                create_tts_service(user_config, audio_config)
+
+            settings = mock_service.call_args.kwargs["settings"]
+            assert not is_given(settings.voice), (
+                f"a blank voice leaked a value on {model}: {settings.voice!r}"
+            )
+
+    def test_create_sarvam_tts_service_omits_the_default_sentinel(self):
+        """``"default"`` is our word for "you choose", not a Sarvam speaker.
+
+        It is truthy, so it survived every ``or``-style fallback and went to
+        the vendor as ``speaker="default"`` — a name bulbul:v2 does not have.
+        Every managed call with no explicit voice took that path.
+        """
         user_config = SimpleNamespace(
             tts=SimpleNamespace(
                 provider=ServiceProviders.SARVAM.value,
                 api_key="test-key",
                 model="bulbul:v2",
-                voice="   ",
+                voice="default",
                 language="hi-IN",
                 speed=1.0,
             )
@@ -213,5 +253,5 @@ class TestSarvamTTSServiceFactory:
         ) as mock_service:
             create_tts_service(user_config, audio_config)
 
-        kwargs = mock_service.call_args.kwargs
-        assert kwargs["settings"].voice == "anushka"
+        settings = mock_service.call_args.kwargs["settings"]
+        assert not is_given(settings.voice)

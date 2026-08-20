@@ -4,8 +4,12 @@ Everything else in this package prices a call after it happens. This module
 answers the question an operator asks *before*: "if I build an agent on this
 STT, LLM, TTS and telephony provider, what will a minute cost me?"
 
-The rates are the same effective-dated rows the receipts use, so an estimate
-and the invoice it predicts can never drift apart. What has to be assumed is
+The rates are the same effective-dated rows the receipts use, and the managed
+markup applied to them is the same effective-dated multiple, so an estimate and
+the invoice it predicts can never drift apart. Both halves matter: quoting the
+vendor's rate alone understated a managed minute by the whole margin, which is
+exactly the "discovered on the first invoice" surprise this module exists to
+prevent. What has to be assumed is
 consumption — tokens and characters per minute — and rather than ship a
 constant, that assumption is measured from our own completed calls on that
 exact model. A vendor's generic figure would be a guess about someone else's
@@ -27,11 +31,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import CallCostItemModel, WorkflowRunModel
 from api.enums import CostComponent
+from api.services.billing.cost_engine import MARKED_UP_COMPONENTS
+from api.services.billing.markup import resolve_markup_bps
 from api.services.billing.money import (
     DEFAULT_PULSE_SECONDS,
     cost_paise,
     mpaise_to_micros_usd,
     platform_fee_paise,
+    round_half_up_div,
 )
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
 
@@ -146,6 +153,19 @@ async def _measured_units_per_minute(
     return max(int(round(row.median)), 0)
 
 
+def _with_markup(paise: int, *, component: CostComponent, markup_bps: int) -> int:
+    """Apply the managed markup exactly as ``cost_engine`` does, or not at all.
+
+    Same component set, same rounding, once per line. Telephony is excluded
+    there because its rate card already holds the sell price, and it has to be
+    excluded here for the same reason — otherwise the estimate and the receipt
+    would disagree about a line whose rate an operator typed by hand.
+    """
+    if component.value not in MARKED_UP_COMPONENTS:
+        return paise
+    return round_half_up_div(paise * markup_bps, 10_000)
+
+
 async def _inference_line(
     session: AsyncSession,
     *,
@@ -154,6 +174,7 @@ async def _inference_line(
     model: str,
     at: datetime,
     default_units: int,
+    markup_bps: int,
 ) -> EstimateLine | None:
     """A per-minute line for a token- or character-metered component."""
     rate = await resolve_provider_rate(
@@ -173,8 +194,10 @@ async def _inference_line(
         model=model or None,
         units_per_minute=units,
         unit_rate_mpaise=rate.rate_mpaise,
-        paise_per_minute=cost_paise(
-            quantity=units, rate_mpaise=rate.rate_mpaise, unit=rate.unit
+        paise_per_minute=_with_markup(
+            cost_paise(quantity=units, rate_mpaise=rate.rate_mpaise, unit=rate.unit),
+            component=component,
+            markup_bps=markup_bps,
         ),
         basis="measured" if measured is not None else "default",
         rate_is_provider_fallback=bool(model) and rate.model == "",
@@ -187,6 +210,7 @@ async def _per_minute_line(
     component: CostComponent,
     provider: str,
     at: datetime,
+    markup_bps: int,
 ) -> EstimateLine | None:
     """A line for a component already quoted per minute — STT and telephony.
 
@@ -205,8 +229,10 @@ async def _per_minute_line(
         model=None,
         units_per_minute=60,
         unit_rate_mpaise=rate.rate_mpaise,
-        paise_per_minute=cost_paise(
-            quantity=60, rate_mpaise=rate.rate_mpaise, unit=rate.unit
+        paise_per_minute=_with_markup(
+            cost_paise(quantity=60, rate_mpaise=rate.rate_mpaise, unit=rate.unit),
+            component=component,
+            markup_bps=markup_bps,
         ),
         basis="exact",
     )
@@ -224,19 +250,41 @@ async def estimate_cost_per_minute(
     tts_model: str = "",
     telephony_provider: str | None = None,
     at: datetime | None = None,
+    marked_up: bool = True,
 ) -> CostEstimate:
     """What one connected minute costs on this stack, itemised.
 
     Priced with the account's own platform rate, so two accounts on different
     negotiated rates see their own number rather than a list price.
+
+    ``marked_up`` is what the customer pays: the vendor rate plus the managed
+    markup on the components we buy on our keys. That is the default because
+    every caller of this is a product surface answering "what will this cost
+    me" for a customer. Pass ``False`` for the other question — what the stack
+    costs *us* — which is an operator's view and the one place the raw vendor
+    rate is the right number.
+
+    A slot the customer runs on their own key is not marked up on the invoice
+    either; it produces no provider line at all, and the platform fee is
+    uplifted instead. Such a slot should simply not be passed here — an
+    estimate that prices a vendor the customer pays directly is double
+    counting whatever multiple it uses.
     """
     at = at or datetime.now(UTC)
     lines: list[EstimateLine] = []
     unpriced: list[str] = []
 
+    # Read as at the estimate's own moment, the same way costing reads it, so
+    # the quote and the receipt cannot be computed against different multiples.
+    markup_bps = await resolve_markup_bps(session, at=at) if marked_up else 10_000
+
     if stt_provider:
         line = await _per_minute_line(
-            session, component=CostComponent.STT, provider=stt_provider, at=at
+            session,
+            component=CostComponent.STT,
+            provider=stt_provider,
+            at=at,
+            markup_bps=markup_bps,
         )
         lines.append(line) if line else unpriced.append(f"stt:{stt_provider}")
 
@@ -248,6 +296,7 @@ async def estimate_cost_per_minute(
             model=llm_model,
             at=at,
             default_units=DEFAULT_TOKENS_PER_MINUTE,
+            markup_bps=markup_bps,
         )
         lines.append(line) if line else unpriced.append(f"llm:{llm_provider}")
 
@@ -259,6 +308,7 @@ async def estimate_cost_per_minute(
             model=tts_model,
             at=at,
             default_units=DEFAULT_CHARACTERS_PER_MINUTE,
+            markup_bps=markup_bps,
         )
         lines.append(line) if line else unpriced.append(f"tts:{tts_provider}")
 
@@ -268,6 +318,7 @@ async def estimate_cost_per_minute(
             component=CostComponent.TELEPHONY,
             provider=telephony_provider,
             at=at,
+            markup_bps=markup_bps,
         )
         lines.append(line) if line else unpriced.append(
             f"telephony:{telephony_provider}"

@@ -18,6 +18,12 @@ from api.db.models import (
     WorkflowRunModel,
 )
 from api.enums import CostComponent, RateUnit
+from api.services.billing.cost_engine import (
+    RateSpec,
+    UsageItem,
+    compute_call_cost,
+)
+from api.services.billing.markup import resolve_markup_bps
 from api.services.billing.estimator import (
     DEFAULT_TOKENS_PER_MINUTE,
     MIN_CALLS_FOR_MEASURED_ASSUMPTION,
@@ -92,10 +98,74 @@ class TestEstimate:
             + est.telephony_paise_per_minute
             + est.platform_paise_per_minute
         )
-        # A per-minute component is exact: 25000 mpaise/min = 25 paise.
+        # A per-minute component is exact: 25000 mpaise/min = 25 paise of
+        # vendor cost — and 35 to the customer, because STT is bought on our
+        # key and carries the managed markup. Quoting the 25 would have
+        # promised a price the invoice does not honour.
+        stt = next(l for l in est.lines if l.component == "stt")
+        assert stt.paise_per_minute == 35
+        assert stt.basis == "exact"
+
+        # Telephony is not marked up: 55000 mpaise/min is the sell price an
+        # operator typed, so it reaches the customer unchanged.
+        telephony = next(l for l in est.lines if l.component == "telephony")
+        assert telephony.paise_per_minute == 55
+
+    async def test_the_quote_is_what_the_receipt_will_charge(self, async_session):
+        """The estimate and the invoice, computed the same way from the same rows.
+
+        This is the property the module exists for, and it was false: the
+        estimate applied no managed markup while every receipt applied 1.4x, so
+        a customer choosing a stack was shown a number 40% under what their
+        first bill would say for STT, LLM and TTS.
+        """
+        org = await _org(async_session, "reconciles")
+        async_session.add(_rate("deepgram", CostComponent.STT, RateUnit.MINUTE, 25_000))
+        await async_session.flush()
+
+        est = await estimate_cost_per_minute(
+            async_session, organization_id=org.id, stt_provider="deepgram"
+        )
+        stt = next(l for l in est.lines if l.component == "stt")
+
+        # One minute of the same usage, priced by the engine the receipt uses.
+        charged = compute_call_cost(
+            billable_seconds=60,
+            platform_rate_mpaise=est.platform_paise_per_minute * 1_000,
+            markup_bps=await resolve_markup_bps(async_session),
+            pulse_seconds=60,
+            usage=(
+                UsageItem(
+                    component=CostComponent.STT, provider="deepgram", quantity=60
+                ),
+            ),
+            provider_rates={
+                ("stt", "deepgram", ""): RateSpec(
+                    rate_mpaise=25_000, unit=RateUnit.MINUTE
+                )
+            },
+        )
+        billed_stt = next(
+            line for line in charged.line_items if line.component == "stt"
+        )
+        assert stt.paise_per_minute == billed_stt.cost_paise
+
+    async def test_the_operator_view_can_ask_for_the_raw_vendor_cost(
+        self, async_session
+    ):
+        """What the stack costs *us* is a different question, and still askable."""
+        org = await _org(async_session, "unmarked")
+        async_session.add(_rate("deepgram", CostComponent.STT, RateUnit.MINUTE, 25_000))
+        await async_session.flush()
+
+        est = await estimate_cost_per_minute(
+            async_session,
+            organization_id=org.id,
+            stt_provider="deepgram",
+            marked_up=False,
+        )
         stt = next(l for l in est.lines if l.component == "stt")
         assert stt.paise_per_minute == 25
-        assert stt.basis == "exact"
 
     async def test_a_cheaper_model_yields_a_cheaper_estimate(self, async_session):
         """The point of the whole feature: the price moves when you pick a

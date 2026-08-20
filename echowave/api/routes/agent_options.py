@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
-from api.services.configuration import agent_options
+from api.services.configuration import agent_options, voice_samples
 
 router = APIRouter(prefix="/agent-options", tags=["agent-options"])
 
@@ -47,19 +47,25 @@ async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, An
                 }
             )
 
-    return {
-        "brains": priced,
-        "voices": [
+    # A sample URL per voice, or null where nothing has been recorded yet. The
+    # picker renders a play button only where there is something to play, so a
+    # deployment that has never run the generation script degrades to names
+    # rather than to buttons that fail when clicked.
+    voice_list = []
+    for voice in agent_options.voices():
+        voice_list.append(
             {
                 "voice_id": voice.voice_id,
                 "name": voice.name,
                 "gender": voice.gender,
                 "description": voice.description,
                 "is_default": voice.is_default,
+                "sample_url": await voice_samples.sample_url(voice.voice_id, "en"),
+                "sample_url_hi": await voice_samples.sample_url(voice.voice_id, "hi"),
             }
-            for voice in agent_options.voices()
-        ],
-    }
+        )
+
+    return {"brains": priced, "voices": voice_list}
 
 
 @router.get("/minutes")
