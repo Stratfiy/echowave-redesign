@@ -22,14 +22,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
     getRateCardApiV1AdminBillingRateCardGet,
-    retireProviderRateApiV1AdminBillingRateCardProvidersDelete,
     retireVolumeTierApiV1AdminBillingRateCardTiersMinPeriodMinutesDelete,
     setExchangeRateApiV1AdminBillingRateCardExchangeRatePut,
     setGlobalPlatformRateApiV1AdminBillingRateCardPlatformPut,
-    setProviderRateApiV1AdminBillingRateCardProvidersPut,
     setVolumeTierApiV1AdminBillingRateCardTiersPut,
 } from "@/client/sdk.gen";
 import { ManagedMarkupCard } from "@/components/billing/ManagedMarkupCard";
+import { ProviderCatalogue } from "@/components/billing/ProviderCatalogue";
 import { useAuthReady } from "@/components/charts/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,7 +58,6 @@ import {
     formatPaisePerUsd,
     formatRateMpaise,
 } from "@/lib/billing/format";
-import { cn } from "@/lib/utils";
 
 type Tier = {
     id: number;
@@ -99,27 +97,6 @@ type Card = {
         pulse_seconds: number;
         paise_per_usd: number;
     };
-};
-
-const COMPONENTS = [
-    { value: "stt", label: "Speech to text" },
-    { value: "llm", label: "Language model" },
-    { value: "tts", label: "Text to speech" },
-    { value: "telephony", label: "Telephony" },
-];
-
-const UNITS = [
-    { value: "minute", label: "per minute" },
-    { value: "1k_tokens", label: "per 1k tokens" },
-    { value: "1k_chars", label: "per 1k characters" },
-];
-
-/** What a component is normally metered in, so the form pre-selects sensibly. */
-const DEFAULT_UNIT: Record<string, string> = {
-    stt: "minute",
-    telephony: "minute",
-    llm: "1k_tokens",
-    tts: "1k_chars",
 };
 
 function priceOf(tier: Tier): string {
@@ -164,9 +141,9 @@ export default function RateCardPage() {
     return (
         <div className="space-y-5">
             <p className="text-sm leading-relaxed text-muted-foreground">
-                Saving a price here never edits the old one — it closes it and opens a
-                new one from the moment you save. Invoices already issued keep the price
-                they were charged at.
+                Saving a price here never edits the old one — it closes it and opens a new
+                one from the moment you save. Invoices already issued keep the price they
+                were charged at.
             </p>
 
             <PlatformPricePanel card={card} onSaved={load} />
@@ -176,7 +153,11 @@ export default function RateCardPage() {
             <ManagedMarkupCard />
             <VolumeTierPanel card={card} onSaved={load} />
             <ExchangeRatePanel card={card} onSaved={load} />
-            <ProviderRatePanel card={card} onSaved={load} />
+            {/* Grouped by vendor rather than listed flat. The list could not
+                show a model we have never priced — a row that does not exist
+                cannot be listed — and that gap is the one that bills as
+                uncosted usage. */}
+            <ProviderCatalogue />
         </div>
     );
 }
@@ -266,9 +247,7 @@ function PlatformPricePanel({
         } else {
             setCurrency("usd");
             setPrice(
-                (
-                    (usd ?? card.fallback.platform_rate_micros_usd) / 1_000_000
-                ).toFixed(3),
+                ((usd ?? card.fallback.platform_rate_micros_usd) / 1_000_000).toFixed(3),
             );
         }
         setPulse(String(current?.pulse_seconds ?? card.fallback.pulse_seconds));
@@ -379,9 +358,9 @@ function PlatformPricePanel({
 
             <p className="mt-3 flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
                 <Gauge className="mt-0.5 h-3 w-3 shrink-0" />
-                The pulse is the granularity time is rounded up to. At 60 this is
-                ordinary whole-minute billing; at 15 a 62-second call bills 75 seconds
-                instead of 120.
+                The pulse is the granularity time is rounded up to. At 60 this is ordinary
+                whole-minute billing; at 15 a 62-second call bills 75 seconds instead of
+                120.
                 {currency === "usd" &&
                     " A dollar price is converted at the exchange rate below, so the rupee amount moves with it."}
             </p>
@@ -435,8 +414,8 @@ function VolumeTierPanel({
                         Volume tiers
                     </h2>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                        A cheaper price once an account passes a monthly minute
-                        threshold. The highest threshold it has reached wins.
+                        A cheaper price once an account passes a monthly minute threshold.
+                        The highest threshold it has reached wins.
                     </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setAdding((v) => !v)}>
@@ -656,242 +635,6 @@ function ExchangeRatePanel({
                     </div>
                 )}
             </div>
-
-            <SaveFeedback saveError={saveError} saved={saved} />
-        </section>
-    );
-}
-
-/** What each provider costs us. Passed through to customers unchanged. */
-function ProviderRatePanel({
-    card,
-    onSaved,
-}: {
-    card: Card | null;
-    onSaved: () => Promise<void>;
-}) {
-    const { saving, saveError, saved, run } = useSaver(onSaved);
-    const [adding, setAdding] = useState(false);
-    const [provider, setProvider] = useState("");
-    const [model, setModel] = useState("");
-    const [component, setComponent] = useState("llm");
-    const [unit, setUnit] = useState("1k_tokens");
-    const [rate, setRate] = useState("");
-
-    const onComponentChange = (value: string) => {
-        setComponent(value);
-        setUnit(DEFAULT_UNIT[value] ?? "minute");
-    };
-
-    const submit = () => {
-        const value = Number(rate);
-        if (!Number.isFinite(value) || value < 0 || !provider.trim()) return;
-        void run(
-            "provider",
-            () =>
-                setProviderRateApiV1AdminBillingRateCardProvidersPut({
-                    body: {
-                        provider: provider.trim(),
-                        model: model.trim(),
-                        component,
-                        unit,
-                        // Rupees in the form, millipaise on the wire.
-                        rate_mpaise: Math.round(value * 100 * 1000),
-                    },
-                }),
-            "Could not save the provider rate",
-        );
-        setAdding(false);
-        setProvider("");
-        setModel("");
-        setRate("");
-    };
-
-    return (
-        <section className="glass-panel px-6 pb-6 pt-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                    <h2 className="text-[0.9375rem] font-semibold tracking-[-0.018em] text-foreground">
-                        Provider costs
-                    </h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                        What each provider charges us. Passed through to customers at
-                        cost — these are not margin, they are the bill we pay.
-                    </p>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => setAdding((v) => !v)}>
-                    {adding ? (
-                        <X className="mr-2 h-3.5 w-3.5" />
-                    ) : (
-                        <Plus className="mr-2 h-3.5 w-3.5" />
-                    )}
-                    {adding ? "Cancel" : "Add or update"}
-                </Button>
-            </div>
-
-            {adding && (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                    <div className="space-y-1.5">
-                        <Label htmlFor="pr-component">Component</Label>
-                        <Select value={component} onValueChange={onComponentChange}>
-                            <SelectTrigger id="pr-component">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {COMPONENTS.map((c) => (
-                                    <SelectItem key={c.value} value={c.value}>
-                                        {c.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="pr-provider">Provider</Label>
-                        <Input
-                            id="pr-provider"
-                            value={provider}
-                            onChange={(e) => setProvider(e.target.value)}
-                            placeholder="openai"
-                        />
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="pr-model">Model</Label>
-                        <Input
-                            id="pr-model"
-                            value={model}
-                            onChange={(e) => setModel(e.target.value)}
-                            placeholder="leave blank for all"
-                        />
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="pr-unit">Unit</Label>
-                        <Select value={unit} onValueChange={setUnit}>
-                            <SelectTrigger id="pr-unit">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {UNITS.map((u) => (
-                                    <SelectItem key={u.value} value={u.value}>
-                                        {u.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="pr-rate">Cost (₹)</Label>
-                        <div className="flex gap-2">
-                            <Input
-                                id="pr-rate"
-                                value={rate}
-                                inputMode="decimal"
-                                onChange={(e) => setRate(e.target.value)}
-                                placeholder="0.700"
-                            />
-                            <Button
-                                aria-label="Save provider rate"
-                                disabled={saving !== null}
-                                onClick={submit}
-                            >
-                                {saving === "provider" ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <Check className="h-4 w-4" />
-                                )}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {(card?.provider_rates.length ?? 0) === 0 ? (
-                <p className="mt-4 text-sm text-muted-foreground">
-                    No provider rates. Usage from these components will be reported as
-                    uncosted rather than priced at zero — see Unit economics.
-                </p>
-            ) : (
-                <div className="mt-4 overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Component</TableHead>
-                                <TableHead>Provider</TableHead>
-                                <TableHead>Model</TableHead>
-                                <TableHead className="text-right">Cost</TableHead>
-                                <TableHead>Since</TableHead>
-                                <TableHead className="text-right" />
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {card!.provider_rates.map((r) => (
-                                <TableRow key={r.id}>
-                                    <TableCell className="uppercase tracking-[0.05em] text-xs text-muted-foreground">
-                                        {r.component}
-                                    </TableCell>
-                                    <TableCell className="font-medium">
-                                        {r.provider}
-                                    </TableCell>
-                                    <TableCell>
-                                        {r.model ?? (
-                                            <span className="text-muted-foreground">
-                                                all models
-                                            </span>
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-right tabular-nums">
-                                        {formatRateMpaise(r.rate_mpaise)}{" "}
-                                        <span className="text-xs text-muted-foreground">
-                                            {UNITS.find((u) => u.value === r.unit)?.label ??
-                                                r.unit}
-                                        </span>
-                                    </TableCell>
-                                    <TableCell className="text-muted-foreground">
-                                        {formatDateIST(r.effective_from)}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            disabled={saving !== null}
-                                            onClick={() =>
-                                                run(
-                                                    `retire-provider-${r.id}`,
-                                                    () =>
-                                                        retireProviderRateApiV1AdminBillingRateCardProvidersDelete(
-                                                            {
-                                                                query: {
-                                                                    provider: r.provider,
-                                                                    component:
-                                                                        r.component,
-                                                                    model: r.model ?? "",
-                                                                },
-                                                            },
-                                                        ),
-                                                    "Could not retire the rate",
-                                                )
-                                            }
-                                        >
-                                            Retire
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
-            )}
-
-            <p
-                className={cn(
-                    "mt-3 text-xs leading-relaxed text-muted-foreground",
-                    (card?.provider_rates.length ?? 0) === 0 && "hidden",
-                )}
-            >
-                Retiring a rate does not make the usage free — it becomes uncosted, and
-                is reported as such on Unit economics. Pricing it at zero would overstate
-                margin.
-            </p>
 
             <SaveFeedback saveError={saveError} saved={saved} />
         </section>

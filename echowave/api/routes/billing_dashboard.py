@@ -943,6 +943,26 @@ async def list_bundles(user: UserModel = Depends(get_superuser)) -> dict[str, An
         }
 
 
+@router.get("/bundles/economics")
+async def bundle_economics(user: UserModel = Depends(get_superuser)) -> dict[str, Any]:
+    """What each bundle costs us, what it earns, and on which vendors.
+
+    The number a bundle editor has to show while the operator is still deciding
+    — changing what a tier points at moves the price of every bundle that names
+    it, and finding that out from next month's unit economics is finding out
+    too late.
+
+    Cost and price come from the same estimator, asked twice: once with the
+    managed markup and once without. Their difference is the margin. A margin
+    computed separately drifts from the invoice, which is how every pricing bug
+    found this week started.
+    """
+    from api.services.configuration import agent_options
+
+    async with db_client.async_session() as session:
+        return {"bundles": await agent_options.bundle_economics(session)}
+
+
 @router.put("/bundles")
 async def upsert_bundle(
     request: BundleRequest, user: UserModel = Depends(get_superuser)

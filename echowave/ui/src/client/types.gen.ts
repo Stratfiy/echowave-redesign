@@ -991,6 +991,58 @@ export type BodyUploadNumbersApiV1DoNotCallUploadPost = {
 };
 
 /**
+ * BundleRequest
+ *
+ * Create or update a bundle.
+ *
+ * Every field except ``slug`` is optional and omitting one leaves it. Sending
+ * an explicit null clears it, which is how a bundle is switched between
+ * pipeline and speech-to-speech — the tiers that no longer apply have to go.
+ */
+export type BundleRequest = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Blurb
+     */
+    blurb?: string | null;
+    /**
+     * Architecture
+     */
+    architecture?: string | null;
+    /**
+     * Stt Tier
+     */
+    stt_tier?: string | null;
+    /**
+     * Tts Tier
+     */
+    tts_tier?: string | null;
+    /**
+     * Llm Tier
+     */
+    llm_tier?: string | null;
+    /**
+     * Realtime Tier
+     */
+    realtime_tier?: string | null;
+    /**
+     * Display Order
+     */
+    display_order?: number | null;
+    /**
+     * Is Enabled
+     */
+    is_enabled?: boolean | null;
+};
+
+/**
  * BusinessDetailsRequest
  */
 export type BusinessDetailsRequest = {
@@ -1451,6 +1503,22 @@ export type CartesiaTtsConfiguration = {
 };
 
 /**
+ * ChatRequest
+ */
+export type ChatRequest = {
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * History
+     */
+    history?: Array<{
+        [key: string]: unknown;
+    }>;
+};
+
+/**
  * ChunkResponseSchema
  *
  * Response schema for a document chunk.
@@ -1727,6 +1795,10 @@ export type CostEstimateRequest = {
      * Telephony Provider
      */
     telephony_provider?: string | null;
+    /**
+     * Customer Keyed
+     */
+    customer_keyed?: Array<string>;
 };
 
 /**
@@ -2017,6 +2089,13 @@ export type CreateWorkflowRunResponse = {
 
 /**
  * CreateWorkflowTemplateRequest
+ *
+ * The create wizard's brief.
+ *
+ * Only ``call_type`` and ``use_case`` are required. ``activity_description``
+ * stays for the three-field form this replaced and for API callers that
+ * already send it; when the wizard's structured fields are present it is
+ * composed from them instead, so both shapes reach generation as one thing.
  */
 export type CreateWorkflowTemplateRequest = {
     /**
@@ -2030,7 +2109,71 @@ export type CreateWorkflowTemplateRequest = {
     /**
      * Activity Description
      */
-    activity_description: string;
+    activity_description?: string;
+    /**
+     * Objective
+     */
+    objective?: string;
+    /**
+     * Agent Name
+     */
+    agent_name?: string;
+    /**
+     * Agent Designation
+     */
+    agent_designation?: string;
+    /**
+     * Company Name
+     */
+    company_name?: string;
+    /**
+     * Company Description
+     */
+    company_description?: string;
+    /**
+     * Industry
+     */
+    industry?: string;
+    /**
+     * Languages
+     */
+    languages?: Array<string>;
+    /**
+     * Gender
+     */
+    gender?: string;
+    /**
+     * Tone
+     */
+    tone?: string;
+    /**
+     * Voice
+     */
+    voice?: string;
+    /**
+     * Llm Tier
+     */
+    llm_tier?: string;
+    /**
+     * Welcome Message
+     */
+    welcome_message?: string;
+    /**
+     * Conversation Flow
+     */
+    conversation_flow?: string;
+    /**
+     * Guardrails
+     */
+    guardrails?: Array<string>;
+    /**
+     * Closing Line
+     */
+    closing_line?: string;
+    /**
+     * Hangup Prompt
+     */
+    hangup_prompt?: string;
 };
 
 /**
@@ -2309,6 +2452,10 @@ export type DecibylManagedAiModelConfiguration = {
      * Language
      */
     language?: string;
+    /**
+     * Llm Tier
+     */
+    llm_tier?: string;
 };
 
 /**
@@ -5602,6 +5749,36 @@ export type ProviderRateRequest = {
 };
 
 /**
+ * ProviderRatesRequest
+ *
+ * Price one vendor's component, flat or per model or both.
+ */
+export type ProviderRatesRequest = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Component
+     */
+    component: string;
+    /**
+     * Unit
+     */
+    unit: string;
+    /**
+     * Flat Rate Mpaise
+     */
+    flat_rate_mpaise?: number | null;
+    /**
+     * Model Rates
+     */
+    model_rates?: {
+        [key: string]: number;
+    };
+};
+
+/**
  * ProviderSyncStatus
  *
  * Result of pushing a phone-number change to the upstream provider.
@@ -7080,6 +7257,30 @@ export type TelnyxConfigurationResponse = {
      * From Numbers
      */
     from_numbers: Array<string>;
+};
+
+/**
+ * TierMappingRequest
+ *
+ * Point a managed tier at a vendor and model.
+ */
+export type TierMappingRequest = {
+    /**
+     * Component
+     */
+    component: string;
+    /**
+     * Tier
+     */
+    tier: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Model
+     */
+    model: string;
 };
 
 /**
@@ -10326,6 +10527,62 @@ export type GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetResponses = {
 
 export type GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetResponse = GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetResponses[keyof GetUnitEconomicsApiV1AdminBillingUnitEconomicsGetResponses];
 
+export type GetPricingInputsApiV1AdminBillingPricingInputsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Start
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        start?: string | null;
+        /**
+         * End
+         *
+         * Inclusive IST day, YYYY-MM-DD
+         */
+        end?: string | null;
+    };
+    url: '/api/v1/admin/billing/pricing-inputs';
+};
+
+export type GetPricingInputsApiV1AdminBillingPricingInputsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPricingInputsApiV1AdminBillingPricingInputsGetError = GetPricingInputsApiV1AdminBillingPricingInputsGetErrors[keyof GetPricingInputsApiV1AdminBillingPricingInputsGetErrors];
+
+export type GetPricingInputsApiV1AdminBillingPricingInputsGetResponses = {
+    /**
+     * Response Get Pricing Inputs Api V1 Admin Billing Pricing Inputs Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetPricingInputsApiV1AdminBillingPricingInputsGetResponse = GetPricingInputsApiV1AdminBillingPricingInputsGetResponses[keyof GetPricingInputsApiV1AdminBillingPricingInputsGetResponses];
+
 export type GetRateCardApiV1AdminBillingRateCardGetData = {
     body?: never;
     headers?: {
@@ -10644,6 +10901,407 @@ export type SetProviderRateApiV1AdminBillingRateCardProvidersPutResponses = {
 };
 
 export type SetProviderRateApiV1AdminBillingRateCardProvidersPutResponse = SetProviderRateApiV1AdminBillingRateCardProvidersPutResponses[keyof SetProviderRateApiV1AdminBillingRateCardProvidersPutResponses];
+
+export type ClearManagedTierApiV1AdminBillingManagedTiersDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Component
+         */
+        component: string;
+        /**
+         * Tier
+         */
+        tier: string;
+    };
+    url: '/api/v1/admin/billing/managed-tiers';
+};
+
+export type ClearManagedTierApiV1AdminBillingManagedTiersDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClearManagedTierApiV1AdminBillingManagedTiersDeleteError = ClearManagedTierApiV1AdminBillingManagedTiersDeleteErrors[keyof ClearManagedTierApiV1AdminBillingManagedTiersDeleteErrors];
+
+export type ClearManagedTierApiV1AdminBillingManagedTiersDeleteResponses = {
+    /**
+     * Response Clear Managed Tier Api V1 Admin Billing Managed Tiers Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ClearManagedTierApiV1AdminBillingManagedTiersDeleteResponse = ClearManagedTierApiV1AdminBillingManagedTiersDeleteResponses[keyof ClearManagedTierApiV1AdminBillingManagedTiersDeleteResponses];
+
+export type ListManagedTiersApiV1AdminBillingManagedTiersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/managed-tiers';
+};
+
+export type ListManagedTiersApiV1AdminBillingManagedTiersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListManagedTiersApiV1AdminBillingManagedTiersGetError = ListManagedTiersApiV1AdminBillingManagedTiersGetErrors[keyof ListManagedTiersApiV1AdminBillingManagedTiersGetErrors];
+
+export type ListManagedTiersApiV1AdminBillingManagedTiersGetResponses = {
+    /**
+     * Response List Managed Tiers Api V1 Admin Billing Managed Tiers Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListManagedTiersApiV1AdminBillingManagedTiersGetResponse = ListManagedTiersApiV1AdminBillingManagedTiersGetResponses[keyof ListManagedTiersApiV1AdminBillingManagedTiersGetResponses];
+
+export type SetManagedTierApiV1AdminBillingManagedTiersPutData = {
+    body: TierMappingRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/managed-tiers';
+};
+
+export type SetManagedTierApiV1AdminBillingManagedTiersPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetManagedTierApiV1AdminBillingManagedTiersPutError = SetManagedTierApiV1AdminBillingManagedTiersPutErrors[keyof SetManagedTierApiV1AdminBillingManagedTiersPutErrors];
+
+export type SetManagedTierApiV1AdminBillingManagedTiersPutResponses = {
+    /**
+     * Response Set Managed Tier Api V1 Admin Billing Managed Tiers Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetManagedTierApiV1AdminBillingManagedTiersPutResponse = SetManagedTierApiV1AdminBillingManagedTiersPutResponses[keyof SetManagedTierApiV1AdminBillingManagedTiersPutResponses];
+
+export type ListProvidersApiV1AdminBillingProvidersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/providers';
+};
+
+export type ListProvidersApiV1AdminBillingProvidersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListProvidersApiV1AdminBillingProvidersGetError = ListProvidersApiV1AdminBillingProvidersGetErrors[keyof ListProvidersApiV1AdminBillingProvidersGetErrors];
+
+export type ListProvidersApiV1AdminBillingProvidersGetResponses = {
+    /**
+     * Response List Providers Api V1 Admin Billing Providers Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListProvidersApiV1AdminBillingProvidersGetResponse = ListProvidersApiV1AdminBillingProvidersGetResponses[keyof ListProvidersApiV1AdminBillingProvidersGetResponses];
+
+export type SetProviderRatesApiV1AdminBillingProvidersRatesPutData = {
+    body: ProviderRatesRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/providers/rates';
+};
+
+export type SetProviderRatesApiV1AdminBillingProvidersRatesPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetProviderRatesApiV1AdminBillingProvidersRatesPutError = SetProviderRatesApiV1AdminBillingProvidersRatesPutErrors[keyof SetProviderRatesApiV1AdminBillingProvidersRatesPutErrors];
+
+export type SetProviderRatesApiV1AdminBillingProvidersRatesPutResponses = {
+    /**
+     * Response Set Provider Rates Api V1 Admin Billing Providers Rates Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetProviderRatesApiV1AdminBillingProvidersRatesPutResponse = SetProviderRatesApiV1AdminBillingProvidersRatesPutResponses[keyof SetProviderRatesApiV1AdminBillingProvidersRatesPutResponses];
+
+export type ListBundlesApiV1AdminBillingBundlesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/bundles';
+};
+
+export type ListBundlesApiV1AdminBillingBundlesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListBundlesApiV1AdminBillingBundlesGetError = ListBundlesApiV1AdminBillingBundlesGetErrors[keyof ListBundlesApiV1AdminBillingBundlesGetErrors];
+
+export type ListBundlesApiV1AdminBillingBundlesGetResponses = {
+    /**
+     * Response List Bundles Api V1 Admin Billing Bundles Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListBundlesApiV1AdminBillingBundlesGetResponse = ListBundlesApiV1AdminBillingBundlesGetResponses[keyof ListBundlesApiV1AdminBillingBundlesGetResponses];
+
+export type UpsertBundleApiV1AdminBillingBundlesPutData = {
+    body: BundleRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/bundles';
+};
+
+export type UpsertBundleApiV1AdminBillingBundlesPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpsertBundleApiV1AdminBillingBundlesPutError = UpsertBundleApiV1AdminBillingBundlesPutErrors[keyof UpsertBundleApiV1AdminBillingBundlesPutErrors];
+
+export type UpsertBundleApiV1AdminBillingBundlesPutResponses = {
+    /**
+     * Response Upsert Bundle Api V1 Admin Billing Bundles Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UpsertBundleApiV1AdminBillingBundlesPutResponse = UpsertBundleApiV1AdminBillingBundlesPutResponses[keyof UpsertBundleApiV1AdminBillingBundlesPutResponses];
+
+export type BundleEconomicsApiV1AdminBillingBundlesEconomicsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/bundles/economics';
+};
+
+export type BundleEconomicsApiV1AdminBillingBundlesEconomicsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BundleEconomicsApiV1AdminBillingBundlesEconomicsGetError = BundleEconomicsApiV1AdminBillingBundlesEconomicsGetErrors[keyof BundleEconomicsApiV1AdminBillingBundlesEconomicsGetErrors];
+
+export type BundleEconomicsApiV1AdminBillingBundlesEconomicsGetResponses = {
+    /**
+     * Response Bundle Economics Api V1 Admin Billing Bundles Economics Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type BundleEconomicsApiV1AdminBillingBundlesEconomicsGetResponse = BundleEconomicsApiV1AdminBillingBundlesEconomicsGetResponses[keyof BundleEconomicsApiV1AdminBillingBundlesEconomicsGetResponses];
+
+export type ManagedTierChoicesApiV1AdminBillingManagedTiersChoicesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Component
+         */
+        component: string;
+    };
+    url: '/api/v1/admin/billing/managed-tiers/choices';
+};
+
+export type ManagedTierChoicesApiV1AdminBillingManagedTiersChoicesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ManagedTierChoicesApiV1AdminBillingManagedTiersChoicesGetError = ManagedTierChoicesApiV1AdminBillingManagedTiersChoicesGetErrors[keyof ManagedTierChoicesApiV1AdminBillingManagedTiersChoicesGetErrors];
+
+export type ManagedTierChoicesApiV1AdminBillingManagedTiersChoicesGetResponses = {
+    /**
+     * Response Managed Tier Choices Api V1 Admin Billing Managed Tiers Choices Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ManagedTierChoicesApiV1AdminBillingManagedTiersChoicesGetResponse = ManagedTierChoicesApiV1AdminBillingManagedTiersChoicesGetResponses[keyof ManagedTierChoicesApiV1AdminBillingManagedTiersChoicesGetResponses];
 
 export type SetExchangeRateApiV1AdminBillingRateCardExchangeRatePutData = {
     body: ExchangeRateRequest;
@@ -11096,6 +11754,282 @@ export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPost
 };
 
 export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponse = RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponses[keyof RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponses];
+
+export type GetBuilderConfigApiV1AgentBuilderConfigGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/agent-builder/config';
+};
+
+export type GetBuilderConfigApiV1AgentBuilderConfigGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetBuilderConfigApiV1AgentBuilderConfigGetError = GetBuilderConfigApiV1AgentBuilderConfigGetErrors[keyof GetBuilderConfigApiV1AgentBuilderConfigGetErrors];
+
+export type GetBuilderConfigApiV1AgentBuilderConfigGetResponses = {
+    /**
+     * Response Get Builder Config Api V1 Agent Builder Config Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetBuilderConfigApiV1AgentBuilderConfigGetResponse = GetBuilderConfigApiV1AgentBuilderConfigGetResponses[keyof GetBuilderConfigApiV1AgentBuilderConfigGetResponses];
+
+export type ChatApiV1AgentBuilderChatPostData = {
+    body: ChatRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/agent-builder/chat';
+};
+
+export type ChatApiV1AgentBuilderChatPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ChatApiV1AgentBuilderChatPostError = ChatApiV1AgentBuilderChatPostErrors[keyof ChatApiV1AgentBuilderChatPostErrors];
+
+export type ChatApiV1AgentBuilderChatPostResponses = {
+    /**
+     * Response Chat Api V1 Agent Builder Chat Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ChatApiV1AgentBuilderChatPostResponse = ChatApiV1AgentBuilderChatPostResponses[keyof ChatApiV1AgentBuilderChatPostResponses];
+
+export type ListAgentTemplatesApiV1AgentTemplatesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/agent-templates';
+};
+
+export type ListAgentTemplatesApiV1AgentTemplatesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAgentTemplatesApiV1AgentTemplatesGetError = ListAgentTemplatesApiV1AgentTemplatesGetErrors[keyof ListAgentTemplatesApiV1AgentTemplatesGetErrors];
+
+export type ListAgentTemplatesApiV1AgentTemplatesGetResponses = {
+    /**
+     * Response List Agent Templates Api V1 Agent Templates Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListAgentTemplatesApiV1AgentTemplatesGetResponse = ListAgentTemplatesApiV1AgentTemplatesGetResponses[keyof ListAgentTemplatesApiV1AgentTemplatesGetResponses];
+
+export type GetAgentTemplateApiV1AgentTemplatesTemplateIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Template Id
+         */
+        template_id: string;
+    };
+    query?: never;
+    url: '/api/v1/agent-templates/{template_id}';
+};
+
+export type GetAgentTemplateApiV1AgentTemplatesTemplateIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAgentTemplateApiV1AgentTemplatesTemplateIdGetError = GetAgentTemplateApiV1AgentTemplatesTemplateIdGetErrors[keyof GetAgentTemplateApiV1AgentTemplatesTemplateIdGetErrors];
+
+export type GetAgentTemplateApiV1AgentTemplatesTemplateIdGetResponses = {
+    /**
+     * Response Get Agent Template Api V1 Agent Templates  Template Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetAgentTemplateApiV1AgentTemplatesTemplateIdGetResponse = GetAgentTemplateApiV1AgentTemplatesTemplateIdGetResponses[keyof GetAgentTemplateApiV1AgentTemplatesTemplateIdGetResponses];
+
+export type GetAgentOptionsApiV1AgentOptionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/agent-options';
+};
+
+export type GetAgentOptionsApiV1AgentOptionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAgentOptionsApiV1AgentOptionsGetError = GetAgentOptionsApiV1AgentOptionsGetErrors[keyof GetAgentOptionsApiV1AgentOptionsGetErrors];
+
+export type GetAgentOptionsApiV1AgentOptionsGetResponses = {
+    /**
+     * Response Get Agent Options Api V1 Agent Options Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetAgentOptionsApiV1AgentOptionsGetResponse = GetAgentOptionsApiV1AgentOptionsGetResponses[keyof GetAgentOptionsApiV1AgentOptionsGetResponses];
+
+export type GetApproximateMinutesApiV1AgentOptionsMinutesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Balance Paise
+         *
+         * Balance to convert, in paise
+         */
+        balance_paise: number;
+        /**
+         * Brain
+         *
+         * Language-model tier
+         */
+        brain?: string;
+    };
+    url: '/api/v1/agent-options/minutes';
+};
+
+export type GetApproximateMinutesApiV1AgentOptionsMinutesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetApproximateMinutesApiV1AgentOptionsMinutesGetError = GetApproximateMinutesApiV1AgentOptionsMinutesGetErrors[keyof GetApproximateMinutesApiV1AgentOptionsMinutesGetErrors];
+
+export type GetApproximateMinutesApiV1AgentOptionsMinutesGetResponses = {
+    /**
+     * Response Get Approximate Minutes Api V1 Agent Options Minutes Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetApproximateMinutesApiV1AgentOptionsMinutesGetResponse = GetApproximateMinutesApiV1AgentOptionsMinutesGetResponses[keyof GetApproximateMinutesApiV1AgentOptionsMinutesGetResponses];
 
 export type GetCostPerMinuteApiV1CostEstimatePerMinutePostData = {
     body: CostEstimateRequest;
@@ -13636,6 +14570,92 @@ export type CreateMandateApiV1BillingMandatePostResponses = {
 };
 
 export type CreateMandateApiV1BillingMandatePostResponse = CreateMandateApiV1BillingMandatePostResponses[keyof CreateMandateApiV1BillingMandatePostResponses];
+
+export type GetPlanApiV1BillingPlanGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/plan';
+};
+
+export type GetPlanApiV1BillingPlanGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPlanApiV1BillingPlanGetError = GetPlanApiV1BillingPlanGetErrors[keyof GetPlanApiV1BillingPlanGetErrors];
+
+export type GetPlanApiV1BillingPlanGetResponses = {
+    /**
+     * Response Get Plan Api V1 Billing Plan Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetPlanApiV1BillingPlanGetResponse = GetPlanApiV1BillingPlanGetResponses[keyof GetPlanApiV1BillingPlanGetResponses];
+
+export type SubscribeToPlanApiV1BillingPlanPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/plan';
+};
+
+export type SubscribeToPlanApiV1BillingPlanPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SubscribeToPlanApiV1BillingPlanPostError = SubscribeToPlanApiV1BillingPlanPostErrors[keyof SubscribeToPlanApiV1BillingPlanPostErrors];
+
+export type SubscribeToPlanApiV1BillingPlanPostResponses = {
+    /**
+     * Response Subscribe To Plan Api V1 Billing Plan Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SubscribeToPlanApiV1BillingPlanPostResponse = SubscribeToPlanApiV1BillingPlanPostResponses[keyof SubscribeToPlanApiV1BillingPlanPostResponses];
 
 export type CancelMandateApiV1BillingMandateCancelPostData = {
     body?: never;

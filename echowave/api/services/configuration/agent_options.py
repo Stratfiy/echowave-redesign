@@ -98,9 +98,10 @@ def voices() -> list[VoiceOption]:
 async def price_per_minute(
     session: AsyncSession,
     *,
-    organization_id: int,
+    organization_id: int | None,
     brain: str,
     telephony_provider: str | None = None,
+    marked_up: bool = True,
 ) -> int:
     """Paise per minute for a managed stack on this brain tier.
 
@@ -122,6 +123,7 @@ async def price_per_minute(
         tts_provider=tts.provider,
         tts_model=tts.model,
         telephony_provider=telephony_provider,
+        marked_up=marked_up,
     )
     return estimate.total_paise_per_minute
 
@@ -129,9 +131,10 @@ async def price_per_minute(
 async def realtime_price_per_minute(
     session: AsyncSession,
     *,
-    organization_id: int,
+    organization_id: int | None,
     realtime_tier: str,
     telephony_provider: str | None = None,
+    marked_up: bool = True,
 ) -> int:
     """Paise per minute for a speech-to-speech stack.
 
@@ -148,6 +151,7 @@ async def realtime_price_per_minute(
         llm_provider=upstream.provider,
         llm_model=upstream.model,
         telephony_provider=telephony_provider,
+        marked_up=marked_up,
     )
     return estimate.total_paise_per_minute
 
@@ -155,7 +159,7 @@ async def realtime_price_per_minute(
 async def bundle_options(
     session: AsyncSession,
     *,
-    organization_id: int,
+    organization_id: int | None,
     telephony_provider: str | None = None,
 ) -> list[dict]:
     """The Simple picker's cards, priced, with the residency badge on each.
@@ -241,6 +245,70 @@ async def bundle_options(
                 "variants": variants,
             }
         )
+    return out
+
+
+async def bundle_economics(
+    session: AsyncSession, *, telephony_provider: str | None = None
+) -> list[dict]:
+    """The same bundles, with what each one earns.
+
+    The operator's version of :func:`bundle_options`. It asks the estimator the
+    same question twice — once with the managed markup and once without — so
+    ``price`` is exactly the number quoted to a customer and ``cost`` is
+    exactly the vendor bill behind it. The margin is their difference, not a
+    third calculation: a margin computed independently is a margin that drifts,
+    and the drift only shows up in a month-end reconciliation.
+
+    Priced at the **list** rate, with no account attached. Pricing a bundle
+    against whichever account happened to be at hand would quote one
+    customer's negotiated contract as though it were everybody's.
+
+    Returned per variant rather than per bundle because on a pipeline bundle
+    the brain is the customer's choice, and Lite and Smart do not earn the
+    same thing.
+    """
+    priced = await bundle_options(
+        session, organization_id=None, telephony_provider=telephony_provider
+    )
+    out: list[dict] = []
+
+    for bundle in priced:
+        variants: list[dict] = []
+        for variant in bundle["variants"]:
+            price = variant["paise_per_minute"]
+            if bundle["architecture"] == "realtime":
+                cost = await realtime_price_per_minute(
+                    session,
+                    organization_id=None,
+                    realtime_tier=variant["tier"],
+                    telephony_provider=telephony_provider,
+                    marked_up=False,
+                )
+            else:
+                cost = await price_per_minute(
+                    session,
+                    organization_id=None,
+                    brain=variant["tier"],
+                    telephony_provider=telephony_provider,
+                    marked_up=False,
+                )
+            variants.append(
+                {
+                    **variant,
+                    "cost_paise_per_minute": cost,
+                    "margin_paise_per_minute": price - cost,
+                    # Expressed against the price rather than the cost, because
+                    # that is the margin an investor and a discount both read.
+                    # Null rather than zero when nothing is priced yet: a bundle
+                    # with no rate card behind it has no margin, and 0% would
+                    # read as one we chose.
+                    "margin_pct": (
+                        round((price - cost) / price * 100, 1) if price else None
+                    ),
+                }
+            )
+        out.append({**bundle, "variants": variants})
     return out
 
 

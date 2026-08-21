@@ -310,7 +310,7 @@ async def _per_minute_line(
 async def estimate_cost_per_minute(
     session: AsyncSession,
     *,
-    organization_id: int,
+    organization_id: int | None,
     stt_provider: str | None = None,
     stt_model: str = "",
     llm_provider: str | None = None,
@@ -325,7 +325,9 @@ async def estimate_cost_per_minute(
     """What one connected minute costs on this stack, itemised.
 
     Priced with the account's own platform rate, so two accounts on different
-    negotiated rates see their own number rather than a list price.
+    negotiated rates see their own number rather than a list price. Pass
+    ``organization_id=None`` for the list price itself — what an account with
+    no negotiated override pays, which is the number an operator screen wants.
 
     ``marked_up`` is what the customer pays: the vendor rate plus the managed
     markup on the components we buy on our keys. That is the default because

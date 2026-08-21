@@ -164,7 +164,7 @@ def _from_row(row, *, source: str, fx: ResolvedFxRate, tier_name: str | None = N
 async def resolve_platform_rate(
     session: AsyncSession,
     *,
-    organization_id: int,
+    organization_id: int | None,
     at: datetime,
     period_minutes: int = 0,
 ) -> ResolvedPlatformRate:
@@ -172,21 +172,30 @@ async def resolve_platform_rate(
 
     ``period_minutes`` is the account's billable minutes so far in the current
     billing period, used only for tier matching.
+
+    ``organization_id=None`` asks for the **list price** — the rate an account
+    with no negotiated override pays. Operator screens need that: pricing a
+    bundle against whichever account happened to be at hand would quote one
+    customer's contract as though it were everybody's.
     """
     fx = await resolve_usd_inr(session, at=at)
 
-    override = await session.scalar(
-        select(OrganizationRateHistoryModel)
-        .where(
-            OrganizationRateHistoryModel.organization_id == organization_id,
-            _effective_at(
-                OrganizationRateHistoryModel.effective_from,
-                OrganizationRateHistoryModel.effective_to,
-                at,
-            ),
+    override = (
+        await session.scalar(
+            select(OrganizationRateHistoryModel)
+            .where(
+                OrganizationRateHistoryModel.organization_id == organization_id,
+                _effective_at(
+                    OrganizationRateHistoryModel.effective_from,
+                    OrganizationRateHistoryModel.effective_to,
+                    at,
+                ),
+            )
+            .order_by(OrganizationRateHistoryModel.effective_from.desc())
+            .limit(1)
         )
-        .order_by(OrganizationRateHistoryModel.effective_from.desc())
-        .limit(1)
+        if organization_id is not None
+        else None
     )
     if override is not None:
         return _from_row(override, source="account_override", fx=fx)
