@@ -283,6 +283,36 @@ def components_for_provider(provider: str) -> tuple[str, ...]:
     )
 
 
+def known_providers() -> dict[str, tuple[str, ...]]:
+    """Every provider this codebase has integrated, and what it serves.
+
+    Built by walking the same registries ``components_for_provider`` reads,
+    rather than a list maintained by hand somewhere else — a vendor added to
+    one component's registry appears here on the next request, with no second
+    place to remember to update.
+
+    Drives the provider-keys screen: a key-entry form that led with "which
+    component" made adding one Sarvam key feel like adding three, because
+    nothing on the form said the vendor already covers all of them. Leading
+    with the vendor and reading its components off this answers "what will
+    this key cover" before a key is ever pasted in.
+    """
+    providers: dict[str, tuple[str, ...]] = {}
+    for component, service_type in _KEYED_COMPONENTS:
+        for provider in REGISTRY[service_type]:
+            # ``str(provider)`` rather than ``.value``: most entries are
+            # ``ServiceProviders`` members, but a handful of providers register
+            # under a plain string, and only ``str()`` is safe against both.
+            name = provider.value if isinstance(provider, Enum) else str(provider)
+            if name == ServiceProviders.DECIBYL.value:
+                # The managed-tier sentinel, not a vendor. Nobody pastes a key
+                # in under this name — ``organization_credentials._normalise``
+                # refuses it for the same reason on the customer side.
+                continue
+            providers[name] = providers.get(name, ()) + (component,)
+    return providers
+
+
 T = TypeVar("T", bound=BaseServiceConfiguration)
 
 

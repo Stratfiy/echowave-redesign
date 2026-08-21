@@ -13,7 +13,7 @@ overwriting the other component's key would cost more than the typing saved.
 import pytest
 from cryptography.fernet import Fernet
 
-from api.services.configuration.registry import components_for_provider
+from api.services.configuration.registry import components_for_provider, known_providers
 
 
 class TestWhichComponentsAVendorServes:
@@ -127,3 +127,37 @@ class TestStoringTheKey:
         held = await creds.available_providers(async_session, organization_id=org.id)
         assert "sarvam" in held.get("stt", set())
         assert "sarvam" in held.get("tts", set())
+
+
+class TestTheProviderListLeadsTheKeyForm:
+    """What ``known_providers`` answers, so the add-key screen can lead with
+    the vendor rather than with "which component" — the question that made
+    adding one Sarvam key feel like adding three."""
+
+    def test_every_answer_agrees_with_components_for_provider(self):
+        """One source of truth. If these two ever disagreed, the form would
+        offer "apply to all" for a set of components the fan-out itself does
+        not believe the vendor serves."""
+        providers = known_providers()
+        assert providers
+        for provider, components in providers.items():
+            assert components_for_provider(provider) == components
+
+    def test_the_managed_sentinel_is_not_a_vendor(self):
+        """Nobody pastes a key in under "decibyl" — it names the managed tier,
+        not an account anyone holds. ``organization_credentials._normalise``
+        refuses it on the customer side for the same reason."""
+        assert "decibyl" not in known_providers()
+
+    def test_a_multi_component_vendor_is_there_to_be_led_with(self):
+        providers = known_providers()
+        assert providers["sarvam"] == ("stt", "llm", "tts")
+        assert providers["deepgram"] == ("stt", "tts")
+
+    def test_names_are_plain_strings_not_enum_reprs(self):
+        """The screen renders these directly. A key rendered as
+        "ServiceProviders.SARVAM" instead of "sarvam" is this bug, seen once
+        already when the registry's own enum members leaked into a response."""
+        for provider in known_providers():
+            assert provider == provider.lower()
+            assert "ServiceProviders" not in provider

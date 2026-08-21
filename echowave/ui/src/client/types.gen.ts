@@ -5438,6 +5438,10 @@ export type PlanRequest = {
      */
     razorpay_plan_id?: string | null;
     /**
+     * Razorpay Plan Id Export
+     */
+    razorpay_plan_id_export?: string | null;
+    /**
      * Enabled
      */
     enabled?: boolean;
@@ -14138,6 +14142,49 @@ export type SetProviderKeyApiV1AdminProviderKeysPutResponses = {
 };
 
 export type SetProviderKeyApiV1AdminProviderKeysPutResponse = SetProviderKeyApiV1AdminProviderKeysPutResponses[keyof SetProviderKeyApiV1AdminProviderKeysPutResponses];
+
+export type ListKnownProvidersApiV1AdminProviderKeysProvidersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/provider-keys/providers';
+};
+
+export type ListKnownProvidersApiV1AdminProviderKeysProvidersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListKnownProvidersApiV1AdminProviderKeysProvidersGetError = ListKnownProvidersApiV1AdminProviderKeysProvidersGetErrors[keyof ListKnownProvidersApiV1AdminProviderKeysProvidersGetErrors];
+
+export type ListKnownProvidersApiV1AdminProviderKeysProvidersGetResponses = {
+    /**
+     * Response List Known Providers Api V1 Admin Provider Keys Providers Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListKnownProvidersApiV1AdminProviderKeysProvidersGetResponse = ListKnownProvidersApiV1AdminProviderKeysProvidersGetResponses[keyof ListKnownProvidersApiV1AdminProviderKeysProvidersGetResponses];
 
 export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostData = {
     body: ActiveRequest;
