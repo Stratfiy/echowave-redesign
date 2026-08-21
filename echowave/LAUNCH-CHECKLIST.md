@@ -269,14 +269,23 @@ Two silences, both of which read as nothing going wrong. See
 
 ### 2.4 Others, in rough order of how much they matter
 
+**Update — 21 Aug, later the same day, on `claude/decibyl-launch-checklist-nxqump`:**
+the four money/compliance-relevant rows below are now shipped and merged to
+`main` (PRs #49–#52). Each has its screen, and each was fixed with a real
+gap found while wiring it up — a carrier-owned number could be hard-deleted
+without releasing the rental (leak, now a 409), and `/privacy/metrics` was
+scanning every organization's recordings for whichever customer called it
+(cross-tenant leak, now scoped). Struck through below; the other three are
+unchanged.
+
 | Endpoint | Consequence |
 |---|---|
 | `POST /admin/billing/rate-card/exchange-rate/refresh` | No button to force an FX refresh — see 1.5 |
-| `/admin/telephony/*` (4 routes) | Managed telephony cannot be administered at all: no way to mark a config platform-managed or manage shared outbound. This is the `MANAGED_TELEPHONY_ENABLED` path |
-| `POST /managed-numbers/{id}/release` | A number can be bought and not given back |
-| `/admin/partners/…/commission` (GET/PUT), `statements/{id}/issue` | Partner commissions cannot be set and statements cannot be issued |
-| `/auth/mfa/enroll｜verify｜disable` | MFA is implemented and cannot be turned on by anyone |
-| `/privacy/readiness`, `/privacy/metrics`, `/privacy/breach-report` | DPDP reporting has no screen. Relevant for a healthcare buyer |
+| ~~`/admin/telephony/*` (4 routes)~~ | ~~Managed telephony cannot be administered at all~~ — **Superadmin → Billing → account page** now has a Telephony panel (mark/unmark managed) and **Superadmin → Shared outbound numbers**. This is still gated by `MANAGED_TELEPHONY_ENABLED` |
+| ~~`POST /managed-numbers/{id}/release`~~ | ~~A number can be bought and not given back~~ — **Telephony configuration page** now shows a Release action for carrier-owned numbers, and hard-delete on one is refused |
+| ~~`/admin/partners/…/commission` (GET/PUT), `statements/{id}/issue`~~ | ~~Partner commissions cannot be set and statements cannot be issued~~ — **Superadmin → Billing → account page** (commission panel) and **Superadmin → Partners** (Issue action) |
+| ~~`/auth/mfa/enroll｜verify｜disable`~~ | ~~MFA is implemented and cannot be turned on by anyone~~ — **Settings → Security** |
+| ~~`/privacy/readiness`, `/privacy/metrics`, `/privacy/breach-report`~~ | ~~DPDP reporting has no screen~~ — **Privacy** page (metrics, breach report) and **Superadmin → Privacy readiness** |
 | `/knowledge-base/search` | No way to test what the agent will actually retrieve |
 | `model-configurations/v2/migration-preview` + `/migrate` | The migration path exists and cannot be run |
 
@@ -439,7 +448,7 @@ Order matters. Each step assumes the one above it.
 
 13. `BYOK_TIERED_FEE_ENABLED=true` — the quote now follows it
 14. `ADDON_BILLING_ENABLED=true` — likewise
-15. `MANAGED_TELEPHONY_ENABLED=true` — needs 2.4's telephony admin screens and the Plivo KYC verdict first
+15. `MANAGED_TELEPHONY_ENABLED=true` — 2.4's telephony admin screens are now shipped; this is blocked only on the Plivo KYC verdict
 
 **Still blocked on third parties** (unchanged): Razorpay Subscriptions approval,
 Plivo KYC, DLT registration for SMS verification.
