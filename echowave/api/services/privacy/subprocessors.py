@@ -67,29 +67,59 @@ def _purpose_for_component(component: str) -> tuple[str, str]:
     }.get(component, ("Processing", "Call data"))
 
 
-def _merge(found: dict[str, Subprocessor], name: str, component: str, basis: str):
-    """Fold one (provider, component) pair into the list.
+#: Receipt order — the order a call actually flows through, stt to tts — and
+#: not incidentally the order ``_render`` below sentences a merged purpose in.
+#: Fixed so the sentence is fixed: two components merged in the opposite order
+#: must still read the same way.
+_COMPONENT_ORDER: tuple[str, ...] = ("stt", "llm", "tts", "telephony")
+
+
+def _component_sort_key(component: str) -> int:
+    try:
+        return _COMPONENT_ORDER.index(component)
+    except ValueError:
+        return len(_COMPONENT_ORDER)
+
+
+def _merge(found: dict[str, dict], name: str, component: str, basis: str) -> None:
+    """Record one (provider, component) pair against the vendor.
 
     One vendor can serve two components — Sarvam does both STT and TTS — and
-    listing them twice reads as two companies. Merged into one entry naming both
-    purposes, because the question being answered is "which companies hold my
-    data", not "how many integrations are configured".
+    listing them twice reads as two companies. Accumulates the *components*
+    seen for this provider rather than a rendered sentence: ``in_use`` below
+    reads ``PlatformProviderCredentialModel`` with no ``ORDER BY``, so which
+    (provider, component) pair reaches this function first is not something
+    the database promises — and a sentence built incrementally, capitalising
+    whichever purpose happened to arrive first, changed wording between
+    requests depending on scan order alone. ``_render`` turns the accumulated
+    set into a sentence exactly once, in a fixed order, so the wording is
+    fixed too.
     """
-    purpose, data = _purpose_for_component(component)
-    existing = found.get(name)
-    if existing is None:
-        found[name] = Subprocessor(name=name, purpose=purpose, data=data, basis=basis)
-        return
-    if purpose in existing.purpose:
-        return
-    found[name] = Subprocessor(
+    entry = found.setdefault(name, {"components": set(), "basis": basis})
+    entry["components"].add(component)
+    # Configured outranks observed: a key is installed either way.
+    if basis == "configured":
+        entry["basis"] = "configured"
+
+
+def _render(name: str, entry: dict) -> Subprocessor:
+    """One vendor's accumulated components, sentenced in a fixed order."""
+    components = sorted(entry["components"], key=_component_sort_key)
+    pairs = [_purpose_for_component(c) for c in components]
+    purposes = [purpose for purpose, _ in pairs]
+    datas: list[str] = []
+    for _, data in pairs:
+        if data not in datas:
+            datas.append(data)
+    return Subprocessor(
         name=name,
-        purpose=f"{existing.purpose}; {purpose[0].lower()}{purpose[1:]}",
-        data=existing.data
-        if data in existing.data
-        else f"{existing.data}; {data.lower()}",
-        # Configured outranks observed: a key is installed either way.
-        basis="configured" if "configured" in (existing.basis, basis) else basis,
+        purpose="; ".join(
+            p if i == 0 else f"{p[0].lower()}{p[1:]}" for i, p in enumerate(purposes)
+        ),
+        data="; ".join(
+            d if i == 0 else d[0].lower() + d[1:] for i, d in enumerate(datas)
+        ),
+        basis=entry["basis"],
     )
 
 
@@ -106,7 +136,7 @@ async def in_use(
     now = now or datetime.now(UTC)
     since = now - timedelta(days=IN_USE_WINDOW_DAYS)
 
-    found: dict[str, Subprocessor] = {}
+    found: dict[str, dict] = {}
 
     credentials = (
         await session.scalars(
@@ -132,7 +162,9 @@ async def in_use(
         if provider:
             _merge(found, provider, component or "", "observed")
 
-    return _with_infrastructure(found)
+    return _with_infrastructure(
+        {name: _render(name, entry) for name, entry in found.items()}
+    )
 
 
 def _with_infrastructure(found: dict[str, Subprocessor]) -> list[Subprocessor]:
@@ -182,8 +214,10 @@ async def for_organization(
         )
     ).all()
 
-    found: dict[str, Subprocessor] = {}
+    found: dict[str, dict] = {}
     for provider, component in rows:
         if provider:
             _merge(found, provider, component or "", "observed")
-    return _with_infrastructure(found)
+    return _with_infrastructure(
+        {name: _render(name, entry) for name, entry in found.items()}
+    )

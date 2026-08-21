@@ -544,6 +544,24 @@ class TestSubprocessorsAreDerived:
         assert "Speech recognition" in entries[0].purpose
         assert "speech synthesis" in entries[0].purpose
 
+    async def test_the_sentence_does_not_depend_on_which_key_was_added_first(
+        self, async_session
+    ):
+        """The bug this used to be. ``in_use`` reads credentials with no
+        ``ORDER BY``, so Postgres makes no promise about which of the two rows
+        comes back first — and a purpose built incrementally, capitalising
+        whichever one ``_merge`` reached first, read differently between two
+        requests for no reason a reader could see. Reversing the insertion
+        order here is standing in for what an unordered scan can do on its
+        own; the wording must come out identical either way."""
+        await _platform_key(async_session, provider="sarvam", component="tts")
+        await _platform_key(async_session, provider="sarvam", component="stt")
+
+        listed = await subprocessors.in_use(async_session)
+
+        entry = next(s for s in listed if s.name == "sarvam")
+        assert entry.purpose == "Speech recognition; speech synthesis"
+
     async def test_configured_outranks_observed_for_the_same_vendor(
         self, async_session
     ):
