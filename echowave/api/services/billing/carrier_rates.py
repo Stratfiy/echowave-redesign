@@ -26,6 +26,15 @@ Decibyl fronts the carrier, which is exactly when the number has to be right.
 who puts a real figure in at ``/superadmin/billing/rate-card`` supersedes the
 seeded row and writes their own note, the marker goes with it, and the carrier
 becomes sellable with no code change. That is the intended way out.
+
+**A second, separate gate lives here too: which carriers we have actually
+chosen to sell managed minutes on at all.** This is not a statement about rate
+quality — Twilio's rate is real, published, and not provisional — it is a
+rollout decision, and the two are kept apart deliberately. A carrier could
+clear provisional pricing today and still not be enabled; conflating the two
+would make ``MANAGED_CARRIER_ALLOWLIST`` look like a data-quality flag, and
+the first person who "fixed" a rate would accidentally turn selling on that
+carrier back on.
 """
 
 from __future__ import annotations
@@ -39,6 +48,22 @@ from api.services.billing.default_rates import (
     PROVISIONAL_MARKER,
     TELEPHONY_RATES,
 )
+
+#: Carriers Decibyl currently sells managed minutes on. Everything else is
+#: refused on the managed path regardless of whether its rate is verified —
+#: this is a rollout decision made 21 Aug 2026, not a statement that the other
+#: carriers' numbers are wrong. Widen it when a carrier is actually ready to
+#: be sold on, not when its rate merely becomes accurate.
+MANAGED_CARRIER_ALLOWLIST: frozenset[str] = frozenset({"plivo"})
+
+
+def is_enabled_for_managed_billing(provider: str) -> bool:
+    """Whether this carrier is one Decibyl currently sells managed minutes on.
+
+    Independent of :func:`is_provisionally_priced` — a carrier can fail either
+    check on its own, and the managed route refuses on both.
+    """
+    return (provider or "").strip().lower() in MANAGED_CARRIER_ALLOWLIST
 
 
 def seeded_provisional_carriers() -> frozenset[str]:

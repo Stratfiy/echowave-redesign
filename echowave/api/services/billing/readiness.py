@@ -750,6 +750,67 @@ async def _carrier_price_check(session: AsyncSession) -> Check:
     )
 
 
+async def _carrier_enablement_check(session: AsyncSession) -> Check:
+    """Whether any managed configuration is selling on a carrier we have not
+    actually chosen to sell on.
+
+    Separate from :func:`_carrier_price_check` on purpose — that one asks
+    whether a carrier's *rate* is trustworthy, this one asks whether Decibyl
+    has decided to sell on it at all. Twilio can pass the price check today
+    and still fail this one: its rate is real, but
+    ``billing/carrier_rates.MANAGED_CARRIER_ALLOWLIST`` currently holds only
+    Plivo. New configurations are refused at the route
+    (``routes/telephony_admin.py``); this is what predates that guard, if
+    anything does.
+    """
+    selling = (
+        await session.execute(
+            select(
+                TelephonyConfigurationModel.provider,
+                func.count(TelephonyConfigurationModel.id),
+            )
+            .where(TelephonyConfigurationModel.is_platform_managed.is_(True))
+            .group_by(TelephonyConfigurationModel.provider)
+        )
+    ).all()
+    not_enabled = [
+        (provider, count)
+        for provider, count in selling
+        if not carrier_rates.is_enabled_for_managed_billing(provider)
+    ]
+
+    if not not_enabled:
+        return Check(
+            key="carriers_enabled_for_managed_billing",
+            title="Managed carriage only runs on enabled carriers",
+            status=READY,
+            detail=(
+                "No platform-managed configuration is selling minutes on a "
+                "carrier outside billing/carrier_rates.MANAGED_CARRIER_ALLOWLIST."
+            ),
+            reference="billing/carrier_rates.py — rollout decision, 21 Aug 2026: sell managed minutes only on Plivo for now",
+        )
+
+    total = sum(count for _, count in not_enabled)
+    return Check(
+        key="carriers_enabled_for_managed_billing",
+        title="Managed carriage only runs on enabled carriers",
+        status=ACTION_REQUIRED,
+        detail=(
+            f"{total} platform-managed configuration(s) are selling minutes on "
+            f"{', '.join(sorted(provider for provider, _ in not_enabled))}, "
+            "which is not in MANAGED_CARRIER_ALLOWLIST — these predate the "
+            "rollout decision to sell only on Plivo for now."
+        ),
+        reference="billing/carrier_rates.py — rollout decision, 21 Aug 2026: sell managed minutes only on Plivo for now",
+        remedy=(
+            "Either move these configurations off the managed path, or widen "
+            "MANAGED_CARRIER_ALLOWLIST in billing/carrier_rates.py once the "
+            "carrier is actually ready to be sold on."
+        ),
+    )
+
+
 async def assess(
     session: AsyncSession,
     *,
@@ -770,5 +831,6 @@ async def assess(
     checks.extend(await _payment_evidence(session))
     checks.extend(await _price_book_evidence(session, now=now))
     checks.append(await _carrier_price_check(session))
+    checks.append(await _carrier_enablement_check(session))
     checks.append(_round_trip_obligation())
     return Readiness(checks=tuple(checks))

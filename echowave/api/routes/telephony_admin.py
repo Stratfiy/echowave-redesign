@@ -98,6 +98,8 @@ async def set_platform_managed(
         raise HTTPException(status_code=404, detail="Telephony configuration not found")
 
     if request.managed:
+        # Rate quality first: it is the more fundamental problem, and the one
+        # that stays true even once a carrier is added to the allowlist below.
         async with db_client.async_session() as session:
             provisional = await carrier_rates.provisionally_priced(session)
         note = provisional.get((row.provider or "").strip().lower())
@@ -112,6 +114,18 @@ async def set_platform_managed(
                     "loses money on every call. Put the carrier's published "
                     "rate on /superadmin/billing/rate-card first, then mark "
                     "this configuration managed."
+                ),
+            )
+        # Separately: even a carrier with a real, verified rate is not
+        # automatically sellable — that is a rollout decision, not a pricing
+        # one. See billing/carrier_rates.MANAGED_CARRIER_ALLOWLIST.
+        if not carrier_rates.is_enabled_for_managed_billing(row.provider):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"{row.provider} is not one of the carriers Decibyl currently "
+                    "sells managed minutes on. This is a rollout decision, not a "
+                    "pricing problem — see billing/carrier_rates.MANAGED_CARRIER_ALLOWLIST."
                 ),
             )
 
