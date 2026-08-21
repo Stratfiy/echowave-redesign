@@ -313,3 +313,106 @@ class TestReadinessSaysWhichAndWhy:
         assert check.status == "action_required"
         assert "cloudonix" in check.detail
         assert check.remedy
+
+
+class TestOnlyEnabledCarriersMayBeSold:
+    """A carrier can have a perfectly real, verified rate and still not be
+    sellable — that is a rollout decision (``MANAGED_CARRIER_ALLOWLIST``), not
+    a pricing one, and it is checked separately from whether the rate itself
+    is a stand-in.
+    """
+
+    @pytest.fixture(autouse=True)
+    async def _real_rates_on_file(self, db_session, async_session):
+        # Twilio's rate is real and published — not a stand-in — so this
+        # isolates the enablement gate from the pricing gate above it.
+        async_session.add(
+            _carriage_rate("twilio", note="India outbound to mobile, published")
+        )
+        async_session.add(
+            _carriage_rate("plivo", note="Plivo India outbound local, published")
+        )
+        await async_session.flush()
+
+    async def test_a_verified_but_not_enabled_carrier_is_still_refused(
+        self, db_session, async_session
+    ):
+        _, config = await _org_and_config(async_session, "twilio-real", "twilio")
+        staff = await _staff(async_session, "enablement")
+
+        async with _client(staff) as client:
+            response = await client.put(
+                f"/api/v1/admin/telephony/configurations/{config.id}/platform-managed",
+                json={"managed": True},
+            )
+
+        assert response.status_code == 409
+        detail = response.json()["detail"]
+        assert "twilio" in detail
+        assert "rollout decision" in detail
+        # Not the pricing message — its rate is real, so that would mislead
+        # whoever reads the refusal into fixing the wrong thing.
+        assert "rate-card" not in detail
+
+    async def test_the_allow_listed_carrier_still_goes_through(
+        self, db_session, async_session
+    ):
+        _, config = await _org_and_config(async_session, "plivo-real", "plivo")
+        staff = await _staff(async_session, "enablement-ok")
+
+        async with _client(staff) as client:
+            response = await client.put(
+                f"/api/v1/admin/telephony/configurations/{config.id}/platform-managed",
+                json={"managed": True},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["is_platform_managed"] is True
+
+    async def test_turning_it_off_is_never_blocked_by_enablement(
+        self, db_session, async_session
+    ):
+        """Same principle as the pricing gate: backing out of a mistake must
+        not need the carrier added to the allowlist first."""
+        _, config = await _org_and_config(
+            async_session, "twilio-undo", "twilio", managed=True
+        )
+        staff = await _staff(async_session, "enablement-undo")
+
+        async with _client(staff) as client:
+            response = await client.put(
+                f"/api/v1/admin/telephony/configurations/{config.id}/platform-managed",
+                json={"managed": False},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["is_platform_managed"] is False
+
+
+class TestReadinessReportsCarriersSoldOutsideTheAllowlist:
+    async def _check(self, session):
+        from api.services.billing import readiness
+
+        return await readiness._carrier_enablement_check(session)
+
+    async def test_nothing_outside_the_allowlist_reads_clean(
+        self, db_session, async_session
+    ):
+        await _org_and_config(async_session, "clean", "plivo", managed=True)
+        await async_session.flush()
+
+        check = await self._check(async_session)
+        assert check.status == "ready"
+
+    async def test_a_managed_config_outside_the_allowlist_is_a_blocker(
+        self, db_session, async_session
+    ):
+        """The case that predates the rollout decision — a config already
+        selling on a carrier the allowlist no longer covers."""
+        await _org_and_config(async_session, "predates", "twilio", managed=True)
+        await async_session.flush()
+
+        check = await self._check(async_session)
+        assert check.status == "action_required"
+        assert "twilio" in check.detail
+        assert check.remedy

@@ -104,6 +104,16 @@ class PhoneNumberResponse(BaseModel):
     extra_metadata: Dict[str, Any]
     created_at: datetime
     updated_at: datetime
+    # active | suspended | released — see PhoneNumberStatus. What the release
+    # action and its eligibility (below) actually key off.
+    status: str = "active"
+    # Set only when Decibyl bought this number on the account's behalf. Null
+    # for a number added by hand against the account's own carrier account —
+    # that one is never ours to release, so the screen has to be able to tell
+    # the two apart rather than offering a release button on both.
+    carrier_number_id: Optional[str] = None
+    provisioned_at: Optional[datetime] = None
+    released_at: Optional[datetime] = None
     # Only set on create/update responses when the route attempted a
     # provider-side sync (e.g. setting Twilio's VoiceUrl). Omitted on reads.
     provider_sync: Optional[ProviderSyncStatus] = None
