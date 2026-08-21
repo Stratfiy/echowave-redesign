@@ -42,8 +42,14 @@ from api.enums import RecurringChargeStatus
 #: Calls stop. The resource is still held and fully recoverable.
 SUSPEND_AFTER_DAYS = 7
 
-#: Reminders. They change nothing about the resource; they exist so the
-#: customer is not surprised at day 45.
+#: Reminders *after* the suspension. They change nothing about the resource;
+#: they exist so the customer is not surprised at day 45.
+#:
+#: The suspension itself is announced separately — see ``should_warn`` below.
+#: It used not to be, so a number went silent on day 7 and the customer first
+#: heard about it on day 15: eight days of a dead line at the exact moment they
+#: could have fixed it with a top-up. That is the failure this module's own
+#: docstring names, and it was in the schedule rather than in the sending.
 WARN_AFTER_DAYS = (15, 25)
 
 #: The earliest a release may be *considered*. Never a trigger.
@@ -123,7 +129,10 @@ def evaluate(
             status=RecurringChargeStatus.SUSPENDED,
             days_overdue=overdue,
             should_suspend=True,
-            should_warn=overdue in WARN_AFTER_DAYS,
+            # The day calls stop, and every reminder after it. Warning only on
+            # the reminder days meant the one moment the customer could act on
+            # — their number going quiet — was the one nobody was told about.
+            should_warn=(overdue == SUSPEND_AFTER_DAYS or overdue in WARN_AFTER_DAYS),
             may_release=False,
             message=(
                 "Calls on this number are paused because the monthly rental "

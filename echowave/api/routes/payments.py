@@ -708,7 +708,13 @@ async def razorpay_webhook(
             raise HTTPException(status_code=400, detail="Invalid webhook") from exc
         await session.commit()
 
+    # A prepaid top-up reports its voucher at the top level; an autopay
+    # collection reports it under "voucher", because that branch settles a
+    # mandate rather than crediting an order. Both are money the customer's
+    # account was debited for, and both owe them the document.
     voucher_id = result.get("receipt_voucher_id")
+    if voucher_id is None:
+        voucher_id = (result.get("voucher") or {}).get("id")
     if voucher_id is not None:
         # After commit, not inside the transaction: an enqueue must not survive
         # a rollback of the payment it is about, and the reverse (a committed

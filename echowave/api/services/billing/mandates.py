@@ -168,6 +168,34 @@ async def _post(path: str, payload: dict, *, client: httpx.AsyncClient | None = 
     return response.json()
 
 
+async def _get(path: str, *, client: httpx.AsyncClient | None = None):
+    """Read one object back from the provider.
+
+    Same error shaping as :func:`_post` — the provider's own description rather
+    than a status code — because the callers of both surface it to an operator.
+    """
+    owned = client is None
+    client = client or httpx.AsyncClient(timeout=_TIMEOUT)
+    try:
+        response = await client.get(f"{RAZORPAY_API_BASE}{path}", auth=_auth())
+    except httpx.HTTPError as exc:
+        raise MandateError(f"Razorpay request failed: {exc}") from exc
+    finally:
+        if owned:
+            await client.aclose()
+
+    if response.status_code >= 400:
+        detail = ""
+        try:
+            detail = (response.json().get("error") or {}).get("description") or ""
+        except ValueError:
+            detail = response.text[:200]
+        raise MandateError(
+            f"Razorpay returned {response.status_code} for {path}: {detail}"
+        )
+    return response.json()
+
+
 async def _ensure_plan(
     *,
     pinned: str | None,
@@ -188,6 +216,16 @@ async def _ensure_plan(
     profile and this function has no view of one.
     """
     if pinned:
+        # The pinned plan's amount is what the bank will actually be told to
+        # take, and nothing here can change it. So it is checked against the
+        # figure the caller derived, because the failure otherwise is silent
+        # and monthly: a plan created at Rs2,999 when the gross is Rs3,538.82
+        # collects **no GST at all**, by standing instruction, for as long as
+        # nobody queries it — and the receipt voucher issued against it splits
+        # a number that never included the tax.
+        await _assert_pinned_plan_amount(
+            plan_id=pinned, expected_paise=price_paise, env_var=env_var, client=client
+        )
         return pinned
 
     created = await _post(
@@ -214,6 +252,57 @@ async def _ensure_plan(
         env_var,
     )
     return plan_id
+
+
+async def _assert_pinned_plan_amount(
+    *,
+    plan_id: str,
+    expected_paise: int,
+    env_var: str,
+    client: httpx.AsyncClient | None = None,
+) -> None:
+    """Refuse to subscribe anyone to a plan that collects the wrong amount.
+
+    Reads the plan back from the provider and compares. Three outcomes, and the
+    middle one is the whole point:
+
+    * **matches** — nothing happens.
+    * **differs** — raises. A mandate is a standing instruction, so getting
+      this wrong is not one bad charge, it is every charge until somebody
+      reconciles a year of returns. Refusing at signup is a support ticket;
+      accepting is a tax liability.
+    * **cannot be read** — logged and allowed. A provider outage must not stop
+      customers subscribing, and the amount is far more likely right than not.
+
+    The amount is the **gross**: what the customer pays, tax included. Every
+    other figure in this package is net, which is exactly why this one is
+    passed in rather than recomputed here.
+    """
+    try:
+        plan = await _get(f"/plans/{plan_id}", client=client)
+    except Exception as exc:  # noqa: BLE001 — see docstring
+        logger.warning(
+            "Could not read {} ({}) back from the provider to check its "
+            "amount: {}. Proceeding on the assumption it is right.",
+            env_var,
+            plan_id,
+            exc,
+        )
+        return
+
+    actual = ((plan or {}).get("item") or {}).get("amount")
+    if actual is None:
+        logger.warning("{} ({}) came back with no amount to check.", env_var, plan_id)
+        return
+
+    if int(actual) != int(expected_paise):
+        raise MandateError(
+            f"{env_var} points at a plan collecting ₹{int(actual) / 100:,.2f}, "
+            f"but this account should be charged ₹{expected_paise / 100:,.2f} "
+            "including GST. A standing instruction for the wrong amount "
+            "collects it every month, so nobody is subscribed until the plan "
+            "is corrected at the provider or the variable repointed."
+        )
 
 
 async def ensure_rental_plan(

@@ -322,7 +322,12 @@ async def _issue_collection_voucher(
             else "Monthly phone number rental"
         ),
     )
-    return {"number": voucher.number} if voucher else None
+    # The id as well as the number: the caller enqueues the email off the id,
+    # and returning only a human-readable number meant the voucher for every
+    # autopay collection was issued and never sent. A bank debiting Rs3,538 a
+    # month against silence is the single most reliable way to be asked for a
+    # chargeback.
+    return {"id": voucher.id, "number": voucher.number} if voucher else None
 
 
 async def handle_webhook(

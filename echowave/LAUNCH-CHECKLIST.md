@@ -160,9 +160,9 @@ Two consequences, neither of which any code can detect:
 * An export customer with an LUT is zero-rated but pays the domestic pinned
   price.
 
-- [ ] Confirm in the Razorpay dashboard that the pinned starter plan's amount is **₹3,538.82** and the rental plan's is **₹588.82**
-- [ ] Assert it in code: fetch the pinned plan at startup, compare to the derived gross, refuse to create a mandate on a mismatch
-- [ ] Decide the export case explicitly — a second pinned plan, or refuse autopay for export accounts
+- [x] **Asserted in code**: the pinned plan is read back at mandate creation and compared to the derived gross. A mismatch refuses to subscribe anyone and names the variable to fix; a provider we cannot reach is allowed through, because an outage must not stop signups
+- [ ] Still confirm in the Razorpay dashboard that the starter plan reads **₹3,538.82** — the guard stops the damage, it does not create the plan for you (`OPERATOR-RUNBOOK.md` §2)
+- [ ] The export case is documented and still unhandled: a pinned plan charges everyone the same, so an LUT account on autopay is over-charged by the GST. Keep them on prepaid, or give them a plan row with its own net-priced provider plan
 
 ### 1.5 The exchange rate is a floor, not a rate
 
@@ -243,6 +243,26 @@ Nothing renders it. `PRODUCTION-CHECKLIST.md` Step 8 says "verify readiness
 reports zero blockers" and there is no way to look.
 
 - [ ] Put it on `/superadmin/billing` as the first thing on the page
+
+### 2.3b Money moved and nobody was told — FIXED
+
+Two silences, both of which read as nothing going wrong. See
+`OPERATOR-RUNBOOK.md` §4.
+
+- [x] **The autopay receipt was issued and never sent.** The webhook route
+      enqueued the email off `receipt_voucher_id`, which only the prepaid
+      top-up path sets; the collection path nests it under `voucher` and
+      reported only a human-readable number, not an id. So every monthly bank
+      debit produced a tax document that reached nobody
+- [x] **The dunning ladder said nothing at all** — and the schedule itself did
+      not flag the day calls stop. `should_warn` was true on days 15 and 25
+      only, so a number went silent on day 7 and the customer first heard on
+      day 15. Day 7 now warns, and the notice names the number, the amount and
+      the way back
+- [x] **A pinned Razorpay plan collecting the wrong amount is now refused** —
+      see 1.4, which this closes. The mandate path reads the plan back and
+      compares it to the derived gross; a provider we cannot reach is allowed
+      through rather than blocking signups
 
 ### 2.4 Others, in rough order of how much they matter
 

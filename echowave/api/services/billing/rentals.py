@@ -67,6 +67,14 @@ class ChargeOutcome:
     amount_paise: int = 0
     prorated: bool = False
     reason: str = ""
+    #: The dunning step this failure reached, and who to tell about it. Carried
+    #: out of the transaction rather than acted on inside it: the schedule has
+    #: to be committed whether or not an email can be sent, and a suspension
+    #: that rolled back because SMTP was down would leave the next tick with
+    #: nothing to do and the customer still uninformed.
+    dunning_state: object | None = None
+    organization_id: int | None = None
+    phone_number: str | None = None
 
 
 def month_end(moment: datetime) -> datetime:
@@ -430,7 +438,7 @@ async def charge_period(
             session, organization_id=charge.organization_id
         )
         if balance < amount:
-            await _record_failure(
+            state = await _record_failure(
                 session,
                 charge,
                 now=now,
@@ -438,12 +446,20 @@ async def charge_period(
                     f"Balance {balance} paise is short of the {amount} paise rental."
                 ),
             )
+            number = (
+                await session.get(TelephonyPhoneNumberModel, charge.resource_id)
+                if charge.charge_type == RecurringChargeType.NUMBER_RENTAL.value
+                else None
+            )
             await session.commit()
             return ChargeOutcome(
                 charge_id=charge_id,
                 charged=False,
                 amount_paise=amount,
                 reason="insufficient_balance",
+                dunning_state=state,
+                organization_id=charge.organization_id,
+                phone_number=getattr(number, "phone_number", None),
             )
 
         period = RecurringChargePeriodModel(
@@ -845,8 +861,13 @@ async def _record_failure(
     *,
     now: datetime,
     reason: str,
-) -> None:
-    """Apply the dunning policy to a charge that could not be collected."""
+):
+    """Apply the dunning policy to a charge that could not be collected.
+
+    Returns the step it reached, so the caller can tell the customer about it
+    once the transaction has committed. Notifying from in here would tie a
+    suspension to whether SMTP answered.
+    """
     if charge.first_failed_at is None:
         charge.first_failed_at = now
     charge.failure_count = (charge.failure_count or 0) + 1
@@ -874,6 +895,7 @@ async def _record_failure(
         reason,
         state.status.value,
     )
+    return state
 
 
 async def _set_number_status(
@@ -910,7 +932,7 @@ async def run_due_charges(*, now: datetime | None = None) -> dict[str, int]:
     """
     now = now or datetime.now(UTC)
     charges = await due_charges(now=now)
-    counters = {"considered": len(charges), "charged": 0, "failed": 0}
+    counters = {"considered": len(charges), "charged": 0, "failed": 0, "notified": 0}
 
     for charge in charges:
         try:
@@ -923,6 +945,22 @@ async def run_due_charges(*, now: datetime | None = None) -> dict[str, int]:
             counters["charged"] += 1
         elif outcome.reason == "insufficient_balance":
             counters["failed"] += 1
+            # After the charge's own transaction, and never allowed to break
+            # the loop: the dunning ladder is already applied and committed,
+            # and a customer told nothing is the failure this exists to fix —
+            # but one told nothing is still better than the rest of the book
+            # going unbilled because SMTP hung.
+            if outcome.dunning_state is not None:
+                from api.tasks.rental_billing import notify_dunning
+
+                if await notify_dunning(
+                    organization_id=outcome.organization_id,
+                    charge_id=outcome.charge_id,
+                    state=outcome.dunning_state,
+                    phone_number=outcome.phone_number,
+                    amount_paise=outcome.amount_paise,
+                ):
+                    counters["notified"] = counters.get("notified", 0) + 1
 
     logger.info(
         "Rental billing: {considered} due, {charged} charged, {failed} unpaid",
