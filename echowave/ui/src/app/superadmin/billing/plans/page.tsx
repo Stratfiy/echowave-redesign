@@ -49,6 +49,7 @@ type Plan = {
     parts_paise: number;
     discount_paise: number;
     razorpay_plan_id: string | null;
+    razorpay_plan_id_export: string | null;
     enabled: boolean;
     sort_order: number;
 };
@@ -62,6 +63,7 @@ type Draft = {
     includedNumbers: string;
     extraNumberRupees: string;
     razorpayPlanId: string;
+    razorpayPlanIdExport: string;
     enabled: boolean;
     sortOrder: string;
 };
@@ -76,6 +78,7 @@ function blankDraft(defaultExtraPaise: number): Draft {
         includedNumbers: "1",
         extraNumberRupees: String(defaultExtraPaise / 100),
         razorpayPlanId: "",
+        razorpayPlanIdExport: "",
         enabled: true,
         sortOrder: "0",
     };
@@ -91,6 +94,7 @@ function toDraft(plan: Plan): Draft {
         includedNumbers: String(plan.included_numbers),
         extraNumberRupees: String(plan.extra_number_price_paise / 100),
         razorpayPlanId: plan.razorpay_plan_id ?? "",
+        razorpayPlanIdExport: plan.razorpay_plan_id_export ?? "",
         enabled: plan.enabled,
         sortOrder: String(plan.sort_order),
     };
@@ -98,6 +102,9 @@ function toDraft(plan: Plan): Draft {
 
 const rupeesToPaise = (value: string): number =>
     Math.round((Number(value) || 0) * 100);
+
+/** GST at 18%, in basis points. Mirrors `constants.GST_RATE_BASIS_POINTS`. */
+const GST_BASIS_POINTS = 1_800;
 
 export default function PlansPage() {
     const { user, loading: authLoading } = useAuth();
@@ -142,6 +149,7 @@ export default function PlansPage() {
                 included_numbers: Number(draft.includedNumbers) || 0,
                 extra_number_price_paise: rupeesToPaise(draft.extraNumberRupees),
                 razorpay_plan_id: draft.razorpayPlanId.trim() || null,
+                razorpay_plan_id_export: draft.razorpayPlanIdExport.trim() || null,
                 enabled: draft.enabled,
                 sort_order: Number(draft.sortOrder) || 0,
             },
@@ -173,6 +181,11 @@ export default function PlansPage() {
               rupeesToPaise(draft.extraNumberRupees)
         : 0;
     const grantsMoreThanItTakes = draft !== null && draftBalance > draftPrice;
+    // The figure to create the domestic Razorpay plan at. Shown beside the
+    // field rather than left as arithmetic somebody does in their head: a plan
+    // pinned at the net price collects no GST at all, monthly, by standing
+    // instruction, and nothing in the product can detect it afterwards.
+    const draftGross = Math.round((draftPrice * (10_000 + GST_BASIS_POINTS)) / 10_000);
 
     return (
         <div className="space-y-6">
@@ -385,8 +398,36 @@ export default function PlansPage() {
                             />
                             <p className="mt-1 text-xs text-muted-foreground">
                                 Create it at Razorpay for the <em>grossed-up</em>
-                                amount. Left blank, one is created on the fly and the
+                                amount{draftGross > 0 ? ` — ₹${(draftGross / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}.
+                                Left blank, one is created on the fly and the
                                 provider&apos;s own reporting fragments.
+                            </p>
+                        </div>
+                        <div>
+                            <Label htmlFor="plan-rzp-export">
+                                Razorpay plan id — export accounts
+                            </Label>
+                            <Input
+                                id="plan-rzp-export"
+                                value={draft.razorpayPlanIdExport}
+                                placeholder="plan_..."
+                                onChange={(e) =>
+                                    setDraft({
+                                        ...draft,
+                                        razorpayPlanIdExport: e.target.value,
+                                    })
+                                }
+                                className="mt-1.5"
+                            />
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                {/* A pinned plan charges everyone the same amount,
+                                    so a zero-rated account needs a different plan
+                                    rather than a different calculation. */}
+                                A second plan created at the <em>net</em> price
+                                {draftPrice > 0 ? ` — ₹${(draftPrice / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""},
+                                for accounts outside India with an LUT on file. Left
+                                blank, such an account is refused rather than
+                                overcharged by the GST.
                             </p>
                         </div>
                     </div>

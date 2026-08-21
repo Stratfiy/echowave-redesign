@@ -51,7 +51,7 @@ from api.constants import (
 from api.db.models import PaymentMandateModel
 from api.enums import MandateStatus
 from api.services.billing.billing_profile import get_profile
-from api.services.billing.tax import TaxError, gross_up
+from api.services.billing.tax import TaxError, compute_tax, gross_up
 
 PROVIDER = "razorpay"
 PURPOSE_NUMBER_RENTAL = "number_rental"
@@ -510,7 +510,7 @@ async def create_plan_mandate(
     )
     profile = await get_profile(session, organization_id=organization_id)
     try:
-        gross_paise = gross_up(
+        breakdown = compute_tax(
             taxable_paise=net_paise,
             country_code=profile.country_code,
             state_code=profile.state_code,
@@ -518,9 +518,32 @@ async def create_plan_mandate(
     except TaxError as exc:
         raise MandateError(str(exc)) from exc
 
+    # A pinned provider plan charges everyone the same amount and nothing here
+    # can change it, so a zero-rated account needs a different plan rather than
+    # a different calculation. There is no arithmetic that turns one pinned
+    # amount into another once the bank holds the instruction.
+    is_export = breakdown.supply_type == "export"
+    gross_paise = breakdown.total_paise
+    pinned = None
+    if plan is not None:
+        pinned = plan.razorpay_plan_id_export if is_export else plan.razorpay_plan_id
+
+    if is_export and plan is not None and not pinned:
+        # Refused, with the figure to create it at. The alternative is
+        # subscribing them to the domestic plan, which overcharges them by the
+        # tax every month for as long as the mandate lives.
+        raise MandateError(
+            f"This account is zero-rated for GST, so it owes the net "
+            f"₹{net_paise / 100:,.2f} — not the domestic amount the "
+            f"{plan.code} plan is pinned at. Create a second Razorpay plan at "
+            f"₹{net_paise / 100:,.2f} and put its id in the export field at "
+            "/superadmin/billing/plans, or keep this account on prepaid "
+            "top-ups."
+        )
+
     plan_id = await ensure_starter_plan(
         price_paise=gross_paise,
-        pinned=(plan.razorpay_plan_id if plan is not None else None),
+        pinned=pinned,
         client=client,
     )
 

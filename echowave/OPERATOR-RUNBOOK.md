@@ -104,12 +104,16 @@ provider plan at that. Put the id on the plan row (§3), not in an environment
 variable — one variable cannot be right for two plans.
 
 **Export customers.** An account outside India with an LUT on file is
-zero-rated and owes the *net* figure. A pinned plan charges everyone the same
-amount, so an export account on autopay is currently over-charged by the GST.
-Either keep export accounts on prepaid top-ups, or create a second plan at the
-net amount and put its id on a plan row reserved for them. This is not handled
-automatically and the guard in §2 will refuse the mismatch rather than silently
-over-collect.
+zero-rated and owes the *net* figure — ₹2,999, not ₹3,538.82. A pinned plan
+charges everyone the same amount, so such an account needs its **own** Razorpay
+plan created at the net price. Put its id in the plan row's export field
+(§3a); `create_plan_mandate` picks it whenever the supply resolves to an
+export.
+
+The two ids cannot be the same plan — one plan cannot collect two amounts, and
+the editor refuses it. Until the export plan exists, an export account is
+refused with the figure to create it at, which is better than subscribing them
+to the domestic plan and over-collecting the tax every month.
 
 ---
 
@@ -130,11 +134,20 @@ needs a release.
 | Numbers included | The entitlement. Number N+1 bills separately every month |
 | Extra number | What number N+1 costs. Blank follows the platform rental price |
 | Razorpay plan id | The provider plan, created at the **gross** — see §2 |
+| Razorpay plan id — export | A second provider plan created at the **net**, for accounts outside India with an LUT. Blank refuses those accounts rather than over-collecting |
 
 The editor shows the contents at list price beside your price while you type.
 ₹2,999 for ₹2,500 of balance and a ₹499 number is a deliberate zero-margin
 bundle; the same ₹2,999 against ₹3,500 of balance is a loss, and **the server
 refuses it** — granted balance is spendable at our cost the moment it lands.
+
+**Granted balance expires with its cycle.** The arriving collection retires the
+previous cycle, and a daily sweep retires one nobody renewed after 34 days —
+longer than a month on purpose, so a collection that lands late never expires
+balance somebody is about to renew. A **top-up never expires**: the customer
+bought that outright, and plan money is spent first so a top-up is never
+consumed by an expiry. Both facts are on the plan card and in the authorisation
+email, which is the only place stating them counts.
 
 Editing a plan does **not** re-price anyone already on it. Their bank holds an
 instruction for a specific amount and their mandate records the plan code it
@@ -148,8 +161,10 @@ assumption which swings it between 300 and 475 minutes. Run
 second plan. See `LAUNCH-CHECKLIST.md` §3.1.
 
 **Speech-to-speech.** Premium (OpenAI realtime) is ₹25.79/min, so ₹2,500 is 97
-minutes. Selling it inside a starter plan will generate support tickets — hide
-it from the plan or warn on the card.
+minutes against roughly 301 on the Lite managed stack. The Simple picker states
+that: every price carries an approximate minutes figure computed from the
+account's own balance, so the choice is made against the number the customer
+was actually asking about.
 
 ### 3b. A **model bundle** — what a customer picks on the Models screen
 

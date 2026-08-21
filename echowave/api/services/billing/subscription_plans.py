@@ -62,6 +62,12 @@ class Plan:
     included_numbers: int
     extra_number_price_paise: int
     razorpay_plan_id: str | None
+    #: The provider plan for a zero-rated account — outside India with an LUT
+    #: on file. Created at the **net** price rather than the gross, because
+    #: that is the whole of what such an account owes. Null until an operator
+    #: creates it, and until then an export account cannot subscribe: a
+    #: visible refusal beats an invisible 18% overcharge every month.
+    razorpay_plan_id_export: str | None
     enabled: bool
     sort_order: int
 
@@ -97,6 +103,7 @@ def _view(row: SubscriptionPlanModel) -> Plan:
             else constants.NUMBER_RENTAL_PRICE_PAISE
         ),
         razorpay_plan_id=row.razorpay_plan_id,
+        razorpay_plan_id_export=row.razorpay_plan_id_export,
         enabled=bool(row.enabled),
         sort_order=int(row.sort_order or 0),
     )
@@ -149,6 +156,7 @@ async def save(
     blurb: str = "",
     extra_number_price_paise: int | None = None,
     razorpay_plan_id: str | None = None,
+    razorpay_plan_id_export: str | None = None,
     enabled: bool = True,
     sort_order: int = 0,
 ) -> Plan:
@@ -199,6 +207,16 @@ async def save(
         int(extra_number_price_paise) if extra_number_price_paise is not None else None
     )
     row.razorpay_plan_id = (razorpay_plan_id or "").strip() or None
+    row.razorpay_plan_id_export = (razorpay_plan_id_export or "").strip() or None
+    if row.razorpay_plan_id_export and row.razorpay_plan_id_export == row.razorpay_plan_id:
+        # One id cannot be pinned at two amounts. Pointing both at the same
+        # provider plan does not make an export account pay the net — it makes
+        # the guard pass for one of them and refuse the other, at random
+        # depending on which account subscribes.
+        raise PlanError(
+            "The export plan must be a separate Razorpay plan, created at the "
+            "net price. The same plan cannot collect two different amounts."
+        )
     row.enabled = bool(enabled)
     row.sort_order = int(sort_order)
     await session.flush()

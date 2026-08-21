@@ -69,6 +69,27 @@ import {
 } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
+/** Ledger kinds, in words rather than in column values.
+ *
+ * `capitalize` alone renders `plan_expiry` as "Plan_expiry". The kinds that
+ * take money need to read as sentences on a screen somebody opens when a
+ * customer is asking why a debit is there.
+ */
+const LEDGER_KIND_LABELS: Record<string, string> = {
+    plan: "Plan balance",
+    plan_expiry: "Plan balance expired",
+    topup: "Top-up",
+    usage: "Usage",
+    reservation: "Hold",
+    rental: "Number rental",
+    adjustment: "Adjustment",
+    trial: "Trial credit",
+};
+
+function ledgerKindLabel(kind: string): string {
+    return LEDGER_KIND_LABELS[kind] ?? kind;
+}
+
 export default function AccountDetailPage() {
     const params = useParams<{ organizationId: string }>();
     const organizationId = Number(params.organizationId);
@@ -353,7 +374,7 @@ export default function AccountDetailPage() {
                                                 <TableCell className="whitespace-nowrap text-muted-foreground">
                                                     {formatDateTimeIST(String(entry.created_at ?? ""))}
                                                 </TableCell>
-                                                <TableCell className="capitalize">{String(entry.kind)}</TableCell>
+                                                <TableCell className="capitalize">{ledgerKindLabel(String(entry.kind))}</TableCell>
                                                 <TableCell
                                                     className={cn(
                                                         "text-right tabular-nums",

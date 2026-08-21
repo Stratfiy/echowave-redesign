@@ -39,6 +39,7 @@ def _plan(**overrides) -> Plan:
         included_numbers=1,
         extra_number_price_paise=49_900,
         razorpay_plan_id="plan_x",
+        razorpay_plan_id_export=None,
         enabled=True,
         sort_order=0,
     )
@@ -126,6 +127,8 @@ class TestThePlanConfirmation:
         )
 
         assert "₹2,500.00 of call balance" in notice.body
+        # Balance that expires has to be stated where the money is committed.
+        assert "does not carry over" in notice.body
         assert "1 phone number" in notice.body
         assert "₹499.00" in notice.body
 

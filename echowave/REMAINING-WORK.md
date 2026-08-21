@@ -60,20 +60,23 @@ marker and makes the carrier sellable. Neither Telnyx nor Vonage publishes an
 India figure this repository can cite, which is why the code refuses rather
 than guessing.
 
-### B2. Export accounts on autopay are over-charged by the GST
+### ~~B2. Export accounts on autopay are over-charged by the GST~~ — decided and done, 21 Aug
 
-A pinned Razorpay plan charges everyone the same amount. An account outside
-India with an LUT on file is zero-rated and owes the **net** figure, so it is
-being asked for ₹3,538.82 against a real ₹2,999.
+**Decision: a second plan at the net amount.** `subscription_plans` rows carry
+`razorpay_plan_id_export` alongside the domestic id, and `create_plan_mandate`
+picks it whenever the supply resolves to an export. The two cannot point at one
+provider plan — a single pinned plan cannot collect two amounts, and `save`
+refuses that rather than letting the guard pass or fail depending on who
+subscribes.
 
-The guard added on this branch refuses the mismatch rather than silently
-over-collecting, which means such an account currently *cannot subscribe* — a
-visible failure instead of an invisible one, which is the right direction but
-is not a fix.
+Null until an operator creates it, and until then an export account is refused
+with the net figure to create the plan at. That is still better than the
+alternative: subscribing them to the domestic plan overcharges by the tax,
+monthly, for as long as the mandate lives.
 
-**Fix, pick one:** keep export accounts on prepaid top-ups (zero code, state it
-in the docs), or give the plan row a second provider plan id used when the
-billing profile is an export. The plans table already has somewhere to put it.
+**Operator step:** create the second Razorpay plan at the **net** price and put
+its id in the export field at `/superadmin/billing/plans`. Only needed once you
+actually have an export customer wanting autopay.
 
 ### ~~B3. The wizard's price excludes carriage~~ — done 21 Aug
 
@@ -93,17 +96,25 @@ their own carrier (we bill no carriage at all), ours (included, carrier named).
 too, since a missing carrier line there reads as *more minutes* than the
 balance buys.
 
-### B4. Granted plan balance never expires
+### ~~B4. Granted plan balance never expires~~ — decided and done, 21 Aug
 
-`CreditLedgerKind.PLAN` is an ordinary credit row. `PRICING-FIX-PLAN.md` flagged
-expiry-versus-rollover as a decision to take explicitly; it has been taken by
-default, in favour of rollover for ever. An account that pays ₹2,999 a month
-and never calls accrues ₹2,500 a month indefinitely.
+**Decision: it expires at the end of each cycle.** Two paths, because an
+account that keeps paying and one that stops need different machinery:
 
-**This is a commercial decision, not a bug.** Expiry is standard and is what
-makes a bundle better than a top-up; rollover is friendlier and much harder to
-reason about on an invoice. Whichever you choose, it has to be stated at the
-point of purchase. Half a day once decided.
+* the arriving collection retires the cycle before it (`grant_plan_cycle`);
+* a daily sweep retires a cycle nobody renewed, with `CYCLE_GRACE_DAYS = 34` of
+  grace so a collection that lands late never expires balance the customer is
+  about to renew.
+
+Both key the expiry on the grant it retires, so they can race on a late renewal
+and only one debit lands. **A top-up is never touched** — the customer bought
+that outright — and plan money is spent first, which is the ordering that makes
+that true rather than merely intended. The expiry cannot drive a balance
+negative: suspending calls over a date rather than over a spend would read as a
+fault.
+
+Stated at the point of purchase, which is the only place stating it counts: on
+the plan card, and in the authorisation email.
 
 ---
 
@@ -182,10 +193,15 @@ read, not an invoice that was checked. Until one month is reconciled against
 `provider_cost_paise`, the cost side is an assumption — and so is every margin
 number derived from it.
 
-### E3. Premium speech-to-speech inside a starter plan
+### ~~E3. Premium speech-to-speech inside a starter plan~~ — decided and done, 21 Aug
 
-₹25.79/min means ₹2,500 is **97 minutes**. Hide it from the plan, or warn on the
-card. A commercial call, not a bug.
+**Decision: show it, with the minutes on the card.** ₹25.79/min reads as "a bit
+more than ₹8.30" right up until it is stated as 97 minutes against 301. The
+Simple picker now puts an approximate minutes figure beside every price —
+bundle card, variant row and the summary line — computed from the account's own
+balance through the same rule the server uses. Null wherever the price is null,
+because quoting minutes at a price missing its largest line multiplies the
+error rather than surfacing it.
 
 ---
 
@@ -227,7 +243,9 @@ card. A commercial call, not a bug.
 2. ~~**C1.** The customer Models screen.~~ **Done** — see the note in §C.
 3. ~~**D1, D2.**~~ Done. **B1** now needs only the four published carrier rates
    typing into the rate card; **B3** is done.
-4. **Decide B2, B4, E3.** Three commercial calls that need you, not code.
+4. ~~**Decide B2, B4, E3.**~~ Decided 21 Aug and implemented: a second
+   Razorpay plan at the net price for exports, plan balance expires with its
+   cycle, and Premium is shown with what your balance buys.
 5. ~~**F1.**~~ Done — `tsc`, vitest and `next build` now run on every UI PR.
 6. **E1** after a week of real traffic, then re-size the plan balance.
 7. **C2–C8** as each feature is actually turned on. None is urgent while its

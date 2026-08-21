@@ -115,10 +115,26 @@ async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, An
             telephony_provider=basis.provider,
         )
 
+    async with db_client.async_session() as session:
+        # What the account can actually spend, so the picker can turn each
+        # card's price into minutes.
+        #
+        # A price a minute is not a decision anybody can make. ₹25.79 reads as
+        # "a bit more than ₹8.30" until it is stated as 97 minutes against 301
+        # — which is the difference between a premium option and a month that
+        # ends in four days, and it is the shape of question a first-time buyer
+        # is actually asking.
+        from api.services.billing.payments import current_balance_paise
+
+        balance_paise = await current_balance_paise(
+            session, organization_id=organization_id
+        )
+
     return {
         "brains": priced,
         "voices": voice_list,
         "bundles": bundles,
+        "balance_paise": int(balance_paise),
         # What the numbers above do and do not contain. A price that excludes
         # the largest variable line has to say so on the screen, or the first
         # invoice is where the customer finds out.

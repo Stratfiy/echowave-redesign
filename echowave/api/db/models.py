@@ -2883,7 +2883,22 @@ class SubscriptionPlanModel(Base):
     #: The provider plan this subscribes to. Pinned per plan for the same
     #: reason the rental plan is pinned: a plan created lazily per environment
     #: fragments the provider's own reporting into pieces nobody can rejoin.
+    #:
+    #: Created at the **gross**: a pinned plan's amount is what the bank
+    #: collects and nothing in this codebase can change it, so a plan created
+    #: at the net figure collects no GST at all, monthly, by standing
+    #: instruction.
     razorpay_plan_id = Column(String(64), nullable=True)
+    #: The same plan for an account whose supply is zero-rated — outside India
+    #: with an LUT on file. Created at the **net** figure, because that is the
+    #: whole of what such an account owes.
+    #:
+    #: A second row rather than a computation, because a pinned plan is an
+    #: object at the provider and there is no arithmetic that can turn one
+    #: amount into another once the bank holds the instruction. Null until
+    #: somebody creates it, and an export account cannot subscribe until they
+    #: do — a visible refusal rather than an invisible 18% overcharge.
+    razorpay_plan_id_export = Column(String(64), nullable=True)
 
     enabled = Column(Boolean, nullable=False, default=True, server_default="true")
     sort_order = Column(Integer, nullable=False, default=0, server_default="0")
@@ -3065,6 +3080,19 @@ class CreditLedgerModel(Base):
             "ref_id",
             unique=True,
             postgresql_where=text("kind = 'plan' AND ref_id IS NOT NULL"),
+        ),
+        # A cycle's balance expires once. ``ref_id`` is the grant being
+        # retired, so the daily sweep and the next collection can both reach
+        # the same grant and only one debit lands — which matters because the
+        # two run on different schedules and will race on a renewal that
+        # arrives late.
+        Index(
+            "uq_credit_ledger_plan_expiry_ref",
+            "organization_id",
+            "ref_type",
+            "ref_id",
+            unique=True,
+            postgresql_where=text("kind = 'plan_expiry' AND ref_id IS NOT NULL"),
         ),
         # One signup bonus per organization, ever. Two requests racing during
         # signup would both find no bonus and both grant one, so this is
