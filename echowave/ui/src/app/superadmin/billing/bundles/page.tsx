@@ -132,7 +132,19 @@ export default function BundlesPage() {
             bundleEconomicsApiV1AdminBillingBundlesEconomicsGet({}),
         ]);
         if (list.error) {
-            setError(detailFromError(list.error, "Failed to load bundles"));
+            // With the status. "Failed to load bundles" on its own is the one
+            // message that cannot be acted on: a 403 is the wrong account, a
+            // 500 is a server fault, and a 502 is the deploy still coming up —
+            // three different next steps behind one sentence.
+            const status = (list.response as Response | undefined)?.status;
+            setError(
+                detailFromError(
+                    list.error,
+                    status
+                        ? `Failed to load bundles (HTTP ${status})`
+                        : "Failed to load bundles — the request did not complete",
+                ),
+            );
         } else {
             setBundles((list.data as unknown as { bundles: Bundle[] }).bundles);
             setError(null);
