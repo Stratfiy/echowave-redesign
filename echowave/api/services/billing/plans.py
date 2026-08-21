@@ -74,9 +74,21 @@ async def grant_plan_cycle(
     banked.
     """
     now = now or datetime.now(UTC)
-    granted = int(
-        balance_paise if balance_paise is not None else STARTER_PLAN_BALANCE_PAISE
-    )
+
+    # What the plan this mandate actually bought grants, not what the current
+    # default plan grants. A customer on last quarter's plan keeps getting last
+    # quarter's balance: the collection is against the price they authorised,
+    # and granting today's figure against yesterday's price is how a plan change
+    # silently re-prices everyone already on it.
+    granted = balance_paise
+    if granted is None:
+        from api.services.billing import subscription_plans
+
+        plan = await subscription_plans.resolve(
+            session, code=getattr(mandate, "plan_code", None)
+        )
+        granted = plan.balance_paise if plan is not None else STARTER_PLAN_BALANCE_PAISE
+    granted = int(granted)
 
     payment = ((event.get("payload") or {}).get("payment") or {}).get("entity") or {}
     payment_id = payment.get("id")

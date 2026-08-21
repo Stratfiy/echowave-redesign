@@ -7,7 +7,9 @@ Decibyl is prepaid. You add credit, calls draw it down, and you are never invoic
 
 ## What you pay
 
-**$0.02 per minute** of connected call time, billed per second. Time is counted from answer to hangup — ringing, busy signals and unanswered calls cost nothing.
+**$0.02 per minute** of connected call time, billed in **15-second pulses**. Time is counted from answer to hangup — ringing, busy signals and unanswered calls cost nothing.
+
+A 62-second call bills 75 seconds, not two whole minutes. Most platforms round every call up to the next whole minute; on short, high-volume traffic that rounding alone is worth about 17% of a 45-second call.
 
 That is the platform fee. Alongside it you pay for what the call consumes:
 
@@ -29,9 +31,29 @@ Every model slot — LLM, transcription, voice — is independently either **you
 
 Mixing is normal and supported: your own OpenAI key for the LLM, our Sarvam for Indian-language speech, for example. See [Inference providers](/configurations/inference-providers).
 
+## The Starter plan
+
+**₹2,999 a month** — one phone number and ₹2,500 of call balance, collected by your bank on a standing instruction.
+
+| | |
+| --- | --- |
+| Call balance each month | ₹2,500 |
+| Phone numbers included | 1 |
+| Extra numbers | ₹499 a month each |
+
+GST is added to the plan price at collection, so a domestic account is debited ₹3,538.82.
+
+The balance arrives when each monthly collection is confirmed by your bank, not when you authorise the mandate. The number's rent is already inside the price — it is not taken from the balance as well.
+
+**The included number is an entitlement, not a limit on how many you can have.** Claim your first number at no extra cost; a second number opens its own ₹499 monthly rental, drawn from your credit balance.
+
+Start it from **Billing → Plan**. One plan at a time — to move to a different one, cancel the current mandate first.
+
 ## Adding credit
 
 **Billing → Add credit.** Choose an amount and pay by card, UPI, net banking or wallet through Razorpay.
+
+Credit is bought in steps of **₹100** — ₹100, ₹200, ₹500 and so on. The minimum is ₹100.
 
 Credit appears once the payment is confirmed by Razorpay's servers, not when the payment window closes. That is usually a second or two. The balance on screen re-reads itself rather than assuming — a browser saying "paid" is not proof of payment.
 
@@ -61,7 +83,9 @@ If documents were issued before you filled this in, open **Billing → Documents
 
 When your balance runs low you get an email warning before anything stops, sent once a day at 09:00 IST to everyone on the account.
 
-If the balance reaches zero, calls stop being placed. Nothing is deleted — your agents, numbers, recordings and transcripts stay exactly as they are, and topping up resumes service immediately.
+**Calling pauses once your balance falls below ₹20**, and resumes the moment you top up. Nothing is deleted — your agents, numbers, recordings and transcripts stay exactly as they are.
+
+The floor is ₹20 rather than zero on purpose. A call's cost is not known until it ends, so an account allowed to start a call on its last rupee would finish that call overdrawn. Stopping a little above zero means the last call you place is always one you had the credit for.
 
 For a **managed phone number**, the monthly rental is collected from your balance. If it cannot be collected the number is suspended after seven days and becomes eligible for release after 45 — which is why the warning email exists, and why autopay is worth setting up.
 

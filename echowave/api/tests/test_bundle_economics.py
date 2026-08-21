@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 import pytest
 
 from api.db.models import OrganizationModel, ProviderRateModel
+from api.services.billing.estimator import rate_card_provider
 from api.services.billing.markup import resolve_markup_bps
 from api.services.configuration import agent_options, managed_tiers
 from api.services.configuration import bundles as bundle_service
@@ -89,17 +90,29 @@ async def priced(async_session):
     # would compare the platform fee against itself and fail for the right
     # reason at the wrong moment. A realtime session is metered as language
     # model usage, which is why it is priced under that component.
+    #
+    # Seeded under **rate_card_provider(...)**, not under the tier's own
+    # provider name. That distinction is the whole of a defect this fixture
+    # used to hide: the tier says ``openai_realtime`` and the price book says
+    # ``decibylopenairealtime``, because the latter is what
+    # ``provider_from_processor`` derives from the running pipeline and
+    # therefore the only name a real call is ever costed under. Seeding under
+    # the tier name made these tests pass against a price book no production
+    # deployment has, while the live Simple picker quoted Rs2.76 a minute for a
+    # model costing Rs25.79.
+    #
     # Deduplicated by vendor model, because several realtime tiers can point at
     # the same one — the price book is keyed by what we buy, not by what we
     # call it.
     seen: set[tuple[str, str]] = set()
     for tier in managed_tiers.REALTIME_TIERS:
         upstream = managed_tiers.resolve(managed_tiers.REALTIME_COMPONENT, tier)
-        if (upstream.provider, upstream.model) in seen:
+        priced_as = rate_card_provider(upstream.provider)
+        if (priced_as, upstream.model) in seen:
             continue
-        seen.add((upstream.provider, upstream.model))
+        seen.add((priced_as, upstream.model))
         async_session.add(
-            _rate(upstream.provider, "llm", "1k_tokens", 40_000, model=upstream.model)
+            _rate(priced_as, "llm", "1k_tokens", 40_000, model=upstream.model)
         )
     await async_session.flush()
 

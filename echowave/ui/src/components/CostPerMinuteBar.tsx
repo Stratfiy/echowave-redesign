@@ -42,6 +42,11 @@ interface Estimate {
     agent_paise_per_minute: number;
     telephony_paise_per_minute: number;
     platform_paise_per_minute: number;
+    // Priced features, summed. Its own group rather than folded into one of
+    // the others: an add-on is Decibyl revenue like the platform fee but is
+    // charged only when the feature runs, and a bar without it would not add
+    // up to the total printed above it.
+    addon_paise_per_minute: number;
     lines: EstimateLine[];
     unpriced: string[];
     // The same total in dollars, which is the unit every competitor quotes.
@@ -52,14 +57,19 @@ interface Estimate {
 }
 
 /**
- * The three groups the bar is split into. Fixed order, fixed colour — the
+ * The four groups the bar is split into. Fixed order, fixed colour — the
  * segment for a group never moves or changes hue as the stack changes, so the
  * bar can be read at a glance across configurations.
+ *
+ * Add-ons are the fourth and were missing: they belong to none of the other
+ * three, so the segments summed to less than the total beside them for any
+ * agent using the knowledge base or post-call QA.
  */
 const GROUPS = [
     { key: "agent", label: "Agent cost", colour: "#1baf7a" },
     { key: "telephony", label: "Telephony", colour: "#eb6834" },
     { key: "platform", label: "Platform", colour: "#2a78d6" },
+    { key: "addon", label: "Features", colour: "#8b5cf6" },
 ] as const;
 
 const COMPONENT_LABELS: Record<string, string> = {
@@ -68,6 +78,16 @@ const COMPONENT_LABELS: Record<string, string> = {
     tts: "Voice",
     telephony: "Telephony",
     platform: "Platform fee",
+    addon: "Feature",
+};
+
+/**
+ * Add-on lines carry their catalogue key in `provider`, exactly as they do on
+ * a receipt, so one label map serves the estimate and the invoice.
+ */
+const ADDON_LABELS: Record<string, string> = {
+    knowledge_base: "Knowledge base",
+    call_qa: "Post-call QA",
 };
 
 function rupees(paise: number): string {
@@ -133,6 +153,7 @@ export function CostPerMinuteBar({
         agent: estimate.agent_paise_per_minute,
         telephony: estimate.telephony_paise_per_minute,
         platform: estimate.platform_paise_per_minute,
+        addon: estimate.addon_paise_per_minute ?? 0,
     };
 
     // Every line whose quantity we assumed rather than measured. Worth saying
@@ -283,7 +304,14 @@ export function CostPerMinuteBar({
                                 {COMPONENT_LABELS[line.component] ?? line.component}
                                 {line.provider && (
                                     <span className="ml-1.5 text-muted-foreground/70">
-                                        {line.provider}
+                                        {/* An add-on's `provider` is a catalogue
+                                            key, not a vendor: rendering it raw
+                                            put "knowledge_base" on a price
+                                            breakdown a customer reads. */}
+                                        {line.component === "addon"
+                                            ? (ADDON_LABELS[line.provider] ??
+                                              line.provider)
+                                            : line.provider}
                                         {line.model ? ` · ${line.model}` : ""}
                                     </span>
                                 )}

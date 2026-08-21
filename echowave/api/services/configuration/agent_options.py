@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.schemas.ai_model_configuration import DECIBYL_DEFAULT_VOICE
@@ -95,6 +96,30 @@ def voices() -> list[VoiceOption]:
     ]
 
 
+def _priced(estimate, *, what: str) -> int | None:
+    """The total, or ``None`` when some component of it has no rate on file.
+
+    The estimator already reports an unpriced component; every caller here used
+    to drop that and return the total anyway. A total missing its largest line
+    is not a smaller price, it is a wrong one — a speech-to-speech card quoted
+    Rs2.76 a minute against a real Rs25.79 that way, because the model resolved
+    to no rate and what was left was the telephony and the platform fee.
+
+    ``None`` rather than zero, and rather than a total: a screen can say "we
+    cannot price this" and an operator can go and add the rate. Nothing
+    downstream can mistake it for cheap.
+    """
+    if estimate.unpriced:
+        logger.warning(
+            "Refusing to quote {}: no rate on file for {}. The card will show "
+            "no price until one is added at /superadmin/billing/rate-card.",
+            what,
+            ", ".join(estimate.unpriced),
+        )
+        return None
+    return estimate.total_paise_per_minute
+
+
 async def price_per_minute(
     session: AsyncSession,
     *,
@@ -102,12 +127,15 @@ async def price_per_minute(
     brain: str,
     telephony_provider: str | None = None,
     marked_up: bool = True,
-) -> int:
+) -> int | None:
     """Paise per minute for a managed stack on this brain tier.
 
     Priced against what the tier resolves to today, because that is what the
     call will actually cost. The voice does not vary the price — every managed
     voice is the same tier and the same vendor rate — so it is not a parameter.
+
+    ``None`` when any component of the stack has no rate on file. See
+    :func:`_priced`.
     """
     llm = managed_tiers.resolve("llm", brain)
     stt = managed_tiers.resolve("stt", "default")
@@ -125,7 +153,7 @@ async def price_per_minute(
         telephony_provider=telephony_provider,
         marked_up=marked_up,
     )
-    return estimate.total_paise_per_minute
+    return _priced(estimate, what=f"the {brain} brain")
 
 
 async def realtime_price_per_minute(
@@ -135,7 +163,7 @@ async def realtime_price_per_minute(
     realtime_tier: str,
     telephony_provider: str | None = None,
     marked_up: bool = True,
-) -> int:
+) -> int | None:
     """Paise per minute for a speech-to-speech stack.
 
     One model replaces the transcriber and the voice, so there is one vendor
@@ -143,6 +171,12 @@ async def realtime_price_per_minute(
     session is metered — the vendor bills it as language-model usage and the
     rate card prices it there, which is also why the estimator's realtime
     token assumption lives under that component.
+
+    The tier names the vendor the way ``service_factory`` needs it and the rate
+    card names it the way the pipeline records it;
+    ``estimator.rate_card_provider`` is what makes those the same lookup.
+
+    ``None`` when the model has no rate on file. See :func:`_priced`.
     """
     upstream = managed_tiers.resolve(managed_tiers.REALTIME_COMPONENT, realtime_tier)
     estimate = await estimate_cost_per_minute(
@@ -153,7 +187,7 @@ async def realtime_price_per_minute(
         telephony_provider=telephony_provider,
         marked_up=marked_up,
     )
-    return estimate.total_paise_per_minute
+    return _priced(estimate, what=f"the {realtime_tier} speech-to-speech tier")
 
 
 async def bundle_options(
@@ -293,18 +327,26 @@ async def bundle_economics(
                     telephony_provider=telephony_provider,
                     marked_up=False,
                 )
+            # Either half missing means there is no margin to state. Both come
+            # from the same estimator and the same rate card, so in practice
+            # they are missing together — but subtracting a present cost from
+            # an absent price is exactly how a bundle nobody can price would
+            # have reported a margin anyway.
+            priced = price is not None and cost is not None
             variants.append(
                 {
                     **variant,
                     "cost_paise_per_minute": cost,
-                    "margin_paise_per_minute": price - cost,
+                    "margin_paise_per_minute": (price - cost) if priced else None,
                     # Expressed against the price rather than the cost, because
                     # that is the margin an investor and a discount both read.
                     # Null rather than zero when nothing is priced yet: a bundle
                     # with no rate card behind it has no margin, and 0% would
                     # read as one we chose.
                     "margin_pct": (
-                        round((price - cost) / price * 100, 1) if price else None
+                        round((price - cost) / price * 100, 1)
+                        if priced and price
+                        else None
                     ),
                 }
             )
@@ -312,7 +354,7 @@ async def bundle_economics(
     return out
 
 
-def approximate_minutes(balance_paise: int, paise_per_minute: int) -> int | None:
+def approximate_minutes(balance_paise: int, paise_per_minute: int | None) -> int | None:
     """How long a balance lasts, roughly.
 
     Returned as a number to *show*, not to bill against. It moves with the rate
@@ -321,9 +363,12 @@ def approximate_minutes(balance_paise: int, paise_per_minute: int) -> int | None
     "roughly" in front of it rather than as an entitlement.
 
     ``None`` when the stack cannot be priced: a zero would read as "this is
-    free", which is the one thing it never means.
+    free", which is the one thing it never means. So does a ``None`` rate,
+    which is how :func:`price_per_minute` reports a component with no rate on
+    file — quoting a balance as minutes at a price that is missing its largest
+    line would multiply the error rather than surface it.
     """
-    if paise_per_minute <= 0:
+    if paise_per_minute is None or paise_per_minute <= 0:
         return None
     return balance_paise // paise_per_minute
 
@@ -399,3 +444,65 @@ def managed_stack_override(
     return {
         WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY: {"version": 3, "stack": stack}
     }
+
+
+async def catalogue_options(
+    session: AsyncSession, *, organization_id: int | None
+) -> dict[str, list[dict]]:
+    """Every managed model a customer may choose, per slot, with its price.
+
+    The answer to "what does Decibyl provide", assembled from the one place
+    that says so — the catalogue — rather than from the registry, which lists
+    every vendor this codebase has ever integrated including the ones we hold
+    no key for and have never priced.
+
+    ``paise_per_minute`` is that component's own contribution to a minute, with
+    the managed markup already on it: what the customer pays us for choosing it.
+    It is not the price of a call, which also has the other slots, telephony and
+    the platform fee in it — the picker shows the difference between two models,
+    and the cost bar beside it shows the total.
+
+    Priced through ``estimator.price_components``, which is built from the same
+    line functions a full estimate is, so a model priced on this screen and the
+    same model inside a stack estimate cannot disagree.
+    """
+    from api.services.billing.estimator import price_components
+    from api.services.configuration import model_catalogue
+
+    out: dict[str, list[dict]] = {}
+    for component in ("stt", "llm", "tts", "realtime"):
+        entries = await model_catalogue.sellable(session, component=component)
+        if not entries:
+            out[component] = []
+            continue
+
+        priced = await price_components(
+            session,
+            organization_id=organization_id,
+            slots=[(component, entry.provider, entry.model) for entry in entries],
+        )
+        options: list[dict] = []
+        for entry in entries:
+            line = priced.get((component, entry.provider, entry.model))
+            options.append(
+                {
+                    "provider": entry.provider,
+                    "model": entry.model,
+                    "label": entry.label,
+                    # Null rather than zero when the rate vanished between the
+                    # sellable check and here. Zero would read as free, which is
+                    # the one thing it never means.
+                    "paise_per_minute": line.paise_per_minute if line else None,
+                    # True when priced against the vendor's default rather than
+                    # this model — two models then show the same number, which
+                    # reads as a broken calculator unless it is said.
+                    "approximate": bool(line and line.rate_is_provider_fallback),
+                }
+            )
+        # Cheapest first. A picker ordered by what a vendor happens to return is
+        # a picker nobody can compare.
+        options.sort(
+            key=lambda o: (o["paise_per_minute"] is None, o["paise_per_minute"])
+        )
+        out[component] = options
+    return out

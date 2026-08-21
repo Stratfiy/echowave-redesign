@@ -27,8 +27,10 @@ from pydantic import BaseModel, Field
 from api.constants import (
     GST_RATE_BASIS_POINTS,
     MAX_TOPUP_PAISE,
+    MIN_BALANCE_PAISE,
     MIN_TOPUP_PAISE,
     REQUIRE_MANDATE_FOR_NUMBERS,
+    TOPUP_INCREMENT_PAISE,
 )
 from api.db import db_client
 from api.db.models import UserModel
@@ -45,9 +47,11 @@ class TopupRequest(BaseModel):
         ...,
         ge=MIN_TOPUP_PAISE,
         le=MAX_TOPUP_PAISE,
+        multiple_of=TOPUP_INCREMENT_PAISE,
         description=(
-            "Credit to buy, in paise, net of GST. ₹500 is 50000. Tax is added "
-            "on top of this at checkout."
+            "Credit to buy, in paise, net of GST. ₹500 is 50000. Bought in "
+            "steps of TOPUP_INCREMENT_PAISE. Tax is added on top of this at "
+            "checkout."
         ),
     )
 
@@ -100,6 +104,15 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         "topups_enabled": payments.is_configured() and payments.webhook_is_configured(),
         "min_topup_paise": MIN_TOPUP_PAISE,
         "max_topup_paise": MAX_TOPUP_PAISE,
+        # The step the amount picker moves in, and the balance at which calling
+        # stops. Both belong to the screen that has to explain why a call was
+        # refused and what to do about it.
+        "topup_increment_paise": TOPUP_INCREMENT_PAISE,
+        "min_balance_paise": MIN_BALANCE_PAISE,
+        # Whether calling is possible right now. Derived here rather than left
+        # to the client to compare two numbers, so one definition of "blocked"
+        # serves the banner, the button and the runtime that refuses the call.
+        "calling_blocked": balance < MIN_BALANCE_PAISE,
         # So the screen can show what will actually be charged before the
         # customer clicks pay, rather than surprising them at the card form.
         "gst_rate_basis_points": 0 if profile.is_export else GST_RATE_BASIS_POINTS,
@@ -477,22 +490,27 @@ async def create_mandate(
 
 @router.get("/plan")
 async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
-    """The starter plan: what it costs, what it includes, and whether they are on it.
+    """Every plan on sale, what each includes, and which one this account is on.
 
-    The prices are returned rather than hardcoded in the client because they
-    are environment variables here, and a screen quoting a figure the server
-    would not collect is the class of bug the create-agent wizard already had.
+    The prices come from the plans table and are returned rather than hardcoded
+    in the client, because a screen quoting a figure the server would not
+    collect is the class of bug the create-agent wizard already had.
+
+    ``gross_paise`` is what the bank will actually be told to take: an export
+    account with an LUT on file is charged the net figure, everyone else pays it
+    plus GST. Null rather than guessed when the profile cannot be taxed, so the
+    screen says "complete your billing details" instead of quoting a number that
+    changes at the card form.
     """
-    from api.constants import (
-        NUMBER_RENTAL_PRICE_PAISE,
-        STARTER_PLAN_BALANCE_PAISE,
-        STARTER_PLAN_PRICE_PAISE,
-    )
     from api.services.billing import mandates as mandate_service
+    from api.services.billing import subscription_plans
     from api.services.billing.tax import TaxError, gross_up
 
     organization_id = _organization_id(user)
     async with db_client.async_session() as session:
+        await subscription_plans.ensure_seeded(session)
+        await session.commit()
+        plans = await subscription_plans.list_plans(session)
         mandate = await mandate_service.get_mandate(
             session,
             organization_id=organization_id,
@@ -501,30 +519,65 @@ async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         profile = await billing_profile.get_profile(
             session, organization_id=organization_id
         )
+        # How many numbers the account already holds against its plan, so the
+        # screen can say "1 of 1 used" rather than leaving the customer to
+        # discover the entitlement is spent when the next one bills separately.
+        from api.services.billing import rentals
 
-    # What the card is actually charged. An export account with an LUT on file
-    # is charged the net figure; everyone else pays it plus GST. Returned as
-    # None rather than guessed when the profile cannot be taxed, so the screen
-    # can say "complete your billing details" instead of quoting a number that
-    # will change at the card form.
-    try:
-        gross_paise: int | None = gross_up(
-            taxable_paise=STARTER_PLAN_PRICE_PAISE,
-            country_code=profile.country_code,
-            state_code=profile.state_code,
+        numbers_used = 0
+        covered = 0
+        if mandate is not None:
+            covered = await rentals.numbers_a_mandate_covers(session, mandate=mandate)
+            numbers_used = await rentals.numbers_on_mandate(
+                session, mandate_id=mandate.id
+            )
+        next_number_paise = await rentals.next_number_price_paise(
+            session, organization_id=organization_id
         )
-    except TaxError:
-        gross_paise = None
 
-    return {
-        "plan": {
+    def _priced(plan) -> dict[str, Any]:
+        try:
+            gross_paise: int | None = gross_up(
+                taxable_paise=plan.price_paise,
+                country_code=profile.country_code,
+                state_code=profile.state_code,
+            )
+        except TaxError:
+            gross_paise = None
+        return {
             # Every figure net, like the ledger, except gross_paise which says
             # so in its name.
-            "price_paise": STARTER_PLAN_PRICE_PAISE,
+            "code": plan.code,
+            "label": plan.label,
+            "blurb": plan.blurb,
+            "price_paise": plan.price_paise,
             "gross_paise": gross_paise,
-            "balance_paise": STARTER_PLAN_BALANCE_PAISE,
-            "number_paise": NUMBER_RENTAL_PRICE_PAISE,
+            "balance_paise": plan.balance_paise,
+            "included_numbers": plan.included_numbers,
+            "extra_number_paise": plan.extra_number_price_paise,
             "period": "monthly",
+            "is_current": mandate is not None
+            and (mandate.plan_code or subscription_plans.STARTER) == plan.code,
+        }
+
+    priced = [_priced(plan) for plan in plans]
+    current = next((p for p in priced if p["is_current"]), None)
+
+    return {
+        "plans": priced,
+        # The plan this account is on, hoisted so a screen does not have to
+        # scan. Null when they are on none.
+        "current": current,
+        # Kept for the shape the previous single-plan client expects: the
+        # account's plan if they have one, else the first on sale.
+        "plan": current or (priced[0] if priced else None),
+        "numbers": {
+            "included": covered,
+            "used": numbers_used,
+            "remaining": max(0, covered - numbers_used),
+            # What number N+1 costs a month, which is the figure the "add
+            # another number" screen has to show.
+            "extra_paise": next_number_paise,
         },
         "mandate": _mandate_view(mandate),
         "configured": mandate_service.is_configured(),
@@ -532,8 +585,16 @@ async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     }
 
 
+class SubscribeRequest(BaseModel):
+    """Which plan to start. Omitted means the starter plan, which is what the
+    single-plan client sent before there was a choice."""
+
+    plan_code: str | None = None
+
+
 @router.post("/plan")
 async def subscribe_to_plan(
+    payload: SubscribeRequest | None = None,
     user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict[str, Any]:
     """Start the starter plan, and hand back the link where it is authorised.
@@ -567,9 +628,18 @@ async def subscribe_to_plan(
                 ),
             )
 
+        from api.services.billing import subscription_plans
+
+        await subscription_plans.ensure_seeded(session)
+        plan = await subscription_plans.resolve(
+            session, code=(payload.plan_code if payload else None)
+        )
+        if plan is None or not plan.enabled:
+            raise HTTPException(status_code=404, detail="That plan is not on sale.")
+
         try:
             mandate = await mandate_service.create_plan_mandate(
-                session, organization_id=organization_id
+                session, organization_id=organization_id, plan=plan
             )
         except mandate_service.MandateNotConfigured as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -638,7 +708,13 @@ async def razorpay_webhook(
             raise HTTPException(status_code=400, detail="Invalid webhook") from exc
         await session.commit()
 
+    # A prepaid top-up reports its voucher at the top level; an autopay
+    # collection reports it under "voucher", because that branch settles a
+    # mandate rather than crediting an order. Both are money the customer's
+    # account was debited for, and both owe them the document.
     voucher_id = result.get("receipt_voucher_id")
+    if voucher_id is None:
+        voucher_id = (result.get("voucher") or {}).get("id")
     if voucher_id is not None:
         # After commit, not inside the transaction: an enqueue must not survive
         # a rollback of the payment it is about, and the reverse (a committed

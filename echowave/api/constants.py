@@ -242,7 +242,7 @@ STARTER_PLAN_PRICE_PAISE = STARTER_PLAN_BALANCE_PAISE + NUMBER_RENTAL_PRICE_PAIS
 RAZORPAY_STARTER_PLAN_ID = os.getenv("RAZORPAY_STARTER_PLAN_ID") or None
 
 # What we charge for provider usage on *our* keys, as basis points of what the
-# vendor charges us. 13000 = 1.30x; 10000 would be at cost.
+# vendor charges us. 14000 = 1.40x; 10000 would be at cost.
 #
 # In basis points rather than a float because every other money path in this
 # codebase is integer arithmetic, and a 1.3 that is really 1.2999999999999998
@@ -432,6 +432,34 @@ GOOGLE_CALENDAR_DEFAULT_TIMEZONE = os.getenv(
 # business limit — raise it deliberately for an enterprise invoice.
 MIN_TOPUP_PAISE = int(os.getenv("MIN_TOPUP_PAISE", "10000"))  # Rs 100
 MAX_TOPUP_PAISE = int(os.getenv("MAX_TOPUP_PAISE", "50000000"))  # Rs 5,00,000
+
+# Top-ups are sold in whole steps of this, starting at MIN_TOPUP_PAISE. Rs100,
+# Rs200, Rs300 — never Rs137.
+#
+# A step rather than a free-text field for two reasons that are not about
+# tidiness. It makes the amounts a customer can choose the same set the
+# receipts, the reconciliation and the support conversation all deal in; and it
+# removes the class of typo where an intended Rs1,000 arrives as Rs100 because a
+# zero was dropped, which is only ever discovered when calls stop.
+#
+# Must divide MIN_TOPUP_PAISE, or the minimum itself is not a valid amount.
+TOPUP_INCREMENT_PAISE = int(os.getenv("TOPUP_INCREMENT_PAISE", "10000"))  # Rs 100
+
+# The balance at which calling stops, in paise. Rs20 — about $0.20.
+#
+# Zero is the wrong floor and this is why. A call's cost is not known until it
+# ends, so an account allowed to start a call on its last rupee finishes that
+# call overdrawn: the reservation holds min(estimate, balance), the real cost
+# lands afterwards, and the ledger goes negative by whatever the difference was.
+# Someone then has to decide whether to chase Rs14 from a customer who believed
+# they had stopped in time.
+#
+# A floor above zero makes the last call one the account could always afford.
+# It is not reserved or unspendable — the balance may fall below it while a call
+# runs, and the account simply cannot start another until it tops up. Stated in
+# rupees rather than dollars because it is a floor rather than a price: it is
+# not something we sell, so there is nothing for the exchange rate to move.
+MIN_BALANCE_PAISE = int(os.getenv("MIN_BALANCE_PAISE", "2000"))  # Rs 20
 
 # Refuse a run when the account has no credit, and hold an estimate while each
 # call is live. On by default: prepaid with the gate switched off is postpaid

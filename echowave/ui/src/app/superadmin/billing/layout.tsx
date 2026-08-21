@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
     { href: "/superadmin/billing", label: "Overview", exact: true },
+    { href: "/superadmin/billing/readiness", label: "Readiness" },
     { href: "/superadmin/billing/accounts", label: "Accounts" },
     { href: "/superadmin/billing/calls", label: "Calls" },
     { href: "/superadmin/billing/campaigns", label: "Campaigns" },
@@ -24,6 +25,7 @@ const TABS = [
     { href: "/superadmin/billing/pricing-inputs", label: "Pricing inputs" },
     { href: "/superadmin/billing/rate-card", label: "Rate card" },
     { href: "/superadmin/billing/bundles", label: "Bundles" },
+    { href: "/superadmin/billing/plans", label: "Plans" },
 ];
 
 /**

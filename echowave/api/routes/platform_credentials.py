@@ -170,3 +170,144 @@ async def delete_provider_key(component: str, provider: str) -> dict[str, Any]:
         await session.commit()
         remaining = await creds.list_credentials(session)
     return {"credentials": [_view(c) for c in remaining]}
+
+
+class OfferedModelsRequest(BaseModel):
+    """Exactly the models Decibyl offers for this slot on this provider.
+
+    A replace, not a merge: the screen is a set of tick boxes and an unticked
+    box means "we do not offer this". Merging would make removal impossible
+    from the only UI that writes here.
+    """
+
+    component: str = Field(..., description="stt | llm | tts | realtime | embeddings")
+    provider: str = Field(..., min_length=1, max_length=64)
+    models: list[str] = Field(default_factory=list)
+    #: Customer-facing names, keyed by model id. Anything unnamed shows its id.
+    labels: dict[str, str] = Field(default_factory=dict)
+
+
+@router.get("/models")
+async def discover_models(
+    component: str,
+    provider: str,
+) -> dict[str, Any]:
+    """The models this provider serves, asked with the key we hold.
+
+    The point of the screen this serves: an operator who has just installed a
+    key should not have to go and read the vendor's documentation to find out
+    what they bought.
+
+    Falls back to the models this codebase already knows about when the vendor
+    has no list endpoint or cannot be reached, and says which of the two
+    happened — "these are the models OpenAI told us about" and "these are the
+    ones we have heard of" are different claims.
+    """
+    from api.services.configuration import model_catalogue, model_discovery
+
+    async with db_client.async_session() as session:
+        api_key = await creds.resolve_api_key(
+            session, component=component, provider=provider
+        )
+        # Realtime and embeddings authenticate on the LLM credential — the
+        # vendor issues one key for all of them.
+        if api_key is None and component in ("realtime", "embeddings"):
+            api_key = await creds.resolve_api_key(
+                session, component="llm", provider=provider.replace("_realtime", "")
+            )
+        already = await model_catalogue.offers(
+            session, component=component, provider=provider
+        )
+
+    found = await model_discovery.discover(
+        component=component, provider=provider, api_key=api_key
+    )
+
+    return {
+        "provider": found.provider,
+        "component": found.component,
+        "source": found.source,
+        "note": found.note,
+        "has_key": api_key is not None,
+        "allow_custom_model": model_discovery.allows_custom_model(component, provider),
+        "models": [
+            {
+                "id": model.id,
+                "suggested": model.suggested,
+                "offered": model.id in already,
+            }
+            for model in found.models
+        ],
+    }
+
+
+@router.get("/catalogue")
+async def list_catalogue() -> dict[str, Any]:
+    """Everything we offer, and what each row still needs to be sellable.
+
+    ``is_priced`` is the one that matters and the one that used to be
+    invisible: an offered model with no rate row does not fail, it bills the
+    platform fee alone and reports margin we did not earn.
+    """
+    from api.services.configuration import model_catalogue
+
+    async with db_client.async_session() as session:
+        entries = await model_catalogue.list_catalogue(session)
+
+    return {
+        "models": [
+            {
+                "component": entry.component,
+                "provider": entry.provider,
+                "model": entry.model,
+                "label": entry.label,
+                "enabled": entry.enabled,
+                "is_priced": entry.is_priced,
+                "priced_by_fallback": entry.priced_by_fallback,
+                "has_key": entry.has_key,
+                "is_sellable": entry.is_sellable,
+            }
+            for entry in entries
+        ]
+    }
+
+
+@router.put("/models")
+async def set_offered_models(request: OfferedModelsRequest) -> dict[str, Any]:
+    """Put a set of models on sale for one slot on one provider.
+
+    Nothing here checks that a model is priced. That is deliberate: a vendor's
+    new model routinely lands before anybody prices it, and refusing would make
+    the price book a gate on shipping. The listing above reports the gap and
+    the customer-facing picker omits anything unpriced, which is the honest
+    combination — visible to us, invisible to them.
+    """
+    from api.services.configuration import model_catalogue
+
+    async with db_client.async_session() as session:
+        try:
+            entries = await model_catalogue.set_offered(
+                session,
+                component=request.component,
+                provider=request.provider,
+                models=request.models,
+                labels=request.labels,
+            )
+        except model_catalogue.CatalogueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+
+    return {
+        "models": [
+            {
+                "component": entry.component,
+                "provider": entry.provider,
+                "model": entry.model,
+                "label": entry.label,
+                "is_priced": entry.is_priced,
+                "has_key": entry.has_key,
+                "is_sellable": entry.is_sellable,
+            }
+            for entry in entries
+        ]
+    }

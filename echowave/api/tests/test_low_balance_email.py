@@ -138,7 +138,12 @@ class TestTheMessage:
             top_up_url="https://app.decibyl.ai/billing",
             has_numbers=False,
         )
-        assert "Calls stop when the balance reaches zero" in body
+        # Names the floor, not zero. Calling stops below MIN_BALANCE_PAISE, and
+        # a warning promising it stops at zero would leave a customer sitting on
+        # ₹18 believing our arithmetic is broken rather than that they need to
+        # top up.
+        assert "Calling pauses once the balance falls below" in body
+        assert "₹20.00" in body
         assert "https://app.decibyl.ai/billing" in body
 
     def test_the_number_suspension_warning_only_appears_if_they_have_a_number(

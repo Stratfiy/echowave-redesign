@@ -25,12 +25,18 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { client } from "@/client/client.gen";
 import {
     deleteProviderKeyApiV1AdminProviderKeysDelete,
     listProviderKeysApiV1AdminProviderKeysGet,
     setProviderKeyActiveApiV1AdminProviderKeysActivePost,
     setProviderKeyApiV1AdminProviderKeysPut,
 } from "@/client/sdk.gen";
+import {
+    type CatalogueRow,
+    CatalogueSummary,
+    ModelCatalogue,
+} from "@/components/billing/ModelCatalogue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,6 +92,24 @@ const SUGGESTED: Record<string, string[]> = {
 };
 
 export default function ProviderKeysPage() {
+    // Which provider/component slot's model picker is open, and the catalogue
+    // it writes into. Kept here rather than in the picker so the summary above
+    // it refreshes when a save lands.
+    const [openSlot, setOpenSlot] = useState<string | null>(null);
+    const [catalogue, setCatalogue] = useState<CatalogueRow[]>([]);
+
+    const loadCatalogue = useCallback(async () => {
+        const result = await client.get({
+            url: "/api/v1/admin/provider-keys/catalogue",
+        });
+        if (result.error) return;
+        setCatalogue(((result.data as { models: CatalogueRow[] })?.models) ?? []);
+    }, []);
+
+    useEffect(() => {
+        void loadCatalogue();
+    }, [loadCatalogue]);
+
     const { user, loading: authLoading } = useAuth();
     const authReady = !authLoading && Boolean(user);
 
@@ -419,6 +443,67 @@ export default function ProviderKeysPage() {
                                             ))}
                                         </TableBody>
                                     </Table>
+                                </div>
+                            )}
+
+                            {/* What each of those keys is actually selling.
+                                A key installed and no models ticked buys us
+                                nothing; models ticked and unpriced bill the
+                                platform fee alone. Both are invisible without
+                                this. */}
+                            {payload!.credentials.length > 0 && (
+                                <div className="mt-8 space-y-4 border-t pt-6">
+                                    <div>
+                                        <h3 className="font-medium">Models we offer</h3>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                            Read from each vendor with the key above.
+                                            Tick what Decibyl sells; price each one on
+                                            the rate card. Anything not ticked is
+                                            available to customers only through their
+                                            own key.
+                                        </p>
+                                    </div>
+
+                                    <CatalogueSummary rows={catalogue} />
+
+                                    <div className="flex flex-wrap gap-2">
+                                        {payload!.credentials
+                                            .filter((c) => c.is_active)
+                                            .map((c) => {
+                                                const slot = `${c.component}:${c.provider}`;
+                                                return (
+                                                    <Button
+                                                        key={c.id}
+                                                        type="button"
+                                                        size="sm"
+                                                        variant={
+                                                            openSlot === slot
+                                                                ? "default"
+                                                                : "outline"
+                                                        }
+                                                        onClick={() =>
+                                                            setOpenSlot(
+                                                                openSlot === slot
+                                                                    ? null
+                                                                    : slot,
+                                                            )
+                                                        }
+                                                    >
+                                                        {c.provider} · {c.component}
+                                                    </Button>
+                                                );
+                                            })}
+                                    </div>
+
+                                    {openSlot && (
+                                        <div className="rounded-lg border bg-muted/20 p-4">
+                                            <ModelCatalogue
+                                                component={openSlot.split(":")[0]}
+                                                provider={openSlot.split(":")[1]}
+                                                onSaved={() => void loadCatalogue()}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

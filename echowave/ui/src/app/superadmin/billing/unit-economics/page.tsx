@@ -126,6 +126,9 @@ const COMPONENT_LABELS: Record<string, string> = {
     tts: "Text to speech",
     telephony: "Telephony",
     platform: "Platform fee",
+    // Priced features. Decibyl revenue like the platform fee, so it carries
+    // no provider cost and shows as pure margin.
+    addon: "Feature",
 };
 
 export default function UnitEconomicsPage() {

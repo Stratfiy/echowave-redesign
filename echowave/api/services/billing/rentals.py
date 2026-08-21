@@ -33,13 +33,16 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api import constants
 from api.db import db_client
 from api.db.models import (
     CreditLedgerModel,
+    OrganizationModel,
+    PaymentMandateModel,
     RecurringChargeModel,
     RecurringChargePeriodModel,
     TelephonyPhoneNumberModel,
@@ -64,6 +67,14 @@ class ChargeOutcome:
     amount_paise: int = 0
     prorated: bool = False
     reason: str = ""
+    #: The dunning step this failure reached, and who to tell about it. Carried
+    #: out of the transaction rather than acted on inside it: the schedule has
+    #: to be committed whether or not an email can be sent, and a suspension
+    #: that rolled back because SMTP was down would leave the next tick with
+    #: nothing to do and the customer still uninformed.
+    dunning_state: object | None = None
+    organization_id: int | None = None
+    phone_number: str | None = None
 
 
 def month_end(moment: datetime) -> datetime:
@@ -113,6 +124,131 @@ def prorated_amount(
     return round_half_up_div(full_price_paise * used_days, days_in_month)
 
 
+async def numbers_a_mandate_covers(session: AsyncSession, *, mandate) -> int:
+    """How many numbers one standing instruction pays the rent for.
+
+    A rental mandate is registered for one number's rent, so it covers one. A
+    plan mandate covers whatever its plan includes.
+
+    This number is the difference between an entitlement and a hole. A charge
+    carrying a mandate is skipped by the monthly job — the bank is collecting
+    for it instead (``_mandate_collects``) — while a collection settles exactly
+    one charge (``record_mandate_collection``). Attach a mandate to every number
+    an account holds and every number is skipped, one is settled, and the rest
+    are free for ever with nothing anywhere reading as an error.
+    """
+    from api.services.billing import subscription_plans
+    from api.services.billing.mandates import PURPOSE_STARTER_PLAN
+
+    if mandate is None:
+        return 0
+    if mandate.purpose != PURPOSE_STARTER_PLAN:
+        return 1
+
+    plan = await subscription_plans.resolve(
+        session, code=getattr(mandate, "plan_code", None)
+    )
+    # A plan mandate whose plan has been deleted still covers the number it was
+    # sold with. Dropping to zero would start billing the balance for a number
+    # the bank is also collecting for, which is the double charge this whole
+    # path exists to avoid.
+    return plan.included_numbers if plan is not None else 1
+
+
+async def next_number_price_paise(
+    session: AsyncSession, *, organization_id: int
+) -> int:
+    """What the next number this account buys will cost per month, net of GST.
+
+    The plan's own figure when the account is on a plan that sets one, and the
+    platform rental price otherwise. Resolved here rather than read from
+    constants at the call site so a plan that sells extra numbers cheaper is a
+    row an operator writes, not a branch somebody has to remember to add.
+    """
+    from api.services.billing import subscription_plans
+    from api.services.billing.mandates import PURPOSE_STARTER_PLAN, get_mandate
+
+    mandate = await get_mandate(
+        session, organization_id=organization_id, purpose=PURPOSE_STARTER_PLAN
+    )
+    if mandate is not None:
+        plan = await subscription_plans.resolve(
+            session, code=getattr(mandate, "plan_code", None)
+        )
+        if plan is not None:
+            return plan.extra_number_price_paise
+    return constants.NUMBER_RENTAL_PRICE_PAISE
+
+
+async def numbers_on_mandate(session: AsyncSession, *, mandate_id: int) -> int:
+    """How many live numbers are already attached to this standing instruction.
+
+    Live meaning not released and not cancelled: a number given back frees the
+    entitlement it was using, so an account that releases its plan number can
+    claim another one without paying twice.
+    """
+    return (
+        await session.scalar(
+            select(func.count())
+            .select_from(RecurringChargeModel)
+            .where(
+                RecurringChargeModel.mandate_id == mandate_id,
+                RecurringChargeModel.charge_type
+                == RecurringChargeType.NUMBER_RENTAL.value,
+                RecurringChargeModel.status.notin_(
+                    [
+                        RecurringChargeStatus.RELEASED.value,
+                        RecurringChargeStatus.CANCELLED.value,
+                    ]
+                ),
+            )
+        )
+    ) or 0
+
+
+async def _mandate_for_this_number(
+    session: AsyncSession, *, organization_id: int, mandate_id: int | None
+) -> int | None:
+    """The mandate to attach to a number about to be provisioned, or ``None``.
+
+    ``None`` means "this one is beyond what the standing instruction pays for",
+    and the monthly job then bills it from the prepaid balance like any other
+    rental. That is the whole entitlement: the plan's numbers are inside the
+    price, and the next one is a rental the customer pays for separately.
+
+    Counted under the organization row lock, because two provisions racing
+    would otherwise both see the entitlement free and both claim it — and the
+    result would be two numbers the bank pays for one of.
+    """
+    if mandate_id is None:
+        return None
+
+    mandate = await session.get(PaymentMandateModel, mandate_id)
+    covers = await numbers_a_mandate_covers(session, mandate=mandate)
+    if covers <= 0:
+        return None
+
+    await session.execute(
+        select(OrganizationModel.id)
+        .where(OrganizationModel.id == organization_id)
+        .with_for_update()
+    )
+
+    already = await numbers_on_mandate(session, mandate_id=mandate_id)
+
+    if already >= covers:
+        logger.info(
+            "Org {} already holds {} number(s) covered by mandate {}, which "
+            "covers {}. This number bills from the balance.",
+            organization_id,
+            already,
+            mandate_id,
+            covers,
+        )
+        return None
+    return mandate_id
+
+
 async def open_number_rental(
     *,
     organization_id: int,
@@ -127,6 +263,11 @@ async def open_number_rental(
     Returns the existing charge rather than raising if one is already open —
     a provisioning retry that got as far as the purchase should converge on one
     charge, not fail because it half-succeeded before.
+
+    ``mandate_id`` is the account's authorised standing instruction, and it is
+    attached only if this number is **within** what that instruction covers.
+    Beyond it the charge carries no mandate and the monthly job debits the
+    balance — see :func:`_mandate_for_this_number`.
     """
     now = now or datetime.now(UTC)
 
@@ -152,6 +293,10 @@ async def open_number_rental(
             )
             return existing
 
+        covered_by = await _mandate_for_this_number(
+            session, organization_id=organization_id, mandate_id=mandate_id
+        )
+
         charge = RecurringChargeModel(
             organization_id=organization_id,
             charge_type=RecurringChargeType.NUMBER_RENTAL.value,
@@ -159,7 +304,7 @@ async def open_number_rental(
             status=RecurringChargeStatus.ACTIVE.value,
             cost_paise=cost_paise,
             price_paise=price_paise,
-            mandate_id=mandate_id,
+            mandate_id=covered_by,
             started_at=now,
             # Due immediately: the first period is the remainder of this month,
             # charged pro rata by the next cron tick.
@@ -293,7 +438,7 @@ async def charge_period(
             session, organization_id=charge.organization_id
         )
         if balance < amount:
-            await _record_failure(
+            state = await _record_failure(
                 session,
                 charge,
                 now=now,
@@ -301,12 +446,20 @@ async def charge_period(
                     f"Balance {balance} paise is short of the {amount} paise rental."
                 ),
             )
+            number = (
+                await session.get(TelephonyPhoneNumberModel, charge.resource_id)
+                if charge.charge_type == RecurringChargeType.NUMBER_RENTAL.value
+                else None
+            )
             await session.commit()
             return ChargeOutcome(
                 charge_id=charge_id,
                 charged=False,
                 amount_paise=amount,
                 reason="insufficient_balance",
+                dunning_state=state,
+                organization_id=charge.organization_id,
+                phone_number=getattr(number, "phone_number", None),
             )
 
         period = RecurringChargePeriodModel(
@@ -708,8 +861,13 @@ async def _record_failure(
     *,
     now: datetime,
     reason: str,
-) -> None:
-    """Apply the dunning policy to a charge that could not be collected."""
+):
+    """Apply the dunning policy to a charge that could not be collected.
+
+    Returns the step it reached, so the caller can tell the customer about it
+    once the transaction has committed. Notifying from in here would tie a
+    suspension to whether SMTP answered.
+    """
     if charge.first_failed_at is None:
         charge.first_failed_at = now
     charge.failure_count = (charge.failure_count or 0) + 1
@@ -737,6 +895,7 @@ async def _record_failure(
         reason,
         state.status.value,
     )
+    return state
 
 
 async def _set_number_status(
@@ -773,7 +932,7 @@ async def run_due_charges(*, now: datetime | None = None) -> dict[str, int]:
     """
     now = now or datetime.now(UTC)
     charges = await due_charges(now=now)
-    counters = {"considered": len(charges), "charged": 0, "failed": 0}
+    counters = {"considered": len(charges), "charged": 0, "failed": 0, "notified": 0}
 
     for charge in charges:
         try:
@@ -786,6 +945,22 @@ async def run_due_charges(*, now: datetime | None = None) -> dict[str, int]:
             counters["charged"] += 1
         elif outcome.reason == "insufficient_balance":
             counters["failed"] += 1
+            # After the charge's own transaction, and never allowed to break
+            # the loop: the dunning ladder is already applied and committed,
+            # and a customer told nothing is the failure this exists to fix —
+            # but one told nothing is still better than the rest of the book
+            # going unbilled because SMTP hung.
+            if outcome.dunning_state is not None:
+                from api.tasks.rental_billing import notify_dunning
+
+                if await notify_dunning(
+                    organization_id=outcome.organization_id,
+                    charge_id=outcome.charge_id,
+                    state=outcome.dunning_state,
+                    phone_number=outcome.phone_number,
+                    amount_paise=outcome.amount_paise,
+                ):
+                    counters["notified"] = counters.get("notified", 0) + 1
 
     logger.info(
         "Rental billing: {considered} due, {charged} charged, {failed} unpaid",

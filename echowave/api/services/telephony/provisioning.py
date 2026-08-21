@@ -326,11 +326,20 @@ async def provision(
 
         from api.services.billing import rentals
 
+        # Priced through the plan when the account is on one, so a plan that
+        # sells extra numbers at its own rate is a row rather than a branch.
+        # Identical to NUMBER_RENTAL_PRICE_PAISE for an account with no plan,
+        # and for a plan that sets no figure of its own.
+        async with db_client.async_session() as pricing_session:
+            price_paise = await rentals.next_number_price_paise(
+                pricing_session, organization_id=organization_id
+            )
+
         charge = await rentals.open_number_rental(
             organization_id=organization_id,
             phone_number_id=placeholder.id,
             cost_paise=NUMBER_RENTAL_COST_PAISE,
-            price_paise=NUMBER_RENTAL_PRICE_PAISE,
+            price_paise=price_paise,
             mandate_id=mandate_id,
         )
     except Exception as exc:

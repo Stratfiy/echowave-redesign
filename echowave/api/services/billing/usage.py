@@ -30,6 +30,7 @@ Telephony has no key-ownership concept and always produces a line regardless.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from typing import Any
 
 from api.enums import CostComponent
@@ -151,6 +152,27 @@ def key_sources_from_usage_info(usage_info: dict[str, Any] | None) -> dict[str, 
     }
 
 
+def byok_tier_from_components(components: Iterable[str] | None) -> str:
+    """Which BYOK tier a set of customer-keyed components falls in.
+
+    The cut itself, with no opinion about where the components came from. A
+    completed call reads them out of ``usage_info`` (see
+    :func:`byok_platform_tier`); a forward-looking estimate is simply told which
+    slots the customer holds a key for. Both have to reach the same tier or the
+    quote and the invoice disagree about the fee — which they did, because this
+    decision only existed on the costing side.
+
+    See :func:`byok_platform_tier` for why the cut is on *which* component
+    rather than how many.
+    """
+    keyed = {str(c).strip().lower() for c in (components or ())}
+    if "tts" in keyed:
+        return "tts"
+    if "stt" in keyed:
+        return "stt"
+    return "managed"
+
+
 def byok_platform_tier(usage_info: dict[str, Any] | None) -> str:
     """Which BYOK tier this call falls in: ``managed``, ``stt`` or ``tts``.
 
@@ -179,11 +201,9 @@ def byok_platform_tier(usage_info: dict[str, Any] | None) -> str:
     than inventing an uplift from facts nobody captured.
     """
     key_sources = key_sources_from_usage_info(usage_info)
-    if key_sources.get("tts") == "byok":
-        return "tts"
-    if key_sources.get("stt") == "byok":
-        return "stt"
-    return "managed"
+    return byok_tier_from_components(
+        component for component, source in key_sources.items() if source == "byok"
+    )
 
 
 def usage_items_from_usage_info(

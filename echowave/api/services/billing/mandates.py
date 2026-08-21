@@ -168,6 +168,34 @@ async def _post(path: str, payload: dict, *, client: httpx.AsyncClient | None = 
     return response.json()
 
 
+async def _get(path: str, *, client: httpx.AsyncClient | None = None):
+    """Read one object back from the provider.
+
+    Same error shaping as :func:`_post` — the provider's own description rather
+    than a status code — because the callers of both surface it to an operator.
+    """
+    owned = client is None
+    client = client or httpx.AsyncClient(timeout=_TIMEOUT)
+    try:
+        response = await client.get(f"{RAZORPAY_API_BASE}{path}", auth=_auth())
+    except httpx.HTTPError as exc:
+        raise MandateError(f"Razorpay request failed: {exc}") from exc
+    finally:
+        if owned:
+            await client.aclose()
+
+    if response.status_code >= 400:
+        detail = ""
+        try:
+            detail = (response.json().get("error") or {}).get("description") or ""
+        except ValueError:
+            detail = response.text[:200]
+        raise MandateError(
+            f"Razorpay returned {response.status_code} for {path}: {detail}"
+        )
+    return response.json()
+
+
 async def _ensure_plan(
     *,
     pinned: str | None,
@@ -188,6 +216,16 @@ async def _ensure_plan(
     profile and this function has no view of one.
     """
     if pinned:
+        # The pinned plan's amount is what the bank will actually be told to
+        # take, and nothing here can change it. So it is checked against the
+        # figure the caller derived, because the failure otherwise is silent
+        # and monthly: a plan created at Rs2,999 when the gross is Rs3,538.82
+        # collects **no GST at all**, by standing instruction, for as long as
+        # nobody queries it — and the receipt voucher issued against it splits
+        # a number that never included the tax.
+        await _assert_pinned_plan_amount(
+            plan_id=pinned, expected_paise=price_paise, env_var=env_var, client=client
+        )
         return pinned
 
     created = await _post(
@@ -216,6 +254,57 @@ async def _ensure_plan(
     return plan_id
 
 
+async def _assert_pinned_plan_amount(
+    *,
+    plan_id: str,
+    expected_paise: int,
+    env_var: str,
+    client: httpx.AsyncClient | None = None,
+) -> None:
+    """Refuse to subscribe anyone to a plan that collects the wrong amount.
+
+    Reads the plan back from the provider and compares. Three outcomes, and the
+    middle one is the whole point:
+
+    * **matches** — nothing happens.
+    * **differs** — raises. A mandate is a standing instruction, so getting
+      this wrong is not one bad charge, it is every charge until somebody
+      reconciles a year of returns. Refusing at signup is a support ticket;
+      accepting is a tax liability.
+    * **cannot be read** — logged and allowed. A provider outage must not stop
+      customers subscribing, and the amount is far more likely right than not.
+
+    The amount is the **gross**: what the customer pays, tax included. Every
+    other figure in this package is net, which is exactly why this one is
+    passed in rather than recomputed here.
+    """
+    try:
+        plan = await _get(f"/plans/{plan_id}", client=client)
+    except Exception as exc:  # noqa: BLE001 — see docstring
+        logger.warning(
+            "Could not read {} ({}) back from the provider to check its "
+            "amount: {}. Proceeding on the assumption it is right.",
+            env_var,
+            plan_id,
+            exc,
+        )
+        return
+
+    actual = ((plan or {}).get("item") or {}).get("amount")
+    if actual is None:
+        logger.warning("{} ({}) came back with no amount to check.", env_var, plan_id)
+        return
+
+    if int(actual) != int(expected_paise):
+        raise MandateError(
+            f"{env_var} points at a plan collecting ₹{int(actual) / 100:,.2f}, "
+            f"but this account should be charged ₹{expected_paise / 100:,.2f} "
+            "including GST. A standing instruction for the wrong amount "
+            "collects it every month, so nobody is subscribed until the plan "
+            "is corrected at the provider or the variable repointed."
+        )
+
+
 async def ensure_rental_plan(
     *, price_paise: int, client: httpx.AsyncClient | None = None
 ) -> str:
@@ -231,11 +320,19 @@ async def ensure_rental_plan(
 
 
 async def ensure_starter_plan(
-    *, price_paise: int, client: httpx.AsyncClient | None = None
+    *,
+    price_paise: int,
+    pinned: str | None = None,
+    client: httpx.AsyncClient | None = None,
 ) -> str:
-    """The plan id a starter-plan subscription is created against."""
+    """The plan id a plan subscription is created against.
+
+    ``pinned`` is the plan row's own provider id, which outranks the
+    environment variable: with more than one plan on sale there is no single
+    RAZORPAY_STARTER_PLAN_ID that could be right for all of them.
+    """
     return await _ensure_plan(
-        pinned=RAZORPAY_STARTER_PLAN_ID,
+        pinned=pinned or RAZORPAY_STARTER_PLAN_ID,
         env_var="RAZORPAY_STARTER_PLAN_ID",
         name="Decibyl starter plan",
         description="Monthly: a phone number and a call balance",
@@ -376,6 +473,7 @@ async def create_plan_mandate(
     session: AsyncSession,
     *,
     organization_id: int,
+    plan=None,
     price_paise: int | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> PaymentMandateModel:
@@ -402,7 +500,14 @@ async def create_plan_mandate(
     # is the bug the rental mandate's own comment records — a plan collected at
     # the net figure would collect no GST at all, month after month, by
     # standing instruction.
-    net_paise = int(price_paise or STARTER_PLAN_PRICE_PAISE)
+    # The plan decides the price and which provider plan to subscribe to. The
+    # constants remain the fallback for a deployment that has not run the plans
+    # migration, so this function keeps working before the table exists.
+    net_paise = int(
+        price_paise
+        if price_paise is not None
+        else (plan.price_paise if plan is not None else STARTER_PLAN_PRICE_PAISE)
+    )
     profile = await get_profile(session, organization_id=organization_id)
     try:
         gross_paise = gross_up(
@@ -413,7 +518,11 @@ async def create_plan_mandate(
     except TaxError as exc:
         raise MandateError(str(exc)) from exc
 
-    plan_id = await ensure_starter_plan(price_paise=gross_paise, client=client)
+    plan_id = await ensure_starter_plan(
+        price_paise=gross_paise,
+        pinned=(plan.razorpay_plan_id if plan is not None else None),
+        client=client,
+    )
 
     created = await _post(
         "/subscriptions",
@@ -441,6 +550,10 @@ async def create_plan_mandate(
         # The net figure, so everything reading a mandate's price reads the
         # same kind of number. The gross lives in the provider payload.
         price_paise=net_paise,
+        # Which plan this bought. Read months later by the entitlement check
+        # and by the balance grant, so it has to be recorded at the moment of
+        # sale rather than re-derived from a catalogue that may have moved.
+        plan_code=(plan.code if plan is not None else None),
         provider_payload=created,
     )
     session.add(mandate)
@@ -626,6 +739,7 @@ async def cancel_mandate(
     session: AsyncSession,
     *,
     organization_id: int,
+    purpose: str | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> PaymentMandateModel | None:
     """Withdraw the standing authorisation at the provider and locally.
@@ -633,8 +747,21 @@ async def cancel_mandate(
     The local row is marked cancelled **after** the provider accepts, never
     before: a mandate we believe is gone but which the bank still honours is a
     collection nobody is expecting.
+
+    ``purpose`` names which standing instruction to withdraw. Omitted, it
+    withdraws whichever one the account actually holds, plan before rental —
+    the same order :data:`NUMBER_BEARING_PURPOSES` prefers them in. Defaulting
+    to the rental purpose, as this used to, meant an account on the plan could
+    not cancel at all: the lookup found nothing and the route answered 404 to a
+    customer whose bank was being debited every month.
     """
-    mandate = await get_mandate(session, organization_id=organization_id)
+    mandate = None
+    for candidate in (purpose,) if purpose else NUMBER_BEARING_PURPOSES:
+        mandate = await get_mandate(
+            session, organization_id=organization_id, purpose=candidate
+        )
+        if mandate is not None:
+            break
     if mandate is None:
         return None
 

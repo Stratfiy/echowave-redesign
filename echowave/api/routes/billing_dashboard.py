@@ -20,6 +20,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from api.constants import NUMBER_RENTAL_PRICE_PAISE
 from api.db import billing_dashboard_client as dash
 from api.db import db_client
 from api.db.models import (
@@ -1375,3 +1376,98 @@ async def confirm_managed_markup_change(
         "previous_markup_bps": applied.previous_markup_bps,
         "applied": True,
     }
+
+
+class PlanRequest(BaseModel):
+    """A plan an operator is creating or changing.
+
+    Every money field is **net of GST**, like the ledger and like every other
+    figure in this section. The bank is told the grossed-up amount, computed per
+    account against that customer's own billing profile at the moment they
+    subscribe.
+    """
+
+    code: str = Field(..., min_length=2, max_length=32)
+    label: str = Field(..., min_length=1, max_length=80)
+    blurb: str = ""
+    price_paise: int = Field(..., gt=0)
+    balance_paise: int = Field(0, ge=0)
+    included_numbers: int = Field(0, ge=0)
+    #: Null follows the platform rental price rather than pinning a copy of it.
+    extra_number_price_paise: int | None = Field(None, ge=0)
+    razorpay_plan_id: str | None = None
+    enabled: bool = True
+    sort_order: int = 0
+
+
+def _plan_view(plan) -> dict[str, Any]:
+    """A plan with its economics, which is what an operator is deciding on.
+
+    ``parts_paise`` is what the contents cost bought separately and
+    ``discount_paise`` is the difference. Shown because a plan's price is only
+    meaningful next to what it contains: ₹2,999 for ₹2,500 of balance and a ₹499
+    number is a deliberate ₹0 discount, and the same price against ₹3,500 of
+    balance is a loss nobody typed on purpose.
+    """
+    return {
+        "code": plan.code,
+        "label": plan.label,
+        "blurb": plan.blurb,
+        "price_paise": plan.price_paise,
+        "balance_paise": plan.balance_paise,
+        "included_numbers": plan.included_numbers,
+        "extra_number_price_paise": plan.extra_number_price_paise,
+        "numbers_value_paise": plan.numbers_value_paise,
+        "parts_paise": plan.parts_paise,
+        "discount_paise": plan.discount_paise,
+        "razorpay_plan_id": plan.razorpay_plan_id,
+        "enabled": plan.enabled,
+        "sort_order": plan.sort_order,
+    }
+
+
+@router.get("/plans")
+async def list_plans(user: UserModel = Depends(get_superuser)) -> dict[str, Any]:
+    """Every plan, sold or not, with what each one gives away.
+
+    Includes disabled plans: a plan withdrawn from sale still has customers on
+    it, and an operator needs to see what they are being charged.
+    """
+    from api.services.billing import subscription_plans
+
+    async with db_client.async_session() as session:
+        await subscription_plans.ensure_seeded(session)
+        await session.commit()
+        plans = await subscription_plans.list_plans(session, enabled_only=False)
+        return {
+            "plans": [_plan_view(plan) for plan in plans],
+            # So the editor can default a new plan's extra-number price to the
+            # platform figure rather than to zero.
+            "number_rental_price_paise": NUMBER_RENTAL_PRICE_PAISE,
+        }
+
+
+@router.put("/plans")
+async def upsert_plan(
+    request: PlanRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Create or change a plan.
+
+    Refuses a plan that grants more balance than it collects — see
+    ``subscription_plans.save``. That is the one edit here that loses money on
+    contact rather than merely being a thin margin, and a form is exactly where
+    it would be typed.
+
+    Changing a plan does **not** re-price the customers already on it. Their
+    mandate authorised a specific amount at their bank and records the plan code
+    it bought; the grant follows that, not this.
+    """
+    from api.services.billing import subscription_plans
+
+    async with db_client.async_session() as session:
+        try:
+            plan = await subscription_plans.save(session, **request.model_dump())
+        except subscription_plans.PlanError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+        return _plan_view(plan)

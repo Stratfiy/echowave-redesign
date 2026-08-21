@@ -2767,6 +2767,135 @@ class ManagedTierMappingModel(Base):
     )
 
 
+class PlatformModelModel(Base):
+    """A model Decibyl offers on its own keys — the managed catalogue.
+
+    The offering used to be implied rather than stated: whatever the registry
+    could build, crossed with whatever a tier happened to point at, crossed with
+    whatever had a rate row. Three sources, no single answer to "what do we
+    sell", and a customer's model picker showed every vendor the codebase had
+    ever integrated whether or not we held a key for it or had priced it.
+
+    This is the answer. An operator installs a provider key, reads the models
+    that vendor actually serves, and ticks the ones we offer. Those rows are the
+    catalogue: what the rate card asks a price for, what a bundle can name, and
+    what a customer sees.
+
+    **A row here is a commitment, not a capability.** It says we hold the key,
+    we have priced it, and a customer may choose it. Deleting one withdraws it
+    from sale without touching any agent already built — a stored configuration
+    names a tier or a model string, and resolution is unchanged.
+
+    The rate lives in ``provider_rates``, keyed on the same
+    ``(component, provider, model)``, rather than being duplicated here. One
+    price per model, in the table that already effective-dates it.
+    """
+
+    __tablename__ = "platform_models"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # stt | llm | tts | realtime | embeddings — the slot this model fills.
+    component = Column(String(24), nullable=False)
+    provider = Column(String(64), nullable=False)
+    #: The vendor's own model id, exactly as the service factory will send it.
+    #: Empty is not allowed: a provider-wide entry would be a promise we cannot
+    #: price, since a rate row keyed on "" is the fallback and not a model.
+    model = Column(String(128), nullable=False)
+
+    #: What the customer reads. Defaults to the model id; worth setting to
+    #: something a clinic owner recognises.
+    label = Column(String(120), nullable=False, default="", server_default="")
+
+    enabled = Column(Boolean, nullable=False, default=True, server_default="true")
+    sort_order = Column(Integer, nullable=False, default=0, server_default="0")
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        # One row per model per slot. A vendor serving two components — Sarvam
+        # does speech at both ends — gets one row for each, because they are
+        # priced separately and chosen separately.
+        Index(
+            "uq_platform_models_slot",
+            "component",
+            "provider",
+            "model",
+            unique=True,
+        ),
+    )
+
+
+class SubscriptionPlanModel(Base):
+    """A plan: one monthly price that buys a call balance and some numbers.
+
+    The ₹2,999 starter plan existed as three constants and a hardcoded route.
+    That works for exactly one plan and stops working the moment somebody wants
+    a second, which is what this table is for — a plan is now a row an operator
+    writes, priced and named without a release, exactly as the rate card and the
+    model bundles already are.
+
+    **Every figure is net of GST**, like everything else the ledger touches. The
+    customer is charged the grossed-up amount at the bank, computed per account
+    against their own billing profile — see ``mandates.create_plan_mandate``.
+
+    ``price_paise`` is stored rather than derived from its parts. A plan is a
+    commercial object: ₹2,999 for ₹2,500 of balance and a ₹499 number is a
+    deliberate ₹0 margin on the parts and a bet on the balance being spent at a
+    markup, and a later plan may discount differently. What is *not* allowed is
+    a price below the balance it grants — that is selling a rupee for less than
+    a rupee, and ``subscription_plans.save`` refuses it rather than trusting
+    whoever typed it.
+
+    ``included_numbers`` is the entitlement, and it is load-bearing. Before it
+    existed, a plan mandate authorised *every* number an account provisioned —
+    ``_mandate_collects`` returned true for all of them, so the monthly job
+    skipped them all, while ``record_mandate_collection`` settled only the
+    lowest-numbered charge. Numbers two and beyond were free for ever, and
+    nothing anywhere read as an error.
+    """
+
+    __tablename__ = "subscription_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    #: Stable identifier used by the mandate, the ledger note and the API.
+    #: Never renamed once a customer is on it: it is what a collection is
+    #: reconciled against months later.
+    code = Column(String(32), nullable=False, unique=True)
+    label = Column(String(80), nullable=False)
+    blurb = Column(Text, nullable=False, default="", server_default="")
+
+    #: Net of GST, per period.
+    price_paise = Column(BigInteger, nullable=False)
+    #: Call balance granted when a cycle is collected.
+    balance_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+    #: How many numbers the price covers. The next one bills separately.
+    included_numbers = Column(Integer, nullable=False, default=0, server_default="0")
+    #: What a number beyond the entitlement costs per month. Null falls back to
+    #: NUMBER_RENTAL_PRICE_PAISE, so a plan that does not want its own figure
+    #: follows the platform rental price rather than pinning a stale copy.
+    extra_number_price_paise = Column(BigInteger, nullable=True)
+
+    #: The provider plan this subscribes to. Pinned per plan for the same
+    #: reason the rental plan is pinned: a plan created lazily per environment
+    #: fragments the provider's own reporting into pieces nobody can rejoin.
+    razorpay_plan_id = Column(String(64), nullable=True)
+
+    enabled = Column(Boolean, nullable=False, default=True, server_default="true")
+    sort_order = Column(Integer, nullable=False, default=0, server_default="0")
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
 class PaymentMandateModel(Base):
     """A customer's standing authorisation for us to collect, on file.
 
@@ -2820,6 +2949,13 @@ class PaymentMandateModel(Base):
     short_url = Column(Text, nullable=True)
 
     price_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+
+    #: Which plan this mandate bought, for a ``starter_plan`` mandate. Null for
+    #: a bare number rental, and null for the plan mandates that predate the
+    #: plans table — those are the single hardcoded starter plan and resolve to
+    #: it by default, which is why this is nullable rather than backfilled to a
+    #: code that might not be the one they signed up on.
+    plan_code = Column(String(32), nullable=True)
 
     authorised_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)

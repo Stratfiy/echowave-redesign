@@ -39,6 +39,7 @@ import {
     listTaxDocumentsApiV1BillingDocumentsGet,
     saveBillingProfileApiV1BillingProfilePut,
 } from "@/client/sdk.gen";
+import { PlanSection } from "@/components/billing/PlanSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,6 +75,13 @@ type Balance = {
     topups_enabled: boolean;
     min_topup_paise: number;
     max_topup_paise: number;
+    /** Top-ups are bought in whole steps of this. ₹100, ₹200, never ₹137. */
+    topup_increment_paise: number;
+    /** The balance at which calling stops. Not zero — see api/constants.py. */
+    min_balance_paise: number;
+    /** Whether calling is stopped right now. Computed by the server so the
+     *  banner and the runtime that refuses the call agree on one definition. */
+    calling_blocked: boolean;
     gst_rate_basis_points: number;
     is_export: boolean;
     billing_profile_complete: boolean;
@@ -422,6 +430,15 @@ export default function BillingPage() {
         setNotice(null);
 
         const rupees = Number(amountRupees);
+        // Read off `balance` rather than the derived value below, which is
+        // declared later in the component body.
+        const stepRupees = (balance?.topup_increment_paise ?? 10_000) / 100;
+        if (rupees % stepRupees !== 0) {
+            setError(
+                `Top-ups are in steps of ₹${stepRupees.toLocaleString("en-IN")}.`,
+            );
+            return;
+        }
         if (!Number.isFinite(rupees) || rupees <= 0) {
             setError("Enter an amount in rupees.");
             return;
@@ -506,7 +523,12 @@ export default function BillingPage() {
 
     const topupsEnabled = balance?.topups_enabled ?? false;
     const balancePaise = balance?.balance_paise ?? 0;
-    const outOfCredit = balancePaise <= 0;
+    const floorPaise = balance?.min_balance_paise ?? 0;
+    const stepPaise = balance?.topup_increment_paise ?? 10_000;
+    // Calling stops at the floor, not at zero. Taken from the server rather
+    // than recomputed here: this banner and the runtime that refuses the call
+    // must never disagree about whether an account can dial.
+    const outOfCredit = balance?.calling_blocked ?? balancePaise < floorPaise;
     // Warn before calls stop, not only after. Someone whose campaign dies
     // mid-run finds out by the campaign dying, which is the worst way to learn
     // it. One minimum top-up's worth of runway is enough notice to act on.
@@ -591,18 +613,28 @@ export default function BillingPage() {
                 >
                     {formatPaise(balancePaise)}
                 </div>
+                {/* Both messages name the floor, because it is not zero. An
+                    account told "calls stop at zero" while sitting on ₹18 and
+                    unable to dial reads that as our arithmetic being broken. */}
                 {outOfCredit && (
                     <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-                        Calls will not start without credit. Add some to keep your
-                        agents running.
+                        Calling is paused — the balance is below{" "}
+                        {formatPaise(floorPaise)}. Add credit from{" "}
+                        {formatPaise(balance?.min_topup_paise ?? 0)} to start again.
                     </p>
                 )}
                 {runningLow && (
                     <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
-                        Running low. Calls stop as soon as this reaches zero.
+                        Running low. Calling pauses once this falls below{" "}
+                        {formatPaise(floorPaise)}.
                     </p>
                 )}
             </section>
+
+            <PlanSection
+                onSubscribed={() => void refresh()}
+                billingProfileComplete={balance?.billing_profile_complete ?? false}
+            />
 
             <section className="rounded-xl border bg-card p-6">
                 <h2 className="text-lg font-medium">Add credit</h2>
@@ -642,6 +674,11 @@ export default function BillingPage() {
 
                         <div className="mt-4 flex flex-wrap items-end gap-3">
                             <div className="w-48">
+                                {/* `step` makes the browser's own spinner and
+                                    validation enforce the same rule the server
+                                    does, so an amount that is not a whole step
+                                    is hard to type rather than rejected after a
+                                    round trip. */}
                                 <Label htmlFor="topup-amount">Amount (₹)</Label>
                                 <Input
                                     id="topup-amount"
@@ -649,6 +686,7 @@ export default function BillingPage() {
                                     inputMode="decimal"
                                     min={(balance?.min_topup_paise ?? 0) / 100}
                                     max={(balance?.max_topup_paise ?? 0) / 100}
+                                    step={stepPaise / 100}
                                     value={amountRupees}
                                     onChange={(event) =>
                                         setAmountRupees(event.target.value)
