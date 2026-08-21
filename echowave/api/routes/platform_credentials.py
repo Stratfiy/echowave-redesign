@@ -20,7 +20,10 @@ from api.db.models import UserModel
 from api.services.auth.depends import get_superuser
 from api.services.configuration import key_validation
 from api.services.configuration import platform_credentials as creds
-from api.services.configuration.registry import components_for_provider
+from api.services.configuration.registry import (
+    components_for_provider,
+    known_providers,
+)
 
 router = APIRouter(
     prefix="/admin/provider-keys",
@@ -76,6 +79,23 @@ async def list_provider_keys() -> dict[str, Any]:
         # showing a generic error on every attempt.
         "encryption_configured": creds.encryption_is_configured(),
         "components": [c.value for c in creds.CREDENTIAL_COMPONENTS],
+    }
+
+
+@router.get("/providers")
+async def list_known_providers() -> dict[str, Any]:
+    """Every vendor this codebase can key, and what each one serves.
+
+    What the add-key form leads with: picking a provider first and reading its
+    components off this, rather than asking "which component" before the
+    vendor is even named — which made adding one Sarvam key feel like adding
+    three, because nothing on the form said Sarvam already covers all of them.
+    """
+    return {
+        "providers": [
+            {"provider": provider, "components": sorted(components)}
+            for provider, components in sorted(known_providers().items())
+        ]
     }
 
 
