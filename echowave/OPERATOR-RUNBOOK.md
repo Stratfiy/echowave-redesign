@@ -187,6 +187,8 @@ configured" — which reads exactly like a code fault.
 | What | When | From |
 |---|---|---|
 | Email verification | Signup | notifications |
+| Welcome | Signup, once per account for ever | notifications |
+| Autopay confirmed | The bank authorises a plan | billing |
 | Receipt voucher / tax invoice | Every top-up, **every autopay collection**, monthly invoice | billing |
 | Low balance | Daily at 09:00 IST while below the threshold | billing |
 | Rental unpaid / number suspended | Day 7, 15, 25, 45 of the dunning ladder | billing |
@@ -211,9 +213,16 @@ venv/bin/python -m aiosmtpd -n -l 127.0.0.1:1025 -d > smtp.log 2>&1 &
 # then run the API with SMTP_HOST=127.0.0.1 SMTP_PORT=1025 SMTP_USE_TLS=false
 ```
 
-**Still missing, and worth adding before volume:** nothing welcomes a new
-account, and nothing confirms a plan the moment it is authorised — the customer
-authorises at their bank and hears nothing until the first collection lands.
+Two more landed the same day, and both were silences at a moment somebody is
+paying attention:
+
+* **Nothing welcomed a new account.** A six-digit code is not a welcome — it is
+  a challenge, and it was the only thing in the inbox from a company they had
+  just handed their email to.
+* **Nothing confirmed a plan the moment it was authorised.** The customer
+  authorised at their bank and heard nothing until the first collection landed,
+  weeks later, as a debit. It quotes the **gross** the bank will actually take,
+  not the net price on the pricing page.
 
 ---
 

@@ -132,18 +132,26 @@ Backend complete, no way to use it. Each is a screen.
 
 ---
 
-## D. Two emails that should exist
+## ~~D. Two emails that should exist~~ — done 21 Aug
 
-Both are silences at moments a customer is paying attention.
+Both were silences at moments a customer is paying attention.
 
-* **D1 — nothing welcomes a new account.** Signup sends a verification email and
-  then nothing.
-* **D2 — nothing confirms a plan when it is authorised.** The customer
-  authorises at their bank and hears nothing until the first collection lands,
-  which on a monthly cycle can be weeks.
+* **D1 — nothing welcomed a new account.** Signup sent a verification code and
+  then nothing. `services/auth/welcome_email.py`, sent from
+  `provision_new_account` so both front doors produce it, addressed to the
+  person who signed up and deduplicated per account for ever.
+* **D2 — nothing confirmed a plan when it was authorised.**
+  `services/billing/plan_email.py`, sent from the Razorpay webhook on the
+  *transition* into an authorised state — Razorpay sends `authenticated` then
+  `activated` and retries both, so "is authorised" is true four times and "just
+  became authorised" once. It quotes the **gross**, because that is what the
+  bank is authorised for and quoting the net would set up an argument with the
+  first statement.
 
-The sending machinery, the dedupe table and the sender addresses all exist. Each
-is a compose function and a call site. A day for both.
+The claim-then-send that both use is now one function,
+`services/messaging/announce.py`, rather than a third hand-written copy. The
+low-balance job and the dunning notice still carry their own copies; folding
+them in is tidying, not a fix.
 
 ---
 
@@ -212,8 +220,8 @@ card. A commercial call, not a bug.
 1. **A1–A7.** Configuration. Nothing below matters if money cannot be taken
    correctly, and the readiness screen now tells you when it can.
 2. ~~**C1.** The customer Models screen.~~ **Done** — see the note in §C.
-3. **D1, D2.** The two emails. **B1** now needs only the four published carrier
-   rates typing into the rate card; **B3** is done.
+3. ~~**D1, D2.**~~ Done. **B1** now needs only the four published carrier rates
+   typing into the rate card; **B3** is done.
 4. **Decide B2, B4, E3.** Three commercial calls that need you, not code.
 5. **F1.** Put `tsc`, `next build` and vitest in CI before the codebase grows
    further without them.

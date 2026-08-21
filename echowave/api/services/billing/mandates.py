@@ -726,12 +726,26 @@ async def apply_subscription_event(session: AsyncSession, *, event: dict) -> dic
     return {
         "status": "updated",
         "mandate_id": mandate.id,
+        "organization_id": mandate.organization_id,
         "mandate_status": next_status,
         "previous_status": previous,
         "event": event_type,
         # The rental code reads this to decide whether a period was collected by
         # the bank rather than the balance.
         "charged": event_type == "subscription.charged",
+        # The customer authorised at their bank and, until this shipped, heard
+        # nothing until money moved. Reported as a *transition* rather than as
+        # a status, because Razorpay sends `authenticated` and then `activated`
+        # for one authorisation and retries both — so "is authorised" is true
+        # four times and "just became authorised" once. The confirmation is
+        # deduplicated on the mandate as well; this only keeps the common case
+        # from reaching the dedupe table at all.
+        "newly_authorised": (
+            previous not in MandateStatus.authorised()
+            and next_status in MandateStatus.authorised()
+        ),
+        "plan_code": mandate.plan_code,
+        "price_paise": mandate.price_paise,
     }
 
 

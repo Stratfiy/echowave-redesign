@@ -20,10 +20,13 @@ from loguru import logger
 from api.db import db_client
 from api.db.models import OrganizationModel, UserModel
 from api.enums import OrganizationConfigurationKey, OrganizationRole
+from api.constants import UI_APP_URL
+from api.services.auth import welcome_email
 from api.services.auth.depends import create_user_configuration_with_mps_key
 from api.services.configuration.ai_model_configuration import (
     convert_legacy_ai_model_configuration_to_v2,
 )
+from api.services.messaging import announce
 from api.services.partners import referrals
 
 
@@ -101,5 +104,34 @@ async def provision_new_account(
         logger.warning(
             "Failed to create default configuration for new account", exc_info=True
         )
+
+    # The welcome, last, and best-effort like everything above it.
+    #
+    # Addressed to the person who just signed up rather than to the
+    # organization's members: at this moment those are the same one address,
+    # and `announce` would otherwise mail anybody a later re-provision found
+    # attached. Deduplicated per account for ever, so re-provisioning a
+    # half-finished signup — which both front doors can do — welcomes nobody
+    # twice.
+    try:
+        address = (user.email or "").strip()
+        if address:
+            await announce.announce(
+                organization_id=organization.id,
+                kind=welcome_email.KIND,
+                notice=welcome_email.compose(
+                    # No name to greet them by: the signup form takes one and
+                    # `create_user_with_email` does not store it, and the
+                    # Google door has none either. The compose reads correctly
+                    # without one rather than falling back to "Hi ,".
+                    account_name=None,
+                    app_url=UI_APP_URL,
+                ),
+                to=[address],
+            )
+    except Exception:
+        # `announce` does not raise; this catches the compose, which reads
+        # attributes off a user row somebody may have changed under us.
+        logger.warning("Could not welcome new account", exc_info=True)
 
     return organization
