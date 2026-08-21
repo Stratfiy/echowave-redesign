@@ -75,15 +75,23 @@ is not a fix.
 in the docs), or give the plan row a second provider plan id used when the
 billing profile is an export. The plans table already has somewhere to put it.
 
-### B3. The wizard's price excludes carriage
+### ~~B3. The wizard's price excludes carriage~~ — done 21 Aug
 
-`GET /agent-options` calls `price_per_minute` with no `telephony_provider`, so
-the create wizard shows ₹7.46/min where the call will cost ₹8.30 — about 10%
-light, systematically.
+`GET /agent-options` called `price_per_minute` with no `telephony_provider`, so
+the create wizard showed ₹7.46/min where the call would cost ₹8.30 — about 10%
+light, systematically, on the one screen a first-time buyer reads before paying.
 
-Defensible (no carrier is chosen yet) and currently unstated, which is the
-problem. **Fix:** pass the account's default carrier, or label the figure
-"excludes telephony". An hour.
+The Models screen had the mirror of it: it priced whatever the default outbound
+configuration named, ours or not, so an account dialling on its **own** Twilio
+was quoted a carriage line on top of the invoice Twilio already sends it.
+
+Both now ask `carriage.billable_carrier`, which answers the only question that
+decides it — *whose invoice do these minutes land on* — in three states, each
+with its own sentence on the screen: no number connected (price will grow),
+their own carrier (we bill no carriage at all), ours (included, carrier named).
+`GET /agent-options/carriage` is the endpoint; `/agent-options/minutes` uses it
+too, since a missing carrier line there reads as *more minutes* than the
+balance buys.
 
 ### B4. Granted plan balance never expires
 
@@ -204,8 +212,8 @@ card. A commercial call, not a bug.
 1. **A1–A7.** Configuration. Nothing below matters if money cannot be taken
    correctly, and the readiness screen now tells you when it can.
 2. ~~**C1.** The customer Models screen.~~ **Done** — see the note in §C.
-3. **B3, D1, D2.** An honest wizard price and the two emails. **B1** now needs
-   only the four published rates typing into the rate card.
+3. **D1, D2.** The two emails. **B1** now needs only the four published carrier
+   rates typing into the rate card; **B3** is done.
 4. **Decide B2, B4, E3.** Three commercial calls that need you, not code.
 5. **F1.** Put `tsc`, `next build` and vitest in CI before the codebase grows
    further without them.

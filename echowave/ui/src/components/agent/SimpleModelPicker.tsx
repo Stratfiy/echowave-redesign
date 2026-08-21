@@ -43,7 +43,15 @@ type Bundle = {
     variants: Variant[];
 };
 
-type Options = { voices: VoiceOption[]; bundles: Bundle[] };
+/** What the prices below do and do not contain, as the server works it out. */
+type Carriage = {
+    provider: string | null;
+    reason: string;
+    explanation: string;
+    included: boolean;
+};
+
+type Options = { voices: VoiceOption[]; bundles: Bundle[]; telephony?: Carriage };
 
 function rupees(paise: number): string {
     return `₹${(paise / 100).toFixed(2)}`;
@@ -312,6 +320,14 @@ export function SimpleModelPicker({
                             <span className="mt-1 block text-xs text-muted-foreground">
                                 An estimate. A call that says more costs more, and the
                                 figure moves if provider prices do.
+                                {/* Whether the carrier's minutes are in that
+                                    number. They were not, and the omission was
+                                    never stated — roughly a tenth of the price
+                                    of a call, missing, on the one screen a
+                                    first-time buyer reads before paying. */}
+                                {options.telephony?.explanation
+                                    ? ` ${options.telephony.explanation}`
+                                    : null}
                             </span>
                         </>
                     )}

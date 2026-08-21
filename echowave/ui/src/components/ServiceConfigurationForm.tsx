@@ -5,9 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import {
+    getCarriageBasisApiV1AgentOptionsCarriageGet,
     getCatalogueApiV1AgentOptionsCatalogueGet,
     getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet,
-    listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet,
 } from '@/client/sdk.gen';
 import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
 import {
@@ -340,11 +340,19 @@ export function ServiceConfigurationForm({
         };
     };
 
-    // The carrier this account actually dials on. Without it the estimate
-    // below silently omits telephony, which is not a rounding error: it is an
-    // exact per-minute rate and routinely a third of the cost of a minute. A
-    // number that confident about being incomplete is worse than no number.
+    // The carrier whose minutes will land on *this account's* invoice, which
+    // is not the same as the carrier it dials on. Both mistakes are available
+    // here and this screen used to make the second one: pricing the default
+    // outbound configuration's provider whatever it was quoted carriage to an
+    // account dialling on its own Twilio, which is already being billed by
+    // Twilio — the same double charge `carriage.py` refuses on the invoice,
+    // appearing on the estimate instead. Omitting it entirely is the opposite
+    // error and no better: carriage is an exact per-minute rate and routinely
+    // a third of the cost of a minute.
     const [telephonyProvider, setTelephonyProvider] = useState<string | null>(null);
+    //: What to say under the price about what it excludes. Empty while the
+    //: answer is in flight — a caveat that flickers is worse than a late one.
+    const [carriageNote, setCarriageNote] = useState<string>("");
 
     // What Decibyl sells, per slot, with what each model costs a minute.
     //
@@ -445,17 +453,14 @@ export function ServiceConfigurationForm({
     useEffect(() => {
         let cancelled = false;
         (async () => {
-            const response = await listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet();
+            const response = await getCarriageBasisApiV1AgentOptionsCarriageGet();
             if (cancelled || response.error) return;
-            const rows =
-                (response.data as unknown as {
-                    configurations?: { provider: string; is_default_outbound: boolean }[];
-                })?.configurations ?? [];
-            // The default outbound configuration is the one a call actually
-            // leaves on. Falling back to the first is right for the common case
-            // of a single carrier and no default flagged.
-            const chosen = rows.find((row) => row.is_default_outbound) ?? rows[0];
-            setTelephonyProvider(chosen?.provider ?? null);
+            const basis = response.data as unknown as {
+                provider?: string | null;
+                explanation?: string;
+            };
+            setTelephonyProvider(basis?.provider ?? null);
+            setCarriageNote(basis?.explanation ?? "");
         })();
         return () => {
             cancelled = true;
@@ -1615,6 +1620,7 @@ export function ServiceConfigurationForm({
                 moves the number immediately. */}
             <CostPerMinuteBar
                 className="mb-4"
+                carriageNote={carriageNote}
                 stack={{
                     ...pricedSlot("stt", isRealtime ? null : serviceProviders.stt, watch("stt_model") as string),
                     ...pricedSlot("llm", serviceProviders.llm, watch("llm_model") as string),

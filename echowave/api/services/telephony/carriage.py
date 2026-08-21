@@ -27,8 +27,11 @@ rather than as a quietly shrinking telephony line.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from loguru import logger
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import db_client
 from api.db.models import (
@@ -43,6 +46,88 @@ from api.db.models import (
 #: was behind the call and has already billed them directly.
 MANAGED = "managed"
 CUSTOMER_OWNED = "byok"
+
+
+@dataclass(frozen=True)
+class CarriageBasis:
+    """What carriage, if any, this account will be billed by us — for a quote.
+
+    The same question as :func:`carriage_key_source`, asked *before* the call
+    instead of after it, so an estimate can be right about the largest line it
+    was silently getting wrong in both directions:
+
+    * The create wizard passed no carrier at all, so it quoted a stack with no
+      carriage — about 10% light for an account we do carry.
+    * The Models screen passed the default outbound configuration's provider
+      whatever it was, so an account on its **own** Twilio was quoted carriage
+      we will never bill, on top of the invoice Twilio already sends them.
+
+    Neither number was wrong by accident; both were confident. Hence
+    ``explanation``: a price that excludes something has to say so, or the
+    first invoice is where the customer finds out.
+    """
+
+    #: The carrier to price, or ``None`` when we will bill no carriage.
+    provider: str | None
+    #: ``managed`` | ``customer_carrier`` | ``no_carrier``.
+    reason: str
+    #: One sentence to put under the price.
+    explanation: str
+
+
+#: No number is connected yet, so there is nothing to say about a carrier.
+NO_CARRIER = "no_carrier"
+#: The account dials on its own carrier account. We bill no carriage at all.
+CUSTOMER_CARRIER = "customer_carrier"
+
+
+async def billable_carrier(
+    session: AsyncSession, *, organization_id: int
+) -> CarriageBasis:
+    """Which carrier's minutes we would put on this account's invoice.
+
+    Reads the default outbound configuration, falling back to the first — the
+    same choice ``telephony/factory.py`` makes when it has nothing else to go
+    on, so a quote is priced on the configuration a call would actually leave
+    through.
+    """
+    rows = (
+        await session.execute(
+            select(TelephonyConfigurationModel)
+            .where(TelephonyConfigurationModel.organization_id == organization_id)
+            .order_by(
+                TelephonyConfigurationModel.is_default_outbound.desc(),
+                TelephonyConfigurationModel.id,
+            )
+        )
+    ).scalars().all()
+
+    if not rows:
+        return CarriageBasis(
+            provider=None,
+            reason=NO_CARRIER,
+            explanation=(
+                "Excludes call charges — no phone number is connected yet. "
+                "Connecting one adds the per-minute carrier cost."
+            ),
+        )
+
+    chosen = rows[0]
+    if not chosen.is_platform_managed:
+        return CarriageBasis(
+            provider=None,
+            reason=CUSTOMER_CARRIER,
+            explanation=(
+                f"Excludes call charges — you dial on your own {chosen.provider} "
+                "account, so those minutes are on their invoice, not ours."
+            ),
+        )
+
+    return CarriageBasis(
+        provider=chosen.provider,
+        reason=MANAGED,
+        explanation=f"Includes {chosen.provider} call charges.",
+    )
 
 
 async def carriage_key_source(*, workflow_id: int, numbers: list[str]) -> str:
