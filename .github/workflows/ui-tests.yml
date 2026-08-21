@@ -1,0 +1,76 @@
+name: UI checks
+
+# The three checks the UI had none of.
+#
+# Until this existed, CI touched the frontend exactly once: the drift check ran
+# `next lint` and compared the working tree. Lint is the weakest of the three
+# things that can be wrong with a TypeScript app — a type error and a broken
+# build both sail past it, reach main, and are caught on the deploy box, where
+# `ci_deploy.sh` rolls back. A rollback is a red check that arrived too late
+# and cost a deploy window to deliver.
+#
+# Split from the drift check rather than folded into it, for two reasons: these
+# run against a build tree the drift check must not have (`next build` writes
+# `.next/`, and that job compares `git diff --exit-code ui`), and a failure here
+# should read as "the UI is broken" rather than as "somebody forgot to run the
+# formatter".
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "echowave/ui/**"
+      - ".github/workflows/ui-tests.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: echowave/ui
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: echowave/ui/package-lock.json
+
+      - name: Install ui dependencies
+        run: npm ci
+
+      # Ordered cheapest-first, and each is a distinct failure worth naming
+      # separately in the checks list. A type error reported as "build failed"
+      # sends whoever reads it to the wrong file.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        # No runtime environment variable is required to build: a missing one
+        # surfaces as a runtime fault rather than a build failure, which is why
+        # this checks the build and not the configuration.
+        run: npm run build
+
+      - name: Send Slack notification - Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          payload: |
+            {
+              "text": "❌ Decibyl UI checks failed on ${{ github.ref_name }} by ${{ github.actor }} - <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>"
+            }

@@ -191,10 +191,15 @@ card. A commercial call, not a bug.
 
 ## F. Engineering hygiene
 
+> **F1 is done.** `.github/workflows/ui-tests.yml` runs `tsc --noEmit`, the
+> vitest suite and `next build` on any PR touching `echowave/ui/**`, as three
+> separately-named steps — a type error reported as "build failed" sends
+> whoever reads it to the wrong file. Split from the drift check because
+> `next build` writes `.next/` and that job compares `git diff --exit-code ui`.
+
 | # | What | Why |
 |---|---|---|
-| F1 | **CI never runs `tsc`, `next build` or the 68 vitest tests** | Only lint drift is checked. A type error or broken build reaches `main` and is caught on the deploy box, where `ci_deploy.sh` rolls back — a rollback that could have been a red check. All three are clean today; nothing keeps them clean |
-| F2 | `test_privacy.py::TestSubprocessorsAreDerived` flakes on ordering | Passes in isolation and in every targeted combination; appears and vanishes in full runs. Almost certainly `managed_tiers._OVERRIDES` — a module-level cache mutated by another test file. Worth an autouse fixture that restores it |
+| F2 | `test_privacy.py::TestSubprocessorsAreDerived::test_one_vendor_serving_two_components_is_one_entry` appears and vanishes in full runs | **The earlier diagnosis here was wrong.** It is not `managed_tiers._OVERRIDES` — `subprocessors.in_use` never touches it — and it is not test ordering: `pytest-randomly` is not installed, so collection order is stable, and the test failed on one full run and passed on the next three with the same order. That leaves state surviving a test transaction, or the `IN_USE_WINDOW_DAYS` boundary. Next step is to catch the assertion text: it has not yet been seen, so nobody knows *which* half of the assertion fails. `pytest tests/ -xvs` means this can stop a CI run |
 | F3 | The suite needs an undocumented setup | 10 failures and 9 errors on a clean checkout, all environmental: `ts_validator` npm deps, `moto[s3,server]`, and Python 3.11 against the pinned ≥3.13. CI is green because CI installs all of it. `KNOWN_ISSUES.md` §"Running the test suite" has the list |
 | F4 | The Emergent scaffold is still at the repo root | `backend/server.py` (a MongoDB hello-world), `frontend/` (a CRA stub), `memory/`, `tests/`, `test_result.md`. None of it is Decibyl, and it is the first thing anyone new opens |
 | F5 | Five dead workflows in `echowave/.github/workflows/` | GitHub only reads `<repo-root>/.github/workflows`, so release automation, the docker image build and the Slack announcements have never run |
@@ -223,8 +228,7 @@ card. A commercial call, not a bug.
 3. ~~**D1, D2.**~~ Done. **B1** now needs only the four published carrier rates
    typing into the rate card; **B3** is done.
 4. **Decide B2, B4, E3.** Three commercial calls that need you, not code.
-5. **F1.** Put `tsc`, `next build` and vitest in CI before the codebase grows
-   further without them.
+5. ~~**F1.**~~ Done — `tsc`, vitest and `next build` now run on every UI PR.
 6. **E1** after a week of real traffic, then re-size the plan balance.
 7. **C2–C8** as each feature is actually turned on. None is urgent while its
    flag is off.
