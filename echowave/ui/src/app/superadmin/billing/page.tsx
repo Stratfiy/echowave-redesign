@@ -76,7 +76,9 @@ export default function BillingOverviewPage() {
     const current = data?.current as Record<string, number | null> | undefined;
     const previous = data?.previous as Record<string, number | null> | undefined;
 
-    const minutesSeries = (data?.minutes_per_day ?? []) as Array<Record<string, number | string>>;
+    const minutesSeries = (data?.minutes_per_day ?? []) as Array<
+        Record<string, number | string | null>
+    >;
     const costSeries = (data?.cost_composition ?? []) as Array<Record<string, number | string>>;
     const topAccounts = (data?.top_accounts ?? []) as Array<Record<string, number | string>>;
     const latencySeries = (data?.latency ?? []) as Array<Record<string, number | string>>;
@@ -87,6 +89,12 @@ export default function BillingOverviewPage() {
     );
     const hasLatency = latencySeries.some(
         (d) => d.p50_ms !== null && d.p50_ms !== undefined,
+    );
+    // minutes_per_day is really "daily_series" — it carries revenue and call
+    // success too, reused here rather than fetching the same rollup twice.
+    const hasRevenueTrend = minutesSeries.some((d) => Number(d.charged_paise) > 0);
+    const hasSuccessRate = minutesSeries.some(
+        (d) => d.success_rate !== null && d.success_rate !== undefined,
     );
 
     return (
@@ -165,6 +173,81 @@ export default function BillingOverviewPage() {
                                 maxBarSize={18}
                             />
                         </BarChart>
+                    </ResponsiveContainer>
+                </ChartCard>
+
+                <ChartCard
+                    title="Revenue trend"
+                    description="What accounts were charged per day, last 30 days"
+                    loading={loading}
+                    error={error}
+                    isEmpty={!hasRevenueTrend}
+                >
+                    <ResponsiveContainer width="100%" height={260}>
+                        <AreaChart data={minutesSeries} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                            <CartesianGrid stroke={gridStroke(mode)} vertical={false} />
+                            <XAxis dataKey="day" tickFormatter={formatDateIST} {...axisProps(mode)} />
+                            <YAxis
+                                width={62}
+                                tickFormatter={(v: number) => formatPaiseCompact(v)}
+                                {...axisProps(mode)}
+                            />
+                            <Tooltip
+                                content={
+                                    <ChartTooltip
+                                        formatter={(v) => formatPaise(v)}
+                                        labelFormatter={formatDateIST}
+                                    />
+                                }
+                            />
+                            <Area
+                                type="monotone"
+                                dataKey="charged_paise"
+                                name="Revenue"
+                                stroke={seriesColor(0, mode)}
+                                strokeWidth={2}
+                                fill={seriesColor(0, mode)}
+                                fillOpacity={0.15}
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </ChartCard>
+
+                <ChartCard
+                    title="Call success rate"
+                    description="Answered calls ÷ total calls, per day. A day with no calls has no rate — not 0%."
+                    loading={loading}
+                    error={error}
+                    isEmpty={!hasSuccessRate}
+                >
+                    <ResponsiveContainer width="100%" height={260}>
+                        <LineChart data={minutesSeries} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                            <CartesianGrid stroke={gridStroke(mode)} vertical={false} />
+                            <XAxis dataKey="day" tickFormatter={formatDateIST} {...axisProps(mode)} />
+                            <YAxis
+                                width={48}
+                                domain={[0, 1]}
+                                tickFormatter={(v: number) => formatPercent(v, 0)}
+                                {...axisProps(mode)}
+                            />
+                            <Tooltip
+                                content={
+                                    <ChartTooltip
+                                        formatter={(v) => formatPercent(v as number)}
+                                        labelFormatter={formatDateIST}
+                                    />
+                                }
+                            />
+                            <Line
+                                type="monotone"
+                                dataKey="success_rate"
+                                name="Success rate"
+                                stroke={seriesColor(0, mode)}
+                                strokeWidth={2}
+                                dot={false}
+                                connectNulls={false}
+                            />
+                        </LineChart>
                     </ResponsiveContainer>
                 </ChartCard>
 

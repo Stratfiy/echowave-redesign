@@ -1173,6 +1173,20 @@ async def get_activation(rng: RangeParams = Depends()) -> dict[str, Any]:
     return await db_client.activation_funnel(rng.start, rng.end)
 
 
+@router.get("/retention")
+async def get_retention(
+    cohort_months: int = Query(6, ge=1, le=24),
+    retention_months: int = Query(6, ge=1, le=24),
+) -> dict[str, Any]:
+    """Of each signup-month cohort of accounts, what fraction placed at least
+    one call in each month since — the question activation cannot answer:
+    not just who arrived, but who stayed.
+    """
+    return await db_client.retention_matrix(
+        cohort_months=cohort_months, retention_months=retention_months
+    )
+
+
 # ---------------------------------------------------------------------------
 # Model economics
 #
