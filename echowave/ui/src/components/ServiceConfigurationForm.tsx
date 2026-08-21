@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ExternalLink, KeyRound, Plus, X } from "lucide-react";
+import { AlertTriangle, ChevronRight, ExternalLink, KeyRound, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
@@ -12,6 +12,11 @@ import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -62,28 +67,57 @@ export interface ServiceConfigurationDefaults {
     default_providers: Partial<Record<ServiceSegment, string>>;
 }
 
-const STANDARD_TABS: { key: ServiceSegment; label: string }[] = [
-    { key: "llm", label: "LLM" },
-    { key: "tts", label: "Voice" },
-    { key: "stt", label: "Transcriber" },
-    { key: "embeddings", label: "Embedding" },
+/** The two halves of an agent: what it hears and says, and what it thinks with.
+ *
+ * A flat strip of four vendor slots — LLM, Voice, Transcriber, Embedding — is
+ * the API's vocabulary, not the buyer's. It also put the two slots that decide
+ * how an agent *sounds* at opposite ends of the row, with the one that decides
+ * how it *thinks* between them, so reading "what is my voice stack" meant
+ * knowing which two of the four to look at.
+ *
+ * Grouped, the tab strip states the architecture instead of enumerating it:
+ * ears and mouth under Voice, brain and memory under Model. Speech-to-speech
+ * collapses the Voice group to one entry, which is exactly what it does to the
+ * pipeline.
+ */
+type TabGroup = "voice" | "model";
+
+const TAB_GROUP_LABELS: Record<TabGroup, string> = {
+    voice: "Voice",
+    model: "Model",
+};
+
+type TabSpec = { key: ServiceSegment; label: string; group: TabGroup };
+
+// The slot names themselves are unchanged. Every docs page calls the pipeline
+// "Transcriber -> Model -> Voice", and renaming a tab so the group heading
+// above it reads better would put the product and its documentation into two
+// vocabularies for one thing — which is the more expensive kind of confusing.
+const STANDARD_TABS: TabSpec[] = [
+    { key: "stt", label: "Transcriber", group: "voice" },
+    { key: "tts", label: "Voice", group: "voice" },
+    { key: "llm", label: "LLM", group: "model" },
+    { key: "embeddings", label: "Embedding", group: "model" },
 ];
 
-const REALTIME_TABS: { key: ServiceSegment; label: string }[] = [
-    { key: "realtime", label: "Realtime Model" },
-    { key: "llm", label: "LLM" },
-    { key: "embeddings", label: "Embedding" },
+const REALTIME_TABS: TabSpec[] = [
+    // One model hears and speaks, so there is nothing else in the Voice group.
+    { key: "realtime", label: "Speech to Speech", group: "voice" },
+    // Still required: variable extraction and QA run on the transcript after
+    // the call, and those are text tasks.
+    { key: "llm", label: "LLM", group: "model" },
+    { key: "embeddings", label: "Embedding", group: "model" },
 ];
 
-const OVERRIDE_STANDARD_TABS: { key: ServiceSegment; label: string }[] = [
-    { key: "llm", label: "LLM" },
-    { key: "tts", label: "Voice" },
-    { key: "stt", label: "Transcriber" },
+const OVERRIDE_STANDARD_TABS: TabSpec[] = [
+    { key: "stt", label: "Transcriber", group: "voice" },
+    { key: "tts", label: "Voice", group: "voice" },
+    { key: "llm", label: "LLM", group: "model" },
 ];
 
-const OVERRIDE_REALTIME_TABS: { key: ServiceSegment; label: string }[] = [
-    { key: "realtime", label: "Realtime Model" },
-    { key: "llm", label: "LLM" },
+const OVERRIDE_REALTIME_TABS: TabSpec[] = [
+    { key: "realtime", label: "Speech to Speech", group: "voice" },
+    { key: "llm", label: "LLM", group: "model" },
 ];
 
 // Display names for Sarvam voices
@@ -279,6 +313,13 @@ export function ServiceConfigurationForm({
     // exact per-minute rate and routinely a third of the cost of a minute. A
     // number that confident about being incomplete is worse than no number.
     const [telephonyProvider, setTelephonyProvider] = useState<string | null>(null);
+
+    // Per-slot, and undefined until the operator touches it — so the fold
+    // starts wherever `hasNonDefaultFields` says it should and only stops
+    // following that once somebody has actually opened or closed it.
+    const [advancedOpen, setAdvancedOpen] = useState<
+        Partial<Record<ServiceSegment, boolean>>
+    >({});
 
     const [apiError, setApiError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -716,6 +757,29 @@ export function ServiceConfigurationForm({
         );
     };
 
+    /** Whether any setting past the model differs from what the schema chose.
+     *
+     * Decides whether the Advanced fold starts open. A value somebody set on
+     * purpose, hidden behind a collapsed section they have to know to click,
+     * is worse than a section that is open more often than it needs to be:
+     * they would be debugging behaviour they configured and cannot see.
+     */
+    const hasNonDefaultFields = (
+        service: ServiceSegment,
+        providerSchema: ProviderSchema,
+    ): boolean =>
+        getConfigFields(service)
+            .slice(1)
+            .some((field) => {
+                const schema = providerSchema.properties[field];
+                const actual = schema?.$ref && providerSchema.$defs
+                    ? providerSchema.$defs[schema.$ref.split("/").pop() || ""]
+                    : schema;
+                const current = watch(`${service}_${field}`);
+                if (current === undefined || current === "") return false;
+                return String(current) !== String(actual?.default ?? "");
+            });
+
     const renderServiceFields = (service: ServiceSegment) => {
         const currentProvider = serviceProviders[service];
         const providerSchema = schemas?.[service]?.[currentProvider];
@@ -904,22 +968,62 @@ export function ServiceConfigurationForm({
                     )}
                 </div>
 
+                {/* Everything past the model, folded away.
+                    These are the knobs that decide how natural an agent sounds
+                    — speed, temperature, the turn-taking timings — and most of
+                    them are right at their default. Laid out flat they made
+                    every slot look like a form to fill in before the agent
+                    would work, which is what a first-time buyer reads a screen
+                    of empty-looking inputs as. Folded, the common path is a
+                    vendor and a model; the knobs are one click away for the
+                    person who came looking for them. Open by default when the
+                    account has already set one, so a non-default setting is
+                    never hidden behind a click nobody knew to make. */}
                 {currentProvider && providerSchema && configFields.length > 1 && (
-                    <div className="grid grid-cols-2 gap-4">
-                        {configFields.slice(1).map((field) => {
-                            const fieldSchema = providerSchema.properties[field];
-                            const actualFieldSchema = fieldSchema?.$ref && providerSchema.$defs
-                                ? providerSchema.$defs[fieldSchema.$ref.split('/').pop() || '']
-                                : fieldSchema;
-                            const fullWidth = actualFieldSchema?.multiline;
-                            return (
-                                <div key={field} className={`space-y-2 ${fullWidth ? "col-span-2" : ""}`}>
-                                    <Label className="capitalize">{field.replace(/_/g, ' ')}</Label>
-                                    {renderField(service, field, providerSchema)}
-                                </div>
-                            );
-                        })}
-                    </div>
+                    <Collapsible
+                        open={advancedOpen[service] ?? hasNonDefaultFields(service, providerSchema)}
+                        onOpenChange={(open) =>
+                            setAdvancedOpen((prev) => ({ ...prev, [service]: open }))
+                        }
+                    >
+                        <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+                            <ChevronRight className="h-3.5 w-3.5 transition-transform data-[state=open]:rotate-90" />
+                            Advanced settings
+                            <span className="text-xs font-normal">
+                                ({configFields.length - 1})
+                            </span>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                            <div className="grid grid-cols-2 gap-4 pt-2">
+                                {configFields.slice(1).map((field) => {
+                                    const fieldSchema = providerSchema.properties[field];
+                                    const actualFieldSchema = fieldSchema?.$ref && providerSchema.$defs
+                                        ? providerSchema.$defs[fieldSchema.$ref.split('/').pop() || '']
+                                        : fieldSchema;
+                                    const fullWidth = actualFieldSchema?.multiline;
+                                    const fallback = actualFieldSchema?.default;
+                                    return (
+                                        <div key={field} className={`space-y-2 ${fullWidth ? "col-span-2" : ""}`}>
+                                            <Label className="flex items-baseline gap-2 capitalize">
+                                                {field.replace(/_/g, ' ')}
+                                                {/* What happens if you leave it
+                                                    alone. Without it, "0.7" in a
+                                                    box is a number somebody has to
+                                                    decide about; with it, it is
+                                                    visibly the setting we chose. */}
+                                                {fallback !== undefined && fallback !== null && (
+                                                    <span className="text-[11px] font-normal normal-case text-muted-foreground">
+                                                        default {String(fallback)}
+                                                    </span>
+                                                )}
+                                            </Label>
+                                            {renderField(service, field, providerSchema)}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </CollapsibleContent>
+                    </Collapsible>
                 )}
 
                 {/* Keys do not belong on this screen. They live in the vault at
@@ -1267,31 +1371,48 @@ export function ServiceConfigurationForm({
                             remembering. The slot name is the heading and what
                             it resolves to is the line under it, which makes the
                             whole pipeline legible without opening anything. */}
-                        <TabsList
-                            className="mb-6 grid h-auto w-full gap-1 p-1"
-                            style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}
-                        >
-                            {visibleTabs.map(({ key, label }) => {
-                                const provider = serviceProviders[key];
-                                const model = watch(`${key}_model`) as string | undefined;
-                                const managed = provider === "decibyl";
+                        <TabsList className="mb-6 flex h-auto w-full items-stretch gap-4 bg-transparent p-0">
+                            {(["voice", "model"] as TabGroup[]).map((group) => {
+                                const inGroup = visibleTabs.filter((t) => t.group === group);
+                                if (inGroup.length === 0) return null;
                                 return (
-                                    <TabsTrigger
-                                        key={key}
-                                        value={key}
-                                        className="flex-col items-start gap-0.5 px-3 py-2 text-left"
-                                    >
-                                        <span className="text-[0.9375rem] font-semibold tracking-[-0.015em]">
-                                            {label}
+                                    <div key={group} className="flex-1 space-y-1.5">
+                                        <span className="block px-1 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                                            {TAB_GROUP_LABELS[group]}
                                         </span>
-                                        <span className="w-full truncate text-[11px] font-normal leading-tight text-muted-foreground">
-                                            {provider
-                                                ? managed
-                                                    ? `Decibyl · ${model || "default"}`
-                                                    : model || provider
-                                                : "Not set"}
-                                        </span>
-                                    </TabsTrigger>
+                                        <div
+                                            className="grid gap-1 rounded-lg bg-muted p-1"
+                                            style={{
+                                                gridTemplateColumns: `repeat(${inGroup.length}, 1fr)`,
+                                            }}
+                                        >
+                                            {inGroup.map(({ key, label }) => {
+                                                const provider = serviceProviders[key];
+                                                const model = watch(`${key}_model`) as
+                                                    | string
+                                                    | undefined;
+                                                const managed = provider === "decibyl";
+                                                return (
+                                                    <TabsTrigger
+                                                        key={key}
+                                                        value={key}
+                                                        className="flex-col items-start gap-0.5 px-3 py-2 text-left"
+                                                    >
+                                                        <span className="text-[0.9375rem] font-semibold tracking-[-0.015em]">
+                                                            {label}
+                                                        </span>
+                                                        <span className="w-full truncate text-[11px] font-normal leading-tight text-muted-foreground">
+                                                            {provider
+                                                                ? managed
+                                                                    ? `Decibyl · ${model || "default"}`
+                                                                    : model || provider
+                                                                : "Not set"}
+                                                        </span>
+                                                    </TabsTrigger>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
                                 );
                             })}
                         </TabsList>

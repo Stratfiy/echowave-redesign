@@ -39,6 +39,20 @@ and it is what the [BYOK platform fee](/account/billing) is tiered around.
   shot="The Models screen in the current UI on the Transcriber → Model → Voice architecture, with at least one slot set to Decibyl (managed) and one set to a real vendor, so the mix is visible. Include the per-minute cost bar."
 />
 
+## Finding the model you want to change
+
+The slots are grouped by what they decide. **Voice** holds the transcriber and
+the voice — everything that turns speech into text and back. **Model** holds
+the language model and the embedding model, which decide what the agent
+understands and remembers. On Speech to Speech the Voice group collapses to a
+single slot, because one model is doing both jobs.
+
+Each slot asks for a provider and a model. Everything else it accepts — speed,
+temperature, the turn-taking timings — is behind **Advanced settings**, folded
+away with its default shown beside each field, because most of them are right
+as they are. A slot you have already changed opens that section for you, so a
+setting you made is never hidden behind a click.
+
 ## What the stack costs, before you call anything
 
 As you change a slot the screen re-prices the whole stack per minute. That is
