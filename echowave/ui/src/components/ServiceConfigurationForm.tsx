@@ -407,13 +407,25 @@ export function ServiceConfigurationForm({
             if (cancelled || response.error) return;
             const rows =
                 (response.data as unknown as {
-                    configurations?: { provider: string; is_default_outbound: boolean }[];
+                    configurations?: {
+                        provider: string;
+                        is_default_outbound: boolean;
+                        is_platform_managed: boolean;
+                    }[];
                 })?.configurations ?? [];
             // The default outbound configuration is the one a call actually
             // leaves on. Falling back to the first is right for the common case
             // of a single carrier and no default flagged.
             const chosen = rows.find((row) => row.is_default_outbound) ?? rows[0];
-            setTelephonyProvider(chosen?.provider ?? null);
+            // Only a configuration we front is quoted. On the account's own
+            // carrier the minutes are already on their carrier's invoice and
+            // we bill no carriage at all, so including a carriage line here
+            // would quote a charge that never arrives — the same defect as
+            // omitting one that does, and the customer finds out from
+            // whichever document is larger.
+            setTelephonyProvider(
+                chosen?.is_platform_managed ? (chosen.provider ?? null) : null,
+            );
         })();
         return () => {
             cancelled = true;

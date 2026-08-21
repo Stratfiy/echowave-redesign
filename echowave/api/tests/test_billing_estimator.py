@@ -66,7 +66,12 @@ class TestEstimate:
                     model="gpt-4o",
                 ),
                 _rate("sarvam", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 40_000),
-                _rate("twilio", CostComponent.TELEPHONY, RateUnit.MINUTE, 55_000),
+                # Plivo, because that is the carrier we actually resell. A rate
+                # on any other one is inert: the estimator prices carriage only
+                # for a carrier in RESOLD_CARRIERS, since carriage.py refuses to
+                # bill one outside it and a quote must not carry a line the
+                # invoice cannot.
+                _rate("plivo", CostComponent.TELEPHONY, RateUnit.MINUTE, 55_000),
             ]
         )
         await async_session.flush()
@@ -78,7 +83,7 @@ class TestEstimate:
             llm_provider="openai",
             llm_model="gpt-4o",
             tts_provider="sarvam",
-            telephony_provider="twilio",
+            telephony_provider="plivo",
         )
 
         assert {line.component for line in est.lines} == {

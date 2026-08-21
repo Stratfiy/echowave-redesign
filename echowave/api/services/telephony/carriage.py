@@ -23,6 +23,15 @@ than the reverse: not billing carriage we did front is our own loss, it shows
 up in the margin figures, and nobody is wrongly charged while we find it. The
 fallback therefore logs, so a systematic resolution failure is visible as noise
 rather than as a quietly shrinking telephony line.
+
+**The flag alone is not enough.** ``is_platform_managed`` says somebody marked
+a configuration as ours; it does not say we have a carrier account behind it.
+We resell exactly one carrier today (``constants.RESOLD_CARRIERS``), and a
+configuration flagged managed on any other one is a mistake rather than a
+licence to bill — there is no invoice of ours behind those minutes to pass on.
+So the carrier is checked as well as the flag, and a mismatch is logged at
+error level, because it means an operator has marked something managed that we
+cannot actually front.
 """
 
 from __future__ import annotations
@@ -30,6 +39,7 @@ from __future__ import annotations
 from loguru import logger
 from sqlalchemy import select
 
+from api.constants import RESOLD_CARRIERS
 from api.db import db_client
 from api.db.models import (
     TelephonyConfigurationModel,
@@ -70,9 +80,12 @@ async def carriage_key_source(*, workflow_id: int, numbers: list[str]) -> str:
         return CUSTOMER_OWNED
 
     async with db_client.async_session() as session:
-        managed = (
+        row = (
             await session.execute(
-                select(TelephonyConfigurationModel.is_platform_managed)
+                select(
+                    TelephonyConfigurationModel.is_platform_managed,
+                    TelephonyConfigurationModel.provider,
+                )
                 .join(
                     TelephonyPhoneNumberModel,
                     TelephonyPhoneNumberModel.telephony_configuration_id
@@ -89,9 +102,9 @@ async def carriage_key_source(*, workflow_id: int, numbers: list[str]) -> str:
                 )
                 .limit(1)
             )
-        ).scalar_one_or_none()
+        ).one_or_none()
 
-    if managed is None:
+    if row is None:
         logger.warning(
             "Carriage key source unresolved for workflow {}: none of {} maps to "
             "a telephony configuration this account owns. Not billing carriage "
@@ -101,4 +114,25 @@ async def carriage_key_source(*, workflow_id: int, numbers: list[str]) -> str:
         )
         return CUSTOMER_OWNED
 
-    return MANAGED if managed else CUSTOMER_OWNED
+    managed, provider = row.is_platform_managed, (row.provider or "").strip().lower()
+    if not managed:
+        return CUSTOMER_OWNED
+
+    if provider not in RESOLD_CARRIERS:
+        # Loud, and not billed. Somebody marked a configuration as ours on a
+        # carrier we hold no account with, so there is no invoice of ours to
+        # pass through — charging for it would invent a cost. Errors here mean
+        # a configuration needs correcting, or that the carrier has genuinely
+        # been taken on and belongs in RESOLD_CARRIERS with a rate beside it.
+        logger.error(
+            "Workflow {} ran on a {} configuration flagged platform-managed, "
+            "but {} is not a carrier we resell ({}). Not billing carriage — "
+            "add it to RESOLD_CARRIERS with a rate if we now front it.",
+            workflow_id,
+            provider,
+            provider,
+            ", ".join(sorted(RESOLD_CARRIERS)) or "none",
+        )
+        return CUSTOMER_OWNED
+
+    return MANAGED

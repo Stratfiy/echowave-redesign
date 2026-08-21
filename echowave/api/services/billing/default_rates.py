@@ -474,37 +474,22 @@ TELEPHONY_RATES = (
         _inr(0.60),
         "India outbound local Rs0.60/min published. SIP / Browser SDK is Rs0.34.",
     ),
-    # Cloudonix and Vobiz are placeholders at the Twilio India mobile rate, and
-    # they are here rather than absent on purpose. A supported carrier with no
-    # row does not cost nothing — it costs an unpriced line, which reports zero
-    # provider cost and so overstates margin on every call that uses it. A
-    # deliberate over-estimate errs the only safe way: we under-report our own
-    # margin until somebody replaces these with the published figures, rather
-    # than discovering at month end that a carrier was free all along.
+    # No Cloudonix or Vobiz rows. They were here as placeholders at the Twilio
+    # India mobile rate — invented numbers, standing in for the published prices
+    # nobody had looked up — on the reasoning that an unpriced carrier reports
+    # zero provider cost and overstates margin.
     #
-    # These bill only when the configuration is platform-managed. A customer on
-    # their own Cloudonix or Vobiz account is charged no carriage at all, so a
-    # placeholder that is too high cannot overcharge them — see
-    # ``services/telephony/carriage.py``.
+    # That reasoning only holds for carriage we actually sell, and we sell one
+    # carrier: see ``constants.RESOLD_CARRIERS``. Minutes on a customer's own
+    # Cloudonix or Vobiz account are already on their carrier invoice and are
+    # never measured, so these rows could not apply to a real call — while a
+    # fabricated price sitting in the rate card is one configuration change away
+    # from billing somebody a figure we made up. A carrier we take on gets its
+    # published rate at the same time it joins RESOLD_CARRIERS, and until then
+    # having no row is the accurate statement: we buy nothing, so there is
+    # nothing to pass on.
     #
-    # TODO: replace with Cloudonix's and Vobiz's published India outbound rates.
-    DefaultRate(
-        "cloudonix",
-        "",
-        CostComponent.TELEPHONY,
-        RateUnit.MINUTE,
-        _inr(1.20),
-        "PLACEHOLDER at the Twilio India mobile rate. Not the published price.",
-    ),
-    DefaultRate(
-        "vobiz",
-        "",
-        CostComponent.TELEPHONY,
-        RateUnit.MINUTE,
-        _inr(1.20),
-        "PLACEHOLDER at the Twilio India mobile rate. Not the published price.",
-    ),
-    # No ARI row, and that is not an oversight. ARI is a self-hosted Asterisk
+    # No ARI row either, and that is not an oversight. ARI is a self-hosted Asterisk
     # the customer runs; the trunk behind it is theirs and so is its bill.
     # There is no vendor price for us to pass through, and carriage.py already
     # declines to bill a customer-owned configuration — a row here would only

@@ -213,6 +213,29 @@ PLATFORM_PLIVO_APPLICATION_ID = os.getenv("PLATFORM_PLIVO_APPLICATION_ID") or No
 #
 # Defaults are the India local-DID figures the launch plan was costed on.
 # Confirm against Plivo's live price list before relying on the margin.
+#: The carriers whose minutes we actually sell.
+#:
+#: Decibyl fronts exactly one carrier today. Every other provider the platform
+#: can dial on is reached with the *customer's* own account — their Twilio SID,
+#: their Cloudonix token, their Asterisk box — and those minutes are already on
+#: their carrier invoice. Billing carriage on top would charge twice for one
+#: phone call.
+#:
+#: This is the single place that fact is written down, and it gates measurement
+#: rather than only pricing: usage we do not sell is never recorded, so it
+#: cannot be priced later by accident. A rate on file for a carrier absent from
+#: this set is inert — see ``services/telephony/carriage.py``.
+#:
+#: Comma-separated, so adding a carrier we start reselling is a deployment
+#: rather than a release. Add the carrier here **and** give it a rate: in that
+#: order it can never bill before it has a price, and a managed configuration
+#: on an unpriced carrier is reported as uncosted rather than as free.
+RESOLD_CARRIERS = frozenset(
+    part.strip().lower()
+    for part in os.getenv("RESOLD_CARRIERS", "plivo").split(",")
+    if part.strip()
+)
+
 NUMBER_RENTAL_COST_PAISE = int(os.getenv("NUMBER_RENTAL_COST_PAISE", "25000"))
 NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "49900"))
 

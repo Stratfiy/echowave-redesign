@@ -29,6 +29,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import Float, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.constants import RESOLD_CARRIERS
 from api.db.models import CallCostItemModel, WorkflowRunModel
 from api.enums import CostComponent
 from api.services.billing.cost_engine import MARKED_UP_COMPONENTS
@@ -412,7 +413,17 @@ async def estimate_cost_per_minute(
             )
             lines.append(line) if line else unpriced.append(f"tts:{tts_provider}")
 
-    if telephony_provider:
+    # Carriage, but only for a carrier we actually sell minutes on.
+    #
+    # A quote that includes carriage the invoice will not is the same defect as
+    # a quote that omits a markup the invoice applies — the two documents
+    # disagree, and the customer finds out from whichever one is larger.
+    # ``carriage.py`` refuses to record managed carriage on a carrier outside
+    # ``RESOLD_CARRIERS``, so pricing one here would quote a line that can never
+    # be billed. Silent rather than ``unpriced``: an unpriced entry means "we
+    # buy this and cannot price it", and this is the opposite — we do not buy
+    # it, so there is nothing missing from the estimate.
+    if telephony_provider and telephony_provider.strip().lower() in RESOLD_CARRIERS:
         line = await _per_minute_line(
             session,
             component=CostComponent.TELEPHONY,

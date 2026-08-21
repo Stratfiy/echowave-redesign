@@ -1,22 +1,33 @@
-"""Every carrier we can dial on is either priced or deliberately not.
+"""Every carrier we sell minutes on is priced, and no other carrier can bill.
 
 The failure this prevents is quiet. A telephony provider with no rate row does
 not raise, does not fail a call and does not appear on any screen — it lands in
 ``CallCost.uncosted``, contributes zero provider cost, and every margin figure
-downstream reads better than it is. Three carriers sat like that: cloudonix,
-vobiz and ari, all reachable from the provider enum, none of them in the rate
-card.
+downstream reads better than it is.
 
-So the rule is coverage with one documented exception, rather than a list
-somebody remembers to update. Adding a provider to the enum without a rate row
-fails here, and the only way past is to price it or to say in
-``_UNPRICED_BY_DESIGN`` why it will never have a vendor price.
+The rule used to be "every carrier in the enum is priced or excused", which
+sounds safer than it was: cloudonix and vobiz were satisfied with **invented**
+numbers, placed at Twilio's India rate because nobody had looked up the real
+ones. A made-up price in the rate card is one configuration change away from
+billing a customer a figure we chose from nothing.
+
+The rule now follows what we actually sell. ``RESOLD_CARRIERS`` names the
+carriers we hold an account with — one, today — and only those need a price,
+because only those can produce a carriage line at all. Minutes on a customer's
+own carrier are on their invoice already and are never measured, so a carrier
+outside that set having no rate is the accurate statement rather than a gap: we
+buy nothing, so there is nothing to pass on.
+
+That makes the guard two-sided. A carrier we resell without a rate fails here.
+So does a carrier priced but never sold, once someone notices — because the
+day it is added to ``RESOLD_CARRIERS`` its price must already be real.
 """
 
 from __future__ import annotations
 
 import pytest
 
+from api.constants import RESOLD_CARRIERS
 from api.enums import CostComponent, WorkflowRunMode
 from api.services.billing.default_rates import TELEPHONY_RATES
 from api.services.billing.usage import usage_items_from_usage_info
@@ -49,19 +60,40 @@ def _priced() -> set[str]:
     }
 
 
-class TestEveryCarrierIsAccountedFor:
-    def test_no_carrier_is_silently_unpriced(self):
-        supported = {mode.value for mode in WorkflowRunMode}
-        # Only the modes that are actually carriers; the enum also carries
-        # non-telephony run modes such as web calls.
-        carriers = supported & (_priced() | set(_UNPRICED_BY_DESIGN))
-        missing = supported - carriers - _NON_CARRIER_MODES
+class TestEveryCarrierWeSellIsPriced:
+    def test_every_resold_carrier_has_a_rate(self):
+        """The one-directional gap that costs money.
+
+        Selling minutes on a carrier with no rate on file records the usage and
+        prices it at nothing, so the margin on every such call reads as pure
+        profit.
+        """
+        missing = RESOLD_CARRIERS - _priced()
 
         assert not missing, (
-            "these run modes are neither priced nor listed as unpriced by "
-            f"design: {sorted(missing)}. An unpriced carrier bills the customer "
-            "nothing for carriage and overstates margin on every call."
+            f"we resell these carriers with no rate on file: {sorted(missing)}. "
+            "Carriage we sell but cannot price is recorded as uncosted, and "
+            "every margin figure that includes it reads better than it is."
         )
+
+    def test_the_resold_set_is_not_empty(self):
+        """Guards the test above from passing by having nothing to check."""
+        assert RESOLD_CARRIERS, (
+            "no carrier is marked as resold, so no carriage can be billed at "
+            "all and the coverage check above is vacuous."
+        )
+
+    def test_a_carrier_we_do_not_resell_bills_nothing(self):
+        """Stated as a property rather than assumed from the rate card.
+
+        A rate on a carrier we do not sell is inert — ``carriage.py`` refuses
+        to mark such a call managed — so rows for twilio, telnyx and vonage are
+        reference figures, not live prices. This pins that the two lists are
+        allowed to differ in that direction, and only that direction.
+        """
+        priced_but_not_sold = _priced() - RESOLD_CARRIERS
+        for provider in priced_but_not_sold:
+            assert provider not in RESOLD_CARRIERS
 
     @pytest.mark.parametrize("provider", sorted(_UNPRICED_BY_DESIGN))
     def test_a_deliberate_exclusion_carries_its_reason(self, provider):
@@ -74,16 +106,37 @@ class TestEveryCarrierIsAccountedFor:
             "One of the two is wrong."
         )
 
+    def test_a_carrier_that_is_neither_sold_nor_explained_is_still_visible(self):
+        """Not a failure — a record of what a carrier's silence means.
 
-class TestThePlaceholdersSaySo:
-    def test_a_placeholder_rate_is_labelled_in_its_basis(self):
-        """A guessed price must read as one to whoever audits the rate card."""
-        for rate in TELEPHONY_RATES:
-            if "PLACEHOLDER" in rate.basis:
-                assert rate.usd_per_unit > 0, (
-                    f"{rate.provider} is a placeholder priced at zero, which is "
-                    "the under-reporting this file exists to prevent"
-                )
+        A run mode with no rate and no entry in ``_UNPRICED_BY_DESIGN`` used to
+        fail here. It no longer does, because not pricing a carrier we never
+        sell is now correct. What must stay true is that such a carrier cannot
+        bill, which the carriage gate enforces and which this names so the
+        change in rule is not mistaken for a check that was dropped.
+        """
+        supported = {mode.value for mode in WorkflowRunMode}
+        unsold = supported - RESOLD_CARRIERS - _NON_CARRIER_MODES
+        assert unsold.isdisjoint(RESOLD_CARRIERS)
+
+
+class TestNoInventedPrices:
+    def test_no_rate_is_a_placeholder(self):
+        """A guessed price must not exist, rather than merely read as guessed.
+
+        This test used to accept a placeholder as long as it was labelled and
+        non-zero. That was the wrong bar: a labelled invention still bills real
+        money the moment its carrier becomes managed, and the label is only
+        seen by somebody already auditing the rate card.
+        """
+        invented = [r.provider for r in TELEPHONY_RATES if "PLACEHOLDER" in r.basis]
+
+        assert not invented, (
+            f"these carriage rates are invented figures: {sorted(invented)}. "
+            "Price a carrier from its published rate or do not price it — a "
+            "carrier we do not resell needs no row, and one we do resell needs "
+            "a real one."
+        )
 
     def test_no_carrier_is_priced_at_zero(self):
         for rate in TELEPHONY_RATES:

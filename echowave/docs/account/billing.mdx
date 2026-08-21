@@ -15,7 +15,7 @@ That is the platform fee. Alongside it you pay for what the call consumes:
 | --- | --- |
 | **Platform** | Decibyl, at $0.02/min |
 | **LLM, speech-to-text, text-to-speech** | Your provider, if you use your own keys — otherwise Decibyl |
-| **Telephony minutes** | Your carrier, if you bring your own account — otherwise Decibyl |
+| **Telephony minutes** | Your carrier, if you bring your own account — otherwise Decibyl, on a number we provide |
 | **Managed phone number** | Decibyl, monthly per number |
 
 There is no seat licence and no minimum commitment. Agents you build and never call cost nothing.
@@ -28,6 +28,12 @@ Every model slot — LLM, transcription, voice — is independently either **you
 - **Our key (managed).** Usage appears on your Decibyl invoice, and you do not need an account with the provider at all.
 
 Mixing is normal and supported: your own OpenAI key for the LLM, our Sarvam for Indian-language speech, for example. See [Inference providers](/configurations/inference-providers).
+
+### Telephony works the same way, with one difference
+
+A call placed on **your own carrier account** — your Twilio, your Cloudonix, your Asterisk box — carries no telephony charge from us at all. Those minutes are already on your carrier's invoice, and billing them again would be charging twice for one phone call. We do not measure them either, so they will not appear on your usage breakdown as a zero.
+
+Telephony appears on your Decibyl invoice only for a call on a **number we provide**. That difference is why telephony is the one component with no "bring your own key" fee: there is nothing for us to add when we are not buying the minutes.
 
 ## Adding credit
 
