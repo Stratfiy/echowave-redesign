@@ -406,7 +406,7 @@ export function AIModelConfigurationV2Editor({
                     Every model <span className="font-medium">Decibyl provides</span> is
                     listed with what it costs a minute — no key needed, billed on your
                     invoice. Anything we do not offer runs on a key you store under{" "}
-                    <a href="/provider-keys" className="underline">
+                    <a href="/integrations" className="underline">
                         Provider Keys
                     </a>
                     , billed to you by that vendor. You can mix the two, slot by slot.

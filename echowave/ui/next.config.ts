@@ -23,6 +23,19 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      // The page moved to /integrations, folded in with Tools under one
+      // "Integrations" label. Not permanent: a 308 would have browsers and
+      // CDNs cache the redirect indefinitely, and this route still has old
+      // bookmarks and the odd stale deep link pointing at it.
+      {
+        source: "/provider-keys",
+        destination: "/integrations",
+        permanent: false,
+      },
+    ];
+  },
   // This is required to support PostHog trailing slash API requests
   skipTrailingSlashRedirect: true,
 };

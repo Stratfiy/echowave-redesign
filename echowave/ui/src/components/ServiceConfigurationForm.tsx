@@ -265,7 +265,7 @@ function VaultKeyStatus({
                 <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="text-muted-foreground">
                     Runs on your stored {providerLabel} key.{" "}
-                    <a href="/provider-keys" className="underline">Manage keys</a>
+                    <a href="/integrations" className="underline">Manage keys</a>
                 </span>
             </div>
         );
@@ -277,7 +277,7 @@ function VaultKeyStatus({
             <span>
                 No {providerLabel} key stored, so this slot cannot authenticate and the
                 call will fail.{" "}
-                <a href="/provider-keys" className="underline">Add the key</a>, or switch
+                <a href="/integrations" className="underline">Add the key</a>, or switch
                 this model to Decibyl.
             </span>
         </div>
@@ -1231,7 +1231,7 @@ export function ServiceConfigurationForm({
                             <>
                                 This runs on your stored {getProviderDisplayName(currentProvider, providerSchema)} key
                                 and is billed to you by them.{" "}
-                                <a href="/provider-keys" className="underline">Manage keys</a>
+                                <a href="/integrations" className="underline">Manage keys</a>
                             </>
                         )}
                     </p>

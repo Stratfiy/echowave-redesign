@@ -85,7 +85,7 @@ describe("admin-only destinations are hidden from members", () => {
         // three links in the model editor point straight here. Adding, pausing
         // and removing are gated inside the screen instead.
         for (const roles of [MEMBER, ADMIN]) {
-            expect(urls(roles)).toContain("/provider-keys");
+            expect(urls(roles)).toContain("/integrations");
         }
     });
 
@@ -135,7 +135,7 @@ describe("what stays open to every member", () => {
     it("leaves the BYOK vault reachable", () => {
         // The screen a member is sent to from three places in the model editor
         // the moment they choose "your own key" for a slot.
-        expect(urls(MEMBER)).toContain("/provider-keys");
+        expect(urls(MEMBER)).toContain("/integrations");
     });
 
     it("gives a member most of the product, not a stub", () => {
