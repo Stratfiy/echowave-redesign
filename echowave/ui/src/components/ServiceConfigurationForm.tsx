@@ -200,6 +200,14 @@ function getProviderDisplayName(
 const MANAGED = "decibyl";
 
 /**
+ * Whether a slot offers "Decibyl provides it / My own key" as a choice.
+ *
+ * Off: we manage the providers, and a customer's own key covers only what we do
+ * not sell. See `canBeManaged` below for the full reasoning.
+ */
+const BYOK_SLOT_CHOICE_ENABLED = false;
+
+/**
  * Whether the key this slot depends on is actually in the vault.
  *
  * Replaces the API-key input that used to sit here. The useful question on a
@@ -804,7 +812,23 @@ export function ServiceConfigurationForm({
         const platformProviders = platformKeyProviders?.[service] ?? [];
         const hasDirectCatalog = platformProviders.length > 0;
         const hasLegacyTier = Boolean(schemas?.[service]?.[MANAGED]);
-        const canBeManaged = keysFromVault && (hasDirectCatalog || hasLegacyTier);
+        // "Who provides this model" is no longer a question we ask.
+        //
+        // Decibyl manages the providers: it curates them, holds the keys, prices
+        // the models and sells them. A customer's own key is the escape hatch
+        // for something we do not offer, and it belongs on the Provider Keys
+        // screen where a key is added — not as a per-slot toggle that made every
+        // model choice two decisions instead of one.
+        //
+        // Behind a flag rather than deleted: the mechanism underneath is
+        // unchanged and enterprise accounts are expected to want it back. A
+        // stored configuration that already names a customer-keyed provider
+        // keeps working either way — this hides the question, it does not
+        // rewrite anyone's agent.
+        const canBeManaged =
+            BYOK_SLOT_CHOICE_ENABLED &&
+            keysFromVault &&
+            (hasDirectCatalog || hasLegacyTier);
         // On the direct path, only vendors we actually hold a platform key for
         // are offered — picking one we don't would save cleanly and fail at
         // dial time, the same trade-off the tier system already avoids.

@@ -4727,6 +4727,38 @@ export type NumberSearchRequest = {
 };
 
 /**
+ * OfferedModelsRequest
+ *
+ * Exactly the models Decibyl offers for this slot on this provider.
+ *
+ * A replace, not a merge: the screen is a set of tick boxes and an unticked
+ * box means "we do not offer this". Merging would make removal impossible
+ * from the only UI that writes here.
+ */
+export type OfferedModelsRequest = {
+    /**
+     * Component
+     *
+     * stt | llm | tts | realtime | embeddings
+     */
+    component: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Models
+     */
+    models?: Array<string>;
+    /**
+     * Labels
+     */
+    labels?: {
+        [key: string]: string;
+    };
+};
+
+/**
  * OnboardingState
  *
  * Per-user onboarding state, stored under UserConfigurationKey.ONBOARDING.
@@ -12187,6 +12219,49 @@ export type GetApproximateMinutesApiV1AgentOptionsMinutesGetResponses = {
 
 export type GetApproximateMinutesApiV1AgentOptionsMinutesGetResponse = GetApproximateMinutesApiV1AgentOptionsMinutesGetResponses[keyof GetApproximateMinutesApiV1AgentOptionsMinutesGetResponses];
 
+export type GetCatalogueApiV1AgentOptionsCatalogueGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/agent-options/catalogue';
+};
+
+export type GetCatalogueApiV1AgentOptionsCatalogueGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCatalogueApiV1AgentOptionsCatalogueGetError = GetCatalogueApiV1AgentOptionsCatalogueGetErrors[keyof GetCatalogueApiV1AgentOptionsCatalogueGetErrors];
+
+export type GetCatalogueApiV1AgentOptionsCatalogueGetResponses = {
+    /**
+     * Response Get Catalogue Api V1 Agent Options Catalogue Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCatalogueApiV1AgentOptionsCatalogueGetResponse = GetCatalogueApiV1AgentOptionsCatalogueGetResponses[keyof GetCatalogueApiV1AgentOptionsCatalogueGetResponses];
+
 export type GetCostPerMinuteApiV1CostEstimatePerMinutePostData = {
     body: CostEstimateRequest;
     headers?: {
@@ -14064,6 +14139,144 @@ export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses = {
 
 export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponse = SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses[keyof SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses];
 
+export type DiscoverModelsApiV1AdminProviderKeysModelsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Component
+         */
+        component: string;
+        /**
+         * Provider
+         */
+        provider: string;
+    };
+    url: '/api/v1/admin/provider-keys/models';
+};
+
+export type DiscoverModelsApiV1AdminProviderKeysModelsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DiscoverModelsApiV1AdminProviderKeysModelsGetError = DiscoverModelsApiV1AdminProviderKeysModelsGetErrors[keyof DiscoverModelsApiV1AdminProviderKeysModelsGetErrors];
+
+export type DiscoverModelsApiV1AdminProviderKeysModelsGetResponses = {
+    /**
+     * Response Discover Models Api V1 Admin Provider Keys Models Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DiscoverModelsApiV1AdminProviderKeysModelsGetResponse = DiscoverModelsApiV1AdminProviderKeysModelsGetResponses[keyof DiscoverModelsApiV1AdminProviderKeysModelsGetResponses];
+
+export type SetOfferedModelsApiV1AdminProviderKeysModelsPutData = {
+    body: OfferedModelsRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/provider-keys/models';
+};
+
+export type SetOfferedModelsApiV1AdminProviderKeysModelsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetOfferedModelsApiV1AdminProviderKeysModelsPutError = SetOfferedModelsApiV1AdminProviderKeysModelsPutErrors[keyof SetOfferedModelsApiV1AdminProviderKeysModelsPutErrors];
+
+export type SetOfferedModelsApiV1AdminProviderKeysModelsPutResponses = {
+    /**
+     * Response Set Offered Models Api V1 Admin Provider Keys Models Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetOfferedModelsApiV1AdminProviderKeysModelsPutResponse = SetOfferedModelsApiV1AdminProviderKeysModelsPutResponses[keyof SetOfferedModelsApiV1AdminProviderKeysModelsPutResponses];
+
+export type ListCatalogueApiV1AdminProviderKeysCatalogueGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/provider-keys/catalogue';
+};
+
+export type ListCatalogueApiV1AdminProviderKeysCatalogueGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCatalogueApiV1AdminProviderKeysCatalogueGetError = ListCatalogueApiV1AdminProviderKeysCatalogueGetErrors[keyof ListCatalogueApiV1AdminProviderKeysCatalogueGetErrors];
+
+export type ListCatalogueApiV1AdminProviderKeysCatalogueGetResponses = {
+    /**
+     * Response List Catalogue Api V1 Admin Provider Keys Catalogue Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListCatalogueApiV1AdminProviderKeysCatalogueGetResponse = ListCatalogueApiV1AdminProviderKeysCatalogueGetResponses[keyof ListCatalogueApiV1AdminProviderKeysCatalogueGetResponses];
+
 export type DeleteProviderKeyApiV1ProviderKeysDeleteData = {
     body?: never;
     headers?: {
@@ -14244,6 +14457,58 @@ export type SetProviderKeyActiveApiV1ProviderKeysActivePostResponses = {
 };
 
 export type SetProviderKeyActiveApiV1ProviderKeysActivePostResponse = SetProviderKeyActiveApiV1ProviderKeysActivePostResponses[keyof SetProviderKeyActiveApiV1ProviderKeysActivePostResponses];
+
+export type DiscoverModelsApiV1ProviderKeysModelsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Component
+         */
+        component: string;
+        /**
+         * Provider
+         */
+        provider: string;
+    };
+    url: '/api/v1/provider-keys/models';
+};
+
+export type DiscoverModelsApiV1ProviderKeysModelsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DiscoverModelsApiV1ProviderKeysModelsGetError = DiscoverModelsApiV1ProviderKeysModelsGetErrors[keyof DiscoverModelsApiV1ProviderKeysModelsGetErrors];
+
+export type DiscoverModelsApiV1ProviderKeysModelsGetResponses = {
+    /**
+     * Response Discover Models Api V1 Provider Keys Models Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DiscoverModelsApiV1ProviderKeysModelsGetResponse = DiscoverModelsApiV1ProviderKeysModelsGetResponses[keyof DiscoverModelsApiV1ProviderKeysModelsGetResponses];
 
 export type GetBalanceApiV1BillingBalanceGetData = {
     body?: never;

@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { UnlockedModels } from "@/components/UnlockedModels";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
@@ -588,6 +589,17 @@ function ProviderKeysScreen() {
                                                 {describeComponents(row.stored.map((c) => c.component))}{" "}
                                                 only.
                                             </p>
+                                        )}
+                                        {/* What the key is actually for. A key
+                                            that reaches only models Decibyl
+                                            already provides adds nothing, and
+                                            saying so is more useful than letting
+                                            someone keep a key they do not need. */}
+                                        {!paused && (
+                                            <UnlockedModels
+                                                provider={row.provider}
+                                                component={row.stored[0].component}
+                                            />
                                         )}
                                         {isOrganizationAdmin && (
                                             <div className="flex flex-wrap items-center gap-3">

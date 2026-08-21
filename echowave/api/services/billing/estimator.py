@@ -611,3 +611,72 @@ async def estimate_cost_per_minute(
         byok_tier=byok_tier,
         byok_uplift_micros_usd=byok_uplift_micros(byok_tier),
     )
+
+
+async def price_components(
+    session: AsyncSession,
+    *,
+    organization_id: int | None,
+    slots: tuple[tuple[str, str, str], ...] | list[tuple[str, str, str]],
+    at: datetime | None = None,
+    marked_up: bool = True,
+) -> dict[tuple[str, str, str], EstimateLine | None]:
+    """Price many ``(component, provider, model)`` slots in one pass.
+
+    For a screen that has to put a figure against every model in the catalogue.
+    Calling :func:`estimate_cost_per_minute` once per model would re-resolve the
+    markup, the platform rate and the exchange rate for each one — the same
+    answer, forty times.
+
+    It reuses the very same line functions the estimate is built from, so a
+    model priced here and the same model priced inside a full stack estimate
+    cannot disagree. That is the whole reason this is not a small independent
+    loop over ``provider_rates``: every pricing defect this codebase has shipped
+    was a second calculation that drifted from the first.
+
+    ``None`` against a slot means no rate is on file for it. The caller decides
+    what to do about that; showing a price of zero is never it.
+    """
+    at = at or datetime.now(UTC)
+    markup_bps = await resolve_markup_bps(session, at=at) if marked_up else 10_000
+
+    out: dict[tuple[str, str, str], EstimateLine | None] = {}
+    for component_value, provider, model in slots:
+        try:
+            component = CostComponent(component_value)
+        except ValueError:
+            # Not a billed component — embeddings are consumed at ingest and
+            # realtime is metered as LLM usage under the LLM component. Neither
+            # has a per-minute line of its own under that name.
+            out[(component_value, provider, model)] = None
+            continue
+
+        if component in (CostComponent.STT, CostComponent.TELEPHONY):
+            line = await _per_minute_line(
+                session,
+                component=component,
+                provider=provider,
+                model=model,
+                at=at,
+                markup_bps=markup_bps,
+            )
+        else:
+            rate_provider = rate_card_provider(provider)
+            line = await _inference_line(
+                session,
+                component=component,
+                provider=provider,
+                rate_provider=rate_provider,
+                model=model,
+                at=at,
+                default_units=(
+                    REALTIME_TOKENS_PER_MINUTE.get(
+                        rate_provider, DEFAULT_TOKENS_PER_MINUTE
+                    )
+                    if component is CostComponent.LLM
+                    else DEFAULT_CHARACTERS_PER_MINUTE
+                ),
+                markup_bps=markup_bps,
+            )
+        out[(component_value, provider, model)] = line
+    return out

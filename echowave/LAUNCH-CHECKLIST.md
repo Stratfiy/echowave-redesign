@@ -259,6 +259,34 @@ reports zero blockers" and there is no way to look.
 
 ---
 
+## 2b. The managed model catalogue — BUILT
+
+Decibyl manages the providers. A customer's own key is the escape hatch for a
+model we do **not** offer, never a second way to buy one we do.
+
+* `platform_models` is the one answer to "what do we sell". Before it, the
+  offering was the intersection of three things that could disagree — what the
+  registry could build, what a tier pointed at, and what had a rate row — and
+  the customer's picker showed every vendor this codebase had ever integrated,
+  including ones we hold no key for and had never priced.
+* **Superadmin → Provider Keys** now reads each vendor's own model list with the
+  key we hold, and an operator ticks what we sell. Falls back to the models this
+  codebase knows about when a vendor cannot be reached, and says which it did.
+* A model is **sellable** only when it is on sale, keyed, and priced. Anything
+  short of that is listed for us with the reason and omitted from the customer's
+  picker: an offered-but-unpriced model does not fail, it bills the platform fee
+  alone and reports margin we did not earn.
+* The customer's price per model comes from `estimator.price_components`, built
+  from the same line functions a full estimate uses — a model priced in the
+  picker and the same model inside a stack estimate cannot disagree.
+* The per-slot "Who provides this model" toggle is **off**
+  (`BYOK_SLOT_CHOICE_ENABLED = false`). The mechanism underneath is unchanged
+  and stored configurations still resolve, so enterprise can have it back.
+
+Still open: the customer Models screen renders the tier picker rather than the
+new catalogue list, so per-model choice reaches a customer only once that screen
+is rewired.
+
 ## 3. P2 — numbers that are guesses, and what they swing
 
 ### 3.1 One unmeasured constant moves the price 58%

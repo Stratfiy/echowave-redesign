@@ -101,3 +101,27 @@ async def get_approximate_minutes(
         "paise_per_minute": paise,
         "minutes": agent_options.approximate_minutes(balance_paise, paise),
     }
+
+
+@router.get("/catalogue")
+async def get_catalogue(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+    """The managed models on offer, per slot, each with what it costs a minute.
+
+    Everything here is something Decibyl holds a key for, has priced, and an
+    operator has put on sale. A model failing any of those is absent rather than
+    disabled: an option we cannot price is not a choice with a caveat, it is one
+    that would bill the customer wrongly.
+
+    Anything outside this list is what a customer's own key is for — see
+    ``GET /provider-keys/models``.
+    """
+    organization_id = user.selected_organization_id
+    if organization_id is None:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    async with db_client.async_session() as session:
+        return {
+            "catalogue": await agent_options.catalogue_options(
+                session, organization_id=organization_id
+            )
+        }

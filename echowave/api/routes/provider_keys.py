@@ -226,3 +226,73 @@ async def delete_provider_key(
             session, organization_id=organization_id
         )
     return {"credentials": [_view(c) for c in remaining]}
+
+
+@router.get("/models")
+async def discover_models(
+    component: str,
+    provider: str,
+    user: UserModel = Depends(get_user),
+) -> dict[str, Any]:
+    """The models this account's own key unlocks, minus the ones we provide.
+
+    The escape hatch, and the shape of it is the product decision. Decibyl
+    manages the providers it has curated, priced and holds keys for; a customer
+    brings a key only for what we do **not** offer. So anything already in the
+    managed catalogue is excluded here rather than shown: offering a
+    key-shaped way to buy something we sell managed would be two prices for one
+    thing, and the customer would be paying a vendor directly for a model whose
+    price is already on their Decibyl invoice.
+
+    Asked with their key, so the list is what their account can actually reach —
+    a vendor tier that excludes a model would otherwise let them pick one that
+    fails at session open, on a live call.
+    """
+    organization_id = user.selected_organization_id
+    if organization_id is None:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    from api.services.configuration import model_catalogue, model_discovery
+
+    async with db_client.async_session() as session:
+        api_key = await creds.resolve_api_key(
+            session,
+            organization_id=organization_id,
+            component=component,
+            provider=provider,
+        )
+        we_provide = await model_catalogue.offers(
+            session, component=component, provider=provider
+        )
+
+    if api_key is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No {provider} key is stored for this account. Add one first "
+                "and we will list what it can use."
+            ),
+        )
+
+    found = await model_discovery.discover(
+        component=component, provider=provider, api_key=api_key
+    )
+
+    available = [model for model in found.models if model.id not in we_provide]
+
+    return {
+        "provider": found.provider,
+        "component": found.component,
+        "source": found.source,
+        "note": found.note,
+        "allow_custom_model": model_discovery.allows_custom_model(component, provider),
+        "models": [
+            {"id": model.id, "suggested": model.suggested} for model in available
+        ],
+        # How many were hidden because we already sell them. Shown as a count
+        # rather than a list: the point is to explain a short list, not to
+        # advertise the managed catalogue from inside the BYOK screen.
+        "provided_by_decibyl": len(
+            [model for model in found.models if model.id in we_provide]
+        ),
+    }

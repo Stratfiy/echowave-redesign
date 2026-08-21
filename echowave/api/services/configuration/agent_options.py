@@ -444,3 +444,65 @@ def managed_stack_override(
     return {
         WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY: {"version": 3, "stack": stack}
     }
+
+
+async def catalogue_options(
+    session: AsyncSession, *, organization_id: int | None
+) -> dict[str, list[dict]]:
+    """Every managed model a customer may choose, per slot, with its price.
+
+    The answer to "what does Decibyl provide", assembled from the one place
+    that says so — the catalogue — rather than from the registry, which lists
+    every vendor this codebase has ever integrated including the ones we hold
+    no key for and have never priced.
+
+    ``paise_per_minute`` is that component's own contribution to a minute, with
+    the managed markup already on it: what the customer pays us for choosing it.
+    It is not the price of a call, which also has the other slots, telephony and
+    the platform fee in it — the picker shows the difference between two models,
+    and the cost bar beside it shows the total.
+
+    Priced through ``estimator.price_components``, which is built from the same
+    line functions a full estimate is, so a model priced on this screen and the
+    same model inside a stack estimate cannot disagree.
+    """
+    from api.services.billing.estimator import price_components
+    from api.services.configuration import model_catalogue
+
+    out: dict[str, list[dict]] = {}
+    for component in ("stt", "llm", "tts", "realtime"):
+        entries = await model_catalogue.sellable(session, component=component)
+        if not entries:
+            out[component] = []
+            continue
+
+        priced = await price_components(
+            session,
+            organization_id=organization_id,
+            slots=[(component, entry.provider, entry.model) for entry in entries],
+        )
+        options: list[dict] = []
+        for entry in entries:
+            line = priced.get((component, entry.provider, entry.model))
+            options.append(
+                {
+                    "provider": entry.provider,
+                    "model": entry.model,
+                    "label": entry.label,
+                    # Null rather than zero when the rate vanished between the
+                    # sellable check and here. Zero would read as free, which is
+                    # the one thing it never means.
+                    "paise_per_minute": line.paise_per_minute if line else None,
+                    # True when priced against the vendor's default rather than
+                    # this model — two models then show the same number, which
+                    # reads as a broken calculator unless it is said.
+                    "approximate": bool(line and line.rate_is_provider_fallback),
+                }
+            )
+        # Cheapest first. A picker ordered by what a vendor happens to return is
+        # a picker nobody can compare.
+        options.sort(
+            key=lambda o: (o["paise_per_minute"] is None, o["paise_per_minute"])
+        )
+        out[component] = options
+    return out

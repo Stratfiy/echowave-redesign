@@ -2767,6 +2767,69 @@ class ManagedTierMappingModel(Base):
     )
 
 
+class PlatformModelModel(Base):
+    """A model Decibyl offers on its own keys — the managed catalogue.
+
+    The offering used to be implied rather than stated: whatever the registry
+    could build, crossed with whatever a tier happened to point at, crossed with
+    whatever had a rate row. Three sources, no single answer to "what do we
+    sell", and a customer's model picker showed every vendor the codebase had
+    ever integrated whether or not we held a key for it or had priced it.
+
+    This is the answer. An operator installs a provider key, reads the models
+    that vendor actually serves, and ticks the ones we offer. Those rows are the
+    catalogue: what the rate card asks a price for, what a bundle can name, and
+    what a customer sees.
+
+    **A row here is a commitment, not a capability.** It says we hold the key,
+    we have priced it, and a customer may choose it. Deleting one withdraws it
+    from sale without touching any agent already built — a stored configuration
+    names a tier or a model string, and resolution is unchanged.
+
+    The rate lives in ``provider_rates``, keyed on the same
+    ``(component, provider, model)``, rather than being duplicated here. One
+    price per model, in the table that already effective-dates it.
+    """
+
+    __tablename__ = "platform_models"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # stt | llm | tts | realtime | embeddings — the slot this model fills.
+    component = Column(String(24), nullable=False)
+    provider = Column(String(64), nullable=False)
+    #: The vendor's own model id, exactly as the service factory will send it.
+    #: Empty is not allowed: a provider-wide entry would be a promise we cannot
+    #: price, since a rate row keyed on "" is the fallback and not a model.
+    model = Column(String(128), nullable=False)
+
+    #: What the customer reads. Defaults to the model id; worth setting to
+    #: something a clinic owner recognises.
+    label = Column(String(120), nullable=False, default="", server_default="")
+
+    enabled = Column(Boolean, nullable=False, default=True, server_default="true")
+    sort_order = Column(Integer, nullable=False, default=0, server_default="0")
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        # One row per model per slot. A vendor serving two components — Sarvam
+        # does speech at both ends — gets one row for each, because they are
+        # priced separately and chosen separately.
+        Index(
+            "uq_platform_models_slot",
+            "component",
+            "provider",
+            "model",
+            unique=True,
+        ),
+    )
+
+
 class SubscriptionPlanModel(Base):
     """A plan: one monthly price that buys a call balance and some numbers.
 
