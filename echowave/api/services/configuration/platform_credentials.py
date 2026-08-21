@@ -31,15 +31,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.constants import PLATFORM_CREDENTIAL_SECRET
 from api.db.models import PlatformProviderCredentialModel
 from api.enums import CostComponent
+from api.services.configuration.registry import realtime_key_provider
 
 #: Components a platform key can serve. Telephony is deliberately absent —
 #: carrier credentials live on telephony_configurations, which already models
 #: per-account carrier accounts and the KYC that goes with them.
 CREDENTIAL_COMPONENTS = (CostComponent.STT, CostComponent.LLM, CostComponent.TTS)
-
-#: Speech-to-speech providers are named ``<vendor>_realtime`` and authenticate
-#: with the vendor's ordinary key — see the fallback in :func:`resolve_api_key`.
-REALTIME_SUFFIX = "_realtime"
 
 
 class PlatformCredentialError(ValueError):
@@ -255,28 +252,32 @@ async def resolve_api_key(
 
     row = await _active_row(session, component_value, provider)
 
-    if row is None and provider.endswith(REALTIME_SUFFIX):
-        # A speech-to-speech provider is the same vendor account as its
-        # ordinary sibling: OpenAI Realtime authenticates with your OpenAI key,
-        # Gemini Live with your Google key. Requiring a separate row would mean
-        # an admin pasting the same key twice and the realtime tier breaking
-        # silently whenever they rotated only one — the exact trap the
-        # embeddings component avoids by sharing the LLM credential.
-        #
-        # Only the suffix is stripped, never a general "before the underscore":
-        # azure_speech is a different account from azure, and
-        # google_vertex_realtime must fall back to google_vertex rather than to
-        # google. An exact row still wins, so a deployment that already stored
-        # one under the realtime name keeps working untouched.
-        base = provider[: -len(REALTIME_SUFFIX)]
-        row = await _active_row(session, component_value, base)
-        if row is not None:
-            logger.debug(
-                "Serving managed {} for {} with the stored '{}' key.",
-                component_value,
-                provider,
-                base,
-            )
+    if row is None:
+        base = realtime_key_provider(provider)
+        if base is not None and base != provider:
+            # A speech-to-speech provider is the same vendor account as its
+            # ordinary sibling: OpenAI Realtime authenticates with your OpenAI
+            # key, Gemini Live with your Google key. Requiring a separate row
+            # would mean an admin pasting the same key twice and the realtime
+            # tier breaking silently whenever they rotated only one — the
+            # exact trap the embeddings component avoids by sharing the LLM
+            # credential.
+            #
+            # ``realtime_key_provider`` is an explicit table, not the vendor
+            # name with "_realtime" stripped off: Grok Realtime bills through
+            # the xAI account, and Ultravox has no ordinary sibling to borrow
+            # from at all — it maps to itself, so this branch never fires for
+            # it. An exact row still wins over this fallback, so a deployment
+            # that already stored one under the realtime name keeps working
+            # untouched.
+            row = await _active_row(session, component_value, base)
+            if row is not None:
+                logger.debug(
+                    "Serving managed {} for {} with the stored '{}' key.",
+                    component_value,
+                    provider,
+                    base,
+                )
 
     if row is None:
         return None

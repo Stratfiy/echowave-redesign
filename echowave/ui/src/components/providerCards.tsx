@@ -12,19 +12,26 @@
 import type { ReactNode } from "react";
 
 /**
- * The three slots a key can serve. Telephony is deliberately absent: carrier
+ * The slots a key can serve. Telephony is deliberately absent: carrier
  * credentials live on a telephony configuration, which also models the KYC
  * that comes with a phone number.
  *
  * These are categories for *reading* — a filter over one list of vendors, not
- * three lists to fill in one at a time. A customer with one Sarvam account
- * meeting their one Sarvam key three times reasonably concluded the product
- * wanted three different things; it wanted one.
+ * lists to fill in one at a time. A customer with one Sarvam account meeting
+ * their one Sarvam key three times reasonably concluded the product wanted
+ * three different things; it wanted one.
+ *
+ * "realtime" never gets a key of its own: a speech-to-speech vendor
+ * authenticates with its ordinary sibling's key (OpenAI Realtime bills to
+ * your OpenAI key), so it appears here as one more thing a vendor's key
+ * covers — see ``registry.REALTIME_KEY_PROVIDER`` on the backend, the single
+ * source of truth this mirrors.
  */
 export const COMPONENTS = [
     { value: "stt", title: "Transcription", noun: "transcription" },
     { value: "llm", title: "Model", noun: "model" },
     { value: "tts", title: "Voice", noun: "voice" },
+    { value: "realtime", title: "Realtime", noun: "realtime" },
 ] as const;
 
 export type ComponentValue = (typeof COMPONENTS)[number]["value"];
@@ -39,6 +46,19 @@ export function describeComponents(components: readonly string[]): string {
     if (nouns.length === 0) return "";
     if (nouns.length === 1) return nouns[0];
     return `${nouns.slice(0, -1).join(", ")} and ${nouns[nouns.length - 1]}`;
+}
+
+/**
+ * The components among ``serves`` that a credential row can actually be
+ * stored against. Realtime is never one of them — a speech-to-speech vendor
+ * authenticates with its ordinary sibling's key rather than a row of its
+ * own — so a vendor whose key covers every *keyable* slot should not read as
+ * partially connected just because "realtime" is also in ``serves``.
+ */
+export function keyableComponents(
+    serves: readonly ComponentValue[],
+): ComponentValue[] {
+    return serves.filter((component) => component !== "realtime");
 }
 
 // Vendors capitalise their own names, and title-casing produces "Openai" and

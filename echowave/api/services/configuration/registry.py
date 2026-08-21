@@ -264,6 +264,50 @@ _KEYED_COMPONENTS: tuple[tuple[str, ServiceType], ...] = (
 )
 
 
+#: A realtime (speech-to-speech) provider authenticates with the same vendor
+#: account as its ordinary sibling, not a key of its own — OpenAI Realtime
+#: bills to your OpenAI key, Gemini Live to your Google key. Kept as an
+#: explicit table rather than derived by stripping "_realtime" off the name:
+#: Grok Realtime bills through the xAI account (there is no "grok" LLM
+#: provider to strip down to), and Ultravox has no non-realtime integration
+#: in this codebase at all, so it maps to itself — its key is stored under
+#: its own name, exactly like any other vendor.
+REALTIME_KEY_PROVIDER: dict[str, str] = {
+    ServiceProviders.OPENAI_REALTIME.value: ServiceProviders.OPENAI.value,
+    ServiceProviders.GOOGLE_REALTIME.value: ServiceProviders.GOOGLE.value,
+    ServiceProviders.GOOGLE_VERTEX_REALTIME.value: ServiceProviders.GOOGLE_VERTEX.value,
+    ServiceProviders.AZURE_REALTIME.value: ServiceProviders.AZURE.value,
+    ServiceProviders.GROK_REALTIME.value: ServiceProviders.XAI.value,
+    ServiceProviders.ULTRAVOX_REALTIME.value: ServiceProviders.ULTRAVOX_REALTIME.value,
+}
+
+
+def realtime_key_provider(provider: str) -> str | None:
+    """Which vault provider a realtime vendor's key is authenticated under.
+
+    ``None`` if ``provider`` is not a realtime provider at all — the caller's
+    cue that no such fallback applies.
+    """
+    return REALTIME_KEY_PROVIDER.get((provider or "").strip().lower())
+
+
+#: The inverse of ``REALTIME_KEY_PROVIDER`` — a bijection, since no two
+#: realtime providers share a vault provider. Used to tell an operator who has
+#: just connected a vendor's ordinary key which realtime provider name to ask
+#: model discovery about.
+_BASE_PROVIDER_REALTIME: dict[str, str] = {
+    base: realtime for realtime, base in REALTIME_KEY_PROVIDER.items()
+}
+
+
+def realtime_provider_for(base_provider: str) -> str | None:
+    """The realtime vendor unlocked by already holding ``base_provider``'s key.
+
+    ``None`` if that vendor has no speech-to-speech sibling in this codebase.
+    """
+    return _BASE_PROVIDER_REALTIME.get((base_provider or "").strip().lower())
+
+
 def components_for_provider(provider: str) -> tuple[str, ...]:
     """Which components this vendor can serve, in receipt order.
 
@@ -310,6 +354,13 @@ def known_providers() -> dict[str, tuple[str, ...]]:
                 # refuses it for the same reason on the customer side.
                 continue
             providers[name] = providers.get(name, ()) + (component,)
+
+    # A realtime vendor is visible too, on whichever entry its key actually
+    # authenticates against — a key that already unlocks speech-to-speech
+    # should say so, rather than requiring the realtime provider's exact name
+    # to be typed in by hand before that becomes visible.
+    for key_provider in REALTIME_KEY_PROVIDER.values():
+        providers[key_provider] = providers.get(key_provider, ()) + ("realtime",)
     return providers
 
 

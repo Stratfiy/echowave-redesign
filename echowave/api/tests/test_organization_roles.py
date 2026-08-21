@@ -407,6 +407,27 @@ class TestWhatTheAdminTierActuallyGates:
 
         assert response.status_code == 403
 
+    async def test_a_member_can_read_which_providers_exist_and_what_they_cover(
+        self, async_session, db_session, test_client_factory
+    ):
+        """Reading is open, same as the credential list — a member choosing
+        "your own key" in a model slot needs to see what a vendor covers
+        before a key is ever pasted in, and "realtime" among a vendor's
+        components is the sentence "this key also unlocks speech-to-speech"
+        that used to be missing entirely."""
+        user, _org = await _org_with_member(
+            async_session, "member-known-providers", role=OrganizationRole.MEMBER.value
+        )
+
+        async with test_client_factory(user) as client:
+            response = await client.get("/api/v1/provider-keys/providers")
+
+        assert response.status_code == 200
+        by_name = {row["provider"]: row for row in response.json()["providers"]}
+        assert "realtime" in by_name["openai"]["components"]
+        assert by_name["openai"]["realtime_provider"] == "openai_realtime"
+        assert by_name["sarvam"]["realtime_provider"] is None
+
     async def test_a_member_cannot_change_who_the_invoice_is_made_out_to(
         self, async_session, db_session, test_client_factory
     ):

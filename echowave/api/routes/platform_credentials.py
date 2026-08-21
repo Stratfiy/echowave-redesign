@@ -23,6 +23,7 @@ from api.services.configuration import platform_credentials as creds
 from api.services.configuration.registry import (
     components_for_provider,
     known_providers,
+    realtime_provider_for,
 )
 
 router = APIRouter(
@@ -90,10 +91,20 @@ async def list_known_providers() -> dict[str, Any]:
     components off this, rather than asking "which component" before the
     vendor is even named — which made adding one Sarvam key feel like adding
     three, because nothing on the form said Sarvam already covers all of them.
+
+    "realtime" among a vendor's components does not mean a *separate* key is
+    needed — a speech-to-speech vendor authenticates with its ordinary
+    sibling's key. ``realtime_provider`` names which realtime provider that
+    key unlocks, so the screen can ask model discovery about the right vendor
+    rather than the one whose key is actually stored.
     """
     return {
         "providers": [
-            {"provider": provider, "components": sorted(components)}
+            {
+                "provider": provider,
+                "components": sorted(components),
+                "realtime_provider": realtime_provider_for(provider),
+            }
             for provider, components in sorted(known_providers().items())
         ]
     }
@@ -230,10 +241,13 @@ async def discover_models(
             session, component=component, provider=provider
         )
         # Realtime and embeddings authenticate on the LLM credential — the
-        # vendor issues one key for all of them.
+        # vendor issues one key for all of them. ``resolve_api_key`` itself
+        # knows which vault provider a realtime name falls back to (Grok
+        # Realtime to xAI, not a stripped "grok" that does not exist), so the
+        # provider name is passed through unchanged rather than trimmed here.
         if api_key is None and component in ("realtime", "embeddings"):
             api_key = await creds.resolve_api_key(
-                session, component="llm", provider=provider.replace("_realtime", "")
+                session, component="llm", provider=provider
             )
         already = await model_catalogue.offers(
             session, component=component, provider=provider

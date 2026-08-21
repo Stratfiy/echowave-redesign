@@ -44,6 +44,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.constants import PLATFORM_CREDENTIAL_SECRET
 from api.db.models import OrganizationProviderCredentialModel
 from api.enums import CostComponent
+from api.services.configuration.registry import realtime_key_provider
 
 #: Components a customer key can serve. Telephony is absent for the same reason
 #: it is absent from the platform vault: carrier credentials live on
@@ -137,6 +138,19 @@ def _normalise(component: CostComponent | str, provider: str) -> tuple[str, str]
             "the vendor whose key this is."
         )
     return parsed.value, provider
+
+
+async def _active_row(
+    session: AsyncSession, organization_id: int, component: str, provider: str
+) -> OrganizationProviderCredentialModel | None:
+    return await session.scalar(
+        select(OrganizationProviderCredentialModel).where(
+            OrganizationProviderCredentialModel.organization_id == organization_id,
+            OrganizationProviderCredentialModel.component == component,
+            OrganizationProviderCredentialModel.provider == provider,
+            OrganizationProviderCredentialModel.is_active.is_(True),
+        )
+    )
 
 
 async def set_credential(
@@ -316,14 +330,29 @@ async def resolve_api_key(
     except OrganizationCredentialError:
         return None
 
-    row = await session.scalar(
-        select(OrganizationProviderCredentialModel).where(
-            OrganizationProviderCredentialModel.organization_id == organization_id,
-            OrganizationProviderCredentialModel.component == component_value,
-            OrganizationProviderCredentialModel.provider == provider,
-            OrganizationProviderCredentialModel.is_active.is_(True),
-        )
-    )
+    row = await _active_row(session, organization_id, component_value, provider)
+
+    if row is None:
+        base = realtime_key_provider(provider)
+        if base is not None and base != provider:
+            # A speech-to-speech provider is the same vendor account as its
+            # ordinary sibling: an account that has already brought its own
+            # OpenAI key does not need to bring a second one under the name
+            # "openai_realtime" to use OpenAI Realtime — see the identical
+            # fallback in ``platform_credentials.resolve_api_key``, which this
+            # mirrors on purpose. Without it, a customer with a working OpenAI
+            # key still had their speech-to-speech call refused, or silently
+            # billed at the managed rate if they had opted into that fallback
+            # — for a key they already held.
+            row = await _active_row(session, organization_id, component_value, base)
+            if row is not None:
+                logger.debug(
+                    "Resolved {} key for {} from this account's '{}' key.",
+                    component_value,
+                    provider,
+                    base,
+                )
+
     if row is None:
         return None
 

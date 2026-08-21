@@ -37,6 +37,7 @@ const COMPONENT_NOUN: Record<string, string> = {
     stt: "transcription",
     llm: "language",
     tts: "voice",
+    realtime: "speech-to-speech",
 };
 
 export function UnlockedModels({
