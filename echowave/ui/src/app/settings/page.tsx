@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { MCPSection } from "@/components/MCPSection";
+import { MfaSection } from "@/components/MfaSection";
 import { OrganizationMembersSection } from "@/components/OrganizationMembersSection";
 import { OrganizationPreferencesSection } from "@/components/OrganizationPreferencesSection";
 import { TelemetrySection } from "@/components/TelemetrySection";
@@ -89,6 +90,19 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <TelemetrySection />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Security</CardTitle>
+            <CardDescription>
+              Require a code from an authenticator app at sign-in, on top of
+              your password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MfaSection />
           </CardContent>
         </Card>
       </PageBody>
