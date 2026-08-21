@@ -126,6 +126,124 @@ async def price_per_minute(
     return estimate.total_paise_per_minute
 
 
+async def realtime_price_per_minute(
+    session: AsyncSession,
+    *,
+    organization_id: int,
+    realtime_tier: str,
+    telephony_provider: str | None = None,
+) -> int:
+    """Paise per minute for a speech-to-speech stack.
+
+    One model replaces the transcriber and the voice, so there is one vendor
+    to price. It is passed as the *llm* slot because that is how a realtime
+    session is metered — the vendor bills it as language-model usage and the
+    rate card prices it there, which is also why the estimator's realtime
+    token assumption lives under that component.
+    """
+    upstream = managed_tiers.resolve(managed_tiers.REALTIME_COMPONENT, realtime_tier)
+    estimate = await estimate_cost_per_minute(
+        session,
+        organization_id=organization_id,
+        llm_provider=upstream.provider,
+        llm_model=upstream.model,
+        telephony_provider=telephony_provider,
+    )
+    return estimate.total_paise_per_minute
+
+
+async def bundle_options(
+    session: AsyncSession,
+    *,
+    organization_id: int,
+    telephony_provider: str | None = None,
+) -> list[dict]:
+    """The Simple picker's cards, priced, with the residency badge on each.
+
+    Every bundle carries **variants**, even when there is only one. A pipeline
+    bundle has three — the brain is the customer's choice and it is the
+    component that moves both the price and the badge — while a
+    speech-to-speech bundle has exactly one. Making that uniform means the
+    screen renders one shape instead of branching on architecture, and adding a
+    fourth bundle later needs no new case.
+
+    Priced through the same estimator the receipt reconciles against, never a
+    second calculation. Every pricing bug found this week came from a parallel
+    sum drifting from the first one.
+    """
+    from api.services.configuration import bundles as bundle_service
+    from api.services.configuration.residency import assess
+
+    rows = await bundle_service.list_bundles(session, enabled_only=True)
+    out: list[dict] = []
+
+    for row in rows:
+        variants: list[dict] = []
+
+        if row.architecture == bundle_service.REALTIME:
+            price = await realtime_price_per_minute(
+                session,
+                organization_id=organization_id,
+                realtime_tier=row.realtime_tier,
+                telephony_provider=telephony_provider,
+            )
+            variants.append(
+                {
+                    "tier": row.realtime_tier,
+                    "label": row.label,
+                    "blurb": "",
+                    "paise_per_minute": price,
+                    "india_only": assess(
+                        architecture="realtime", realtime_tier=row.realtime_tier
+                    ).india_only,
+                }
+            )
+        else:
+            # ``llm_tier`` pinned on the row means the bundle chose the brain;
+            # null means the customer does, which is the Everyday case.
+            tiers = [row.llm_tier] if row.llm_tier else list(managed_tiers.LLM_TIERS)
+            for tier in tiers:
+                label, blurb = managed_tiers.LLM_TIER_LABELS.get(
+                    tier, (tier.title(), "")
+                )
+                price = await price_per_minute(
+                    session,
+                    organization_id=organization_id,
+                    brain=tier,
+                    telephony_provider=telephony_provider,
+                )
+                variants.append(
+                    {
+                        "tier": tier,
+                        "label": label,
+                        "blurb": blurb,
+                        "paise_per_minute": price,
+                        "india_only": assess(
+                            architecture="pipeline",
+                            llm_tier=tier,
+                            stt_tier=row.stt_tier,
+                            tts_tier=row.tts_tier,
+                        ).india_only,
+                    }
+                )
+
+        out.append(
+            {
+                "slug": row.slug,
+                "label": row.label,
+                "blurb": row.blurb,
+                "architecture": row.architecture,
+                # A voice is only chosen on the pipeline path: a
+                # speech-to-speech model brings its own and there is nothing to
+                # pick. The screen reads this rather than re-deriving it from
+                # the architecture string.
+                "picks_voice": row.architecture == bundle_service.PIPELINE,
+                "variants": variants,
+            }
+        )
+    return out
+
+
 def approximate_minutes(balance_paise: int, paise_per_minute: int) -> int | None:
     """How long a balance lasts, roughly.
 

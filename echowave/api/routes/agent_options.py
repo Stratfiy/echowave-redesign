@@ -65,7 +65,15 @@ async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, An
             }
         )
 
-    return {"brains": priced, "voices": voice_list}
+    async with db_client.async_session() as session:
+        # The Simple picker's cards. Kept on the same request as voices and
+        # brains because the screen needs all three to render one price, and
+        # three round trips to draw one number is how a picker feels slow.
+        bundles = await agent_options.bundle_options(
+            session, organization_id=organization_id
+        )
+
+    return {"brains": priced, "voices": voice_list, "bundles": bundles}
 
 
 @router.get("/minutes")
