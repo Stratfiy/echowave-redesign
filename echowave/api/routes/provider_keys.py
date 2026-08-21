@@ -27,7 +27,11 @@ from api.enums import OrganizationRole
 from api.services.auth.depends import get_user, require_organization_role
 from api.services.configuration import key_validation
 from api.services.configuration import organization_credentials as creds
-from api.services.configuration.registry import components_for_provider
+from api.services.configuration.registry import (
+    components_for_provider,
+    known_providers,
+    realtime_provider_for,
+)
 
 router = APIRouter(prefix="/provider-keys", tags=["provider-keys"])
 
@@ -101,6 +105,34 @@ async def list_provider_keys(user: UserModel = Depends(get_user)) -> dict[str, A
         # administrator's problem rather than the customer's mistake.
         "encryption_configured": creds.encryption_is_configured(),
         "components": [c.value for c in creds.CREDENTIAL_COMPONENTS],
+    }
+
+
+@router.get("/providers")
+async def list_known_providers(_user: UserModel = Depends(get_user)) -> dict[str, Any]:
+    """Every vendor this codebase can key, and what each one serves.
+
+    The same registry the superadmin screen reads (`known_providers()`), so
+    the two cannot disagree about what a vendor covers. "realtime" among a
+    vendor's components does not mean a *separate* key is needed — a
+    speech-to-speech vendor authenticates with its ordinary sibling's key.
+    ``realtime_provider`` names which realtime provider that key unlocks, so
+    the screen can ask model discovery about the right vendor rather than the
+    one whose key is actually stored.
+
+    Reading is open to every member, same as the credential list: BYOK is a
+    member's job, and this is what lets the screen say what a vendor covers
+    before a key is ever pasted in.
+    """
+    return {
+        "providers": [
+            {
+                "provider": provider,
+                "components": sorted(components),
+                "realtime_provider": realtime_provider_for(provider),
+            }
+            for provider, components in sorted(known_providers().items())
+        ]
     }
 
 
@@ -261,6 +293,18 @@ async def discover_models(
             component=component,
             provider=provider,
         )
+        # Realtime and embeddings authenticate on the LLM credential — the
+        # vendor issues one key for all of them, so an account that already
+        # holds the ordinary sibling's key does not need a second one stored
+        # under the realtime provider's own name. See the identical fallback
+        # in ``routes/platform_credentials.py``.
+        if api_key is None and component in ("realtime", "embeddings"):
+            api_key = await creds.resolve_api_key(
+                session,
+                organization_id=organization_id,
+                component="llm",
+                provider=provider,
+            )
         we_provide = await model_catalogue.offers(
             session, component=component, provider=provider
         )

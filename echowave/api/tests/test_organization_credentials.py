@@ -609,6 +609,125 @@ class TestWhatThePickerIsOffered:
         )
 
 
+@pytest.mark.asyncio
+class TestSpeechToSpeechSharesTheVendorKey:
+    """The BYOK mirror of the same fallback on the platform vault.
+
+    Before this existed, an account that had already brought its own OpenAI
+    key still had a speech-to-speech agent on OpenAI Realtime either refused
+    outright, or silently billed at the managed rate if the account had opted
+    into that fallback — for a key it already held. ``resolve_api_key`` is
+    documented to have "the same signature" on both vaults so a slot can move
+    between managed and BYOK with nothing downstream noticing; this was the
+    one place that promise did not hold.
+    """
+
+    async def test_the_account_s_own_openai_key_serves_openai_realtime(
+        self, async_session
+    ):
+        org = await _org(async_session, "realtime-openai")
+        await creds.set_credential(
+            async_session,
+            organization_id=org.id,
+            actor_user_id=None,
+            component=CostComponent.LLM,
+            provider="openai",
+            api_key="sk-own-openai-key-0001",
+        )
+
+        resolved = await creds.resolve_api_key(
+            async_session,
+            organization_id=org.id,
+            component=CostComponent.LLM,
+            provider="openai_realtime",
+        )
+        assert resolved == "sk-own-openai-key-0001"
+
+    async def test_an_exact_realtime_row_still_wins(self, async_session):
+        org = await _org(async_session, "realtime-exact")
+        await creds.set_credential(
+            async_session,
+            organization_id=org.id,
+            actor_user_id=None,
+            component=CostComponent.LLM,
+            provider="openai",
+            api_key="sk-base-key-0002",
+        )
+        await creds.set_credential(
+            async_session,
+            organization_id=org.id,
+            actor_user_id=None,
+            component=CostComponent.LLM,
+            provider="openai_realtime",
+            api_key="sk-realtime-only-key-0003",
+        )
+
+        resolved = await creds.resolve_api_key(
+            async_session,
+            organization_id=org.id,
+            component=CostComponent.LLM,
+            provider="openai_realtime",
+        )
+        assert resolved == "sk-realtime-only-key-0003"
+
+    async def test_grok_realtime_falls_back_to_the_account_s_xai_key(
+        self, async_session
+    ):
+        org = await _org(async_session, "realtime-grok")
+        await creds.set_credential(
+            async_session,
+            organization_id=org.id,
+            actor_user_id=None,
+            component=CostComponent.LLM,
+            provider="xai",
+            api_key="sk-own-xai-key-0004",
+        )
+
+        resolved = await creds.resolve_api_key(
+            async_session,
+            organization_id=org.id,
+            component=CostComponent.LLM,
+            provider="grok_realtime",
+        )
+        assert resolved == "sk-own-xai-key-0004"
+
+    async def test_another_account_s_openai_key_is_never_borrowed(self, async_session):
+        """Tenant isolation applies to the fallback too — it must filter by
+        organization_id exactly like the exact-match lookup does."""
+        other_org = await _org(async_session, "realtime-other")
+        await creds.set_credential(
+            async_session,
+            organization_id=other_org.id,
+            actor_user_id=None,
+            component=CostComponent.LLM,
+            provider="openai",
+            api_key="sk-someone-elses-key-0005",
+        )
+
+        this_org = await _org(async_session, "realtime-asker")
+        assert (
+            await creds.resolve_api_key(
+                async_session,
+                organization_id=this_org.id,
+                component=CostComponent.LLM,
+                provider="openai_realtime",
+            )
+            is None
+        )
+
+    async def test_no_base_key_at_all_still_resolves_to_nothing(self, async_session):
+        org = await _org(async_session, "realtime-none")
+        assert (
+            await creds.resolve_api_key(
+                async_session,
+                organization_id=org.id,
+                component=CostComponent.LLM,
+                provider="openai_realtime",
+            )
+            is None
+        )
+
+
 class TestAMaskedKeyIsNotAKey:
     """A masked value must not stop the vault fallback from firing.
 

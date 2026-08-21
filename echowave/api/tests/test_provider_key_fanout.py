@@ -135,13 +135,22 @@ class TestTheProviderListLeadsTheKeyForm:
     adding one Sarvam key feel like adding three."""
 
     def test_every_answer_agrees_with_components_for_provider(self):
-        """One source of truth. If these two ever disagreed, the form would
-        offer "apply to all" for a set of components the fan-out itself does
-        not believe the vendor serves."""
+        """One source of truth for the components a key can actually be
+        stored against. If these two ever disagreed, the form would offer
+        "apply to all" for a set of components the fan-out itself does not
+        believe the vendor serves.
+
+        "realtime" is the one deliberate exception: it is real coverage —
+        connecting this vendor's key does unlock it — but never a slot a key
+        is stored against on its own, so it is filtered out before comparing.
+        See ``TestRealtimeIsVisibleWithoutItsOwnKey`` below for that half of
+        the contract.
+        """
         providers = known_providers()
         assert providers
         for provider, components in providers.items():
-            assert components_for_provider(provider) == components
+            keyable = tuple(c for c in components if c != "realtime")
+            assert components_for_provider(provider) == keyable
 
     def test_the_managed_sentinel_is_not_a_vendor(self):
         """Nobody pastes a key in under "decibyl" — it names the managed tier,
@@ -161,3 +170,41 @@ class TestTheProviderListLeadsTheKeyForm:
         for provider in known_providers():
             assert provider == provider.lower()
             assert "ServiceProviders" not in provider
+
+
+class TestRealtimeIsVisibleWithoutItsOwnKey:
+    """Before this, a realtime provider was invisible to ``known_providers``
+    entirely — it is registered only under ``ServiceType.REALTIME``, which the
+    provider-keys screen never walked. Connecting an OpenAI key never said "this
+    also unlocks OpenAI Realtime" anywhere, on either the superadmin screen or
+    the customer's own Integrations screen.
+    """
+
+    def test_a_realtime_capable_vendor_reports_it_as_a_component(self):
+        providers = known_providers()
+        assert "realtime" in providers["openai"]
+        assert "realtime" in providers["google"]
+        assert "realtime" in providers["azure"]
+
+    def test_the_realtime_component_is_last(self):
+        """Receipt order: what a key was entered *for* leads, and what it also
+        unlocks trails — never the reverse, which would make "openai" read as
+        if realtime were its main purpose."""
+        assert known_providers()["openai"][-1] == "realtime"
+
+    def test_a_vendor_with_no_realtime_sibling_does_not_get_one(self):
+        assert "realtime" not in known_providers()["sarvam"]
+        assert "realtime" not in known_providers()["deepgram"]
+
+    def test_xai_s_realtime_coverage_is_named_correctly(self):
+        """The case the old "strip _realtime off the name" convention got
+        wrong: Grok Realtime bills through the xAI account, not a "grok" one
+        that was never registered."""
+        assert "realtime" in known_providers()["xai"]
+
+    def test_ultravox_has_no_sibling_and_is_its_own_entry(self):
+        """Ultravox has no non-realtime integration in this codebase — it is
+        not folded into any other vendor's coverage, it is simply keyable
+        under its own name."""
+        providers = known_providers()
+        assert providers["ultravox_realtime"] == ("realtime",)

@@ -71,6 +71,22 @@ class TestTheProviderListEndpoint:
         }
         assert by_name["sarvam"] == ["llm", "stt", "tts"]
 
+    async def test_a_realtime_capable_vendor_names_its_realtime_provider(
+        self, db_session, async_session
+    ):
+        """ "realtime" among a vendor's components means a key for the vendor
+        also unlocks speech-to-speech — never a slot ``apply_to_all_components``
+        stores a row against. ``realtime_provider`` is what tells the screen
+        which vendor to ask model discovery about for that coverage."""
+        staff = await _staff(async_session, "realtime")
+
+        async with _client(staff) as client:
+            response = await client.get("/api/v1/admin/provider-keys/providers")
+
+        by_name = {row["provider"]: row for row in response.json()["providers"]}
+        assert by_name["openai"]["realtime_provider"] == "openai_realtime"
+        assert by_name["sarvam"]["realtime_provider"] is None
+
     async def test_the_managed_sentinel_is_not_offered(self, db_session, async_session):
         """Nobody pastes a key in under "decibyl" — it names the managed tier,
         not a vendor account anyone holds."""
@@ -87,7 +103,11 @@ class TestTheProviderListEndpoint:
         """Same source of truth the key-storage route reads for
         ``apply_to_all_components`` — a form offering "covers stt, llm, tts"
         for a vendor the fan-out only applies to two of would be a lie the
-        screen tells before any key is even saved."""
+        screen tells before any key is even saved.
+
+        "realtime" is the deliberate exception: real coverage, but never a
+        slot ``apply_to_all_components`` writes a row against on its own — see
+        ``TestRealtimeIsVisibleWithoutItsOwnKey`` in test_provider_key_fanout.py."""
         from api.services.configuration.registry import components_for_provider
 
         staff = await _staff(async_session, "agree")
@@ -96,6 +116,7 @@ class TestTheProviderListEndpoint:
             response = await client.get("/api/v1/admin/provider-keys/providers")
 
         for row in response.json()["providers"]:
-            assert tuple(row["components"]) == tuple(
+            keyable = [c for c in row["components"] if c != "realtime"]
+            assert tuple(keyable) == tuple(
                 sorted(components_for_provider(row["provider"]))
             )

@@ -434,3 +434,57 @@ class TestSpeechToSpeechSharesTheVendorKey:
             )
             is None
         )
+
+    async def test_grok_realtime_falls_back_to_xai_not_a_grok_that_does_not_exist(
+        self, async_session
+    ):
+        """The naive rule this table replaced: stripping "_realtime" off
+        ``grok_realtime`` gives "grok", which is not a provider this codebase
+        has ever registered — xAI's own vendor name is "xai". A key stored
+        under "grok" was never findable; a key stored under "xai" must be."""
+        staff = await _staff(async_session)
+        await creds.set_credential(
+            async_session,
+            actor_user_id=staff.id,
+            component=CostComponent.LLM,
+            provider="xai",
+            api_key="xai-key-3333",
+        )
+
+        resolved = await creds.resolve_api_key(
+            async_session, component=CostComponent.LLM, provider="grok_realtime"
+        )
+        assert resolved == "xai-key-3333"
+
+    async def test_ultravox_realtime_has_no_sibling_and_needs_its_own_key(
+        self, async_session
+    ):
+        """Ultravox has no non-realtime integration in this codebase to fall
+        back to — its key must be stored under its own name, and a key stored
+        under some other vendor must never be borrowed for it."""
+        staff = await _staff(async_session)
+        await creds.set_credential(
+            async_session,
+            actor_user_id=staff.id,
+            component=CostComponent.LLM,
+            provider="openai",
+            api_key=OPENAI_KEY,
+        )
+        assert (
+            await creds.resolve_api_key(
+                async_session, component=CostComponent.LLM, provider="ultravox_realtime"
+            )
+            is None
+        )
+
+        await creds.set_credential(
+            async_session,
+            actor_user_id=staff.id,
+            component=CostComponent.LLM,
+            provider="ultravox_realtime",
+            api_key="ultravox-key-4444",
+        )
+        resolved = await creds.resolve_api_key(
+            async_session, component=CostComponent.LLM, provider="ultravox_realtime"
+        )
+        assert resolved == "ultravox-key-4444"

@@ -49,6 +49,7 @@ import {
     type ComponentValue,
     describeComponents,
     FilterChip,
+    keyableComponents,
     providerLabel,
 } from "@/components/providerCards";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +105,13 @@ function ProviderKeysScreen() {
     // about what a vendor covers.
     const [knownProviders, setKnownProviders] = useState<Record<string, ComponentValue[]>>({});
 
+    // Which realtime provider a vendor's key unlocks — "openai" -> "openai_realtime"
+    // — for the vendors whose components include "realtime". A speech-to-speech
+    // vendor never gets a key of its own, so there is nothing to discover models
+    // *from* except by asking under this name instead of the vendor whose key is
+    // actually stored.
+    const [realtimeProviders, setRealtimeProviders] = useState<Record<string, string>>({});
+
     // What Decibyl currently sells, across every connected vendor — the
     // aggregate view. A key installed with nothing ticked buys nothing; a
     // model ticked and unpriced bills the platform fee alone and reports
@@ -135,9 +143,20 @@ function ProviderKeysScreen() {
             const result = await listKnownProvidersApiV1AdminProviderKeysProvidersGet({});
             if (result.error || !result.data) return;
             const rows = (result.data as unknown as {
-                providers: { provider: string; components: ComponentValue[] }[];
+                providers: {
+                    provider: string;
+                    components: ComponentValue[];
+                    realtime_provider: string | null;
+                }[];
             }).providers;
             setKnownProviders(Object.fromEntries(rows.map((r) => [r.provider, r.components])));
+            setRealtimeProviders(
+                Object.fromEntries(
+                    rows
+                        .filter((r) => r.realtime_provider)
+                        .map((r) => [r.provider, r.realtime_provider as string]),
+                ),
+            );
         })();
     }, [authReady, load, loadCatalogue]);
 
@@ -192,7 +211,10 @@ function ProviderKeysScreen() {
         setFormKey("");
         setFormLabel(row.stored[0]?.label ?? "");
         setAdvanced(false);
-        setChosenComponents(row.serves);
+        // Realtime is never one of the choices — it is not a slot a key can
+        // be stored against on its own, only something a key for one of
+        // these already covers.
+        setChosenComponents(keyableComponents(row.serves));
         setFormError(null);
     };
 
@@ -202,14 +224,17 @@ function ProviderKeysScreen() {
         setFormError(null);
         setNotice(null);
 
-        const components = advanced ? chosenComponents : dialogProvider.serves;
+        // Realtime is excluded either way: it is never a slot a key is
+        // stored against, only something one of these already covers.
+        const keyable = keyableComponents(dialogProvider.serves);
+        const components = advanced ? chosenComponents : keyable;
         if (components.length === 0) {
             setFormError("Choose at least one thing this key is for.");
             setSaving(false);
             return;
         }
 
-        const coversEverything = components.length === dialogProvider.serves.length;
+        const coversEverything = components.length === keyable.length;
 
         const result = await setProviderKeyApiV1AdminProviderKeysPut({
             body: {
@@ -472,7 +497,7 @@ function ProviderKeysScreen() {
                                                 {row.stored[0].masked_key}
                                                 {row.stored[0].label ? ` · ${row.stored[0].label}` : ""}
                                             </p>
-                                            {row.stored.length < row.serves.length && (
+                                            {row.stored.length < keyableComponents(row.serves).length && (
                                                 <p className="text-xs text-amber-700 dark:text-amber-400">
                                                     Used for{" "}
                                                     {describeComponents(row.stored.map((c) => c.component))}{" "}
@@ -525,6 +550,20 @@ function ProviderKeysScreen() {
                                                             onSaved={() => void loadCatalogue()}
                                                         />
                                                     ))}
+                                                    {/* Realtime never gets a credential row of its
+                                                        own — a speech-to-speech vendor authenticates
+                                                        with this same LLM key — so it is asked about
+                                                        under its own provider name rather than found
+                                                        among row.stored. */}
+                                                    {realtimeProviders[row.provider] &&
+                                                        row.stored.some((c) => c.component === "llm") && (
+                                                            <ModelCatalogue
+                                                                key="realtime"
+                                                                component="realtime"
+                                                                provider={realtimeProviders[row.provider]}
+                                                                onSaved={() => void loadCatalogue()}
+                                                            />
+                                                        )}
                                                 </div>
                                             )}
                                         </>
@@ -589,7 +628,7 @@ function ProviderKeysScreen() {
                                 />
                             </div>
 
-                            {dialogProvider && dialogProvider.serves.length > 1 && (
+                            {dialogProvider && keyableComponents(dialogProvider.serves).length > 1 && (
                                 <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm">
                                     {!advanced ? (
                                         <div className="flex items-start justify-between gap-3">
@@ -616,7 +655,7 @@ function ProviderKeysScreen() {
                                                 holds separate {providerLabel(dialogProvider.provider)}{" "}
                                                 keys on different billing.
                                             </p>
-                                            {dialogProvider.serves.map((component) => (
+                                            {keyableComponents(dialogProvider.serves).map((component) => (
                                                 <label
                                                     key={component}
                                                     className="flex items-center gap-2.5"

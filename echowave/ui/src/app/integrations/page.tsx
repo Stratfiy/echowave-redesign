@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { client } from "@/client/client.gen";
 import {
     deleteProviderKeyApiV1ProviderKeysDelete,
     getModelConfigurationV2DefaultsApiV1OrganizationsModelConfigurationsV2DefaultsGet,
@@ -25,6 +26,7 @@ import {
     type ComponentValue,
     describeComponents,
     FilterChip,
+    keyableComponents,
     providerLabel,
 } from "@/components/providerCards";
 import { Badge } from "@/components/ui/badge";
@@ -130,6 +132,10 @@ function IntegrationsScreen() {
 
     const [credentials, setCredentials] = useState<ProviderCredential[]>([]);
     const [providersByComponent, setProvidersByComponent] = useState<Record<string, string[]>>({});
+    // Which realtime provider a vendor's key unlocks — "openai" -> "openai_realtime"
+    // — so the unlocked-models list can ask under that name rather than the
+    // vendor whose key is actually stored, which never has one of its own.
+    const [realtimeProviders, setRealtimeProviders] = useState<Record<string, string>>({});
     const [encryptionConfigured, setEncryptionConfigured] = useState(true);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -163,9 +169,12 @@ function IntegrationsScreen() {
         setLoading(true);
         setError(null);
 
-        const [keysResult, defaultsResult] = await Promise.all([
+        const [keysResult, defaultsResult, providersResult] = await Promise.all([
             listProviderKeysApiV1ProviderKeysGet(),
             getModelConfigurationV2DefaultsApiV1OrganizationsModelConfigurationsV2DefaultsGet(),
+            // Not yet in the generated SDK — see googleCalendarFetch above for why
+            // this route is called directly.
+            client.get({ url: "/api/v1/provider-keys/providers" }),
         ]);
 
         if (keysResult.error) {
@@ -193,6 +202,35 @@ function IntegrationsScreen() {
                     .filter((provider) => provider !== "decibyl")
                     .sort();
             }
+
+            // Realtime never gets a schema of its own in the picker — a
+            // speech-to-speech vendor authenticates with its ordinary
+            // sibling's key — so its coverage comes from the registry
+            // instead: which base vendors (openai, google, ...) also unlock
+            // a realtime provider, and which realtime provider that is.
+            if (!providersResult.error && providersResult.data) {
+                const rows = (
+                    providersResult.data as {
+                        providers: {
+                            provider: string;
+                            components: string[];
+                            realtime_provider: string | null;
+                        }[];
+                    }
+                ).providers;
+                next.realtime = rows
+                    .filter((r) => r.realtime_provider)
+                    .map((r) => r.provider)
+                    .sort();
+                setRealtimeProviders(
+                    Object.fromEntries(
+                        rows
+                            .filter((r) => r.realtime_provider)
+                            .map((r) => [r.provider, r.realtime_provider as string]),
+                    ),
+                );
+            }
+
             setProvidersByComponent(next);
         }
 
@@ -281,7 +319,10 @@ function IntegrationsScreen() {
         setFormKey("");
         setFormLabel(row.stored[0]?.label ?? "");
         setAdvanced(false);
-        setChosenComponents(row.serves);
+        // Realtime is never one of the choices — it is not a slot a key can
+        // be stored against on its own, only something a key for one of
+        // these already covers.
+        setChosenComponents(keyableComponents(row.serves));
         setFormError(null);
     };
 
@@ -291,10 +332,13 @@ function IntegrationsScreen() {
         setFormError(null);
         setNotice(null);
 
-        // Which slots this key covers. The default is every slot the vendor
-        // serves — one account, one key — with the per-component choice behind
-        // "advanced" for the customer who genuinely holds several.
-        const components = advanced ? chosenComponents : dialogProvider.serves;
+        // Which slots this key covers. The default is every keyable slot the
+        // vendor serves — one account, one key — with the per-component
+        // choice behind "advanced" for the customer who genuinely holds
+        // several. Realtime is excluded either way: it is never a slot a key
+        // is stored against, only something one of these already covers.
+        const keyable = keyableComponents(dialogProvider.serves);
+        const components = advanced ? chosenComponents : keyable;
         if (components.length === 0) {
             setFormError("Choose at least one thing this key is for.");
             setSaving(false);
@@ -305,7 +349,7 @@ function IntegrationsScreen() {
         // writes in a single transaction. A subset — only reachable through
         // "advanced" — has to be stored a slot at a time, so the slots the
         // customer did *not* choose keep whatever key they already had.
-        const coversEverything = components.length === dialogProvider.serves.length;
+        const coversEverything = components.length === keyable.length;
 
         const result = await setProviderKeyApiV1ProviderKeysPut({
             body: {
@@ -545,7 +589,7 @@ function IntegrationsScreen() {
                                         {/* When a vendor serves several slots but only
                                             some are on this key, say so rather than
                                             implying full coverage. */}
-                                        {row.stored.length < row.serves.length && (
+                                        {row.stored.length < keyableComponents(row.serves).length && (
                                             <p className="text-xs text-amber-700 dark:text-amber-400">
                                                 Used for{" "}
                                                 {describeComponents(row.stored.map((c) => c.component))}{" "}
@@ -563,6 +607,18 @@ function IntegrationsScreen() {
                                                 component={row.stored[0].component}
                                             />
                                         )}
+                                        {/* Realtime never gets a key of its own — a
+                                            speech-to-speech vendor authenticates with
+                                            this same LLM key — so it is asked about
+                                            under its own provider name instead. */}
+                                        {!paused &&
+                                            realtimeProviders[row.provider] &&
+                                            row.stored.some((c) => c.component === "llm") && (
+                                                <UnlockedModels
+                                                    provider={realtimeProviders[row.provider]}
+                                                    component="realtime"
+                                                />
+                                            )}
                                         {isOrganizationAdmin && (
                                             <div className="flex flex-wrap items-center gap-3">
                                                 {/* Pausing rather than deleting is what you
@@ -745,7 +801,7 @@ function IntegrationsScreen() {
                             />
                         </div>
 
-                        {dialogProvider && dialogProvider.serves.length > 1 && (
+                        {dialogProvider && keyableComponents(dialogProvider.serves).length > 1 && (
                             <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm">
                                 {!advanced ? (
                                     <div className="flex items-start justify-between gap-3">
@@ -772,7 +828,7 @@ function IntegrationsScreen() {
                                             separate {providerLabel(dialogProvider.provider)} keys on
                                             different billing.
                                         </p>
-                                        {dialogProvider.serves.map((component) => (
+                                        {keyableComponents(dialogProvider.serves).map((component) => (
                                             <label
                                                 key={component}
                                                 className="flex items-center gap-2.5"
