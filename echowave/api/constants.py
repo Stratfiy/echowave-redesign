@@ -242,7 +242,7 @@ STARTER_PLAN_PRICE_PAISE = STARTER_PLAN_BALANCE_PAISE + NUMBER_RENTAL_PRICE_PAIS
 RAZORPAY_STARTER_PLAN_ID = os.getenv("RAZORPAY_STARTER_PLAN_ID") or None
 
 # What we charge for provider usage on *our* keys, as basis points of what the
-# vendor charges us. 13000 = 1.30x; 10000 would be at cost.
+# vendor charges us. 14000 = 1.40x; 10000 would be at cost.
 #
 # In basis points rather than a float because every other money path in this
 # codebase is integer arithmetic, and a 1.3 that is really 1.2999999999999998

@@ -266,10 +266,11 @@ async def _measured_units_per_minute(
 def _with_markup(paise: int, *, component: CostComponent, markup_bps: int) -> int:
     """Apply the managed markup exactly as ``cost_engine`` does, or not at all.
 
-    Same component set, same rounding, once per line. Telephony is excluded
-    there because its rate card already holds the sell price, and it has to be
-    excluded here for the same reason — otherwise the estimate and the receipt
-    would disagree about a line whose rate an operator typed by hand.
+    Same component set, same rounding, once per line — deliberately reading
+    ``MARKED_UP_COMPONENTS`` from the cost engine rather than restating it, so
+    a component moving in or out of the markup cannot move on one side only.
+    Carriage did exactly that: it used to be excluded on both sides and is now
+    included on both.
     """
     if component.value not in MARKED_UP_COMPONENTS:
         return paise

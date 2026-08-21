@@ -230,7 +230,7 @@ load and a trust problem before it is a compliance one.
 - [x] Added to **Billing → Plan**, behind a confirmation that states what happens to the number: it is not released, its rent falls back to the credit balance, and an unpaid rental suspends it after seven days
 - [x] Found while wiring it: `cancel_mandate` looked up only the *rental* purpose, so an account on the plan could not cancel at all — the lookup found nothing and the route answered 404 to a customer whose bank was being debited monthly. It now withdraws whichever instruction the account holds, plan first
 
-### 2.3 The go-live readiness report has no screen
+### 2.3 The go-live readiness report has no screen — FIXED
 
 `GET /admin/billing/readiness` is the best piece of operational code in this
 repo. It checks supplier identity, live-vs-test Razorpay keys, webhook
@@ -242,7 +242,10 @@ failure is the one that produces a plausible number rather than an exception.*
 Nothing renders it. `PRODUCTION-CHECKLIST.md` Step 8 says "verify readiness
 reports zero blockers" and there is no way to look.
 
-- [ ] Put it on `/superadmin/billing` as the first thing on the page
+- [x] **Superadmin → Billing → Readiness.** Blockers first, then anything not yet proven, then the standing obligations, then the passes. Each check shows its remedy verbatim — a check that says what is wrong and not what to do about it is one somebody has to go and research
+- [x] A fresh install reads *not proven yet*, never *ready*. Rounding an absence of evidence up to a green tick is the exact dishonesty the readiness vocabulary exists to avoid
+- [x] The obligations no code can discharge are counted apart from the blockers, because they never clear and folding them in would make the blocker count permanently non-zero and therefore ignored
+- [x] "Test the webhook" is a button rather than automatic: it is the only check that proves Razorpay can reach us, and it makes an outbound request on a page that is otherwise cheap to poll
 
 ### 2.3b Money moved and nobody was told — FIXED
 
