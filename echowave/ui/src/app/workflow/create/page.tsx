@@ -25,12 +25,13 @@
  * was honoured by looking at the result.
  */
 
-import { ArrowLeft, ArrowRight, Check, Loader2, Play, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { client } from "@/client/client.gen";
 import { createWorkflowFromTemplateApiV1WorkflowCreateTemplatePost } from "@/client/sdk.gen";
+import { type VoiceOption,VoicePicker } from "@/components/agent/VoicePicker";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -129,16 +130,6 @@ type Brain = {
     paise_per_minute: number;
 };
 
-type VoiceOption = {
-    voice_id: string;
-    name: string;
-    gender: string | null;
-    description: string | null;
-    is_default: boolean;
-    sample_url: string | null;
-    sample_url_hi: string | null;
-};
-
 type AgentOptions = { brains: Brain[]; voices: VoiceOption[] };
 
 /** "₹5.20" from 520 paise. */
@@ -233,24 +224,6 @@ export default function CreateWorkflowPage() {
     const [balancePaise, setBalancePaise] = useState<number | null>(null);
     const [voice, setVoice] = useState<string>("");
     const [brain, setBrain] = useState<string>("default");
-    // One player, reused. Seven audio elements would let two voices talk over
-    // each other, which is a comic way to fail an audition.
-    const playerRef = useRef<HTMLAudioElement | null>(null);
-    const [playing, setPlaying] = useState<string | null>(null);
-
-    const playSample = (option: VoiceOption) => {
-        const url = option.sample_url ?? option.sample_url_hi;
-        if (!url) return;
-        const player = playerRef.current ?? new Audio();
-        playerRef.current = player;
-        player.pause();
-        player.src = url;
-        setPlaying(option.voice_id);
-        player.onended = () => setPlaying(null);
-        player.onerror = () => setPlaying(null);
-        void player.play().catch(() => setPlaying(null));
-    };
-
     // Step 2 — conversation
     const [welcome, setWelcome] = useState("");
     const [guardrails, setGuardrails] = useState(DEFAULT_GUARDRAILS.join("\n"));
@@ -557,83 +530,14 @@ export default function CreateWorkflowPage() {
                                     Loading voices…
                                 </span>
                             ) : (
-                                <div className="space-y-3">
-                                    {/* Grouped, because seven Indian first names in one
-                                        row is a list to read rather than a choice to
-                                        make. Gender is the only thing we can say about
-                                        these voices without having heard them — it is
-                                        the vendor's own metadata, not a guess from the
-                                        name — so it is the only thing we sort by. */}
-                                    {(
-                                        [
-                                            ["female", "Female"],
-                                            ["male", "Male"],
-                                        ] as const
-                                    ).map(([key, heading]) => {
-                                        const group = options.voices.filter(
-                                            (v) => v.gender === key,
-                                        );
-                                        if (!group.length) return null;
-                                        return (
-                                            <div key={key}>
-                                                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                                    {heading}
-                                                </p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {group.map((option) => (
-                                                        <span
-                                                            key={option.voice_id}
-                                                            className="inline-flex items-center"
-                                                        >
-                                                            <Chip
-                                                                label={
-                                                                    option.description
-                                                                        ? `${option.name} — ${option.description}`
-                                                                        : option.is_default
-                                                                          ? `${option.name} · default`
-                                                                          : option.name
-                                                                }
-                                                                selected={
-                                                                    voice ===
-                                                                    option.voice_id
-                                                                }
-                                                                onClick={() => {
-                                                                    setVoice(
-                                                                        option.voice_id,
-                                                                    );
-                                                                    setGender(heading);
-                                                                }}
-                                                            />
-                                                            {/* Only where there is
-                                                                something to play — a
-                                                                button that fails on
-                                                                click is worse than no
-                                                                button. */}
-                                                            {(option.sample_url ||
-                                                                option.sample_url_hi) && (
-                                                                <button
-                                                                    type="button"
-                                                                    aria-label={`Hear ${option.name}`}
-                                                                    onClick={() =>
-                                                                        playSample(option)
-                                                                    }
-                                                                    className="-ml-1 rounded-full p-1.5 text-muted-foreground transition-colors hover:text-foreground"
-                                                                >
-                                                                    {playing ===
-                                                                    option.voice_id ? (
-                                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                                    ) : (
-                                                                        <Play className="h-3.5 w-3.5" />
-                                                                    )}
-                                                                </button>
-                                                            )}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                <VoicePicker
+                                    voices={options.voices}
+                                    selected={voice}
+                                    onSelect={(id, group) => {
+                                        setVoice(id);
+                                        setGender(group);
+                                    }}
+                                />
                             )}
                         </Field>
 
