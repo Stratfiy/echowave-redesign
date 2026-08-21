@@ -45,6 +45,7 @@ async def overdue_recordings(
     *,
     now: datetime | None = None,
     sample_limit: int = 20,
+    organization_id: int | None = None,
 ) -> dict:
     """Recordings past their retention window that still exist.
 
@@ -55,8 +56,21 @@ async def overdue_recordings(
 
     Counted per account against that account's own window, because a customer
     who set 7 days is overdue four times sooner than one on the 90-day default.
+
+    ``organization_id`` scopes the scan to one account. Omitted (the default)
+    it scans every account on the deployment — the shape the platform-wide
+    readiness check wants. A customer-facing caller must always pass its own
+    ``organization_id``: without it, the ``sample`` below names other
+    accounts' workflow runs to a customer who has no business seeing them.
     """
     now = now or datetime.now(UTC)
+
+    conditions = [
+        WorkflowRunModel.recording_url.is_not(None),
+        WorkflowRunModel.recording_url != PURGED_MARKER,
+    ]
+    if organization_id is not None:
+        conditions.append(WorkflowModel.organization_id == organization_id)
 
     rows = (
         await session.execute(
@@ -66,10 +80,7 @@ async def overdue_recordings(
                 WorkflowModel.organization_id,
             )
             .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
-            .where(
-                WorkflowRunModel.recording_url.is_not(None),
-                WorkflowRunModel.recording_url != PURGED_MARKER,
-            )
+            .where(*conditions)
             .order_by(WorkflowRunModel.created_at)
         )
     ).all()
@@ -236,7 +247,9 @@ async def snapshot(
     now = now or datetime.now(UTC)
     return {
         "window_days": window_days,
-        "retention": await overdue_recordings(session, now=now),
+        "retention": await overdue_recordings(
+            session, now=now, organization_id=organization_id
+        ),
         "access": await access_summary(
             session,
             start=now - timedelta(days=window_days),

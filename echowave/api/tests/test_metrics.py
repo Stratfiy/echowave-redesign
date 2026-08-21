@@ -361,6 +361,43 @@ class TestPrivacyHealth:
         assert report["overdue"] >= 5
         assert len(report["sample"]) == 2
 
+    async def test_organization_id_scopes_the_scan_to_one_account(self, async_session):
+        """/privacy/metrics is a customer-facing route. Without this filter it
+        names another account's workflow runs in the sample — a cross-tenant
+        leak, not just a wrong count."""
+        _, mine = await _org(async_session, "scoped-mine")
+        _, theirs = await _org(async_session, "scoped-theirs")
+        my_run = await _run(
+            async_session, mine, age_days=200, recording="recordings/mine.wav"
+        )
+        await _run(
+            async_session, theirs, age_days=200, recording="recordings/theirs.wav"
+        )
+
+        report = await privacy_metrics.overdue_recordings(
+            async_session, organization_id=mine.organization_id
+        )
+
+        assert report["overdue"] == 1
+        sampled_run_ids = {row["workflow_run_id"] for row in report["sample"]}
+        assert sampled_run_ids == {my_run.id}
+
+    async def test_snapshot_scopes_retention_to_the_requested_organization(
+        self, async_session
+    ):
+        _, mine = await _org(async_session, "snapshot-mine")
+        _, theirs = await _org(async_session, "snapshot-theirs")
+        await _run(async_session, mine, age_days=200, recording="recordings/mine.wav")
+        await _run(
+            async_session, theirs, age_days=200, recording="recordings/theirs.wav"
+        )
+
+        report = await privacy_metrics.snapshot(
+            async_session, organization_id=mine.organization_id
+        )
+
+        assert report["retention"]["overdue"] == 1
+
     async def test_erasure_turnaround_counts_a_missed_deadline(self, async_session):
         from api.db.models import ErasureRequestModel
 
