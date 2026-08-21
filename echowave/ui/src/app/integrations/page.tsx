@@ -19,6 +19,7 @@ import {
     setProviderKeyActiveApiV1ProviderKeysActivePost,
     setProviderKeyApiV1ProviderKeysPut,
 } from "@/client/sdk.gen";
+import { IntegrationsTabs } from "@/components/integrations/IntegrationsTabs";
 import {
     COMPONENTS,
     type ComponentValue,
@@ -88,7 +89,7 @@ async function googleCalendarFetch(
     }
 }
 
-export default function ProviderKeysPage() {
+export default function IntegrationsPage() {
     // Open to every member, on purpose.
     //
     // This screen was briefly wrapped in an admin wall on the theory that
@@ -104,7 +105,7 @@ export default function ProviderKeysPage() {
     // Same shape as Billing and the Do-not-call list: the door stays open and
     // the writes are gated inside. Keys are masked to their last four
     // characters by the API, so reading shows what exists, never the secret.
-    return <ProviderKeysScreen />;
+    return <IntegrationsScreen />;
 }
 
 interface ProviderRow {
@@ -115,7 +116,7 @@ interface ProviderRow {
     stored: ProviderCredential[];
 }
 
-function ProviderKeysScreen() {
+function IntegrationsScreen() {
     const auth = useAuth();
     const router = useRouter();
     const hasFetched = useRef(false);
@@ -233,7 +234,7 @@ function ProviderKeysScreen() {
         }
 
         // Strip the query params so a refresh doesn't re-show the banner.
-        router.replace("/provider-keys");
+        router.replace("/integrations");
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -399,15 +400,20 @@ function ProviderKeysScreen() {
 
     if (loading) {
         return (
-            <div className="container mx-auto max-w-4xl px-4 py-8 space-y-6">
-                <Skeleton className="h-10 w-72" />
-                <Skeleton className="h-48 w-full" />
-                <Skeleton className="h-48 w-full" />
-            </div>
+            <>
+                <IntegrationsTabs />
+                <div className="container mx-auto max-w-4xl px-4 py-8 space-y-6">
+                    <Skeleton className="h-10 w-72" />
+                    <Skeleton className="h-48 w-full" />
+                    <Skeleton className="h-48 w-full" />
+                </div>
+            </>
         );
     }
 
     return (
+        <>
+        <IntegrationsTabs />
         <div className="container mx-auto max-w-4xl px-4 py-8 space-y-6">
             <div>
                 <h1 className="text-3xl font-bold">Provider keys</h1>
@@ -823,6 +829,7 @@ function ProviderKeysScreen() {
                 </DialogContent>
             </Dialog>
         </div>
+        </>
     );
 
     async function connectGoogleCalendar() {

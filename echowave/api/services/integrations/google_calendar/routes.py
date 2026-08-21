@@ -71,12 +71,12 @@ async def callback(
         # before ever issuing a code. Not a bug — send them back with a
         # reason rather than a 400 they will never see.
         return RedirectResponse(
-            f"{ui_base}/provider-keys?google_calendar=error&reason={quote(error)}"
+            f"{ui_base}/integrations?google_calendar=error&reason={quote(error)}"
         )
 
     if not code or not state:
         return RedirectResponse(
-            f"{ui_base}/provider-keys?google_calendar=error&reason=missing_code"
+            f"{ui_base}/integrations?google_calendar=error&reason=missing_code"
         )
 
     async with db_client.async_session() as session:
@@ -85,11 +85,11 @@ async def callback(
         except oauth.GoogleCalendarError as exc:
             await session.rollback()
             return RedirectResponse(
-                f"{ui_base}/provider-keys?google_calendar=error&reason={quote(str(exc))}"
+                f"{ui_base}/integrations?google_calendar=error&reason={quote(str(exc))}"
             )
         await session.commit()
 
-    return RedirectResponse(f"{ui_base}/provider-keys?google_calendar=connected")
+    return RedirectResponse(f"{ui_base}/integrations?google_calendar=connected")
 
 
 @router.get("/status")

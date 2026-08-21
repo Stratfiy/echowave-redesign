@@ -13,6 +13,7 @@ import {
 import type { CreateToolRequest, ToolResponse } from "@/client/types.gen";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { CredentialSelector } from "@/components/http";
+import { IntegrationsTabs } from "@/components/integrations/IntegrationsTabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -292,16 +293,21 @@ export default function ToolsPage() {
 
     if (loading || !user) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="space-y-4">
-                    <Skeleton className="h-12 w-64" />
-                    <Skeleton className="h-64 w-96" />
+            <>
+                <IntegrationsTabs />
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="space-y-4">
+                        <Skeleton className="h-12 w-64" />
+                        <Skeleton className="h-64 w-96" />
+                    </div>
                 </div>
-            </div>
+            </>
         );
     }
 
     return (
+        <>
+        <IntegrationsTabs />
         <div className="min-h-screen">
             {confirmDialog}
             <div className="container mx-auto px-4 py-8">
@@ -640,5 +646,6 @@ export default function ToolsPage() {
                 </DialogContent>
             </Dialog>
         </div>
+        </>
     );
 }

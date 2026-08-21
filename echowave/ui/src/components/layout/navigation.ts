@@ -17,7 +17,6 @@ import {
   TrendingUp,
   Wallet,
   Workflow,
-  Wrench,
 } from "lucide-react";
 
 export type SidebarNavItem = {
@@ -110,6 +109,17 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // a slot in the model picker offers "your own key", and this is where the
       // key goes. Storing keys and choosing models are separate jobs, which is
       // why they are separate screens.
+      //
+      // One entry rather than two: provider keys and Tools used to be separate
+      // peers in this list, with Google Calendar buried inside the provider
+      // keys screen under no name of its own. All three are the same idea — an
+      // outside account or service an agent can reach — so they are grouped
+      // the way a competitor product groups them, under one "Integrations"
+      // label, with a tab strip (components/integrations/IntegrationsTabs) on
+      // the screens themselves. Every route is unchanged, so deep links —
+      // including the three from the model editor and the Google OAuth
+      // callback — still land where they did.
+      //
       // Not admin-gated, despite storing secrets. `GET /api/v1/provider-keys`
       // deliberately takes plain `get_user` — only PUT, POST /active and
       // DELETE require ADMIN. Reading is open because BYOK is a member's job:
@@ -120,10 +130,22 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // shows what exists rather than what it is. Adding, pausing and removing
       // are gated inside the screen.
       {
-        title: "Provider Keys",
-        url: "/provider-keys",
+        title: "Integrations",
+        url: "/integrations",
         icon: KeyRound,
-        keywords: ["byok", "api key", "credential", "secret", "vault"],
+        keywords: [
+          "byok",
+          "api key",
+          "credential",
+          "secret",
+          "vault",
+          "provider keys",
+          "tools",
+          "function",
+          "webhook",
+          "calendar",
+          "google calendar",
+        ],
       },
       // One entry, four screens. Verification, buying a number, carriers and
       // test numbers are one job done in sequence — get verified, buy a
@@ -159,12 +181,6 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "trial",
           "verify phone",
         ],
-      },
-      {
-        title: "Tools",
-        url: "/tools",
-        icon: Wrench,
-        keywords: ["function", "integration", "webhook", "calendar"],
       },
       {
         title: "Files",
