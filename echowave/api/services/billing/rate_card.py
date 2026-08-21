@@ -88,11 +88,35 @@ def _check_pulse(pulse_seconds: int | None) -> None:
         )
 
 
+async def _open_row(session: AsyncSession, stmt):
+    """The row currently in force for a key, including one written moments ago.
+
+    Flushes first. Every setter here asks "what is open for this key" and then
+    closes what it finds, so a setter that misses a pending row does not fail
+    loudly — it opens a second row for the same key and leaves the resolver
+    choosing between two. Autoflush would usually cover this, but it is a
+    session setting the caller owns and the test session turns it off, so the
+    correctness of a price change would depend on how the session that carries
+    it was constructed. It does not, now.
+    """
+    await session.flush()
+    return await session.scalar(stmt)
+
+
 async def _close_open_row(session: AsyncSession, row, effective_from: datetime) -> None:
     """Stamp the outgoing row's end so the two windows meet exactly.
 
     Refuses to close a row that has not started yet: two rows opening at the
     same instant would leave the resolver picking arbitrarily between them.
+
+    Flushes the stamp before returning, and that is not tidiness. The partial
+    unique index that keeps one open row per key is checked by the database at
+    statement time, so the UPDATE that closes the old row has to reach the
+    database before the INSERT that opens the new one. Left to its own
+    ordering the unit of work emits inserts before updates, which turns two
+    price changes in a single transaction — a flat rate and then a correction,
+    or one form that writes several rows — into a unique violation on a
+    constraint nothing has actually broken.
     """
     if row is None:
         return
@@ -102,6 +126,7 @@ async def _close_open_row(session: AsyncSession, row, effective_from: datetime) 
             f"The current price took effect at {row.effective_from.isoformat()}."
         )
     row.effective_to = effective_from
+    await session.flush()
 
 
 def _audit(
@@ -134,7 +159,8 @@ def _audit(
 async def _open_tier(
     session: AsyncSession, min_period_minutes: int
 ) -> PlatformVolumeTierModel | None:
-    return await session.scalar(
+    return await _open_row(
+        session,
         select(PlatformVolumeTierModel)
         .where(
             PlatformVolumeTierModel.min_period_minutes == min_period_minutes,
@@ -295,7 +321,8 @@ async def set_provider_rate(
         raise RateCardError("Name the provider this rate is for.")
 
     at = _resolve_effective_from(effective_from)
-    current = await session.scalar(
+    current = await _open_row(
+        session,
         select(ProviderRateModel)
         .where(
             ProviderRateModel.provider == provider,
@@ -356,7 +383,8 @@ async def retire_provider_rate(
     component_value = (
         component.value if isinstance(component, CostComponent) else str(component)
     )
-    current = await session.scalar(
+    current = await _open_row(
+        session,
         select(ProviderRateModel)
         .where(
             ProviderRateModel.provider == provider.strip().lower(),
@@ -404,7 +432,8 @@ async def set_exchange_rate(
         raise RateCardError("The exchange rate must be greater than zero.")
 
     at = datetime.now(UTC)
-    current = await session.scalar(
+    current = await _open_row(
+        session,
         select(UsdInrRateHistoryModel)
         .where(UsdInrRateHistoryModel.effective_to.is_(None))
         .order_by(UsdInrRateHistoryModel.effective_from.desc())
@@ -599,7 +628,8 @@ async def set_account_rate(
         raise RateCardError("Account not found.")
 
     at = _resolve_effective_from(effective_from)
-    current = await session.scalar(
+    current = await _open_row(
+        session,
         select(OrganizationRateHistoryModel)
         .where(
             OrganizationRateHistoryModel.organization_id == organization_id,

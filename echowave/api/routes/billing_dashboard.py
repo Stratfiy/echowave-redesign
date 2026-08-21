@@ -815,6 +815,97 @@ class BundleRequest(BaseModel):
     is_enabled: bool | None = None
 
 
+class ProviderRatesRequest(BaseModel):
+    """Price one vendor's component, flat or per model or both."""
+
+    provider: str
+    component: str
+    unit: str
+    #: Applies to every model without a row of its own.
+    flat_rate_mpaise: int | None = None
+    #: Model name to millipaise. Outranks the flat rate for those models.
+    model_rates: dict[str, int] = {}
+
+
+@router.get("/providers")
+async def list_providers(user: UserModel = Depends(get_superuser)) -> dict[str, Any]:
+    """Every vendor, grouped: what it serves, what it costs, and what is missing.
+
+    The shape the rate card should always have had. Nobody asks "what is row
+    forty-one"; they ask whether a vendor is set up and what it costs us — a
+    question that spans a stored key, the components it serves, and which
+    models are priced against a rate of their own rather than falling through
+    to the provider's.
+    """
+    from api.services.billing import provider_catalogue
+
+    async with db_client.async_session() as session:
+        entries = await provider_catalogue.build(session)
+
+    return {
+        "providers": [
+            {
+                "provider": entry.provider,
+                "is_priced": entry.is_priced,
+                "components": [
+                    {
+                        "component": component.component,
+                        "flat_rate_mpaise": component.flat_rate_mpaise,
+                        "flat_unit": component.flat_unit,
+                        "has_platform_key": component.has_platform_key,
+                        "models": [
+                            {
+                                "model": model.model,
+                                "rate_mpaise": model.rate_mpaise,
+                                "unit": model.unit,
+                                # True when this price is the provider's rather
+                                # than the model's. The flat-rate case, and the
+                                # reason an edit to one can look like it did
+                                # nothing to the other.
+                                "from_provider_rate": model.from_provider_rate,
+                            }
+                            for model in component.models
+                        ],
+                    }
+                    for component in entry.components
+                ],
+            }
+            for entry in entries
+        ]
+    }
+
+
+@router.put("/providers/rates")
+async def set_provider_rates(
+    request: ProviderRatesRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Price a vendor in one call — flat, per model, or both.
+
+    Vendors differ: some quote one price for everything they serve and some
+    price every model separately. An operator should not have to model one as
+    the other, and should not have to make fifteen separate calls to price a
+    catalogue. Each row still goes through the audited, effective-dated path.
+    """
+    from api.services.billing import provider_catalogue
+    from api.services.billing.rate_card import RateCardError
+
+    async with db_client.async_session() as session:
+        try:
+            result = await provider_catalogue.set_rates(
+                session,
+                provider=request.provider,
+                component=request.component,
+                unit=request.unit,
+                actor_user_id=user.id,
+                flat_rate_mpaise=request.flat_rate_mpaise,
+                model_rates=request.model_rates,
+            )
+        except RateCardError as exc:
+            raise _rate_card_error(exc) from exc
+        await session.commit()
+    return result
+
+
 @router.get("/bundles")
 async def list_bundles(user: UserModel = Depends(get_superuser)) -> dict[str, Any]:
     """Every bundle, and what each one runs on today.
