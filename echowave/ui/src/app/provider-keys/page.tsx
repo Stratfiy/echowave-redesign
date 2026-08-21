@@ -19,6 +19,13 @@ import {
     setProviderKeyActiveApiV1ProviderKeysActivePost,
     setProviderKeyApiV1ProviderKeysPut,
 } from "@/client/sdk.gen";
+import {
+    COMPONENTS,
+    type ComponentValue,
+    describeComponents,
+    FilterChip,
+    providerLabel,
+} from "@/components/providerCards";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,61 +57,10 @@ interface ProviderCredential {
     updated_at: string | null;
 }
 
-// The three slots a key can serve. Telephony is deliberately absent: carrier
-// credentials live on a telephony configuration, which also models the KYC that
-// comes with a phone number.
-//
-// These are categories for *reading* — a filter over one list of vendors — not
-// three lists to fill in one at a time. That was the old shape of this page and
-// the reason a customer with one Sarvam account met their one Sarvam key three
-// times and reasonably concluded we wanted three different things.
-const COMPONENTS = [
-    { value: "stt", title: "Transcription", noun: "transcription" },
-    { value: "llm", title: "Model", noun: "model" },
-    { value: "tts", title: "Voice", noun: "voice" },
-] as const;
-
-type ComponentValue = (typeof COMPONENTS)[number]["value"];
-
-function componentNoun(component: string): string {
-    return COMPONENTS.find((c) => c.value === component)?.noun ?? component;
-}
-
-/** "transcription, model and voice" — the vendor's coverage, said once. */
-function describeComponents(components: readonly string[]): string {
-    const nouns = components.map(componentNoun);
-    if (nouns.length === 0) return "";
-    if (nouns.length === 1) return nouns[0];
-    return `${nouns.slice(0, -1).join(", ")} and ${nouns[nouns.length - 1]}`;
-}
-
-// Vendors capitalise their own names, and title-casing produces "Openai" and
-// "Elevenlabs" — which look like we do not know who we are integrating with.
-// Only the ones whose casing a naive transform gets wrong are listed; anything
-// missing falls back to title case, so a new provider still reads sensibly.
-const PROVIDER_NAMES: Record<string, string> = {
-    openai: "OpenAI",
-    openai_realtime: "OpenAI Realtime",
-    elevenlabs: "ElevenLabs",
-    openrouter: "OpenRouter",
-    aws_bedrock: "AWS Bedrock",
-    google_vertex: "Google Vertex",
-    huggingface: "Hugging Face",
-    minimax: "MiniMax",
-    xai: "xAI",
-    assemblyai: "AssemblyAI",
-    azure_speech: "Azure Speech",
-};
-
-function providerLabel(provider: string): string {
-    return (
-        PROVIDER_NAMES[provider] ??
-        provider
-            .split("_")
-            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-            .join(" ")
-    );
-}
+// COMPONENTS, describeComponents and providerLabel live in
+// @/components/providerCards now — shared with the superadmin screen, which
+// draws the same card grid over the same registry. Two copies of a vendor's
+// display name are two places to forget to update when one is added.
 
 // Not yet in the generated SDK (client/sdk.gen.ts) -- these routes are new.
 // Plain fetch, same auth header the generated client attaches, until
@@ -898,28 +854,4 @@ function ProviderKeysScreen() {
         }
         setGcalBusy(false);
     }
-}
-
-function FilterChip({
-    active,
-    onClick,
-    children,
-}: {
-    active: boolean;
-    onClick: () => void;
-    children: React.ReactNode;
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className={
-                active
-                    ? "rounded-full border border-transparent bg-[color:var(--primary)] px-3 py-1.5 text-sm font-medium text-[color:var(--primary-foreground)]"
-                    : "rounded-full border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted"
-            }
-        >
-            {children}
-        </button>
-    );
 }
