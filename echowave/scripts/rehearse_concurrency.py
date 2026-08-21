@@ -56,6 +56,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from api.constants import (
     BALANCE_ENFORCEMENT_ENABLED,
+    MIN_BALANCE_PAISE,
     RESERVATION_MAX_AGE_MINUTES,
 )
 from api.db import db_client
@@ -131,7 +132,21 @@ class Rehearsal:
             self.hold_paise = await reservations.estimate_paise(
                 session, organization_id=org.id
             )
-            self.credit_paise = self.hold_paise * affordable
+            # Funded for exactly ``affordable`` simultaneous starts, and the
+            # arithmetic has to account for the floor.
+            #
+            # Calling stops *below* MIN_BALANCE_PAISE, not below zero, so an
+            # account holding one hold's worth of credit cannot spend it. A
+            # start is allowed while the balance before it is at or above the
+            # floor, so the last one we want permitted needs the floor still
+            # standing underneath it: floor + hold x (affordable - 1). Funding
+            # hold x affordable — the obvious figure, and what this used to do —
+            # buys one fewer call than it looks like, which is precisely the
+            # off-by-one this rehearsal exists to catch in production rather
+            # than reproduce in itself.
+            self.credit_paise = MIN_BALANCE_PAISE + self.hold_paise * (
+                affordable - 1
+            )
             session.add(
                 CreditLedgerModel(
                     organization_id=org.id,

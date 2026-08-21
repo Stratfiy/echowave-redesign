@@ -55,9 +55,25 @@ INVALID_SERVICE_KEY_MESSAGE = (
     "Please validate the service keys."
 )
 
+
 #: Shown to the customer, so it names the fix rather than the mechanism. The
 #: caller never sees "reservation" — that is our accounting, not their problem.
-NO_CREDIT_MESSAGE = "Your account is out of credit. Add credit to keep calling."
+#:
+#: Composed rather than a constant string because calling stops at a floor, not
+#: at zero, and a message saying "out of credit" to an account showing ₹18 reads
+#: as a bug in our arithmetic rather than as a thing they can fix.
+def no_credit_message() -> str:
+    from api.constants import MIN_BALANCE_PAISE, MIN_TOPUP_PAISE
+
+    return (
+        f"Calling stops when your balance falls below ₹{MIN_BALANCE_PAISE / 100:,.0f}. "
+        f"Add credit from ₹{MIN_TOPUP_PAISE / 100:,.0f} to start calling again."
+    )
+
+
+#: Kept for callers that import the old name. Evaluated at import time, so it
+#: does not follow an environment change the way the function does.
+NO_CREDIT_MESSAGE = no_credit_message()
 
 
 @dataclass
@@ -159,7 +175,7 @@ def _no_credit_result() -> QuotaCheckResult:
     return QuotaCheckResult(
         has_quota=False,
         error_code="insufficient_credit",
-        error_message=NO_CREDIT_MESSAGE,
+        error_message=no_credit_message(),
     )
 
 

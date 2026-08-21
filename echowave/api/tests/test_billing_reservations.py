@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import func, select
 
+from api.constants import MIN_BALANCE_PAISE
 from api.db.models import (
     CreditLedgerModel,
     DailyOrganizationRollupModel,
@@ -167,12 +168,28 @@ class TestHoldingFunds:
     async def test_a_thin_balance_holds_what_is_left_rather_than_refusing(
         self, async_session
     ):
-        """₹5 left buys one more call, not a refusal.
+        """Above the floor but short of a full estimate buys one more call.
 
         Refusing anything short of a full estimate would strand credit the
-        customer has already paid for.
+        customer has already paid for. The floor moves where that line sits —
+        it does not remove the case, it just means the thin balance has to be a
+        thin balance on an expensive stack rather than on any stack.
+
+        The history below pins the estimate at ₹10 a minute over the five-minute
+        window: a ₹50 hold, against ₹25 of credit that is comfortably over the
+        ₹20 floor.
         """
-        org = await _org(async_session, "thin", balance_paise=5 * RUPEE)
+        org = await _org(async_session, "thin", balance_paise=25 * RUPEE)
+        async_session.add(
+            DailyOrganizationRollupModel(
+                organization_id=org.id,
+                day=datetime.now(UTC).date(),
+                calls=100,
+                billable_seconds=6_000,
+                charged_paise=1_000 * RUPEE,
+            )
+        )
+        await async_session.flush()
         run = await _run(async_session, org)
 
         held = await reservations.reserve(
@@ -180,7 +197,7 @@ class TestHoldingFunds:
         )
 
         assert held is not None
-        assert held.amount_paise == 5 * RUPEE
+        assert held.amount_paise == 25 * RUPEE
         assert await current_balance_paise(async_session, organization_id=org.id) == 0
 
     async def test_enforcement_off_holds_nothing(self, async_session, monkeypatch):
@@ -226,10 +243,16 @@ class TestConcurrentStarts:
             setup.add(
                 CreditLedgerModel(
                     organization_id=org.id,
-                    # Enough for exactly two holds, given the history below.
-                    delta_paise=20 * RUPEE,
+                    # Enough for exactly two starts, given the history below.
+                    #
+                    # Floor + one hold, not two holds. A start is allowed while
+                    # the balance *before* it is at or above MIN_BALANCE_PAISE,
+                    # so two holds' worth of credit buys one call and leaves the
+                    # rest stranded under the floor. That is the whole point of
+                    # the floor and the reason this figure is not 20.
+                    delta_paise=MIN_BALANCE_PAISE + 10 * RUPEE,
                     kind=CreditLedgerKind.TOPUP.value,
-                    balance_after_paise=20 * RUPEE,
+                    balance_after_paise=MIN_BALANCE_PAISE + 10 * RUPEE,
                 )
             )
             # Pin the estimate through data rather than by patching the module:
@@ -297,14 +320,18 @@ class TestConcurrentStarts:
                     or 0
                 )
 
-            # Eight simultaneous starts, ₹20 of credit, ₹10 held per call.
-            # Without the lock every one of them succeeds.
+            # Eight simultaneous starts, ₹30 of credit, ₹10 held per call, and
+            # a ₹20 floor underneath. Without the lock every one of them
+            # succeeds.
             assert sum(results) == 2, (
                 f"{sum(results)} of 8 concurrent starts were allowed on a "
                 "balance that covers 2"
             )
             assert held_rows == 2
-            assert balance == 0
+            # Under the floor rather than at zero, which is what stops the
+            # other six: the remainder is real credit, and it is exactly what
+            # the floor exists to leave standing.
+            assert balance < MIN_BALANCE_PAISE
         finally:
             async with maker() as cleanup:
                 await cleanup.execute(
@@ -572,15 +599,21 @@ class TestReAuthorizingALiveCall:
     the balance to exactly the point where a bare check refuses it.
     """
 
-    async def test_a_run_holding_funds_passes_even_at_zero_balance(self, async_session):
-        org = await _org(async_session, "reauth", balance_paise=10 * RUPEE)
+    async def test_a_run_holding_funds_passes_below_the_floor(self, async_session):
+        # Funded above MIN_BALANCE_PAISE so the call may start at all, and the
+        # hold it takes then drives the balance under the floor — which is the
+        # exact state a reconnect arrives in, and the one a bare check refuses.
+        org = await _org(async_session, "reauth", balance_paise=25 * RUPEE)
         run = await _run(async_session, org)
 
         held = await reservations.reserve(
             async_session, organization_id=org.id, workflow_run_id=run.id
         )
         assert held is not None
-        assert await current_balance_paise(async_session, organization_id=org.id) == 0
+        assert (
+            await current_balance_paise(async_session, organization_id=org.id)
+            < MIN_BALANCE_PAISE
+        )
 
         # Without the run id this reads as an unfunded account.
         assert not await reservations.has_credit(async_session, organization_id=org.id)
@@ -591,7 +624,7 @@ class TestReAuthorizingALiveCall:
 
     async def test_a_different_run_is_still_refused(self, async_session):
         """The exemption is for *this* call, not a licence to start more."""
-        org = await _org(async_session, "reauthother", balance_paise=10 * RUPEE)
+        org = await _org(async_session, "reauthother", balance_paise=25 * RUPEE)
         live = await _run(async_session, org, name="live")
         other = await _run(async_session, org, name="other")
 

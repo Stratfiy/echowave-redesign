@@ -199,7 +199,7 @@ I diffed all 291 API routes against the hand-written UI (excluding the generated
 client). Coverage is genuinely good — most of what follows is deliberate
 server-to-server. These are the ones that are not.
 
-### 2.1 The ₹2,999 starter plan cannot be bought
+### 2.1 The ₹2,999 starter plan cannot be bought — FIXED
 
 `GET /billing/plan` and `POST /billing/plan` are complete: mandate creation,
 idempotent balance grant keyed on the provider payment id, rent settled in the
@@ -213,7 +213,9 @@ in `ui/src` outside `client/` references them.
 This is the launch SKU. Everything behind it is done and the customer cannot
 reach it.
 
-- [ ] Build the purchase flow — what it costs, what it includes, and the Razorpay authorisation hand-off. `/numbers` already does exactly this shape for the rental mandate
+- [x] Built: **Billing → Plan** lists every plan with its price, the grossed-up figure the bank will actually take, what it grants, and the authorisation hand-off
+- [x] **The entitlement is now real.** A plan includes N numbers; number N+1 opens its own ₹499 monthly rental against the balance. Before this, a plan mandate authorised *every* number an account provisioned — the monthly job skipped them all because the bank was collecting, and the collection settled only the lowest-numbered charge, so numbers two and beyond were free for ever with nothing reading as an error. The same hole existed for a plain rental mandate
+- [x] **Plans are rows, not constants.** `subscription_plans` table + `/superadmin/billing/plans`, so a second plan needs no release. Refuses a plan granting more balance than it collects — balance is spendable at our cost the moment it lands
 
 ### 2.2 Autopay can be started but not cancelled
 
@@ -331,6 +333,12 @@ Both are clean today; I ran them. Nothing keeps them clean.
   behaviour is right and consistent; the comments now say the opposite, and this
   file's comments are how everyone reasons about it.
 - `constants.py` says `13000 = 1.30x` above a default of `14000`.
+- **Calling now stops below ₹20 rather than below zero**, and top-ups are sold
+  in steps of ₹100. Zero was the wrong floor: a call's cost is not known until
+  it ends, so an account allowed to start on its last rupee finishes overdrawn.
+  The floor makes the last call one it could always afford. It strands up to
+  ₹20, which is the deliberate trade and is stated on the billing screen, in
+  the low-balance email and in the refusal message.
 - The plan balance grant **never expires** — `CreditLedgerKind.PLAN` is an
   ordinary credit row. `PRICING-FIX-PLAN.md` flagged expiry-vs-rollover as a
   decision to make explicitly; it has been made by default, in favour of
@@ -368,13 +376,12 @@ Order matters. Each step assumes the one above it.
 
 **Before the plan is sold**
 
-10. Ship 2.1 (plan purchase UI) and 2.2 (cancel)
+10. ~~Ship 2.1 (plan purchase UI)~~ — done. 2.2 (cancel) is still open
 11. Decide balance expiry (3.5) and state it on the purchase screen
-12. Update `docs/account/billing.mdx` and `docs/getting-started/index.mdx`. Both
-    currently say **"$0.02 per minute, billed per second"** — we bill in
-    15-second pulses. That is wrong today, before any flag moves, and it is our
-    best commercial differentiator stated as an error. Phase 5 of the pricing
-    plan (the tiered BYOK fee) lands in the same edit
+12. ~~The docs said "$0.02 per minute, billed per second" when we bill in
+    15-second pulses~~ — corrected, and the plan, the ₹20 floor and the ₹100
+    top-up steps are documented. Phase 5 of the pricing plan (the tiered BYOK
+    fee) is still to land on the same page
 
 **Then, and only then**
 

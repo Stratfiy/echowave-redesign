@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import (
     BALANCE_ENFORCEMENT_ENABLED,
+    MIN_BALANCE_PAISE,
     RESERVATION_MAX_AGE_MINUTES,
     RESERVATION_MINUTES,
 )
@@ -198,7 +199,8 @@ async def has_credit(
         if held is not None:
             return True
 
-    return await current_balance_paise(session, organization_id=organization_id) > 0
+    balance = await current_balance_paise(session, organization_id=organization_id)
+    return balance >= MIN_BALANCE_PAISE
 
 
 async def reserve(
@@ -220,11 +222,17 @@ async def reserve(
     starting on the *same* account at the same moment. That is precisely the
     set of operations that must not interleave.
 
-    **Holds ``min(estimate, balance)``.** An account with ₹5 left gets to make
-    one more call rather than being refused for not having a full estimate's
-    worth; it will simply end slightly overdrawn, and the next call is refused.
-    Refusing at "less than a full estimate" would strand credit customers have
+    **Holds ``min(estimate, balance)``.** An account above the floor gets to
+    make a call even when its balance is less than a full estimate's worth;
+    refusing at "less than a full estimate" would strand credit customers have
     paid for.
+
+    **Refuses below ``MIN_BALANCE_PAISE`` rather than below zero.** A call's
+    cost is not known until it ends, so an account allowed to start on its last
+    rupee finishes overdrawn — and the floor is what makes the last call one it
+    could always afford. The floor is a gate, not a reserve: a call already
+    running may take the balance below it, and the account simply cannot start
+    another until it tops up.
     """
     if not BALANCE_ENFORCEMENT_ENABLED:
         return None
@@ -250,12 +258,13 @@ async def reserve(
     )
 
     balance = await current_balance_paise(session, organization_id=organization_id)
-    if balance <= 0:
+    if balance < MIN_BALANCE_PAISE:
         logger.info(
-            "Refusing workflow run {} for org {}: balance is {} paise",
+            "Refusing workflow run {} for org {}: balance is {} paise, floor is {}",
             workflow_run_id,
             organization_id,
             balance,
+            MIN_BALANCE_PAISE,
         )
         return None
 

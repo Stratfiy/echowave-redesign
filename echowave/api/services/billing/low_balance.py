@@ -25,13 +25,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
+from api.constants import MIN_BALANCE_PAISE, MIN_TOPUP_PAISE
+
 #: Runway thresholds, in days.
 WARN_AT_DAYS = 10
 CRITICAL_AT_DAYS = 3
 
-#: The absolute floor, for accounts with no measurable burn rate. ₹200 buys a
+#: Warning thresholds, for accounts with no measurable burn rate. ₹200 buys a
 #: little under an hour of conversation at the launch rate — enough that the
 #: warning is early rather than an obituary.
+#:
+#: Both sit above ``MIN_BALANCE_PAISE``, the balance at which calling actually
+#: stops, and that ordering is the point: the critical warning has to arrive
+#: while the account can still place the call that would tell them.
 WARN_BELOW_PAISE = 20_000
 CRITICAL_BELOW_PAISE = 5_000
 
@@ -148,7 +154,11 @@ def compose(
 
     lines += [
         "",
-        "Calls stop when the balance reaches zero.",
+        # The floor, not zero. A warning that says calls stop at zero, to an
+        # account that then cannot dial at ₹18, reads as a broken system rather
+        # than as a thing the customer can fix.
+        f"Calling pauses once the balance falls below {_rupees(MIN_BALANCE_PAISE)}, "
+        f"and resumes as soon as you top up (from {_rupees(MIN_TOPUP_PAISE)}).",
     ]
 
     if has_numbers:

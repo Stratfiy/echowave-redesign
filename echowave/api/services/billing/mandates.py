@@ -231,11 +231,19 @@ async def ensure_rental_plan(
 
 
 async def ensure_starter_plan(
-    *, price_paise: int, client: httpx.AsyncClient | None = None
+    *,
+    price_paise: int,
+    pinned: str | None = None,
+    client: httpx.AsyncClient | None = None,
 ) -> str:
-    """The plan id a starter-plan subscription is created against."""
+    """The plan id a plan subscription is created against.
+
+    ``pinned`` is the plan row's own provider id, which outranks the
+    environment variable: with more than one plan on sale there is no single
+    RAZORPAY_STARTER_PLAN_ID that could be right for all of them.
+    """
     return await _ensure_plan(
-        pinned=RAZORPAY_STARTER_PLAN_ID,
+        pinned=pinned or RAZORPAY_STARTER_PLAN_ID,
         env_var="RAZORPAY_STARTER_PLAN_ID",
         name="Decibyl starter plan",
         description="Monthly: a phone number and a call balance",
@@ -376,6 +384,7 @@ async def create_plan_mandate(
     session: AsyncSession,
     *,
     organization_id: int,
+    plan=None,
     price_paise: int | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> PaymentMandateModel:
@@ -402,7 +411,14 @@ async def create_plan_mandate(
     # is the bug the rental mandate's own comment records — a plan collected at
     # the net figure would collect no GST at all, month after month, by
     # standing instruction.
-    net_paise = int(price_paise or STARTER_PLAN_PRICE_PAISE)
+    # The plan decides the price and which provider plan to subscribe to. The
+    # constants remain the fallback for a deployment that has not run the plans
+    # migration, so this function keeps working before the table exists.
+    net_paise = int(
+        price_paise
+        if price_paise is not None
+        else (plan.price_paise if plan is not None else STARTER_PLAN_PRICE_PAISE)
+    )
     profile = await get_profile(session, organization_id=organization_id)
     try:
         gross_paise = gross_up(
@@ -413,7 +429,11 @@ async def create_plan_mandate(
     except TaxError as exc:
         raise MandateError(str(exc)) from exc
 
-    plan_id = await ensure_starter_plan(price_paise=gross_paise, client=client)
+    plan_id = await ensure_starter_plan(
+        price_paise=gross_paise,
+        pinned=(plan.razorpay_plan_id if plan is not None else None),
+        client=client,
+    )
 
     created = await _post(
         "/subscriptions",
@@ -441,6 +461,10 @@ async def create_plan_mandate(
         # The net figure, so everything reading a mandate's price reads the
         # same kind of number. The gross lives in the provider payload.
         price_paise=net_paise,
+        # Which plan this bought. Read months later by the entitlement check
+        # and by the balance grant, so it has to be recorded at the moment of
+        # sale rather than re-derived from a catalogue that may have moved.
+        plan_code=(plan.code if plan is not None else None),
         provider_payload=created,
     )
     session.add(mandate)

@@ -45,6 +45,7 @@ from api.constants import (
     RAZORPAY_KEY_ID,
     RAZORPAY_KEY_SECRET,
     RAZORPAY_WEBHOOK_SECRET,
+    TOPUP_INCREMENT_PAISE,
 )
 from api.db.models import CreditLedgerModel, PaymentMandateModel, PaymentModel
 from api.enums import CreditLedgerKind
@@ -123,8 +124,10 @@ async def create_topup_order(
     later has something to reconcile against and cannot be the first thing that
     tells us an order existed.
     """
-    key_id, key_secret = _require_api_credentials()
-
+    # The amount is checked before the credentials are. Both raise PaymentError,
+    # and which one fires decides what the customer is told: an amount they can
+    # correct, or a configuration problem that is ours. Reading the environment
+    # first meant a mistyped ₹137 came back as "Razorpay is not configured".
     if amount_paise < MIN_TOPUP_PAISE:
         raise PaymentError(f"The minimum top-up is ₹{MIN_TOPUP_PAISE / 100:,.0f}.")
     if amount_paise > MAX_TOPUP_PAISE:
@@ -132,6 +135,17 @@ async def create_topup_order(
             f"The maximum top-up is ₹{MAX_TOPUP_PAISE / 100:,.0f}. "
             "Contact us for a larger amount."
         )
+    # Enforced here rather than only in the request schema, because this
+    # function is the one thing between an amount and a Razorpay order and the
+    # route is not its only caller.
+    if TOPUP_INCREMENT_PAISE > 0 and amount_paise % TOPUP_INCREMENT_PAISE:
+        raise PaymentError(
+            f"Top-ups are in steps of ₹{TOPUP_INCREMENT_PAISE / 100:,.0f}. "
+            f"₹{amount_paise / 100:,.2f} is not one — try "
+            f"₹{(amount_paise // TOPUP_INCREMENT_PAISE + 1) * TOPUP_INCREMENT_PAISE / 100:,.0f}."
+        )
+
+    key_id, key_secret = _require_api_credentials()
 
     profile = await get_profile(session, organization_id=organization_id)
     try:

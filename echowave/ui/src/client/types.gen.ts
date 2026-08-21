@@ -5363,6 +5363,59 @@ export type PhoneNumberUpdateRequest = {
 };
 
 /**
+ * PlanRequest
+ *
+ * A plan an operator is creating or changing.
+ *
+ * Every money field is **net of GST**, like the ledger and like every other
+ * figure in this section. The bank is told the grossed-up amount, computed per
+ * account against that customer's own billing profile at the moment they
+ * subscribe.
+ */
+export type PlanRequest = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Blurb
+     */
+    blurb?: string;
+    /**
+     * Price Paise
+     */
+    price_paise: number;
+    /**
+     * Balance Paise
+     */
+    balance_paise?: number;
+    /**
+     * Included Numbers
+     */
+    included_numbers?: number;
+    /**
+     * Extra Number Price Paise
+     */
+    extra_number_price_paise?: number | null;
+    /**
+     * Razorpay Plan Id
+     */
+    razorpay_plan_id?: string | null;
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+    /**
+     * Sort Order
+     */
+    sort_order?: number;
+};
+
+/**
  * PlatformManagedRequest
  */
 export type PlatformManagedRequest = {
@@ -6828,6 +6881,19 @@ export type StartResponse = {
 };
 
 /**
+ * SubscribeRequest
+ *
+ * Which plan to start. Omitted means the starter plan, which is what the
+ * single-plan client sent before there was a choice.
+ */
+export type SubscribeRequest = {
+    /**
+     * Plan Code
+     */
+    plan_code?: string | null;
+};
+
+/**
  * SuperuserWorkflowRunResponse
  */
 export type SuperuserWorkflowRunResponse = {
@@ -7417,7 +7483,7 @@ export type TopupRequest = {
     /**
      * Amount Paise
      *
-     * Credit to buy, in paise, net of GST. ₹500 is 50000. Tax is added on top of this at checkout.
+     * Credit to buy, in paise, net of GST. ₹500 is 50000. Bought in steps of TOPUP_INCREMENT_PAISE. Tax is added on top of this at checkout.
      */
     amount_paise: number;
 };
@@ -11759,6 +11825,92 @@ export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPost
 
 export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponse = RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponses[keyof RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponses];
 
+export type ListPlansApiV1AdminBillingPlansGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/plans';
+};
+
+export type ListPlansApiV1AdminBillingPlansGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPlansApiV1AdminBillingPlansGetError = ListPlansApiV1AdminBillingPlansGetErrors[keyof ListPlansApiV1AdminBillingPlansGetErrors];
+
+export type ListPlansApiV1AdminBillingPlansGetResponses = {
+    /**
+     * Response List Plans Api V1 Admin Billing Plans Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListPlansApiV1AdminBillingPlansGetResponse = ListPlansApiV1AdminBillingPlansGetResponses[keyof ListPlansApiV1AdminBillingPlansGetResponses];
+
+export type UpsertPlanApiV1AdminBillingPlansPutData = {
+    body: PlanRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/plans';
+};
+
+export type UpsertPlanApiV1AdminBillingPlansPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpsertPlanApiV1AdminBillingPlansPutError = UpsertPlanApiV1AdminBillingPlansPutErrors[keyof UpsertPlanApiV1AdminBillingPlansPutErrors];
+
+export type UpsertPlanApiV1AdminBillingPlansPutResponses = {
+    /**
+     * Response Upsert Plan Api V1 Admin Billing Plans Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UpsertPlanApiV1AdminBillingPlansPutResponse = UpsertPlanApiV1AdminBillingPlansPutResponses[keyof UpsertPlanApiV1AdminBillingPlansPutResponses];
+
 export type GetBuilderConfigApiV1AgentBuilderConfigGetData = {
     body?: never;
     headers?: {
@@ -14619,7 +14771,10 @@ export type GetPlanApiV1BillingPlanGetResponses = {
 export type GetPlanApiV1BillingPlanGetResponse = GetPlanApiV1BillingPlanGetResponses[keyof GetPlanApiV1BillingPlanGetResponses];
 
 export type SubscribeToPlanApiV1BillingPlanPostData = {
-    body?: never;
+    /**
+     * Payload
+     */
+    body?: SubscribeRequest | null;
     headers?: {
         /**
          * Authorization
