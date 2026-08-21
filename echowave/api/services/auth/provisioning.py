@@ -17,10 +17,10 @@ from __future__ import annotations
 
 from loguru import logger
 
+from api.constants import UI_APP_URL
 from api.db import db_client
 from api.db.models import OrganizationModel, UserModel
 from api.enums import OrganizationConfigurationKey, OrganizationRole
-from api.constants import UI_APP_URL
 from api.services.auth import welcome_email
 from api.services.auth.depends import create_user_configuration_with_mps_key
 from api.services.configuration.ai_model_configuration import (

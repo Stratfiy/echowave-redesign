@@ -111,7 +111,8 @@ async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, An
         # brains because the screen needs all three to render one price, and
         # three round trips to draw one number is how a picker feels slow.
         bundles = await agent_options.bundle_options(
-            session, organization_id=organization_id,
+            session,
+            organization_id=organization_id,
             telephony_provider=basis.provider,
         )
 

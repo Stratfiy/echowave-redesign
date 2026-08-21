@@ -92,15 +92,19 @@ async def billable_carrier(
     through.
     """
     rows = (
-        await session.execute(
-            select(TelephonyConfigurationModel)
-            .where(TelephonyConfigurationModel.organization_id == organization_id)
-            .order_by(
-                TelephonyConfigurationModel.is_default_outbound.desc(),
-                TelephonyConfigurationModel.id,
+        (
+            await session.execute(
+                select(TelephonyConfigurationModel)
+                .where(TelephonyConfigurationModel.organization_id == organization_id)
+                .order_by(
+                    TelephonyConfigurationModel.is_default_outbound.desc(),
+                    TelephonyConfigurationModel.id,
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     if not rows:
         return CarriageBasis(

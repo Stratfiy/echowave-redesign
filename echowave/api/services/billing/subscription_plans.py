@@ -208,7 +208,10 @@ async def save(
     )
     row.razorpay_plan_id = (razorpay_plan_id or "").strip() or None
     row.razorpay_plan_id_export = (razorpay_plan_id_export or "").strip() or None
-    if row.razorpay_plan_id_export and row.razorpay_plan_id_export == row.razorpay_plan_id:
+    if (
+        row.razorpay_plan_id_export
+        and row.razorpay_plan_id_export == row.razorpay_plan_id
+    ):
         # One id cannot be pinned at two amounts. Pointing both at the same
         # provider plan does not make an export account pay the net — it makes
         # the guard pass for one of them and refuse the other, at random

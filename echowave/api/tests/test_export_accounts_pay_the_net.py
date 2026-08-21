@@ -76,7 +76,9 @@ class TestThePlanRowCarriesBoth:
         """Pointing both fields at one provider plan does not make an export
         account pay the net. It makes the amount guard pass for one of them and
         refuse the other, depending on who subscribes."""
-        with pytest.raises(subscription_plans.PlanError, match="separate Razorpay plan"):
+        with pytest.raises(
+            subscription_plans.PlanError, match="separate Razorpay plan"
+        ):
             await subscription_plans.save(
                 async_session,
                 code="starter-same",
@@ -126,7 +128,10 @@ class TestWhichPlanAMandateSubscribesTo:
         source = inspect.getsource(mandates.create_plan_mandate)
 
         assert 'breakdown.supply_type == "export"' in source
-        assert "plan.razorpay_plan_id_export if is_export else plan.razorpay_plan_id" in source
+        assert (
+            "plan.razorpay_plan_id_export if is_export else plan.razorpay_plan_id"
+            in source
+        )
 
     def test_a_missing_export_plan_refuses_rather_than_falling_through(self):
         import inspect

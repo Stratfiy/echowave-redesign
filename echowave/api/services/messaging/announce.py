@@ -113,9 +113,7 @@ async def announce(
             for address in addresses
         ]
         sent = any(result.ok for result in results)
-        failure = next(
-            (r.error for r in results if not r.ok and r.error), None
-        )
+        failure = next((r.error for r in results if not r.ok and r.error), None)
 
         async with db_client.async_session() as session:
             stored = await session.get(NotificationModel, record.id)

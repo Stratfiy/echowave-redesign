@@ -81,9 +81,7 @@ _CONSUMING_KINDS = (
 )
 
 
-async def _consumed_since(
-    session: AsyncSession, *, grant: CreditLedgerModel
-) -> int:
+async def _consumed_since(session: AsyncSession, *, grant: CreditLedgerModel) -> int:
     """How much has been spent since ``grant`` landed, in paise.
 
     Plan balance is spent before anything else — it is the money that expires,
@@ -393,12 +391,16 @@ async def sweep_lapsed_plan_balance(
         .subquery()
     )
     grants = (
-        await session.execute(
-            select(CreditLedgerModel)
-            .join(newest, CreditLedgerModel.id == newest.c.grant_id)
-            .where(CreditLedgerModel.created_at < cutoff)
+        (
+            await session.execute(
+                select(CreditLedgerModel)
+                .join(newest, CreditLedgerModel.id == newest.c.grant_id)
+                .where(CreditLedgerModel.created_at < cutoff)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     counters = {"considered": len(grants), "expired": 0, "paise": 0}
     for grant in grants:

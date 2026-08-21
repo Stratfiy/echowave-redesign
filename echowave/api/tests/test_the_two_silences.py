@@ -92,7 +92,9 @@ class TestTheWelcome:
     def test_one_welcome_per_account_for_ever(self):
         """Both front doors can re-provision a half-finished signup."""
         first = welcome_email.compose(account_name=None, app_url="https://x.test")
-        again = welcome_email.compose(account_name="Later Name", app_url="https://x.test")
+        again = welcome_email.compose(
+            account_name="Later Name", app_url="https://x.test"
+        )
 
         assert first.dedupe_key == again.dedupe_key
 
@@ -167,13 +169,22 @@ class TestThePlanConfirmation:
         authorisation and retries both at least once. Keying on the event would
         confirm the same standing instruction four times."""
         first = plan_email.compose(
-            plan=_plan(), mandate_id=7, authorised_paise=353_882, app_url="https://x.test"
+            plan=_plan(),
+            mandate_id=7,
+            authorised_paise=353_882,
+            app_url="https://x.test",
         )
         again = plan_email.compose(
-            plan=_plan(), mandate_id=7, authorised_paise=353_882, app_url="https://x.test"
+            plan=_plan(),
+            mandate_id=7,
+            authorised_paise=353_882,
+            app_url="https://x.test",
         )
         other = plan_email.compose(
-            plan=_plan(), mandate_id=8, authorised_paise=353_882, app_url="https://x.test"
+            plan=_plan(),
+            mandate_id=8,
+            authorised_paise=353_882,
+            app_url="https://x.test",
         )
 
         assert first.dedupe_key == again.dedupe_key
@@ -181,7 +192,7 @@ class TestThePlanConfirmation:
 
 
 class TestOnlyTheTransitionAnnounces:
-    """"Is authorised" is true four times; "just became authorised" once."""
+    """ "Is authorised" is true four times; "just became authorised" once."""
 
     def test_a_move_into_an_authorised_state_is_reported(self):
         from api.enums import MandateStatus

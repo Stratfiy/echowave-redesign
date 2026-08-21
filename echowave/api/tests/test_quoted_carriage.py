@@ -62,9 +62,7 @@ class TestTheThreeStates:
     ):
         org = await _org(async_session, "none")
 
-        basis = await carriage.billable_carrier(
-            async_session, organization_id=org.id
-        )
+        basis = await carriage.billable_carrier(async_session, organization_id=org.id)
 
         assert basis.provider is None
         assert basis.reason == carriage.NO_CARRIER
@@ -82,9 +80,7 @@ class TestTheThreeStates:
         org = await _org(async_session, "byok")
         await _config(async_session, org, provider="twilio", managed=False)
 
-        basis = await carriage.billable_carrier(
-            async_session, organization_id=org.id
-        )
+        basis = await carriage.billable_carrier(async_session, organization_id=org.id)
 
         assert basis.provider is None
         assert basis.reason == carriage.CUSTOMER_CARRIER
@@ -94,9 +90,7 @@ class TestTheThreeStates:
         org = await _org(async_session, "managed")
         await _config(async_session, org, provider="plivo", managed=True)
 
-        basis = await carriage.billable_carrier(
-            async_session, organization_id=org.id
-        )
+        basis = await carriage.billable_carrier(async_session, organization_id=org.id)
 
         assert basis.provider == "plivo"
         assert basis.reason == carriage.MANAGED
@@ -111,9 +105,7 @@ class TestWhichConfigurationAnswers:
         up naming a carrier the customer never dials on.
         """
         org = await _org(async_session, "several")
-        await _config(
-            async_session, org, provider="twilio", managed=False, name="old"
-        )
+        await _config(async_session, org, provider="twilio", managed=False, name="old")
         await _config(
             async_session,
             org,
@@ -123,9 +115,7 @@ class TestWhichConfigurationAnswers:
             name="current",
         )
 
-        basis = await carriage.billable_carrier(
-            async_session, organization_id=org.id
-        )
+        basis = await carriage.billable_carrier(async_session, organization_id=org.id)
 
         assert basis.provider == "plivo"
 
@@ -137,9 +127,7 @@ class TestWhichConfigurationAnswers:
         org = await _org(async_session, "unflagged")
         await _config(async_session, org, provider="plivo", managed=True, name="only")
 
-        basis = await carriage.billable_carrier(
-            async_session, organization_id=org.id
-        )
+        basis = await carriage.billable_carrier(async_session, organization_id=org.id)
 
         assert basis.provider == "plivo"
 

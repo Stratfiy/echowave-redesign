@@ -45,7 +45,9 @@ from api.services.billing.default_rates import (
 LONG_AGO = datetime(2020, 1, 1, tzinfo=UTC)
 
 
-def _carriage_rate(provider: str, *, note: str, mpaise: int = 1_200) -> ProviderRateModel:
+def _carriage_rate(
+    provider: str, *, note: str, mpaise: int = 1_200
+) -> ProviderRateModel:
     return ProviderRateModel(
         provider=provider,
         model="",
@@ -141,18 +143,24 @@ class TestWhatIsActuallyInForce:
         )
         await async_session.flush()
 
-        assert await carrier_rates.is_provisionally_priced(
-            async_session, provider="vonage"
-        ) is False
+        assert (
+            await carrier_rates.is_provisionally_priced(
+                async_session, provider="vonage"
+            )
+            is False
+        )
 
     async def test_a_carrier_with_no_rate_at_all_is_not_provisional(
         self, db_session, async_session
     ):
         """Unpriced is a different failure with its own guard. Conflating the
         two would let a carrier with no row at all pass as merely uncertain."""
-        assert await carrier_rates.is_provisionally_priced(
-            async_session, provider="twilio"
-        ) is False
+        assert (
+            await carrier_rates.is_provisionally_priced(
+                async_session, provider="twilio"
+            )
+            is False
+        )
 
 
 async def _org_and_config(session, slug: str, provider: str, *, managed: bool = False):
@@ -246,9 +254,7 @@ class TestTheManagedPathRefusesAGuess:
         self, db_session, async_session
     ):
         """Backing out of a mistake must not need the price fixed first."""
-        _, config = await _org_and_config(
-            async_session, "undo", "telnyx", managed=True
-        )
+        _, config = await _org_and_config(async_session, "undo", "telnyx", managed=True)
         staff = await _staff(async_session, "undo")
 
         async with _client(staff) as client:

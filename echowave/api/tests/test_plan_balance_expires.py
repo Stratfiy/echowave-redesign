@@ -92,9 +92,7 @@ class TestWhatExpires:
     async def test_only_the_unspent_part_expires(self, db_session, async_session):
         org = await _org(async_session, "partly")
         grant = await _grant(async_session, org)
-        await _entry(
-            async_session, org, delta=-90_000, kind=CreditLedgerKind.USAGE
-        )
+        await _entry(async_session, org, delta=-90_000, kind=CreditLedgerKind.USAGE)
 
         expired = await plans.expire_grant(async_session, grant=grant)
 
@@ -104,9 +102,7 @@ class TestWhatExpires:
     async def test_a_fully_spent_cycle_expires_nothing(self, db_session, async_session):
         org = await _org(async_session, "spent")
         grant = await _grant(async_session, org)
-        await _entry(
-            async_session, org, delta=-250_000, kind=CreditLedgerKind.USAGE
-        )
+        await _entry(async_session, org, delta=-250_000, kind=CreditLedgerKind.USAGE)
 
         assert await plans.expire_grant(async_session, grant=grant) == 0
 
@@ -133,9 +129,7 @@ class TestWhatExpires:
         org = await _org(async_session, "order")
         grant = await _grant(async_session, org)
         await _entry(async_session, org, delta=100_000, kind=CreditLedgerKind.TOPUP)
-        await _entry(
-            async_session, org, delta=-300_000, kind=CreditLedgerKind.USAGE
-        )
+        await _entry(async_session, org, delta=-300_000, kind=CreditLedgerKind.USAGE)
 
         # ₹3,000 spent against ₹2,500 of plan and ₹1,000 of top-up: the plan is
         # gone and ₹500 of the top-up went with it.
@@ -291,8 +285,7 @@ class TestTheLapsedSweep:
         await _grant(
             async_session,
             org,
-            created_at=datetime.now(UTC)
-            - timedelta(days=plans.CYCLE_GRACE_DAYS + 1),
+            created_at=datetime.now(UTC) - timedelta(days=plans.CYCLE_GRACE_DAYS + 1),
         )
 
         counters = await plans.sweep_lapsed_plan_balance(async_session)
