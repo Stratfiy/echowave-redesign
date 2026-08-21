@@ -53,6 +53,7 @@ from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.low_balance import notify_low_balances
+from api.tasks.plan_expiry import expire_lapsed_plan_balance
 from api.tasks.rental_billing import (
     charge_recurring_rentals,
     reconcile_carrier_numbers,
@@ -214,6 +215,16 @@ class WorkerSettings:
             notify_low_balances,
             hour={3},
             minute={30},
+            second=0,
+            run_at_startup=False,
+        ),
+        # 19:45 UTC is 01:15 IST — after the rental collections at 19:00, so a
+        # cycle collected tonight has already retired its own predecessor and
+        # this finds only the accounts that genuinely stopped paying.
+        cron(
+            expire_lapsed_plan_balance,
+            hour={19},
+            minute={45},
             second=0,
             run_at_startup=False,
         ),

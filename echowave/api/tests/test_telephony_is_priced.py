@@ -76,12 +76,19 @@ class TestEveryCarrierIsAccountedFor:
 
 
 class TestThePlaceholdersSaySo:
-    def test_a_placeholder_rate_is_labelled_in_its_basis(self):
-        """A guessed price must read as one to whoever audits the rate card."""
+    def test_a_guessed_rate_is_labelled_in_its_basis(self):
+        """A guessed price must read as one to whoever audits the rate card.
+
+        The marker is also what the managed path refuses on — see
+        ``test_carrier_rates_are_real.py``, which owns that rule.
+        """
+        from api.services.billing.default_rates import PROVISIONAL_MARKER
+
         for rate in TELEPHONY_RATES:
-            if "PLACEHOLDER" in rate.basis:
+            if rate.provisional:
+                assert PROVISIONAL_MARKER in rate.basis
                 assert rate.usd_per_unit > 0, (
-                    f"{rate.provider} is a placeholder priced at zero, which is "
+                    f"{rate.provider} is a stand-in priced at zero, which is "
                     "the under-reporting this file exists to prevent"
                 )
 

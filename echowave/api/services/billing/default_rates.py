@@ -53,6 +53,14 @@ SEED_NOTE = (
 )
 
 
+#: Stamped into the basis of any rate that is a stand-in rather than a price
+#: somebody read off a vendor's published card, and carried through into the
+#: seeded row's note. Machine-readable on purpose: "this figure is a guess" has
+#: to be answerable from the database, because by the time it reaches a screen
+#: or an invoice the guess looks exactly like a fact.
+PROVISIONAL_MARKER = "PROVISIONAL"
+
+
 @dataclass(frozen=True)
 class DefaultRate:
     provider: str
@@ -63,6 +71,9 @@ class DefaultRate:
     usd_per_unit: float
     #: How the number was arrived at, for anyone auditing it later.
     basis: str
+    #: Not a published price. See ``PROVISIONAL_MARKER``; the basis of any row
+    #: set here must say so in words too, since that is what an operator reads.
+    provisional: bool = False
 
 
 #: Reference USD→INR for the few vendors who publish in rupees. Matches
@@ -474,27 +485,37 @@ TELEPHONY_RATES = (
         _inr(0.60),
         "India outbound local Rs0.60/min published. SIP / Browser SDK is Rs0.34.",
     ),
-    # Cloudonix and Vobiz are placeholders at the Twilio India mobile rate, and
+    # Four carriers below carry a stand-in rather than a published price, and
     # they are here rather than absent on purpose. A supported carrier with no
     # row does not cost nothing — it costs an unpriced line, which reports zero
-    # provider cost and so overstates margin on every call that uses it. A
-    # deliberate over-estimate errs the only safe way: we under-report our own
-    # margin until somebody replaces these with the published figures, rather
-    # than discovering at month end that a carrier was free all along.
+    # provider cost and so overstates margin on every call that uses it. The
+    # stand-in is the Twilio India mobile rate, which is the right order of
+    # magnitude for Indian outbound and deliberately not cheap.
     #
-    # These bill only when the configuration is platform-managed. A customer on
-    # their own Cloudonix or Vobiz account is charged no carriage at all, so a
-    # placeholder that is too high cannot overcharge them — see
+    # **What changed, and why it now needs a flag.** These rows used to be
+    # cost-only, so erring high was free: we under-reported our own margin
+    # until somebody replaced them. Carriage is now marked up into the sell
+    # price like every other component, so a stand-in that is too high
+    # overcharges the customer and one that is too low is sold at a loss. There
+    # is no safe direction any more — only a verified figure, or refusing to
+    # sell the carrier. So ``provisional`` marks them, and
+    # ``billing/carrier_rates.py`` refuses to put a configuration on the
+    # managed path while its carrier's rate still carries the marker.
+    #
+    # A customer on their own carrier account is unaffected either way: their
+    # minutes are on their own invoice and we bill no carriage at all — see
     # ``services/telephony/carriage.py``.
     #
-    # TODO: replace with Cloudonix's and Vobiz's published India outbound rates.
+    # TODO: replace all four with the carriers' published India outbound rates.
     DefaultRate(
         "cloudonix",
         "",
         CostComponent.TELEPHONY,
         RateUnit.MINUTE,
         _inr(1.20),
-        "PLACEHOLDER at the Twilio India mobile rate. Not the published price.",
+        f"{PROVISIONAL_MARKER} — stand-in at the Twilio India mobile rate. "
+        "Not Cloudonix's published price.",
+        provisional=True,
     ),
     DefaultRate(
         "vobiz",
@@ -502,7 +523,9 @@ TELEPHONY_RATES = (
         CostComponent.TELEPHONY,
         RateUnit.MINUTE,
         _inr(1.20),
-        "PLACEHOLDER at the Twilio India mobile rate. Not the published price.",
+        f"{PROVISIONAL_MARKER} — stand-in at the Twilio India mobile rate. "
+        "Not Vobiz's published price.",
+        provisional=True,
     ),
     # No ARI row, and that is not an oversight. ARI is a self-hosted Asterisk
     # the customer runs; the trunk behind it is theirs and so is its bill.
@@ -510,11 +533,34 @@ TELEPHONY_RATES = (
     # declines to bill a customer-owned configuration — a row here would only
     # matter if we ever ran Asterisk ourselves, and then it would need our own
     # trunk's rate rather than a vendor's.
+    # Telnyx and Vonage carried their **US** outbound rates — $0.0070 and
+    # $0.0139, about Rs0.73 and Rs1.45 — against traffic that is Indian. India
+    # mobile termination is a different market and a dearer one; a US rate read
+    # as an India rate understates the cost of every managed minute on these
+    # carriers, and since carriage is marked up, it undersells them too.
+    #
+    # Neither publishes an India figure this codebase can cite, so they get the
+    # same treatment as the two above: an India-shaped stand-in, flagged, and
+    # unsellable as managed carriage until somebody puts the real number in.
     DefaultRate(
-        "telnyx", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 0.0070, "US outbound"
+        "telnyx",
+        "",
+        CostComponent.TELEPHONY,
+        RateUnit.MINUTE,
+        _inr(1.20),
+        f"{PROVISIONAL_MARKER} — stand-in at the Twilio India mobile rate. "
+        "Was Telnyx's US outbound rate ($0.0070), which is not this traffic.",
+        provisional=True,
     ),
     DefaultRate(
-        "vonage", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 0.0139, "US outbound"
+        "vonage",
+        "",
+        CostComponent.TELEPHONY,
+        RateUnit.MINUTE,
+        _inr(1.20),
+        f"{PROVISIONAL_MARKER} — stand-in at the Twilio India mobile rate. "
+        "Was Vonage's US outbound rate ($0.0139), which is not this traffic.",
+        provisional=True,
     ),
 )
 

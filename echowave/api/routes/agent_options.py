@@ -14,8 +14,39 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.configuration import agent_options, voice_samples
+from api.services.telephony import carriage
 
 router = APIRouter(prefix="/agent-options", tags=["agent-options"])
+
+
+def _carriage_view(basis: carriage.CarriageBasis) -> dict[str, Any]:
+    return {
+        "provider": basis.provider,
+        "reason": basis.reason,
+        "explanation": basis.explanation,
+        "included": basis.provider is not None,
+    }
+
+
+@router.get("/carriage")
+async def get_carriage_basis(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+    """Whether a per-minute quote for this account should carry telephony.
+
+    Its own endpoint because two screens need the same answer and neither can
+    derive it: the default outbound configuration's provider is *not* the
+    answer on its own. An account dialling on its own Twilio is billed by
+    Twilio, and adding a carriage line to its quote charges twice for one phone
+    call — the same double charge ``carriage.py`` exists to prevent on the
+    invoice, appearing instead on the estimate.
+    """
+    organization_id = user.selected_organization_id
+    if organization_id is None:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    async with db_client.async_session() as session:
+        return _carriage_view(
+            await carriage.billable_carrier(session, organization_id=organization_id)
+        )
 
 
 @router.get("")
@@ -33,10 +64,20 @@ async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, An
 
     brains = agent_options.brains()
     async with db_client.async_session() as session:
+        # The carrier this account will actually be billed for, which is not
+        # the same as the carrier it dials on. Without this the wizard quoted a
+        # stack with no carriage at all — about 10% light for an account whose
+        # numbers are ours, and the omission was never stated.
+        basis = await carriage.billable_carrier(
+            session, organization_id=organization_id
+        )
         priced = []
         for brain in brains:
             paise = await agent_options.price_per_minute(
-                session, organization_id=organization_id, brain=brain.tier
+                session,
+                organization_id=organization_id,
+                brain=brain.tier,
+                telephony_provider=basis.provider,
             )
             priced.append(
                 {
@@ -70,10 +111,36 @@ async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, An
         # brains because the screen needs all three to render one price, and
         # three round trips to draw one number is how a picker feels slow.
         bundles = await agent_options.bundle_options(
+            session,
+            organization_id=organization_id,
+            telephony_provider=basis.provider,
+        )
+
+    async with db_client.async_session() as session:
+        # What the account can actually spend, so the picker can turn each
+        # card's price into minutes.
+        #
+        # A price a minute is not a decision anybody can make. ₹25.79 reads as
+        # "a bit more than ₹8.30" until it is stated as 97 minutes against 301
+        # — which is the difference between a premium option and a month that
+        # ends in four days, and it is the shape of question a first-time buyer
+        # is actually asking.
+        from api.services.billing.payments import current_balance_paise
+
+        balance_paise = await current_balance_paise(
             session, organization_id=organization_id
         )
 
-    return {"brains": priced, "voices": voice_list, "bundles": bundles}
+    return {
+        "brains": priced,
+        "voices": voice_list,
+        "bundles": bundles,
+        "balance_paise": int(balance_paise),
+        # What the numbers above do and do not contain. A price that excludes
+        # the largest variable line has to say so on the screen, or the first
+        # invoice is where the customer finds out.
+        "telephony": _carriage_view(basis),
+    }
 
 
 @router.get("/minutes")
@@ -93,13 +160,24 @@ async def get_approximate_minutes(
         raise HTTPException(status_code=400, detail="No organization selected")
 
     async with db_client.async_session() as session:
+        # Carriage included on the same terms as everywhere else. Leaving it
+        # out here is worse than on a price card: a cheap minute divides into a
+        # balance more times, so an omitted carrier line does not read as a
+        # small price, it reads as more minutes than the balance will buy.
+        basis = await carriage.billable_carrier(
+            session, organization_id=organization_id
+        )
         paise = await agent_options.price_per_minute(
-            session, organization_id=organization_id, brain=brain
+            session,
+            organization_id=organization_id,
+            brain=brain,
+            telephony_provider=basis.provider,
         )
 
     return {
         "paise_per_minute": paise,
         "minutes": agent_options.approximate_minutes(balance_paise, paise),
+        "telephony": _carriage_view(basis),
     }
 
 

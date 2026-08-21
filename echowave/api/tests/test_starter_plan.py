@@ -192,24 +192,38 @@ class TestGrantingACycle:
         assert second["status"] == "already_granted"
         assert await _balance(async_session, org) == STARTER_PLAN_BALANCE_PAISE
 
-    async def test_a_later_cycle_grants_again(self, db_session, async_session):
-        """Idempotency must not become "once ever" — this is a monthly plan."""
+    async def test_a_later_cycle_grants_again_and_retires_the_one_before(
+        self, db_session, async_session
+    ):
+        """Idempotency must not become "once ever" — this is a monthly plan.
+
+        And a second cycle is not a second balance. Plan balance is for the
+        month it was granted for: since 21 Aug the arriving cycle retires the
+        one before it, which is what makes a bundle worth more than a top-up of
+        the same size rather than an unbounded liability. See
+        ``test_plan_balance_expires.py`` for the whole rule, top-ups included.
+        """
         org = await _org(async_session, "plan-month-two")
         mandate = await _plan_mandate(async_session, org)
         await _charge(async_session, org, mandate=mandate)
 
-        await grant_plan_cycle(
+        first = await grant_plan_cycle(
             async_session,
             mandate=mandate,
             event=_collection("sub_plan_1", payment_id="pay_month_1"),
         )
-        await grant_plan_cycle(
+        second = await grant_plan_cycle(
             async_session,
             mandate=mandate,
             event=_collection("sub_plan_1", payment_id="pay_month_2"),
         )
 
-        assert await _balance(async_session, org) == STARTER_PLAN_BALANCE_PAISE * 2
+        # Two distinct collections, two grants: the idempotency key is the
+        # payment, not the account.
+        assert first["status"] == "granted"
+        assert second["status"] == "granted"
+        # One month's worth on the account, not two.
+        assert await _balance(async_session, org) == STARTER_PLAN_BALANCE_PAISE
 
     async def test_a_collection_with_no_payment_id_grants_nothing(
         self, db_session, async_session

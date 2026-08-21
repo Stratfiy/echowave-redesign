@@ -54,8 +54,10 @@ from api.db.models import (
     PaymentModel,
     ProviderRateModel,
     TaxDocumentModel,
+    TelephonyConfigurationModel,
     WorkflowRunModel,
 )
+from api.services.billing import carrier_rates
 from api.services.readiness import (
     ACTION_REQUIRED,
     NEEDS_A_HUMAN,
@@ -659,6 +661,95 @@ async def _worker_check() -> Check:
     )
 
 
+async def _carrier_price_check(session: AsyncSession) -> Check:
+    """Whether every carrier we could sell minutes on has a real rate.
+
+    Not the same question as "is the price book seeded". A carrier with no rate
+    at all is caught above as an uncosted line; this catches the subtler one —
+    a rate that is present, plausible and made up. Four carriers ship with a
+    stand-in at the Twilio India mobile figure because a supported carrier with
+    no row reports zero cost and so overstates margin on every call.
+
+    Carriage is marked up into the sell price, so a stand-in has no safe
+    direction: too high overcharges, too low sells at a loss. The managed path
+    refuses these carriers outright (``billing/carrier_rates.py``), which makes
+    this the screen that says *why* a carrier cannot be turned on.
+    """
+    provisional = await carrier_rates.provisionally_priced(session)
+    if not provisional:
+        return Check(
+            key="carriers_really_priced",
+            title="Every carrier has a verified rate",
+            status=READY,
+            detail="No carrier is running on a stand-in rate.",
+            reference="REMAINING-WORK.md §B1 — carriers priced at US rates or at nothing real",
+        )
+
+    # The one that is actually costing money: a configuration already on the
+    # managed path whose carrier is priced from a guess. New ones are refused
+    # at the route, so anything here predates that guard and is billing a
+    # marked-up stand-in to a real customer every month.
+    selling = (
+        await session.execute(
+            select(
+                TelephonyConfigurationModel.provider,
+                func.count(TelephonyConfigurationModel.id),
+            )
+            .where(
+                TelephonyConfigurationModel.is_platform_managed.is_(True),
+                func.lower(TelephonyConfigurationModel.provider).in_(
+                    sorted(provisional)
+                ),
+            )
+            .group_by(TelephonyConfigurationModel.provider)
+        )
+    ).all()
+
+    named = ", ".join(sorted(provisional))
+    if not selling:
+        # Nothing is mispriced, because nothing can be sold on these. Reported
+        # rather than hidden: an operator who tries to turn one on will be
+        # refused, and this is where the refusal is explained in advance.
+        return Check(
+            key="carriers_really_priced",
+            title="Every carrier has a verified rate",
+            status=READY,
+            detail=(
+                f"{named} hold a stand-in rather than a published India rate, "
+                "so they cannot be put on the managed path. No customer is "
+                "billed carriage on them — a customer using their own account "
+                "with these carriers is billed by the carrier, not by us."
+            ),
+            reference="REMAINING-WORK.md §B1 — carriers priced at US rates or at nothing real",
+            remedy=(
+                "Only needed if you want to sell managed minutes on them: put "
+                "the published India outbound rate on "
+                "/superadmin/billing/rate-card."
+            ),
+        )
+
+    total = sum(count for _, count in selling)
+    return Check(
+        key="carriers_really_priced",
+        title="Every carrier has a verified rate",
+        status=ACTION_REQUIRED,
+        detail=(
+            f"{total} platform-managed configuration(s) are selling minutes on "
+            f"{', '.join(sorted(provider for provider, _ in selling))}, whose "
+            "rate is a stand-in rather than a published price. Carriage is "
+            "marked up and billed on, so those minutes are either overcharged "
+            "or sold at a loss — and the invoice reads the same either way."
+        ),
+        reference="REMAINING-WORK.md §B1 — carriers priced at US rates or at nothing real",
+        remedy=(
+            "Put each carrier's published India outbound rate on "
+            "/superadmin/billing/rate-card. Rates are effective-dated, so "
+            "correcting one supersedes the stand-in without rewriting what "
+            "past calls were charged."
+        ),
+    )
+
+
 async def assess(
     session: AsyncSession,
     *,
@@ -678,5 +769,6 @@ async def assess(
     checks.append(await _worker_check())
     checks.extend(await _payment_evidence(session))
     checks.extend(await _price_book_evidence(session, now=now))
+    checks.append(await _carrier_price_check(session))
     checks.append(_round_trip_obligation())
     return Readiness(checks=tuple(checks))

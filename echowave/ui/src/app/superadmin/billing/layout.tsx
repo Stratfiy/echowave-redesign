@@ -26,6 +26,13 @@ const TABS = [
     { href: "/superadmin/billing/rate-card", label: "Rate card" },
     { href: "/superadmin/billing/bundles", label: "Bundles" },
     { href: "/superadmin/billing/plans", label: "Plans" },
+    // Not a billing screen, and it is the first step of every billing task on
+    // this strip: nothing can be priced on the rate card, put in a bundle or
+    // sold in a plan until a key is installed and the models it unlocks are
+    // ticked. It lived only on the /superadmin hub, one card among a dozen,
+    // which meant the sequence the runbook describes started on a page you had
+    // to already know about.
+    { href: "/superadmin/provider-keys", label: "Provider keys" },
 ];
 
 /**

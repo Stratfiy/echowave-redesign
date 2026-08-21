@@ -12120,6 +12120,49 @@ export type GetAgentTemplateApiV1AgentTemplatesTemplateIdGetResponses = {
 
 export type GetAgentTemplateApiV1AgentTemplatesTemplateIdGetResponse = GetAgentTemplateApiV1AgentTemplatesTemplateIdGetResponses[keyof GetAgentTemplateApiV1AgentTemplatesTemplateIdGetResponses];
 
+export type GetCarriageBasisApiV1AgentOptionsCarriageGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/agent-options/carriage';
+};
+
+export type GetCarriageBasisApiV1AgentOptionsCarriageGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCarriageBasisApiV1AgentOptionsCarriageGetError = GetCarriageBasisApiV1AgentOptionsCarriageGetErrors[keyof GetCarriageBasisApiV1AgentOptionsCarriageGetErrors];
+
+export type GetCarriageBasisApiV1AgentOptionsCarriageGetResponses = {
+    /**
+     * Response Get Carriage Basis Api V1 Agent Options Carriage Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCarriageBasisApiV1AgentOptionsCarriageGetResponse = GetCarriageBasisApiV1AgentOptionsCarriageGetResponses[keyof GetCarriageBasisApiV1AgentOptionsCarriageGetResponses];
+
 export type GetAgentOptionsApiV1AgentOptionsGetData = {
     body?: never;
     headers?: {

@@ -225,6 +225,17 @@ export function PlanSection({
                                 <span>
                                     {formatPaise(plan.balance_paise)} of call balance
                                     each month
+                                    {/* Stated at the point of purchase, which is
+                                        the only place stating it counts. Balance
+                                        that expires is what makes a plan worth
+                                        more than a top-up of the same size, and a
+                                        customer who finds out from a debit on
+                                        their statement reads it as us taking
+                                        money back. */}
+                                    <span className="block text-xs text-muted-foreground">
+                                        Fresh each cycle — unused plan balance does
+                                        not carry over. Top-ups you buy never expire.
+                                    </span>
                                 </span>
                             </li>
                             <li className="flex items-start gap-2">

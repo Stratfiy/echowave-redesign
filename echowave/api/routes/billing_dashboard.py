@@ -1396,6 +1396,10 @@ class PlanRequest(BaseModel):
     #: Null follows the platform rental price rather than pinning a copy of it.
     extra_number_price_paise: int | None = Field(None, ge=0)
     razorpay_plan_id: str | None = None
+    #: The provider plan for a zero-rated account, created at the **net**
+    #: price. A pinned plan charges everyone the same amount, so an export
+    #: account needs a different plan rather than a different calculation.
+    razorpay_plan_id_export: str | None = None
     enabled: bool = True
     sort_order: int = 0
 
@@ -1421,6 +1425,7 @@ def _plan_view(plan) -> dict[str, Any]:
         "parts_paise": plan.parts_paise,
         "discount_paise": plan.discount_paise,
         "razorpay_plan_id": plan.razorpay_plan_id,
+        "razorpay_plan_id_export": plan.razorpay_plan_id_export,
         "enabled": plan.enabled,
         "sort_order": plan.sort_order,
     }

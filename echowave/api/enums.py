@@ -282,6 +282,13 @@ class CreditLedgerKind(str, Enum):
     # the plan's schedule, and a statement that called it a top-up would invite
     # the question of when they bought it.
     PLAN = "plan"
+    # What was left of a plan cycle's balance when that cycle ended. Plan
+    # balance is for the month it was granted for; a top-up, which the customer
+    # bought outright, never expires. Kept as its own kind rather than as a
+    # negative adjustment so a statement can say "this expired" — an
+    # unexplained debit the size of last month's grant is the single most
+    # alarming line a billing screen can show.
+    PLAN_EXPIRY = "plan_expiry"
 
 
 class BillingAuditAction(str, Enum):

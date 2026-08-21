@@ -103,9 +103,23 @@ function rupees(paise: number): string {
 export function CostPerMinuteBar({
     stack,
     className,
+    carriageNote,
 }: {
     stack: CostStack;
     className?: string;
+    /**
+     * Why this total carries no telephony, in the caller's own words.
+     *
+     * There are two reasons and they need different sentences. No carrier
+     * configured means the price is genuinely incomplete and will grow. A
+     * carrier the customer owns means it is complete *as our invoice* — those
+     * minutes are billed to them by their carrier, and adding a line for them
+     * here would be the same double charge `carriage.py` refuses on the bill.
+     * The server answers which (`GET /agent-options/carriage`); falling back
+     * to the first sentence keeps a caller that does not ask behaving as
+     * before.
+     */
+    carriageNote?: string;
 }) {
     const { user, loading: authLoading } = useAuth();
     const [estimate, setEstimate] = useState<Estimate | null>(null);
@@ -283,10 +297,8 @@ export function CostPerMinuteBar({
                     <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
                         <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
                         <span>
-                            Excludes telephony — no carrier is configured for
-                            this account yet. Carriage is charged per minute on
-                            top of this, and is often a third of the cost of a
-                            call.
+                            {carriageNote ||
+                                "Excludes telephony — no carrier is configured for this account yet. Carriage is charged per minute on top of this, and is often a third of the cost of a call."}
                         </span>
                     </p>
                 )}

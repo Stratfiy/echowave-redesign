@@ -43,7 +43,21 @@ type Bundle = {
     variants: Variant[];
 };
 
-type Options = { voices: VoiceOption[]; bundles: Bundle[] };
+/** What the prices below do and do not contain, as the server works it out. */
+type Carriage = {
+    provider: string | null;
+    reason: string;
+    explanation: string;
+    included: boolean;
+};
+
+type Options = {
+    voices: VoiceOption[];
+    bundles: Bundle[];
+    telephony?: Carriage;
+    /** What this account can spend today. Turns a price into a decision. */
+    balance_paise?: number;
+};
 
 function rupees(paise: number): string {
     return `₹${(paise / 100).toFixed(2)}`;
@@ -54,6 +68,27 @@ const NO_PRICE = "Price unavailable";
 
 function price(paise: number | null): string {
     return paise === null ? NO_PRICE : rupees(paise);
+}
+
+/**
+ * Roughly how long a balance lasts on this price.
+ *
+ * A price a minute is not a decision anybody can make. ₹25.79 reads as "a bit
+ * more than ₹8.30" right up until it is stated as 97 minutes against 301 —
+ * which is the difference between a premium option and a month that ends in
+ * four days, and it is the question a first-time buyer is actually asking.
+ *
+ * Null wherever the price is null: quoting minutes at a price missing its
+ * largest line multiplies the error instead of surfacing it. Mirrors
+ * `agent_options.approximate_minutes` on the server, floor and all.
+ */
+function approximateMinutes(
+    balancePaise: number | undefined,
+    paisePerMinute: number | null,
+): number | null {
+    if (!balancePaise || balancePaise <= 0) return null;
+    if (paisePerMinute === null || paisePerMinute <= 0) return null;
+    return Math.floor(balancePaise / paisePerMinute);
 }
 
 /**
@@ -224,6 +259,19 @@ export function SimpleModelPicker({
                                     </>
                                 )}
                             </span>
+                            {(() => {
+                                const minutes = approximateMinutes(
+                                    options.balance_paise,
+                                    cheapest.paise_per_minute,
+                                );
+                                if (minutes === null) return null;
+                                return (
+                                    <span className="text-xs text-muted-foreground">
+                                        about {minutes.toLocaleString("en-IN")} min on
+                                        your balance
+                                    </span>
+                                );
+                            })()}
                             {cheapest.india_only && <IndiaBadge />}
                         </button>
                     );
@@ -269,6 +317,18 @@ export function SimpleModelPicker({
                                             <span className="text-muted-foreground">
                                                 /min
                                             </span>
+                                            {(() => {
+                                                const minutes = approximateMinutes(
+                                                    options.balance_paise,
+                                                    v.paise_per_minute,
+                                                );
+                                                if (minutes === null) return null;
+                                                return (
+                                                    <span className="block text-xs text-muted-foreground">
+                                                        ~{minutes.toLocaleString("en-IN")} min
+                                                    </span>
+                                                );
+                                            })()}
                                         </>
                                     )}
                                 </span>
@@ -309,9 +369,34 @@ export function SimpleModelPicker({
                     ) : (
                         <>
                             <strong>{price(variant.paise_per_minute)} a minute</strong>
+                            {(() => {
+                                const minutes = approximateMinutes(
+                                    options.balance_paise,
+                                    variant.paise_per_minute,
+                                );
+                                if (minutes === null) return null;
+                                return (
+                                    <span className="mt-1 block text-xs text-muted-foreground">
+                                        Your balance of{" "}
+                                        {rupees(options.balance_paise ?? 0)} is roughly{" "}
+                                        <strong className="font-medium text-foreground">
+                                            {minutes.toLocaleString("en-IN")} minutes
+                                        </strong>{" "}
+                                        on this choice.
+                                    </span>
+                                );
+                            })()}
                             <span className="mt-1 block text-xs text-muted-foreground">
                                 An estimate. A call that says more costs more, and the
                                 figure moves if provider prices do.
+                                {/* Whether the carrier's minutes are in that
+                                    number. They were not, and the omission was
+                                    never stated — roughly a tenth of the price
+                                    of a call, missing, on the one screen a
+                                    first-time buyer reads before paying. */}
+                                {options.telephony?.explanation
+                                    ? ` ${options.telephony.explanation}`
+                                    : null}
                             </span>
                         </>
                     )}

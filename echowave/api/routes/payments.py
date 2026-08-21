@@ -31,6 +31,7 @@ from api.constants import (
     MIN_TOPUP_PAISE,
     REQUIRE_MANDATE_FOR_NUMBERS,
     TOPUP_INCREMENT_PAISE,
+    UI_APP_URL,
 )
 from api.db import db_client
 from api.db.models import UserModel
@@ -730,4 +731,56 @@ async def razorpay_webhook(
             _job_id=email_tax_document_job_id(voucher_id),
         )
 
+    # The customer authorised at their bank and, until this shipped, heard
+    # nothing until money moved — which on a monthly cycle can be weeks, and
+    # arrives as a debit. Sent after commit for the same reason the receipt is:
+    # a confirmation must not survive a rollback of the authorisation it
+    # confirms.
+    if result.get("newly_authorised"):
+        await _confirm_plan_authorisation(result)
+
     return result
+
+
+async def _confirm_plan_authorisation(result: dict[str, Any]) -> None:
+    """Tell the account what its bank has just agreed to pay us, monthly.
+
+    Best-effort and self-contained: the authorisation is already recorded, and
+    a mail server having a bad minute must not turn a 2xx into a retry storm
+    from Razorpay.
+    """
+    from api.services.billing import plan_email, subscription_plans
+    from api.services.messaging import announce
+
+    organization_id = result.get("organization_id")
+    mandate_id = result.get("mandate_id")
+    if organization_id is None or mandate_id is None:
+        return
+
+    try:
+        plan = None
+        plan_code = result.get("plan_code")
+        if plan_code:
+            async with db_client.async_session() as session:
+                # None when the row was renamed or withdrawn after somebody
+                # subscribed to it. The confirmation is owed either way — the
+                # bank does not care that our catalogue moved.
+                plan = await subscription_plans.get_plan(session, code=plan_code)
+
+        await announce.announce(
+            organization_id=organization_id,
+            kind=plan_email.KIND,
+            sender="billing",
+            notice=plan_email.compose(
+                plan=plan,
+                mandate_id=mandate_id,
+                authorised_paise=int(result.get("price_paise") or 0),
+                app_url=UI_APP_URL,
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001 — see docstring
+        logger.error(
+            "Could not confirm the plan authorisation for mandate {}: {}",
+            mandate_id,
+            exc,
+        )
