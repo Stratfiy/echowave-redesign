@@ -82,6 +82,8 @@ export function PlanSection({
     const [data, setData] = useState<PlanResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [starting, setStarting] = useState<string | null>(null);
+    const [cancelling, setCancelling] = useState(false);
+    const [confirmingCancel, setConfirmingCancel] = useState(false);
 
     const refresh = useCallback(async () => {
         const result = await client.get({ url: "/api/v1/billing/plan" });
@@ -123,6 +125,20 @@ export function PlanSection({
         },
         [refresh, onSubscribed],
     );
+
+    const cancel = useCallback(async () => {
+        setCancelling(true);
+        setError(null);
+        const result = await client.post({ url: "/api/v1/billing/mandate/cancel" });
+        setCancelling(false);
+        setConfirmingCancel(false);
+        if (result.error) {
+            setError(detailFromError(result.error, "Could not cancel the plan"));
+            return;
+        }
+        await refresh();
+        onSubscribed?.();
+    }, [refresh, onSubscribed]);
 
     if (!data || data.plans.length === 0) return null;
 
@@ -295,6 +311,57 @@ export function PlanSection({
                             ? ` — you can claim ${numbers.remaining} more at no extra cost.`
                             : ` — the next one is ${formatPaise(numbers.extra_paise)} a month.`}
                     </p>
+
+                    {/* Starting a standing instruction the customer cannot stop
+                        in the product is a support ticket at best. The endpoint
+                        has always existed; nothing called it. */}
+                    {confirmingCancel ? (
+                        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
+                            <p className="text-amber-800 dark:text-amber-300">
+                                Cancelling stops the monthly collection and the
+                                balance that comes with it. Your number is{" "}
+                                <strong>not</strong> released — its rent falls back
+                                to your credit balance, and an unpaid rental
+                                suspends the number after seven days.
+                            </p>
+                            <div className="mt-3 flex gap-2">
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="sm"
+                                    disabled={cancelling}
+                                    onClick={() => void cancel()}
+                                >
+                                    {cancelling ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Cancelling…
+                                        </>
+                                    ) : (
+                                        "Cancel the plan"
+                                    )}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setConfirmingCancel(false)}
+                                >
+                                    Keep it
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => setConfirmingCancel(true)}
+                        >
+                            Cancel plan
+                        </Button>
+                    )}
                 </>
             )}
         </section>

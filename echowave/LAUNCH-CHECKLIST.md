@@ -217,7 +217,7 @@ reach it.
 - [x] **The entitlement is now real.** A plan includes N numbers; number N+1 opens its own ₹499 monthly rental against the balance. Before this, a plan mandate authorised *every* number an account provisioned — the monthly job skipped them all because the bank was collecting, and the collection settled only the lowest-numbered charge, so numbers two and beyond were free for ever with nothing reading as an error. The same hole existed for a plain rental mandate
 - [x] **Plans are rows, not constants.** `subscription_plans` table + `/superadmin/billing/plans`, so a second plan needs no release. Refuses a plan granting more balance than it collects — balance is spendable at our cost the moment it lands
 
-### 2.2 Autopay can be started but not cancelled
+### 2.2 Autopay can be started but not cancelled — FIXED
 
 `POST /billing/mandate/cancel` exists and is called from nowhere. The repo's own
 test records this: `adminControls.test.ts` lists that route with
@@ -227,7 +227,8 @@ A customer who wants out has to go to their bank or to Razorpay. For a
 subscription sold to clinics, "no way to cancel in the product" is a support
 load and a trust problem before it is a compliance one.
 
-- [ ] Add cancel to the billing screen, with what happens to the number when the mandate goes
+- [x] Added to **Billing → Plan**, behind a confirmation that states what happens to the number: it is not released, its rent falls back to the credit balance, and an unpaid rental suspends it after seven days
+- [x] Found while wiring it: `cancel_mandate` looked up only the *rental* purpose, so an account on the plan could not cancel at all — the lookup found nothing and the route answered 404 to a customer whose bank was being debited monthly. It now withdraws whichever instruction the account holds, plan first
 
 ### 2.3 The go-live readiness report has no screen
 
@@ -376,7 +377,7 @@ Order matters. Each step assumes the one above it.
 
 **Before the plan is sold**
 
-10. ~~Ship 2.1 (plan purchase UI)~~ — done. 2.2 (cancel) is still open
+10. ~~Ship 2.1 (plan purchase UI) and 2.2 (cancel)~~ — both done
 11. Decide balance expiry (3.5) and state it on the purchase screen
 12. ~~The docs said "$0.02 per minute, billed per second" when we bill in
     15-second pulses~~ — corrected, and the plan, the ₹20 floor and the ₹100

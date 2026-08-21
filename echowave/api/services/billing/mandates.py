@@ -650,6 +650,7 @@ async def cancel_mandate(
     session: AsyncSession,
     *,
     organization_id: int,
+    purpose: str | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> PaymentMandateModel | None:
     """Withdraw the standing authorisation at the provider and locally.
@@ -657,8 +658,21 @@ async def cancel_mandate(
     The local row is marked cancelled **after** the provider accepts, never
     before: a mandate we believe is gone but which the bank still honours is a
     collection nobody is expecting.
+
+    ``purpose`` names which standing instruction to withdraw. Omitted, it
+    withdraws whichever one the account actually holds, plan before rental —
+    the same order :data:`NUMBER_BEARING_PURPOSES` prefers them in. Defaulting
+    to the rental purpose, as this used to, meant an account on the plan could
+    not cancel at all: the lookup found nothing and the route answered 404 to a
+    customer whose bank was being debited every month.
     """
-    mandate = await get_mandate(session, organization_id=organization_id)
+    mandate = None
+    for candidate in (purpose,) if purpose else NUMBER_BEARING_PURPOSES:
+        mandate = await get_mandate(
+            session, organization_id=organization_id, purpose=candidate
+        )
+        if mandate is not None:
+            break
     if mandate is None:
         return None
 
