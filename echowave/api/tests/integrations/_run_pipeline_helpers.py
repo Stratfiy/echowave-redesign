@@ -147,6 +147,26 @@ def patch_run_pipeline_externals(
                 new=AsyncMock(),
             )
         )
+        # Object storage, for the end-of-call artifact upload. Missing from
+        # this list, which made these tests depend on whether an object store
+        # happened to be running: with none reachable, each of the four
+        # uploads spends its full retry backoff before giving up, and the ~25s
+        # that adds is charged against the test's hard timeout. It passed on a
+        # fast machine and hung on a slow one — a flake decided by the runner
+        # rather than by the code.
+        #
+        # Stubbed at the storage call rather than at
+        # ``upload_workflow_run_artifacts`` deliberately. One test replaces
+        # that function to prove a call stays registered for drain *until* the
+        # upload finishes; patching it here would silently outrank that
+        # substitution and the test would assert against this mock instead of
+        # its own. The uploader still runs, and still swallows its own errors.
+        stack.enter_context(
+            patch(
+                "api.services.workflow_run_artifacts.storage_fs.acreate_file_from_bytes",
+                new=AsyncMock(return_value=True),
+            )
+        )
         stack.enter_context(
             patch(
                 "api.services.pipecat.event_handlers.enqueue_job",

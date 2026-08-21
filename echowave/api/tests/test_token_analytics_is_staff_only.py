@@ -33,9 +33,62 @@ STAFF_PREFIX = "/api/v1/admin/"
 
 
 def _paths() -> list[str]:
-    return [
-        route.path for route in app.routes if getattr(route, "path", "").startswith("/")
-    ]
+    """Every path the app actually serves, mounts and sub-routers included.
+
+    This used to read ``route.path`` straight off ``app.routes``. It no longer
+    can: FastAPI 0.141 defers router inclusion, so ``app.routes`` holds
+    ``_IncludedRouter`` wrappers that carry no ``path`` at all. The old
+    comprehension used ``getattr(route, "path", "")`` and silently dropped every
+    one of them — leaving five built-in paths, of which none is under
+    ``/api/v1/organizations/``.
+
+    Two tests in this file failed loudly when that happened. The one that
+    matters passed **vacuously**: the boundary check searched five paths for an
+    offender, found none, and reported the pricing boundary intact without ever
+    looking at a real route. A guard that cannot fail is not a guard, which is
+    why this walks the tree rather than trusting one level of it.
+    """
+    paths = [path for path, _ in _walk(app.routes)]
+    # The walk finding nothing, or almost nothing, is the failure this docstring
+    # describes recurring under a future version. Fail here rather than passing
+    # every assertion below against an empty list.
+    assert len(paths) > 100, (
+        f"Route enumeration found only {len(paths)} paths, so every check in "
+        "this file would pass without inspecting the real API surface. The "
+        "walk above needs updating for this FastAPI version."
+    )
+    return paths
+
+
+def _route_for(path: str):
+    """The route object serving ``path``, for tests that inspect its parameters.
+
+    Same reason as :func:`_paths`: a plain scan of ``app.routes`` cannot see
+    past a deferred inclusion, so looking a route up there raises
+    ``StopIteration`` for every route the API actually serves.
+    """
+    for found, route in _walk(app.routes):
+        if found == path:
+            return route
+    raise AssertionError(f"No route serves {path}. Known paths: {len(_paths())}")
+
+
+def _walk(routes, prefix: str = ""):
+    """Every (path, route) the app serves, descending through inclusions."""
+    found: list[tuple[str, object]] = []
+    for route in routes:
+        included = getattr(route, "original_router", None)
+        if included is not None:
+            # A deferred inclusion. Its prefix lives on the include context,
+            # not on the wrapper.
+            context = getattr(route, "include_context", None)
+            found += _walk(included.routes, prefix + getattr(context, "prefix", ""))
+        elif hasattr(route, "routes") and not hasattr(route, "endpoint"):
+            # A Mount — the MCP app is one. Reachable, so it counts.
+            found += _walk(route.routes, prefix + getattr(route, "path", ""))
+        elif hasattr(route, "path"):
+            found.append((prefix + route.path, route))
+    return found
 
 
 def test_no_customer_facing_route_serves_token_analytics():
@@ -70,11 +123,7 @@ def test_staff_keep_a_token_view():
 
 def test_the_staff_token_route_can_narrow_to_one_account():
     """Staff support a specific customer, not the whole platform at once."""
-    route = next(
-        r
-        for r in app.routes
-        if getattr(r, "path", "") == "/api/v1/admin/billing/tokens"
-    )
+    route = _route_for("/api/v1/admin/billing/tokens")
     names = {p.name for p in route.dependant.query_params}
     for dep in route.dependant.dependencies:
         names |= {p.name for p in dep.query_params}
