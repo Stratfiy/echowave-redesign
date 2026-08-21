@@ -842,6 +842,10 @@ async def list_bundles(user: UserModel = Depends(get_superuser)) -> dict[str, An
                     "display_order": row.display_order,
                     "is_enabled": row.is_enabled,
                     "slots": bundle_service.resolved_slots(row),
+                    # Computed from the tiers this bundle resolves to right
+                    # now, never stored. Move a tier abroad and the badge goes
+                    # with it, on the same request.
+                    "residency": bundle_service.residency(row),
                 }
                 for row in rows
             ]

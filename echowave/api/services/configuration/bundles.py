@@ -178,6 +178,29 @@ async def list_bundles(
     return list((await session.scalars(query)).all())
 
 
+def residency(row: ManagedBundleModel, *, llm_tier: str | None = None) -> dict:
+    """Where this bundle processes speech and language.
+
+    ``llm_tier`` is passed in for pipeline bundles because the brain is the
+    customer's choice, not the bundle's — and it is the component that decides
+    the answer: Lite is Sarvam, Normal and Smart are not.
+    """
+    from api.services.configuration.residency import assess
+
+    result = assess(
+        architecture=row.architecture,
+        llm_tier=llm_tier or row.llm_tier,
+        stt_tier=row.stt_tier,
+        tts_tier=row.tts_tier,
+        realtime_tier=row.realtime_tier,
+    )
+    return {
+        "india_only": result.india_only,
+        "leaves_india": list(result.leaves_india),
+        "reason": result.reason,
+    }
+
+
 def resolved_slots(row: ManagedBundleModel) -> list[dict]:
     """What this bundle actually runs on today, tier by tier.
 
