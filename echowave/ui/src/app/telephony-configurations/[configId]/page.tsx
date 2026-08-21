@@ -5,6 +5,7 @@ import {
   Copy,
   ExternalLink,
   Pencil,
+  PhoneOff,
   Plus,
   Star,
   Trash2,
@@ -18,6 +19,7 @@ import {
   deletePhoneNumberApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersPhoneNumberIdDelete,
   getTelephonyConfigurationByIdApiV1OrganizationsTelephonyConfigsConfigIdGet,
   listPhoneNumbersApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersGet,
+  releaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePost,
   setDefaultCallerIdApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersPhoneNumberIdSetDefaultCallerPost,
   setDefaultOutboundApiV1OrganizationsTelephonyConfigsConfigIdSetDefaultOutboundPost,
 } from "@/client/sdk.gen";
@@ -55,6 +57,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { useAppConfig } from "@/context/AppConfigContext";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
@@ -82,6 +85,11 @@ export default function TelephonyConfigurationDetailPage() {
   const [phoneDeleteTarget, setPhoneDeleteTarget] = useState<PhoneNumberResponse | null>(
     null,
   );
+  const [phoneReleaseTarget, setPhoneReleaseTarget] = useState<PhoneNumberResponse | null>(
+    null,
+  );
+  const [releaseReason, setReleaseReason] = useState("");
+  const [releasing, setReleasing] = useState(false);
 
   const fetchAll = useCallback(async () => {
     if (authLoading || !user || !configId) return;
@@ -169,6 +177,32 @@ export default function TelephonyConfigurationDetailPage() {
       fetchAll();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete phone number");
+    }
+  };
+
+  const onConfirmReleasePhone = async () => {
+    if (!phoneReleaseTarget) return;
+    if (releaseReason.trim().length < 3) {
+      toast.error("Say why this number is being released — at least a few words.");
+      return;
+    }
+    setReleasing(true);
+    try {
+      const token = await getAccessToken();
+      const res = await releaseNumberApiV1ManagedNumbersPhoneNumberIdReleasePost({
+        headers: { Authorization: `Bearer ${token}` },
+        path: { phone_number_id: phoneReleaseTarget.id },
+        body: { reason: releaseReason.trim() },
+      });
+      if (res.error) throw new Error(detailFromError(res.error));
+      toast.success(`${phoneReleaseTarget.address} released back to the carrier`);
+      setPhoneReleaseTarget(null);
+      setReleaseReason("");
+      fetchAll();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to release phone number");
+    } finally {
+      setReleasing(false);
     }
   };
 
@@ -336,10 +370,19 @@ export default function TelephonyConfigurationDetailPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {n.is_active ? (
+                        {n.status === "released" ? (
+                          <Badge variant="outline">Released</Badge>
+                        ) : n.status === "suspended" ? (
+                          <Badge variant="destructive">Suspended</Badge>
+                        ) : n.is_active ? (
                           <Badge variant="secondary">Active</Badge>
                         ) : (
                           <Badge variant="outline">Inactive</Badge>
+                        )}
+                        {n.carrier_number_id && (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            Bought via Decibyl
+                          </Badge>
                         )}
                         {n.is_default_caller_id && (
                           <Badge className="gap-1">
@@ -393,14 +436,30 @@ export default function TelephonyConfigurationDetailPage() {
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setPhoneDeleteTarget(n)}
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        {n.carrier_number_id ? (
+                          n.status !== "released" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setReleaseReason("");
+                                setPhoneReleaseTarget(n);
+                              }}
+                              title="Release back to the carrier"
+                            >
+                              <PhoneOff className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setPhoneDeleteTarget(n)}
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -441,6 +500,51 @@ export default function TelephonyConfigurationDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={onConfirmDeletePhone}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!phoneReleaseTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setPhoneReleaseTarget(null);
+            setReleaseReason("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Release {phoneReleaseTarget?.address}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This gives the number back to the carrier and stops its monthly rental.
+              It is irreversible — the number can be reissued to someone else, and it
+              may still be printed on your signage or invoices.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="release-reason" className="text-sm font-medium">
+              Why is this number being released?
+            </label>
+            <Textarea
+              id="release-reason"
+              value={releaseReason}
+              onChange={(e) => setReleaseReason(e.target.value)}
+              placeholder="e.g. campaign ended, switching to a different number"
+              rows={3}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={releasing || releaseReason.trim().length < 3}
+              onClick={(e) => {
+                e.preventDefault();
+                onConfirmReleasePhone();
+              }}
+            >
+              {releasing ? "Releasing…" : "Release number"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

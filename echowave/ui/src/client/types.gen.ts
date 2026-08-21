@@ -5356,6 +5356,22 @@ export type PhoneNumberResponse = {
      * Updated At
      */
     updated_at: string;
+    /**
+     * Status
+     */
+    status?: string;
+    /**
+     * Carrier Number Id
+     */
+    carrier_number_id?: string | null;
+    /**
+     * Provisioned At
+     */
+    provisioned_at?: string | null;
+    /**
+     * Released At
+     */
+    released_at?: string | null;
     provider_sync?: ProviderSyncStatus | null;
 };
 
@@ -14504,6 +14520,49 @@ export type SetProviderKeyApiV1ProviderKeysPutResponses = {
 };
 
 export type SetProviderKeyApiV1ProviderKeysPutResponse = SetProviderKeyApiV1ProviderKeysPutResponses[keyof SetProviderKeyApiV1ProviderKeysPutResponses];
+
+export type ListKnownProvidersApiV1ProviderKeysProvidersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/provider-keys/providers';
+};
+
+export type ListKnownProvidersApiV1ProviderKeysProvidersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListKnownProvidersApiV1ProviderKeysProvidersGetError = ListKnownProvidersApiV1ProviderKeysProvidersGetErrors[keyof ListKnownProvidersApiV1ProviderKeysProvidersGetErrors];
+
+export type ListKnownProvidersApiV1ProviderKeysProvidersGetResponses = {
+    /**
+     * Response List Known Providers Api V1 Provider Keys Providers Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListKnownProvidersApiV1ProviderKeysProvidersGetResponse = ListKnownProvidersApiV1ProviderKeysProvidersGetResponses[keyof ListKnownProvidersApiV1ProviderKeysProvidersGetResponses];
 
 export type SetProviderKeyActiveApiV1ProviderKeysActivePostData = {
     body: ActiveRequest;

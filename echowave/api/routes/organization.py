@@ -1009,6 +1009,17 @@ async def delete_phone_number(
     phone_number_id: int,
     user: UserModel = Depends(get_user),
 ):
+    """Remove a number added by hand against the account's own carrier.
+
+    Refuses on a number Decibyl bought (``carrier_number_id`` set), whatever
+    its status. A live one is still rented at the carrier — deleting the row
+    would orphan that rental with nothing left pointing at it, since this row
+    is the only record we ever held the number. Use
+    ``POST /managed-numbers/{id}/release`` instead, which actually gives the
+    number back and closes the rental. A released one keeps its row on
+    purpose too: it is the audit trail for a number that may still be on the
+    customer's signage.
+    """
     if not user.selected_organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
     await _ensure_config_belongs_to_org(config_id, user.selected_organization_id)
@@ -1016,6 +1027,20 @@ async def delete_phone_number(
     existing = await db_client.get_phone_number_for_config(phone_number_id, config_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Phone number not found")
+
+    if existing.carrier_number_id:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{existing.address} was bought through Decibyl. If it is "
+                "still active, deleting it here would only remove our "
+                "record of it while the rental keeps being paid at the "
+                "carrier with nothing left pointing at it — release it "
+                "instead, which actually gives the number back. If it has "
+                "already been released, its row is the only record we ever "
+                "held it and is kept on purpose, not deletable from here."
+            ),
+        )
 
     deleted = await db_client.delete_phone_number(phone_number_id, config_id)
     if not deleted:
