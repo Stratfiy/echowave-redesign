@@ -303,13 +303,15 @@ class TestSpeechToSpeechIsQuotedAtWhatItCosts:
 
     def test_the_two_paths_agree_per_model(self):
         from api.services.billing.default_rates import DEFAULT_RATES
-        from api.services.billing.estimator import REALTIME_TOKENS_PER_MINUTE
+        from api.services.billing.estimator import (
+            _REALTIME_RATE_CARD_NAMES,
+            REALTIME_TOKENS_PER_MINUTE,
+        )
         from api.services.billing.realtime_pricing import (
             CallShape,
             estimate_realtime_call,
         )
         from api.services.billing.realtime_rates import REALTIME_PRICES
-        from api.services.billing.estimator import _REALTIME_RATE_CARD_NAMES
 
         rates = {r.provider: r.usd_per_unit for r in DEFAULT_RATES}
         for price in REALTIME_PRICES:

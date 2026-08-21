@@ -167,7 +167,7 @@ async def _open_tier(
             PlatformVolumeTierModel.effective_to.is_(None),
         )
         .order_by(PlatformVolumeTierModel.effective_from.desc())
-        .limit(1)
+        .limit(1),
     )
 
 
@@ -331,7 +331,7 @@ async def set_provider_rate(
             ProviderRateModel.effective_to.is_(None),
         )
         .order_by(ProviderRateModel.effective_from.desc())
-        .limit(1)
+        .limit(1),
     )
     old = {"rate_mpaise": current.rate_mpaise} if current is not None else {}
     await _close_open_row(session, current, at)
@@ -393,7 +393,7 @@ async def retire_provider_rate(
             ProviderRateModel.effective_to.is_(None),
         )
         .order_by(ProviderRateModel.effective_from.desc())
-        .limit(1)
+        .limit(1),
     )
     if current is None:
         raise RateCardError("No open rate for that provider and model.")
@@ -437,7 +437,7 @@ async def set_exchange_rate(
         select(UsdInrRateHistoryModel)
         .where(UsdInrRateHistoryModel.effective_to.is_(None))
         .order_by(UsdInrRateHistoryModel.effective_from.desc())
-        .limit(1)
+        .limit(1),
     )
     old = {"paise_per_usd": current.paise_per_usd} if current is not None else {}
     if current is not None:
@@ -636,7 +636,7 @@ async def set_account_rate(
             OrganizationRateHistoryModel.effective_to.is_(None),
         )
         .order_by(OrganizationRateHistoryModel.effective_from.desc())
-        .limit(1)
+        .limit(1),
     )
     old = (
         {

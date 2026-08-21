@@ -817,10 +817,19 @@ class CustomToolManager:
                     # call. Built from what was extracted rather than
                     # summarised by a model: this is the critical path, with
                     # the caller on hold and a handset ringing.
+                    #
+                    # Read defensively. This sits inside the try that owns the
+                    # provider call, so anything raised while *composing a
+                    # sentence* fails the whole transfer — with the caller on
+                    # hold and a handset about to ring. The briefing is a
+                    # courtesy; the bridge is the job, and no attribute lookup
+                    # is worth trading one for the other.
                     briefing = resolved_transfer.briefing or briefing_from_config(
                         config,
-                        initial_context=workflow_run.initial_context,
-                        gathered_context=workflow_run.gathered_context,
+                        initial_context=getattr(workflow_run, "initial_context", None),
+                        gathered_context=getattr(
+                            workflow_run, "gathered_context", None
+                        ),
                     )
                     transfer_result = await provider.transfer_call(
                         destination=destination,

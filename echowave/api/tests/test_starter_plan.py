@@ -25,6 +25,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from api.constants import (
@@ -48,7 +49,6 @@ from api.enums import (
 from api.services.billing import mandates as mandate_service
 from api.services.billing import payments
 from api.services.billing.plans import grant_plan_cycle
-from sqlalchemy import func, select
 
 
 async def _org(session, slug: str):

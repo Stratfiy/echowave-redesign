@@ -23,12 +23,12 @@ from api.services.billing.cost_engine import (
     UsageItem,
     compute_call_cost,
 )
-from api.services.billing.markup import resolve_markup_bps
 from api.services.billing.estimator import (
     DEFAULT_TOKENS_PER_MINUTE,
     MIN_CALLS_FOR_MEASURED_ASSUMPTION,
     estimate_cost_per_minute,
 )
+from api.services.billing.markup import resolve_markup_bps
 from api.services.billing.money import mpaise_to_micros_usd
 
 LONG_AGO = datetime(2020, 1, 1, tzinfo=UTC)

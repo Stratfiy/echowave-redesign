@@ -311,9 +311,7 @@ class TestTheWebhookPathIssuesOne:
 
 
 class TestWhatTheColumnMeans:
-    async def test_a_collected_period_records_the_net(
-        self, db_session, async_session
-    ):
+    async def test_a_collected_period_records_the_net(self, db_session, async_session):
         """``charged_paise`` is net everywhere else — the balance-collected path
         writes the charge's own price, which is net. Writing the provider's
         gross here put tax-inclusive rupees in the same column, and nothing

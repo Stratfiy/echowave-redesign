@@ -162,9 +162,9 @@ class TestTheOperatorAndTheCustomerSeeOneNumber:
             for variant in bundle["variants"]:
                 if variant["cost_paise_per_minute"] == 0:
                     continue  # unpriced stack: nothing to mark up
-                assert (
-                    variant["paise_per_minute"] > variant["cost_paise_per_minute"]
-                ), f"{bundle['slug']}/{variant['tier']} earns nothing"
+                assert variant["paise_per_minute"] > variant["cost_paise_per_minute"], (
+                    f"{bundle['slug']}/{variant['tier']} earns nothing"
+                )
                 checked += 1
 
         assert markup_bps > 10_000, "the markup is not configured above cost"

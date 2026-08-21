@@ -5,11 +5,11 @@ actually reaches the agent, and that a stack we cannot price says so rather
 than saying zero.
 """
 
+from api.db.models import OrganizationModel
 from api.schemas.ai_model_configuration import (
     OrganizationAIModelConfigurationV3,
     compile_ai_model_configuration_v3,
 )
-from api.db.models import OrganizationModel
 from api.services.configuration import agent_options, managed_tiers
 from api.services.configuration.agent_options import (
     approximate_minutes,

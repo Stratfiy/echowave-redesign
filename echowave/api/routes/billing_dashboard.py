@@ -16,8 +16,8 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
 from loguru import logger
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from api.db import billing_dashboard_client as dash
