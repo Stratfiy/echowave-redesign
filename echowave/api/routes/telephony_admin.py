@@ -26,6 +26,7 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import PhoneNumberStatus
 from api.services.auth.depends import get_superuser
+from api.services.billing import carrier_rates
 
 router = APIRouter(
     prefix="/admin/telephony",
@@ -78,7 +79,13 @@ async def set_platform_managed(
     """Put an organization's telephony configuration on the managed path.
 
     Turning this **on** means: this organization's calls are gated on our KYC
-    verification, and its numbers are ones we bought and pay rent for.
+    verification, its numbers are ones we bought and pay rent for, and **we
+    bill its minutes on**. That last one is why the carrier's rate has to be a
+    real one: carriage is marked up into the sell price, so a stand-in rate
+    either overcharges the customer or sells the minute at a loss, and the
+    invoice reads the same either way. A carrier still on a seeded stand-in is
+    refused here rather than discovered at month end —
+    ``services/billing/carrier_rates.py``.
 
     Turning it **off** is refused while managed numbers are still attached.
     The flag is what marks those numbers as ours to bill and ours to release;
@@ -89,6 +96,24 @@ async def set_platform_managed(
     row = await db_client.get_telephony_configuration(config_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Telephony configuration not found")
+
+    if request.managed:
+        async with db_client.async_session() as session:
+            provisional = await carrier_rates.provisionally_priced(session)
+        note = provisional.get((row.provider or "").strip().lower())
+        if note is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"{row.provider} has no verified India outbound rate — the "
+                    f"one on file is a stand-in ({note}). Managed carriage is "
+                    "marked up and billed on, so selling minutes at a figure "
+                    "nobody has checked either overcharges this customer or "
+                    "loses money on every call. Put the carrier's published "
+                    "rate on /superadmin/billing/rate-card first, then mark "
+                    "this configuration managed."
+                ),
+            )
 
     if not request.managed and row.is_platform_managed:
         numbers = await db_client.list_phone_numbers_for_config(config_id)

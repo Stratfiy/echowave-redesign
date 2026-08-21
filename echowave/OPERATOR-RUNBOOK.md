@@ -36,6 +36,14 @@ Nothing can be priced or bundled until it is in the catalogue.
 
 **Superadmin → Billing → Rate card.** Set a price for each model you ticked.
 
+> **Carriers, too.** Telnyx, Vonage, Cloudonix and Vobiz ship on a *stand-in*
+> rate — the Twilio India mobile figure — because nobody has read their
+> published India outbound price. Carriage is marked up and sold, so until one
+> of them carries a real rate it cannot be put on the managed path: the route
+> refuses it and Readiness says why. Enter the published rate here and the
+> carrier becomes sellable. A customer on their own account with any of them is
+> unaffected — those minutes are on their carrier's invoice, not ours.
+
 > A model on sale with no rate does not fail. It bills the platform fee alone,
 > records its provider usage as uncosted, and reports margin we did not earn.
 > That is why the customer's picker omits it entirely rather than showing it

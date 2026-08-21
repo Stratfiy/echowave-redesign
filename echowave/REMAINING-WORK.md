@@ -32,18 +32,33 @@ none of them can be done from here.
 
 ## B. Money still wrong, in code
 
-### B1. Four carriers are priced at US rates or at nothing real
+### B1. Four carriers have no verified India rate — *made safe, not yet fixed*
 
 `default_rates.TELEPHONY_RATES`. Plivo and Twilio carry real India figures.
-Telnyx (`$0.0070`) and Vonage (`$0.0139`) are labelled "US outbound". Cloudonix
-and Vobiz say, in the file, `PLACEHOLDER at the Twilio India mobile rate. Not
-the published price.`
+Telnyx (`$0.0070`) and Vonage (`$0.0139`) carried their **US outbound** rates
+against traffic that is Indian; Cloudonix and Vobiz carried stand-ins at the
+Twilio India mobile rate.
 
-Carriage is now marked up like everything else, so an under-priced base rate
-compounds into the sell price rather than merely eating margin.
+Carriage is marked up like everything else, so there is no safe direction: a
+stand-in that is too high overcharges the customer, one that is too low sells
+the minute at a loss, and **the invoice reads identically either way**.
 
-**Fix:** real India rates for all four, or remove them from what a customer can
-select. Half a day, mostly reading price lists.
+**Done on 21 Aug.** Telnyx and Vonage are off the US rates and on the same
+India stand-in as the other two. All four are flagged `provisional`, which is
+carried into the seeded row's note, and `billing/carrier_rates.py` refuses to
+put a configuration on the managed path while its carrier's rate still carries
+the marker. Superadmin → Billing → Readiness reports them: `ready` while
+nothing is sold on them, `action_required` the moment a platform-managed
+configuration is (which catches anything marked managed before the guard).
+Nothing changes for a customer on their own account with these carriers — we
+bill them no carriage at all.
+
+**Still to do, and it needs a person, not a release:** read each carrier's
+published India outbound rate off their pricing page and enter it at
+`/superadmin/billing/rate-card`. That supersedes the stand-in, clears the
+marker and makes the carrier sellable. Neither Telnyx nor Vonage publishes an
+India figure this repository can cite, which is why the code refuses rather
+than guessing.
 
 ### B2. Export accounts on autopay are over-charged by the GST
 
@@ -189,8 +204,8 @@ card. A commercial call, not a bug.
 1. **A1–A7.** Configuration. Nothing below matters if money cannot be taken
    correctly, and the readiness screen now tells you when it can.
 2. ~~**C1.** The customer Models screen.~~ **Done** — see the note in §C.
-3. **B1, B3, D1, D2.** A week's worth: real carrier rates, an honest wizard
-   price, and the two emails.
+3. **B3, D1, D2.** An honest wizard price and the two emails. **B1** now needs
+   only the four published rates typing into the rate card.
 4. **Decide B2, B4, E3.** Three commercial calls that need you, not code.
 5. **F1.** Put `tsc`, `next build` and vitest in CI before the codebase grows
    further without them.
