@@ -24,6 +24,7 @@ import pytest
 
 from api.enums import CostComponent, RateUnit
 from api.services.billing.cost_engine import RateSpec, compute_call_cost
+from api.services.billing.money import round_half_up_div
 from api.services.billing.usage import usage_items_from_usage_info
 
 AT_COST = 10_000
@@ -222,9 +223,14 @@ class TestByokRevenueIsThePlatformFeeAlone:
     that has to hold no matter how much speech or how many tokens the call
     consumed.
 
-    Telephony is the deliberate exception and is not a hole in the rule: we
-    front the carrier's bill whoever owns the model keys, so it is charged. It
-    is excluded from the markup, so it carries no margin either.
+    Telephony is asked about separately and is not a hole in the rule: bringing
+    your own language model says nothing about who owns the phone line. On the
+    customer's own carrier nothing is charged and nothing is even measured. On
+    a Decibyl number we bought the minutes and resell them like any other
+    component, markup included — so the invariant is precise about *which*
+    call: on models-BYOK plus their own number, the platform fee is the whole
+    margin. Add our number and carriage margin joins it, which is the point of
+    providing one.
     """
 
     #: A busy call — long conversation, plenty of synthesis — on the account's
@@ -241,7 +247,14 @@ class TestByokRevenueIsThePlatformFeeAlone:
         "stt": {"DeepgramSTTService|||nova-3": 600},
         "telephony": {"twilio": 600},
         "call_duration_seconds": 600,
-        "key_sources": {"llm": "byok", "stt": "byok", "tts": "byok"},
+        # Own model keys, but a Decibyl phone number — the mix this class is
+        # about, and the one where the platform fee has to be the whole margin.
+        "key_sources": {
+            "llm": "byok",
+            "stt": "byok",
+            "tts": "byok",
+            "telephony": "managed",
+        },
     }
 
     def test_no_model_usage_becomes_a_billable_item(self):
@@ -251,14 +264,43 @@ class TestByokRevenueIsThePlatformFeeAlone:
         assert CostComponent.LLM not in components
         assert CostComponent.TTS not in components
         assert CostComponent.STT not in components
-        # Telephony survives: we pay the carrier regardless of whose keys ran
-        # the models.
+        # Telephony survives: this call ran on a Decibyl number, and whose
+        # keys ran the models does not change who paid the carrier.
         assert CostComponent.TELEPHONY in components
 
-    def test_the_platform_fee_is_the_entire_margin(self):
-        """The invariant stated as money. Revenue minus what we paid out equals
-        the platform fee exactly — not approximately, and not plus a little
-        speech synthesis that slipped through."""
+    #: The same busy call, on the customer's own carrier as well as their own
+    #: keys. No telephony block at all, because we do not measure carriage we
+    #: did not sell.
+    ALL_BYOK_OWN_NUMBER = {
+        key: value for key, value in ALL_BYOK.items() if key != "telephony"
+    }
+
+    def test_the_platform_fee_is_the_entire_margin_on_their_own_number(self):
+        """The invariant stated as money, on the call it actually describes.
+
+        Own keys and own carrier: revenue minus what we paid out equals the
+        platform fee exactly — not approximately, and not plus a little speech
+        synthesis that slipped through.
+        """
+        cost = compute_call_cost(
+            billable_seconds=600,
+            platform_rate_mpaise=200_000,
+            usage=usage_items_from_usage_info(self.ALL_BYOK_OWN_NUMBER),
+            provider_rates={},
+            markup_bps=MARKUP_1_3,
+        )
+
+        margin = cost.total_charged_paise - cost.total_provider_cost_paise
+        assert margin == cost.platform_fee_paise
+        assert cost.total_provider_cost_paise == 0
+
+    def test_our_number_adds_carriage_margin_and_nothing_else(self):
+        """The other half, and the reason we provide numbers at all.
+
+        Every rupee of margin above the platform fee has to be carriage. If any
+        model usage leaked into a charge, this is where it would show up as a
+        margin nobody can account for.
+        """
         telephony_rate = {
             ("telephony", "twilio", ""): RateSpec(
                 rate_mpaise=1_250_000, unit=RateUnit.MINUTE
@@ -271,15 +313,29 @@ class TestByokRevenueIsThePlatformFeeAlone:
             provider_rates=telephony_rate,
             markup_bps=MARKUP_1_3,
         )
+        carriage = next(
+            line
+            for line in cost.line_items
+            if line.component == CostComponent.TELEPHONY.value
+        )
 
         margin = cost.total_charged_paise - cost.total_provider_cost_paise
-        assert margin == cost.platform_fee_paise
+        expected = cost.platform_fee_paise + (
+            carriage.cost_paise - carriage.provider_cost_paise
+        )
+        assert margin == expected
 
-    def test_telephony_is_charged_but_earns_nothing(self):
-        """Charged because we pay the carrier; no margin because telephony is
-        outside MARKED_UP_COMPONENTS — the rate card holds the sell price
-        directly, so marking it up again would mean the number an operator
-        types is not the number a customer pays."""
+    def test_telephony_earns_the_same_margin_as_everything_else(self):
+        """Carriage is bought and resold like any other component.
+
+        It used to sit outside MARKED_UP_COMPONENTS on the theory that its rate
+        card row held the *sell* price. The rows never held that — every seeded
+        figure is a vendor's published price to us — so carriage was resold at
+        cost, earning nothing on the one component we front the money for.
+
+        One rule for every provider row now: the number is what the vendor
+        charges us, and the markup is what we add.
+        """
         telephony_rate = {
             ("telephony", "twilio", ""): RateSpec(
                 rate_mpaise=1_250_000, unit=RateUnit.MINUTE
@@ -297,12 +353,37 @@ class TestByokRevenueIsThePlatformFeeAlone:
         )
 
         assert line.cost_paise > 0
-        assert line.cost_paise == line.provider_cost_paise
+        assert line.provider_cost_paise > 0
+        assert line.cost_paise > line.provider_cost_paise
+        # The same multiple the model components get, not a special case.
+        assert line.cost_paise == round_half_up_div(
+            line.provider_cost_paise * MARKUP_1_3, 10_000
+        )
 
     def test_raising_the_markup_cannot_change_a_byok_bill(self):
-        """The reason this is worth a test of its own: moving the managed
-        multiplier is an environment variable, and it must be impossible for it
-        to reach an account that brought its own keys."""
+        """Moving the managed multiplier is an environment variable, and it
+        must be impossible for it to reach usage an account paid a vendor for
+        directly.
+
+        Scoped to a call on their own carrier as well as their own keys. Once
+        carriage is ours the markup reaches it — correctly, because we bought
+        those minutes — so the property being defended is about *their* spend,
+        not about the invoice total.
+        """
+
+        def at(markup):
+            return compute_call_cost(
+                billable_seconds=600,
+                platform_rate_mpaise=200_000,
+                usage=usage_items_from_usage_info(self.ALL_BYOK_OWN_NUMBER),
+                provider_rates={},
+                markup_bps=markup,
+            ).total_charged_paise
+
+        assert at(13_000) == at(14_000) == at(20_000)
+
+    def test_raising_the_markup_does_reach_carriage_we_bought(self):
+        """The other side of the same coin, stated so nobody 'fixes' it back."""
         telephony_rate = {
             ("telephony", "twilio", ""): RateSpec(
                 rate_mpaise=1_250_000, unit=RateUnit.MINUTE
@@ -318,7 +399,7 @@ class TestByokRevenueIsThePlatformFeeAlone:
                 markup_bps=markup,
             ).total_charged_paise
 
-        assert at(13_000) == at(14_000) == at(20_000)
+        assert at(13_000) < at(14_000) < at(20_000)
 
     def test_a_mixed_call_only_charges_the_managed_half(self):
         """The realistic case: an account brings a language-model key and takes

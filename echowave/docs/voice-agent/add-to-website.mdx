@@ -48,19 +48,39 @@ Add your voice agent to any website using the Configure Widget dialog in your ag
 
 Step 1: Open the agent settings by clicking the gear icon in the top-right of the agent editor.
 
-![Open agent settings](../images/open-settings.png)
+<Screenshot
+  src="embed-open-settings.png"
+  alt="The agent editor with the settings gear icon in the top right"
+  caption="The gear icon, top right of the canvas."
+  shot="The workflow editor with the settings gear button in the top-right of the canvas visible and, ideally, hovered. Crop to the top-right corner of the canvas rather than the whole screen."
+/>
 
 Step 2: Scroll to the **Add to Website** section and click **Configure Widget**.
 
-![Go to Add to Website](../images/add-to-website.png)
+<Screenshot
+  src="embed-add-to-website-section.png"
+  alt="The Add to Website section of agent settings with the Configure Widget button"
+  caption="Agent settings, scrolled to Add to Website."
+  shot="The agent settings panel scrolled to the Add to Website card, with the Configure Widget button visible. Crop to that card and its neighbours, not the full page."
+/>
 
 Step 3: Enable embedding, add your website's domain to **Allowed Domains**, choose **Floating Widget**, **Inline Component**, or **Headless (Bring Your Own UI)**, customize the button (position, color, text) if applicable, and click **Save Configurations**.
 
-![Save configurations](../images/save-configurations.png)
+<Screenshot
+  src="embed-configure-widget.png"
+  alt="The Configure Widget dialog with embedding enabled, allowed domains, embed mode and button options"
+  caption="Enable embedding, pick a mode, then Save Configurations."
+  shot="The Configure Widget dialog with Enable Embedding on, one allowed domain entered, Floating Widget selected, and the button text and colour fields filled with Decibyl values (not 'Ask Dograh'). Save Configurations visible."
+/>
 
 Step 4: Copy the generated embed code and paste it into your web page to test your agent.
 
-![Copy deployment code](../images/copy-deployment-code.png)
+<Screenshot
+  src="embed-copy-code.png"
+  alt="The embed code panel with the Copy Code button"
+  caption="One script tag. Paste it anywhere in the page."
+  shot="The Embed Code panel of the Configure Widget dialog showing the generated script tag with Copy Code. Redact the token and make sure the URL is the production api.decibyl.ai one, not a localhost or ngrok address."
+/>
 
 ## Embed modes
 
@@ -80,7 +100,11 @@ These apply to all three modes:
 
 ## Floating Widget
 
-![Floating widget shown in the corner of a host page](../images/floating-widget-example.png)
+<Screenshot
+  src="embed-mode-floating.svg"
+  alt="Illustration of the floating widget as a pill button anchored to the bottom-right corner of a web page"
+  caption="Floating mode: a pill button in the corner, over whatever the page already is."
+/>
 
 Renders a pill-shaped button (microphone icon + text) anchored to a corner of the page. Clicking it starts a call; clicking again ends it. The button auto-updates its label and color across the call lifecycle: configured text → "Connecting…" → "End Call" → "Retry" on failure.
 
@@ -90,7 +114,11 @@ The host page writes no JavaScript — pasting the embed snippet is the entire i
 
 ## Inline Component
 
-![Inline widget rendered inside a page section](../images/inline-widget-example.png)
+<Screenshot
+  src="embed-mode-inline.svg"
+  alt="Illustration of the inline widget rendered as a panel inside a page section"
+  caption="Inline mode: a panel in the flow of the page, where you put the container div."
+/>
 
 Renders a panel (status icon + status text + CTA button) inside a `<div>` you place in your page. Status changes update the panel in place.
 
@@ -144,7 +172,11 @@ export function Assistant() {
 
 ## Headless Mode
 
-![Headless widget driven by host-page UI](../images/headless-widget-example.png)
+<Screenshot
+  src="embed-mode-headless.svg"
+  alt="Illustration of headless mode, where the page's own button drives the call and the widget renders nothing"
+  caption="Headless mode: no widget UI at all. Your button, your design, our audio."
+/>
 
 In Headless mode the widget injects no UI of its own. You render whatever buttons, banners, or in-call indicators you want, and call the JavaScript API to start and end calls.
 

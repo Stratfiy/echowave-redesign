@@ -1,12 +1,15 @@
+# Flash-Lite 2.5 is gone from both lists: it retired on 2026-10-16, and an
+# option somebody can still select is an option somebody will still select.
+# A stored configuration naming it keeps the string — nothing rewrites saved
+# workflows — but it fails at Google's end rather than ours, and the managed
+# tiers that used to point at it no longer do.
 GOOGLE_MODELS = (
     "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
     "gemini-3.5-flash",
     "gemini-3.5-flash-lite",
 )
 GOOGLE_VERTEX_MODELS = (
     "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
     "gemini-3.1-flash-lite",
     "gemini-3.5-flash",
 )

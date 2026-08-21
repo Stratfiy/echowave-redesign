@@ -46,7 +46,7 @@ from api.constants import (
     RAZORPAY_KEY_SECRET,
     RAZORPAY_WEBHOOK_SECRET,
 )
-from api.db.models import CreditLedgerModel, PaymentModel
+from api.db.models import CreditLedgerModel, PaymentMandateModel, PaymentModel
 from api.enums import CreditLedgerKind
 from api.services.billing.billing_profile import get_profile
 from api.services.billing.money import round_half_up_div
@@ -274,6 +274,43 @@ def _payment_entity(event: dict) -> dict:
     return (payload.get("payment") or {}).get("entity") or {}
 
 
+async def _issue_collection_voucher(
+    session: AsyncSession, *, mandate, event: dict
+) -> dict | None:
+    """The tax document for one autopay collection.
+
+    Reads the gross off the provider's payload rather than off our own price:
+    what the bank actually took is the supply that was paid for, and if the two
+    ever disagree the payload is the one a return has to match.
+    """
+    from api.services.billing.documents import issue_collection_voucher
+    from api.services.billing.mandates import PURPOSE_STARTER_PLAN
+
+    entity = _payment_entity(event)
+    provider_payment_id = entity.get("id")
+    gross_paise = entity.get("amount")
+    if not provider_payment_id or not gross_paise:
+        logger.error(
+            "Mandate collection for org {} has no payment id or amount in its "
+            "payload; no receipt voucher could be issued",
+            mandate.organization_id,
+        )
+        return None
+
+    voucher = await issue_collection_voucher(
+        session,
+        organization_id=mandate.organization_id,
+        provider_payment_id=str(provider_payment_id),
+        gross_paise=int(gross_paise),
+        description=(
+            "Starter plan: call balance and one phone number"
+            if mandate.purpose == PURPOSE_STARTER_PLAN
+            else "Monthly phone number rental"
+        ),
+    )
+    return {"number": voucher.number} if voucher else None
+
+
 async def handle_webhook(
     session: AsyncSession, *, raw_body: bytes, signature: str | None
 ) -> dict:
@@ -302,18 +339,60 @@ async def handle_webhook(
         # the monthly rental is collected under. Signature verification has
         # already happened above, which is the only thing that may change a
         # mandate's state.
-        from api.services.billing.mandates import apply_subscription_event
+        from api.services.billing.mandates import (
+            PURPOSE_STARTER_PLAN,
+            apply_subscription_event,
+        )
         from api.services.billing.rentals import record_mandate_collection
 
         outcome = await apply_subscription_event(session, event=event)
         if outcome.get("charged"):
-            # The bank collected. Recording the period here is what stops the
-            # monthly cron debiting the prepaid balance for the same month —
-            # two collection paths for one period is a double charge, and it is
-            # the kind that looks correct in both ledgers separately.
-            outcome["period"] = await record_mandate_collection(
-                session, mandate_id=outcome["mandate_id"], event=event
-            )
+            # The bank collected. What that buys depends on which standing
+            # instruction it was: a rental mandate pays for a number's month,
+            # the starter plan pays for that *and* a call balance. Routed on
+            # the mandate's purpose rather than on the amount, because two
+            # plans priced the same would be indistinguishable by amount and
+            # the difference is what the customer was sold.
+            mandate = await session.get(PaymentMandateModel, outcome["mandate_id"])
+            if mandate is not None and mandate.purpose == PURPOSE_STARTER_PLAN:
+                from api.services.billing.plans import grant_plan_cycle
+
+                # Settles both halves, the rent included — so this branch must
+                # not also call record_mandate_collection below.
+                outcome["plan"] = await grant_plan_cycle(
+                    session, mandate=mandate, event=event
+                )
+            else:
+                # Recording the period here is what stops the monthly cron
+                # debiting the prepaid balance for the same month — two
+                # collection paths for one period is a double charge, and it is
+                # the kind that looks correct in both ledgers separately.
+                outcome["period"] = await record_mandate_collection(
+                    session, mandate_id=outcome["mandate_id"], event=event
+                )
+
+            # One voucher for the collection, whatever it bought. Issued here
+            # rather than inside either branch because the customer paid once:
+            # a starter-plan charge settles rent *and* grants a balance, and two
+            # documents for one payment would be two entries in a return.
+            #
+            # Wrapped, and deliberately not fatal. The bank has already moved
+            # the money and both branches above have already recorded what it
+            # bought; raising here would have Razorpay retry a collection that
+            # is fully settled. The tax is still owed either way, and the
+            # error names the collection so the voucher can be issued after.
+            if mandate is not None:
+                try:
+                    outcome["voucher"] = await _issue_collection_voucher(
+                        session, mandate=mandate, event=event
+                    )
+                except Exception as exc:  # noqa: BLE001 - see above
+                    logger.error(
+                        "Mandate collection for org {} settled but its receipt "
+                        "voucher failed: {}",
+                        mandate.organization_id,
+                        exc,
+                    )
         return outcome
 
     if event_type not in {"payment.captured", "payment.failed"}:

@@ -1,6 +1,183 @@
 ---
 title: "Agent Node"
-description: "Agent node contains the prompts that drives the conversation with the Voice Agent"
+description: "One focused step of the conversation — its own prompt, its own tools, its own reasons to move on."
 ---
 
-The Edges connected with Agent Nodes are pathways that the LLMs can take depending on how the conversation has been going so far. 
+An agent node is a single step of the conversation. It has a prompt describing
+what to achieve at this point, and one or more outgoing edges describing the
+reasons to move somewhere else. Most agents are a chain of them.
+
+<Screenshot
+  src="agent-node-panel.png"
+  alt="An Agent node's settings panel showing the prompt, interruption toggle, extraction and tools sections"
+  caption="One node, one job. The prompt describes the job; the edges describe leaving it."
+  shot="An Agent node settings panel with a realistic prompt filled in, Allow Interruption on, and the Extraction and Tools sections visible below."
+/>
+
+## Why several nodes instead of one long prompt
+
+You could write the whole call as one prompt. Every voice platform lets you, and
+it is the wrong shape for anything past a demo.
+
+<CardGroup cols={2}>
+  <Card title="A prompt you can change safely" icon="pen">
+    Fixing how the agent handles a price objection means editing the node that
+    handles price objections, not re-reading a page of instructions and hoping
+    the edit did not disturb something else.
+  </Card>
+  <Card title="A call you can read afterwards" icon="list">
+    The run record shows which node the conversation was on at each turn. "It
+    went wrong" becomes "it went wrong on *Qualify Budget*", which is a
+    debuggable statement.
+  </Card>
+  <Card title="Tools that are scoped" icon="wrench">
+    Tools attach per node. A refund tool is reachable while discussing a refund
+    and nowhere else — which is a control, not a convenience.
+  </Card>
+  <Card title="A shorter prompt at every turn" icon="gauge">
+    The model is only ever given the instructions for where it actually is.
+    Shorter prompts are faster, cheaper, and followed more reliably.
+  </Card>
+</CardGroup>
+
+The rule of thumb: **a node is one thing you would tick off a checklist.**
+"Find out what they want", "check availability", "confirm the booking" are three
+nodes. "Handle the call" is not a node.
+
+## Fields
+
+<ParamField path="name" type="string" default="Agent">
+Short label, e.g. `Qualify Budget`. It appears on the canvas, in the run record,
+and in the transition tools the model sees — so a descriptive name genuinely
+helps the model reason about where it is.
+</ParamField>
+
+<ParamField path="prompt" type="string" required>
+What the agent should do at this step. Supports `{{template_variables}}` from
+extraction, the initial context, and pre-call fetch.
+</ParamField>
+
+<ParamField path="allow_interrupt" type="boolean" default="true">
+Whether the caller can talk over the agent. On by default, because being unable
+to interrupt a voice agent is the single most common complaint about them. Turn
+it off only for a node that reads a disclosure.
+</ParamField>
+
+<ParamField path="add_global_prompt" type="boolean" default="true">
+Prepend the [Global node](/voice-agent/global)'s prompt at runtime. Leave it on
+unless this node deliberately breaks character.
+</ParamField>
+
+<ParamField path="extraction_enabled" type="boolean" default="false">
+Run an extraction pass over this node's exchange and write the results into
+`gathered_context`.
+</ParamField>
+
+<ParamField path="extraction_prompt" type="string">
+Overall guidance for the extraction pass.
+</ParamField>
+
+<ParamField path="extraction_variables" type="object[]">
+Each entry is a name, a type, and a hint describing what to capture.
+</ParamField>
+
+<ParamField path="tool_uuids" type="string[]">
+[Tools](/voice-agent/tools/introduction) callable from this node.
+</ParamField>
+
+<ParamField path="document_uuids" type="string[]">
+[Knowledge Base documents](/voice-agent/knowledge-base) readable from this node.
+</ParamField>
+
+## Writing the prompt
+
+A node prompt is an instruction for one step, not a description of the agent.
+The persona, the tone and the rules belong in the
+[Global node](/voice-agent/global) — repeating them here makes them harder to
+change and gives the model more to hold at once.
+
+```text title="A node prompt that works"
+Find out which dentist the caller wants and roughly when.
+
+Ask for the dentist first. If they have no preference, say who is available
+this week and let them choose. Then ask for a day and a rough time of day —
+morning or afternoon is enough at this stage, do not push for an exact time.
+
+Do not confirm anything yet. Confirmation happens at the next step.
+```
+
+Three things that make it work: it says what to achieve, it says what *not* to
+do, and it says where the conversation is going next so the model does not try
+to finish the whole call here.
+
+<Warning>
+**Do not put the transition condition in the prompt.** "When they've given you a
+time, move to confirmation" belongs on the *edge*, not in the node. Written in
+the prompt, the model may narrate the transition or attempt it at the wrong
+moment; written on the edge, it is a decision the runtime makes.
+</Warning>
+
+## Edges out
+
+Every outgoing edge carries a plain-English condition. The model evaluates them
+against the conversation so far and picks one.
+
+```text
+"the caller has given a dentist and a preferred day"     → Confirm booking
+"the caller says none of the times work"                 → Offer callback
+"the caller wants to speak to a person"                  → Transfer
+```
+
+Write them as observable facts about the conversation, not as instructions.
+*"the caller has confirmed"* is checkable. *"proceed to booking"* is not — it
+tells the model what to do rather than when.
+
+<Note>
+When the decision is about a **value rather than a judgement** — an amount, a
+count, a language already chosen — use a [Branch node](/voice-agent/branch)
+instead. `order_value > 50000` is not something a model should be asked to
+re-derive from the transcript.
+</Note>
+
+## Extraction
+
+Switching on **Enable Variable Extraction** runs a second model pass over this
+node's exchange and writes named values into `gathered_context`, where a
+[Webhook](/voice-agent/webhook), a [Branch](/voice-agent/branch) or a later
+prompt can read them.
+
+Declare one variable per thing you want, with a hint:
+
+| Name | Type | Hint |
+|---|---|---|
+| `preferred_dentist` | string | Which dentist the caller asked for, if any |
+| `preferred_day` | string | The day they suggested, as they said it |
+| `is_new_patient` | boolean | Whether this is their first visit |
+
+Extraction is per node and off by default, which is deliberate: it is an extra
+model call, and running one on every node of a long call is a cost you did not
+intend to take.
+
+## Rules
+
+- At least one incoming edge — an agent node the conversation cannot reach is a
+  validation error, not a draft.
+- Any number of outgoing edges. A node with none is a dead end; use an
+  [End Call](/voice-agent/end-call) node if that is what you meant.
+
+## See also
+
+<CardGroup cols={2}>
+  <Card title="Global node" href="/voice-agent/global">
+    Where the persona and the rules go, once.
+  </Card>
+  <Card title="Branch node" href="/voice-agent/branch">
+    Routing on a value instead of asking the model.
+  </Card>
+  <Card title="Context and variables" href="/core-concepts/context-and-variables">
+    How initial and gathered context flow through a call.
+  </Card>
+  <Card title="Tools" href="/voice-agent/tools/introduction">
+    Letting a node act, not just talk.
+  </Card>
+</CardGroup>

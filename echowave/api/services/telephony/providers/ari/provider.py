@@ -369,9 +369,15 @@ class ARIProvider(TelephonyProvider):
         transfer_id: str,
         conference_name: str,
         timeout: int = 30,
+        briefing: Optional[str] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Initiate ARI call transfer by creating an outbound channel to the destination.
+
+        ``briefing`` is accepted and not spoken: the destination is a channel
+        rather than a document that can carry speech, so briefing it would need
+        a separate ARI playback before the bridge. Declared so it is consumed
+        here rather than passed through as an unrecognised kwarg.
 
         This method creates the destination channel and returns immediately. The transfer
         process completes asynchronously - success/failure is determined by ARI events

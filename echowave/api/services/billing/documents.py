@@ -50,7 +50,7 @@ from api.db.models import (
     WorkflowRunModel,
 )
 from api.services.billing.billing_profile import get_profile
-from api.services.billing.tax import TaxBreakdown, compute_tax
+from api.services.billing.tax import TaxBreakdown, compute_tax, net_of
 
 RECEIPT_VOUCHER = "receipt_voucher"
 TAX_INVOICE = "tax_invoice"
@@ -186,6 +186,7 @@ async def _issue(
     period_start: date | None = None,
     period_end: date | None = None,
     payment_id: int | None = None,
+    provider_payment_id: str | None = None,
 ) -> TaxDocumentModel:
     year = financial_year(issued_at)
     number = await _next_number(session, kind=kind, year=year)
@@ -210,6 +211,7 @@ async def _issue(
         customer_snapshot=customer,
         line_items=line_items,
         payment_id=payment_id,
+        provider_payment_id=provider_payment_id,
     )
     session.add(document)
     await session.flush()
@@ -282,6 +284,87 @@ async def issue_receipt_voucher(
         customer=profile.as_snapshot(),
         issued_at=payment.paid_at or datetime.now(UTC),
         payment_id=payment.id,
+    )
+    return _view(document)
+
+
+async def issue_collection_voucher(
+    session: AsyncSession,
+    *,
+    organization_id: int,
+    provider_payment_id: str,
+    gross_paise: int,
+    description: str,
+    issued_at: datetime | None = None,
+) -> IssuedDocument | None:
+    """Acknowledge money a bank moved under an autopay mandate.
+
+    The gap this closes: a subscription charge issued no tax document at all.
+    Time of supply for a service is the earlier of invoice or payment, so tax
+    fell due the moment the bank paid — monthly, for every account on autopay —
+    and nothing evidenced it.
+
+    Takes the **gross**, unlike every other function here, because that is the
+    only figure the provider reports: a mandate is registered for the amount the
+    bank is told to collect, tax included. The taxable value is recovered with
+    :func:`net_of` rather than assumed, so the document's split is the real one
+    and not 18% of a number that already contained it.
+
+    One voucher per collection, whatever the collection bought. A starter-plan
+    charge settles a month of rent *and* grants a call balance, and the customer
+    paid once — two documents for one payment would be two entries in a return.
+
+    Idempotent on the provider's payment id, which is identical on every
+    redelivery, with a partial unique index behind it. Returns None rather than
+    raising when we are not configured to issue: the money is real either way,
+    and a document can be issued later, but a webhook that raises here would be
+    retried forever against a collection that has already been recorded.
+    """
+    existing = await session.scalar(
+        select(TaxDocumentModel).where(
+            TaxDocumentModel.kind == RECEIPT_VOUCHER,
+            TaxDocumentModel.provider_payment_id == provider_payment_id,
+        )
+    )
+    if existing is not None:
+        return _view(existing)
+
+    if not supplier_is_configured():
+        logger.error(
+            "Mandate collection {} recorded but no receipt voucher issued: "
+            "SUPPLIER_LEGAL_NAME and SUPPLIER_GSTIN are not set. The collection "
+            "is still taxable — issue the voucher once they are configured.",
+            provider_payment_id,
+        )
+        return None
+
+    profile = await get_profile(session, organization_id=organization_id)
+    taxable = net_of(
+        gross_paise=int(gross_paise),
+        country_code=profile.country_code,
+        state_code=profile.state_code,
+    )
+    breakdown = compute_tax(
+        taxable_paise=taxable,
+        country_code=profile.country_code,
+        state_code=profile.state_code,
+    )
+
+    document = await _issue(
+        session,
+        organization_id=organization_id,
+        kind=RECEIPT_VOUCHER,
+        breakdown=breakdown,
+        line_items=[
+            {
+                "description": description,
+                "sac_code": SUPPLIER_SAC_CODE,
+                "amount_paise": taxable,
+            }
+        ],
+        customer=profile.as_snapshot(),
+        issued_at=issued_at or datetime.now(UTC),
+        provider_payment_id=provider_payment_id,
     )
     return _view(document)
 

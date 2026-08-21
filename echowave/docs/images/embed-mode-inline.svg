@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" role="img" aria-label="A web page with the Decibyl widget rendered as a panel inside the page's own content flow">
+  <style>
+    .win  { fill: #ffffff; stroke: #d8dbe0; stroke-width: 1.5 }
+    .bar  { fill: #f1f3f5 }
+    .dot  { fill: #d0d4da }
+    .blk  { fill: #e7e9ee }
+    .ln   { fill: #dfe2e8 }
+    .tx   { fill: #6b7280; font: 500 15px ui-sans-serif, system-ui, -apple-system, sans-serif }
+    .txs  { fill: #8b90a0; font: 400 13px ui-sans-serif, system-ui, -apple-system, sans-serif }
+    .code { fill: #6b7280; font: 400 13px ui-monospace, SFMono-Regular, Menlo, monospace }
+    .ac   { fill: #0a6bc7 }
+    .acs  { stroke: #0a6bc7 }
+    .act  { fill: #ffffff; font: 600 15px ui-sans-serif, system-ui, -apple-system, sans-serif }
+    .own  { fill: #7c3aed }
+    .ghost{ fill: none; stroke: #b6bbc6; stroke-width: 1.5; stroke-dasharray: 5 4 }
+    @media (prefers-color-scheme: dark) {
+      .win  { fill: #14161a; stroke: #2b2f36 }
+      .bar  { fill: #1b1e23 }
+      .dot  { fill: #3a3f47 }
+      .blk  { fill: #23272e }
+      .ln   { fill: #2a2e35 }
+      .tx   { fill: #9aa1ad }
+      .txs  { fill: #7c838f }
+      .code { fill: #9aa1ad }
+      .ac   { fill: #28b3f0 }
+      .acs  { stroke: #28b3f0 }
+      .act  { fill: #05202f }
+      .own  { fill: #a78bfa }
+      .ghost{ stroke: #4a505a }
+    }
+  </style>
+  <rect x="20" y="20" width="920" height="560" rx="12" class="win"/>
+  <path d="M20 32a12 12 0 0 1 12-12h896a12 12 0 0 1 12 12v22H20z" class="bar"/>
+  <circle cx="44" cy="37" r="5" class="dot"/>
+  <circle cx="62" cy="37" r="5" class="dot"/>
+  <circle cx="80" cy="37" r="5" class="dot"/>
+  <rect x="104" y="30" width="200" height="14" rx="7" class="blk"/>
+  <rect x="60" y="94" width="300" height="26" rx="6" class="blk"/>
+  <rect x="60" y="136" width="560" height="12" rx="6" class="ln"/>
+  <rect x="60" y="158" width="620" height="12" rx="6" class="ln"/>
+
+  <!-- the container div the host page places -->
+  <rect x="58" y="196" width="844" height="152" rx="10" class="ghost"/>
+  <text x="72" y="188" class="code">&lt;div id="decibyl-inline-container"&gt;</text>
+
+  <g transform="translate(84,220)">
+    <circle cx="26" cy="52" r="26" class="ac"/>
+    <g transform="translate(20,42)">
+      <rect x="4" y="0" width="9" height="14" rx="4.5" fill="#ffffff"/>
+      <path d="M0 9a8.5 8.5 0 0 0 17 0" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+      <path d="M8.5 17.5V21" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <text x="72" y="46" class="tx">Ready to connect</text>
+    <text x="72" y="70" class="txs">Talk to our team about your requirement</text>
+    <rect x="620" y="30" width="164" height="46" rx="23" class="ac"/>
+    <text x="662" y="59" class="act">Start call</text>
+  </g>
+
+  <rect x="60" y="392" width="620" height="12" rx="6" class="ln"/>
+  <rect x="60" y="414" width="540" height="12" rx="6" class="ln"/>
+  <rect x="60" y="452" width="400" height="96" rx="8" class="blk"/>
+  <rect x="484" y="452" width="196" height="96" rx="8" class="blk"/>
+</svg>

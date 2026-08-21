@@ -21,7 +21,9 @@ const TABS = [
     { href: "/superadmin/billing/payments", label: "Payments" },
     { href: "/superadmin/billing/realtime", label: "Realtime" },
     { href: "/superadmin/billing/unit-economics", label: "Unit economics" },
+    { href: "/superadmin/billing/pricing-inputs", label: "Pricing inputs" },
     { href: "/superadmin/billing/rate-card", label: "Rate card" },
+    { href: "/superadmin/billing/bundles", label: "Bundles" },
 ];
 
 /**

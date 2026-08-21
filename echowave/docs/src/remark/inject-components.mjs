@@ -34,6 +34,7 @@ const COMPONENTS = [
   "Note",
   "ParamField",
   "ResponseField",
+  "Screenshot",
   "Step",
   "Steps",
   "Tab",

@@ -11,9 +11,16 @@ a pricing decision or a one-row rate-card edit.
 
 ## 0. The finding in one line
 
-`PROVIDER-PRICING.md §4` claims we charge *"60% less than the cheapest major
+> **Corrected 19 Aug 2026 — see `COMPETITIVE-BUNDLES-2026.md`.** The paragraph
+> below is wrong, and the India table further down disproves it: it quotes
+> Bolna at ₹5.52/min, which is how Bolna's own page prints six cents. Their
+> platform fee is **$0.060 list, $0.045 at volume** — three times ours, not
+> equal to it. `PROVIDER-PRICING.md`'s "60% less" claim was approximately
+> right. The leak ledger below stands; this framing does not.
+
+~~`PROVIDER-PRICING.md §4` claims we charge *"60% less than the cheapest major
 platform."* **Bolna's published platform fee is $0.02/min — identical to ours.**
-We are not the cheapest by a distance; we are roughly at market. What is
+We are not the cheapest by a distance; we are roughly at market.~~ What is
 genuinely distinctive is the number of places value leaves without an invoice.
 
 **Identified leakage: ~$190,800/yr at 500k min/month — approximately 100% of
@@ -30,7 +37,7 @@ landed cost.
 | Platform | Platform fee | All-in/min | Floor or commitment | Model |
 |---|---|---|---|---|
 | **Decibyl** | **$0.020** | **$0.086** | **none** | fee + 1.4× managed providers |
-| Bolna | $0.020 | $0.045–0.060 | $10 min. top-up | fee + pass-through, 30s pulse |
+| Bolna | **$0.060** (list), $0.045 at ~$3k/mo | $0.10+ | $10 min. top-up | fee + pass-through, 30s pulse |
 | Vapi | $0.050 | $0.10–0.30 | $10/line/mo over 10 | fee + at-cost providers |
 | Retell AI | $0.055 | $0.07–0.31 | $8/slot/mo over 20 | fee + priced add-ons |
 | Bland AI | bundled | ~$0.090 | Scale plan | all-in, no BYOK |
@@ -42,7 +49,7 @@ landed cost.
 | Vendor | Rate | Includes | Threat |
 |---|---|---|---|
 | **Decibyl** | **₹5.17–8.21/min** | fee + marked-up providers + carriage | — |
-| Bolna | ₹5.52/min | fee + pass-through, BYOK, 30s pulse | **Direct.** Same fee, India-native |
+| Bolna | ₹5.52/min *(= 6¢, the platform fee alone)* | fee + pass-through, BYOK, 30s pulse | **Direct**, India-native — but **3× our fee** |
 | Trikon | ₹5.00/min | bundled all-in, INR, GST invoice | **High.** Undercuts on simplicity |
 | Dvaarik | ₹2.00/min | whole billed minute | price floor-setter |
 | Ringg | ₹9–12/min | fee + separate telephony/models | low |

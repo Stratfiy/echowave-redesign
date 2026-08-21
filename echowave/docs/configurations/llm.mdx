@@ -11,8 +11,23 @@ LLM providers receive the data needed to generate responses, such as prompts, co
 
 Decibyl also supports any OpenAI-compatible endpoint, so a model you host yourself — Ollama, vLLM or similar — can be used in place of a provider.
 
-![Select Models from DropDown](../images/models_dropdown.png)
+<Screenshot
+  src="llm-model-dropdown.png"
+  alt="The model dropdown open on the language-model slot of model configuration"
+  caption="Pick a model from the list your provider exposes."
+  shot="The language-model slot on the Models screen with the Model dropdown open, in the current UI. The Provider must not read 'dograh'."
+/>
+
+Choosing **Decibyl** as the provider makes this slot managed — no key to add,
+billed through your balance. Anything else is your own key. The two are chosen
+per slot, so your own language model alongside our managed voice is a normal
+setup; see [Model Configurations](/configurations/inference-providers).
 
 If you don't find a model in the drop down, you can always add a model manually.
 
-![Select Models from DropDown](../images/add_model_manually.png)
+<Screenshot
+  src="llm-add-model-manually.png"
+  alt="The Add Model Manually option at the foot of the model dropdown"
+  caption="Add Model Manually, for a model the list does not know about yet."
+  shot="The same dropdown scrolled to the Add Model Manually checkbox at the bottom, in the current UI. Provider must not read 'dograh'."
+/>

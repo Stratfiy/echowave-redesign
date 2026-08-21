@@ -216,6 +216,31 @@ PLATFORM_PLIVO_APPLICATION_ID = os.getenv("PLATFORM_PLIVO_APPLICATION_ID") or No
 NUMBER_RENTAL_COST_PAISE = int(os.getenv("NUMBER_RENTAL_COST_PAISE", "25000"))
 NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "49900"))
 
+# --- The starter plan ---------------------------------------------------------
+#
+# One price a month that covers a phone number and a talking allowance:
+#
+#     Rs2,500 of call balance  +  Rs499 for the number  =  Rs2,999 net
+#
+# The price is **derived**, not typed. Writing 299900 here as a third
+# independent number is how the three drift apart: somebody raises the rental to
+# Rs599, the plan keeps collecting Rs2,999, and the number is sold at a loss by
+# an arithmetic nobody re-did. Deriving it means the plan price follows the
+# rental price by construction.
+#
+# All three are **net of GST**, like every other figure the ledger deals in. The
+# customer is charged the grossed-up amount — Rs3,538.82 domestic at 18% — and
+# `mandates.create_plan_mandate` does that conversion against the account's own
+# billing profile, so an export customer with an LUT on file is charged the net
+# figure instead.
+STARTER_PLAN_BALANCE_PAISE = int(os.getenv("STARTER_PLAN_BALANCE_PAISE", "250000"))
+STARTER_PLAN_PRICE_PAISE = STARTER_PLAN_BALANCE_PAISE + NUMBER_RENTAL_PRICE_PAISE
+
+# Pin the Razorpay plan, exactly as with the rental plan: a plan created lazily
+# per environment fragments the provider's own reporting into pieces that cannot
+# be told apart afterwards.
+RAZORPAY_STARTER_PLAN_ID = os.getenv("RAZORPAY_STARTER_PLAN_ID") or None
+
 # What we charge for provider usage on *our* keys, as basis points of what the
 # vendor charges us. 13000 = 1.30x; 10000 would be at cost.
 #
@@ -234,18 +259,30 @@ NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "49900"))
 # screen would silently read zero.
 MANAGED_PROVIDER_MARKUP_BPS = int(os.getenv("MANAGED_PROVIDER_MARKUP_BPS", "14000"))
 
-# What a call costs when it runs on the customer's own model keys, in
-# micro-dollars per billable minute. Quoted in dollars for the same reason the
-# platform fee is: our price is compared against dollar-denominated
-# competitors, so fixing it in rupees would make it drift with the currency.
+# What the platform fee rises to when the customer brings their own keys, in
+# micro-dollars per billable minute *on top of* whatever rate resolved for the
+# account. An uplift rather than an absolute rate so a negotiated rate and a
+# volume tier both survive it.
 #
-# A BYOK call produces no provider line at all (services/billing/usage.py), so
-# MANAGED_PROVIDER_MARKUP_BPS has nothing to apply to and the account pays the
-# platform fee alone — while consuming the same orchestration, concurrency,
-# storage and support as a managed call. This is the charge for that.
+# Cut on WHICH component the customer brought, not how many. On a typical Indic
+# minute the markup margin we give up is roughly $0.014 for speech synthesis,
+# $0.002 for transcription and $0.0005 for the language model — a spread of
+# nearly thirty to one. A flat "any BYOK" uplift overcharges the cheap
+# components by an order of magnitude and undercharges the expensive one
+# threefold.
 #
-# Set to 0 to go back to charging BYOK accounts the platform fee only.
-BYOK_ORCHESTRATION_MICROS_USD = int(os.getenv("BYOK_ORCHESTRATION_MICROS_USD", "30000"))
+# The language model has no uplift at all, deliberately. It is worth about a
+# twentieth of a cent, so any fee for it exceeds the margin it costs us, and
+# the account's bill would *rise* when they brought their own key. Nobody can
+# defend an invoice that does that, and letting them bring it free is a
+# goodwill feature that costs us almost nothing.
+#
+# On a $0.020 base these give $0.020 managed / $0.022 their transcription /
+# $0.035 their voice — which holds our margin on the Indic book roughly flat
+# across every BYOK configuration while keeping every one of them cheaper for
+# the customer than going managed.
+BYOK_STT_UPLIFT_MICROS_USD = int(os.getenv("BYOK_STT_UPLIFT_MICROS_USD", "2000"))
+BYOK_TTS_UPLIFT_MICROS_USD = int(os.getenv("BYOK_TTS_UPLIFT_MICROS_USD", "15000"))
 
 # Priced features, in micro-dollars per billable minute of the call they were
 # used on. Zero disables a feature's charge without removing its plumbing, so
@@ -264,8 +301,8 @@ ADDON_CALL_QA_MICROS_USD = int(os.getenv("ADDON_CALL_QA_MICROS_USD", "20000"))
 # what existing accounts pay, so they are a commercial decision that should be
 # taken deliberately rather than inherited by upgrading.
 ADDON_BILLING_ENABLED = os.getenv("ADDON_BILLING_ENABLED", "false").lower() == "true"
-BYOK_ORCHESTRATION_ENABLED = (
-    os.getenv("BYOK_ORCHESTRATION_ENABLED", "false").lower() == "true"
+BYOK_TIERED_FEE_ENABLED = (
+    os.getenv("BYOK_TIERED_FEE_ENABLED", "false").lower() == "true"
 )
 
 

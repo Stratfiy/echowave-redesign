@@ -1,97 +1,133 @@
 ---
 title: "Model Configurations"
-description: "Configure the speech-to-speech, Decibyl-managed, or bring-your-own-key models your Decibyl agents use."
+description: "Choose how the conversation is produced, and whose keys each model runs on — including a mix of both."
 ---
 
-## How model configurations work
-
-Model Configurations define the default AI model setup for your organization. Agents use this configuration unless you set agent-level model overrides in the agent settings.
-
-To configure models, open **Models** in your Decibyl dashboard:
+Model configurations set the models every agent in your organization uses,
+unless an individual agent overrides them. Open **Models** in the dashboard:
 
 [`app.decibyl.ai/model-configurations`](https://app.decibyl.ai/model-configurations)
 
-The Models page has three top-level sections:
+## Two decisions, and they are independent
 
-| Section | When to use it |
-|---------|----------------|
-| **Speech to Speech** | Use a realtime speech-to-speech model for the live conversation. You still configure an LLM alongside it for variable extraction and QA. |
-| **Decibyl** | Use Decibyl-managed LLM, voice, and transcriber models behind one Decibyl Service Key. |
-| **BYOK** | Bring your own provider keys and configure LLM, Voice, Transcriber, and Embedding models separately. |
+The screen asks for one thing at the top and one thing per model, and keeping
+them apart is the point.
+
+**How the conversation is produced** is the architecture, and it is the only
+top-level choice:
+
+| | What it is | When it wins |
+|---|---|---|
+| **Transcriber → Model → Voice** | Three models in a chain | More control over each stage, better Indic support, cheaper at most volumes |
+| **Speech to Speech** | One model hears and speaks | Lower latency and more natural interruptions, but no separate transcriber or voice to tune |
+
+**Whose key each model runs on** is a property of that model, not a mode you
+enter. Pick **Decibyl** as a slot's provider and that slot is managed — we hold
+the key and bill it through your balance. Pick a vendor and paste your own key
+and that slot is yours, billed by them.
 
 <Note>
-Model settings are organization-scoped. If no agent-level override is set, every agent in the organization uses the saved global configuration.
+**You can mix them freely, and most accounts should.** Your own OpenAI key for
+the language model with our managed Indic voice is a normal, sensible setup —
+and it is what the [BYOK platform fee](/account/billing) is tiered around.
 </Note>
+
+<Screenshot
+  src="model-configuration-pipeline.png"
+  alt="The Models screen on the transcriber-model-voice architecture, with a provider chosen per slot"
+  caption="One architecture choice at the top. Whose key runs each slot is chosen per slot."
+  shot="The Models screen in the current UI on the Transcriber → Model → Voice architecture, with at least one slot set to Decibyl (managed) and one set to a real vendor, so the mix is visible. Include the per-minute cost bar."
+/>
+
+## Finding the model you want to change
+
+The slots are grouped by what they decide. **Voice** holds the transcriber and
+the voice — everything that turns speech into text and back. **Model** holds
+the language model and the embedding model, which decide what the agent
+understands and remembers. On Speech to Speech the Voice group collapses to a
+single slot, because one model is doing both jobs.
+
+Each slot asks for a provider and a model. Everything else it accepts — speed,
+temperature, the turn-taking timings — is behind **Advanced settings**, folded
+away with its default shown beside each field, because most of them are right
+as they are. A slot you have already changed opens that section for you, so a
+setting you made is never hidden behind a click.
+
+## What the stack costs, before you call anything
+
+As you change a slot the screen re-prices the whole stack per minute. That is
+the number to look at while choosing — not the vendor's per-token or per-character
+price, which is not comparable across a transcriber, a language model and a
+voice.
+
+A slot with no rate on file reports as unpriced rather than as free, and the
+estimate says so instead of quietly under-reporting.
 
 ## Speech to Speech
 
-Use **Speech to Speech** when you want a realtime model to handle the live spoken conversation directly. In this mode, the realtime model handles speech input and speech output, so you do not configure separate Voice and Transcriber services.
-
-![Speech to Speech model configuration](../images/model-configuration-speech-to-speech.png)
-
-The Speech to Speech section has nested tabs:
-
-| Tab | What to configure |
-|-----|-------------------|
-| **Realtime Model** | The speech-to-speech provider, model, voice, and API key. |
-| **LLM** | A standard LLM used for non-realtime tasks such as variable extraction and QA analysis. |
-| **Embedding** | An embedding model used by features that need embeddings, such as retrieval from knowledge base content. |
+One realtime model handles speech in and speech out, so there is no separate
+Voice or Transcriber to configure. You still choose a language model alongside
+it: variable extraction and [QA](/voice-agent/qa) run on the transcript after
+the call, and those are text tasks.
 
 <Warning>
-An LLM is still required when you use Speech to Speech. The realtime model handles the live voice conversation, but Decibyl uses the LLM for analysis tasks that happen outside the live audio stream.
+No Indic speech-to-speech model is good enough yet, so this architecture is a
+Western model and is **worse on Telugu, Marathi and Kannada** than the chain it
+replaces. It is offered because latency is the reason anyone picks it. If your
+callers are speaking Indian languages, start on the chain.
 </Warning>
 
-## Decibyl
+## Bringing your own keys
 
-Use **Decibyl** when you want Decibyl to manage the model providers for you. This path uses one Decibyl Service Key for Decibyl-managed models instead of separate provider keys for LLM, Voice, and Transcriber.
+Add a provider key once under **Provider Keys**, then choose that provider on
+any slot. Keys are encrypted at rest and are never returned by the API after
+they are saved.
 
-![Decibyl model configuration](../images/model-configuration-decibyl.png)
+Two things worth knowing:
 
-Configure:
+- **Your provider bills you directly.** That spend does not appear on the
+  Tokens tab in Decibyl — an empty **By model** table on an account making
+  calls usually just means BYOK, not a broken meter.
+- **A key that expires fails at the moment the agent tries to speak**, which
+  sounds like silence on the call rather than like an error. If an agent
+  connects and then says nothing, check the key before you check the prompt.
 
-| Field | What it controls |
-|-------|------------------|
-| **Voice** | The Decibyl-managed voice to use. |
-| **Speed** | The voice playback speed. |
-| **Language** | The language behavior, including multilingual auto-detect when available. |
-| **API Key** | Your Decibyl Service Key. Create Service Keys from **Developers**. |
+## When a managed slot says coming soon
 
-For details on creating and using Service Keys, see [API Keys and Service Keys](api-keys#service-keys).
-
-## BYOK
-
-Use **BYOK** when you want to bring your own provider accounts and API keys. This gives you separate control over each model category.
-
-<Warning>
-When you use BYOK or external model providers, Decibyl sends only the data required for the selected service to operate. Depending on the provider and service type, this may include prompts, conversation history, transcripts, audio, generated text, tool/function definitions, tool inputs or results, and request metadata.
-
-Provider data handling varies. Review each provider's data processing, retention, model training, and regional hosting policies before using sensitive data.
-</Warning>
-
-![BYOK model configuration](../images/model-configuration-byok.png)
-
-The BYOK section has nested tabs:
-
-| Tab | What to configure |
-|-----|-------------------|
-| **LLM** | The chat or reasoning model provider, model, optional base URL, and API key. |
-| **Voice** | The text-to-speech provider, voice, model, speed, optional base URL, and API key. |
-| **Transcriber** | The speech-to-text provider, model, language, and API key. |
-| **Embedding** | The embedding provider, model, and API key. |
-
-Provider-specific fields appear only when they apply. For example, OpenAI-compatible LLM providers can expose a **Base URL** field, ElevenLabs voices can expose a voice ID, and transcribers can expose language options.
+A slot offered as *coming soon* means the platform holds no key for the
+provider that tier resolves to. It is not a plan restriction and there is
+nothing to buy — it turns into a normal choice on its own once the key is in
+place. Choosing your own provider for that slot works today.
 
 ## Agent-level model overrides
 
-You can override the organization model configuration for an individual agent. This is useful when different agents need different models, voices, transcribers, or providers.
-
-To configure an override:
+You can override the organization configuration for one agent — different
+agents often want different voices, and a Hindi collections agent and an
+English support agent rarely want the same stack.
 
 1. Open the agent.
 2. Go to **Settings**.
 3. Open **Model Overrides**.
-4. Enable the override for the service you want to customize.
-5. Configure the provider, model, and keys for that service.
-6. Save the agent settings.
+4. Enable the override for the service you want to change.
+5. Configure the provider, model and keys for that service.
+6. Save.
 
-Agent-level overrides are selective. For example, you can override only the Voice service for one agent while it continues to use the organization-level LLM and Transcriber configuration.
+Overrides are **selective**: override only the Voice for one agent and it keeps
+using the organization's language model and transcriber.
+
+## See also
+
+<CardGroup cols={2}>
+  <Card title="Language models" href="/configurations/llm">
+    Which providers are supported, and using a model you host yourself.
+  </Card>
+  <Card title="Voice" href="/configurations/voice">
+    Choosing and tuning the voice.
+  </Card>
+  <Card title="Transcriber" href="/configurations/transcriber">
+    Speech-to-text providers and language settings.
+  </Card>
+  <Card title="Billing" href="/account/billing">
+    How managed and BYOK minutes are priced.
+  </Card>
+</CardGroup>

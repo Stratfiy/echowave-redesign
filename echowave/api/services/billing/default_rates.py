@@ -128,6 +128,19 @@ LLM_RATES = (
         _blend(0.80, 4.00),
         "Haiku-class list, blended",
     ),
+    # The OpenAI default in the picker, and it had no row of its own — so it
+    # fell through to the provider-wide fallback, which is deliberately set to
+    # the cheapest common model. That priced it at roughly a thirteenth of what
+    # it costs. Now the "Smart" managed tier resolves here, so the gap would
+    # have been a managed model billed at a thirteenth of its cost.
+    DefaultRate(
+        "openai",
+        "gpt-4.1",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(2.00, 8.00),
+        "$2.00/$8.00 per 1M, blended",
+    ),
     DefaultRate(
         "openai",
         "gpt-4.1-mini",
@@ -155,27 +168,59 @@ LLM_RATES = (
         _blend(0.15, 1.25),
         "$0.15/$1.25 per 1M, blended",
     ),
-    # Retiring 2026-10-16; Gemini 3.1 Flash-Lite ($0.25/$1.50) replaces it and
-    # is 2.5x dearer, so the fast/lite/zen tiers get materially more expensive
-    # on that date unless they are repointed.
+    # Retired 2026-10-16. The row stays because rate rows are effective-dated
+    # history: a call priced against this model last quarter still has to be
+    # re-derivable at the rate it was actually billed at. Nothing points at it
+    # any more — the fast/lite/zen tiers moved to 3.5 Flash-Lite below.
     DefaultRate(
         "google",
         "gemini-2.5-flash-lite",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,
         _blend(0.10, 0.40),
-        "$0.10/$0.40 per 1M, blended. Model retires 2026-10-16.",
+        "$0.10/$0.40 per 1M, blended. Retired 2026-10-16 — historical only.",
+    ),
+    # The successor the fast/lite/zen tiers now resolve to.
+    #
+    # PRICE UNCONFIRMED. The figure below is Gemini 3.1 Flash-Lite's published
+    # $0.25/$1.50, used because it is the nearest Lite tier Google has actually
+    # priced in public — not because anyone has read 3.5 Flash-Lite's own page.
+    # It is deliberately the dearer of the two plausible numbers so the card
+    # under-reports margin rather than over-reports it, which is the direction
+    # this file errs in everywhere else.
+    #
+    # Confirm against Google's live price list and correct this row. A wrong
+    # rate here is a wrong invoice on every managed call in three of five tiers.
+    DefaultRate(
+        "google",
+        "gemini-3.5-flash-lite",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(0.25, 1.50),
+        "ASSUMED $0.25/$1.50 per 1M from 3.1 Flash-Lite — confirm before relying on it.",
     ),
     # Sarvam publishes in rupees: ₹4/1M in, ₹16/1M out (₹2.5 cached, which this
     # single-rate schema cannot express). Roughly a quarter of what the previous
     # seeded guess assumed.
+    # Named as well as provider-wide. The "Lite" managed tier resolves to this
+    # model, and a tier that is a priced product should not be relying on a
+    # fallback that happens to describe it — the day Sarvam ships a second
+    # model, the fallback would price it as this one.
+    DefaultRate(
+        "sarvam",
+        "sarvam-105b",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(_inr(4.0), _inr(16.0)),
+        "Sarvam-105B — Rs4/Rs16 per 1M published, blended",
+    ),
     DefaultRate(
         "sarvam",
         "",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,
         _blend(_inr(4.0), _inr(16.0)),
-        "Sarvam-105B — Rs4/Rs16 per 1M published, blended",
+        "Sarvam provider-wide fallback, at the 105B price",
     ),
 )
 
@@ -429,6 +474,42 @@ TELEPHONY_RATES = (
         _inr(0.60),
         "India outbound local Rs0.60/min published. SIP / Browser SDK is Rs0.34.",
     ),
+    # Cloudonix and Vobiz are placeholders at the Twilio India mobile rate, and
+    # they are here rather than absent on purpose. A supported carrier with no
+    # row does not cost nothing — it costs an unpriced line, which reports zero
+    # provider cost and so overstates margin on every call that uses it. A
+    # deliberate over-estimate errs the only safe way: we under-report our own
+    # margin until somebody replaces these with the published figures, rather
+    # than discovering at month end that a carrier was free all along.
+    #
+    # These bill only when the configuration is platform-managed. A customer on
+    # their own Cloudonix or Vobiz account is charged no carriage at all, so a
+    # placeholder that is too high cannot overcharge them — see
+    # ``services/telephony/carriage.py``.
+    #
+    # TODO: replace with Cloudonix's and Vobiz's published India outbound rates.
+    DefaultRate(
+        "cloudonix",
+        "",
+        CostComponent.TELEPHONY,
+        RateUnit.MINUTE,
+        _inr(1.20),
+        "PLACEHOLDER at the Twilio India mobile rate. Not the published price.",
+    ),
+    DefaultRate(
+        "vobiz",
+        "",
+        CostComponent.TELEPHONY,
+        RateUnit.MINUTE,
+        _inr(1.20),
+        "PLACEHOLDER at the Twilio India mobile rate. Not the published price.",
+    ),
+    # No ARI row, and that is not an oversight. ARI is a self-hosted Asterisk
+    # the customer runs; the trunk behind it is theirs and so is its bill.
+    # There is no vendor price for us to pass through, and carriage.py already
+    # declines to bill a customer-owned configuration — a row here would only
+    # matter if we ever ran Asterisk ourselves, and then it would need our own
+    # trunk's rate rather than a vendor's.
     DefaultRate(
         "telnyx", "", CostComponent.TELEPHONY, RateUnit.MINUTE, 0.0070, "US outbound"
     ),

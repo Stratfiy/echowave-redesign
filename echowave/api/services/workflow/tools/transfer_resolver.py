@@ -21,7 +21,13 @@ from api.utils.url_security import validate_user_configured_service_url
 class ResolvedTransferConfig:
     destination: str
     timeout_seconds: int
+    #: Spoken to the **caller** before the transfer starts — "let me put you
+    #: through". They hear this; the destination does not.
     message: Optional[str] = None
+    #: Spoken to the **destination** when they answer, before the caller is
+    #: bridged in. The caller does not hear this. See
+    #: ``services/telephony/escalation.py``.
+    briefing: Optional[str] = None
     source: str = "static"
     resolution_id: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -255,10 +261,20 @@ def _resolve_from_response(
             "transfer_context.custom_message must be a string when provided",
         )
 
+    briefing = transfer_context.get("briefing")
+    if briefing is not None and not isinstance(briefing, str):
+        raise TransferResolutionError(
+            "invalid_briefing",
+            "transfer_context.briefing must be a string when provided",
+        )
+
     return ResolvedTransferConfig(
         destination=destination.strip(),
         timeout_seconds=_base_timeout(config),
         message=custom_message.strip() if custom_message else None,
+        # A resolver that chose the destination is the thing best placed to say
+        # why it chose it, so its briefing wins over the tool's template.
+        briefing=briefing.strip() if briefing else None,
         source="http_resolver",
         resolution_id=resolution_id,
     )

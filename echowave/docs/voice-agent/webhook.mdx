@@ -1,37 +1,148 @@
 ---
 title: "Webhook"
-description: "Webhook node allow you to sync the result of Voice Agent runs to your external systems, like CRM or to other workflow orchestrator like Zapier or n8n."
+description: "POST the result of a call to your own system the moment it ends — CRM, Zapier, n8n, or your own backend."
 ---
 
-<Note>
-You can have multiple Webhook Nodes for a single Voice Agent, if you want to sync the result of the call at multiple places.
-</Note>
+A webhook node sends an HTTP request when the call finishes. It is how what
+happened on the call reaches the system that has to act on it, without anybody
+opening a dashboard.
 
-### Creating the Webhook Payload
-The payload can contain a valid JSON, and you can reference variables while constructing that payload. You can reference below variables while constructing the payload. 
+Like the [QA node](/voice-agent/qa), it sits beside the conversation rather than
+in it: no incoming edges, no outgoing edges. You can have several, pointing at
+different systems.
 
-- `{{workflow_run_id}}` Unique ID of the Agent run
-- `{{workflow_id}}` ID of the Agent
-- `{{workflow_name}}` Name of the workflow
-- `{{campaign_id}}` ID of the campaign this run belongs to (empty for ad-hoc runs)
-- `{{call_time}}` ISO-8601 UTC timestamp of when the call was initiated
-- `{{initial_context.*}}` [Initial context variables](/core-concepts/context-and-variables#initial_context)
-- `{{gathered_context.*}}` [Extracted variables](/core-concepts/context-and-variables#gathered_context)
-- `{{cost_info.call_duration_seconds}}` Call duration
-- `{{recording_url}}` Call recording URL
-- `{{transcript_url}}` Transcript URL
+<Screenshot
+  src="webhook-node-panel.png"
+  alt="The Webhook node settings panel showing method, endpoint, authentication and the payload template editor"
+  caption="The payload template is the part worth care — everything else is plumbing."
+  shot="The Webhook node settings panel with POST selected, a filled endpoint URL, an authentication credential chosen, and the JSON payload template editor showing a realistic template."
+/>
 
-For the full list of available variables, authentication options, and receiver examples, see the [Webhook Payloads developer reference](/developer/webhooks).
+## Fields
 
-An example of the payload is given below
+<ParamField path="name" type="string" default="Webhook">
+Short label shown on the canvas and in run logs.
+</ParamField>
 
-```
+<ParamField path="enabled" type="boolean" default="true">
+Switch the webhook off without deleting it.
+</ParamField>
+
+<ParamField path="http_method" type="GET | POST | PUT | PATCH | DELETE" default="POST">
+Verb for the outbound request.
+</ParamField>
+
+<ParamField path="endpoint_url" type="url" required>
+Where the request goes.
+</ParamField>
+
+<ParamField path="credential_uuid" type="credential">
+A stored credential, applied as the `Authorization` header. Use this rather than
+hard-coding a token into a custom header — credentials are encrypted at rest and
+can be rotated without editing every agent that uses them.
+</ParamField>
+
+<ParamField path="custom_headers" type="object[]">
+Additional headers to send.
+</ParamField>
+
+<ParamField path="payload_template" type="json">
+The request body. Values are rendered against the run context.
+</ParamField>
+
+## Available variables
+
+Anything in this list can appear in the payload template.
+
+| Variable | What it is |
+|---|---|
+| `{{workflow_run_id}}` | Unique ID of this run. The one to store. |
+| `{{workflow_id}}` | ID of the agent |
+| `{{workflow_name}}` | Name of the agent |
+| `{{campaign_id}}` | Campaign this run belongs to; empty for ad-hoc calls |
+| `{{call_time}}` | ISO-8601 UTC timestamp of when the call started |
+| `{{initial_context.*}}` | [What you sent in](/core-concepts/context-and-variables#initial_context) |
+| `{{gathered_context.*}}` | [What the agent extracted](/core-concepts/context-and-variables#gathered_context) |
+| `{{annotations.qa_*}}` | Results from a [QA node](/voice-agent/qa) |
+| `{{cost_info.call_duration_seconds}}` | Call duration |
+| `{{recording_url}}` | Full call recording |
+| `{{user_recording_url}}` | Caller audio only |
+| `{{bot_recording_url}}` | Agent audio only |
+| `{{transcript_url}}` | Transcript |
+
+```json title="A payload template"
 {
   "call_id": "{{workflow_run_id}}",
+  "campaign_id": "{{campaign_id}}",
+  "called_at": "{{call_time}}",
   "first_name": "{{initial_context.first_name}}",
   "rsvp": "{{gathered_context.rsvp}}",
-  "duration": "{{cost_info.call_duration_seconds}}",
+  "duration_seconds": "{{cost_info.call_duration_seconds}}",
   "recording_url": "{{recording_url}}",
   "transcript_url": "{{transcript_url}}"
 }
 ```
+
+<Warning>
+**An unresolvable variable delivers an empty string.** It does not drop the
+field and it does not fail the request — so a misspelled
+`{{gathered_context.rsvpp}}` arrives as `"rsvp": ""`, which reads exactly like
+"the agent captured nothing" and sends you debugging the wrong thing.
+
+If a field is always empty, check the spelling before you check the extraction.
+</Warning>
+
+## Store the run ID
+
+Whatever else the payload carries, include `{{workflow_run_id}}`.
+
+It is the only thing that ties a row in your system back to a specific call in
+Decibyl — the recording, the transcript, the QA result, the cost. Support
+requests that quote a run ID get answered; ones that say "a call yesterday
+afternoon" mostly do not.
+
+## Several webhooks
+
+Because a node is one request to one URL, sending the same call to two systems
+means two nodes. That is usually better than one endpoint of yours fanning out:
+each has its own payload shaped for its receiver, its own credential, and can be
+switched off on its own.
+
+```text
+Webhook → CRM              full payload, everything the record needs
+Webhook → Slack            three fields, for a channel people watch
+Webhook → data warehouse   the wide one, for analysis later
+```
+
+## Testing without a backend
+
+Open [webhook.site](https://webhook.site), take the unique URL it gives you, and
+paste it into the endpoint field. Run a call. You see the exact bytes Decibyl
+sends, which is much faster than guessing at the template and reading your own
+server logs.
+
+Swap in the real URL once the shape is right.
+
+## Rules
+
+- No incoming and no outgoing edges.
+- Fires once, when the run completes. A call that never connected does not
+  produce one.
+- Any number per agent.
+
+## See also
+
+<CardGroup cols={2}>
+  <Card title="Webhook payloads reference" href="/developer/webhooks">
+    Full variable list, authentication options and receiver examples.
+  </Card>
+  <Card title="Sync data using webhooks" href="/getting-started/send-call-data-with-webhooks">
+    The step-by-step version of this page.
+  </Card>
+  <Card title="Context and variables" href="/core-concepts/context-and-variables">
+    Where initial and gathered context come from.
+  </Card>
+  <Card title="QA node" href="/voice-agent/qa">
+    Adding a scored review to the payload.
+  </Card>
+</CardGroup>

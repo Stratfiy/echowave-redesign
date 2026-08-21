@@ -220,10 +220,10 @@ class CostComponent(str, Enum):
     TTS = "tts"
     TELEPHONY = "telephony"
     PLATFORM = "platform"
-    #: The per-minute fee charged on a call that ran on the customer's own
-    #: model keys. Decibyl revenue, not a vendor cost: a BYOK call consumes the
-    #: same orchestration, concurrency and support as a managed one but
-    #: produces no provider line to earn a margin on.
+    #: Retired. A BYOK call now carries an uplifted *platform* rate rather
+    #: than a second fee line — see ``billing/usage.py:byok_platform_tier``.
+    #: The member stays so a receipt written while the separate line existed
+    #: still resolves rather than raising on read.
     ORCHESTRATION = "orchestration"
     #: A priced feature used on the call — knowledge-base retrieval, post-call
     #: QA. Also Decibyl revenue. One component rather than one per feature, so
@@ -277,6 +277,11 @@ class CreditLedgerKind(str, Enum):
     # dials, and a statement that folded it into usage would tell a customer
     # they were charged for calls they never made.
     RENTAL = "rental"
+    # The call balance a starter-plan cycle grants. Distinct from TOPUP because
+    # it is not credit the customer chose to buy: it arrives with the plan, on
+    # the plan's schedule, and a statement that called it a top-up would invite
+    # the question of when they bought it.
+    PLAN = "plan"
 
 
 class BillingAuditAction(str, Enum):

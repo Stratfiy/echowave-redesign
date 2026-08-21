@@ -1,48 +1,76 @@
 ---
 title: "Trigger Calls using API"
-description: "Kick off a call the moment a lead lands in your CRM or spreadsheet, no manual dialing."
+description: "Turn a row in your CRM into a personalised phone call, automatically, with one HTTP request."
 ---
 
-If your team is manually dialing leads one by one, or your CRM needs to kick off a call the moment a lead comes in, this is how you automate that with Decibyl.
+Your leads are already in a CRM, a spreadsheet, or a table in your own database.
+Each row has a name, an amount, an account number. This page turns one of those
+rows into a phone call the agent has already been briefed on — so it opens with
+*"Hi Rushil, I'm calling about your Quick Credit account"* instead of asking who
+it is speaking to.
 
-Say you've got leads or accounts sitting in a CRM or a Google Sheet. Each row has details like customer name, company name, amount due. The **API Trigger** node lets you take that row of data and turn it into a personalized call, automatically.
+The mechanism is the **API Trigger** node. It gives your agent a URL; you POST a
+phone number and a bag of variables to it, and the call goes out.
 
-## Step 1: Add the node
+**Before you start:** a [telephony provider connected](/getting-started/connect-telephony)
+for outbound calls, and an [API key](/configurations/api-keys) from the
+developer portal.
 
-Click **Add node** and add an **API Trigger** node, the topmost option in the list. This node starts the call and passes your data into the agent as `initial_context`.
+<Steps>
 
-That's the part that matters: instead of the agent asking basic setup questions on the call, like "what's your name" or "how much do you owe", it already knows. In this demo, the opening node greets the caller with `{{debtor_name}}`, and the next node references `{{client_name}}` and `{{debt_amount}}`. None of that is hardcoded into the agent. It all comes from the API call.
+<Step title="Add the API Trigger node">
 
-<Tip>
-Every node has a docs link in the top right corner. If you get stuck or want to go deeper on any node type, open the docs straight from there.
-</Tip>
+Open your agent, click the **+** button on the canvas (*Add node*), and choose
+**API Trigger** — it is the first entry in the list.
 
-## Step 2: Check the prerequisites
+<Screenshot
+  src="api-trigger-add-node.png"
+  alt="The add-node menu open on the canvas with API Trigger at the top of the list"
+  caption="+ on the canvas, then API Trigger."
+  shot="The add-node popover open over the workflow canvas, with API Trigger highlighted at the top of the list. Crop to the popover plus a little canvas around it."
+/>
 
-Before you trigger anything:
+The node has no settings to fill in. Adding it is what creates the endpoint.
 
-1. [Connect with Telephony](/getting-started/connect-telephony) for outbound calls.
-2. Go to the developer portal and generate an API key. You'll need it in the request header.
+</Step>
 
-## Step 3: Find your trigger URL
+<Step title="Copy the trigger URL">
 
-Open the API Trigger node. You'll see two URLs:
+Open the node. It shows two URLs, both ending in the same UUID:
 
-- **Test URL** runs your latest draft.
-- **Production URL** runs your published agent.
+| | Runs | Use it |
+| --- | --- | --- |
+| **Test URL** | Your latest saved draft | While you are still changing the agent |
+| **Production URL** | The published version | Once you are live |
 
-If you change the agent and want the production URL to reflect it, publish first, otherwise production keeps running the older version. While you're still testing, use the test URL.
+<Screenshot
+  src="api-trigger-urls.png"
+  alt="The API Trigger node panel showing the test and production URLs with copy buttons"
+  caption="Two URLs, one UUID. The production one runs the published agent."
+  shot="The API Trigger node's settings panel with both URLs visible. Blur or replace the UUID."
+/>
 
-## Step 4: Send the request
+<Warning>
+The production URL keeps serving the **published** agent. Edit the agent and the
+production URL does not change behaviour until you press **Publish** — which is
+the point of it, and also the thing people trip over. If a change is not showing
+up on a real call, check whether you published.
+</Warning>
 
-Trigger the call from Postman, or wherever your backend lives. In the body, send `phone_number` and `initial_context`:
+</Step>
 
-```bash
+<Step title="Send the request">
+
+POST to the URL with your API key in the `X-API-Key` header. Two fields matter:
+`phone_number`, and `initial_context` — a free-form object of variables the
+agent can reference in its prompts as `{{initial_context.field}}`.
+
+```bash title="Trigger a call"
 curl -X POST https://api.decibyl.ai/api/v1/public/agent/test/{uuid} \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: dg_your_api_key" \
+  -H "X-API-Key: dcb_your_api_key" \
   -d '{
-    "phone_number": "+14155550100",
+    "phone_number": "+919876543210",
     "initial_context": {
       "debtor_name": "Rushil",
       "client_name": "Quick Credit",
@@ -51,14 +79,74 @@ curl -X POST https://api.decibyl.ai/api/v1/public/agent/test/{uuid} \
   }'
 ```
 
-The body can come from your CRM, a Google Sheet, or your own backend, wherever that row of data lives.
+The keys inside `initial_context` are yours to choose. Whatever you send is what
+your prompts can reference — a Start Call greeting of
+`Hi {{initial_context.debtor_name}}, this is Alex from {{initial_context.client_name}}`
+resolves against exactly these fields.
 
-## What you get
+<Tip>
+Send this from Postman first, once, by hand. Getting the shape right against a
+tool that shows you the response is much faster than debugging it inside your
+CRM's webhook runner.
+</Tip>
 
-Send the request, and the call goes out immediately. Because the agent already had the context before the call started, the conversation is short and specific from the first line: *"Hi, this is Alex from Apex Recovery Solutions. Am I speaking with Rushil? I'm calling about your Quick Credit account with an outstanding balance of $3,500."* No setup questions, straight to the point.
+</Step>
 
-## Next Steps
+<Step title="Listen to the result">
 
-- **Get that data back automatically**: the next step is [Sync Data using Webhook](/getting-started/send-call-data-with-webhooks), which takes whatever the agent learns on the call and sends it back to your system the moment it ends.
-- **No phone number connected yet?** See [Connect with Telephony](/getting-started/connect-telephony) first, outbound calls need a telephony provider attached.
-- **Full endpoint reference**: error codes, response shape, and choosing a specific telephony configuration are in [API Trigger](/voice-agent/api-trigger).
+The call goes out immediately. Because the agent was briefed before it dialled,
+the opening line is specific:
+
+> *"Hi, this is Alex from Apex Recovery Solutions. Am I speaking with Rushil?
+> I'm calling about your Quick Credit account with an outstanding balance of
+> ₹3,500."*
+
+No setup questions, no "can you confirm your account number please". The
+recording and transcript appear under **Usage** once the call ends.
+
+</Step>
+
+</Steps>
+
+## Common errors
+
+<AccordionGroup>
+
+<Accordion title="400: Telephony provider not configured for this organization">
+No telephony configuration is marked as the default for outbound calls. Open
+**Telephony**, edit your configuration, and switch on **Set as default for
+outbound calls**. Having a configuration is not enough — one of them has to be
+the default. See [Connect with Telephony](/getting-started/connect-telephony).
+</Accordion>
+
+<Accordion title="401 or 403">
+The `X-API-Key` header is missing, misspelled, or holds a key that has been
+archived. Keys start with `dcb_`. Generate a fresh one in the developer portal
+and try that.
+</Accordion>
+
+<Accordion title="The call connects but the variables come out empty">
+Two things to check. First, that the placeholder is spelled
+`{{initial_context.debtor_name}}` and not `{{debtor_name}}` — the prefix is part
+of the name. Second, that you are hitting the URL for the version you edited: a
+prompt changed on the draft is not on the production URL until you publish.
+</Accordion>
+
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Get the data back out" href="/getting-started/send-call-data-with-webhooks">
+    A Webhook node POSTs what the agent learned to your backend the moment the call ends.
+  </Card>
+  <Card title="Connect a phone number" href="/getting-started/connect-telephony">
+    Outbound calls need a telephony provider attached. Start here if you have not.
+  </Card>
+  <Card title="Full endpoint reference" href="/voice-agent/api-trigger">
+    Response shape, error codes, and choosing a specific telephony configuration per call.
+  </Card>
+  <Card title="Call many people at once" href="/core-concepts/campaigns">
+    Upload a list and let Decibyl pace the dialling instead of driving it yourself.
+  </Card>
+</CardGroup>

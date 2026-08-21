@@ -1,60 +1,199 @@
 ---
 title: "Your First Agent in 5 Minutes"
-description: "Build and talk to a working voice agent in five minutes using Web Calls — no telephony setup required."
+description: "Build a working voice agent and talk to it in your browser — no phone number, no telephony account, nothing to install."
 ---
 
-This is the fastest path to a working voice agent. You'll create an agent, get a generated conversation flow, and talk to it in your browser — no phone number, no telephony provider, no configuration.
+By the end of this page you will have a voice agent that answers, holds a real
+conversation, and hangs up — and you will have talked to it yourself. No phone
+number, no carrier account, no code.
 
-<Note>
-Go to [app.decibyl.ai](https://app.decibyl.ai) and sign in.
-</Note>
+**What you need:** an account at [app.decibyl.ai](https://app.decibyl.ai), a
+browser that can reach your microphone, and about five minutes. You do not need
+a balance to make a test call in the browser, and you do not need your own model
+keys — [managed models](/configurations/inference-providers) work out of the box.
 
-## Step 1: Create an agent
+<Steps>
 
-Go to [app.decibyl.ai/workflow](https://app.decibyl.ai/workflow) and create a new agent.
+<Step title="Describe what the agent should do">
 
-![Create a Voice Agent](../images/create-a-voice-agent.png)
+Open [app.decibyl.ai/workflow/create](https://app.decibyl.ai/workflow/create).
+Three fields, and the third is the one that matters.
 
-You'll be asked for:
+<Screenshot
+  src="create-a-voice-agent.png"
+  alt="The Create Voice Agent form with the Call Type, Use Case and Activity Description fields"
+  caption="Create Voice Agent — the Activity Description is the prompt that generates your flow"
+/>
 
-- **Direction** — Inbound (agent receives calls) or Outbound (agent makes calls). Pick either; it only affects the starting prompt.
-- **Use case** — a description of what the agent should do, e.g. *"Book a haircut appointment, ask for preferred date and time, confirm before ending the call."*
+- **Call Type** — *Inbound (Users call AI)* or *Outbound (AI calls users)*. It
+  only changes the tone of the generated prompts, so either is fine for a first
+  agent. Inbound is the easier one to test.
+- **Use Case** — a short label, like *Appointment booking* or *Lead
+  qualification*. This is a name, not an instruction.
+- **Activity Description** — the actual brief. This one is sent to a language
+  model to generate your starting flow, so specificity here is what you get back
+  later.
 
-This description is sent to an LLM to generate a starting workflow. The more specific you are, the better the generated prompts and pathways will be.
+<Tip>
+Write the Activity Description the way you would brief a new receptionist on
+their first morning, not the way you would fill in a form:
 
-## Step 2: Land in the workflow editor
+> *You answer the phone for Sunrise Dental in Bengaluru. Find out whether the
+> caller is a new or existing patient, which dentist they want, and a day and
+> time that suits them. Confirm the appointment back to them before ending the
+> call. If they ask about prices, say a consultation is ₹500 and anything else
+> depends on the examination.*
 
-After generation, you're dropped into the [Voice Agent Builder](/voice-agent/introduction) with a graph already built for you — typically a **Start Call** node, one or more **Agent** nodes with prompts for your use case, and an **End Call** node, connected by pathways.
+Two sentences of that kind produce a better flow than a paragraph of adjectives.
+</Tip>
 
-You don't need to understand the full [graph model](/voice-agent/introduction#the-graph-model) yet — the generated agent works out of the box. You can come back and customize prompts once you've heard it talk.
+Click **Create Agent**. Generation takes a few seconds.
 
-## Step 3: Talk to it with a Web Call
+</Step>
 
-In the agent editor, start a **Web Call**. This runs the full pipeline — speech-to-text, LLM, text-to-speech — straight from your browser microphone, exactly like a real phone call would, just without a phone number.
+<Step title="Look at what it built">
 
-While the call is active, you can watch:
+You land in the [Voice Agent Builder](/voice-agent/introduction) with a flow
+already drawn: a [**Start Call**](/voice-agent/start-call) node holding the
+greeting, one or more [**Agent**](/voice-agent/agent) nodes carrying the
+conversation, and an [**End Call**](/voice-agent/end-call) node, joined by
+edges.
 
-- The **live transcript** as the conversation happens
-- **Node transitions** as the agent moves through the graph
-- Any **tool calls** the agent makes
+<Screenshot
+  src="first-agent-editor.png"
+  alt="The workflow editor showing a generated flow of Start Call, two Agent nodes and End Call"
+  caption="The generated flow. Each box is one step of the conversation; each arrow is a reason to move on."
+  shot="The workflow canvas right after generation, with a 4-5 node flow visible and the editor header (Publish / Phone Call / Test Agent / Save) in shot. Dark theme."
+/>
 
-Talk to it like a real caller would. Try to get it off-script — say something unexpected — and see how it responds.
+You do not need to understand the [graph
+model](/voice-agent/introduction#the-graph-model) yet. The short version is that
+each node is one step of the conversation with its own prompt, and each edge
+carries a plain-English condition — *"the caller has given a preferred time"* —
+that the model uses to decide when to move on.
 
-## Step 4: Iterate
+Click any node to open its settings on the right. Have a read of the prompts it
+wrote. Change nothing yet.
 
-Didn't go the way you wanted? Open the node whose behavior you want to change and edit its prompt directly. Save, then start a new Web Call to hear the change immediately. No redeploy, no restart.
+</Step>
 
-Common first tweaks:
+<Step title="Talk to it">
 
-- Adjust tone or wording in an **Agent** node's prompt
-- Add shared instructions (tone, objection handling) to the [**Global**](/voice-agent/global) node
-- Add a [**Webhook**](/voice-agent/webhook) node to send call results somewhere once you're happy with the flow
+Click **Test Agent** in the top right, stay on the **Test Audio** tab, and hit
+**Run Test**. Your browser will ask for microphone permission — accept it.
 
-## Next Steps
+<Screenshot
+  src="first-agent-test-panel.png"
+  alt="The test panel open on the Test Audio tab with the Run Test button"
+  caption="Test Agent → Test Audio → Run Test. The full pipeline, straight from your microphone."
+  shot="The tester panel open on the right of the canvas, Test Audio tab selected, Run Test button visible and not yet pressed."
+/>
 
-You have a working agent that runs entirely in the browser. From here:
+This is not a simulation. It runs the same pipeline a phone call runs —
+speech-to-text, the model, text-to-speech, the tools — with your microphone
+standing in for the phone line.
 
-- **Take real calls** — connect a [telephony provider](/integrations/telephony/overview) and trigger calls via [API Trigger](/voice-agent/api-trigger) or inbound routing.
-- **Learn the graph model in depth** — see [Voice Agent Builder](/voice-agent/introduction) for all node types and how pathways work.
-- **Give it tools** — let the agent call external APIs or transfer calls with [Tools](/voice-agent/tools/introduction).
-- **Embed it on a website** — skip telephony entirely and let website visitors talk to the agent via the [web voice widget](/voice-agent/add-to-website).
+While the call is live you can watch three things at once:
+
+- the **transcript**, as each turn is recognised;
+- the **current node**, highlighted on the canvas as the conversation moves;
+- any **tool calls** the agent makes, with their arguments and responses.
+
+<Screenshot
+  src="first-agent-live-transcript.png"
+  alt="A live test call showing the running transcript beside the canvas with the active node highlighted"
+  caption="The active node is highlighted on the canvas as the conversation moves through it."
+  shot="A test call in progress: transcript panel with 4-6 turns of a realistic booking conversation, and the canvas behind it with the current Agent node visibly highlighted. Redact nothing — use fictional names."
+/>
+
+Talk to it like a real caller would. Then try to break it: interrupt it
+mid-sentence, answer a question it did not ask, ask something off-topic. How it
+handles that is what you are actually testing.
+
+</Step>
+
+<Step title="Change something and hear the difference">
+
+Something will have gone wrong — it always does on the first call. Find the node
+that was highlighted when it happened, open it, and edit its **Prompt**.
+
+<Screenshot
+  src="first-agent-edit-prompt.png"
+  alt="An Agent node's settings panel open with the prompt field being edited"
+  caption="Open the node that misbehaved and edit its prompt. Nothing else to redeploy."
+  shot="An Agent node selected on the canvas with its settings panel open on the right, showing the Prompt field with real text in it and the Allow Interruption and Tools controls below."
+/>
+
+Click **Save**, then **Run Test** again. The change is live on the next call —
+there is nothing to redeploy and nothing to restart.
+
+The three edits people make first:
+
+- **Tone or wording** — in the prompt of whichever Agent node said the wrong
+  thing.
+- **Something that should apply to the whole call** — "never quote a price",
+  "always speak Hindi unless the caller starts in English" — belongs in the
+  [**Global**](/voice-agent/global) node, not repeated in every node.
+- **A missing step** — add an [**Agent**](/voice-agent/agent) node and draw an
+  edge to it, with a condition describing when the conversation should go there.
+
+</Step>
+
+</Steps>
+
+## When it does not work
+
+<AccordionGroup>
+
+<Accordion title="The agent connects and then says nothing">
+The Start Call node has no greeting, so the agent is waiting for you to speak
+first. Say hello — or open the node and give it a **Greeting**.
+
+If you speak and still get silence, it is the model configuration. On your own
+keys, a key that is expired or out of quota fails at exactly the moment the
+agent tries to talk, which looks like silence rather than an error. Check
+**Model Configurations**.
+</Accordion>
+
+<Accordion title="The browser never asks for the microphone">
+Something else is holding it — another tab in a call, or a desktop meeting app.
+Close those, reload the page, and start the test again. If the site is not on
+`https`, the browser blocks microphone access outright.
+</Accordion>
+
+<Accordion title="The Phone Call button is greyed out">
+It disables itself while there are unsaved changes or validation errors. Save
+first; if it stays disabled, open the validation errors in the header — usually
+a node with an empty prompt, or an edge pointing nowhere.
+</Accordion>
+
+<Accordion title="It ignores something I told it to do">
+Check which node was active when it ignored you. An instruction written in the
+Start Call node does not apply three nodes later — only the
+[Global](/voice-agent/global) node's prompt reaches every step, and only on
+nodes that have **Add Global Prompt** switched on.
+</Accordion>
+
+</AccordionGroup>
+
+More in [Troubleshooting](/getting-started/troubleshooting).
+
+## Next steps
+
+You have an agent that works in a browser. Everything below turns it into one
+that works on a phone.
+
+<CardGroup cols={2}>
+  <Card title="Trigger calls from your backend" href="/getting-started/trigger-calls-from-your-backend">
+    Send a row of CRM data to an endpoint and have the agent make the call, already knowing who it is talking to.
+  </Card>
+  <Card title="Get the call data back" href="/getting-started/send-call-data-with-webhooks">
+    Have Decibyl POST what the agent learned to your backend the moment the call ends.
+  </Card>
+  <Card title="Connect a phone number" href="/getting-started/connect-telephony">
+    Hook up a carrier so the agent takes and makes real calls.
+  </Card>
+  <Card title="Put it on your website" href="/voice-agent/add-to-website">
+    One script tag and a talk button. No carrier account, no KYC.
+  </Card>
+</CardGroup>

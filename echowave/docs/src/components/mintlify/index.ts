@@ -21,6 +21,7 @@ export { default as Info } from "./Info.astro";
 export { default as Note } from "./Note.astro";
 export { default as ParamField } from "./ParamField.astro";
 export { default as ResponseField } from "./ResponseField.astro";
+export { default as Screenshot } from "./Screenshot.astro";
 export { default as Step } from "./Step.astro";
 export { default as Steps } from "./Steps.astro";
 export { default as Tab } from "./Tab.astro";

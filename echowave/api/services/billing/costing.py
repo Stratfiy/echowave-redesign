@@ -29,11 +29,11 @@ from api.services.billing.addons import addon_keys_from_usage_info
 from api.services.billing.addons import by_key as addon_by_key
 from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_cost
 from api.services.billing.markup import resolve_markup_bps
-from api.services.billing.money import round_half_up_div, usd_to_mpaise
+from api.services.billing.money import usd_to_mpaise
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
 from api.services.billing.usage import (
     billable_seconds_from_usage_info,
-    byok_model_share,
+    byok_platform_tier,
     usage_items_from_usage_info,
 )
 
@@ -58,47 +58,51 @@ async def _period_minutes(
     return -(-int(total or 0) // 60)
 
 
-def _fee_rates_mpaise(
-    *,
-    usage_info: dict | None,
-    usd_inr_paise: int | None,
-) -> tuple[int, dict[str, int]]:
-    """The orchestration rate and add-on rates for this call, in mpaise.
+def _byok_uplift_micros(usage_info: dict | None) -> int:
+    """What the customer bringing their own keys adds to the platform rate.
 
-    Both are quoted in dollars and settled in rupees, so they need the same FX
-    rate the platform fee was resolved at — passing a different one would put
-    two conversions of the same currency on one receipt. A rupee-native
-    contract has no FX rate at all, and gets no dollar-quoted fee: there is no
-    honest number to convert.
+    An uplift on the resolved rate rather than an absolute rate, so a
+    negotiated account rate and a volume tier both survive a BYOK call instead
+    of being overwritten by a flat number.
+
+    Sized per component because the components are not worth the same: the
+    margin a BYOK call takes from us is roughly thirty times larger when it is
+    the voice than when it is the language model. ``byok_platform_tier``
+    explains the cut; these two figures are what it costs.
     """
-    if usd_inr_paise is None:
-        return 0, {}
+    if not constants.BYOK_TIERED_FEE_ENABLED:
+        return 0
+    tier = byok_platform_tier(usage_info)
+    if tier == "tts":
+        return constants.BYOK_TTS_UPLIFT_MICROS_USD
+    if tier == "stt":
+        return constants.BYOK_STT_UPLIFT_MICROS_USD
+    return 0
 
-    orchestration_mpaise = 0
-    orchestration_micros = constants.BYOK_ORCHESTRATION_MICROS_USD
-    if constants.BYOK_ORCHESTRATION_ENABLED and orchestration_micros > 0:
-        byok_count, keyed_count = byok_model_share(usage_info)
-        if byok_count > 0:
-            full = usd_to_mpaise(
-                micros_usd=orchestration_micros,
-                usd_inr_paise=usd_inr_paise,
-            )
-            # Scale the rate rather than the fee. The receipt's invariant is
-            # that units times unit rate reproduces the line, and discounting
-            # the total instead would break it for every part-BYOK call.
-            orchestration_mpaise = round_half_up_div(full * byok_count, keyed_count)
 
-    addon_mpaise: dict[str, int] = {}
-    if constants.ADDON_BILLING_ENABLED:
-        for key in addon_keys_from_usage_info(usage_info):
-            addon = addon_by_key(key)
-            if addon is None or not addon.is_billable:
-                continue
-            addon_mpaise[key] = usd_to_mpaise(
-                micros_usd=addon.micros_usd_per_minute,
-                usd_inr_paise=usd_inr_paise,
-            )
-    return orchestration_mpaise, addon_mpaise
+def _addon_rates_mpaise(
+    *, usage_info: dict | None, usd_inr_paise: int | None
+) -> dict[str, int]:
+    """Per-minute rates for the priced features this call used, in mpaise.
+
+    Quoted in dollars and settled in rupees, so they need the same FX rate the
+    platform fee was resolved at — two conversions of one currency on a single
+    receipt is how a total stops reconciling. A rupee-native contract has no FX
+    rate at all and gets no dollar-quoted add-on: there is no honest number to
+    convert.
+    """
+    if usd_inr_paise is None or not constants.ADDON_BILLING_ENABLED:
+        return {}
+
+    rates: dict[str, int] = {}
+    for key in addon_keys_from_usage_info(usage_info):
+        addon = addon_by_key(key)
+        if addon is None or not addon.is_billable:
+            continue
+        rates[key] = usd_to_mpaise(
+            micros_usd=addon.micros_usd_per_minute, usd_inr_paise=usd_inr_paise
+        )
+    return rates
 
 
 async def cost_workflow_run(
@@ -166,18 +170,27 @@ async def cost_workflow_run(
                 rate_mpaise=resolved.rate_mpaise, unit=resolved.unit
             )
 
-    orchestration_rate_mpaise, addon_rates = _fee_rates_mpaise(
-        usage_info=run.usage_info,
-        usd_inr_paise=platform.usd_inr_paise,
+    # A BYOK call pays an uplifted platform rate rather than a second fee
+    # line. Applied here rather than in resolve_platform_rate because the tier
+    # is a fact about *this call's* recorded usage, while everything that
+    # resolver reads is a property of the account.
+    platform_rate_mpaise = platform.rate_mpaise
+    uplift_micros = _byok_uplift_micros(run.usage_info)
+    if uplift_micros and platform.usd_inr_paise is not None:
+        platform_rate_mpaise += usd_to_mpaise(
+            micros_usd=uplift_micros, usd_inr_paise=platform.usd_inr_paise
+        )
+
+    addon_rates = _addon_rates_mpaise(
+        usage_info=run.usage_info, usd_inr_paise=platform.usd_inr_paise
     )
 
     cost = compute_call_cost(
         billable_seconds=billable_seconds,
-        platform_rate_mpaise=platform.rate_mpaise,
+        platform_rate_mpaise=platform_rate_mpaise,
         pulse_seconds=platform.pulse_seconds,
         usage=usage,
         provider_rates=provider_rates,
-        orchestration_rate_mpaise=orchestration_rate_mpaise,
         addon_rates=addon_rates,
         # Only managed usage reaches here — a BYOK component produced no usage
         # item at all (services/billing/usage.py), so there is nothing of the

@@ -44,7 +44,9 @@ from api.constants import (
     RAZORPAY_KEY_ID,
     RAZORPAY_KEY_SECRET,
     RAZORPAY_RENTAL_PLAN_ID,
+    RAZORPAY_STARTER_PLAN_ID,
     REQUIRE_MANDATE_FOR_NUMBERS,
+    STARTER_PLAN_PRICE_PAISE,
 )
 from api.db.models import PaymentMandateModel
 from api.enums import MandateStatus
@@ -53,6 +55,19 @@ from api.services.billing.tax import TaxError, gross_up
 
 PROVIDER = "razorpay"
 PURPOSE_NUMBER_RENTAL = "number_rental"
+
+#: The starter plan: one monthly collection covering a number's rent *and* a
+#: call balance. A second purpose rather than a variant of the first, because
+#: the two authorise different amounts and an account holding both would be
+#: paying for the same number twice.
+PURPOSE_STARTER_PLAN = "starter_plan"
+
+#: Purposes that entitle an account to hold a number, in the order they are
+#: preferred. The plan comes first: an account on the plan has already
+#: authorised enough to cover the rent, so sending it to take out a second
+#: rental mandate would ask for a second standing instruction covering a charge
+#: the first one already includes.
+NUMBER_BEARING_PURPOSES = (PURPOSE_STARTER_PLAN, PURPOSE_NUMBER_RENTAL)
 
 #: How many billing cycles a rental mandate authorises. Razorpay requires a
 #: finite count, so this is ten years of monthly collection — long enough that
@@ -153,17 +168,27 @@ async def _post(path: str, payload: dict, *, client: httpx.AsyncClient | None = 
     return response.json()
 
 
-async def ensure_rental_plan(
-    *, price_paise: int, client: httpx.AsyncClient | None = None
+async def _ensure_plan(
+    *,
+    pinned: str | None,
+    env_var: str,
+    name: str,
+    description: str,
+    price_paise: int,
+    client: httpx.AsyncClient | None = None,
 ) -> str:
-    """The plan id the rental subscription is created against.
+    """The provider plan id a subscription is created against.
 
-    Pinning ``RAZORPAY_RENTAL_PLAN_ID`` is strongly preferred: a plan created
+    Pinning the id in the environment is strongly preferred: a plan created
     lazily per environment fragments the provider's own reporting, and the
     fragments are indistinguishable after the fact.
+
+    ``price_paise`` is the **gross** figure the bank is told to collect. The
+    caller grosses up, because the rate depends on the account's own billing
+    profile and this function has no view of one.
     """
-    if RAZORPAY_RENTAL_PLAN_ID:
-        return RAZORPAY_RENTAL_PLAN_ID
+    if pinned:
+        return pinned
 
     created = await _post(
         "/plans",
@@ -171,10 +196,10 @@ async def ensure_rental_plan(
             "period": "monthly",
             "interval": 1,
             "item": {
-                "name": "Decibyl phone number",
+                "name": name,
                 "amount": int(price_paise),
                 "currency": "INR",
-                "description": "Monthly rental for a Decibyl phone number",
+                "description": description,
             },
         },
         client=client,
@@ -183,11 +208,40 @@ async def ensure_rental_plan(
     if not plan_id:
         raise MandateError("Razorpay created a plan with no id")
     logger.warning(
-        "Created Razorpay plan {} on the fly; pin it as RAZORPAY_RENTAL_PLAN_ID "
-        "so later environments reuse it",
+        "Created Razorpay plan {} on the fly; pin it as {} so later "
+        "environments reuse it",
         plan_id,
+        env_var,
     )
     return plan_id
+
+
+async def ensure_rental_plan(
+    *, price_paise: int, client: httpx.AsyncClient | None = None
+) -> str:
+    """The plan id a number-rental subscription is created against."""
+    return await _ensure_plan(
+        pinned=RAZORPAY_RENTAL_PLAN_ID,
+        env_var="RAZORPAY_RENTAL_PLAN_ID",
+        name="Decibyl phone number",
+        description="Monthly rental for a Decibyl phone number",
+        price_paise=price_paise,
+        client=client,
+    )
+
+
+async def ensure_starter_plan(
+    *, price_paise: int, client: httpx.AsyncClient | None = None
+) -> str:
+    """The plan id a starter-plan subscription is created against."""
+    return await _ensure_plan(
+        pinned=RAZORPAY_STARTER_PLAN_ID,
+        env_var="RAZORPAY_STARTER_PLAN_ID",
+        name="Decibyl starter plan",
+        description="Monthly: a phone number and a call balance",
+        price_paise=price_paise,
+        client=client,
+    )
 
 
 async def get_mandate(
@@ -318,6 +372,124 @@ async def create_rental_mandate(
     return mandate
 
 
+async def create_plan_mandate(
+    session: AsyncSession,
+    *,
+    organization_id: int,
+    price_paise: int | None = None,
+    client: httpx.AsyncClient | None = None,
+) -> PaymentMandateModel:
+    """Start the autopay authorisation for the starter plan.
+
+    The same shape as :func:`create_rental_mandate` and for the same reasons —
+    nothing is collected here, the mandate becomes usable only when the
+    provider says it was authorised, and calling twice returns the live mandate
+    rather than authorising a second bank instruction for one plan.
+
+    What differs is the amount and what it buys. The rental mandate covers a
+    number; this covers a number *and* the call balance that comes with it, so
+    an account holding this one must not also hold a rental mandate — see
+    ``NUMBER_BEARING_PURPOSES``.
+    """
+    existing = await get_mandate(
+        session, organization_id=organization_id, purpose=PURPOSE_STARTER_PLAN
+    )
+    if existing is not None:
+        return existing
+
+    # Net, like every figure the ledger deals in. The bank is told the gross,
+    # because that is what the customer actually pays; getting this backwards
+    # is the bug the rental mandate's own comment records — a plan collected at
+    # the net figure would collect no GST at all, month after month, by
+    # standing instruction.
+    net_paise = int(price_paise or STARTER_PLAN_PRICE_PAISE)
+    profile = await get_profile(session, organization_id=organization_id)
+    try:
+        gross_paise = gross_up(
+            taxable_paise=net_paise,
+            country_code=profile.country_code,
+            state_code=profile.state_code,
+        )
+    except TaxError as exc:
+        raise MandateError(str(exc)) from exc
+
+    plan_id = await ensure_starter_plan(price_paise=gross_paise, client=client)
+
+    created = await _post(
+        "/subscriptions",
+        {
+            "plan_id": plan_id,
+            "total_count": RENTAL_TOTAL_COUNT,
+            "customer_notify": 1,
+            "notes": {
+                "organization_id": str(organization_id),
+                "purpose": PURPOSE_STARTER_PLAN,
+            },
+        },
+        client=client,
+    )
+
+    mandate = PaymentMandateModel(
+        organization_id=organization_id,
+        provider=PROVIDER,
+        purpose=PURPOSE_STARTER_PLAN,
+        subscription_id=created.get("id"),
+        plan_id=plan_id,
+        customer_id=created.get("customer_id"),
+        status=created.get("status") or MandateStatus.CREATED.value,
+        short_url=created.get("short_url"),
+        # The net figure, so everything reading a mandate's price reads the
+        # same kind of number. The gross lives in the provider payload.
+        price_paise=net_paise,
+        provider_payload=created,
+    )
+    session.add(mandate)
+    try:
+        await session.flush()
+    except IntegrityError:
+        await session.rollback()
+        logger.warning(
+            "Race creating a plan mandate for org {}; orphaned Razorpay "
+            "subscription {}",
+            organization_id,
+            created.get("id"),
+        )
+        winner = await get_mandate(
+            session, organization_id=organization_id, purpose=PURPOSE_STARTER_PLAN
+        )
+        if winner is None:
+            raise MandateError("Could not create or find a plan mandate") from None
+        return winner
+
+    logger.info(
+        "Created {} starter-plan mandate {} for org {}",
+        PROVIDER,
+        mandate.subscription_id,
+        organization_id,
+    )
+    return mandate
+
+
+async def mandate_for_numbers(
+    session: AsyncSession, *, organization_id: int
+) -> PaymentMandateModel | None:
+    """The mandate that entitles this account to hold a number.
+
+    The plan wins where both exist. An account on the plan has already
+    authorised an amount that includes the rent, so charging its rental mandate
+    as well would collect for one number twice — and the two collections would
+    each look correct on their own, which is what makes it worth resolving in
+    one place rather than at every call site.
+    """
+    for purpose in NUMBER_BEARING_PURPOSES:
+        mandate = await get_mandate(
+            session, organization_id=organization_id, purpose=purpose
+        )
+        if mandate is not None:
+            return mandate
+    return None
+
+
 async def assert_mandate_authorised(
     session: AsyncSession, *, organization_id: int
 ) -> PaymentMandateModel | None:
@@ -326,8 +498,13 @@ async def assert_mandate_authorised(
     Returns the mandate, or ``None`` when the requirement is switched off — the
     caller does not branch on which, so a deployment waiting on Subscriptions
     activation runs the same code path.
+
+    Either standing instruction qualifies. The starter plan's collection
+    already contains the rent, so an account on the plan is authorised for a
+    number and must not be sent to take out a rental mandate as well; see
+    ``mandate_for_numbers``.
     """
-    mandate = await get_mandate(session, organization_id=organization_id)
+    mandate = await mandate_for_numbers(session, organization_id=organization_id)
 
     if not REQUIRE_MANDATE_FOR_NUMBERS:
         return mandate
@@ -335,7 +512,8 @@ async def assert_mandate_authorised(
     if mandate is None:
         raise MandateNotAuthorised(
             "A phone number needs autopay set up first, so the monthly rental "
-            "can be collected. Start it from the number purchase screen."
+            "can be collected. Start it from the number purchase screen, or "
+            "take the starter plan, which includes a number."
         )
     if mandate.status not in MandateStatus.authorised():
         raise MandateNotAuthorised(

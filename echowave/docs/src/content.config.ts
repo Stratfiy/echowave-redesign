@@ -26,6 +26,9 @@ export const collections = {
         "!dist/**",
         "!src/**",
         "!.astro/**",
+        // Capture notes that live beside the images they describe. Markdown,
+        // in the docs tree, and emphatically not pages.
+        "!images/**",
         // Repo-facing notes that are not published pages. They live in docs/
         // for contributors and would otherwise appear in the sidebar as
         // orphans with no nav entry.

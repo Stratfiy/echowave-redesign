@@ -2664,6 +2664,109 @@ class NotificationModel(Base):
     )
 
 
+class ManagedBundleModel(Base):
+    """A named combination of tiers, as the Simple picker offers it.
+
+    "Everyday", "Natural", "Premium" — one card, one price, one choice. The
+    buyer this is for does not know Sarvam from OpenAI and should not have to
+    learn in order to answer a phone.
+
+    A bundle references **tiers, not vendors**, and that indirection is the
+    whole point. A customer's stored configuration names a tier, so moving a
+    vendor is a change in one place that reaches every agent already built. If
+    a bundle named a provider and model directly, changing one would leave
+    every existing agent on the old vendor and every new one on the new — the
+    drift the tier system exists to prevent. Changing what a bundle *runs on*
+    is therefore a tier edit; changing what it is *called*, what it costs to
+    show, whether it appears at all and in what order, is a bundle edit.
+
+    Seeded on first read rather than by migration, so a deployment that has
+    never opened the screen still has something to offer, and so the compiled
+    defaults stay the single description of what ships.
+    """
+
+    __tablename__ = "managed_bundles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    #: Stable identity. What an agent's configuration records, so renaming a
+    #: bundle for the storefront never rewrites what anybody chose.
+    slug = Column(String(32), nullable=False, unique=True)
+    label = Column(String(64), nullable=False)
+    blurb = Column(String(240), nullable=False, default="", server_default=text("''"))
+    #: pipeline | realtime. Decides which tier columns below are meaningful and
+    #: what the agent configuration is compiled into.
+    architecture = Column(String(16), nullable=False)
+    #: Pipeline bundles. ``llm_tier`` null means the customer picks the brain —
+    #: which is what makes Everyday three variants rather than three bundles.
+    stt_tier = Column(String(32), nullable=True)
+    tts_tier = Column(String(32), nullable=True)
+    llm_tier = Column(String(32), nullable=True)
+    #: Speech-to-speech bundles.
+    realtime_tier = Column(String(32), nullable=True)
+    display_order = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    #: Off rather than deleted. A bundle an agent already runs on must keep
+    #: resolving after it stops being offered to new customers.
+    is_enabled = Column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
+class ManagedTierMappingModel(Base):
+    """Which real vendor and model serve a managed tier, chosen by an operator.
+
+    ``managed_tiers.py`` holds the defaults and an environment-variable
+    override, and both are fine for bootstrapping a deployment. Neither is a
+    product control: moving the Normal brain to a cheaper model, or pointing
+    speech-to-speech at a vendor who has just launched an Indic model, is a
+    decision somebody makes on a Tuesday afternoon and should not require an
+    engineer, a release, or a restart of every worker.
+
+    So the mapping is a row. Resolution order is **this table, then the
+    environment variable, then the compiled default** — the table wins because
+    it is the deliberate choice made through an audited screen, and a setting
+    that silently loses to an environment variable somebody set months ago is
+    exactly the "I changed it and nothing happened" failure the rate card just
+    had. The screen reports when an environment variable is also present, so
+    the precedence is visible rather than surprising.
+
+    Overwritten in place rather than effective-dated, unlike a rate. A rate is
+    a fact about money that an old invoice has to be able to reproduce; this is
+    a fact about which vendor answers the phone today, and last month's calls
+    already recorded the model they actually ran on.
+    """
+
+    __tablename__ = "managed_tier_mappings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # "llm" | "stt" | "tts" | "realtime" | "embeddings" — the same vocabulary
+    # managed_tiers uses, deliberately not a Postgres enum so a new component
+    # is application code rather than a migration.
+    component = Column(String(32), nullable=False)
+    tier = Column(String(32), nullable=False)
+    # The vendor as the service factory names it, and the model string passed
+    # straight through to that vendor. Stored together because moving one
+    # without the other is almost always a mistake — a model name is only
+    # meaningful to the vendor that serves it.
+    provider = Column(String(64), nullable=False)
+    model = Column(String(128), nullable=False)
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("component", "tier", name="uq_managed_tier_mapping"),
+    )
+
+
 class PaymentMandateModel(Base):
     """A customer's standing authorisation for us to collect, on file.
 
@@ -2811,6 +2914,21 @@ class CreditLedgerModel(Base):
             "ref_id",
             unique=True,
             postgresql_where=text("kind = 'reservation' AND ref_id IS NOT NULL"),
+        ),
+        # And a plan cycle grants its balance at most once. Razorpay delivers
+        # webhooks at least once, so without this a redelivered
+        # `subscription.charged` would hand out a second Rs2,500 — real money,
+        # to an account that paid for it once. The ref is the provider's
+        # payment id, which is identical on every redelivery of the same
+        # collection; keying off the period instead would not work, because
+        # recording a collection advances the period.
+        Index(
+            "uq_credit_ledger_plan_ref",
+            "organization_id",
+            "ref_type",
+            "ref_id",
+            unique=True,
+            postgresql_where=text("kind = 'plan' AND ref_id IS NOT NULL"),
         ),
         # One signup bonus per organization, ever. Two requests racing during
         # signup would both find no bonus and both grant one, so this is
@@ -3431,6 +3549,15 @@ class TaxDocumentModel(Base):
     payment_id = Column(
         Integer, ForeignKey("payments.id", ondelete="SET NULL"), nullable=True
     )
+    # The provider's payment id, for money collected under an autopay mandate.
+    #
+    # A mandate collection has no ``payments`` row to point at: that table is
+    # one attempt by an account to *buy credit*, and a bank paying a standing
+    # instruction is not that. The provider's id is the right key anyway — it is
+    # identical on every redelivery of the same collection, which is the
+    # property that makes at-least-once webhook delivery safe, and it is what
+    # every other idempotency guard on this path already keys off.
+    provider_payment_id = Column(String(64), nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
@@ -3461,6 +3588,19 @@ class TaxDocumentModel(Base):
             unique=True,
             postgresql_where=text(
                 "kind = 'receipt_voucher' AND payment_id IS NOT NULL"
+            ),
+        ),
+        # And one per mandate collection. Separate from the index above because
+        # the two name different things: a top-up we created an order for, and
+        # money a bank moved on a standing instruction. A collection redelivered
+        # by the provider must not produce a second document — a duplicate
+        # voucher is a filing correction, not a deletion.
+        Index(
+            "uq_receipt_voucher_collection",
+            "provider_payment_id",
+            unique=True,
+            postgresql_where=text(
+                "kind = 'receipt_voucher' AND provider_payment_id IS NOT NULL"
             ),
         ),
         Index("ix_tax_documents_org_issued", "organization_id", "issued_at"),

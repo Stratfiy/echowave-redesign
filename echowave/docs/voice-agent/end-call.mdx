@@ -1,7 +1,109 @@
 ---
 title: "End Call"
-description: "You can use End Call node to configure how the Agent says its final message right before the call is terminated"
+description: "The last thing the agent says, and the last chance to capture what happened."
 ---
-<Note>
-You should have only one End Call node per Voice Agent.
-</Note>
+
+An End Call node closes the conversation and hangs up. It has a prompt like any
+other node — the agent still composes its final turn — and it can run a last
+extraction pass before the line drops.
+
+An agent may have **several** End Call nodes, reached by different edges. That is
+usually better than one, because the ending is where you record what the call
+was for.
+
+## Several endings, not one
+
+A single "goodbye" node makes every call look identical in the run record. Split
+by outcome and the record answers questions on its own:
+
+```text
+"the appointment is confirmed"          → Booked
+"the caller declined"                   → Declined
+"no slot suited them"                   → Needs callback
+"the caller asked not to be called"     → Do not contact
+```
+
+Each is an End Call node with its own closing words and its own extraction. Now
+"how many calls booked something" is a filter rather than a transcript-reading
+exercise, and *Do not contact* can extract a flag your CRM acts on the same day.
+
+<Warning>
+**Give "do not call again" its own ending.** Under TRAI/TCCCPR rules a caller
+who asks not to be contacted has to actually stop being contacted, and that
+obligation is not discharged by it being somewhere in a transcript. An End Call
+node that extracts an explicit flag is what makes the request machine-readable.
+</Warning>
+
+## Fields
+
+<ParamField path="name" type="string" default="End Call">
+Short label describing the *ending*, not the action — `Successful close`,
+`Polite decline`, `Do not contact`. It is what you will filter run records by.
+</ParamField>
+
+<ParamField path="prompt" type="string" required>
+The system prompt for the closing exchange. Supports `{{template_variables}}`.
+</ParamField>
+
+<ParamField path="add_global_prompt" type="boolean" default="false">
+Prepend the [Global node](/voice-agent/global)'s prompt. **Off** by default here,
+unlike every other prompted node — a closing line rarely needs the full persona,
+and a global prompt full of objection handling is the last thing you want the
+model reading as it tries to say goodbye.
+</ParamField>
+
+<ParamField path="extraction_enabled" type="boolean" default="false">
+Run an extraction pass before hanging up. This is the last opportunity — once
+the call ends, nothing more is captured.
+</ParamField>
+
+<ParamField path="extraction_prompt" type="string">
+Overall guidance for that final extraction.
+</ParamField>
+
+<ParamField path="extraction_variables" type="object[]">
+The values to capture: name, type, and a hint each.
+</ParamField>
+
+There is no **Allow Interruption** setting on an End Call node.
+
+## Writing the closing prompt
+
+The failure mode is an agent that will not stop. A model given a vague
+instruction at the end of a call will keep offering help, and the caller has to
+hang up on it — which is a bad last impression and a minute you are paying for.
+
+```text title="A closing prompt that ends"
+Confirm the appointment back to them: the dentist, the day and the time.
+Thank them and end the call.
+
+Do not offer further help. Do not ask if there is anything else. If they raise
+something new, acknowledge it briefly, tell them to call back, and end.
+```
+
+Explicitly forbidding "is there anything else I can help you with?" is worth the
+line. Models reach for it, and on a voice call it reopens a conversation you had
+just finished.
+
+## Rules
+
+- At least one incoming edge.
+- **No outgoing edges.** This is where the call stops.
+- Any number of End Call nodes per agent.
+
+## See also
+
+<CardGroup cols={2}>
+  <Card title="Webhook node" href="/voice-agent/webhook">
+    Sending what you captured to your own system as the call ends.
+  </Card>
+  <Card title="QA node" href="/voice-agent/qa">
+    Scoring the call afterwards, without a person listening to it.
+  </Card>
+  <Card title="Context and variables" href="/core-concepts/context-and-variables">
+    Where extracted values go and who can read them.
+  </Card>
+  <Card title="Calls and runs" href="/core-concepts/calls-and-runs">
+    What the run record holds once the call is over.
+  </Card>
+</CardGroup>

@@ -16,6 +16,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
@@ -36,6 +37,7 @@ from api.services.billing import (
     fx_source,
     kpis,
     markup,
+    pricing_inputs,
     rate_card,
     readiness,
     realized_rates,
@@ -448,6 +450,30 @@ async def get_unit_economics(rng: RangeParams = Depends()) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# 3.7b Pricing inputs
+#
+# Not "what did we earn" — "what is true about the calls", so a price can be
+# set rather than guessed. Every figure here settles a decision that is
+# otherwise somebody's estimate: the TTS characters a minute the rate card is
+# most sensitive to, the components billing zero because no rate row matches
+# them, the concurrency anyone has actually needed, and the monthly minutes a
+# bundle's balance has to be sized against.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/pricing-inputs")
+async def get_pricing_inputs(rng: RangeParams = Depends()) -> dict[str, Any]:
+    async with db_client.async_session() as session:
+        report = await pricing_inputs.pricing_inputs_report(
+            session, start=rng.start, end=rng.end
+        )
+    return {
+        "range": {"start": rng.start.isoformat(), "end": rng.end.isoformat()},
+        **report,
+    }
+
+
+# ---------------------------------------------------------------------------
 # 3.8 Rate card
 #
 # Setting prices, rather than reading what they produced. Every write here goes
@@ -698,7 +724,20 @@ async def set_provider_rate(
             raise _rate_card_error(exc) from exc
         await session.commit()
         card = await rate_card.get_rate_card(session)
-    return {"provider_rates": card.provider_rates}
+    return {
+        "provider_rates": card.provider_rates,
+        # Which named rows override each provider-wide row. An operator who
+        # edits the provider rate and sees no change is looking at a row that
+        # something more specific outranks, and until this was returned nothing
+        # on the screen could say so.
+        "shadowed_by": {
+            f"{component}:{provider}": models
+            for (component, provider), models in rate_card.shadowed_by(
+                card.provider_rates
+            ).items()
+            if models
+        },
+    }
 
 
 @router.delete("/rate-card/providers")
@@ -727,6 +766,320 @@ async def retire_provider_rate(
         await session.commit()
         card = await rate_card.get_rate_card(session)
     return {"provider_rates": card.provider_rates}
+
+
+class TierMappingRequest(BaseModel):
+    """Point a managed tier at a vendor and model."""
+
+    component: str
+    tier: str
+    provider: str
+    model: str
+
+
+@router.get("/managed-tiers")
+async def list_managed_tiers(
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Every managed tier, what serves it, and whether that is safe.
+
+    ``is_priced`` false means calls on that tier record no provider cost, so
+    margin reads high. ``env_override`` names an environment variable that is
+    set for the tier and which the stored mapping now outranks — reported so
+    the precedence is visible rather than a surprise.
+    """
+    from api.services.configuration import tier_admin
+
+    async with db_client.async_session() as session:
+        views = await tier_admin.list_tiers(session)
+    return {"tiers": [vars(view) for view in views]}
+
+
+class BundleRequest(BaseModel):
+    """Create or update a bundle.
+
+    Every field except ``slug`` is optional and omitting one leaves it. Sending
+    an explicit null clears it, which is how a bundle is switched between
+    pipeline and speech-to-speech — the tiers that no longer apply have to go.
+    """
+
+    slug: str
+    label: str | None = None
+    blurb: str | None = None
+    architecture: str | None = None
+    stt_tier: str | None = None
+    tts_tier: str | None = None
+    llm_tier: str | None = None
+    realtime_tier: str | None = None
+    display_order: int | None = None
+    is_enabled: bool | None = None
+
+
+class ProviderRatesRequest(BaseModel):
+    """Price one vendor's component, flat or per model or both."""
+
+    provider: str
+    component: str
+    unit: str
+    #: Applies to every model without a row of its own.
+    flat_rate_mpaise: int | None = None
+    #: Model name to millipaise. Outranks the flat rate for those models.
+    model_rates: dict[str, int] = {}
+
+
+@router.get("/providers")
+async def list_providers(user: UserModel = Depends(get_superuser)) -> dict[str, Any]:
+    """Every vendor, grouped: what it serves, what it costs, and what is missing.
+
+    The shape the rate card should always have had. Nobody asks "what is row
+    forty-one"; they ask whether a vendor is set up and what it costs us — a
+    question that spans a stored key, the components it serves, and which
+    models are priced against a rate of their own rather than falling through
+    to the provider's.
+    """
+    from api.services.billing import provider_catalogue
+
+    async with db_client.async_session() as session:
+        entries = await provider_catalogue.build(session)
+
+    return {
+        "providers": [
+            {
+                "provider": entry.provider,
+                "is_priced": entry.is_priced,
+                "components": [
+                    {
+                        "component": component.component,
+                        "flat_rate_mpaise": component.flat_rate_mpaise,
+                        "flat_unit": component.flat_unit,
+                        "has_platform_key": component.has_platform_key,
+                        "models": [
+                            {
+                                "model": model.model,
+                                "rate_mpaise": model.rate_mpaise,
+                                "unit": model.unit,
+                                # True when this price is the provider's rather
+                                # than the model's. The flat-rate case, and the
+                                # reason an edit to one can look like it did
+                                # nothing to the other.
+                                "from_provider_rate": model.from_provider_rate,
+                            }
+                            for model in component.models
+                        ],
+                    }
+                    for component in entry.components
+                ],
+            }
+            for entry in entries
+        ]
+    }
+
+
+@router.put("/providers/rates")
+async def set_provider_rates(
+    request: ProviderRatesRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Price a vendor in one call — flat, per model, or both.
+
+    Vendors differ: some quote one price for everything they serve and some
+    price every model separately. An operator should not have to model one as
+    the other, and should not have to make fifteen separate calls to price a
+    catalogue. Each row still goes through the audited, effective-dated path.
+    """
+    from api.services.billing import provider_catalogue
+    from api.services.billing.rate_card import RateCardError
+
+    async with db_client.async_session() as session:
+        try:
+            result = await provider_catalogue.set_rates(
+                session,
+                provider=request.provider,
+                component=request.component,
+                unit=request.unit,
+                actor_user_id=user.id,
+                flat_rate_mpaise=request.flat_rate_mpaise,
+                model_rates=request.model_rates,
+            )
+        except RateCardError as exc:
+            raise _rate_card_error(exc) from exc
+        await session.commit()
+    return result
+
+
+@router.get("/bundles")
+async def list_bundles(user: UserModel = Depends(get_superuser)) -> dict[str, Any]:
+    """Every bundle, and what each one runs on today.
+
+    ``slots`` is the part worth reading: a bundle names tiers and a tier names
+    a vendor somewhere else, so without it you would need two screens open to
+    answer "what does Natural actually use?".
+    """
+    from api.services.configuration import bundles as bundle_service
+
+    async with db_client.async_session() as session:
+        rows = await bundle_service.list_bundles(session)
+        await session.commit()
+        return {
+            "bundles": [
+                {
+                    "slug": row.slug,
+                    "label": row.label,
+                    "blurb": row.blurb,
+                    "architecture": row.architecture,
+                    "stt_tier": row.stt_tier,
+                    "tts_tier": row.tts_tier,
+                    "llm_tier": row.llm_tier,
+                    "realtime_tier": row.realtime_tier,
+                    "display_order": row.display_order,
+                    "is_enabled": row.is_enabled,
+                    "slots": bundle_service.resolved_slots(row),
+                    # Computed from the tiers this bundle resolves to right
+                    # now, never stored. Move a tier abroad and the badge goes
+                    # with it, on the same request.
+                    "residency": bundle_service.residency(row),
+                }
+                for row in rows
+            ]
+        }
+
+
+@router.get("/bundles/economics")
+async def bundle_economics(user: UserModel = Depends(get_superuser)) -> dict[str, Any]:
+    """What each bundle costs us, what it earns, and on which vendors.
+
+    The number a bundle editor has to show while the operator is still deciding
+    — changing what a tier points at moves the price of every bundle that names
+    it, and finding that out from next month's unit economics is finding out
+    too late.
+
+    Cost and price come from the same estimator, asked twice: once with the
+    managed markup and once without. Their difference is the margin. A margin
+    computed separately drifts from the invoice, which is how every pricing bug
+    found this week started.
+    """
+    from api.services.configuration import agent_options
+
+    async with db_client.async_session() as session:
+        return {"bundles": await agent_options.bundle_economics(session)}
+
+
+@router.put("/bundles")
+async def upsert_bundle(
+    request: BundleRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Create or change a bundle.
+
+    Changes what a bundle is *called* and whether it is offered. Changing what
+    it *runs on* is a tier edit — see ``/managed-tiers`` — because a customer's
+    stored configuration names a tier, so moving a vendor there reaches every
+    agent already built rather than only the ones created next.
+    """
+    from api.services.configuration import bundles as bundle_service
+
+    fields = request.model_dump(exclude={"slug"}, exclude_unset=True)
+    async with db_client.async_session() as session:
+        try:
+            row = await bundle_service.upsert_bundle(
+                session, slug=request.slug, actor_user_id=user.id, **fields
+            )
+        except bundle_service.BundleError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+        return {
+            "slug": row.slug,
+            "label": row.label,
+            "architecture": row.architecture,
+            "is_enabled": row.is_enabled,
+        }
+
+
+@router.get("/managed-tiers/choices")
+async def managed_tier_choices(
+    component: str = Query(...),
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """What a tier can be pointed at, read from the registry.
+
+    ``allow_custom_model`` true means the vendor takes model strings we do not
+    enumerate, so the screen should let one be typed — several realtime vendors
+    ship new models faster than we cut releases. Typing one is safe because
+    ``PUT`` refuses an unbuildable provider or one with no platform key
+    whichever way it was chosen.
+    """
+    from api.services.configuration import tier_admin
+
+    return {"component": component, "choices": tier_admin.choices(component)}
+
+
+@router.put("/managed-tiers")
+async def set_managed_tier(
+    request: TierMappingRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Change which vendor and model serve a tier. Takes effect immediately."""
+    from api.services.configuration import managed_tiers, tier_admin
+
+    async with db_client.async_session() as session:
+        try:
+            result = await tier_admin.set_tier(
+                session,
+                component=request.component,
+                tier=request.tier,
+                provider=request.provider,
+                model=request.model,
+                actor_user_id=user.id,
+            )
+        except tier_admin.TierMappingError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await session.commit()
+
+    # Refresh this worker, then tell the others. Doing it in that order means
+    # the request that made the change sees it, even if Redis is unavailable.
+    await managed_tiers.refresh_overrides()
+    await _broadcast_tier_change()
+    return result
+
+
+@router.delete("/managed-tiers")
+async def clear_managed_tier(
+    component: str = Query(...),
+    tier: str = Query(...),
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Drop back to the compiled default for this tier."""
+    from api.services.configuration import managed_tiers, tier_admin
+
+    async with db_client.async_session() as session:
+        await tier_admin.clear_tier(session, component=component, tier=tier)
+        await session.commit()
+
+    await managed_tiers.refresh_overrides()
+    await _broadcast_tier_change()
+    return {"component": component, "tier": tier, "cleared": True}
+
+
+async def _broadcast_tier_change() -> None:
+    """Tell the other workers to re-read. Best effort, and logged when it is not.
+
+    A worker that misses this keeps serving the previous mapping until it
+    restarts — wrong, but quietly so, which is why the failure is logged rather
+    than swallowed.
+    """
+    from api.services.worker_sync.manager import get_worker_sync_manager
+    from api.services.worker_sync.protocol import WorkerSyncEventType
+
+    try:
+        manager = get_worker_sync_manager()
+    except RuntimeError:
+        # Raised, not None-returning, when the lifespan has not started one —
+        # which is the ordinary case in a test or a one-off script. The change
+        # is already saved and this worker already re-read it; the others pick
+        # it up when they restart.
+        logger.warning(
+            "Managed tier changed but no worker sync manager is running; other "
+            "workers keep the previous mapping until they restart"
+        )
+        return
+    await manager.broadcast(WorkerSyncEventType.MANAGED_TIERS, "update")
 
 
 @router.put("/rate-card/exchange-rate")
