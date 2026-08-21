@@ -1,0 +1,382 @@
+# Launch checklist — Decibyl, doctor launch
+
+**Written 21 Aug 2026, after taking over from the session that merged #41.**
+Everything below was verified against the code at `00c2ace` in a running
+container: migrations applied to a fresh database, the price book seeded, and
+the estimator called directly. Where a number is measured it says so; where it
+rests on an assumption, the assumption is named.
+
+This supersedes nothing. `PRICING-FIX-PLAN.md` is still the plan of record for
+pricing and `NEXT-SESSION.md` for the environment. This is the gate list: what
+must be true before a doctor pays us.
+
+---
+
+## 0. Where the last session left it
+
+**The pricing work is already in production.** `Deploy` succeeded on `main` at
+`00c2ace` on 21 Aug 04:39 UTC, and every deploy runs `alembic upgrade head`.
+CI was green on the merge (`c4289a5`). This is not a branch waiting to ship —
+it is live, with the commercial flags switched off.
+
+What that PR actually delivered, confirmed in the code:
+
+| | State |
+|---|---|
+| Telephony double-charge | Fixed — carriage we did not sell records no line |
+| Speech-to-speech quoted at a text-token rate | Fixed in `realtime_pricing`; **still broken on the path customers see — see 1.1** |
+| Autopay revenue reading 18% high | Fixed — `recurring_charge_periods.charged_paise` is net everywhere |
+| No tax document for autopay collections | Fixed — one receipt voucher per collection, keyed on the provider payment id |
+| Flash-Lite retirement (16 Oct deadline) | Closed — managed LLM tiers are off Google entirely |
+| Rate card / tiers / bundles operator-editable | Built, with screens |
+| ₹2,999 starter plan | Backend complete. **No purchase UI — see 2.1** |
+| Migration failing on a fresh database | Fixed — verified: 0 → head clean on an empty DB |
+
+**Verification I ran, so nobody repeats it:** 3,835 API tests pass, 10 fail.
+All 10 are environmental (6 need `ts_validator` npm deps, 4 are timing tests on
+Python 3.11 where the project pins ≥3.13); 9 errors need `moto[s3,server]`.
+`tsc --noEmit` is clean. 68 UI vitest tests pass. None of the last three run in
+CI — see 3.4.
+
+---
+
+## 1. P0 — the numbers are wrong. Fix before anyone is quoted.
+
+### 1.1 Speech-to-speech is quoted at ₹2.76/min and costs up to ₹18.97
+
+**This is the one that would have cost us money on day one.** Measured, not
+inferred:
+
+| Simple picker card | Quotes today | Real sell price | Real cost |
+|---|---:|---:|---:|
+| Natural (Gemini Live) | ₹2.76/min | ₹9.37/min | ₹7.24/min |
+| Premium (OpenAI realtime) | ₹2.76/min | ₹25.79/min | ₹18.97/min |
+
+A 3.4× and a 9.3× under-quote, on a customer-facing screen.
+
+**Root cause — two names for one vendor.** `managed_tiers` names realtime
+upstreams `openai_realtime` / `google_realtime` (what `service_factory` needs).
+The rate card names them `decibylopenairealtime` / `decibylgeminilive` (what
+`provider_from_processor` emits from the running pipeline). Nothing bridges the
+two on the estimate path, so `resolve_provider_rate` finds nothing, the model
+line is dropped into `unpriced`, and the estimate returns telephony + platform
+fee alone — ₹2.76 — which reads as a cheap stack rather than as an error.
+
+The invoice prices it correctly, because the pipeline records the `decibyl*`
+name. So the quote and the invoice disagree by 9×.
+
+Two things make it silent:
+
+* `agent_options.price_per_minute` and `realtime_price_per_minute` return
+  `estimate.total_paise_per_minute` and **discard `estimate.unpriced`**. The
+  estimator raises the flag; the caller drops it.
+* `bundle_economics` computes margin as price − cost from the same broken
+  estimate, so the operator screen shows ₹2.76 sell / ₹2.52 cost / ₹0.24 margin
+  on a stack losing ₹15/min.
+
+**Fix, verified working.** `estimator._REALTIME_RATE_CARD_NAMES` already holds
+exactly the mapping needed — it is used for the token assumption and never for
+the rate lookup. Normalise `llm_provider` through it before resolving the rate
+and both halves come right at once (the token assumption is currently also
+falling through to the 1,400-token text default for these models). I prototyped
+this against a seeded database: the numbers in the table above are the output.
+
+Then make the failure loud: `price_per_minute` must refuse to return a price
+when `unpriced` is non-empty. A bundle card with no price is a bug report; a
+bundle card with a wrong price is an invoice dispute.
+
+- [ ] Map realtime tier providers to rate-card names before the rate lookup
+- [ ] Propagate `unpriced` out of `price_per_minute` / `realtime_price_per_minute`; render "price unavailable", never a number
+- [ ] Add a test asserting every managed tier, for every component, resolves to a live rate row
+
+### 1.2 The estimator does not apply the BYOK uplift it documents
+
+`estimate_cost_per_minute`'s own docstring says of a customer-keyed component:
+*"the platform fee is uplifted instead."* It is not. The word `uplift` appears
+in that file exactly once — in the docstring.
+
+`costing.cost_workflow_run` **does** apply it: `$0.002/min` when the customer
+brings transcription, `$0.015/min` when they bring the voice.
+
+So the moment `BYOK_TIERED_FEE_ENABLED=true`, a BYOK-TTS customer is quoted a
+$0.020 platform fee and invoiced $0.035 — the platform line is 75% higher than
+quoted, roughly 20–25% on a full stack. This is the same defect class as the
+"wizard quoting 40% under the invoice" bug that PR fixed, in the one path it
+did not check.
+
+- [ ] Add the uplift to the estimate, resolved from the same constants `costing` reads
+- [ ] Test that the estimate and the receipt agree for all three tiers (managed / stt / tts)
+- [ ] **Do not flip `BYOK_TIERED_FEE_ENABLED` before this lands**
+
+### 1.3 Add-on charges appear in no estimate and have no label
+
+`ADDON_KNOWLEDGE_BASE_MICROS_USD` ($0.005/min) and `ADDON_CALL_QA_MICROS_USD`
+($0.020/min) are charged by `costing` and are absent from `estimator` entirely.
+On a call using both, that is $0.025/min unquoted — **more than the platform fee
+itself**.
+
+And `addon` is not in any `COMPONENT_LABELS` map in the UI. Every one falls
+through to `?? line.component`, so the customer's call detail shows a charge
+labelled `addon`. `CostPerMinuteBar` groups lines into agent / telephony /
+platform, and an add-on line belongs to none of the three — so the bar will not
+sum to the total.
+
+- [ ] Include add-ons in the estimate for features the agent has enabled
+- [ ] Label `addon` in `CostPerMinuteBar`, `unit-economics`, and the call detail
+- [ ] **Do not flip `ADDON_BILLING_ENABLED` before this lands**
+
+### 1.4 The pinned Razorpay plan silently discards the gross-up
+
+`mandates._ensure_plan` opens with `if pinned: return pinned`. The caller
+carefully grosses ₹2,999 up to ₹3,538.82 against the account's billing profile,
+and when `RAZORPAY_STARTER_PLAN_ID` is set — which `constants.py` strongly
+recommends — that computed figure is thrown away and the bank collects whatever
+amount the pinned plan was created with.
+
+Two consequences, neither of which any code can detect:
+
+* A plan created at ₹2,999 collects **no GST at all**, monthly, by standing
+  instruction. The receipt voucher would then split ₹2,999 as if tax-inclusive
+  and we would absorb ₹457.47 a month per customer.
+* An export customer with an LUT is zero-rated but pays the domestic pinned
+  price.
+
+- [ ] Confirm in the Razorpay dashboard that the pinned starter plan's amount is **₹3,538.82** and the rental plan's is **₹588.82**
+- [ ] Assert it in code: fetch the pinned plan at startup, compare to the derived gross, refuse to create a mandate on a mismatch
+- [ ] Decide the export case explicitly — a second pinned plan, or refuse autopay for export accounts
+
+### 1.5 The exchange rate is a floor, not a rate
+
+`DEFAULT_USD_INR_PAISE = 9600`. Every rate in the price book is quoted in USD
+and settled in rupees, so if `usd_inr_rate_history` is empty, **every charge on
+the platform settles 7–8% light** against a real ~₹104.
+
+The daily refresh cron is wired (`refresh_exchange_rate`, 02:30 UTC) and the
+source is keyless. The risk is the network policy: a fetch that never succeeds
+writes nothing, logs a warning, and leaves ₹96 in force forever with no visible
+symptom.
+
+- [ ] `SELECT * FROM usd_inr_rate_history ORDER BY effective_from DESC LIMIT 5` on the box — confirm a row from the last 48h
+- [ ] If empty, set one manually via the rate card before the first invoice
+- [ ] The KPI screen shows the age of the newest rate — put it on someone's morning check
+
+### 1.6 Four carriers are priced at US rates or at nothing real
+
+`default_rates.TELEPHONY_RATES`: Plivo and Twilio are India figures. Telnyx
+(`$0.0070`) and Vonage (`$0.0139`) are labelled "US outbound". Cloudonix and
+Vobiz carry the comment `PLACEHOLDER at the Twilio India mobile rate. Not the
+published price.`
+
+Telephony is now marked up like everything else, so an under-priced base rate
+compounds into the sell price rather than just eating margin.
+
+- [ ] Either put real India rates against all four, or remove them from what a customer can select
+
+---
+
+## 2. P1 — built, working, and unreachable
+
+I diffed all 291 API routes against the hand-written UI (excluding the generated
+client). Coverage is genuinely good — most of what follows is deliberate
+server-to-server. These are the ones that are not.
+
+### 2.1 The ₹2,999 starter plan cannot be bought
+
+`GET /billing/plan` and `POST /billing/plan` are complete: mandate creation,
+idempotent balance grant keyed on the provider payment id, rent settled in the
+same cycle so the monthly job cannot debit it twice, receipt voucher issued.
+`plans.py` is careful, well-tested code.
+
+**No screen calls either endpoint.** The generated client has
+`getPlanApiV1BillingPlanGet` and `subscribeToPlanApiV1BillingPlanPost`; nothing
+in `ui/src` outside `client/` references them.
+
+This is the launch SKU. Everything behind it is done and the customer cannot
+reach it.
+
+- [ ] Build the purchase flow — what it costs, what it includes, and the Razorpay authorisation hand-off. `/numbers` already does exactly this shape for the rental mandate
+
+### 2.2 Autopay can be started but not cancelled
+
+`POST /billing/mandate/cancel` exists and is called from nowhere. The repo's own
+test records this: `adminControls.test.ts` lists that route with
+`calledFrom: null`.
+
+A customer who wants out has to go to their bank or to Razorpay. For a
+subscription sold to clinics, "no way to cancel in the product" is a support
+load and a trust problem before it is a compliance one.
+
+- [ ] Add cancel to the billing screen, with what happens to the number when the mandate goes
+
+### 2.3 The go-live readiness report has no screen
+
+`GET /admin/billing/readiness` is the best piece of operational code in this
+repo. It checks supplier identity, live-vs-test Razorpay keys, webhook
+reachability, that every captured payment has a receipt voucher, that the price
+book covers what calls actually used, and that the worker is alive. Its module
+docstring names the exact failure mode it exists to catch: *the dangerous
+failure is the one that produces a plausible number rather than an exception.*
+
+Nothing renders it. `PRODUCTION-CHECKLIST.md` Step 8 says "verify readiness
+reports zero blockers" and there is no way to look.
+
+- [ ] Put it on `/superadmin/billing` as the first thing on the page
+
+### 2.4 Others, in rough order of how much they matter
+
+| Endpoint | Consequence |
+|---|---|
+| `POST /admin/billing/rate-card/exchange-rate/refresh` | No button to force an FX refresh — see 1.5 |
+| `/admin/telephony/*` (4 routes) | Managed telephony cannot be administered at all: no way to mark a config platform-managed or manage shared outbound. This is the `MANAGED_TELEPHONY_ENABLED` path |
+| `POST /managed-numbers/{id}/release` | A number can be bought and not given back |
+| `/admin/partners/…/commission` (GET/PUT), `statements/{id}/issue` | Partner commissions cannot be set and statements cannot be issued |
+| `/auth/mfa/enroll｜verify｜disable` | MFA is implemented and cannot be turned on by anyone |
+| `/privacy/readiness`, `/privacy/metrics`, `/privacy/breach-report` | DPDP reporting has no screen. Relevant for a healthcare buyer |
+| `/knowledge-base/search` | No way to test what the agent will actually retrieve |
+| `model-configurations/v2/migration-preview` + `/migrate` | The migration path exists and cannot be run |
+
+---
+
+## 3. P2 — numbers that are guesses, and what they swing
+
+### 3.1 One unmeasured constant moves the price 58%
+
+Everything rests on TTS characters per connected minute. Three internal
+documents said 850, 900 and 2,300; the code ships 2,300. Measured on the Lite
+managed stack (Sarvam speech, Plivo carriage, list price, ₹96):
+
+| chars/min | Sell | Cost | What ₹2,500 of plan balance buys |
+|---:|---:|---:|---:|
+| 850 | ₹5.26 | ₹4.31 | 475 min |
+| 900 | ₹5.36 | ₹4.38 | 466 min |
+| **2,300 (shipped)** | **₹8.30** | **₹6.48** | **301 min** |
+
+TTS is between 34% and 58% of the sell price and it is the one line that is a
+guess. `/superadmin/billing/pricing-inputs` was built to answer exactly this and
+has no data until real calls flow.
+
+Two things follow. **`PRICING-FIX-PLAN.md` assumes ₹5.17–8.21/min all-in; the
+estimator returns ₹8.30–9.00 today** — at or above the pessimistic end, not
+inside the range. And the starter plan's ₹2,500 buys ~300 minutes, which is
+parity with Agni's 300 at the same ₹2,999, not an advantage.
+
+- [ ] Run `scripts/pricing/measure.sql` after the first week of real traffic, before quoting anyone a volume price
+- [ ] Re-size the plan balance against the answer
+
+### 3.2 Full managed economics as they stand today
+
+List price, ₹96/USD, Plivo carriage, 1.4× markup, 2,300 chars/min:
+
+| Tier | Sell | Cost | Margin | % |
+|---|---:|---:|---:|---:|
+| Lite (Sarvam) | ₹8.30 | ₹6.48 | ₹1.82 | 22% |
+| Normal (GPT-4.1-mini) | ₹8.43 | ₹6.57 | ₹1.86 | 22% |
+| Smart (GPT-4.1) | ₹9.00 | ₹6.98 | ₹2.02 | 22% |
+| Natural (Gemini Live) | ₹9.37 | ₹7.24 | ₹2.13 | 23% |
+| Premium (OpenAI realtime) | ₹25.79 | ₹18.97 | ₹6.82 | 26% |
+
+Cross-check that gives me confidence in the rate card: stripping carriage and
+the platform fee gives ₹4.72/min for Gemini Live and ₹16.45/min for OpenAI
+realtime — the exact figures `managed_tiers.py` documents from an independent
+calculation.
+
+Worth saying out loud: **Premium at ₹25.79/min means a ₹2,500 balance is 97
+minutes.** Selling that inside a "starter plan" will generate support tickets.
+Consider hiding Premium from the plan, or warning on the card.
+
+### 3.3 The wizard's price excludes carriage
+
+`GET /agent-options` calls `price_per_minute` with no `telephony_provider`, so
+the number in the create wizard is ₹7.46/min where the call will cost ₹8.30 —
+about 10% light. Defensible (no carrier is chosen yet) but not stated.
+
+- [ ] Either pass the account's default carrier, or label the figure "excludes telephony"
+
+### 3.4 CI does not build or test the UI
+
+`.github/workflows/` at the repo root runs API tests and a format/lint/OpenAPI
+drift check. It never runs `tsc --noEmit`, `next build`, or the 68 vitest tests
+that exist. A type error or a broken build reaches `main` and is caught on the
+deploy box, where `ci_deploy.sh` rolls back — which is a rollback that could
+have been a red check.
+
+Both are clean today; I ran them. Nothing keeps them clean.
+
+- [ ] Add `npx tsc --noEmit`, `npm run build` and `npx vitest run` to the drift check
+
+### 3.5 Smaller things, all real
+
+- `cost_engine.py` still carries an inline comment saying *"Telephony is
+  excluded: its rate card already holds the sell price"* directly above the line
+  that marks telephony up. Same stale comment in `estimator._with_markup`. The
+  behaviour is right and consistent; the comments now say the opposite, and this
+  file's comments are how everyone reasons about it.
+- `constants.py` says `13000 = 1.30x` above a default of `14000`.
+- The plan balance grant **never expires** — `CreditLedgerKind.PLAN` is an
+  ordinary credit row. `PRICING-FIX-PLAN.md` flagged expiry-vs-rollover as a
+  decision to make explicitly; it has been made by default, in favour of
+  rollover forever. Decide it deliberately and say so at purchase.
+- The India-processed badge is computed from managed tiers only and trusts a
+  one-vendor allow-list (`sarvam`). For a clinic that is a data-residency claim.
+  Have the Sarvam DPA on file before it is shown to a doctor.
+- `echowave/.github/workflows/` still holds five workflows that GitHub never
+  reads (wrong directory level). Release automation is therefore dead.
+- The repository root still contains the Emergent scaffold — `backend/server.py`
+  (a MongoDB hello-world), `frontend/` (a CRA stub), `memory/`, `tests/`,
+  `test_result.md`. None of it is Decibyl. Delete it before anyone new reads
+  this repo.
+
+---
+
+## 4. Go-live sequence
+
+Order matters. Each step assumes the one above it.
+
+**Before any customer sees a price**
+
+1. Fix 1.1 (realtime quoting) — the only genuine P0 bug in shipped code
+2. Fix 1.2 and 1.3 (BYOK uplift, add-ons in the estimate)
+3. Verify 1.4 (pinned plan amount) in the Razorpay dashboard
+4. Verify 1.5 (a real FX row exists)
+5. Seed and check the price book: `docker compose exec api python -m scripts.seed_provider_rates --confirm`, then fix 1.6
+
+**Before the first rupee**
+
+6. Ship 2.3 (readiness screen), then work it to zero blockers
+7. Supplier identity set — without `SUPPLIER_LEGAL_NAME` and `SUPPLIER_GSTIN` money is taken and **no tax document is ever issued**. `PRODUCTION-CHECKLIST.md` §2.1
+8. Razorpay live keys, webhook configured and reachable
+9. One real payment end to end, and confirm the receipt voucher exists
+
+**Before the plan is sold**
+
+10. Ship 2.1 (plan purchase UI) and 2.2 (cancel)
+11. Decide balance expiry (3.5) and state it on the purchase screen
+12. Update `docs/account/billing.mdx` and `docs/getting-started/index.mdx`. Both
+    currently say **"$0.02 per minute, billed per second"** — we bill in
+    15-second pulses. That is wrong today, before any flag moves, and it is our
+    best commercial differentiator stated as an error. Phase 5 of the pricing
+    plan (the tiered BYOK fee) lands in the same edit
+
+**Then, and only then**
+
+13. `BYOK_TIERED_FEE_ENABLED=true`
+14. `ADDON_BILLING_ENABLED=true`
+15. `MANAGED_TELEPHONY_ENABLED=true` — needs 2.4's telephony admin screens and the Plivo KYC verdict first
+
+**Still blocked on third parties** (unchanged): Razorpay Subscriptions approval,
+Plivo KYC, DLT registration for SMS verification.
+
+---
+
+## 5. What I could not check from here
+
+* Production configuration. The proxy resolves `api.decibyl.ai` to `127.0.0.1`;
+  every flag value above is the code default, not what is on the box. Steps 3,
+  4 and 7 all need someone at a terminal.
+* Whether the price book in production matches `default_rates.py`. The seeder
+  now exists and the readiness check now looks for real gaps rather than
+  `count > 0`, but nobody has run either against production.
+* Provider invoices against `provider_cost_paise`. Every cost figure in section
+  3.2 is a published list price that was read, not an invoice that was
+  reconciled. Until one month is reconciled, the cost side is an assumption and
+  so is every margin number on every screen.
