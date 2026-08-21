@@ -95,6 +95,7 @@ async def signup(request: SignupRequest):
             name=request.name,
             organization_id=organization.id,
             provider_id=user.provider_id,
+            mfa_enabled=bool(user.mfa_enabled),
         ),
     )
 
@@ -148,6 +149,7 @@ async def login(request: LoginRequest):
             email=user.email,
             organization_id=user.selected_organization_id,
             provider_id=user.provider_id,
+            mfa_enabled=bool(user.mfa_enabled),
         ),
     )
 
@@ -157,6 +159,7 @@ async def get_current_user(user: UserModel = Depends(get_user)):
     return UserResponse(
         id=user.id,
         email=user.email,
+        mfa_enabled=bool(user.mfa_enabled),
         organization_id=user.selected_organization_id,
         provider_id=user.provider_id,
     )

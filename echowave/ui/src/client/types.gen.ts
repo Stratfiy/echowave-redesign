@@ -8039,6 +8039,10 @@ export type UserResponse = {
      * Provider Id
      */
     provider_id?: string | null;
+    /**
+     * Mfa Enabled
+     */
+    mfa_enabled?: boolean;
 };
 
 /**

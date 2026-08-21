@@ -23,6 +23,7 @@ import {
     approveApplicationApiV1AdminPartnersApplicationIdApprovePost,
     generateStatementsApiV1AdminPartnersStatementsGeneratePost,
     getQueueApiV1AdminPartnersQueueGet,
+    issueStatementApiV1AdminPartnersStatementsStatementIdIssuePost,
     listStatementsApiV1AdminPartnersStatementsGet,
     markStatementPaidApiV1AdminPartnersStatementsStatementIdMarkPaidPost,
     rejectApplicationApiV1AdminPartnersApplicationIdRejectPost,
@@ -313,6 +314,18 @@ function Payouts() {
         await load();
     };
 
+    const issue = async (statement: Statement) => {
+        const response = await issueStatementApiV1AdminPartnersStatementsStatementIdIssuePost({
+            path: { statement_id: statement.id },
+        });
+        if (response.error) {
+            toast.error(detailFromError(response.error, "Could not issue it"));
+            return;
+        }
+        toast.success("Marked sent — the number is frozen against regeneration");
+        await load();
+    };
+
     const markPaid = async (statement: Statement) => {
         const reference = window.prompt(
             "Payment reference (UTR or bank reference). The transfer itself happens outside this system.",
@@ -410,17 +423,36 @@ function Payouts() {
                                     <TableCell className="text-right tabular-nums">
                                         {formatPaise(statement.amount_paise)}
                                     </TableCell>
-                                    <TableCell className="text-right text-sm text-muted-foreground">
-                                        {statement.status}
+                                    <TableCell className="text-right">
+                                        {statement.status === "paid" ? (
+                                            <Badge className="bg-green-600 hover:bg-green-600">Paid</Badge>
+                                        ) : statement.status === "issued" ? (
+                                            <Badge variant="secondary">Issued</Badge>
+                                        ) : (
+                                            <Badge variant="outline">Draft</Badge>
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => void markPaid(statement)}
-                                        >
-                                            Mark paid
-                                        </Button>
+                                        <div className="flex justify-end gap-1.5">
+                                            {statement.status === "draft" && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => void issue(statement)}
+                                                >
+                                                    Issue
+                                                </Button>
+                                            )}
+                                            {statement.status !== "paid" && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => void markPaid(statement)}
+                                                >
+                                                    Mark paid
+                                                </Button>
+                                            )}
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}

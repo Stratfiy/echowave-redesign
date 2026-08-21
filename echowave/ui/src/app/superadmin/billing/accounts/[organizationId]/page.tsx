@@ -22,8 +22,10 @@ import {
 import {
     adjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPost,
     getAccountApiV1AdminBillingAccountsOrganizationIdGet,
+    getCommissionHistoryApiV1AdminPartnersAccountsOrganizationIdCommissionGet,
     listPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGet,
     setAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePut,
+    setCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPut,
     setPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPut,
 } from "@/client/sdk.gen";
 import { COST_COMPONENTS, seriesColor } from "@/components/charts/chartTheme";
@@ -403,6 +405,7 @@ export default function AccountDetailPage() {
             </div>
 
             <TelephonyPanel organizationId={organizationId} />
+            <CommissionPanel organizationId={organizationId} />
         </div>
     );
 }
@@ -850,6 +853,243 @@ function TelephonyPanel({ organizationId }: { organizationId: number }) {
                             ))}
                         </TableBody>
                     </Table>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+type CommissionRecord = {
+    id: number;
+    commission_bps: number;
+    basis: string;
+    application_id: number | null;
+    effective_from: string;
+    effective_to: string | null;
+    note: string | null;
+};
+
+/**
+ * What this account is paid as a partner, and the history behind it.
+ *
+ * Harmless to render on an account that has never been a partner — the
+ * history is simply empty — so this is not gated on the account actually
+ * having an approved application. Setting a rate here is "renegotiate,
+ * without a new application"; it closes the open rate and starts a new one
+ * rather than editing it, so an already-issued statement still reproduces
+ * its own number.
+ */
+function CommissionPanel({ organizationId }: { organizationId: number }) {
+    const [history, setHistory] = useState<CommissionRecord[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const [editing, setEditing] = useState(false);
+    const [bps, setBps] = useState("");
+    const [basis, setBasis] = useState<"platform_fee" | "total_spend">("platform_fee");
+    const [note, setNote] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        const result = await getCommissionHistoryApiV1AdminPartnersAccountsOrganizationIdCommissionGet({
+            path: { organization_id: organizationId },
+        });
+        if (result.error) {
+            setError(detailFromError(result.error, "Failed to load commission history"));
+        } else {
+            const data = result.data as { commissions?: CommissionRecord[] };
+            setHistory(data.commissions ?? []);
+            setError(null);
+        }
+        setLoading(false);
+    }, [organizationId]);
+
+    useEffect(() => {
+        void load();
+    }, [load]);
+
+    const current = history.find((c) => c.effective_to === null) ?? null;
+
+    const startEditing = () => {
+        setBps(current ? String(current.commission_bps) : "");
+        setBasis((current?.basis as "platform_fee" | "total_spend") ?? "platform_fee");
+        setNote("");
+        setSaveError(null);
+        setEditing(true);
+    };
+
+    const save = async () => {
+        const value = Number(bps);
+        if (!Number.isFinite(value) || value < 0 || value > 10_000) {
+            setSaveError("Basis points must be between 0 and 10,000 (100%).");
+            return;
+        }
+        setSaving(true);
+        setSaveError(null);
+        const result = await setCommissionApiV1AdminPartnersAccountsOrganizationIdCommissionPut({
+            path: { organization_id: organizationId },
+            body: { commission_bps: value, basis, note: note.trim() || null },
+        });
+        if (result.error) {
+            setSaveError(detailFromError(result.error, "Failed to set commission"));
+        } else {
+            setEditing(false);
+            await load();
+        }
+        setSaving(false);
+    };
+
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Partner commission</CardTitle>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                    What this account is paid for referrals. Renegotiating closes the
+                    current rate and starts a new one, so an already-issued statement
+                    keeps its own number.
+                </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                {loading ? (
+                    <PanelMessage height={80}>Loading…</PanelMessage>
+                ) : (
+                    <>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            {current ? (
+                                <div className="text-sm">
+                                    <span className="font-medium tabular-nums">
+                                        {(current.commission_bps / 100).toFixed(2)}%
+                                    </span>{" "}
+                                    <span className="text-muted-foreground">
+                                        of{" "}
+                                        {current.basis === "total_spend"
+                                            ? "everything the account is charged"
+                                            : "what we keep"}
+                                        , since {formatDateIST(current.effective_from)}
+                                    </span>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    Not on a commission rate. This account is not currently
+                                    paid for referrals.
+                                </p>
+                            )}
+                            {!editing && (
+                                <Button variant="outline" size="sm" onClick={startEditing}>
+                                    {current ? "Renegotiate" : "Set a rate"}
+                                </Button>
+                            )}
+                        </div>
+
+                        {editing && (
+                            <div className="space-y-3 rounded-lg border p-3">
+                                <div className="grid gap-3 sm:grid-cols-3">
+                                    <div className="space-y-1">
+                                        <Label htmlFor="commission-bps" className="text-xs">
+                                            Basis points
+                                        </Label>
+                                        <Input
+                                            id="commission-bps"
+                                            type="number"
+                                            min={0}
+                                            max={10_000}
+                                            value={bps}
+                                            onChange={(e) => setBps(e.target.value)}
+                                            placeholder="e.g. 1250 for 12.5%"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-xs">Basis</Label>
+                                        <Select
+                                            value={basis}
+                                            onValueChange={(v) => setBasis(v as typeof basis)}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="platform_fee">
+                                                    Platform fee (what we keep)
+                                                </SelectItem>
+                                                <SelectItem value="total_spend">
+                                                    Total spend (everything charged)
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="commission-note" className="text-xs">
+                                            Note (shown to the partner)
+                                        </Label>
+                                        <Input
+                                            id="commission-note"
+                                            value={note}
+                                            onChange={(e) => setNote(e.target.value)}
+                                            placeholder="optional"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Button size="sm" onClick={() => void save()} disabled={saving}>
+                                        {saving && (
+                                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                        )}
+                                        Save
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => setEditing(false)}
+                                        disabled={saving}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    {saveError && (
+                                        <span className="text-xs text-destructive">{saveError}</span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {history.length > 1 && (
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Rate</TableHead>
+                                            <TableHead>Basis</TableHead>
+                                            <TableHead>Effective</TableHead>
+                                            <TableHead>Note</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {history.map((c) => (
+                                            <TableRow key={c.id}>
+                                                <TableCell className="tabular-nums">
+                                                    {(c.commission_bps / 100).toFixed(2)}%
+                                                </TableCell>
+                                                <TableCell className="text-muted-foreground">
+                                                    {c.basis}
+                                                </TableCell>
+                                                <TableCell className="text-muted-foreground">
+                                                    {formatDateIST(c.effective_from)}
+                                                    {c.effective_to
+                                                        ? ` → ${formatDateIST(c.effective_to)}`
+                                                        : " → present"}
+                                                </TableCell>
+                                                <TableCell className="text-muted-foreground">
+                                                    {c.note ?? "-"}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </>
                 )}
             </CardContent>
         </Card>

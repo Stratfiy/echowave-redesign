@@ -79,6 +79,10 @@ class UserResponse(BaseModel):
     name: str | None = None
     organization_id: int | None = None
     provider_id: str | None = None
+    # Whether MFA is fully enrolled (a verified authenticator, not merely a
+    # pending enrolment). Needed so a settings screen can render "enable" vs
+    # "disable" without a second round trip.
+    mfa_enabled: bool = False
 
 
 class AuthResponse(BaseModel):
