@@ -403,13 +403,13 @@ export function AIModelConfigurationV2Editor({
                     Models
                 </h2>
                 <p className="mb-3 text-xs text-muted-foreground">
-                    Choose <span className="font-medium">Decibyl</span> for any model you
-                    want us to provide and bill — no key needed. Choose a vendor to run it on
-                    your own key from{" "}
+                    Every model <span className="font-medium">Decibyl provides</span> is
+                    listed with what it costs a minute — no key needed, billed on your
+                    invoice. Anything we do not offer runs on a key you store under{" "}
                     <a href="/provider-keys" className="underline">
                         Provider Keys
                     </a>
-                    . You can mix the two.
+                    , billed to you by that vendor. You can mix the two, slot by slot.
                 </p>
                 <ServiceConfigurationForm
                     key={`${architecture}-${JSON.stringify(initialConfig)}`}

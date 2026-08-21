@@ -88,9 +88,17 @@ point of purchase. Half a day once decided.
 
 Backend complete, no way to use it. Each is a screen.
 
+> **C1 is done.** The customer Models screen reads the priced catalogue
+> (`GET /agent-options/catalogue`) instead of the provider registry's
+> `examples`. Every managed model is listed with what it costs a minute; a
+> vendor we do not sell appears only when the account holds its own key for it,
+> and the models inside it are what that key actually reaches. Choosing a
+> managed model now also sets `use_platform_key`, which is the half that used
+> to be missing: the Advanced screen could show a vendor we hold the key for
+> and still save the slot as BYOK, so it resolved no credential at dial time.
+
 | # | What | Consequence today |
 |---|---|---|
-| C1 | **The customer Models screen still renders the tier picker** | The per-model catalogue built on this branch — priced, marked up, sellable-checked — reaches an operator and not a customer. This is the biggest one |
 | C2 | Managed telephony admin (4 routes) | `MANAGED_TELEPHONY_ENABLED` cannot be operated: no way to mark a config platform-managed or manage shared outbound |
 | C3 | `POST /managed-numbers/{id}/release` | A number can be bought and not given back |
 | C4 | Partner commissions and statement issuing (3 routes) | Commissions cannot be set; statements cannot be issued |
@@ -180,8 +188,7 @@ card. A commercial call, not a bug.
 
 1. **A1–A7.** Configuration. Nothing below matters if money cannot be taken
    correctly, and the readiness screen now tells you when it can.
-2. **C1.** The customer Models screen. The catalogue is built and a customer
-   cannot see it.
+2. ~~**C1.** The customer Models screen.~~ **Done** — see the note in §C.
 3. **B1, B3, D1, D2.** A week's worth: real carrier rates, an honest wizard
    price, and the two emails.
 4. **Decide B2, B4, E3.** Three commercial calls that need you, not code.

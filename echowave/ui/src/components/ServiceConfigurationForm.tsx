@@ -5,10 +5,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import {
+    getCatalogueApiV1AgentOptionsCatalogueGet,
     getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet,
     listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet,
 } from '@/client/sdk.gen';
 import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
+import {
+    CatalogueModelSelect,
+    OwnKeyModelSelect,
+    runsOnPlatformKey,
+    type SlotCatalogue,
+} from "@/components/ModelSlotSelect";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,7 +26,15 @@ import {
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -199,6 +214,20 @@ function getProviderDisplayName(
 /** The provider value that means "Decibyl holds the key for this slot". */
 const MANAGED = "decibyl";
 
+/** Slots `GET /agent-options/catalogue` answers for. Embeddings is not sold. */
+const CATALOGUE_SLOTS: ServiceSegment[] = ["stt", "llm", "tts", "realtime"];
+
+/**
+ * Which credential a slot authenticates with.
+ *
+ * Embeddings and realtime run on the LLM key: a vendor issues one key for chat
+ * and embeddings alike, and a realtime model is a language model that speaks.
+ * The backend resolves them the same way.
+ */
+function credentialComponentFor(service: ServiceSegment): ServiceSegment {
+    return service === "embeddings" || service === "realtime" ? "llm" : service;
+}
+
 /**
  * Whether a slot offers "Decibyl provides it / My own key" as a choice.
  *
@@ -227,12 +256,7 @@ function VaultKeyStatus({
     providerLabel: string;
     keysHeld?: Record<string, string[]>;
 }) {
-    // Embeddings and realtime authenticate with the LLM credential: a vendor
-    // issues one key for chat and embeddings alike, and a realtime model is a
-    // language model that speaks. The backend resolves them the same way.
-    const credentialComponent =
-        service === "embeddings" || service === "realtime" ? "llm" : service;
-    const held = keysHeld?.[credentialComponent] ?? [];
+    const held = keysHeld?.[credentialComponentFor(service)] ?? [];
     const hasKey = held.includes(provider);
 
     if (hasKey) {
@@ -321,6 +345,16 @@ export function ServiceConfigurationForm({
     // exact per-minute rate and routinely a third of the cost of a minute. A
     // number that confident about being incomplete is worse than no number.
     const [telephonyProvider, setTelephonyProvider] = useState<string | null>(null);
+
+    // What Decibyl sells, per slot, with what each model costs a minute.
+    //
+    // Null until it arrives, and only ever fetched in vault mode: the legacy
+    // per-workflow override screen carries its own keys inline and is a BYOK
+    // surface by construction, so a managed catalogue has nothing to say
+    // there. Null means "we do not know yet" and the form keeps the registry
+    // list; an empty list for a slot means we sell nothing for it, which is a
+    // different thing and says so on the screen.
+    const [catalogue, setCatalogue] = useState<SlotCatalogue | null>(null);
 
     // Per-slot, and undefined until the operator touches it — so the fold
     // starts wherever `hasNonDefaultFields` says it should and only stops
@@ -427,6 +461,53 @@ export function ServiceConfigurationForm({
             cancelled = true;
         };
     }, []);
+
+    useEffect(() => {
+        if (!keysFromVault) return;
+        let cancelled = false;
+        (async () => {
+            const response = await getCatalogueApiV1AgentOptionsCatalogueGet();
+            if (cancelled || response.error) return;
+            const payload = response.data as unknown as { catalogue?: SlotCatalogue };
+            setCatalogue(payload?.catalogue ?? {});
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [keysFromVault]);
+
+    /* Make the saved flag agree with what the screen is showing.
+     *
+     * A slot pointed at a vendor we sell, on an account holding no key of its
+     * own for it, runs on our key: that is what the picker offers and what the
+     * price beside it means. Left as BYOK it would save cleanly and resolve no
+     * credential at dial time — the exact failure the catalogue exists to stop.
+     *
+     * Only ever off to on, and never for a vendor the account has its own key
+     * for: moving somebody's live agent onto our bill is a decision, and it
+     * stays theirs to make with the provider dropdown. */
+    useEffect(() => {
+        if (!keysFromVault || !catalogue) return;
+        setUsePlatformKey((prev) => {
+            const next = { ...prev };
+            let changed = false;
+            for (const slot of CATALOGUE_SLOTS) {
+                const provider = serviceProviders[slot];
+                if (prev[slot] || !provider || provider === MANAGED) continue;
+                const weSell = (catalogue[slot] ?? []).some(
+                    (option) => option.provider === provider,
+                );
+                const theyHold = (keysHeld?.[credentialComponentFor(slot)] ?? []).includes(
+                    provider,
+                );
+                if (runsOnPlatformKey({ sells: weSell, holdsOwnKey: theyHold, saved: false })) {
+                    next[slot] = true;
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, [catalogue, keysFromVault, keysHeld, serviceProviders]);
 
     useEffect(() => {
         const fetchConfigurations = async () => {
@@ -836,6 +917,73 @@ export function ServiceConfigurationForm({
             platformProviders.includes(p)
         );
 
+        // ---- What this account may actually choose, for this slot ----------
+        //
+        // Two lists, and between them they are the whole answer: models we
+        // sell, and models their own key reaches. The registry's `examples`
+        // is neither — it is every vendor this codebase has ever integrated,
+        // including the ones we hold no key for and nobody has priced.
+        const slotCatalogue = CATALOGUE_SLOTS.includes(service)
+            ? (catalogue?.[service] ?? [])
+            : [];
+        // Sellable *and* buildable. A catalogue row for a vendor the registry
+        // cannot construct would offer a model that saves and never runs.
+        const sellableProviders = Array.from(
+            new Set(slotCatalogue.map((option) => option.provider)),
+        ).filter((provider) => availableProviders.includes(provider));
+        const credentialComponent = credentialComponentFor(service);
+        const heldProviders = keysHeld?.[credentialComponent] ?? [];
+        // Their own key covers what we do not sell — the same rule
+        // `GET /provider-keys/models` applies to the model list inside it.
+        const ownKeyProviders = availableProviders.filter(
+            (provider) =>
+                heldProviders.includes(provider) &&
+                !sellableProviders.includes(provider),
+        );
+        // Null catalogue means the request has not come back; the registry
+        // list stands until it does rather than blinking through an empty one.
+        const catalogueMode =
+            Boolean(keysFromVault) &&
+            catalogue !== null &&
+            CATALOGUE_SLOTS.includes(service) &&
+            (sellableProviders.length > 0 || ownKeyProviders.length > 0);
+        // A stored slot that named a vendor we also sell, with its own key:
+        // that stays their choice until they change it here. Flipping it to
+        // our key because the vendor happens to be in our catalogue would
+        // move a live agent onto our bill without anyone deciding to.
+        const runsOnOurKey = runsOnPlatformKey({
+            sells: sellableProviders.includes(currentProvider),
+            holdsOwnKey: heldProviders.includes(currentProvider),
+            saved: usePlatformKey[service] === true,
+        });
+
+        const chooseModel = (provider: string, model: string, onOurKey: boolean) => {
+            if (serviceProviders[service] !== provider) {
+                handleProviderChange(service, provider);
+            }
+            setValue(`${service}_model`, model, { shouldDirty: true });
+            setUsePlatformKey((prev) => ({ ...prev, [service]: onOurKey }));
+        };
+
+        const chooseProvider = (provider: string) => {
+            if (provider === MANAGED) {
+                handleProviderChange(service, MANAGED);
+                setUsePlatformKey((prev) => ({ ...prev, [service]: false }));
+                return;
+            }
+            const onOurKey = sellableProviders.includes(provider);
+            handleProviderChange(service, provider);
+            setUsePlatformKey((prev) => ({ ...prev, [service]: onOurKey }));
+            // Land on the cheapest thing we sell rather than on whatever the
+            // schema's default happens to be — the schema default is a vendor
+            // recommendation, and on the managed path it can be a model we do
+            // not offer at all.
+            const first = slotCatalogue.find((option) => option.provider === provider);
+            setValue(`${service}_model`, onOurKey ? (first?.model ?? "") : "", {
+                shouldDirty: true,
+            });
+        };
+
         // Ready to click, independent of which mechanism it lands on. Absent
         // legacy availability means available: a defaults response that
         // predates that field should keep behaving as it did.
@@ -941,9 +1089,53 @@ export function ServiceConfigurationForm({
                 )}
 
                 <div className="grid grid-cols-2 gap-4">
-                    <div className={`space-y-2 ${legacyManaged && keysFromVault ? "col-span-2" : ""}`}>
-                        <Label>{legacyManaged && keysFromVault ? "Tier" : "Provider"}</Label>
-                        {legacyManaged && keysFromVault ? (
+                    <div className={`space-y-2 ${!catalogueMode && legacyManaged && keysFromVault ? "col-span-2" : ""}`}>
+                        <Label>{!catalogueMode && legacyManaged && keysFromVault ? "Tier" : "Provider"}</Label>
+                        {catalogueMode ? (
+                            /* Only what this account can actually run: vendors we
+                               sell, and vendors their own key reaches. A vendor in
+                               neither group is not a choice with a caveat — it is
+                               one that saves cleanly and fails on the first call. */
+                            <Select
+                                value={currentProvider}
+                                onValueChange={(providerName) => chooseProvider(providerName)}
+                            >
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select provider" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {legacyManaged && (
+                                        /* Kept selectable so a slot already on the
+                                           automatic tier renders its own value. It
+                                           is not offered to anyone not already on
+                                           it: below, the specific models are. */
+                                        <SelectItem value={MANAGED}>
+                                            Decibyl — automatic
+                                        </SelectItem>
+                                    )}
+                                    {sellableProviders.length > 0 && (
+                                        <SelectGroup>
+                                            <SelectLabel>Decibyl provides these</SelectLabel>
+                                            {sellableProviders.map((provider) => (
+                                                <SelectItem key={provider} value={provider}>
+                                                    {getProviderDisplayName(provider, schemas?.[service]?.[provider])}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    )}
+                                    {ownKeyProviders.length > 0 && (
+                                        <SelectGroup>
+                                            <SelectLabel>On your own key</SelectLabel>
+                                            {ownKeyProviders.map((provider) => (
+                                                <SelectItem key={provider} value={provider}>
+                                                    {getProviderDisplayName(provider, schemas?.[service]?.[provider])}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    )}
+                                </SelectContent>
+                            </Select>
+                        ) : legacyManaged && keysFromVault ? (
                             <p className="rounded-md border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
                                 Decibyl picks the vendor for this tier and can move it without
                                 changing your agents.
@@ -967,6 +1159,13 @@ export function ServiceConfigurationForm({
                             </SelectContent>
                         </Select>
                         )}
+                        {catalogueMode && legacyManaged && (
+                            <p className="text-xs text-muted-foreground">
+                                This slot runs on whichever vendor Decibyl points the tier
+                                at. Pick a provider above to name a specific model and see
+                                what it costs.
+                            </p>
+                        )}
                         {(providerSchema?.description || providerSchema?.provider_docs_url) && (
                             <p className="text-xs text-muted-foreground">
                                 {providerSchema?.description}{" "}
@@ -987,10 +1186,51 @@ export function ServiceConfigurationForm({
                     {currentProvider && providerSchema && configFields[0] && (
                         <div className="space-y-2">
                             <Label className="capitalize">{configFields[0].replace(/_/g, ' ')}</Label>
-                            {renderField(service, configFields[0], providerSchema)}
+                            {catalogueMode && configFields[0] === "model" && !legacyManaged ? (
+                                runsOnOurKey ? (
+                                    <CatalogueModelSelect
+                                        options={slotCatalogue.filter(
+                                            (option) => option.provider === currentProvider,
+                                        )}
+                                        value={(watch(`${service}_model`) as string) || ""}
+                                        onChange={(model) =>
+                                            chooseModel(currentProvider, model, true)
+                                        }
+                                    />
+                                ) : (
+                                    <OwnKeyModelSelect
+                                        component={credentialComponent}
+                                        provider={currentProvider}
+                                        value={(watch(`${service}_model`) as string) || ""}
+                                        onChange={(model) =>
+                                            chooseModel(currentProvider, model, false)
+                                        }
+                                    />
+                                )
+                            ) : (
+                                renderField(service, configFields[0], providerSchema)
+                            )}
                         </div>
                     )}
                 </div>
+
+                {catalogueMode && !legacyManaged && (
+                    <p className="text-xs text-muted-foreground">
+                        {runsOnOurKey ? (
+                            <>
+                                Decibyl provides this model and bills it to your account —
+                                no key needed. The price is per minute of this slot; the
+                                bar below prices the whole call.
+                            </>
+                        ) : (
+                            <>
+                                This runs on your stored {getProviderDisplayName(currentProvider, providerSchema)} key
+                                and is billed to you by them.{" "}
+                                <a href="/provider-keys" className="underline">Manage keys</a>
+                            </>
+                        )}
+                    </p>
+                )}
 
                 {/* Everything past the model, folded away.
                     These are the knobs that decide how natural an agent sounds
@@ -1056,7 +1296,7 @@ export function ServiceConfigurationForm({
                     actually there. Showing an input here is what made every
                     model screen a key-entry screen, and what discarded a pasted
                     key when you changed provider. */}
-                {keysFromVault && !managed && currentProvider && providerSchema?.properties.api_key && (
+                {keysFromVault && !managed && !(catalogueMode && runsOnOurKey) && currentProvider && providerSchema?.properties.api_key && (
                     <VaultKeyStatus
                         service={service}
                         provider={currentProvider}
