@@ -122,6 +122,7 @@ async def daily_series(
             select(
                 R.day,
                 _sum(R.calls).label("calls"),
+                _sum(R.answered_calls).label("answered_calls"),
                 _sum(R.billable_minutes).label("billable_minutes"),
                 _sum(R.charged_paise).label("charged_paise"),
                 _sum(R.provider_cost_paise).label("provider_cost_paise"),
@@ -138,10 +139,17 @@ async def daily_series(
     cursor = start
     while cursor <= end:
         row = by_day.get(cursor)
+        calls = int(row.calls) if row else 0
+        answered = int(row.answered_calls) if row else 0
         series.append(
             {
                 "day": cursor.isoformat(),
-                "calls": int(row.calls) if row else 0,
+                "calls": calls,
+                "answered_calls": answered,
+                # None rather than 0 with no calls that day: a 0% success rate
+                # and "nothing happened" look identical as a number and are
+                # not the same story on a chart.
+                "success_rate": (answered / calls) if calls else None,
                 "billable_minutes": int(row.billable_minutes) if row else 0,
                 "charged_paise": int(row.charged_paise) if row else 0,
                 "provider_cost_paise": int(row.provider_cost_paise) if row else 0,

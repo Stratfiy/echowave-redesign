@@ -26,6 +26,7 @@ from api.db import billing_dashboard_client as dash
 from api.db.models import (
     CallCostItemModel,
     CreditLedgerModel,
+    DailyOrganizationRollupModel,
     OrganizationModel,
     PaymentModel,
     ProviderRateModel,
@@ -616,3 +617,42 @@ class TestPaymentsAndTopUps:
         )
         assert report["collected"]["net_paise"] == 1_000
         assert report["collected"]["paying_accounts"] == 1
+
+
+@pytest.mark.asyncio
+class TestDailySeriesSuccessRate:
+    """The revenue-trend and success-rate-trend superadmin charts both read
+    ``daily_series`` — this is the day it started carrying ``answered_calls``
+    and ``success_rate`` rather than only ``calls``."""
+
+    async def test_success_rate_divides_answered_by_total(self, async_session):
+        org, _ = await _org(async_session, "rollup-success")
+        day = _today()
+        async_session.add(
+            DailyOrganizationRollupModel(
+                organization_id=org.id,
+                day=day,
+                calls=4,
+                answered_calls=3,
+            )
+        )
+        await async_session.flush()
+
+        series = await dash.daily_series(async_session, start=day, end=day)
+
+        assert len(series) == 1
+        assert series[0]["calls"] == 4
+        assert series[0]["answered_calls"] == 3
+        assert series[0]["success_rate"] == 0.75
+
+    async def test_a_day_with_no_calls_reports_no_rate_rather_than_zero(
+        self, async_session
+    ):
+        """0% and "nothing happened" render identically as a number; only one
+        of them is a problem, so they must not share a value."""
+        day = _today()
+
+        series = await dash.daily_series(async_session, start=day, end=day)
+
+        assert series[0]["calls"] == 0
+        assert series[0]["success_rate"] is None

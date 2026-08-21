@@ -35,6 +35,7 @@ from api.db.base_client import BaseDBClient
 from api.db.models import (
     CreditLedgerModel,
     OrganizationMembershipModel,
+    OrganizationModel,
     UserModel,
     WorkflowModel,
     WorkflowRunModel,
@@ -191,6 +192,122 @@ class ActivationClient(BaseDBClient):
                     round(verified / signed_up * 100, 1) if signed_up else None
                 ),
             }
+
+    async def retention_matrix(
+        self,
+        *,
+        cohort_months: int = 6,
+        retention_months: int = 6,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Of each signup-month cohort of organizations, what fraction placed
+        at least one call in each month since.
+
+        The cohort is an organization, not a user — an org is the unit that
+        keeps paying or doesn't, and it can outlive the person who signed it
+        up. "Retained" is measured exactly the way activation measures it:
+        at least one call, anywhere in that calendar month, no minimum spend
+        or duration. A stricter bar would be a different, also useful,
+        number — this one matches the funnel it sits beside.
+
+        A cell for a month that has not happened yet — cohort month 4 asked
+        about its month 5 — is reported as ``null``, not 0%. Those look
+        identical as a bare number and are not the same story: one is churn,
+        the other is "ask again later".
+        """
+        now = now or datetime.now(IST)
+        this_month = date(now.year, now.month, 1)
+
+        cohort_starts: list[date] = []
+        y, m = this_month.year, this_month.month
+        for _ in range(cohort_months):
+            cohort_starts.append(date(y, m, 1))
+            m -= 1
+            if m == 0:
+                m, y = 12, y - 1
+        cohort_starts.reverse()  # oldest first, the order a reader scans in
+        earliest_utc = datetime.combine(cohort_starts[0], time.min, tzinfo=IST)
+
+        def months_elapsed(cohort_month: date) -> int:
+            return (this_month.year - cohort_month.year) * 12 + (
+                this_month.month - cohort_month.month
+            )
+
+        async with self.async_session() as session:
+            org_rows = (
+                await session.execute(
+                    select(OrganizationModel.id, OrganizationModel.created_at).where(
+                        OrganizationModel.created_at >= earliest_utc
+                    )
+                )
+            ).all()
+
+            cohort_month_by_org: dict[int, date] = {}
+            for org_id, created_at in org_rows:
+                local = created_at.astimezone(IST)
+                cohort_month_by_org[org_id] = date(local.year, local.month, 1)
+
+            org_ids = list(cohort_month_by_org)
+            active_offsets_by_org: dict[int, set[int]] = {}
+            if org_ids:
+                month_expr = func.date_trunc(
+                    "month",
+                    func.timezone("Asia/Kolkata", WorkflowRunModel.created_at),
+                ).label("active_month")
+                activity_rows = (
+                    await session.execute(
+                        select(WorkflowModel.organization_id, month_expr)
+                        .select_from(WorkflowRunModel)
+                        .join(
+                            WorkflowModel,
+                            WorkflowModel.id == WorkflowRunModel.workflow_id,
+                        )
+                        .where(WorkflowModel.organization_id.in_(org_ids))
+                        .distinct()
+                    )
+                ).all()
+                for org_id, active_month_dt in activity_rows:
+                    cohort_month = cohort_month_by_org.get(org_id)
+                    if cohort_month is None:
+                        continue
+                    active_month = active_month_dt.date()
+                    offset = (active_month.year - cohort_month.year) * 12 + (
+                        active_month.month - cohort_month.month
+                    )
+                    if offset < 0:
+                        # A call recorded before the org's own signup month
+                        # cannot be a retention signal for it — skip rather
+                        # than let a negative offset corrupt the matrix.
+                        continue
+                    active_offsets_by_org.setdefault(org_id, set()).add(offset)
+
+        cohorts: list[dict[str, Any]] = []
+        for cohort_month in cohort_starts:
+            member_ids = [
+                oid for oid, cm in cohort_month_by_org.items() if cm == cohort_month
+            ]
+            size = len(member_ids)
+            elapsed = months_elapsed(cohort_month)
+            retention: list[float | None] = []
+            for offset in range(retention_months):
+                if offset > elapsed or size == 0:
+                    retention.append(None)
+                    continue
+                active = sum(
+                    1
+                    for oid in member_ids
+                    if offset in active_offsets_by_org.get(oid, set())
+                )
+                retention.append(round(active / size, 3))
+            cohorts.append(
+                {
+                    "cohort_month": cohort_month.isoformat(),
+                    "size": size,
+                    "retention": retention,
+                }
+            )
+
+        return {"cohorts": cohorts, "offsets": list(range(retention_months))}
 
 
 def _empty_steps() -> list[dict[str, Any]]:

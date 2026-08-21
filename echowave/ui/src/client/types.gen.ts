@@ -11624,6 +11624,58 @@ export type GetActivationApiV1AdminBillingActivationGetResponses = {
 
 export type GetActivationApiV1AdminBillingActivationGetResponse = GetActivationApiV1AdminBillingActivationGetResponses[keyof GetActivationApiV1AdminBillingActivationGetResponses];
 
+export type GetRetentionApiV1AdminBillingRetentionGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Cohort Months
+         */
+        cohort_months?: number;
+        /**
+         * Retention Months
+         */
+        retention_months?: number;
+    };
+    url: '/api/v1/admin/billing/retention';
+};
+
+export type GetRetentionApiV1AdminBillingRetentionGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetRetentionApiV1AdminBillingRetentionGetError = GetRetentionApiV1AdminBillingRetentionGetErrors[keyof GetRetentionApiV1AdminBillingRetentionGetErrors];
+
+export type GetRetentionApiV1AdminBillingRetentionGetResponses = {
+    /**
+     * Response Get Retention Api V1 Admin Billing Retention Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetRetentionApiV1AdminBillingRetentionGetResponse = GetRetentionApiV1AdminBillingRetentionGetResponses[keyof GetRetentionApiV1AdminBillingRetentionGetResponses];
+
 export type GetModelUsageApiV1AdminBillingModelUsageGetData = {
     body?: never;
     headers?: {
