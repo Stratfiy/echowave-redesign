@@ -70,6 +70,16 @@ export const STAFF_SECTION: SidebarNavSection = {
       icon: Handshake,
       keywords: ["reseller", "agency", "commission", "developer", "partner"],
     },
+    // Whether a customer's calls sit on Decibyl's carrier account lives on
+    // the account's own page (superadmin/billing/accounts/[id]) next to the
+    // rest of that account's settings — this entry is only the platform-wide
+    // pool, which has no account of its own to live on.
+    {
+      title: "Shared outbound numbers",
+      url: "/superadmin/telephony/shared-outbound",
+      icon: Phone,
+      keywords: ["trial", "caller id", "shared", "outbound", "telephony"],
+    },
   ],
 };
 

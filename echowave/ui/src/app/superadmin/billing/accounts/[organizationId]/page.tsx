@@ -22,7 +22,9 @@ import {
 import {
     adjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPost,
     getAccountApiV1AdminBillingAccountsOrganizationIdGet,
+    listPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGet,
     setAccountPlatformRateApiV1AdminBillingAccountsOrganizationIdPlatformRatePut,
+    setPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPut,
 } from "@/client/sdk.gen";
 import { COST_COMPONENTS, seriesColor } from "@/components/charts/chartTheme";
 import {
@@ -399,6 +401,8 @@ export default function AccountDetailPage() {
 
                 <CreditAdjustPanel organizationId={organizationId} onChanged={load} />
             </div>
+
+            <TelephonyPanel organizationId={organizationId} />
         </div>
     );
 }
@@ -706,6 +710,147 @@ function CreditAdjustPanel({
                     )}
                     {failure && <span className="text-xs text-destructive">{failure}</span>}
                 </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+type TelephonyConfigSummary = {
+    id: number;
+    organization_id: number;
+    name: string;
+    provider: string;
+    is_platform_managed: boolean;
+    is_default_outbound: boolean;
+    created_at: string | null;
+};
+
+/**
+ * Whether this account's numbers sit under Decibyl's carrier account — ours
+ * to bill carriage on — or its own, where we bill none at all.
+ *
+ * The route this writes to (`PUT .../platform-managed`) already refuses a
+ * carrier outside `carrier_rates.MANAGED_CARRIER_ALLOWLIST` (a rollout
+ * decision — only Plivo, for now) or whose rate is still a stand-in; this
+ * panel surfaces whatever it says rather than second-guessing it, so an
+ * operator sees the real reason a toggle was refused instead of one this
+ * screen invented.
+ */
+function TelephonyPanel({ organizationId }: { organizationId: number }) {
+    const [configs, setConfigs] = useState<TelephonyConfigSummary[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [busyId, setBusyId] = useState<number | null>(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        const result = await listPlatformManagedConfigurationsApiV1AdminTelephonyConfigurationsGet({
+            query: { organization_id: organizationId },
+        });
+        if (result.error) {
+            setError(detailFromError(result.error, "Failed to load telephony configurations"));
+        } else {
+            const data = result.data as { configurations?: TelephonyConfigSummary[] };
+            setConfigs(data.configurations ?? []);
+            setError(null);
+        }
+        setLoading(false);
+    }, [organizationId]);
+
+    useEffect(() => {
+        void load();
+    }, [load]);
+
+    const toggle = async (config: TelephonyConfigSummary) => {
+        setBusyId(config.id);
+        setError(null);
+        const result = await setPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPut({
+            path: { config_id: config.id },
+            body: { managed: !config.is_platform_managed },
+        });
+        if (result.error) {
+            setError(
+                detailFromError(
+                    result.error,
+                    config.is_platform_managed
+                        ? "Failed to remove from platform-managed"
+                        : "Failed to mark platform-managed",
+                ),
+            );
+        } else {
+            await load();
+        }
+        setBusyId(null);
+    };
+
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Telephony</CardTitle>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                    Platform-managed means this account&apos;s calls run on Decibyl&apos;s
+                    carrier account and we bill the minutes. Its own carrier means we bill
+                    no carriage at all.
+                </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                {loading ? (
+                    <PanelMessage height={80}>Loading…</PanelMessage>
+                ) : configs.length === 0 ? (
+                    <PanelMessage height={80}>
+                        No telephony configuration on this account yet.
+                    </PanelMessage>
+                ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Carrier</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {configs.map((c) => (
+                                <TableRow key={c.id}>
+                                    <TableCell>{c.name}</TableCell>
+                                    <TableCell>
+                                        <Badge variant="outline" className="capitalize">
+                                            {c.provider}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        {c.is_platform_managed ? (
+                                            <Badge className="bg-green-600 hover:bg-green-600">
+                                                Platform-managed
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant="secondary">
+                                                Customer&apos;s own carrier
+                                            </Badge>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={busyId === c.id}
+                                            onClick={() => toggle(c)}
+                                        >
+                                            {busyId === c.id && (
+                                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                            )}
+                                            {c.is_platform_managed
+                                                ? "Remove from managed"
+                                                : "Mark platform-managed"}
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                )}
             </CardContent>
         </Card>
     );
