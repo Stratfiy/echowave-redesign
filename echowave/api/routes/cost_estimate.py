@@ -36,8 +36,13 @@ class CostEstimateRequest(BaseModel):
     tts_model: str = ""
     telephony_provider: str | None = None
     #: Components the account runs on its own vendor key — "stt", "llm", "tts".
-    #: Those cost the customer nothing from us, so they price at zero.
+    #: Those cost the customer nothing from us, so they price at zero, and the
+    #: platform fee is uplifted instead — exactly as the invoice does it.
     customer_keyed: list[str] = []
+    #: Priced features the agent will use — "knowledge_base", "call_qa". Both
+    #: are charged per billable minute, and a stack quoted without them
+    #: understated a call using both by more than the platform fee itself.
+    addons: list[str] = []
 
 
 @router.post("/per-minute")
@@ -61,14 +66,19 @@ async def get_cost_per_minute(
             tts_model=payload.tts_model,
             telephony_provider=payload.telephony_provider,
             customer_keyed=set(payload.customer_keyed),
+            addons=tuple(payload.addons),
         )
 
     return {
         "total_paise_per_minute": estimate.total_paise_per_minute,
-        # The three groups the breakdown bar is split into.
+        # The four groups the breakdown bar is split into. Add-ons are the
+        # fourth: they belong to none of the other three, so a bar drawn from
+        # agent + telephony + platform alone would not sum to the total printed
+        # beside it the moment ADDON_BILLING_ENABLED moves.
         "agent_paise_per_minute": estimate.agent_paise_per_minute,
         "telephony_paise_per_minute": estimate.telephony_paise_per_minute,
         "platform_paise_per_minute": estimate.platform_paise_per_minute,
+        "addon_paise_per_minute": estimate.addon_paise_per_minute,
         "lines": [
             {
                 "component": line.component,
@@ -98,6 +108,11 @@ async def get_cost_per_minute(
         # USD figure the dual-currency line silently disappeared.
         "pulse_seconds": estimate.pulse_seconds,
         "total_micros_usd_per_minute": estimate.total_micros_usd_per_minute,
+        # Why the platform fee is what it is. A customer who brought their own
+        # voice pays an uplifted rate, and a fee that silently differs from the
+        # published one is the kind of thing they find on an invoice instead.
+        "byok_tier": estimate.byok_tier,
+        "byok_uplift_micros_usd": estimate.byok_uplift_micros_usd,
     }
 
 

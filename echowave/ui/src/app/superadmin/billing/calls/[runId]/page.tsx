@@ -65,12 +65,29 @@ const STAGES = [
     { key: "unattributed_ms", label: "Unattributed", slot: 4 },
 ] as const;
 
+/**
+ * What `units` counts on each kind of receipt line.
+ *
+ * The platform fee said "minutes" and has always been written in **seconds**:
+ * `compute_call_cost` records `billed_seconds` — pulse-rounded connected time —
+ * against a rate quoted per minute. A 75-second call read as "75 minutes" on
+ * this screen. Add-ons are measured on the same basis and carry the same unit.
+ */
+/**
+ * An add-on line carries its catalogue key in `provider`, not a vendor name.
+ */
+const ADDON_LABEL: Record<string, string> = {
+    knowledge_base: "Knowledge base",
+    call_qa: "Post-call QA",
+};
+
 const UNIT_LABEL: Record<string, string> = {
     stt: "seconds",
     telephony: "seconds",
     llm: "tokens",
     tts: "characters",
-    platform: "minutes",
+    platform: "seconds",
+    addon: "seconds",
 };
 
 export default function CallDetailPage() {
@@ -118,7 +135,14 @@ export default function CallDetailPage() {
     const items = (call.cost_items ?? []) as Array<Record<string, never>>;
     const turns = (call.turns ?? []) as Array<Record<string, never>>;
 
-    const providerItems = items.filter((i) => String(i.component) !== "platform");
+    // What a vendor charged us, and what we charged for our own work. An
+    // add-on is ours — its line carries no provider cost — so folding it in
+    // with the provider lines would have inflated reported vendor cost by our
+    // own revenue and understated the margin on every call using a feature.
+    const providerItems = items.filter(
+        (i) => !["platform", "addon"].includes(String(i.component)),
+    );
+    const addonItems = items.filter((i) => String(i.component) === "addon");
     const platformItem = items.find((i) => String(i.component) === "platform");
     const providerTotal = providerItems.reduce(
         (sum, i) => sum + Number(i.cost_paise ?? 0),
@@ -235,7 +259,13 @@ export default function CallDetailPage() {
                                             <TableCell className="text-muted-foreground">—</TableCell>
                                             <TableCell className="text-right tabular-nums">
                                                 {formatNumber(Number(platformItem.units))}{" "}
-                                                <span className="text-xs text-muted-foreground">min</span>
+                                                {/* Seconds, not minutes. The fee is
+                                                    quoted per minute and charged on
+                                                    pulse-rounded seconds, which is
+                                                    the whole point of the pulse —
+                                                    printing "min" here made a
+                                                    75-second call read as 75. */}
+                                                <span className="text-xs text-muted-foreground">sec</span>
                                             </TableCell>
                                             <TableCell className="text-right tabular-nums text-muted-foreground">
                                                 {formatRateMpaise(Number(platformItem.unit_rate_mpaise))}
@@ -245,6 +275,25 @@ export default function CallDetailPage() {
                                             </TableCell>
                                         </TableRow>
                                     )}
+                                    {addonItems.map((item, index) => (
+                                        <TableRow key={`addon-${index}`}>
+                                            <TableCell className="font-medium">
+                                                {ADDON_LABEL[String(item.provider)] ??
+                                                    String(item.provider)}
+                                            </TableCell>
+                                            <TableCell className="text-muted-foreground">—</TableCell>
+                                            <TableCell className="text-right tabular-nums">
+                                                {formatNumber(Number(item.units))}{" "}
+                                                <span className="text-xs text-muted-foreground">sec</span>
+                                            </TableCell>
+                                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                                                {formatRateMpaise(Number(item.unit_rate_mpaise))}
+                                            </TableCell>
+                                            <TableCell className="text-right tabular-nums">
+                                                {formatPaise(Number(item.cost_paise))}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
                                     <TableRow className="border-t-2">
                                         <TableCell colSpan={4} className="font-semibold">
                                             Total charged

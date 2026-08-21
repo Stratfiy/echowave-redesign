@@ -24,7 +24,13 @@ type Variant = {
     tier: string;
     label: string;
     blurb: string;
-    paise_per_minute: number;
+    /**
+     * Null when some component of the stack has no rate on file. Never a
+     * number we could not stand behind: a speech-to-speech card once showed
+     * ₹2.76 a minute for a model billing ₹25.79, because the model resolved to
+     * no rate and the server served what was left of the sum.
+     */
+    paise_per_minute: number | null;
     india_only: boolean;
 };
 
@@ -41,6 +47,13 @@ type Options = { voices: VoiceOption[]; bundles: Bundle[] };
 
 function rupees(paise: number): string {
     return `₹${(paise / 100).toFixed(2)}`;
+}
+
+/** What a card shows where a price would go when there is no price. */
+const NO_PRICE = "Price unavailable";
+
+function price(paise: number | null): string {
+    return paise === null ? NO_PRICE : rupees(paise);
 }
 
 /**
@@ -68,7 +81,13 @@ export function SimpleModelPicker({
         bundle: string;
         tier: string;
         voice: string;
-        paisePerMinute: number;
+        /**
+         * Null when the stack cannot be priced. Passed on rather than
+         * substituted with a zero or a partial total: a caller storing this
+         * against a quote has to decide what to do about a missing price, and
+         * a number that looks fine takes that decision away from them.
+         */
+        paisePerMinute: number | null;
     }) => void;
 }) {
     const [options, setOptions] = useState<Options | null>(null);
@@ -147,10 +166,22 @@ export function SimpleModelPicker({
                 three to find out. */}
             <div className="grid gap-3 sm:grid-cols-3">
                 {options.bundles.map((option) => {
-                    const cheapest = option.variants.reduce(
-                        (low, v) => (v.paise_per_minute < low.paise_per_minute ? v : low),
-                        option.variants[0],
+                    // Only priced variants can be "cheapest". A null compares
+                    // as less than every number in JS once coerced, so the old
+                    // reduce would have picked the unpriced one and shown its
+                    // absent price as the headline.
+                    const priced = option.variants.filter(
+                        (v) => v.paise_per_minute !== null,
                     );
+                    const cheapest =
+                        priced.length > 0
+                            ? priced.reduce((low, v) =>
+                                  (v.paise_per_minute as number) <
+                                  (low.paise_per_minute as number)
+                                      ? v
+                                      : low,
+                              )
+                            : option.variants[0];
                     const isSelected = option.slug === bundle.slug;
                     return (
                         <button
@@ -176,11 +207,22 @@ export function SimpleModelPicker({
                                 {option.blurb}
                             </span>
                             <span className="mt-1 text-sm">
-                                <strong>
-                                    {option.variants.length > 1 ? "from " : ""}
-                                    {rupees(cheapest.paise_per_minute)}
-                                </strong>
-                                <span className="text-muted-foreground"> a minute</span>
+                                {cheapest.paise_per_minute === null ? (
+                                    <span className="text-muted-foreground">
+                                        {NO_PRICE}
+                                    </span>
+                                ) : (
+                                    <>
+                                        <strong>
+                                            {priced.length > 1 ? "from " : ""}
+                                            {rupees(cheapest.paise_per_minute)}
+                                        </strong>
+                                        <span className="text-muted-foreground">
+                                            {" "}
+                                            a minute
+                                        </span>
+                                    </>
+                                )}
                             </span>
                             {cheapest.india_only && <IndiaBadge />}
                         </button>
@@ -217,8 +259,18 @@ export function SimpleModelPicker({
                                     </span>
                                 </span>
                                 <span className="shrink-0 tabular-nums text-sm">
-                                    {rupees(v.paise_per_minute)}
-                                    <span className="text-muted-foreground">/min</span>
+                                    {v.paise_per_minute === null ? (
+                                        <span className="text-muted-foreground">
+                                            {NO_PRICE}
+                                        </span>
+                                    ) : (
+                                        <>
+                                            {rupees(v.paise_per_minute)}
+                                            <span className="text-muted-foreground">
+                                                /min
+                                            </span>
+                                        </>
+                                    )}
                                 </span>
                             </button>
                         ))}
@@ -244,11 +296,25 @@ export function SimpleModelPicker({
 
             {variant && (
                 <p className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
-                    <strong>{rupees(variant.paise_per_minute)} a minute</strong>
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                        An estimate. A call that says more costs more, and the figure
-                        moves if provider prices do.
-                    </span>
+                    {variant.paise_per_minute === null ? (
+                        <>
+                            <strong>{NO_PRICE}</strong>
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                                We hold no rate for one of the models behind this
+                                choice, so we will not quote a number for it. You can
+                                still build the agent — ask us before you run a
+                                campaign on it.
+                            </span>
+                        </>
+                    ) : (
+                        <>
+                            <strong>{price(variant.paise_per_minute)} a minute</strong>
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                                An estimate. A call that says more costs more, and the
+                                figure moves if provider prices do.
+                            </span>
+                        </>
+                    )}
                 </p>
             )}
         </div>

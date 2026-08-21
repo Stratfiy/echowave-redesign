@@ -40,14 +40,33 @@ CI — see 3.4.
 
 ---
 
-## 1. P0 — the numbers are wrong. Fix before anyone is quoted.
+## 1. P0 — the numbers were wrong. **All three are fixed.**
 
-### 1.1 Speech-to-speech is quoted at ₹2.76/min and costs up to ₹18.97
+Fixed on this branch, with `api/tests/test_quote_matches_invoice.py` defending
+them: a real call through `cost_workflow_run` compared against what
+`estimate_cost_per_minute` quoted for the same stack, in every BYOK and add-on
+combination, over 40 randomised rate cards, **with both commercial flags forced
+on**. Each fix was reverted in turn to confirm the test fails without it.
+
+What it looks like now, against the seeded price book at ₹96/USD with Plivo
+carriage:
+
+| | Before | After |
+|---|---:|---:|
+| Natural (Gemini Live), quoted | ₹2.76/min | ₹9.37/min |
+| Premium (OpenAI realtime), quoted | ₹2.76/min | ₹25.79/min |
+| BYOK-voice stack, flags on | ₹3.60 quoted / ₹5.04 invoiced | ₹5.04 / ₹5.04 |
+| Managed + KB + QA, flags on | ₹8.43 quoted / ₹10.83 invoiced | ₹10.83 / ₹10.83 |
+
+With the flags off — today's production state — **every number is unchanged**.
+That is asserted too.
+
+### 1.1 Speech-to-speech was quoted at ₹2.76/min and costs up to ₹18.97 — FIXED
 
 **This is the one that would have cost us money on day one.** Measured, not
 inferred:
 
-| Simple picker card | Quotes today | Real sell price | Real cost |
+| Simple picker card | Quoted | Real sell price | Real cost |
 |---|---:|---:|---:|
 | Natural (Gemini Live) | ₹2.76/min | ₹9.37/min | ₹7.24/min |
 | Premium (OpenAI realtime) | ₹2.76/min | ₹25.79/min | ₹18.97/min |
@@ -74,22 +93,22 @@ Two things make it silent:
   estimate, so the operator screen shows ₹2.76 sell / ₹2.52 cost / ₹0.24 margin
   on a stack losing ₹15/min.
 
-**Fix, verified working.** `estimator._REALTIME_RATE_CARD_NAMES` already holds
-exactly the mapping needed — it is used for the token assumption and never for
-the rate lookup. Normalise `llm_provider` through it before resolving the rate
-and both halves come right at once (the token assumption is currently also
-falling through to the 1,400-token text default for these models). I prototyped
-this against a seeded database: the numbers in the table above are the output.
+**The fix.** `estimator._REALTIME_RATE_CARD_NAMES` already held exactly the
+mapping needed — it was used for the token assumption and never for the rate
+lookup. `rate_card_provider` now normalises the provider before the rate is
+resolved, which corrects both halves at once: the token assumption was also
+falling through to the 1,400-token text default for every realtime model.
 
-Then make the failure loud: `price_per_minute` must refuse to return a price
-when `unpriced` is non-empty. A bundle card with no price is a bug report; a
-bundle card with a wrong price is an invoice dispute.
+And the failure is now loud. `price_per_minute` refuses to return a price when
+`unpriced` is non-empty, because a bundle card with no price is a bug report
+and a bundle card with a wrong price is an invoice dispute.
 
-- [ ] Map realtime tier providers to rate-card names before the rate lookup
-- [ ] Propagate `unpriced` out of `price_per_minute` / `realtime_price_per_minute`; render "price unavailable", never a number
-- [ ] Add a test asserting every managed tier, for every component, resolves to a live rate row
+- [x] Map realtime tier providers to rate-card names before the rate lookup — `estimator.rate_card_provider`, which also fixes the token assumption (these models were falling through to the 1,400-token text default)
+- [x] Propagate `unpriced` out of `price_per_minute` / `realtime_price_per_minute` — both now return `None` and log which rate is missing; the Simple picker renders "Price unavailable" and `bundle_economics` reports no margin rather than a subtraction
+- [x] Fix `_per_minute_line`, found while doing the above: the STT line never passed its model to the rate lookup, so a model-specific transcription rate would be billed and never quoted
+- [x] The `test_bundle_economics` fixture seeded realtime rates under the *tier* name, which is why it passed while production was broken. It now seeds through `rate_card_provider`, like the real price book
 
-### 1.2 The estimator does not apply the BYOK uplift it documents
+### 1.2 The estimator did not apply the BYOK uplift it documents — FIXED
 
 `estimate_cost_per_minute`'s own docstring says of a customer-keyed component:
 *"the platform fee is uplifted instead."* It is not. The word `uplift` appears
@@ -98,17 +117,17 @@ in that file exactly once — in the docstring.
 `costing.cost_workflow_run` **does** apply it: `$0.002/min` when the customer
 brings transcription, `$0.015/min` when they bring the voice.
 
-So the moment `BYOK_TIERED_FEE_ENABLED=true`, a BYOK-TTS customer is quoted a
-$0.020 platform fee and invoiced $0.035 — the platform line is 75% higher than
+So the moment `BYOK_TIERED_FEE_ENABLED=true`, a BYOK-TTS customer would have
+been quoted a $0.020 platform fee and invoiced $0.035 — the platform line is 75% higher than
 quoted, roughly 20–25% on a full stack. This is the same defect class as the
 "wizard quoting 40% under the invoice" bug that PR fixed, in the one path it
 did not check.
 
-- [ ] Add the uplift to the estimate, resolved from the same constants `costing` reads
-- [ ] Test that the estimate and the receipt agree for all three tiers (managed / stt / tts)
-- [ ] **Do not flip `BYOK_TIERED_FEE_ENABLED` before this lands**
+- [x] Add the uplift to the estimate — both paths now call `billing/fees.py`, a new module that is the only place the uplift and the add-on rates are decided, and is flag-gated there rather than at each call site
+- [x] Test that the estimate and the receipt agree for all three tiers (managed / stt / tts)
+- [x] `usage.byok_tier_from_components` shares the tier cut with `byok_platform_tier`, so a completed call and a forward estimate cannot land in different tiers
 
-### 1.3 Add-on charges appear in no estimate and have no label
+### 1.3 Add-on charges appeared in no estimate and had no label — FIXED
 
 `ADDON_KNOWLEDGE_BASE_MICROS_USD` ($0.005/min) and `ADDON_CALL_QA_MICROS_USD`
 ($0.020/min) are charged by `costing` and are absent from `estimator` entirely.
@@ -121,9 +140,9 @@ labelled `addon`. `CostPerMinuteBar` groups lines into agent / telephony /
 platform, and an add-on line belongs to none of the three — so the bar will not
 sum to the total.
 
-- [ ] Include add-ons in the estimate for features the agent has enabled
-- [ ] Label `addon` in `CostPerMinuteBar`, `unit-economics`, and the call detail
-- [ ] **Do not flip `ADDON_BILLING_ENABLED` before this lands**
+- [x] Include add-ons in the estimate — `POST /cost-estimate/per-minute` takes `addons`, returns `addon_paise_per_minute`
+- [x] Label `addon` in `CostPerMinuteBar` (now a fourth bar group, so the segments sum to the total), `unit-economics`, and the call detail, which now lists add-on rows
+- [x] Two further errors found on the call detail screen while doing it: add-on lines were counted into **provider cost**, inflating what vendors appear to charge us by our own revenue; and the platform fee's units are seconds and were labelled minutes, so a 75-second call read as "75 min"
 
 ### 1.4 The pinned Razorpay plan silently discards the gross-up
 
@@ -334,8 +353,8 @@ Order matters. Each step assumes the one above it.
 
 **Before any customer sees a price**
 
-1. Fix 1.1 (realtime quoting) — the only genuine P0 bug in shipped code
-2. Fix 1.2 and 1.3 (BYOK uplift, add-ons in the estimate)
+1. ~~Fix 1.1 (realtime quoting)~~ — done on this branch
+2. ~~Fix 1.2 and 1.3 (BYOK uplift, add-ons in the estimate)~~ — done on this branch
 3. Verify 1.4 (pinned plan amount) in the Razorpay dashboard
 4. Verify 1.5 (a real FX row exists)
 5. Seed and check the price book: `docker compose exec api python -m scripts.seed_provider_rates --confirm`, then fix 1.6
@@ -359,8 +378,8 @@ Order matters. Each step assumes the one above it.
 
 **Then, and only then**
 
-13. `BYOK_TIERED_FEE_ENABLED=true`
-14. `ADDON_BILLING_ENABLED=true`
+13. `BYOK_TIERED_FEE_ENABLED=true` — the quote now follows it
+14. `ADDON_BILLING_ENABLED=true` — likewise
 15. `MANAGED_TELEPHONY_ENABLED=true` — needs 2.4's telephony admin screens and the Plivo KYC verdict first
 
 **Still blocked on third parties** (unchanged): Razorpay Subscriptions approval,

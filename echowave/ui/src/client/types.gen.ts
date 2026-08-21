@@ -1799,6 +1799,10 @@ export type CostEstimateRequest = {
      * Customer Keyed
      */
     customer_keyed?: Array<string>;
+    /**
+     * Addons
+     */
+    addons?: Array<string>;
 };
 
 /**

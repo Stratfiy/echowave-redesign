@@ -17,7 +17,6 @@ from loguru import logger
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api import constants
 from api.db.models import (
     CallCostItemModel,
     CreditLedgerModel,
@@ -26,10 +25,9 @@ from api.db.models import (
 )
 from api.enums import CreditLedgerKind
 from api.services.billing.addons import addon_keys_from_usage_info
-from api.services.billing.addons import by_key as addon_by_key
 from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_cost
+from api.services.billing.fees import addon_rates_mpaise, uplifted_platform_rate_mpaise
 from api.services.billing.markup import resolve_markup_bps
-from api.services.billing.money import usd_to_mpaise
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
 from api.services.billing.usage import (
     billable_seconds_from_usage_info,
@@ -58,51 +56,18 @@ async def _period_minutes(
     return -(-int(total or 0) // 60)
 
 
-def _byok_uplift_micros(usage_info: dict | None) -> int:
-    """What the customer bringing their own keys adds to the platform rate.
-
-    An uplift on the resolved rate rather than an absolute rate, so a
-    negotiated account rate and a volume tier both survive a BYOK call instead
-    of being overwritten by a flat number.
-
-    Sized per component because the components are not worth the same: the
-    margin a BYOK call takes from us is roughly thirty times larger when it is
-    the voice than when it is the language model. ``byok_platform_tier``
-    explains the cut; these two figures are what it costs.
-    """
-    if not constants.BYOK_TIERED_FEE_ENABLED:
-        return 0
-    tier = byok_platform_tier(usage_info)
-    if tier == "tts":
-        return constants.BYOK_TTS_UPLIFT_MICROS_USD
-    if tier == "stt":
-        return constants.BYOK_STT_UPLIFT_MICROS_USD
-    return 0
-
-
 def _addon_rates_mpaise(
     *, usage_info: dict | None, usd_inr_paise: int | None
 ) -> dict[str, int]:
     """Per-minute rates for the priced features this call used, in mpaise.
 
-    Quoted in dollars and settled in rupees, so they need the same FX rate the
-    platform fee was resolved at — two conversions of one currency on a single
-    receipt is how a total stops reconciling. A rupee-native contract has no FX
-    rate at all and gets no dollar-quoted add-on: there is no honest number to
-    convert.
+    The rates themselves live in ``billing/fees.py``, because the estimator has
+    to quote the same ones — see that module for why they are not decided here.
+    This is the half that is a fact about the call: which features actually ran.
     """
-    if usd_inr_paise is None or not constants.ADDON_BILLING_ENABLED:
-        return {}
-
-    rates: dict[str, int] = {}
-    for key in addon_keys_from_usage_info(usage_info):
-        addon = addon_by_key(key)
-        if addon is None or not addon.is_billable:
-            continue
-        rates[key] = usd_to_mpaise(
-            micros_usd=addon.micros_usd_per_minute, usd_inr_paise=usd_inr_paise
-        )
-    return rates
+    return addon_rates_mpaise(
+        keys=addon_keys_from_usage_info(usage_info), usd_inr_paise=usd_inr_paise
+    )
 
 
 async def cost_workflow_run(
@@ -174,12 +139,11 @@ async def cost_workflow_run(
     # line. Applied here rather than in resolve_platform_rate because the tier
     # is a fact about *this call's* recorded usage, while everything that
     # resolver reads is a property of the account.
-    platform_rate_mpaise = platform.rate_mpaise
-    uplift_micros = _byok_uplift_micros(run.usage_info)
-    if uplift_micros and platform.usd_inr_paise is not None:
-        platform_rate_mpaise += usd_to_mpaise(
-            micros_usd=uplift_micros, usd_inr_paise=platform.usd_inr_paise
-        )
+    platform_rate_mpaise = uplifted_platform_rate_mpaise(
+        rate_mpaise=platform.rate_mpaise,
+        tier=byok_platform_tier(run.usage_info),
+        usd_inr_paise=platform.usd_inr_paise,
+    )
 
     addon_rates = _addon_rates_mpaise(
         usage_info=run.usage_info, usd_inr_paise=platform.usd_inr_paise

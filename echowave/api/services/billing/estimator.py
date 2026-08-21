@@ -32,6 +32,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.db.models import CallCostItemModel, WorkflowRunModel
 from api.enums import CostComponent
 from api.services.billing.cost_engine import MARKED_UP_COMPONENTS
+from api.services.billing.fees import (
+    addon_rates_mpaise,
+    byok_uplift_micros,
+    uplifted_platform_rate_mpaise,
+)
 from api.services.billing.markup import resolve_markup_bps
 from api.services.billing.money import (
     DEFAULT_PULSE_SECONDS,
@@ -41,6 +46,7 @@ from api.services.billing.money import (
     round_half_up_div,
 )
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
+from api.services.billing.usage import byok_tier_from_components
 
 # Consumption per connected minute, used only when we have no measured history
 # for a model. Derived from a typical Indian voice-agent turn: roughly six
@@ -78,6 +84,28 @@ _REALTIME_RATE_CARD_NAMES = {
     "google_realtime": "decibylgeminilive",
     "google_vertex_realtime": "decibylgeminilivevertex",
 }
+
+
+def rate_card_provider(provider: str) -> str:
+    """The name the rate card knows ``provider`` by.
+
+    Speech-to-speech has two names for one vendor and this is the seam between
+    them. ``managed_tiers`` says ``openai_realtime`` — the name
+    ``service_factory`` needs to build the session. The rate card says
+    ``decibylopenairealtime`` — the name ``usage.provider_from_processor``
+    derives from the running pipecat processor, and therefore the only name a
+    completed call is ever costed under.
+
+    Nothing bridged the two on the estimate path, so a managed realtime tier
+    resolved to no rate at all: the model line was dropped into ``unpriced``,
+    the estimate came back as telephony plus the platform fee, and a card that
+    should have read Rs25.79 a minute read Rs2.76. The invoice was right and the
+    quote was 9x under it.
+
+    A name already in rate-card form passes through unchanged, so this is safe
+    to apply to whatever a caller supplies.
+    """
+    return _REALTIME_RATE_CARD_NAMES.get(provider.strip().lower(), provider)
 
 
 def _realtime_tokens_per_minute() -> dict[str, int]:
@@ -149,6 +177,12 @@ class CostEstimate:
     # Components we were asked about but hold no rate for. Reported rather than
     # priced at zero, exactly as the cost engine does for a real call.
     unpriced: tuple[str, ...]
+    #: Priced features, summed. Already inside ``total_paise_per_minute`` and
+    #: reported separately for the same reason the cost engine reports it: the
+    #: breakdown bar splits into agent, telephony and platform, and an add-on
+    #: belongs to none of the three, so a bar built from those alone would not
+    #: sum to the total beside it.
+    addon_paise_per_minute: int = 0
     # Components priced against a provider-wide fallback rather than a rate for
     # the model actually chosen. Hoisted out of the lines because it is the
     # difference between "this is what it costs" and "this is what something on
@@ -166,6 +200,13 @@ class CostEstimate:
     # it, but the number beside it is the reason a minute is not what gets
     # charged, so the UI can say so.
     pulse_seconds: int = DEFAULT_PULSE_SECONDS
+    # Which BYOK tier the platform fee was quoted at, and what that added.
+    # Reported rather than folded silently into the fee because a customer who
+    # brings their own voice pays a higher platform rate and is entitled to see
+    # that it is the uplift rather than a price rise. Zero and "managed" when
+    # nothing was brought, or while BYOK_TIERED_FEE_ENABLED is off.
+    byok_tier: str = "managed"
+    byok_uplift_micros_usd: int = 0
 
 
 async def _measured_units_per_minute(
@@ -244,16 +285,26 @@ async def _inference_line(
     at: datetime,
     default_units: int,
     markup_bps: int,
+    rate_provider: str | None = None,
 ) -> EstimateLine | None:
-    """A per-minute line for a token- or character-metered component."""
+    """A per-minute line for a token- or character-metered component.
+
+    ``rate_provider`` is the name to price under when it differs from the name
+    the caller asked about — see :func:`rate_card_provider`. Both the rate
+    lookup and the measured-consumption query use it, because both read tables
+    written by the running pipeline. The line still reports the name the caller
+    supplied: they asked what ``openai_realtime`` costs, and answering with an
+    internal processor name would be a different question's answer.
+    """
+    priced_as = rate_provider or provider
     rate = await resolve_provider_rate(
-        session, provider=provider, component=component, at=at, model=model
+        session, provider=priced_as, component=component, at=at, model=model
     )
     if rate is None:
         return None
 
     measured = await _measured_units_per_minute(
-        session, component=component, provider=provider, model=model
+        session, component=component, provider=priced_as, model=model
     )
     units = measured if measured is not None else default_units
 
@@ -280,14 +331,24 @@ async def _per_minute_line(
     provider: str,
     at: datetime,
     markup_bps: int,
+    model: str = "",
 ) -> EstimateLine | None:
     """A line for a component already quoted per minute — STT and telephony.
 
     No consumption assumption is involved: a minute of call is a minute of
     audio, so this is exact rather than estimated.
+
+    ``model`` is passed through to the rate lookup for the same reason the
+    token-metered components pass it: the receipt resolves an STT rate against
+    the model the pipeline recorded (``usage_items_from_usage_info`` carries
+    it), so an estimate that looked up only the provider-wide row would quote a
+    different rate from the one billed the moment anybody priced a specific
+    transcription model — or quote nothing at all where only the specific row
+    exists. Empty for telephony, which has no model dimension: a phone call is
+    a phone call.
     """
     rate = await resolve_provider_rate(
-        session, provider=provider, component=component, at=at
+        session, provider=provider, component=component, at=at, model=model
     )
     if rate is None:
         return None
@@ -295,7 +356,7 @@ async def _per_minute_line(
     return EstimateLine(
         component=component.value,
         provider=provider,
-        model=None,
+        model=model or None,
         units_per_minute=60,
         unit_rate_mpaise=rate.rate_mpaise,
         paise_per_minute=_with_markup(
@@ -304,6 +365,7 @@ async def _per_minute_line(
             markup_bps=markup_bps,
         ),
         basis="exact",
+        rate_is_provider_fallback=bool(model) and rate.model == "",
     )
 
 
@@ -321,6 +383,7 @@ async def estimate_cost_per_minute(
     at: datetime | None = None,
     marked_up: bool = True,
     customer_keyed: frozenset[str] | set[str] | None = None,
+    addons: frozenset[str] | set[str] | tuple[str, ...] | None = None,
 ) -> CostEstimate:
     """What one connected minute costs on this stack, itemised.
 
@@ -344,6 +407,18 @@ async def estimate_cost_per_minute(
     rather than dropped, so the screen can show the component with a price of
     nil and say why, instead of a row silently disappearing when a key is
     added.
+
+    ``addons`` names the priced features the agent will use — ``"knowledge_
+    base"``, ``"call_qa"``. Both are charged per billable minute by
+    ``costing``, and quoting a stack without them understated a call using both
+    by $0.025 a minute, which is more than the platform fee. Passed in rather
+    than derived because whether a feature *fires* is a fact about a call and
+    this runs before there is one: the caller names what the agent is
+    configured to do, and the quote says what that would cost.
+
+    Both the uplift and the add-on rates come from ``billing/fees.py``, which
+    is the same module ``costing`` charges from and is flag-gated there, so an
+    estimate quotes exactly nothing for a charge that is switched off.
     """
     at = at or datetime.now(UTC)
     lines: list[EstimateLine] = []
@@ -375,6 +450,7 @@ async def estimate_cost_per_minute(
                 session,
                 component=CostComponent.STT,
                 provider=stt_provider,
+                model=stt_model,
                 at=at,
                 markup_bps=markup_bps,
             )
@@ -384,14 +460,22 @@ async def estimate_cost_per_minute(
         if "llm" in keyed:
             lines.append(_free(CostComponent.LLM, llm_provider, llm_model))
         else:
+            # A realtime session is metered as language-model usage, and the
+            # rate card knows it under the processor's name rather than the
+            # tier's. Resolving that once here fixes both halves at the same
+            # time: the rate lookup below, and the token assumption, which was
+            # also missing every realtime model and falling through to the
+            # text-conversation default of 1,400 tokens a minute.
+            llm_rate_provider = rate_card_provider(llm_provider)
             line = await _inference_line(
                 session,
                 component=CostComponent.LLM,
                 provider=llm_provider,
+                rate_provider=llm_rate_provider,
                 model=llm_model,
                 at=at,
                 default_units=REALTIME_TOKENS_PER_MINUTE.get(
-                    llm_provider.strip().lower(), DEFAULT_TOKENS_PER_MINUTE
+                    llm_rate_provider, DEFAULT_TOKENS_PER_MINUTE
                 ),
                 markup_bps=markup_bps,
             )
@@ -427,21 +511,64 @@ async def estimate_cost_per_minute(
     platform = await resolve_platform_rate(
         session, organization_id=organization_id, at=at
     )
+
+    # A customer on their own keys pays an uplifted platform rate rather than a
+    # second fee line, exactly as ``costing`` applies it: added to the resolved
+    # rate *before* the fee is computed, so the fee rounds once and the quote
+    # can be checked against the receipt to the paise. This was documented in
+    # this function's own docstring and never implemented, which made every
+    # BYOK quote understate the fee by up to 75% the moment the flag moved.
+    byok_tier = byok_tier_from_components(keyed)
+    platform_rate_mpaise = uplifted_platform_rate_mpaise(
+        rate_mpaise=platform.rate_mpaise,
+        tier=byok_tier,
+        usd_inr_paise=platform.usd_inr_paise,
+    )
+
     platform_line = EstimateLine(
         component=CostComponent.PLATFORM.value,
         provider=None,
         model=None,
         units_per_minute=1,
-        unit_rate_mpaise=platform.rate_mpaise,
+        unit_rate_mpaise=platform_rate_mpaise,
         # The platform rate is already quoted per minute, so one minute costs
         # the rate itself. Priced through platform_fee_paise rather than by
         # dividing here, so the estimate rounds exactly the way the invoice will.
         paise_per_minute=platform_fee_paise(
-            billable_minutes=1, rate_mpaise=platform.rate_mpaise
+            billable_minutes=1, rate_mpaise=platform_rate_mpaise
         ),
         basis="exact",
     )
     lines.append(platform_line)
+
+    # One line per priced feature the agent will use, charged per billable
+    # minute on the same basis as the platform fee. ``cost_engine`` prices
+    # these with ``cost_paise(quantity=billed_seconds, unit=MINUTE)``; over one
+    # minute that is arithmetically identical to ``platform_fee_paise`` at the
+    # same rate, so a per-minute estimate and a per-call receipt agree by
+    # construction rather than by two roundings that happen to match.
+    addon_lines: list[EstimateLine] = []
+    for key, rate in sorted(
+        addon_rates_mpaise(
+            keys=tuple(addons or ()), usd_inr_paise=platform.usd_inr_paise
+        ).items()
+    ):
+        addon_lines.append(
+            EstimateLine(
+                component=CostComponent.ADDON.value,
+                # The catalogue key rides in ``provider`` exactly as it does on
+                # a receipt line, so one label map serves both screens.
+                provider=key,
+                model=None,
+                units_per_minute=1,
+                unit_rate_mpaise=rate,
+                paise_per_minute=platform_fee_paise(
+                    billable_minutes=1, rate_mpaise=rate
+                ),
+                basis="exact",
+            )
+        )
+    lines.extend(addon_lines)
 
     agent = sum(
         line.paise_per_minute
@@ -462,6 +589,7 @@ async def estimate_cost_per_minute(
         agent_paise_per_minute=agent,
         telephony_paise_per_minute=telephony,
         platform_paise_per_minute=platform_line.paise_per_minute,
+        addon_paise_per_minute=sum(line.paise_per_minute for line in addon_lines),
         unpriced=tuple(unpriced),
         # Hoisted so a caller reads one field instead of scanning lines. This
         # is the signal that answers "why did the price not change when I
@@ -480,4 +608,6 @@ async def estimate_cost_per_minute(
         ),
         usd_inr_paise=platform.usd_inr_paise,
         pulse_seconds=platform.pulse_seconds,
+        byok_tier=byok_tier,
+        byok_uplift_micros_usd=byok_uplift_micros(byok_tier),
     )
