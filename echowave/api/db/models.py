@@ -3549,6 +3549,15 @@ class TaxDocumentModel(Base):
     payment_id = Column(
         Integer, ForeignKey("payments.id", ondelete="SET NULL"), nullable=True
     )
+    # The provider's payment id, for money collected under an autopay mandate.
+    #
+    # A mandate collection has no ``payments`` row to point at: that table is
+    # one attempt by an account to *buy credit*, and a bank paying a standing
+    # instruction is not that. The provider's id is the right key anyway — it is
+    # identical on every redelivery of the same collection, which is the
+    # property that makes at-least-once webhook delivery safe, and it is what
+    # every other idempotency guard on this path already keys off.
+    provider_payment_id = Column(String(64), nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
@@ -3579,6 +3588,19 @@ class TaxDocumentModel(Base):
             unique=True,
             postgresql_where=text(
                 "kind = 'receipt_voucher' AND payment_id IS NOT NULL"
+            ),
+        ),
+        # And one per mandate collection. Separate from the index above because
+        # the two name different things: a top-up we created an order for, and
+        # money a bank moved on a standing instruction. A collection redelivered
+        # by the provider must not produce a second document — a duplicate
+        # voucher is a filing correction, not a deletion.
+        Index(
+            "uq_receipt_voucher_collection",
+            "provider_payment_id",
+            unique=True,
+            postgresql_where=text(
+                "kind = 'receipt_voucher' AND provider_payment_id IS NOT NULL"
             ),
         ),
         Index("ix_tax_documents_org_issued", "organization_id", "issued_at"),

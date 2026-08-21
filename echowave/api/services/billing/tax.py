@@ -232,6 +232,53 @@ def compute_tax(
     )
 
 
+def net_of(
+    *, gross_paise: int, country_code: str | None, state_code: str | None
+) -> int:
+    """The taxable value inside a tax-inclusive amount. The inverse of
+    :func:`gross_up`.
+
+    Needed in exactly one situation: money arrived and only the gross is known.
+    A bank collecting under an autopay mandate reports what it took, and what
+    it took is the gross, because that is what the mandate was registered for.
+    Everything downstream — the ledger, the margin, the document's taxable
+    line — is net, so the split has to be recovered rather than assumed.
+
+    Integer division makes the naive inverse off by a paise for some values, so
+    the result is **verified by re-grossing it** and nudged until it round
+    trips. On an amount that cannot round trip at all — possible only if the
+    rate changed between charging and recording — the closest value is returned
+    and the caller reconciles against the gross it already holds. A paise is not
+    worth raising over; a silently wrong tax split on a filed document is.
+    """
+    if gross_paise < 0:
+        raise TaxError("Cannot untax a negative amount.")
+
+    rate = compute_tax(
+        taxable_paise=0, country_code=country_code, state_code=state_code
+    ).rate_basis_points
+    if rate == 0:
+        return gross_paise
+
+    candidate = round_half_up_div(gross_paise * BASIS_POINTS, BASIS_POINTS + rate)
+    # Two steps either way is generous: the error from one integer division of
+    # this shape is at most one paise.
+    for delta in (0, -1, 1, -2, 2):
+        value = candidate + delta
+        if value < 0:
+            continue
+        if (
+            gross_up(
+                taxable_paise=value,
+                country_code=country_code,
+                state_code=state_code,
+            )
+            == gross_paise
+        ):
+            return value
+    return candidate
+
+
 def gross_up(
     *, taxable_paise: int, country_code: str | None, state_code: str | None
 ) -> int:

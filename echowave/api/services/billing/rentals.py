@@ -514,8 +514,43 @@ async def record_mandate_collection(
 
     payment = ((event.get("payload") or {}).get("payment") or {}).get("entity") or {}
     payment_id = payment.get("id")
-    amount = int(payment.get("amount") or charge.price_paise)
     cost = charge.cost_paise
+
+    # The **take**, not the ask — recording our price rather than what the bank
+    # actually moved is how a reconciliation stops finding discrepancies it
+    # should find — but converted to net first.
+    #
+    # The provider reports the gross, because a mandate is registered for what
+    # the bank is told to collect, tax included. This column is net everywhere
+    # else: the balance-collected path a few hundred lines up writes the
+    # charge's own price, which is net. Storing the provider's figure verbatim
+    # therefore put tax-inclusive rupees in a net column, and nothing reading
+    # it could tell the two apart — mandate revenue read 18% high against
+    # rentals paid from a balance. The gross is not lost: it is the total on
+    # the receipt voucher issued for this collection.
+    collected_gross = payment.get("amount")
+    amount = charge.price_paise
+    if collected_gross is not None:
+        amount = await _net_of_collection(
+            session,
+            organization_id=charge.organization_id,
+            gross_paise=int(collected_gross),
+            fallback_paise=charge.price_paise,
+        )
+        if amount != charge.price_paise:
+            # Not fatal: the money has moved and the period must still be
+            # recorded, or the monthly cron will debit the balance for a month
+            # the bank already paid. Loud, because a collection that does not
+            # match its plan is either a price change that never reached the
+            # provider, or a plan the customer is on that we think they are not.
+            logger.error(
+                "Mandate collection {} came to {} paise net but charge {} is "
+                "priced at {}; recording what was collected",
+                payment_id,
+                amount,
+                charge.id,
+                charge.price_paise,
+            )
 
     if payment_id:
         # Checked before the insert as well as relied on afterwards. The index
@@ -605,6 +640,44 @@ async def record_mandate_collection(
         "period_id": period.id,
         "charged_paise": amount,
     }
+
+
+async def _net_of_collection(
+    session: AsyncSession,
+    *,
+    organization_id: int,
+    gross_paise: int,
+    fallback_paise: int,
+) -> int:
+    """The taxable value inside what the bank collected.
+
+    Inverts exactly the step that registered the mandate — see
+    ``mandates.start_rental_mandate``, which grosses the price up before telling
+    the provider what to charge — so a collection at the expected amount comes
+    back as the charge's own price, to the paise.
+
+    Falls back to our price when the tax cannot be resolved at all: an export
+    with no LUT on file raises rather than guessing, and a period recorded at
+    the list price is far better than one not recorded, which would have the
+    monthly cron debit a balance for a month the bank already paid.
+    """
+    from api.services.billing.billing_profile import get_profile
+    from api.services.billing.tax import TaxError, net_of
+
+    try:
+        profile = await get_profile(session, organization_id=organization_id)
+        return net_of(
+            gross_paise=gross_paise,
+            country_code=profile.country_code,
+            state_code=profile.state_code,
+        )
+    except TaxError:
+        logger.warning(
+            "Could not resolve tax for org {}; recording the collection at the "
+            "charge's own price",
+            organization_id,
+        )
+        return fallback_paise
 
 
 def _next_period(

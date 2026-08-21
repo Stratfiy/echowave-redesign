@@ -87,7 +87,17 @@ async def _charge(session, org, *, mandate=None, started=None, resource_id=1):
     return charge
 
 
-def _charged_event(subscription_id: str, *, amount: int = 34900) -> dict:
+#: What the bank is actually told to collect for a Rs349 rental: the price plus
+#: tax. Registering a mandate grosses the price up — see
+#: ``mandates.start_rental_mandate`` — so a fixture that collects the net models
+#: a subscription that could not exist, and hides the unit the provider reports
+#: in from every test that uses it.
+COLLECTED_GROSS_PAISE = 41182
+
+
+def _charged_event(
+    subscription_id: str, *, amount: int = COLLECTED_GROSS_PAISE
+) -> dict:
     return {
         "event": "subscription.charged",
         "payload": {
@@ -354,13 +364,24 @@ class TestCollection:
         ).all()
         assert len(periods) == 1
 
-    async def test_the_amount_collected_is_the_providers_figure(
+    async def test_the_amount_collected_is_the_providers_figure_net_of_tax(
         self, db_session, async_session
     ):
         """What the bank actually took is a fact about the collection. Our
         price is what we asked for; recording the ask rather than the take is
-        how a reconciliation stops finding discrepancies it should find."""
+        how a reconciliation stops finding discrepancies it should find.
+
+        The take, but net. The provider reports the gross — a mandate is
+        registered for what the bank is told to collect, tax included — and
+        this column is net everywhere else, starting with the
+        balance-collected path, which writes the charge's own net price. Two
+        meanings in one column made mandate revenue read 18% high against
+        rentals paid from a balance, and nothing reading it could tell which
+        was which. The gross is not lost: it is the total on the receipt
+        voucher issued for the same collection.
+        """
         from api.services.billing.rentals import record_mandate_collection
+        from api.services.billing.tax import net_of
 
         org = await _org(async_session, "coll-amount")
         mandate = await _mandate(async_session, org, sub="sub_amount")
@@ -372,7 +393,14 @@ class TestCollection:
             event=_charged_event("sub_amount", amount=30000),
         )
 
-        assert outcome["charged_paise"] == 30000
+        # Derived the same way the code does rather than typed: the account in
+        # this test has no billing profile, so the tax that applies to it is a
+        # question about configuration, and a literal here would assert the
+        # configuration instead of the behaviour.
+        expected = net_of(gross_paise=30000, country_code=None, state_code=None)
+        assert outcome["charged_paise"] == expected
+        # And it is genuinely the collection's figure, not the charge's price.
+        assert expected != 34900
 
     async def test_a_collection_with_no_open_charge_is_loud(
         self, db_session, async_session

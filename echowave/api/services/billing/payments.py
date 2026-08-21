@@ -274,6 +274,43 @@ def _payment_entity(event: dict) -> dict:
     return (payload.get("payment") or {}).get("entity") or {}
 
 
+async def _issue_collection_voucher(
+    session: AsyncSession, *, mandate, event: dict
+) -> dict | None:
+    """The tax document for one autopay collection.
+
+    Reads the gross off the provider's payload rather than off our own price:
+    what the bank actually took is the supply that was paid for, and if the two
+    ever disagree the payload is the one a return has to match.
+    """
+    from api.services.billing.documents import issue_collection_voucher
+    from api.services.billing.mandates import PURPOSE_STARTER_PLAN
+
+    entity = _payment_entity(event)
+    provider_payment_id = entity.get("id")
+    gross_paise = entity.get("amount")
+    if not provider_payment_id or not gross_paise:
+        logger.error(
+            "Mandate collection for org {} has no payment id or amount in its "
+            "payload; no receipt voucher could be issued",
+            mandate.organization_id,
+        )
+        return None
+
+    voucher = await issue_collection_voucher(
+        session,
+        organization_id=mandate.organization_id,
+        provider_payment_id=str(provider_payment_id),
+        gross_paise=int(gross_paise),
+        description=(
+            "Starter plan: call balance and one phone number"
+            if mandate.purpose == PURPOSE_STARTER_PLAN
+            else "Monthly phone number rental"
+        ),
+    )
+    return {"number": voucher.number} if voucher else None
+
+
 async def handle_webhook(
     session: AsyncSession, *, raw_body: bytes, signature: str | None
 ) -> dict:
@@ -333,6 +370,29 @@ async def handle_webhook(
                 outcome["period"] = await record_mandate_collection(
                     session, mandate_id=outcome["mandate_id"], event=event
                 )
+
+            # One voucher for the collection, whatever it bought. Issued here
+            # rather than inside either branch because the customer paid once:
+            # a starter-plan charge settles rent *and* grants a balance, and two
+            # documents for one payment would be two entries in a return.
+            #
+            # Wrapped, and deliberately not fatal. The bank has already moved
+            # the money and both branches above have already recorded what it
+            # bought; raising here would have Razorpay retry a collection that
+            # is fully settled. The tax is still owed either way, and the
+            # error names the collection so the voucher can be issued after.
+            if mandate is not None:
+                try:
+                    outcome["voucher"] = await _issue_collection_voucher(
+                        session, mandate=mandate, event=event
+                    )
+                except Exception as exc:  # noqa: BLE001 - see above
+                    logger.error(
+                        "Mandate collection for org {} settled but its receipt "
+                        "voucher failed: {}",
+                        mandate.organization_id,
+                        exc,
+                    )
         return outcome
 
     if event_type not in {"payment.captured", "payment.failed"}:
