@@ -21,15 +21,24 @@
  * that goes stale.
  */
 
-import { AlertTriangle, Download, Loader2, ShieldCheck, Trash2 } from "lucide-react";
+import {
+    AlertTriangle,
+    Download,
+    Loader2,
+    Search,
+    ShieldCheck,
+    Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+    breachReportApiV1PrivacyBreachReportGet,
     exportDataApiV1PrivacyExportGet,
     getAccessLogApiV1PrivacyAccessLogGet,
     getRetentionApiV1PrivacyRetentionGet,
     listErasureRequestsApiV1PrivacyErasureGet,
     listSubprocessorsApiV1PrivacySubprocessorsGet,
+    privacyMetricsApiV1PrivacyMetricsGet,
     requestErasureApiV1PrivacyErasurePost,
     setRetentionApiV1PrivacyRetentionPut,
 } from "@/client/sdk.gen";
@@ -106,6 +115,43 @@ type AccessEntry = {
     ip_address: string | null;
 };
 
+type PrivacyMetrics = {
+    window_days: number;
+    retention: {
+        overdue: number;
+        healthy: boolean;
+        oldest_overdue_days: number | null;
+    };
+    access: {
+        total: number;
+        exports: number;
+        unauthenticated: number;
+        distinct_users: number;
+    };
+    erasure: {
+        total: number;
+        completed: number;
+        open: number;
+        past_deadline: number;
+        deadline_days: number;
+        median_hours: number | null;
+        slowest_hours: number | null;
+    };
+};
+
+type BreachReport = {
+    window_start: string;
+    window_end: string;
+    total_accesses: number;
+    by_resource_type: Record<string, number>;
+    by_actor: Record<string, number>;
+    distinct_calls_touched: number;
+    distinct_objects_touched: number;
+    affected_call_ids: number[];
+    first_access: string | null;
+    last_access: string | null;
+};
+
 const BASIS_LABEL: Record<string, string> = {
     configured: "Configured for your calls",
     observed: "Handled your calls",
@@ -141,6 +187,17 @@ export default function PrivacyPage() {
     const [subprocessors, setSubprocessors] = useState<Subprocessor[]>([]);
     const [officer, setOfficer] = useState<GrievanceOfficer | null>(null);
     const [access, setAccess] = useState<AccessEntry[]>([]);
+    const [metrics, setMetrics] = useState<PrivacyMetrics | null>(null);
+
+    const nowLocal = () => new Date().toISOString().slice(0, 16);
+    const weekAgoLocal = () =>
+        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+
+    const [breachSince, setBreachSince] = useState(weekAgoLocal());
+    const [breachUntil, setBreachUntil] = useState(nowLocal());
+    const [breachRunning, setBreachRunning] = useState(false);
+    const [breachError, setBreachError] = useState<string | null>(null);
+    const [breachReport, setBreachReport] = useState<BreachReport | null>(null);
 
     const refresh = useCallback(async () => {
         const [
@@ -148,11 +205,13 @@ export default function PrivacyPage() {
             erasureResponse,
             subprocessorResponse,
             accessResponse,
+            metricsResponse,
         ] = await Promise.all([
             getRetentionApiV1PrivacyRetentionGet(),
             listErasureRequestsApiV1PrivacyErasureGet(),
             listSubprocessorsApiV1PrivacySubprocessorsGet(),
             getAccessLogApiV1PrivacyAccessLogGet(),
+            privacyMetricsApiV1PrivacyMetricsGet(),
         ]);
 
         if (retentionResponse.error) {
@@ -190,8 +249,33 @@ export default function PrivacyPage() {
                     [],
             );
         }
+        if (!metricsResponse.error) {
+            setMetrics(metricsResponse.data as unknown as PrivacyMetrics);
+        }
         setError(null);
     }, []);
+
+    const runBreachReport = useCallback(async () => {
+        setBreachError(null);
+        setBreachRunning(true);
+        try {
+            const since = new Date(breachSince).toISOString();
+            const until = new Date(breachUntil).toISOString();
+            const response = await breachReportApiV1PrivacyBreachReportGet({
+                query: { since, until },
+            });
+            if (response.error) {
+                setBreachError(
+                    detailFromError(response.error, "Could not build the breach report"),
+                );
+                setBreachReport(null);
+                return;
+            }
+            setBreachReport(response.data as unknown as BreachReport);
+        } finally {
+            setBreachRunning(false);
+        }
+    }, [breachSince, breachUntil]);
 
     useEffect(() => {
         if (authLoading || !user || hasFetched.current) return;
@@ -329,6 +413,78 @@ export default function PrivacyPage() {
                         {notice}
                     </div>
                 )}
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Are the controls actually working</CardTitle>
+                        <CardDescription>
+                            Every control on this page reports success by not raising,
+                            which is the wrong kind of quiet — a retention sweep that
+                            silently stopped running looks exactly like one with
+                            nothing to do. The headline below is designed to be
+                            zero; any other value is an incident, not a statistic.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {metrics ? (
+                            <div className="grid gap-4 sm:grid-cols-3">
+                                <div
+                                    className={`rounded-lg border p-3 ${
+                                        metrics.retention.healthy
+                                            ? "border-emerald-500/40 bg-emerald-500/10"
+                                            : "border-destructive/40 bg-destructive/10"
+                                    }`}
+                                >
+                                    <p className="text-2xl font-semibold tabular-nums">
+                                        {metrics.retention.overdue}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Recordings past their retention window and
+                                        still in storage — should always be zero.
+                                        {metrics.retention.oldest_overdue_days
+                                            ? ` Oldest is ${metrics.retention.oldest_overdue_days} days overdue.`
+                                            : ""}
+                                    </p>
+                                </div>
+                                <div className="rounded-lg border p-3">
+                                    <p className="text-2xl font-semibold tabular-nums">
+                                        {metrics.access.total}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Accesses to recordings/transcripts in the
+                                        last {metrics.window_days} days —{" "}
+                                        {metrics.access.unauthenticated} via a public
+                                        share link, {metrics.access.distinct_users}{" "}
+                                        distinct people signed in.
+                                    </p>
+                                </div>
+                                <div
+                                    className={`rounded-lg border p-3 ${
+                                        metrics.erasure.past_deadline > 0
+                                            ? "border-destructive/40 bg-destructive/10"
+                                            : ""
+                                    }`}
+                                >
+                                    <p className="text-2xl font-semibold tabular-nums">
+                                        {metrics.erasure.open}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Open erasure requests
+                                        {metrics.erasure.past_deadline > 0
+                                            ? `, ${metrics.erasure.past_deadline} past the ${metrics.erasure.deadline_days}-day deadline`
+                                            : ` — none past the ${metrics.erasure.deadline_days}-day deadline`}
+                                        .
+                                        {metrics.erasure.median_hours !== null
+                                            ? ` Median turnaround ${metrics.erasure.median_hours}h.`
+                                            : ""}
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <Skeleton className="h-20 w-full" />
+                        )}
+                    </CardContent>
+                </Card>
 
                 <Card>
                     <CardHeader>
@@ -641,6 +797,124 @@ export default function PrivacyPage() {
                                     ))}
                                 </TableBody>
                             </Table>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Breach report</CardTitle>
+                        <CardDescription>
+                            GDPR Art 33 gives 72 hours from becoming aware of a breach
+                            to describe its scope. That question cannot be answered
+                            retrospectively — either the access log was being written
+                            or it was not — so this turns the log into an answer for
+                            any window you name.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="breach-since">From</Label>
+                                <Input
+                                    id="breach-since"
+                                    type="datetime-local"
+                                    value={breachSince}
+                                    onChange={(event) =>
+                                        setBreachSince(event.target.value)
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="breach-until">To</Label>
+                                <Input
+                                    id="breach-until"
+                                    type="datetime-local"
+                                    value={breachUntil}
+                                    onChange={(event) =>
+                                        setBreachUntil(event.target.value)
+                                    }
+                                />
+                            </div>
+                        </div>
+                        <Button
+                            variant="outline"
+                            onClick={runBreachReport}
+                            disabled={breachRunning}
+                        >
+                            {breachRunning ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Search className="h-4 w-4" />
+                            )}
+                            Run report
+                        </Button>
+                        {breachError && (
+                            <p className="text-sm text-destructive">{breachError}</p>
+                        )}
+                        {breachReport && (
+                            <div className="space-y-3 rounded-lg border p-3">
+                                <div className="grid gap-4 sm:grid-cols-3">
+                                    <div>
+                                        <p className="text-xl font-semibold tabular-nums">
+                                            {breachReport.total_accesses}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Total accesses in window
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xl font-semibold tabular-nums">
+                                            {breachReport.distinct_calls_touched}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Distinct calls touched
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xl font-semibold tabular-nums">
+                                            {breachReport.distinct_objects_touched}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Distinct objects touched
+                                        </p>
+                                    </div>
+                                </div>
+                                {breachReport.total_accesses > 0 && (
+                                    <>
+                                        <div className="text-sm">
+                                            <p className="font-medium">By resource type</p>
+                                            <p className="text-muted-foreground">
+                                                {Object.entries(
+                                                    breachReport.by_resource_type,
+                                                )
+                                                    .map(([type, n]) => `${type}: ${n}`)
+                                                    .join(", ") || "—"}
+                                            </p>
+                                        </div>
+                                        <div className="text-sm">
+                                            <p className="font-medium">By who accessed</p>
+                                            <p className="text-muted-foreground">
+                                                {Object.entries(breachReport.by_actor)
+                                                    .map(([who, n]) => `${who}: ${n}`)
+                                                    .join(", ") || "—"}
+                                            </p>
+                                        </div>
+                                        {breachReport.affected_call_ids.length > 0 && (
+                                            <div className="text-sm">
+                                                <p className="font-medium">
+                                                    Affected call IDs
+                                                </p>
+                                                <p className="break-words text-muted-foreground">
+                                                    {breachReport.affected_call_ids.join(
+                                                        ", ",
+                                                    )}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
                         )}
                     </CardContent>
                 </Card>

@@ -80,6 +80,14 @@ export const STAFF_SECTION: SidebarNavSection = {
       icon: Phone,
       keywords: ["trial", "caller id", "shared", "outbound", "telephony"],
     },
+    // Deployment-wide, like the billing readiness screen it mirrors — not an
+    // account's page, so it has none to live on.
+    {
+      title: "Privacy readiness",
+      url: "/superadmin/privacy/readiness",
+      icon: Shield,
+      keywords: ["dpdp", "gdpr", "compliance", "breach", "grievance officer"],
+    },
   ],
 };
 
