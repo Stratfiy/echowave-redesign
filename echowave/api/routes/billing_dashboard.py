@@ -919,8 +919,12 @@ async def list_bundles(user: UserModel = Depends(get_superuser)) -> dict[str, An
 
     async with db_client.async_session() as session:
         rows = await bundle_service.list_bundles(session)
-        await session.commit()
-        return {
+        # Built before the commit, not after. `list_bundles` seeds, and a commit
+        # expires every attribute it loaded — reading one back is an implicit
+        # reload, which in async raises MissingGreenlet rather than quietly
+        # fetching. There is always at least one seeded bundle, so reading after
+        # the commit made this a 500 on every request.
+        payload = {
             "bundles": [
                 {
                     "slug": row.slug,
@@ -942,6 +946,8 @@ async def list_bundles(user: UserModel = Depends(get_superuser)) -> dict[str, An
                 for row in rows
             ]
         }
+        await session.commit()
+        return payload
 
 
 @router.get("/bundles/economics")
@@ -985,13 +991,15 @@ async def upsert_bundle(
             )
         except bundle_service.BundleError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        await session.commit()
-        return {
+        # Read before the commit, for the reason `list_bundles` above spells out.
+        payload = {
             "slug": row.slug,
             "label": row.label,
             "architecture": row.architecture,
             "is_enabled": row.is_enabled,
         }
+        await session.commit()
+        return payload
 
 
 @router.get("/managed-tiers/choices")

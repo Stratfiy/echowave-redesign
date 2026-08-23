@@ -119,8 +119,11 @@ async def approve_application(
             )
         except PartnerError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        await session.commit()
-        return {
+        # Read before the commit: it expires every attribute on both rows, and
+        # reading one back is an implicit reload that raises MissingGreenlet in
+        # async. The decision itself had already succeeded, so this answered 500
+        # on an application that really was approved.
+        payload = {
             "application": _queue_view(application),
             "commission": {
                 "commission_bps": commission.commission_bps,
@@ -128,6 +131,8 @@ async def approve_application(
                 "effective_from": commission.effective_from.isoformat(),
             },
         }
+        await session.commit()
+        return payload
 
 
 @router.post("/{application_id}/reject")
@@ -148,8 +153,10 @@ async def reject_application(
             )
         except PartnerError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        # Read before the commit — see `approve_application` above.
+        payload = {"application": _queue_view(application)}
         await session.commit()
-        return {"application": _queue_view(application)}
+        return payload
 
 
 @router.get("/accounts/{organization_id}/commission")
