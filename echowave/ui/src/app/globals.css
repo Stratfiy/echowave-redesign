@@ -85,18 +85,15 @@
   --popover: #ffffff;
   --popover-foreground: #211814;
 
-  /* The accent. #EE7823 — a warmer, more amber orange than the #F0431C it
-     replaces.
+  /* The accent. #E15B53 — a coral red, replacing the #EE7823 orange.
 
      It carries DARK text, not white, and that is forced rather than chosen:
-     white on #EE7823 is 2.86:1, which fails WCAG AA at every text size. The
-     ink below is 6.09:1. The previous orange was dark enough to carry white
-     at 3.80:1 — itself only a large-text pass — and this one is not. If white
-     is wanted back on primary CTAs, the accent has to get darker; the two
-     cannot both be had. */
-  --primary: oklch(0.697 0.170 50.4);
+     white on #E15B53 is 3.61:1, which fails WCAG AA at normal text sizes. The
+     ink below is 4.83:1 and passes. If white is ever wanted on primary CTAs,
+     the accent has to get darker; the two cannot both be had. */
+  --primary: oklch(0.642 0.169 26.3);
   --primary-foreground: #211814;
-  --primary-pressed: oklch(0.627 0.170 50.4);
+  --primary-pressed: oklch(0.572 0.169 26.3);
 
   --secondary: #eef0f4;
   --secondary-foreground: #33302e;
@@ -107,27 +104,32 @@
   --accent: #f1f2f5;
   --accent-foreground: #211814;
 
-  /* Deep crimson, deliberately far from the primary's hue 50.4. At the stock
-     shadcn value of 27.3 a delete button and a save button were four degrees
-     apart against the old 33.6 primary, which is to say indistinguishable.
-     The primary has since moved further away, so the separation is wider now
-     — keep it that way. */
+  /* Deep crimson. This used to sit a comfortable 32 degrees from the primary,
+     and the note here said to keep it that way — at the stock shadcn 27.3 a
+     delete button and a save button were four degrees apart against the old
+     33.6 primary, which is to say indistinguishable.
+
+     The primary is now the coral at hue 26.3, so the separation is 8 degrees.
+     Destructive is darker (L 0.505 against 0.642) and more saturated, so the
+     two are not identical, but they are the same family — a delete button no
+     longer announces itself by hue alone. If that reads wrong in use, move
+     this toward 12–15 rather than moving the brand. */
   --destructive: oklch(0.505 0.208 18);
   --warning: oklch(0.75 0.155 70);
   --success: oklch(0.63 0.145 152);
 
   --border: #e3e5ec;
   --input: #d9dce4;
-  --ring: oklch(0.697 0.170 50.4);
+  --ring: oklch(0.642 0.169 26.3);
 
   /* --brand-* are consumed by ~68 call sites written when the brand was blue.
      They are aliases onto the correct tokens, NOT a second palette. Renaming
      them would be a 68-file diff whose only content is the rename, so the
      names stay and the values move. */
-  --brand-blue: #EE7823;
-  --brand-blue-hover: #C15D0C;
-  --brand-blue-soft: rgba(238, 120, 35, 0.10);
-  --brand-blue-glow: rgba(238, 120, 35, 0.14);
+  --brand-blue: #E15B53;
+  --brand-blue-hover: #B4423C;
+  --brand-blue-soft: rgba(225, 91, 83, 0.10);
+  --brand-blue-glow: rgba(225, 91, 83, 0.14);
   --brand-panel: #ffffff;
   --brand-heading: #211814;
   --brand-body: #676879;
@@ -144,7 +146,7 @@
   --tint-sand: #F6F0E8;
   --tint-slate: #EEF0F4;
 
-  --chart-1: oklch(0.697 0.170 50.4);
+  --chart-1: oklch(0.642 0.169 26.3);
   --chart-2: oklch(0.824 0.163 77.8);
   --chart-3: oklch(0.63 0.145 152);
   --chart-4: oklch(0.58 0.13 250);
@@ -154,16 +156,16 @@
      area. That is what gives the shell its structure without a single rule. */
   --sidebar: #ffffff;
   --sidebar-foreground: #33302e;
-  --sidebar-primary: oklch(0.697 0.170 50.4);
+  --sidebar-primary: oklch(0.642 0.169 26.3);
   --sidebar-primary-foreground: #211814;
   --sidebar-accent: #f1f2f5;
   --sidebar-accent-foreground: #211814;
   --sidebar-border: #e3e5ec;
-  --sidebar-ring: oklch(0.697 0.170 50.4);
+  --sidebar-ring: oklch(0.642 0.169 26.3);
 
   /* --cta predates --primary and is used on a handful of CTAs. Both now point
      at the same orange, so the two vocabularies cannot drift apart on screen. */
-  --cta: oklch(0.697 0.170 50.4);
+  --cta: oklch(0.642 0.169 26.3);
   --cta-foreground: #211814;
 
   /* One elevation, used everywhere. A design with a single shadow reads as
@@ -185,7 +187,7 @@
   --glass-shadow: var(--shadow-card);
   --glass-shadow-clay: var(--shadow-card);
   --glass-shadow-clay-hover: var(--shadow-raised);
-  --glass-accent-fill: oklch(0.697 0.170 50.4);
+  --glass-accent-fill: oklch(0.642 0.169 26.3);
   --glass-accent-fg: #211814;
   --glass-amber-fill: var(--tint-amber);
   --glass-amber-edge: #F2E3CB;
