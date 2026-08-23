@@ -55,6 +55,29 @@ const CONTROLS: Control[] = [
         // the account.
         memberMayUse: false,
     },
+    {
+        screen: "billing",
+        control: "read the plans and what they include",
+        route: null,
+        // The prices, the balance and the number entitlement. A member who
+        // cannot read them cannot make a specific request to an admin.
+        memberMayUse: true,
+    },
+    {
+        screen: "billing",
+        control: "start a plan",
+        route: "POST /api/v1/billing/plan",
+        // A standing instruction at the customer's bank for the whole account.
+        memberMayUse: false,
+    },
+    {
+        screen: "billing",
+        control: "cancel the plan",
+        route: "POST /api/v1/billing/mandate/cancel",
+        // Withdrawing that instruction stops the monthly balance for everyone
+        // on the account, and leaves the number's rent falling back to credit.
+        memberMayUse: false,
+    },
 
     // --- Renting a number: the flow stops at autopay ---------------------
     // Found by walking every `require_organization_role` route back to the
@@ -198,10 +221,13 @@ const GATED_ROUTES: { route: string; minimum: string; calledFrom: string | null 
     { route: "DELETE /api/v1/provider-keys", minimum: "admin", calledFrom: "provider-keys" },
     { route: "PUT /api/v1/billing/profile", minimum: "admin", calledFrom: "billing" },
     { route: "POST /api/v1/billing/mandate", minimum: "admin", calledFrom: "numbers" },
-    // Withdrawing autopay has no screen. Not a leak — nothing offers it — but
-    // it does mean a customer cannot cancel a standing bank debit from inside
-    // the product, which is a support ticket rather than a 403.
-    { route: "POST /api/v1/billing/mandate/cancel", minimum: "admin", calledFrom: null },
+    { route: "POST /api/v1/billing/plan", minimum: "admin", calledFrom: "billing" },
+    // Both of these shipped with PlanSection, and both went in ungated: the
+    // rows above were written when nothing called either route, and adding the
+    // screen did not add the rows. That is the third instance of the same
+    // defect this file exists to catch, so it is worth saying plainly — a new
+    // screen is not finished until its gated routes are listed here.
+    { route: "POST /api/v1/billing/mandate/cancel", minimum: "admin", calledFrom: "billing" },
     { route: "POST /api/v1/credentials/", minimum: "admin", calledFrom: "tools" },
     { route: "PUT /api/v1/credentials/{uuid}", minimum: "admin", calledFrom: null },
     { route: "DELETE /api/v1/credentials/{uuid}", minimum: "admin", calledFrom: null },
