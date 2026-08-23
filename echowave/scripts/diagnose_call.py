@@ -6,8 +6,11 @@ This walks them in the order ``routes/telephony.py:initiate_call`` walks them
 and prints the first one that would stop the call, with the fix.
 
     set -a && source api/.env && set +a
+    python -m scripts.diagnose_call --list           # which org am I?
     python -m scripts.diagnose_call --org 42
     python -m scripts.diagnose_call --org 42 --to +919900000000 --workflow 7
+
+On a Docker install, the same three with ``docker compose exec api`` in front.
 
 Read-only. It places no call, creates no run, takes no concurrency slot and
 writes nothing — so it is safe against production, which is where the question
@@ -241,12 +244,59 @@ async def diagnose(organization_id: int, to_number: str | None, workflow_id: int
     return 0
 
 
+async def list_accounts() -> int:
+    """Organizations and their agents, so ``--org`` does not need a SQL prompt.
+
+    The id is the first thing this tool asks for and the last thing anybody has
+    to hand; making them go and find it in psql is how a diagnostic goes unused.
+    """
+    from sqlalchemy import select
+
+    from api.db import db_client
+    from api.db.models import OrganizationModel, WorkflowModel
+
+    async with db_client.async_session() as session:
+        orgs = list(
+            (
+                await session.scalars(
+                    select(OrganizationModel).order_by(OrganizationModel.id.desc()).limit(20)
+                )
+            ).all()
+        )
+        if not orgs:
+            print("No organizations yet. Sign up in the UI first.")
+            return 1
+        print(f"{'ORG':>6}  {'PROVIDER ID':<34} AGENTS")
+        for org in orgs:
+            workflows = list(
+                (
+                    await session.scalars(
+                        select(WorkflowModel)
+                        .where(WorkflowModel.organization_id == org.id)
+                        .order_by(WorkflowModel.id.desc())
+                        .limit(5)
+                    )
+                ).all()
+            )
+            agents = (
+                ", ".join(f"{w.id}:{(w.name or '?')[:24]}" for w in workflows) or "(none)"
+            )
+            print(f"{org.id:>6}  {(org.provider_id or '')[:34]:<34} {agents}")
+    print("\nThen: python -m scripts.diagnose_call --org <ORG> --workflow <AGENT>")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--org", type=int, required=True, help="organization id")
+    parser.add_argument("--list", action="store_true", help="list organizations and their agents, then exit")
+    parser.add_argument("--org", type=int, help="organization id")
     parser.add_argument("--to", help="destination number (default: the org's test number)")
     parser.add_argument("--workflow", type=int, help="workflow id, to check the agent-side gates too")
     args = parser.parse_args()
+    if args.list:
+        return asyncio.run(list_accounts())
+    if args.org is None:
+        parser.error("--org is required (or use --list to find it)")
     return asyncio.run(diagnose(args.org, args.to, args.workflow))
 
 
