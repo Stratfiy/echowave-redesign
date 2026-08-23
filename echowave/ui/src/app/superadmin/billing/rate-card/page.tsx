@@ -22,6 +22,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
     getRateCardApiV1AdminBillingRateCardGet,
+    refreshExchangeRateApiV1AdminBillingRateCardExchangeRateRefreshPost,
     retireVolumeTierApiV1AdminBillingRateCardTiersMinPeriodMinutesDelete,
     setExchangeRateApiV1AdminBillingRateCardExchangeRatePut,
     setGlobalPlatformRateApiV1AdminBillingRateCardPlatformPut,
@@ -601,7 +602,30 @@ function ExchangeRatePanel({
                         placeholder="RBI reference rate"
                     />
                 </div>
-                <div className="flex items-end">
+                <div className="flex items-end gap-2">
+                    {/* The daily cron (`refresh_exchange_rate`, 02:30 UTC) is the
+                        only price in this system with a real feed behind it, and
+                        a fetch that never succeeds writes nothing, logs a
+                        warning, and leaves the fallback in force forever with no
+                        visible symptom. This is how an operator finds that out:
+                        press it and either a rate lands or the 502 names the
+                        upstream problem. */}
+                    <Button
+                        variant="outline"
+                        disabled={saving !== null}
+                        onClick={() =>
+                            void run(
+                                "fx-refresh",
+                                refreshExchangeRateApiV1AdminBillingRateCardExchangeRateRefreshPost,
+                                "Could not reach the exchange rate feed",
+                            )
+                        }
+                    >
+                        {saving === "fx-refresh" && (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Fetch now
+                    </Button>
                     <Button
                         disabled={saving !== null}
                         onClick={() => {
@@ -628,11 +652,23 @@ function ExchangeRatePanel({
                         Update rate
                     </Button>
                 </div>
-                {card?.exchange_rate && (
+                {card?.exchange_rate ? (
                     <div className="flex items-end text-xs text-muted-foreground">
                         Currently {formatPaisePerUsd(card.exchange_rate.paise_per_usd)},
                         set {formatDateIST(card.exchange_rate.recorded_at)}
                     </div>
+                ) : (
+                    card && (
+                        <div className="flex items-end gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                            <span>
+                                No rate on file — every dollar-quoted charge is
+                                settling at the built-in{" "}
+                                {formatPaisePerUsd(card.fallback.paise_per_usd)}{" "}
+                                fallback. Fetch or set one.
+                            </span>
+                        </div>
+                    )
                 )}
             </div>
 

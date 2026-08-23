@@ -2,6 +2,7 @@
 
 import { ExternalLink } from "lucide-react";
 
+import { CredentialsSection } from "@/components/CredentialsSection";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { MCPSection } from "@/components/MCPSection";
 import { MfaSection } from "@/components/MfaSection";
@@ -49,6 +50,19 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <OrganizationMembersSection />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Tool credentials</CardTitle>
+            <CardDescription>
+              The secrets your tools authenticate with. Rotate one and every tool
+              using it picks the new value up on its next call.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CredentialsSection />
           </CardContent>
         </Card>
 

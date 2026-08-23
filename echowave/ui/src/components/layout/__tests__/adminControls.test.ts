@@ -182,6 +182,30 @@ const CONTROLS: Control[] = [
         // A secret, and spend under someone else's contract.
         memberMayUse: false,
     },
+
+    // --- Settings: the credentials themselves, on the screen that owns them --
+    // Create had a screen from day one and rotate and delete never did, so a
+    // secret pasted into this product could only ever be created again under a
+    // different name. The day one leaks is the day that matters.
+    {
+        screen: "settings",
+        control: "read which credentials exist",
+        route: null,
+        // A member wiring up a tool has to know what to ask for by name.
+        memberMayUse: true,
+    },
+    {
+        screen: "settings",
+        control: "rotate a credential",
+        route: "PUT /api/v1/credentials/{uuid}",
+        memberMayUse: false,
+    },
+    {
+        screen: "settings",
+        control: "delete a credential",
+        route: "DELETE /api/v1/credentials/{uuid}",
+        memberMayUse: false,
+    },
 ];
 
 const on = (screen: string) => CONTROLS.filter((c) => c.screen === screen);
@@ -229,8 +253,8 @@ const GATED_ROUTES: { route: string; minimum: string; calledFrom: string | null 
     // screen is not finished until its gated routes are listed here.
     { route: "POST /api/v1/billing/mandate/cancel", minimum: "admin", calledFrom: "billing" },
     { route: "POST /api/v1/credentials/", minimum: "admin", calledFrom: "tools" },
-    { route: "PUT /api/v1/credentials/{uuid}", minimum: "admin", calledFrom: null },
-    { route: "DELETE /api/v1/credentials/{uuid}", minimum: "admin", calledFrom: null },
+    { route: "PUT /api/v1/credentials/{uuid}", minimum: "admin", calledFrom: "settings" },
+    { route: "DELETE /api/v1/credentials/{uuid}", minimum: "admin", calledFrom: "settings" },
     { route: "DELETE /api/v1/do-not-call/{phone_number}", minimum: "admin", calledFrom: "do-not-call" },
     // Gated on the Owner tier, and on its own `isOwner` state rather than the
     // shared hook — see OrganizationMembersSection.
@@ -242,10 +266,18 @@ describe("every gated route a screen calls is gated on that screen", () => {
     it.each(GATED_ROUTES.filter((r) => r.calledFrom !== null))(
         "$route is reachable from $calledFrom",
         ({ route, calledFrom }) => {
-            // Settings is covered by OrganizationMembersSection's own isOwner
-            // check rather than by this matrix, so it is exempt from needing a
-            // row here — but it still has to name a screen.
-            if (calledFrom === "settings") {
+            // The member-management pair on Settings is gated by
+            // OrganizationMembersSection's own `isOwner` state rather than by
+            // this matrix, so those two are exempt from needing a row — but
+            // they still have to name a screen. The exemption is listed route
+            // by route on purpose: as a blanket "settings" pass it also
+            // excused every later control added to that screen, which is how
+            // a whole section can arrive ungated without failing anything.
+            const SELF_GATED = new Set([
+                "PATCH /api/v1/organizations/members/{user_id}",
+                "DELETE /api/v1/organizations/members/{user_id}",
+            ]);
+            if (SELF_GATED.has(route)) {
                 expect(route).toBeTruthy();
                 return;
             }
