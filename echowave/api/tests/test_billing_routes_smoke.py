@@ -5,6 +5,7 @@ in front of them are wired: mounted at the path they claim, resolving their
 dependencies, and serialising a response. A route that 500s on an account with
 no payments, no profile and no rate card is the one an operator meets first.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -65,7 +66,9 @@ async def test_a_customer_billing_route_answers(async_session, path):
 
     # 200 or a *deliberate* refusal. A 404 means it is not mounted where the UI
     # calls it; a 5xx means the empty state was never exercised.
-    assert response.status_code < 500, f"{path} -> {response.status_code} {response.text[:300]}"
+    assert response.status_code < 500, (
+        f"{path} -> {response.status_code} {response.text[:300]}"
+    )
     assert response.status_code != 404, f"{path} is not mounted"
 
 
@@ -84,7 +87,9 @@ async def test_a_staff_billing_route_answers(async_session, path):
     finally:
         app.dependency_overrides.pop(get_superuser, None)
 
-    assert response.status_code < 500, f"{path} -> {response.status_code} {response.text[:300]}"
+    assert response.status_code < 500, (
+        f"{path} -> {response.status_code} {response.text[:300]}"
+    )
     assert response.status_code != 404, f"{path} is not mounted"
 
 

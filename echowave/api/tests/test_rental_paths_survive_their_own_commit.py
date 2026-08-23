@@ -107,8 +107,9 @@ async def test_closing_a_rental_survives_its_own_commit(async_session):
         status=RecurringChargeStatus.RELEASED,
     )
 
-    from api.db import db_client
     from sqlalchemy import select
+
+    from api.db import db_client
 
     async with db_client.async_session() as session:
         row = await session.scalar(

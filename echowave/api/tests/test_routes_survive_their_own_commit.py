@@ -118,8 +118,7 @@ def _as_staff(user):
 
 
 class TestBundles:
-    async def test_listing_bundles_survives_the_seed_commit(
-        self, async_session):
+    async def test_listing_bundles_survives_the_seed_commit(self, async_session):
         """``list_bundles`` seeds, commits, then reads ``row.slug`` off the
         seeded rows. Always at least one bundle, so always a 500."""
         _, user = await _staff("list")
@@ -128,8 +127,7 @@ class TestBundles:
         assert response.status_code == 200, response.text[:400]
         assert "bundles" in response.json()
 
-    async def test_upserting_a_bundle_survives_its_own_commit(
-        self, async_session):
+    async def test_upserting_a_bundle_survives_its_own_commit(self, async_session):
         _, user = await _staff("upsert")
         slug = f"probe-bundle-{uuid.uuid4().hex[:8]}"
         try:
@@ -192,7 +190,8 @@ class TestPartnerDecisions:
 
 class TestOfferedModels:
     async def test_setting_offered_models_survives_the_closed_session(
-        self, async_session):
+        self, async_session
+    ):
         """Reads its result *outside* the ``async with`` block, which looks like
         the same bug and is not: ``model_catalogue.set_offered`` returns frozen
         ``CatalogueEntry`` dataclasses rather than ORM rows, so there is nothing

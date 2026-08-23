@@ -38,7 +38,9 @@ def _say(ok: bool, title: str, detail: str = "") -> None:
             print(f"          {line}")
 
 
-async def diagnose(organization_id: int, to_number: str | None, workflow_id: int | None) -> int:
+async def diagnose(
+    organization_id: int, to_number: str | None, workflow_id: int | None
+) -> int:
     """Returns a process exit code: 0 when nothing would block the call."""
     from api.constants import REQUIRE_VERIFIED_TEST_NUMBER
     from api.db import db_client
@@ -54,7 +56,9 @@ async def diagnose(organization_id: int, to_number: str | None, workflow_id: int
     provider = None
     try:
         provider = await get_default_telephony_provider(organization_id)
-        default_cfg = await db_client.get_default_telephony_configuration(organization_id)
+        default_cfg = await db_client.get_default_telephony_configuration(
+            organization_id
+        )
         _say(
             True,
             "Telephony configuration",
@@ -168,7 +172,10 @@ async def diagnose(organization_id: int, to_number: str | None, workflow_id: int
 
     try:
         await dnd.assert_may_call(
-            organization_id, phone_number, timezone_name=preferences.timezone, db=db_client
+            organization_id,
+            phone_number,
+            timezone_name=preferences.timezone,
+            db=db_client,
         )
         _say(True, "Do-not-call and calling window", "Allowed right now.")
     except dnd.CallRefused as exc:
@@ -189,7 +196,9 @@ async def diagnose(organization_id: int, to_number: str | None, workflow_id: int
         print("  * the account needs balance above the floor (402)")
         return 0
 
-    workflow = await db_client.get_workflow(workflow_id, organization_id=organization_id)
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
     if not workflow:
         _say(False, "Agent", f"No workflow {workflow_id} in this organization (404).")
         return 1
@@ -200,7 +209,11 @@ async def diagnose(organization_id: int, to_number: str | None, workflow_id: int
         liveness.assert_workflow_may_take_calls(workflow)
         _say(True, "Agent is taking calls", "")
     except liveness.AgentNotTakingCalls as exc:
-        _say(False, "Agent is taking calls", f"{exc}\nThe API answers 409.\nFIX: switch the agent on.")
+        _say(
+            False,
+            "Agent is taking calls",
+            f"{exc}\nThe API answers 409.\nFIX: switch the agent on.",
+        )
         return 1
 
     from api.services.configuration import key_readiness
@@ -236,11 +249,15 @@ async def diagnose(organization_id: int, to_number: str | None, workflow_id: int
             f"'trial' row.",
         )
         return 1
-    _say(True, "Balance", f"{balance} paise, above the {MIN_BALANCE_PAISE} paise floor.")
+    _say(
+        True, "Balance", f"{balance} paise, above the {MIN_BALANCE_PAISE} paise floor."
+    )
 
-    print("\nNothing here would block the call. If it still fails, the failure is "
-          "after dispatch — check the api logs for the provider's response, and "
-          "confirm the worker is running (/superadmin/billing/readiness).")
+    print(
+        "\nNothing here would block the call. If it still fails, the failure is "
+        "after dispatch — check the api logs for the provider's response, and "
+        "confirm the worker is running (/superadmin/billing/readiness)."
+    )
     return 0
 
 
@@ -259,7 +276,9 @@ async def list_accounts() -> int:
         orgs = list(
             (
                 await session.scalars(
-                    select(OrganizationModel).order_by(OrganizationModel.id.desc()).limit(20)
+                    select(OrganizationModel)
+                    .order_by(OrganizationModel.id.desc())
+                    .limit(20)
                 )
             ).all()
         )
@@ -279,7 +298,8 @@ async def list_accounts() -> int:
                 ).all()
             )
             agents = (
-                ", ".join(f"{w.id}:{(w.name or '?')[:24]}" for w in workflows) or "(none)"
+                ", ".join(f"{w.id}:{(w.name or '?')[:24]}" for w in workflows)
+                or "(none)"
             )
             print(f"{org.id:>6}  {(org.provider_id or '')[:34]:<34} {agents}")
     print("\nThen: python -m scripts.diagnose_call --org <ORG> --workflow <AGENT>")
@@ -288,10 +308,18 @@ async def list_accounts() -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--list", action="store_true", help="list organizations and their agents, then exit")
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="list organizations and their agents, then exit",
+    )
     parser.add_argument("--org", type=int, help="organization id")
-    parser.add_argument("--to", help="destination number (default: the org's test number)")
-    parser.add_argument("--workflow", type=int, help="workflow id, to check the agent-side gates too")
+    parser.add_argument(
+        "--to", help="destination number (default: the org's test number)"
+    )
+    parser.add_argument(
+        "--workflow", type=int, help="workflow id, to check the agent-side gates too"
+    )
     args = parser.parse_args()
     if args.list:
         return asyncio.run(list_accounts())

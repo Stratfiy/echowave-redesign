@@ -51,7 +51,9 @@ class TestWhetherACodeCanReachAnyone:
     def test_an_unknown_channel_is_not_delivery(self, monkeypatch):
         """`deliver_code` logs and refuses on an unknown channel, so promising a
         code for one would be the same broken promise in a new costume."""
-        monkeypatch.setattr(verification_sender, "VERIFICATION_CHANNEL", "carrier-pigeon")
+        monkeypatch.setattr(
+            verification_sender, "VERIFICATION_CHANNEL", "carrier-pigeon"
+        )
         monkeypatch.setattr(verification_sender, "ENVIRONMENT", "production")
         assert verification_sender.is_deliverable() is False
 
