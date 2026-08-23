@@ -13,6 +13,12 @@ Both are invisible to the rest of the suite because ``conftest``'s session sets
 ``expire_on_commit=False`` while production's ``async_sessionmaker`` takes the
 default. These tests therefore let the code open its **own** session, which is
 the only way the expiry actually happens.
+
+
+Every test here takes ``async_session`` and never uses it. That fixture creates
+the schema and orders this file against the rest of the suite; without it these
+tests pass alone and fail in a full run. It is *not* ``db_session``, which would
+repoint ``db_client`` at the savepoint and hide the bug again.
 """
 
 from __future__ import annotations
@@ -74,7 +80,7 @@ async def _account_with_an_unpayable_rental():
     return ids
 
 
-async def test_an_unpayable_rental_reports_rather_than_raising():
+async def test_an_unpayable_rental_reports_rather_than_raising(async_session):
     """The balance is zero, so this takes the dunning branch — which loads the
     charge and the number, commits, and then reads both back."""
     from api.services.billing import rentals
@@ -90,7 +96,7 @@ async def test_an_unpayable_rental_reports_rather_than_raising():
     assert outcome.charged is False
 
 
-async def test_closing_a_rental_survives_its_own_commit():
+async def test_closing_a_rental_survives_its_own_commit(async_session):
     """``close_rental`` ends the billing, commits, then logs ``charge.id``."""
     from api.services.billing import rentals
 

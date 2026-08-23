@@ -23,6 +23,18 @@ session is the whole point of the file.
 The assertions are deliberately about the status code and not the payload. What
 is being pinned is "reading a row after the commit does not blow up", and a
 route can serve any shape it likes as long as it survives.
+
+The cost of that is real writes outside the savepoint every other test relies
+on, so anything written here is removed again in a ``finally``. Skipping that
+leaves an extra bundle in the shared test database and breaks every test that
+asserts on the exact seeded set — which is a worse failure than the one this
+file exists to catch, because it lands on someone else's test.
+
+
+Every test here takes ``async_session`` and never uses it. That fixture creates
+the schema and orders this file against the rest of the suite; without it these
+tests pass alone and fail in a full run. It is *not* ``db_session``, which would
+repoint ``db_client`` at the savepoint and hide the bug again.
 """
 
 from __future__ import annotations
@@ -67,6 +79,24 @@ async def _staff(suffix: str):
     return org_id, UserModel(id=user_id, selected_organization_id=org_id)
 
 
+async def _forget_bundle(slug: str):
+    """Remove a bundle this file created.
+
+    These writes are real and outside the savepoint, so without this the row
+    survives the run and every test asserting on the exact seeded set fails.
+    """
+    from sqlalchemy import delete
+
+    from api.db import db_client
+    from api.db.models import ManagedBundleModel
+
+    async with db_client.async_session() as session:
+        await session.execute(
+            delete(ManagedBundleModel).where(ManagedBundleModel.slug == slug)
+        )
+        await session.commit()
+
+
 def _as_staff(user):
     from contextlib import asynccontextmanager
 
@@ -89,8 +119,7 @@ def _as_staff(user):
 
 class TestBundles:
     async def test_listing_bundles_survives_the_seed_commit(
-        self
-    ):
+        self, async_session):
         """``list_bundles`` seeds, commits, then reads ``row.slug`` off the
         seeded rows. Always at least one bundle, so always a 500."""
         _, user = await _staff("list")
@@ -100,32 +129,36 @@ class TestBundles:
         assert "bundles" in response.json()
 
     async def test_upserting_a_bundle_survives_its_own_commit(
-        self
-    ):
+        self, async_session):
         _, user = await _staff("upsert")
-        async with _as_staff(user) as client:
-            response = await client.put(
-                "/api/v1/admin/billing/bundles",
-                json={
-                    "slug": "probe-bundle",
-                    "label": "Probe",
-                    "architecture": "pipeline",
-                    # A pipeline bundle is refused without both, and a refusal
-                    # never reaches the commit this test is about.
-                    "stt_tier": "default",
-                    "tts_tier": "default",
-                    "is_enabled": False,
-                },
-            )
-        # Must actually reach the commit: a 400 here means the request was
-        # rejected before the line under test ran, and the test proved nothing.
-        assert response.status_code == 200, response.text[:400]
+        slug = f"probe-bundle-{uuid.uuid4().hex[:8]}"
+        try:
+            async with _as_staff(user) as client:
+                response = await client.put(
+                    "/api/v1/admin/billing/bundles",
+                    json={
+                        "slug": slug,
+                        "label": "Probe",
+                        "architecture": "pipeline",
+                        # A pipeline bundle is refused without both, and a
+                        # refusal never reaches the commit under test.
+                        "stt_tier": "default",
+                        "tts_tier": "default",
+                        "is_enabled": False,
+                    },
+                )
+            # Must actually reach the commit: a 400 here means the request was
+            # rejected before the line under test ran, and the test proved
+            # nothing.
+            assert response.status_code == 200, response.text[:400]
+        finally:
+            await _forget_bundle(slug)
 
 
 class TestPartnerDecisions:
     @pytest.mark.parametrize("decision", ["approve", "reject"])
     async def test_deciding_an_application_survives_its_own_commit(
-        self, decision
+        self, async_session, decision
     ):
         """Both hand the committed row straight to ``_queue_view``."""
         org_id, user = await _staff(decision)
@@ -159,8 +192,7 @@ class TestPartnerDecisions:
 
 class TestOfferedModels:
     async def test_setting_offered_models_survives_the_closed_session(
-        self
-    ):
+        self, async_session):
         """Reads its result *outside* the ``async with`` block, which looks like
         the same bug and is not: ``model_catalogue.set_offered`` returns frozen
         ``CatalogueEntry`` dataclasses rather than ORM rows, so there is nothing
@@ -168,14 +200,32 @@ class TestOfferedModels:
         pattern to look for is an ORM row crossing a commit, not a read that
         happens to sit after one."""
         _, user = await _staff("models")
-        async with _as_staff(user) as client:
-            response = await client.put(
-                "/api/v1/admin/provider-keys/models",
-                json={
-                    "component": "llm",
-                    "provider": "openai",
-                    "models": ["gpt-4o-mini"],
-                    "labels": {"gpt-4o-mini": "GPT-4o mini"},
-                },
-            )
-        assert response.status_code != 500, response.text[:400]
+        # A provider name nothing else uses. `set_offered` is a *replace*, so
+        # naming a real one here would empty its catalogue for the rest of the
+        # run and break the tiers that resolve to it.
+        provider = f"probe-vendor-{uuid.uuid4().hex[:8]}"
+        try:
+            async with _as_staff(user) as client:
+                response = await client.put(
+                    "/api/v1/admin/provider-keys/models",
+                    json={
+                        "component": "llm",
+                        "provider": provider,
+                        "models": ["probe-model"],
+                        "labels": {"probe-model": "Probe model"},
+                    },
+                )
+            assert response.status_code != 500, response.text[:400]
+        finally:
+            from sqlalchemy import delete
+
+            from api.db import db_client
+            from api.db.models import PlatformModelModel
+
+            async with db_client.async_session() as session:
+                await session.execute(
+                    delete(PlatformModelModel).where(
+                        PlatformModelModel.provider == provider
+                    )
+                )
+                await session.commit()
