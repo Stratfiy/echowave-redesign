@@ -211,13 +211,37 @@ async def initiate_call(
     ) and not await verified_numbers.is_verified(
         user.selected_organization_id, phone_number
     ):
-        raise HTTPException(
-            status_code=403,
-            detail=(
+        # Telling someone to verify a number on a deployment that cannot send a
+        # code is a loop: they follow the instruction, the verify screen answers
+        # 502, and nothing on either screen says the step is impossible here.
+        # `REQUIRE_VERIFIED_TEST_NUMBER` is off by default for exactly this
+        # reason — "a permission nobody can obtain is not a permission, it is an
+        # outage" — but `using_shared_caller_id` turns the same gate on for the
+        # accounts most likely to meet it: the ones with no carrier of their
+        # own, on their first call. So say which of the two situations this is.
+        from api.services.telephony import verification_sender
+
+        if verification_sender.is_deliverable():
+            detail = (
                 "Verify this number before calling it. Add it under Verified "
                 "numbers and enter the code we send you."
-            ),
-        )
+            )
+        elif using_shared_caller_id:
+            detail = (
+                "Test calls on Decibyl's shared caller ID only go to a verified "
+                "number, and this deployment cannot send verification codes yet. "
+                "Connect your own telephony provider under Telephony to place "
+                "this call, or ask your administrator to configure "
+                "VERIFICATION_CHANNEL."
+            )
+        else:
+            detail = (
+                "This number is not verified, and this deployment cannot send "
+                "verification codes. Ask your administrator to configure "
+                "VERIFICATION_CHANNEL, or to turn REQUIRE_VERIFIED_TEST_NUMBER "
+                "off until it is."
+            )
+        raise HTTPException(status_code=403, detail=detail)
 
     if using_shared_caller_id:
         logger.info(

@@ -245,3 +245,57 @@ close before quoting anyone a large contract.
 
 Razorpay Subscriptions approval, Plivo KYC, DLT registration for SMS
 verification.
+
+---
+
+## Appendix — "the agent saves but the call won't place"
+
+The agent and the call have almost no gates in common, which is why one works
+while the other doesn't. `POST /api/v1/telephony/initiate-call` walks ten gates
+in this order and stops at the first:
+
+| # | Gate | Code | What it means |
+|---|---|---|---|
+| 1 | A carrier to dial on | 400 `telephony_not_configured` | no config of your own **and** no shared outbound number on the platform |
+| 2 | `validate_config()` | 400 `telephony_not_configured` | **credentials or a caller ID** — same code for both, see below |
+| 3 | KYC on a managed number | 403 | licensee has not verified this customer |
+| 4 | Rental not suspended | 402 | rent overdue past the threshold |
+| 5 | A destination number | 400 | none passed and none in preferences |
+| 6 | Destination is verified | 403 | only when the gate is on — see below |
+| 7 | DND and calling window | 451 | a legal refusal, not a permission problem |
+| 8 | Agent is taking calls | 409 | switched off |
+| 9 | Model slots have usable keys | 409 | a slot set to your own key with no key behind it |
+| 10 | Balance above the floor | 402 | below `MIN_BALANCE_PAISE` (₹20) |
+
+Run this on the box rather than guessing which one it is:
+
+```bash
+set -a && source api/.env && set +a
+python -m scripts.diagnose_call --org 42
+python -m scripts.diagnose_call --org 42 --to +919900000000 --workflow 7
+```
+
+It is read-only — no call, no run, no concurrency slot, no writes — and prints
+the first blocker with its fix.
+
+**Two traps worth knowing before you look.**
+
+**Gate 2 hides two different problems behind one code.** `validate_config()`
+means "can place a call", which is credentials **and** a from-number. A Plivo
+config with perfect credentials and no phone number fails exactly like a bad
+password: the Telephony screen looks finished and the call is refused as
+`telephony_not_configured`. The diagnostic separates them; the API does not.
+
+**Gate 6 can be a dead end.** `REQUIRE_VERIFIED_TEST_NUMBER` is off by default
+because `VERIFICATION_CHANNEL=log` refuses to run outside a dev environment, so
+with it on nobody could verify a number. But falling back to the shared caller
+ID pool (gate 1's second branch) turns the same gate on regardless — for
+accounts with no carrier of their own, which is every account on its first call.
+Those accounts were told "enter the code we send you" and then got a 502 saying
+verification is not configured. The message now names the real remedy instead:
+connect your own carrier, or set `VERIFICATION_CHANNEL` to `voice`, `plivo_sms`
+or `twilio_sms` with the platform carrier credentials.
+
+Nothing here blocking it? Then the failure is after dispatch. Check the api logs
+for the carrier's own response, and confirm the background worker is running on
+`/superadmin/billing/readiness`.

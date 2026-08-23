@@ -61,6 +61,29 @@ class DeliveryResult:
     reference: str | None = None
 
 
+#: ENVIRONMENTs in which the `log` channel is allowed to stand in for delivery.
+DEV_ENVIRONMENTS = frozenset({"test", "local", "development", "dev"})
+
+
+def is_deliverable() -> bool:
+    """Whether a code can actually reach anyone on this deployment.
+
+    Asked *before* a caller tells someone to go and verify a number. The `log`
+    channel refuses to run outside a dev environment, so on a real deployment
+    that has configured nothing, "enter the code we send you" instructs the
+    customer to complete a step that cannot be completed — and they discover
+    that only after following it, from a 502 on the verify screen.
+
+    Deliberately a cheap configuration read rather than a probe: the question is
+    "is this deployment set up to send", not "is the carrier up right now". A
+    carrier having a bad minute is a delivery failure and reports itself as one.
+    """
+    channel = (VERIFICATION_CHANNEL or "log").strip().lower()
+    if channel == "log":
+        return (ENVIRONMENT or "").lower() in DEV_ENVIRONMENTS
+    return channel in {"plivo_sms", "twilio_sms", "voice"}
+
+
 def _body(code: str) -> str:
     """The message text.
 
@@ -79,7 +102,7 @@ async def _send_log(number: str, code: str) -> DeliveryResult:
     only place the code would exist is a log line — which is both a broken
     feature and a credential in the wrong place.
     """
-    if (ENVIRONMENT or "").lower() not in {"test", "local", "development", "dev"}:
+    if (ENVIRONMENT or "").lower() not in DEV_ENVIRONMENTS:
         return DeliveryResult(
             ok=False,
             channel="log",
