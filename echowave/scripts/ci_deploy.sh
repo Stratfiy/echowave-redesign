@@ -75,8 +75,71 @@ git -C "$GIT_DIR" submodule update --init --recursive
 NEW_SHA="$(git -C "$GIT_DIR" rev-parse HEAD)"
 say "Now on $NEW_SHA"
 
+# The revision the database is actually at, or empty if it cannot be read.
+#
+# Read from postgres rather than from alembic, because the whole point is to
+# answer this when the api container will not start.
+db_revision() {
+    docker compose exec -T postgres \
+        psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-decibyl}" \
+        -tAc 'select version_num from alembic_version' 2>/dev/null | tr -d '[:space:]'
+}
+
+# Whether a commit's migration set contains a given revision.
+#
+# Greps the versions directory at that commit without checking it out, so this
+# can be asked before deciding to move.
+commit_has_revision() {
+    local sha="$1" revision="$2"
+    [ -n "$revision" ] || return 0
+    # Anchored, because `down_revision = "<rev>"` contains `revision = "<rev>"`
+    # as a substring — an unanchored match would report a commit as having a
+    # revision when all it has is another migration pointing back at it, which
+    # is precisely the case this guard exists to catch.
+    git -C "$GIT_DIR" grep -qE "^revision(: str)? = \"$revision\"" \
+        "$sha" -- 'echowave/api/alembic/versions/*.py' 2>/dev/null
+}
+
+# A rollback that cannot start is worse than no rollback.
+#
+# `alembic upgrade head` runs on the way up and migrations do not reverse, so
+# once a deploy has migrated, the previous commit may no longer be able to read
+# the database it is being pointed back at. The api then exits with "Can't
+# locate revision identified by '<rev>'" and the container is gone — a failed
+# deploy converted into an outage, which is exactly what happened on 24 Aug
+# 2026 (deploy #89: rolled back past a3c9e1b47d02, api exited 255, stack down
+# until someone rebuilt by hand).
+#
+# So the rollback asks first. If the database is at a revision the previous
+# commit does not have, it stays on the new code and says so loudly. The new
+# code is at least able to read the database; the old code demonstrably is not,
+# and leaving a human a running stack with a failed deploy beats handing them a
+# dead one.
 rollback() {
+    local revision
+    revision="$(db_revision)"
+
+    if [ -n "$revision" ] && ! commit_has_revision "$PREVIOUS_SHA" "$revision"; then
+        say "DEPLOY FAILED — NOT rolling back"
+        cat >&2 <<EOF
+The database is at migration $revision, which $PREVIOUS_SHA does not contain.
+Rolling back would leave the api unable to read its own database, and it would
+not start at all.
+
+The stack has been left on the new commit ($NEW_SHA). Fix forward: read the
+failure above, then redeploy. If you must go back, you have to downgrade the
+database first, and check what $revision did before you do — a downgrade drops
+whatever it added.
+EOF
+        return 0
+    fi
+
     say "DEPLOY FAILED — rolling back to $PREVIOUS_SHA"
+    if [ -n "$revision" ]; then
+        say "Database is at $revision, which $PREVIOUS_SHA has — safe to roll back"
+    else
+        say "Could not read the database revision; rolling back on the old behaviour"
+    fi
     git -C "$GIT_DIR" checkout --detach "$PREVIOUS_SHA" || true
     git -C "$GIT_DIR" submodule update --init --recursive || true
     docker compose --profile remote up -d --build || true
