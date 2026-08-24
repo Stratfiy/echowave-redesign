@@ -35,9 +35,21 @@ RUN --mount=type=bind,source=api/requirements.txt,target=/tmp/req.txt \
 #   2. Pre-download NLTK's punkt_tab tokenizer so pipecat's text processing
 #      doesn't hit the network on first agent run. NLTK auto-finds it under
 #      sys.prefix/nltk_data, so it travels with the venv on COPY.
+#
+# local-smart-turn-v3 is what makes `turn_stop_strategy: "turn_analyzer"` run.
+# Without it that option was a trap: the schema offers it, the UI renders it,
+# and LocalSmartTurnAnalyzerV3 raises on import because nothing installed
+# onnxruntime — so an operator selecting the setting that fixes their latency
+# got an agent that would not start.
+#
+# It is the one extra here that costs real image size: it pulls transformers,
+# torch and torchaudio. Worth it, because the alternative is a fixed 600ms of
+# dead air on every turn of every call. The model weights ship inside pipecat
+# rather than downloading, so unlike punkt_tab above there is nothing to
+# pre-fetch, and inference is ~12ms on CPU.
 RUN --mount=type=bind,source=pipecat,target=/tmp/pipecat,rw \
     --mount=type=cache,target=/root/.cache/uv \
-    uv pip install '/tmp/pipecat[cartesia,deepgram,openai,elevenlabs,groq,google,azure,sarvam,soundfile,silero,webrtc,speechmatics,openrouter,camb,mcp,inworld,smallest]' \
+    uv pip install '/tmp/pipecat[cartesia,deepgram,openai,elevenlabs,groq,google,azure,sarvam,soundfile,silero,webrtc,speechmatics,openrouter,camb,mcp,inworld,smallest,local-smart-turn-v3]' \
  && uv pip uninstall opencv-python \
  && uv pip install opencv-python-headless \
  && python -c "import nltk; nltk.download('punkt_tab', download_dir='/opt/venv/nltk_data', quiet=True)"
