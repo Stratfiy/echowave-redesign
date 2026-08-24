@@ -150,22 +150,7 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # and the same vendor already serving managed transcription and voice —
         # so the cheap tier is one relationship and one key rather than three.
         ("llm", "lite"): _tier("llm", "lite", "sarvam", "sarvam-105b"),
-        # Sarvam, not gpt-4.1-mini, and the reason is where the model runs
-        # rather than what it scores. Every turn of every call on this platform
-        # originates in India; gpt-4.1-mini is served from the US, so each turn
-        # pays an India-to-US round trip before the model has produced a single
-        # token. That is 200-300ms of pure network on a budget whose whole
-        # target is 800ms.
-        #
-        # Sarvam-105B is hosted in India, trained on Indian languages — which is
-        # the same reason saaras:v3 and bulbul:v3 are the speech tiers — and is
-        # roughly ten times cheaper per token, so it partly pays for the speech
-        # upgrades above rather than adding to them.
-        #
-        # The tier a customer picks for reasoning depth is still theirs:
-        # "accurate" remains gpt-4.1 for work that wants it, and pays the
-        # latency for it.
-        ("llm", "default"): _tier("llm", "default", "sarvam", "sarvam-105b"),
+        ("llm", "default"): _tier("llm", "default", "openai", "gpt-4.1-mini"),
         ("llm", "accurate"): _tier("llm", "accurate", "openai", "gpt-4.1"),
         # Retired names, kept resolving to the model they always served.
         ("llm", "fast"): _tier("llm", "fast", "sarvam", "sarvam-105b"),
