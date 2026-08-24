@@ -342,7 +342,21 @@ STT_RATES = (
         CostComponent.STT,
         RateUnit.MINUTE,
         _inr(30.0 / 60),
-        "Rs30/hour published. The model the default managed tier resolves to.",
+        "Rs30/hour published. Single-language transcription.",
+    ),
+    # The model the default managed tier resolves to, and dearer than saarika
+    # for a reason worth stating: it is one model over 22 Indian languages plus
+    # English with automatic detection, so a caller who switches language
+    # mid-sentence is transcribed rather than lost. Priced by name rather than
+    # left on the sarvam provider-wide row, because a tier we sell must not be
+    # priced identically to whatever the vendor ships next.
+    DefaultRate(
+        "sarvam",
+        "saaras:v3",
+        CostComponent.STT,
+        RateUnit.MINUTE,
+        0.53 / 60,
+        "$0.53/hour published. Multilingual with automatic language detection.",
     ),
     DefaultRate(
         "elevenlabs",

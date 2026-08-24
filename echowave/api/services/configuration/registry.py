@@ -1784,10 +1784,12 @@ class SarvamSTTConfiguration(BaseSTTConfiguration):
     model_config = SARVAM_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.SARVAM] = ServiceProviders.SARVAM
     model: str = Field(
-        default="saarika:v2.5",
+        default="saaras:v3",
         description=(
-            "Sarvam STT model. saarika:v2.5 transcribes in the spoken language; "
-            "saaras:v3 is the recommended model with flexible output modes."
+            "Sarvam STT model. saaras:v3 covers 22 Indian languages plus "
+            "English in one model with automatic detection, and is trained on "
+            "code-mixed speech — pick it unless every caller stays in one "
+            "language. saarika:v2.5 transcribes a single spoken language."
         ),
         json_schema_extra={"examples": SARVAM_STT_MODELS},
     )
