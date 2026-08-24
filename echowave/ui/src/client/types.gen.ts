@@ -5840,7 +5840,13 @@ export type ProviderRateRequest = {
     /**
      * Rate Mpaise
      */
-    rate_mpaise: number;
+    rate_mpaise?: number | null;
+    /**
+     * Rate Micros Usd
+     *
+     * Dollars instead of rupees. Exactly one of the two, same rule as the platform rate — a dollar row is converted at read time so its cost follows the rupee, a rupee row never is.
+     */
+    rate_micros_usd?: number | null;
     /**
      * Model
      *
@@ -5877,12 +5883,30 @@ export type ProviderRatesRequest = {
     unit: string;
     /**
      * Flat Rate Mpaise
+     *
+     * Applies to every model without a row of its own.
      */
     flat_rate_mpaise?: number | null;
     /**
+     * Flat Rate Micros Usd
+     *
+     * The same flat rate, quoted in dollars instead. One or the other.
+     */
+    flat_rate_micros_usd?: number | null;
+    /**
      * Model Rates
+     *
+     * Model name to millipaise. Outranks the flat rate for those models.
      */
     model_rates?: {
+        [key: string]: number;
+    };
+    /**
+     * Model Rates Micros Usd
+     *
+     * Model name to micro-dollars, for a vendor who invoices in dollars. A separate map rather than a currency field per entry, so a rupee value can never be read as a dollar one.
+     */
+    model_rates_micros_usd?: {
         [key: string]: number;
     };
 };

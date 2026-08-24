@@ -44,6 +44,8 @@ class ModelEntry:
     model: str
     #: Millipaise per rate unit, or None when this model has no row of its own.
     rate_mpaise: int | None
+    #: Set instead of ``rate_mpaise`` when the row is quoted in dollars.
+    rate_micros_usd: int | None
     unit: str | None
     #: True when the price shown comes from the provider-wide row rather than
     #: one quoted for this model. The flat-rate case, said out loud.
@@ -55,6 +57,10 @@ class ComponentEntry:
     component: str
     #: The provider-wide rate, applied to any model without its own row.
     flat_rate_mpaise: int | None
+    #: Set instead of ``flat_rate_mpaise`` when quoted in dollars. The screen
+    #: reads this to open the editor in the currency the vendor was priced in,
+    #: rather than in whichever one the form happens to default to.
+    flat_rate_micros_usd: int | None
     flat_unit: str | None
     has_platform_key: bool
     models: list[ModelEntry] = field(default_factory=list)
@@ -68,7 +74,9 @@ class ProviderEntry:
     @property
     def is_priced(self) -> bool:
         return any(
-            c.flat_rate_mpaise is not None or any(m.rate_mpaise for m in c.models)
+            c.flat_rate_mpaise is not None
+            or c.flat_rate_micros_usd is not None
+            or any(m.rate_mpaise or m.rate_micros_usd for m in c.models)
             for c in self.components
         )
 
@@ -161,6 +169,11 @@ async def build(session: AsyncSession) -> list[ProviderEntry]:
                         if name in named
                         else (flat.rate_mpaise if flat else None)
                     ),
+                    rate_micros_usd=(
+                        named[name].rate_micros_usd
+                        if name in named
+                        else (flat.rate_micros_usd if flat else None)
+                    ),
                     unit=(
                         named[name].unit
                         if name in named
@@ -175,6 +188,7 @@ async def build(session: AsyncSession) -> list[ProviderEntry]:
                 ComponentEntry(
                     component=component,
                     flat_rate_mpaise=flat.rate_mpaise if flat else None,
+                    flat_rate_micros_usd=flat.rate_micros_usd if flat else None,
                     flat_unit=flat.unit if flat else None,
                     has_platform_key=(component, provider) in keyed,
                     models=models,
@@ -194,7 +208,9 @@ async def set_rates(
     unit: str,
     actor_user_id: int | None,
     flat_rate_mpaise: int | None = None,
+    flat_rate_micros_usd: int | None = None,
     model_rates: dict[str, int] | None = None,
+    model_rates_micros_usd: dict[str, int] | None = None,
 ) -> dict:
     """Price a vendor flat, per model, or both.
 
@@ -210,7 +226,7 @@ async def set_rates(
     from api.services.billing import rate_card
 
     written: list[str] = []
-    if flat_rate_mpaise is not None:
+    if flat_rate_mpaise is not None or flat_rate_micros_usd is not None:
         await rate_card.set_provider_rate(
             session,
             actor_user_id=actor_user_id,
@@ -218,9 +234,26 @@ async def set_rates(
             component=component,
             unit=unit,
             rate_mpaise=flat_rate_mpaise,
+            rate_micros_usd=flat_rate_micros_usd,
             model="",
         )
         written.append("(all models)")
+
+    # Dollar-quoted model rates, kept in their own map rather than sharing one
+    # with the rupee rates. A single map would have to carry the currency per
+    # entry or guess it from the provider, and guessing is how a $0.05 rate gets
+    # written as five paise.
+    for model, micros in sorted((model_rates_micros_usd or {}).items()):
+        await rate_card.set_provider_rate(
+            session,
+            actor_user_id=actor_user_id,
+            provider=provider,
+            component=component,
+            unit=unit,
+            rate_micros_usd=micros,
+            model=model,
+        )
+        written.append(model)
 
     for model, mpaise in sorted((model_rates or {}).items()):
         await rate_card.set_provider_rate(

@@ -43,6 +43,7 @@ from api.services.billing.money import (
     DEFAULT_PLATFORM_RATE_MICROS_USD,
     DEFAULT_PULSE_SECONDS,
     DEFAULT_USD_INR_PAISE,
+    usd_to_mpaise,
 )
 
 #: The threshold that means "everyone". See the module docstring.
@@ -58,6 +59,21 @@ def _resolve_effective_from(value: datetime | None) -> datetime:
     if value is None:
         return datetime.now(UTC)
     return value if value.tzinfo else value.replace(tzinfo=UTC)
+
+
+def _mpaise_of(row, fx) -> int | None:
+    """What a provider rate row costs in millipaise, whichever way it is quoted.
+
+    A dollar row has no rupee figure of its own — it has today's, at today's
+    rate — so the conversion has to happen wherever the row is read rather than
+    once at write time. Returns None only when there is no FX on file to convert
+    with, which the card surfaces rather than papering over with a guess.
+    """
+    if row.rate_micros_usd is None:
+        return row.rate_mpaise
+    if not fx or not fx.paise_per_usd:
+        return None
+    return usd_to_mpaise(micros_usd=row.rate_micros_usd, usd_inr_paise=fx.paise_per_usd)
 
 
 def _check_currency(micros_usd: int | None, mpaise: int | None) -> None:
@@ -288,7 +304,8 @@ async def set_provider_rate(
     provider: str,
     component: CostComponent | str,
     unit: RateUnit | str,
-    rate_mpaise: int,
+    rate_mpaise: int | None = None,
+    rate_micros_usd: int | None = None,
     model: str = "",
     effective_from: datetime | None = None,
     note: str | None = None,
@@ -299,6 +316,11 @@ async def set_provider_rate(
     what is edited here is exactly what gets billed. A model-specific rate and
     the provider-wide fallback (``model = ""``) are separate rows and are
     closed independently.
+
+    Quoted in exactly one currency, the same rule the platform rate follows.
+    Dollars for a vendor who invoices in dollars — the row is converted at read
+    time, so the cost moves when the rupee does. Rupees for a vendor whose
+    contract is written in rupees, where no FX is applied at all.
     """
     component_value = (
         component.value if isinstance(component, CostComponent) else str(component)
@@ -312,8 +334,7 @@ async def set_provider_rate(
     except ValueError as exc:
         raise RateCardError(str(exc)) from exc
 
-    if rate_mpaise < 0:
-        raise RateCardError("A rate cannot be negative.")
+    _check_currency(rate_micros_usd, rate_mpaise)
 
     provider = provider.strip().lower()
     model = (model or "").strip().lower()
@@ -333,7 +354,14 @@ async def set_provider_rate(
         .order_by(ProviderRateModel.effective_from.desc())
         .limit(1),
     )
-    old = {"rate_mpaise": current.rate_mpaise} if current is not None else {}
+    old = (
+        {
+            "rate_mpaise": current.rate_mpaise,
+            "rate_micros_usd": current.rate_micros_usd,
+        }
+        if current is not None
+        else {}
+    )
     await _close_open_row(session, current, at)
 
     row = ProviderRateModel(
@@ -342,6 +370,7 @@ async def set_provider_rate(
         component=component_value,
         unit=unit_value,
         rate_mpaise=rate_mpaise,
+        rate_micros_usd=rate_micros_usd,
         effective_from=at,
         note=note,
     )
@@ -358,6 +387,7 @@ async def set_provider_rate(
             "component": component_value,
             "unit": unit_value,
             "rate_mpaise": rate_mpaise,
+            "rate_micros_usd": rate_micros_usd,
             "effective_from": at.isoformat(),
         },
         note=note,
@@ -404,7 +434,10 @@ async def retire_provider_rate(
         session,
         actor_user_id=actor_user_id,
         action=BillingAuditAction.PROVIDER_RATE_CHANGED,
-        old_value={"rate_mpaise": current.rate_mpaise},
+        old_value={
+            "rate_mpaise": current.rate_mpaise,
+            "rate_micros_usd": current.rate_micros_usd,
+        },
         new_value={"retired_at": at.isoformat()},
     )
 
@@ -573,16 +606,31 @@ async def get_rate_card(session: AsyncSession) -> RateCard:
                 "model": r.model or None,
                 "component": r.component,
                 "unit": r.unit,
-                "rate_mpaise": r.rate_mpaise,
-                # Both currencies, derived from one stored number. Vendors quote
-                # in dollars and we invoice in rupees, so a card showing only
-                # one of them makes somebody do the conversion in their head at
-                # a rate they have guessed.
-                "rate_inr": r.rate_mpaise / 100_000,
-                "rate_usd": (
-                    r.rate_mpaise / (fx.paise_per_usd * 1000)
-                    if fx and fx.paise_per_usd
+                # The stored price, and which currency it was quoted in. A
+                # dollar row bills at whatever the FX is on the day of the call,
+                # so the rupee figure below it is today's answer rather than a
+                # fixed one — which is why the currency is reported and not just
+                # inferred from the numbers.
+                "rate_mpaise": _mpaise_of(r, fx),
+                "rate_micros_usd": r.rate_micros_usd,
+                "quoted_in": "usd" if r.rate_micros_usd is not None else "inr",
+                # Both currencies either way. Vendors quote in dollars and we
+                # invoice in rupees, so a card showing only one of them makes
+                # somebody do the conversion in their head at a rate they have
+                # guessed.
+                "rate_inr": (
+                    _mpaise_of(r, fx) / 100_000
+                    if _mpaise_of(r, fx) is not None
                     else None
+                ),
+                "rate_usd": (
+                    r.rate_micros_usd / 1_000_000
+                    if r.rate_micros_usd is not None
+                    else (
+                        r.rate_mpaise / (fx.paise_per_usd * 1000)
+                        if fx and fx.paise_per_usd and r.rate_mpaise is not None
+                        else None
+                    )
                 ),
                 "effective_from": r.effective_from.isoformat(),
                 "note": r.note,

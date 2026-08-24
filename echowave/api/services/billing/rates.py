@@ -88,6 +88,12 @@ class ResolvedProviderRate:
     # The model the matched row was quoted for; "" when it is the
     # provider-wide fallback rather than a model-specific rate.
     model: str = ""
+    #: Set only when the row was quoted in dollars, alongside the FX used to
+    #: reach ``rate_mpaise``. Both None on a rupee-native row, which is how a
+    #: reader tells "this vendor invoices us in rupees" from "this vendor
+    #: invoices us in dollars and today that came to this many paise".
+    rate_micros_usd: int | None = None
+    usd_inr_paise: int | None = None
 
 
 def _effective_at(column_from, column_to, at: datetime):
@@ -276,6 +282,25 @@ async def resolve_provider_rate(
     )
     if row is None:
         return None
+
+    # A dollar-quoted row is converted here rather than at write time, so the
+    # cost follows the rupee the way the vendor's invoice does. The FX lookup
+    # happens only when such a row is actually matched — a deployment buying
+    # entirely in rupees never pays for it.
+    if row.rate_micros_usd is not None:
+        fx = await resolve_usd_inr(session, at=at)
+        return ResolvedProviderRate(
+            provider=row.provider,
+            component=row.component,
+            unit=RateUnit(row.unit),
+            rate_mpaise=usd_to_mpaise(
+                micros_usd=row.rate_micros_usd, usd_inr_paise=fx.paise_per_usd
+            ),
+            model=row.model or "",
+            rate_micros_usd=row.rate_micros_usd,
+            usd_inr_paise=fx.paise_per_usd,
+        )
+
     return ResolvedProviderRate(
         provider=row.provider,
         component=row.component,
