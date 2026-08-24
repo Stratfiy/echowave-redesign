@@ -136,8 +136,8 @@ LLM_RATES = (
         "",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,
-        _blend(0.80, 4.00),
-        "Haiku-class list, blended",
+        _blend(1.00, 5.00),
+        "Claude Haiku 4.5 $1.00/$5.00 per 1M, blended",
     ),
     # The OpenAI default in the picker, and it had no row of its own — so it
     # fell through to the provider-wide fallback, which is deliberately set to
@@ -168,16 +168,16 @@ LLM_RATES = (
         "",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,
-        _blend(0.15, 1.25),
-        "Gemini 2.5 Flash $0.15/$1.25 per 1M, blended",
+        _blend(0.30, 2.50),
+        "Gemini 2.5 Flash $0.30/$2.50 per 1M, blended",
     ),
     DefaultRate(
         "google",
         "gemini-2.5-flash",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,
-        _blend(0.15, 1.25),
-        "$0.15/$1.25 per 1M, blended",
+        _blend(0.30, 2.50),
+        "$0.30/$2.50 per 1M, blended",
     ),
     # Retired 2026-10-16. The row stays because rate rows are effective-dated
     # history: a call priced against this model last quarter still has to be
@@ -193,22 +193,19 @@ LLM_RATES = (
     ),
     # The successor the fast/lite/zen tiers now resolve to.
     #
-    # PRICE UNCONFIRMED. The figure below is Gemini 3.1 Flash-Lite's published
-    # $0.25/$1.50, used because it is the nearest Lite tier Google has actually
-    # priced in public — not because anyone has read 3.5 Flash-Lite's own page.
-    # It is deliberately the dearer of the two plausible numbers so the card
-    # under-reports margin rather than over-reports it, which is the direction
-    # this file errs in everywhere else.
-    #
-    # Confirm against Google's live price list and correct this row. A wrong
-    # rate here is a wrong invoice on every managed call in three of five tiers.
+    # Was ASSUMED at 3.1 Flash-Lite's $0.25/$1.50, because nobody had read this
+    # model's own page. Read now: Google publishes $0.30/$2.50, so the stand-in
+    # under-reported the cost by 54% rather than over-reporting it as its note
+    # claimed. Worth remembering the next time a guess is defended as being the
+    # conservative direction — a guess has no direction, only an error bar
+    # nobody measured.
     DefaultRate(
         "google",
         "gemini-3.5-flash-lite",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,
-        _blend(0.25, 1.50),
-        "ASSUMED $0.25/$1.50 per 1M from 3.1 Flash-Lite — confirm before relying on it.",
+        _blend(0.30, 2.50),
+        "$0.30/$2.50 per 1M, blended",
     ),
     # Sarvam publishes in rupees: ₹4/1M in, ₹16/1M out (₹2.5 cached, which this
     # single-rate schema cannot express). Roughly a quarter of what the previous
@@ -347,7 +344,15 @@ STT_RATES = (
         _inr(30.0 / 60),
         "Rs30/hour published. The model the default managed tier resolves to.",
     ),
-    DefaultRate("elevenlabs", "", CostComponent.STT, RateUnit.MINUTE, 0.0060, "Scribe"),
+    DefaultRate(
+        "elevenlabs",
+        "",
+        CostComponent.STT,
+        RateUnit.MINUTE,
+        0.0065,
+        "Scribe v2 Realtime $0.39/hour. Batch Scribe v2 is $0.22/hour, which is "
+        "not the traffic a live agent generates.",
+    ),
     DefaultRate(
         "azure", "", CostComponent.STT, RateUnit.MINUTE, 0.0167, "$1.00/hour standard"
     ),
@@ -388,8 +393,8 @@ TTS_RATES = (
         "",
         CostComponent.TTS,
         RateUnit.THOUSAND_CHARS,
-        0.0350,
-        "Sonic 3 — approx $35 per 1M characters",
+        0.0500,
+        "Sonic — $50 per 1M characters, pay-as-you-go",
     ),
     # Two Bulbul generations at a 2x price difference, so the provider-wide
     # fallback matters. It is v2, because that is what the default managed tier
@@ -448,7 +453,12 @@ TTS_RATES = (
         "Rs0.99 per 1k chars published — the expressive model, twice Mulberry",
     ),
     DefaultRate(
-        "smallest", "", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 0.0200, "Lightning"
+        "smallest",
+        "",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        0.0250,
+        "Lightning V3.1 — approx $0.25 per 10k characters",
     ),
 )
 
