@@ -21,6 +21,7 @@ billed to us rather than to a tenant:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -37,6 +38,12 @@ from api.services.configuration.registry import realtime_key_provider
 #: carrier credentials live on telephony_configurations, which already models
 #: per-account carrier accounts and the KYC that goes with them.
 CREDENTIAL_COMPONENTS = (CostComponent.STT, CostComponent.LLM, CostComponent.TTS)
+
+
+#: Three or more of any character a dashboard masks a key with. Matched as a
+#: run because a single one could conceivably be legitimate; eight in a row
+#: never are.
+MASK_RUN = re.compile(r"[\u2022\u00b7\u2219\u25cf\u2027*]{3,}")
 
 
 class PlatformCredentialError(ValueError):
@@ -138,6 +145,31 @@ async def set_credential(
     if len(api_key) < 8:
         raise PlatformCredentialError(
             "That does not look like an API key. Paste the whole value."
+        )
+
+    # Every vendor's key is ASCII, and it travels to them in an HTTP header,
+    # which cannot carry anything else. Storing a non-ASCII one succeeds, and
+    # then every call on that provider dies with a UnicodeEncodeError raised
+    # from inside httpx — a 500 with no message a reader can act on, arriving
+    # whenever someone next uses the feature rather than here.
+    #
+    # The masked value gets its own message because it is the one people
+    # actually paste. A vendor shows the real key once at creation and a masked
+    # form ever after (``sk-proj-••••••••``), and that form is the right
+    # length, carries the right prefix, and sits on screen beside a copy
+    # button. A run of three is required so a lone character cannot trip it.
+    if MASK_RUN.search(api_key):
+        raise PlatformCredentialError(
+            "That is the masked key the dashboard displays, not the key "
+            "itself. Most vendors show the real value only once, when the key "
+            "is created — create a new key and paste that."
+        )
+
+    if any(ord(character) > 127 for character in api_key):
+        raise PlatformCredentialError(
+            "That key contains characters an API key cannot hold. It usually "
+            "means it was copied through something that rewrote the text — "
+            "paste it straight from the vendor's dashboard."
         )
 
     cipher = _cipher()
