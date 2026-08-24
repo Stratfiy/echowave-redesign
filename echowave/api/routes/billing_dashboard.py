@@ -523,7 +523,11 @@ class ProviderRateRequest(BaseModel):
     provider: str = Field(..., min_length=1, max_length=64)
     component: str = Field(..., description="stt | llm | tts | telephony")
     unit: str = Field(..., description="minute | 1k_chars | 1k_tokens")
-    rate_mpaise: int = Field(..., ge=0, le=100_000_000)
+    rate_mpaise: int | None = Field(None, ge=0, le=100_000_000)
+    #: Dollars instead of rupees. Exactly one of the two, same rule as the
+    #: platform rate — a dollar row is converted at read time so its cost
+    #: follows the rupee, a rupee row never is.
+    rate_micros_usd: int | None = Field(None, ge=0, le=100_000_000)
     model: str = Field("", max_length=128, description="Empty = provider-wide fallback")
     effective_from: datetime | None = None
     note: str | None = None
@@ -565,7 +569,11 @@ async def get_rate_card() -> dict[str, Any]:
         for r in card.provider_rates
         # Provider-wide rows only: a model-specific rate cannot be compared
         # against a blend measured across every model from that vendor.
-        if r["model"] is None
+        #
+        # A dollar row with no exchange rate on file has no rupee figure to
+        # compare against, so it is left out rather than compared at a rate
+        # nobody chose — the rate card reports the missing FX itself.
+        if r["model"] is None and r["rate_mpaise"] is not None
     }
     divergences = realized_rates.divergence(realized, configured)
 
@@ -717,6 +725,7 @@ async def set_provider_rate(
                 component=request.component,
                 unit=request.unit,
                 rate_mpaise=request.rate_mpaise,
+                rate_micros_usd=request.rate_micros_usd,
                 model=request.model,
                 effective_from=request.effective_from,
                 note=request.note,
@@ -824,8 +833,14 @@ class ProviderRatesRequest(BaseModel):
     unit: str
     #: Applies to every model without a row of its own.
     flat_rate_mpaise: int | None = None
+    #: The same flat rate, quoted in dollars instead. One or the other.
+    flat_rate_micros_usd: int | None = None
     #: Model name to millipaise. Outranks the flat rate for those models.
     model_rates: dict[str, int] = {}
+    #: Model name to micro-dollars, for a vendor who invoices in dollars.
+    #: A separate map rather than a currency field per entry, so a rupee value
+    #: can never be read as a dollar one.
+    model_rates_micros_usd: dict[str, int] = {}
 
 
 @router.get("/providers")
@@ -852,12 +867,14 @@ async def list_providers(user: UserModel = Depends(get_superuser)) -> dict[str, 
                     {
                         "component": component.component,
                         "flat_rate_mpaise": component.flat_rate_mpaise,
+                        "flat_rate_micros_usd": component.flat_rate_micros_usd,
                         "flat_unit": component.flat_unit,
                         "has_platform_key": component.has_platform_key,
                         "models": [
                             {
                                 "model": model.model,
                                 "rate_mpaise": model.rate_mpaise,
+                                "rate_micros_usd": model.rate_micros_usd,
                                 "unit": model.unit,
                                 # True when this price is the provider's rather
                                 # than the model's. The flat-rate case, and the
@@ -899,6 +916,8 @@ async def set_provider_rates(
                 unit=request.unit,
                 actor_user_id=user.id,
                 flat_rate_mpaise=request.flat_rate_mpaise,
+                flat_rate_micros_usd=request.flat_rate_micros_usd,
+                model_rates_micros_usd=request.model_rates_micros_usd,
                 model_rates=request.model_rates,
             )
         except RateCardError as exc:

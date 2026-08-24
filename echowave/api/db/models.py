@@ -2177,13 +2177,24 @@ class ProviderRateModel(Base):
     component = Column(String(16), nullable=False)
     # minute | 1k_chars | 1k_tokens — see RateUnit.
     unit = Column(String(16), nullable=False)
-    rate_mpaise = Column(Integer, nullable=False)
+    # Exactly one of these carries the price, enforced by the check constraint
+    # below. Which one is not a storage detail: a dollar-quoted row is
+    # converted at read time against the FX then in force, so its cost tracks
+    # the rupee the way the invoice does, while a rupee-quoted row has no FX
+    # applied at all. Same split, and the same reasoning, as the platform rate
+    # on organization_rate_history.
+    rate_mpaise = Column(Integer, nullable=True)
+    rate_micros_usd = Column(Integer, nullable=True)
     effective_from = Column(DateTime(timezone=True), nullable=False)
     effective_to = Column(DateTime(timezone=True), nullable=True)
     note = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     __table_args__ = (
+        CheckConstraint(
+            "(rate_mpaise IS NULL) <> (rate_micros_usd IS NULL)",
+            name="ck_provider_rates_one_currency",
+        ),
         Index(
             "ix_provider_rates_lookup",
             "provider",

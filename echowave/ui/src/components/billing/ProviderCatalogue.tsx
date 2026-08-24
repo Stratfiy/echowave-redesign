@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils";
 type ModelEntry = {
     model: string;
     rate_mpaise: number | null;
+    rate_micros_usd: number | null;
     unit: string | null;
     from_provider_rate: boolean;
 };
@@ -67,6 +68,7 @@ type ModelEntry = {
 type ComponentEntry = {
     component: string;
     flat_rate_mpaise: number | null;
+    flat_rate_micros_usd: number | null;
     flat_unit: string | null;
     has_platform_key: boolean;
     models: ModelEntry[];
@@ -111,6 +113,35 @@ function toMpaise(rupees: string): number | null {
 function toRupees(mpaise: number | null | undefined): string {
     if (mpaise === null || mpaise === undefined) return "";
     return String(mpaise / 100_000);
+}
+
+/**
+ * The same pair for dollars.
+ *
+ * Micro-dollars rather than cents because vendor unit prices are small enough
+ * that cents would round most of them to zero — Sarvam's LLM works out at four
+ * ten-thousandths of a dollar per 1k tokens.
+ */
+function toMicrosUsd(dollars: string): number | null {
+    const value = Number(dollars);
+    if (dollars.trim() === "" || !Number.isFinite(value) || value < 0) return null;
+    return Math.round(value * 1_000_000);
+}
+
+function toDollars(micros: number | null | undefined): string {
+    if (micros === null || micros === undefined) return "";
+    return String(micros / 1_000_000);
+}
+
+type Currency = "inr" | "usd";
+
+/** What is already stored for a row, shown in whichever currency it was quoted in. */
+function storedValue(
+    currency: Currency,
+    mpaise: number | null | undefined,
+    micros: number | null | undefined,
+): string {
+    return currency === "usd" ? toDollars(micros) : toRupees(mpaise);
 }
 
 export function ProviderCatalogue() {
@@ -311,7 +342,21 @@ function ComponentEditor({
     component: ComponentEntry;
     onSaved: () => Promise<void>;
 }) {
-    const [flat, setFlat] = useState(() => toRupees(component.flat_rate_mpaise));
+    // Opens in the currency this vendor is already priced in, so a dollar
+    // vendor never presents a rupee field with a dollar number in it. New
+    // vendors default to rupees: that is what we invoice in, and it is the
+    // safer wrong guess of the two, being off by the exchange rate rather than
+    // by a factor of it.
+    const [currency, setCurrency] = useState<Currency>(
+        component.flat_rate_micros_usd !== null ? "usd" : "inr",
+    );
+    const [flat, setFlat] = useState(() =>
+        storedValue(
+            component.flat_rate_micros_usd !== null ? "usd" : "inr",
+            component.flat_rate_mpaise,
+            component.flat_rate_micros_usd,
+        ),
+    );
     const [models, setModels] = useState<Record<string, string>>({});
     const [unit, setUnit] = useState(
         component.flat_unit ?? DEFAULT_UNIT[component.component] ?? "minute",
@@ -320,15 +365,20 @@ function ComponentEditor({
     const [saveError, setSaveError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
 
-    const flatChanged = flat !== toRupees(component.flat_rate_mpaise);
+    const flatChanged =
+        flat !==
+        storedValue(currency, component.flat_rate_mpaise, component.flat_rate_micros_usd);
     const dirty = flatChanged || Object.keys(models).length > 0;
 
     const submit = async () => {
-        const flatValue = flatChanged ? toMpaise(flat) : null;
+        const usd = currency === "usd";
+        const convert = usd ? toMicrosUsd : toMpaise;
+        const flatValue = flatChanged ? convert(flat) : null;
+
         const modelRates: Record<string, number> = {};
         for (const [model, value] of Object.entries(models)) {
-            const mpaise = toMpaise(value);
-            if (mpaise !== null) modelRates[model] = mpaise;
+            const amount = convert(value);
+            if (amount !== null) modelRates[model] = amount;
         }
         if (flatValue === null && Object.keys(modelRates).length === 0) return;
 
@@ -339,8 +389,15 @@ function ComponentEditor({
                 provider,
                 component: component.component,
                 unit,
-                flat_rate_mpaise: flatValue,
-                model_rates: modelRates,
+                // The currency picked here decides which pair of fields carries
+                // the price. Sending both would be rejected: a rate is quoted in
+                // one currency or the other, never both.
+                ...(usd
+                    ? {
+                          flat_rate_micros_usd: flatValue,
+                          model_rates_micros_usd: modelRates,
+                      }
+                    : { flat_rate_mpaise: flatValue, model_rates: modelRates }),
             },
         });
         if (result.error) {
@@ -371,10 +428,46 @@ function ComponentEditor({
                         </p>
                     )}
                 </div>
-                <div className="flex items-end gap-2">
+                <div className="flex flex-wrap items-end gap-2">
+                    <div className="space-y-1.5">
+                        <Label htmlFor={`${provider}-${component.component}-currency`}>
+                            Quoted in
+                        </Label>
+                        <Select
+                            value={currency}
+                            onValueChange={(v) => {
+                                const next = v as Currency;
+                                setCurrency(next);
+                                // Re-read what is stored in the new currency
+                                // rather than carrying the typed number across.
+                                // "50" meaning rupees and "50" meaning dollars
+                                // are not the same price, and silently keeping
+                                // the digits would write the wrong one.
+                                setFlat(
+                                    storedValue(
+                                        next,
+                                        component.flat_rate_mpaise,
+                                        component.flat_rate_micros_usd,
+                                    ),
+                                );
+                                setModels({});
+                            }}
+                        >
+                            <SelectTrigger
+                                id={`${provider}-${component.component}-currency`}
+                                className="w-28"
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="inr">Rupees</SelectItem>
+                                <SelectItem value="usd">Dollars</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                     <div className="space-y-1.5">
                         <Label htmlFor={`${provider}-${component.component}-flat`}>
-                            All models (₹)
+                            All models ({currency === "usd" ? "$" : "₹"})
                         </Label>
                         <Input
                             id={`${provider}-${component.component}-flat`}
@@ -426,7 +519,11 @@ function ComponentEditor({
                                 ? pending
                                 : model.from_provider_rate
                                   ? ""
-                                  : toRupees(model.rate_mpaise);
+                                  : storedValue(
+                                        currency,
+                                        model.rate_mpaise,
+                                        model.rate_micros_usd,
+                                    );
                         return (
                             <div
                                 key={model.model}
@@ -460,7 +557,11 @@ function ComponentEditor({
                                     aria-label={`Rate for ${model.model}`}
                                     placeholder={
                                         model.from_provider_rate
-                                            ? toRupees(model.rate_mpaise)
+                                            ? storedValue(
+                                                  currency,
+                                                  model.rate_mpaise,
+                                                  model.rate_micros_usd,
+                                              )
                                             : "—"
                                     }
                                     onChange={(e) =>
