@@ -451,6 +451,13 @@ async def charge_period(
                 if charge.charge_type == RecurringChargeType.NUMBER_RENTAL.value
                 else None
             )
+            # Read off both rows before the commit expires them. Reading an
+            # expired attribute back is an implicit reload, and in async that
+            # raises MissingGreenlet instead of quietly fetching — so the
+            # dunning branch blew up on the customer it exists to chase, after
+            # having already recorded the failure.
+            organization_id = charge.organization_id
+            phone_number = getattr(number, "phone_number", None)
             await session.commit()
             return ChargeOutcome(
                 charge_id=charge_id,
@@ -458,8 +465,8 @@ async def charge_period(
                 amount_paise=amount,
                 reason="insufficient_balance",
                 dunning_state=state,
-                organization_id=charge.organization_id,
-                phone_number=getattr(number, "phone_number", None),
+                organization_id=organization_id,
+                phone_number=phone_number,
             )
 
         period = RecurringChargePeriodModel(
@@ -1000,10 +1007,14 @@ async def close_rental(
         charge.status = status.value
         charge.ended_at = now
         charge.next_charge_at = None
+        # Same reason as the dunning branch above: after the commit `charge.id`
+        # is a database round trip, and raising here would turn a rental that
+        # really did stop into an error the release path reports as a failure.
+        charge_id = charge.id
         await session.commit()
         logger.info(
             "Closed rental charge {} for number {} as {}",
-            charge.id,
+            charge_id,
             phone_number_id,
             status.value,
         )

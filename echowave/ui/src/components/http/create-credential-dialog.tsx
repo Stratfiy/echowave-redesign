@@ -24,45 +24,16 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
+import {
+    CREDENTIAL_TYPES,
+    credentialFields,
+} from "@/lib/credentials/fields";
 
 interface CreateCredentialDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onCreated?: (credential: CredentialResponse) => void;
 }
-
-interface CredentialField {
-    key: string;
-    label: string;
-    placeholder: string;
-    isSecret?: boolean;
-}
-
-const getCredentialDataFields = (type: WebhookCredentialType): CredentialField[] => {
-    switch (type) {
-        case "api_key":
-            return [
-                { key: "header_name", label: "Header Name", placeholder: "X-API-Key" },
-                { key: "api_key", label: "API Key", placeholder: "your-api-key", isSecret: true },
-            ];
-        case "bearer_token":
-            return [
-                { key: "token", label: "Token", placeholder: "your-bearer-token", isSecret: true },
-            ];
-        case "basic_auth":
-            return [
-                { key: "username", label: "Username", placeholder: "username" },
-                { key: "password", label: "Password", placeholder: "password", isSecret: true },
-            ];
-        case "custom_header":
-            return [
-                { key: "header_name", label: "Header Name", placeholder: "X-Custom-Header" },
-                { key: "header_value", label: "Header Value", placeholder: "header-value", isSecret: true },
-            ];
-        default:
-            return [];
-    }
-};
 
 export function CreateCredentialDialog({
     open,
@@ -134,7 +105,7 @@ export function CreateCredentialDialog({
         onOpenChange(newOpen);
     };
 
-    const fields = getCredentialDataFields(credentialType);
+    const fields = credentialFields(credentialType);
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -187,10 +158,11 @@ export function CreateCredentialDialog({
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="bearer_token">Bearer Token</SelectItem>
-                                <SelectItem value="api_key">API Key</SelectItem>
-                                <SelectItem value="basic_auth">Basic Auth</SelectItem>
-                                <SelectItem value="custom_header">Custom Header</SelectItem>
+                                {CREDENTIAL_TYPES.map((t) => (
+                                    <SelectItem key={t.value} value={t.value}>
+                                        {t.label}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>

@@ -25,6 +25,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { client } from "@/client/client.gen";
 import { Button } from "@/components/ui/button";
+import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatPaise } from "@/lib/billing/format";
@@ -79,6 +80,13 @@ export function PlanSection({
     billingProfileComplete: boolean;
 }) {
     const { user, loading: authLoading } = useAuth();
+    // Both controls below call ADMIN routes — `POST /api/v1/billing/plan` and
+    // `POST /api/v1/billing/mandate/cancel`. Without this a member could read
+    // the prices, press "Start this plan", and collect a 403; and an account
+    // on a plan showed every member a live "Cancel plan" button for a standing
+    // bank instruction they cannot actually withdraw. Presentation only — the
+    // server is the boundary either way.
+    const { isOrganizationAdmin, loaded: rolesLoaded } = useAccessRoles();
     const [data, setData] = useState<PlanResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [starting, setStarting] = useState<string | null>(null);
@@ -262,6 +270,8 @@ export function PlanSection({
                                 className="mt-4 w-full"
                                 disabled={
                                     !data.configured ||
+                                    !rolesLoaded ||
+                                    !isOrganizationAdmin ||
                                     starting !== null ||
                                     !billingProfileComplete ||
                                     // One plan at a time. Switching is a cancel
@@ -292,6 +302,17 @@ export function PlanSection({
                 <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
                     Add your billing details below before starting a plan — the tax
                     on the collection depends on them.
+                </p>
+            )}
+
+            {/* Named rather than hidden, for the reason the numbers screen
+                names it: a member can see the prices and what is included, so
+                the request they take to an admin is a specific one. */}
+            {rolesLoaded && !isOrganizationAdmin && (
+                <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                    Starting or cancelling a plan authorises a monthly debit for
+                    the whole account, so only an organization Admin or Owner can
+                    do it. Ask one of them.
                 </p>
             )}
 
@@ -363,15 +384,18 @@ export function PlanSection({
                             </div>
                         </div>
                     ) : (
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="mt-3"
-                            onClick={() => setConfirmingCancel(true)}
-                        >
-                            Cancel plan
-                        </Button>
+                        rolesLoaded &&
+                        isOrganizationAdmin && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="mt-3"
+                                onClick={() => setConfirmingCancel(true)}
+                            >
+                                Cancel plan
+                            </Button>
+                        )
                     )}
                 </>
             )}

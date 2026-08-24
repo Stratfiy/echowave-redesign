@@ -184,6 +184,13 @@ COPY --chown=decibyl:decibyl ./api ./api
 # a missing rate fixes every *future* call, but does nothing for the ones
 # already billed against the gap. Without this script in the image, there is
 # no way to revisit them on a Docker install either.
+#
+# diagnose_call.py answers "the agent saves but the call will not place", which
+# is a question asked *about a running deployment* and nowhere else. Leaving it
+# out would be the same mistake seed_provider_rates.py made: a script whose own
+# docstring tells you to run `docker compose exec api python -m
+# scripts.diagnose_call`, failing with "No module named scripts.diagnose_call"
+# on precisely the installs that need it.
 COPY --chown=decibyl:decibyl \
      ./scripts/start_services_docker.sh \
      ./scripts/run_migrate.sh \
@@ -199,6 +206,7 @@ COPY --chown=decibyl:decibyl \
      ./scripts/fetch_latest_backup.py \
      ./scripts/rehearse_concurrency.py \
      ./scripts/verify_managed_model_tier.py \
+     ./scripts/diagnose_call.py \
      ./scripts/
 
 # ts_validator Node deps (built in ts-deps stage with full node:22-slim image).
