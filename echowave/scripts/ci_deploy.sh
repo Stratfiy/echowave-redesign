@@ -49,6 +49,42 @@ cd "$PROJECT_DIR"
 
 say() { printf '\n=== %s ===\n' "$1"; }
 
+#: How long unused build cache is kept. BuildKit never evicts on its own, and
+#: nothing here used to remove it, so the cache grew without bound: on 24 Aug
+#: 2026 the box was at 88.9% of 96GB with 80.69GB of it build cache — every
+#: entry marked reclaimable, the heaviest 8 days to 2 weeks old. A deploy that
+#: cannot write is a deploy that fails at the build step for a reason nothing
+#: in its own log explains.
+#:
+#: A window rather than `-a`, because emptying the cache on every deploy trades
+#: one problem for another: consecutive deploys would rebuild every layer from
+#: scratch. A week keeps the layers that make the next few deploys fast and
+#: drops the ones that only take up room.
+PRUNE_BUILD_CACHE_UNTIL="${PRUNE_BUILD_CACHE_UNTIL:-168h}"
+
+# Housekeeping, run only once the deploy is known good.
+#
+# Deliberately after the health check and after `trap - ERR` is cleared, for two
+# separate reasons. Pruning earlier would delete images while the rollback path
+# might still need them. And with the ERR trap still armed, a prune that exited
+# non-zero — the daemon busy, a layer held by another build — would be read as a
+# failed deploy and roll back a release that had already passed its health
+# check. Nothing below is allowed to fail the deploy; every command ends in
+# `|| true`.
+#
+# Dangling images only, never `-a`. `docker image prune -a` removes every image
+# no *running* container uses, which on this box includes node:22-alpine (the
+# docs build pulls it each deploy) and the previous release's tagged image. What
+# actually accumulates is the old build of the same tag, which compose leaves
+# untagged when it rebuilds — and that is exactly what the dangling filter
+# catches.
+prune_disk() {
+    say "Reclaiming disk"
+    docker builder prune -f --filter "until=$PRUNE_BUILD_CACHE_UNTIL" || true
+    docker image prune -f || true
+    df -h / || true
+}
+
 restore_ownership() {
     if id -u "$RUN_AS" >/dev/null 2>&1; then
         chown -R "$RUN_AS:$RUN_AS" "$(git rev-parse --show-toplevel)" 2>/dev/null || true
@@ -243,6 +279,8 @@ async def main():
             print(f\"  [{c['status']}] {c['title']}\")
 asyncio.run(main())
 " || echo "  (readiness probe unavailable — not failing the deploy)"
+
+        prune_disk
         exit 0
     fi
     sleep 5
