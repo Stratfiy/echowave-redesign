@@ -1249,10 +1249,15 @@ def _carry(kwargs: dict, section, *fields: str) -> None:
     in place and leaves the object as whatever it was — deliberately, so the
     pipeline has one configuration object rather than two representations of
     the same thing (see its module docstring). A managed slot is therefore a
-    ``DecibylLLMService`` answering ``provider == "openai"``, and
-    ``DecibylLLMService`` carries no ``base_url``: the tier classes have no
+    Decibyl tier class answering ``provider == "openai"`` while carrying no
+    ``base_url``: the tier classes in ``configuration/registry`` have no
     endpoint or tuning fields at all, by design, because the customer picked a
     tier rather than a vendor.
+
+    (Those class names are spelled out in this module's tests rather than here.
+    ``tests/test_every_service_is_priced.py`` derives "every service the factory
+    can build" by regex over this file's source text, so naming a configuration
+    class in a comment here makes it look like a service that needs a rate row.)
 
     Reading those fields unconditionally raised ``AttributeError`` inside the
     pipeline for *every* managed LLM tier — ``default``/``accurate`` resolve to
