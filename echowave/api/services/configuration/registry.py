@@ -2078,6 +2078,24 @@ class OpenAIEmbeddingsConfiguration(BaseEmbeddingsConfiguration):
         json_schema_extra={"examples": OPENAI_EMBEDDING_MODELS},
     )
 
+    # The field OpenRouter's embeddings class already had and this one did
+    # not, so the factory's base_url argument could never be filled for the
+    # provider most deployments use. "OpenAI" here names the wire protocol,
+    # not the destination: an OpenAI-compatible server — Text Embeddings
+    # Inference in front of a local model — answers the same requests, and
+    # pointing this at one keeps the document text on hardware you control.
+    #
+    # Blank means api.openai.com, which is what every existing configuration
+    # already resolves to.
+    base_url: str = Field(
+        default="",
+        description=(
+            "OpenAI-compatible endpoint. Leave blank for OpenAI itself; set "
+            "it to your own server (e.g. a Text Embeddings Inference "
+            "container) to keep document text on your infrastructure."
+        ),
+    )
+
 
 OPENROUTER_EMBEDDING_MODELS = ["openai/text-embedding-3-small"]
 

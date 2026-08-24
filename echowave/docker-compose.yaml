@@ -316,6 +316,49 @@ services:
     networks:
       - app-network
 
+  # Document embeddings, on this box instead of a vendor's.
+  #
+  # Knowledge base text was the one thing that still left India even when
+  # every model on the call was Indian: embeddings ran on OpenAI, so a clinic
+  # that attached a document sent it abroad at ingest. residency.assess()
+  # names that case exactly, and this is the answer to it.
+  #
+  # BGE-M3 rather than an Indic-specific encoder: MIT licensed, covers 100+
+  # languages including the Indic ones, and is built for retrieval, which the
+  # older Indian encoders are not. Text Embeddings Inference serves it with an
+  # OpenAI-compatible API, so nothing in the application needs a new provider
+  # — point the embeddings base_url at http://embeddings:80/v1 and the
+  # existing OpenAI client talks to this container instead of api.openai.com.
+  #
+  # Behind a profile, so an existing deployment is bit-for-bit unchanged until
+  # somebody opts in. It is CPU-only and wants roughly 4GB of RAM for this
+  # model; check free memory on the box before enabling it, because the thing
+  # it would starve is the call pipeline.
+  embeddings:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    container_name: decibyl_embeddings
+    profiles: ["embeddings"]
+    command: ["--model-id", "${EMBEDDINGS_MODEL_ID:-BAAI/bge-m3}", "--port", "80"]
+    environment:
+      # Weights are cached in the volume below, so a restart does not re-download.
+      HF_HOME: /data
+    volumes:
+      - embeddings-cache:/data
+    restart: unless-stopped
+    # Deliberately not published to the host. Only the api container needs to
+    # reach it, over the compose network — an embeddings endpoint on a public
+    # port is an open inference server.
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:80/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    networks:
+      - app-network
+
   ui:
     image: ${REGISTRY:-decibylai}/decibyl-ui:latest
     environment:
@@ -383,6 +426,7 @@ services:
       - app-network
 
 volumes:
+  embeddings-cache:
   postgres_data:
   redis_data:
   minio-data:
