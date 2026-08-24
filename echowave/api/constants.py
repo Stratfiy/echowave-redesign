@@ -1009,8 +1009,10 @@ REQUIRE_VERIFIED_TEST_NUMBER = (
 #
 #   log        development only; writes the code to the log and refuses to run
 #              outside a dev/test ENVIRONMENT
-#   voice      call the number and read the code out (not wired — see
-#              services/telephony/verification_sender.py)
+#   voice      call the number and read the code out. Dials from the shared
+#              outbound pool, so it needs a number in that pool and nothing
+#              else — no DLT, which is why it is the channel that works first
+#              on an India deployment.
 #   plivo_sms  SMS on Decibyl's own Plivo account
 #
 # Defaults to log so a deployment that has configured nothing fails visibly and

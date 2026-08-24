@@ -350,6 +350,7 @@ export default function TelephonyConfigurationDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>ID</TableHead>
                   <TableHead>Address</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Label</TableHead>
@@ -361,6 +362,15 @@ export default function TelephonyConfigurationDetailPage() {
               <TableBody>
                 {phoneNumbers.map((n) => (
                   <TableRow key={n.id}>
+                    {/* Shown because staff need it and nothing else surfaces
+                        it: adding one of our own numbers to the shared
+                        outbound pool (Superadmin → Shared outbound numbers)
+                        is by numeric id, and that screen has no search on
+                        purpose. Same convention as the configuration id
+                        above. */}
+                    <TableCell className="font-mono text-muted-foreground">
+                      {n.id}
+                    </TableCell>
                     <TableCell className="font-mono">{n.address}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{n.address_type}</Badge>
