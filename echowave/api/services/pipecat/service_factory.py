@@ -1240,37 +1240,74 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
         )
 
 
+def _carry(kwargs: dict, section, *fields: str) -> None:
+    """Copy the vendor options a section actually carries into ``kwargs``.
+
+    Guarded with ``hasattr`` rather than read directly, because after
+    ``managed_resolution`` a section's ``provider`` no longer tells you what
+    class it is. That module rewrites ``provider``, ``model`` and ``api_key``
+    in place and leaves the object as whatever it was — deliberately, so the
+    pipeline has one configuration object rather than two representations of
+    the same thing (see its module docstring). A managed slot is therefore a
+    Decibyl tier class answering ``provider == "openai"`` while carrying no
+    ``base_url``: the tier classes in ``configuration/registry`` have no
+    endpoint or tuning fields at all, by design, because the customer picked a
+    tier rather than a vendor.
+
+    (Those class names are spelled out in this module's tests rather than here.
+    ``tests/test_every_service_is_priced.py`` derives "every service the factory
+    can build" by regex over this file's source text, so naming a configuration
+    class in a comment here makes it look like a service that needs a rate row.)
+
+    Reading those fields unconditionally raised ``AttributeError`` inside the
+    pipeline for *every* managed LLM tier — ``default``/``accurate`` resolve to
+    openai and died on ``base_url``, ``lite``/``fast``/``zen`` resolve to sarvam
+    and died on ``temperature``. The call connected, the pipeline crashed
+    before its first frame, and the caller heard the line go dead with Plivo
+    reporting "End Of XML Instructions".
+
+    Omitting an absent field is also the correct behaviour, not just a way to
+    avoid the crash: a managed section has no customer-chosen endpoint or
+    tuning to honour, so the vendor's own default is exactly what it should
+    run on — the same conclusion ``managed_resolution`` reaches when it resets
+    a customer-set endpoint back to the default before handing over our key.
+    """
+    for field in fields:
+        if hasattr(section, field):
+            kwargs[field] = getattr(section, field)
+
+
 def create_llm_service(user_config, correlation_id: str | None = None):
     """Create and return appropriate LLM service based on user configuration."""
     provider = user_config.llm.provider
     model = user_config.llm.model
     api_key = user_config.llm.api_key
 
-    kwargs = {}
+    kwargs: dict = {}
     if provider == ServiceProviders.OPENAI.value:
-        kwargs["base_url"] = user_config.llm.base_url
+        _carry(kwargs, user_config.llm, "base_url")
     elif provider == ServiceProviders.OPENROUTER.value:
-        kwargs["base_url"] = user_config.llm.base_url
+        _carry(kwargs, user_config.llm, "base_url")
     elif provider == ServiceProviders.AZURE.value:
-        kwargs["endpoint"] = user_config.llm.endpoint
+        _carry(kwargs, user_config.llm, "endpoint")
     elif provider == ServiceProviders.SPEACHES.value:
-        kwargs["base_url"] = user_config.llm.base_url
+        _carry(kwargs, user_config.llm, "base_url")
     elif provider == ServiceProviders.HUGGINGFACE.value:
-        kwargs["base_url"] = user_config.llm.base_url
-        kwargs["bill_to"] = user_config.llm.bill_to
+        _carry(kwargs, user_config.llm, "base_url", "bill_to")
     elif provider == ServiceProviders.AWS_BEDROCK.value:
-        kwargs["aws_access_key"] = user_config.llm.aws_access_key
-        kwargs["aws_secret_key"] = user_config.llm.aws_secret_key
-        kwargs["aws_region"] = user_config.llm.aws_region
+        _carry(
+            kwargs,
+            user_config.llm,
+            "aws_access_key",
+            "aws_secret_key",
+            "aws_region",
+        )
     elif provider == ServiceProviders.GOOGLE_VERTEX.value:
-        kwargs["project_id"] = user_config.llm.project_id
-        kwargs["location"] = user_config.llm.location
-        kwargs["credentials"] = user_config.llm.credentials
+        _carry(kwargs, user_config.llm, "project_id", "location", "credentials")
     elif provider == ServiceProviders.MINIMAX.value:
-        kwargs["base_url"] = user_config.llm.base_url
-        kwargs["temperature"] = user_config.llm.temperature
+        _carry(kwargs, user_config.llm, "base_url", "temperature")
     elif provider == ServiceProviders.SARVAM.value:
-        kwargs["temperature"] = user_config.llm.temperature
+        _carry(kwargs, user_config.llm, "temperature")
 
     return create_llm_service_from_provider(
         provider,
