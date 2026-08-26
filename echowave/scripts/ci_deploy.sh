@@ -116,8 +116,22 @@ say "Now on $NEW_SHA"
 # Read from postgres rather than from alembic, because the whole point is to
 # answer this when the api container will not start.
 db_revision() {
+    # `postgres`, not `decibyl`. docker-compose.yaml hardcodes
+    # `POSTGRES_DB: postgres` on the postgres service — it is not interpolated
+    # from .env — and the default DATABASE_URL ends in /postgres, so that is the
+    # database the platform actually uses. There has never been a `decibyl`
+    # database to read.
+    #
+    # This mattered more than a wrong default usually does. POSTGRES_DB is not
+    # exported into the shell SSM runs this in, so the fallback was always what
+    # applied; psql failed with "database \"decibyl\" does not exist", 2>/dev/null
+    # swallowed it, and this function returned empty on every deploy. Empty is
+    # indistinguishable here from "could not read it", so rollback() took the
+    # old unguarded path and rolled back past migrations — which is precisely
+    # the outage of 24 Aug 2026 that the guard was added to prevent. The guard
+    # was correct and had simply never once been able to run.
     docker compose exec -T postgres \
-        psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-decibyl}" \
+        psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" \
         -tAc 'select version_num from alembic_version' 2>/dev/null | tr -d '[:space:]'
 }
 

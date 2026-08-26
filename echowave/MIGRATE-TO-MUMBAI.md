@@ -43,6 +43,20 @@ docker compose exec -T api python -m scripts.verify_region_migration \
     --emit-baseline > /tmp/old-box.json
 ```
 
+**If that answers `service "api" is not running`**, the stack is down — which
+is the normal state of a box you are migrating away from, and exactly when the
+baseline has to be taken. Use the postgres-only path instead:
+
+```bash
+./scripts/emit_migration_baseline.sh > /tmp/old-box.json
+```
+
+It starts postgres if it has to, and produces the same JSON. It deliberately
+does **not** start the api container: the arq worker, the scheduled backup and
+the campaign orchestrator all run inside it under supervisord, so waking it on
+a box you are decommissioning means backups taken from a database that is now
+a fork, and campaigns dialling real numbers out of it.
+
 That file is what "completely migrated" means numerically — row counts per
 table, the schema revision, and the timestamp of the newest call. Copy it off
 the box. Without it, every data check downgrades from *nothing was left
