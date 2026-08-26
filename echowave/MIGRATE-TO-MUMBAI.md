@@ -166,8 +166,19 @@ On the new box, with the baseline from step 1:
 
 ```bash
 cd /home/ubuntu/echowave-redesign/echowave
+docker compose cp /tmp/old-box.json api:/tmp/old-box.json
 docker compose exec -T api python -m scripts.verify_region_migration \
     --baseline /tmp/old-box.json
+```
+
+The baseline is copied *into* the container because the script reads it from
+its own filesystem, not the host's — `--baseline /tmp/old-box.json` names a
+path inside the api container.
+
+On a box whose image predates this script, add it without a rebuild:
+
+```bash
+docker compose cp scripts/verify_region_migration.py api:/app/scripts/
 ```
 
 It exits non-zero until the migration is real. What it checks, and why each one
