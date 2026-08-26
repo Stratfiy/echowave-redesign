@@ -39,6 +39,7 @@ from api.db.models import (
     TelephonyPhoneNumberModel,
     WorkflowModel,
 )
+from api.utils.telephony_address import normalize_telephony_address
 
 #: The value recorded on the run, in the vocabulary ``billing/usage.py`` already
 #: reads for the model components. ``managed`` means Decibyl fronted the
@@ -149,7 +150,32 @@ async def carriage_key_source(*, workflow_id: int, numbers: list[str]) -> str:
     one across tenants would let another account's platform-managed
     configuration decide this account's bill.
     """
-    candidates = [n.strip() for n in numbers if n and n.strip()]
+    #: Against ``address_normalized``, never ``address``. ``address`` is stored
+    #: verbatim for display -- "+91 80 3530 2788", spaces and all -- while a
+    #: carrier callback carries bare digits ("918035302788") or E.164
+    #: ("+918035302788") depending on the field. Comparing those to the display
+    #: form never matches, so every call fell through to the unresolved branch
+    #: below and went unbilled. Every other lookup in this codebase already
+    #: keys on the canonical form: shared_outbound, number_lifecycle, and the
+    #: unique constraint itself, which is (organization_id, address_normalized).
+    #:
+    #: The failure was invisible while every configuration was BYOK, because
+    #: unresolved and byok produce the same verdict -- do not bill. It becomes
+    #: a silent revenue leak the moment a platform-managed configuration exists:
+    #: Decibyl fronts the carrier, the match fails, and the carriage is written
+    #: off with one WARNING per call and nothing in the ledger to find later.
+    candidates: list[str] = []
+    for raw in numbers:
+        if not raw or not raw.strip():
+            continue
+        try:
+            candidates.append(normalize_telephony_address(raw.strip()).canonical)
+        except ValueError:
+            # A number the normalizer refuses is a number we cannot own, so it
+            # is dropped rather than raised: this runs on the billing path of a
+            # call that has already happened.
+            continue
+
     if not candidates:
         logger.warning(
             "Carriage key source unresolved for workflow {}: the callback "
@@ -174,7 +200,7 @@ async def carriage_key_source(*, workflow_id: int, numbers: list[str]) -> str:
                 )
                 .where(
                     WorkflowModel.id == workflow_id,
-                    TelephonyPhoneNumberModel.address.in_(candidates),
+                    TelephonyPhoneNumberModel.address_normalized.in_(candidates),
                 )
                 .limit(1)
             )
