@@ -152,7 +152,7 @@ Keep that ARN for the next step.
 |---|---|---|
 | Secret | `AWS_DEPLOY_ROLE_ARN` | the ARN from step 3 |
 | Secret | `EC2_INSTANCE_ID` | `i-xxxxxxxx` |
-| Variable | `AWS_REGION` | e.g. `us-east-1` — **see the note below** |
+| Variable | `AWS_REGION` | `ap-south-1` — the region the instance is in |
 | Variable | `DEPLOY_PROJECT_DIR` | only if the clone is not at `/home/ubuntu/echowave-redesign/echowave` |
 | Variable | `DEPLOY_RUN_AS` | only if the box user is not `ubuntu` |
 
@@ -164,10 +164,36 @@ Then **Settings → Environments → `production`**. Add required reviewers if y
 want a human to approve each production deploy; the workflow already targets
 that environment, so the gate applies with no further change.
 
-> **Region.** The instance is in `us-east-1` today. That is the data-residency
-> problem in `PROVIDER-PRICING.md` and `KNOWN_ISSUES.md` #16 — call recordings
-> of Indian farmers should be in `ap-south-1`. When you migrate, change this
-> variable and the instance id together.
+> **Region.** The instance is in `ap-south-1` (Mumbai). It was in `us-east-1`
+> until the August 2026 move, which is the data-residency problem in
+> `KNOWN_ISSUES.md` #16 — call recordings of people in India come to rest where
+> the bucket is, and that should not be Virginia.
+>
+> **Four things carry the region, and all four have to agree.** SSM is a
+> regional API and an instance id only resolves in the region that holds it, so
+> any one of these left in `us-east-1` fails the deploy at `send-command` with
+> `InvalidInstanceId` — an error that names the instance and says nothing about
+> the region, which is the part that is wrong:
+>
+> 1. this `AWS_REGION` variable;
+> 2. the `EC2_INSTANCE_ID` secret — the new box has a new id;
+> 3. the instance ARN in `policy.json` from step 3, which pins `ssm:SendCommand`
+>    to one instance. The region is wildcarded there, the instance id is not;
+> 4. the `DecibylEC2SSM` instance profile, attached to the *new* instance. IAM
+>    roles are global, but the association is per-instance and does not follow
+>    an AMI copy or a snapshot restore.
+>
+> The workflow's own fallback is `ap-south-1` so that a missing variable lands
+> in the right region rather than silently in the old one. Do not lean on it;
+> set the variable.
+
+> **The deploy going green does not mean the migration is done.** `ci_deploy.sh`
+> gates on `GET /api/v1/health`, which is a liveness check — it reads
+> configuration and returns. It never touches Postgres, Redis or S3, so it is
+> perfectly happy on a box whose database is empty, whose recordings bucket is
+> still in Virginia, and whose credential secret was regenerated. Those checks
+> are `scripts/verify_region_migration.py`; `../MIGRATE-TO-MUMBAI.md` is the
+> runbook around it.
 
 ## 5. Test it before trusting it
 
