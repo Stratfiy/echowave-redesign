@@ -542,71 +542,102 @@ async def check_secrets_survived(conn) -> None:
 async def check_recordings_reachable(conn, sample: int) -> None:
     """Rows survived the dump. Objects are a separate migration, and are not.
 
-    A database restore brings every recording *URL* across and not one
+    A database restore brings every recording *key* across and not one
     recording. If the bucket did not move with it, this is the check that says
     so — rather than a customer opening a call from last month.
+
+    Two tables hold object references and they are not interchangeable.
+    ``workflow_runs.recording_url`` and ``.transcript_url`` are the call
+    artifacts — ``recordings/<id>.wav``, ``transcripts/<id>.txt``, storage keys
+    despite the column names. ``workflow_recordings.storage_key`` is the voice
+    and prompt library, which a deployment can legitimately have none of. A
+    check that probed only the second would report "no recordings stored" on a
+    box holding a year of calls.
     """
     section("Whether the recordings are still reachable")
 
-    if (
-        await conn.fetchval("SELECT to_regclass($1)", "public.workflow_recordings")
-        is None
-    ):
-        record(WARN, "Stored recordings are reachable", "No workflow_recordings table.")
-        return
+    #: Erasure writes this over the key after deleting the object, so the row
+    #: says a recording existed and was destroyed on request. Probing it would
+    #: report a DPDP erasure that worked as a migration that failed.
+    purged = "__purged__"
 
-    rows = await conn.fetch(
-        "SELECT storage_key, storage_backend FROM workflow_recordings "
-        "WHERE storage_key IS NOT NULL AND storage_key <> '' "
-        "ORDER BY id DESC LIMIT $1",
-        sample,
+    #: (table, key column, backend column, what it holds)
+    sources = (
+        ("workflow_runs", "recording_url", "storage_backend", "call audio"),
+        ("workflow_runs", "transcript_url", "storage_backend", "transcripts"),
+        ("workflow_recordings", "storage_key", "storage_backend", "voice prompts"),
     )
-    if not rows:
-        record(
-            WARN,
-            "Stored recordings are reachable",
-            "No recordings stored. Correct only if none was ever uploaded.",
-        )
-        return
 
     from api.services.storage import get_storage_for_backend
 
-    missing: list[str] = []
-    errored: list[str] = []
-    for row in rows:
-        try:
-            fs = get_storage_for_backend(row["storage_backend"])
-            meta = await fs.aget_file_metadata(row["storage_key"])
-        except Exception as exc:  # noqa: BLE001 -- reported per object
-            errored.append(f"{row['storage_key']}: {type(exc).__name__}")
+    probed = 0
+    for table, key_col, backend_col, label in sources:
+        if await conn.fetchval("SELECT to_regclass($1)", f"public.{table}") is None:
             continue
-        if meta is None:
-            missing.append(row["storage_key"])
 
-    if errored:
-        record(
-            FAIL,
-            "Stored recordings are reachable",
-            f"{len(errored)} of {len(rows)} errored:\n"
-            + "\n".join(f"  {e}" for e in errored[:5])
-            + "\nA PermanentRedirect here means the bucket is in a different\n"
-            "region than S3_REGION claims. An AccessDenied means the new\n"
-            "instance role does not carry the bucket policy the old one did.",
+        rows = await conn.fetch(
+            f"SELECT {key_col} AS key, {backend_col} AS backend FROM {table} "  # noqa: S608 -- fixed literal list above
+            f"WHERE {key_col} IS NOT NULL AND {key_col} <> '' AND {key_col} <> $1 "
+            f"ORDER BY id DESC LIMIT $2",
+            purged,
+            sample,
         )
-    elif missing:
+        if not rows:
+            record(
+                WARN,
+                f"Stored {label} are reachable",
+                f"No {label} referenced in {table}. Correct only if this "
+                "deployment has none.",
+            )
+            continue
+
+        probed += len(rows)
+        missing: list[str] = []
+        errored: list[str] = []
+        for row in rows:
+            try:
+                fs = get_storage_for_backend(row["backend"])
+                meta = await fs.aget_file_metadata(row["key"])
+            except Exception as exc:  # noqa: BLE001 -- reported per object
+                errored.append(f"{row['key']}: {type(exc).__name__}: {exc}")
+                continue
+            if meta is None:
+                missing.append(row["key"])
+
+        if errored:
+            record(
+                FAIL,
+                f"Stored {label} are reachable",
+                f"{len(errored)} of {len(rows)} errored:\n"
+                + "\n".join(f"  {e}" for e in errored[:5])
+                + "\nA PermanentRedirect here means the bucket is in a different\n"
+                "region than S3_REGION claims. An AccessDenied means the new\n"
+                "instance role does not carry the bucket policy the old one did.",
+            )
+        elif missing:
+            record(
+                FAIL,
+                f"Stored {label} are reachable",
+                f"{len(missing)} of the {len(rows)} newest are not in the bucket:\n"
+                + "\n".join(f"  {k}" for k in missing[:5])
+                + "\nThe rows came across and the objects did not. Sync the bucket\n"
+                "before anyone is told the migration is done.",
+            )
+        else:
+            record(
+                PASS,
+                f"Stored {label} are reachable",
+                f"{len(rows)} newest sampled, all present",
+            )
+
+    if probed == 0:
         record(
-            FAIL,
-            "Stored recordings are reachable",
-            f"{len(missing)} of {len(rows)} newest recordings are not in the bucket:\n"
-            + "\n".join(f"  {k}" for k in missing[:5])
-            + "\nThe rows came across and the objects did not. Sync the bucket\n"
-            "before anyone is told the migration is done.",
-        )
-    else:
-        record(
-            PASS,
-            "Stored recordings are reachable",
-            f"{len(rows)} newest sampled, all present",
+            WARN,
+            "Object storage holds anything at all",
+            "Not one object is referenced from any table. That is a real state\n"
+            "for a deployment that has taken calls but never stored their audio\n"
+            "— check whether recording is switched on before reading this as\n"
+            "good news.",
         )
 
 
