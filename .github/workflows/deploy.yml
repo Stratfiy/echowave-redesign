@@ -68,7 +68,19 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          # ap-south-1, because that is where the instance is. SSM is a regional
+          # API: an instance id is only resolvable in the region that holds it,
+          # so a deploy pointed at the wrong region fails at send-command with
+          # InvalidInstanceId -- a message that names the instance and says
+          # nothing about the region, which is the part that is wrong.
+          #
+          # The fallback used to be us-east-1, from when the box was in
+          # Virginia. It was never meant to be load-bearing; `vars.AWS_REGION`
+          # is. But a fallback is exactly what runs on the day the variable is
+          # missing, and a stale one turns "somebody forgot to set a variable"
+          # into a deploy that authenticates cleanly and then cannot find
+          # production. Keep this equal to `vars.AWS_REGION`.
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
           role-session-name: gha-deploy-${{ github.run_id }}
 
       - name: Send the deploy to the instance
