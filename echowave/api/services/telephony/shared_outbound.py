@@ -47,7 +47,6 @@ from api.db import db_client
 from api.services.telephony import registry
 from api.services.telephony.base import TelephonyProvider
 
-
 #: Concurrency scope for trial calls placed on the shared caller IDs.
 #:
 #: Deliberately not keyed by organization: the counter it names is a platform

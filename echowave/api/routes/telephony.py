@@ -40,7 +40,6 @@ from api.services.compliance import dnd
 from api.services.configuration import key_readiness
 from api.services.kyc import service as kyc_service
 from api.services.quota_service import authorize_workflow_run_start
-from api.services.telephony.shared_outbound import SHARED_OUTBOUND_SCOPE
 from api.services.telephony import (
     number_lifecycle,
     shared_outbound,
@@ -55,6 +54,7 @@ from api.services.telephony.factory import (
     get_telephony_provider_by_id,
     get_telephony_provider_for_run,
 )
+from api.services.telephony.shared_outbound import SHARED_OUTBOUND_SCOPE
 from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,

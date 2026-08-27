@@ -44,8 +44,8 @@ from api.db.models import (
 )
 from api.enums import MandateStatus, RecurringChargeStatus, RecurringChargeType
 from api.services.billing import documents, payments, tax
-from api.services.billing.money import round_half_up_div
 from api.services.billing import mandates as mandate_service
+from api.services.billing.money import round_half_up_div
 
 OUR_STATE = "29"
 WEBHOOK_SECRET = "whsec_test_do_not_use_in_production"
