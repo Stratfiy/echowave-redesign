@@ -7,10 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel
 
-from api.constants import (
-    KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES,
-    KNOWLEDGE_BASE_MAX_TOTAL_BYTES,
-)
 from api.db import db_client
 from api.enums import PostHogEvent
 from api.schemas.knowledge_base import (
@@ -24,6 +20,7 @@ from api.schemas.knowledge_base import (
 )
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
+from api.services.billing import subscription_plans
 from api.services.knowledge_base import staleness, upload_keys
 from api.services.posthog_client import capture_event
 from api.services.storage import storage_fs
@@ -36,6 +33,53 @@ router = APIRouter(prefix="/knowledge-base", tags=["knowledge-base"])
 def _mb(value: int) -> int:
     """Bytes as whole megabytes, for a message a person can act on."""
     return value // (1024 * 1024)
+
+
+async def _allowance(organization_id: int):
+    """What this account's plan buys it: a total, and a per-file ceiling."""
+    async with db_client.async_session() as session:
+        return await subscription_plans.knowledge_base_allowance_for(
+            session, organization_id=organization_id
+        )
+
+
+async def _assert_room_to_ingest(organization_id: int):
+    """Refuse an upload the account has no plan for, or no room left in.
+
+    One function rather than the check written out at each gate, because there
+    are three of them — the browser is refused before it starts sending, the
+    presigned URL is minted against the same ceiling, and the call that queues
+    the embedding job checks again — and they have to agree. They agree by
+    being the same code.
+
+    The two refusals are deliberately different sentences. "Full" is something a
+    customer fixes by deleting a document; "not on your plan" is something they
+    fix by subscribing, and telling them to delete their way out of it would be
+    advice that cannot work.
+
+    Returns the allowance so the caller can mint a URL against the per-file
+    limit without resolving the plan a second time.
+    """
+    allowance = await _allowance(organization_id)
+    if not allowance.includes_a_knowledge_base:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                "The knowledge base is part of a subscription. Choose a plan to "
+                "upload documents your agents can answer from."
+            ),
+        )
+    used = await db_client.get_knowledge_base_bytes_used(organization_id)
+    if used >= allowance.total_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "Your knowledge base is full "
+                f"({_mb(used)} of {_mb(allowance.total_bytes)} MB used). "
+                "Delete a document to make room, or move to a larger plan."
+            ),
+        )
+    return allowance
 
 
 @router.post(
@@ -65,16 +109,7 @@ async def get_upload_url(
     # cannot carry a size limit, so the only honest place to refuse is before
     # the browser starts sending — the alternative is a progress bar reaching
     # 100% and then being told there was no room.
-    used = await db_client.get_knowledge_base_bytes_used(user.selected_organization_id)
-    if used >= KNOWLEDGE_BASE_MAX_TOTAL_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=(
-                "Your knowledge base is full "
-                f"({_mb(used)} of {_mb(KNOWLEDGE_BASE_MAX_TOTAL_BYTES)} MB used). "
-                "Delete a document to make room, or contact support to raise the limit."
-            ),
-        )
+    allowance = await _assert_room_to_ingest(user.selected_organization_id)
 
     try:
         # Generate unique document UUID for S3 organization
@@ -92,12 +127,13 @@ async def get_upload_url(
         # max_size is advisory — a presigned PUT cannot carry a size limit, see
         # BaseFileSystem.aget_presigned_put_url — so it is stated here to match
         # what the worker will actually accept rather than the 100MB it used to
-        # claim while ingestion refused anything over five.
+        # claim while ingestion refused anything over five. It is the *plan's*
+        # ceiling, which is the one the worker enforces too.
         upload_url = await storage_fs.aget_presigned_put_url(
             file_path=s3_key,
             expiration=1800,  # 30 minutes
             content_type=request.mime_type,
-            max_size=KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES,
+            max_size=allowance.max_file_bytes,
         )
 
         if not upload_url:
@@ -148,46 +184,43 @@ async def process_document(
     * Users can only process documents in their organization.
     """
 
-    # Checked again here, not only when the URL was minted. This is the call
-    # that creates the record and queues the embedding job, so it is the gate
-    # that actually costs money — and it can be reached directly, or with a
-    # presigned URL issued before the account filled up.
-    used = await db_client.get_knowledge_base_bytes_used(user.selected_organization_id)
-    if used >= KNOWLEDGE_BASE_MAX_TOTAL_BYTES:
+    # The key arrives from the client, and whatever is at it gets ingested into
+    # this organization's knowledge base — where this organization's agent will
+    # read it aloud. Another organization's key must not be accepted here, so
+    # the key has to be exactly the one /upload-url would have minted for this
+    # caller and this document.
+    #
+    # Ahead of the entitlement check, and the order is load-bearing: a caller
+    # reaching for another tenant's object must be told it is not theirs, not
+    # that their plan is too small for it. Billing first would turn a
+    # tenant-isolation refusal into a pricing message, and would answer a
+    # question about someone else's data with a fact about this account.
+    if not upload_keys.key_belongs_to(
+        user.selected_organization_id, request.document_uuid, request.s3_key
+    ):
+        logger.warning(
+            "Rejected a process-document request for a key outside "
+            "organization {}: {!r} (document {!r}, user {})",
+            user.selected_organization_id,
+            request.s3_key,
+            request.document_uuid,
+            user.id,
+        )
         raise HTTPException(
-            status_code=413,
+            status_code=403,
             detail=(
-                "Your knowledge base is full "
-                f"({_mb(used)} of {_mb(KNOWLEDGE_BASE_MAX_TOTAL_BYTES)} MB used). "
-                "Delete a document to make room, or contact support to raise the limit."
+                "This upload key does not belong to your organization. "
+                "Request a fresh upload URL and try again."
             ),
         )
 
-    try:
-        # The key arrives from the client, and whatever is at it gets ingested
-        # into this organization's knowledge base — where this organization's
-        # agent will read it aloud. Another organization's key must not be
-        # accepted here, so the key has to be exactly the one /upload-url would
-        # have minted for this caller and this document.
-        if not upload_keys.key_belongs_to(
-            user.selected_organization_id, request.document_uuid, request.s3_key
-        ):
-            logger.warning(
-                "Rejected a process-document request for a key outside "
-                "organization {}: {!r} (document {!r}, user {})",
-                user.selected_organization_id,
-                request.s3_key,
-                request.document_uuid,
-                user.id,
-            )
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "This upload key does not belong to your organization. "
-                    "Request a fresh upload URL and try again."
-                ),
-            )
+    # Checked again here, not only when the URL was minted. This is the call
+    # that creates the record and queues the embedding job, so it is the gate
+    # that actually costs money — and it can be reached directly, or with a
+    # presigned URL issued before the account filled up or its plan lapsed.
+    await _assert_room_to_ingest(user.selected_organization_id)
 
+    try:
         # Extract filename from s3_key
         filename = request.s3_key.split("/")[-1]
 
@@ -271,6 +304,9 @@ class KnowledgeBaseUsageSchema(BaseModel):
 
     bytes_used: int
     bytes_limit: int
+    #: The largest single document this plan accepts, so the file picker can
+    #: refuse before an upload rather than after one.
+    max_file_bytes: int
     documents: int
 
 
@@ -284,9 +320,14 @@ async def get_usage(user=Depends(get_user)) -> KnowledgeBaseUsageSchema:
     documents = await db_client.get_documents_for_organization(
         organization_id=user.selected_organization_id, limit=100
     )
+    # The account's own allowance, not the deployment ceiling. A screen
+    # reporting everyone the same limit is how a customer discovers at upload
+    # time that the number they were shown was not theirs.
+    allowance = await _allowance(user.selected_organization_id)
     return KnowledgeBaseUsageSchema(
         bytes_used=used,
-        bytes_limit=KNOWLEDGE_BASE_MAX_TOTAL_BYTES,
+        bytes_limit=allowance.total_bytes,
+        max_file_bytes=allowance.max_file_bytes,
         documents=len(documents),
     )
 

@@ -39,6 +39,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import (
+    FIRST_TOPUP_MIN_PAISE,
     MAX_TOPUP_PAISE,
     MIN_TOPUP_PAISE,
     RAZORPAY_API_BASE,
@@ -105,6 +106,45 @@ def _require_api_credentials() -> tuple[str, str]:
     return RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
 
 
+async def has_ever_topped_up(session: AsyncSession, *, organization_id: int) -> bool:
+    """Whether a real payment has ever landed for this account.
+
+    A ``topup`` ledger row, which is written only when a capture is reconciled
+    (see :func:`credit_payment`). Deliberately not "has a payment row" — an
+    order created and abandoned leaves one of those behind, and treating an
+    abandoned checkout as a first payment would drop the floor for an account
+    that has never actually paid, which is the whole thing it guards against.
+
+    Trial credit and staff adjustments are their own ledger kinds and do not
+    count, for the same reason.
+    """
+    return bool(
+        await session.scalar(
+            select(CreditLedgerModel.id)
+            .where(
+                CreditLedgerModel.organization_id == organization_id,
+                CreditLedgerModel.kind == CreditLedgerKind.TOPUP.value,
+            )
+            .limit(1)
+        )
+    )
+
+
+async def minimum_topup_paise(session: AsyncSession, *, organization_id: int) -> int:
+    """The smallest top-up this account may buy right now.
+
+    ``FIRST_TOPUP_MIN_PAISE`` until it has paid once, ``MIN_TOPUP_PAISE``
+    after. One function because three places have to agree — the config the
+    screen renders its picker from, the schema that bounds the request, and
+    :func:`create_topup_order`, which is the only thing between an amount and a
+    Razorpay order. A screen offering ₹100 to an account the API will refuse at
+    ₹1,000 is the failure this exists to prevent.
+    """
+    if await has_ever_topped_up(session, organization_id=organization_id):
+        return MIN_TOPUP_PAISE
+    return max(FIRST_TOPUP_MIN_PAISE, MIN_TOPUP_PAISE)
+
+
 async def create_topup_order(
     session: AsyncSession,
     *,
@@ -128,8 +168,9 @@ async def create_topup_order(
     # and which one fires decides what the customer is told: an amount they can
     # correct, or a configuration problem that is ours. Reading the environment
     # first meant a mistyped ₹137 came back as "Razorpay is not configured".
-    if amount_paise < MIN_TOPUP_PAISE:
-        raise PaymentError(f"The minimum top-up is ₹{MIN_TOPUP_PAISE / 100:,.0f}.")
+    minimum = await minimum_topup_paise(session, organization_id=organization_id)
+    if amount_paise < minimum:
+        raise PaymentError(f"The minimum top-up is ₹{minimum / 100:,.0f}.")
     if amount_paise > MAX_TOPUP_PAISE:
         raise PaymentError(
             f"The maximum top-up is ₹{MAX_TOPUP_PAISE / 100:,.0f}. "

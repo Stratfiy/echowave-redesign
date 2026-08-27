@@ -18,7 +18,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from api.db.models import OrganizationModel, UserModel
+from api.db.models import OrganizationModel, PaymentMandateModel, UserModel
+from api.enums import MandateStatus
+from api.services.billing import mandates as mandate_service
+from api.services.billing import subscription_plans
 from api.services.knowledge_base import upload_keys
 
 
@@ -32,6 +35,30 @@ async def _organization(
     async_session.add(user)
     await async_session.flush()
     return org, user
+
+
+async def _subscribed(async_session, org) -> None:
+    """Put the account on a plan that includes a knowledge base.
+
+    These tests are about who owns an upload key, not about who is entitled to
+    upload at all. The entitlement gate is checked on the same route and would
+    otherwise answer first with a 402, which is a true statement about the
+    account and no answer to the question being asked.
+    """
+    await subscription_plans.ensure_seeded(async_session)
+    async_session.add(
+        PaymentMandateModel(
+            organization_id=org.id,
+            provider="razorpay",
+            purpose=mandate_service.PURPOSE_STARTER_PLAN,
+            subscription_id=f"sub_kb_{org.id}",
+            plan_id="plan_starter",
+            plan_code=subscription_plans.STARTER,
+            status=MandateStatus.ACTIVE.value,
+            price_paise=299900,
+        )
+    )
+    await async_session.flush()
 
 
 DOC = "6f1a0b32-6bcb-4a0e-9f6e-1b7a2c9d4e50"
@@ -147,6 +174,7 @@ class TestTheRouteEnforcesIt:
         """The other half: the rule has to let the real upload through, or the
         feature is closed rather than fixed."""
         org, user = await _organization(async_session, "keys-owner")
+        await _subscribed(async_session, org)
         own_key = upload_keys.build_document_key(org.id, DOC, "policy.pdf")
 
         async with test_client_factory(user) as client:
@@ -171,6 +199,7 @@ class TestTheRouteEnforcesIt:
         the real round trip rather than trusting that they use the same
         function."""
         org, user = await _organization(async_session, "keys-round-trip")
+        await _subscribed(async_session, org)
 
         async def fake_presign(**kwargs):
             return "https://example.invalid/put"
@@ -199,6 +228,7 @@ class TestTheRouteEnforcesIt:
         """The name comes from a file picker, which is to say from whoever is
         driving the browser."""
         org, user = await _organization(async_session, "keys-traversal")
+        await _subscribed(async_session, org)
         signed_for = {}
 
         async def fake_presign(file_path, **kwargs):

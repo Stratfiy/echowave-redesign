@@ -10,7 +10,10 @@ from api.db.models import WorkflowRunModel
 from api.services.managed_model_services import get_mps_correlation_id
 from api.services.pipecat.service_factory import create_llm_service_from_provider
 from api.services.workflow.dto import NodeType, QANodeData
-from api.services.workflow.qa.llm_config import resolve_llm_config
+from api.services.workflow.qa.llm_config import (
+    accumulate_token_usage,
+    resolve_llm_config,
+)
 from api.services.workflow.qa.tracing import create_node_summary_trace
 
 NODE_SUMMARY_SYSTEM_PROMPT = (
@@ -50,11 +53,18 @@ async def ensure_node_summaries(
     definition_id: int | None,
     workflow_run: WorkflowRunModel,
     qa_data: QANodeData,
+    usage_total: dict | None = None,
 ) -> dict[str, Any]:
     """Ensure every agentNode/startCall node has a summary in the definition.
 
     Returns the node_summaries dict:
         {node_id: {"summary": "...", "trace_url": "..."}, ...}
+
+    ``usage_total`` accumulates what generating the missing summaries spent.
+    These are written back onto the definition and reused by every later call,
+    so the cost lands on whichever run happens to find one missing rather than
+    on every run — but it is still real inference on our key, and it was going
+    unrecorded entirely.
     """
     existing_summaries: dict[str, Any] = workflow_definition.get("node_summaries", {})
 
@@ -169,6 +179,10 @@ async def ensure_node_summaries(
                 )
                 or ""
             )
+            if usage_total is not None:
+                accumulate_token_usage(
+                    usage_total, getattr(llm, "last_inference_usage", None)
+                )
         except Exception as e:
             logger.warning(f"Failed to generate summary for node {node_id}: {e}")
             updated_summaries[node_id] = {"summary": ""}

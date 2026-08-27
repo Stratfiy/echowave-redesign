@@ -44,6 +44,7 @@ from api.constants import (
     RAZORPAY_KEY_ID,
     RAZORPAY_KEY_SECRET,
     RAZORPAY_RENTAL_PLAN_ID,
+    RAZORPAY_RENTAL_PLAN_ID_EXPORT,
     RAZORPAY_STARTER_PLAN_ID,
     REQUIRE_MANDATE_FOR_NUMBERS,
     STARTER_PLAN_PRICE_PAISE,
@@ -306,12 +307,27 @@ async def _assert_pinned_plan_amount(
 
 
 async def ensure_rental_plan(
-    *, price_paise: int, client: httpx.AsyncClient | None = None
+    *,
+    price_paise: int,
+    is_export: bool = False,
+    client: httpx.AsyncClient | None = None,
 ) -> str:
-    """The plan id a number-rental subscription is created against."""
+    """The plan id a number-rental subscription is created against.
+
+    Two pinned plans, chosen by whether the supply is zero-rated, for the same
+    reason a plan row carries ``razorpay_plan_id_export``: a pinned plan holds
+    one fixed amount at the provider, and ``_assert_pinned_plan_amount`` checks
+    the gross this account actually owes against it. One id therefore cannot
+    serve both -- pinning the domestic plan alone means an export account is
+    refused at the guard, which is the right direction and not a fix.
+    """
+    pinned = RAZORPAY_RENTAL_PLAN_ID_EXPORT if is_export else RAZORPAY_RENTAL_PLAN_ID
+    env_var = (
+        "RAZORPAY_RENTAL_PLAN_ID_EXPORT" if is_export else "RAZORPAY_RENTAL_PLAN_ID"
+    )
     return await _ensure_plan(
-        pinned=RAZORPAY_RENTAL_PLAN_ID,
-        env_var="RAZORPAY_RENTAL_PLAN_ID",
+        pinned=pinned,
+        env_var=env_var,
         name="Decibyl phone number",
         description="Monthly rental for a Decibyl phone number",
         price_paise=price_paise,
@@ -409,7 +425,9 @@ async def create_rental_mandate(
         # invoice, month after month, by standing instruction.
         raise MandateError(str(exc)) from exc
 
-    plan_id = await ensure_rental_plan(price_paise=gross_paise, client=client)
+    plan_id = await ensure_rental_plan(
+        price_paise=gross_paise, is_export=profile.is_export, client=client
+    )
 
     created = await _post(
         "/subscriptions",
@@ -660,6 +678,67 @@ async def assert_mandate_authorised(
     return mandate
 
 
+async def _apply_plan_platform_rate(
+    session: AsyncSession, *, mandate: PaymentMandateModel
+) -> None:
+    """Put the account on its plan's per-minute fee, if the plan names one.
+
+    In the same transaction as the authorisation that earned it, not after the
+    commit like the confirmation email. A missed email is a courtesy; a missed
+    rate is the customer paying the list price on a plan they bought to get off
+    it, silently, until somebody reconciles a statement.
+
+    A plan with no figure changes nothing. That is the difference between null
+    and zero: null is "this plan has no opinion about the fee", so a negotiated
+    rate survives an upgrade, whereas zero would be a plan that gives the fee
+    away. Pricing a tier months from now therefore cannot retroactively re-rate
+    the accounts already on it.
+
+    Never raises. The authorisation is the customer's instruction to their bank
+    and it stands whether or not we managed to re-rate them; failing the webhook
+    here would have Razorpay retry an authorisation that already succeeded, and
+    the rate is recoverable from the admin screen in a way a lost mandate is
+    not.
+    """
+    # Both imported at call time. subscription_plans reaches back into this
+    # module to resolve an account's entitlements, so the cycle is only benign
+    # once both are loaded.
+    from api.services.billing import rate_card, subscription_plans
+
+    if not mandate.plan_code:
+        return
+    try:
+        plan = await subscription_plans.resolve(session, code=mandate.plan_code)
+        if plan is None or plan.platform_rate_mpaise is None:
+            return
+        await rate_card.set_account_rate(
+            session,
+            # Nobody typed this. The audit row should say the plan did.
+            actor_user_id=None,
+            organization_id=mandate.organization_id,
+            platform_rate_mpaise=plan.platform_rate_mpaise,
+            note=f"Plan {plan.code} authorised",
+        )
+        # Flushed here rather than left for whatever query happens to autoflush
+        # it. The rate is the point of this function, and a write that only
+        # lands if something later reads is not a write anybody can reason
+        # about.
+        await session.flush()
+        logger.info(
+            "Org {} moved to the {} platform rate ({} mpaise) on authorisation",
+            mandate.organization_id,
+            plan.code,
+            plan.platform_rate_mpaise,
+        )
+    except Exception as exc:  # noqa: BLE001 - see docstring
+        logger.error(
+            "Could not apply the {} platform rate to org {}: {}",
+            mandate.plan_code,
+            mandate.organization_id,
+            exc,
+        )
+
+
 async def apply_subscription_event(session: AsyncSession, *, event: dict) -> dict:
     """Move a mandate to the state a verified provider event puts it in.
 
@@ -746,6 +825,13 @@ async def apply_subscription_event(session: AsyncSession, *, event: dict) -> dic
             event_type,
         )
 
+    newly_authorised = (
+        previous not in MandateStatus.authorised()
+        and next_status in MandateStatus.authorised()
+    )
+    if newly_authorised:
+        await _apply_plan_platform_rate(session, mandate=mandate)
+
     return {
         "status": "updated",
         "mandate_id": mandate.id,
@@ -763,10 +849,7 @@ async def apply_subscription_event(session: AsyncSession, *, event: dict) -> dic
         # four times and "just became authorised" once. The confirmation is
         # deduplicated on the mandate as well; this only keeps the common case
         # from reaching the dedupe table at all.
-        "newly_authorised": (
-            previous not in MandateStatus.authorised()
-            and next_status in MandateStatus.authorised()
-        ),
+        "newly_authorised": newly_authorised,
         "plan_code": mandate.plan_code,
         "price_paise": mandate.price_paise,
     }

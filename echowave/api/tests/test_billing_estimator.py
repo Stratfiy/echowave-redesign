@@ -24,12 +24,15 @@ from api.services.billing.cost_engine import (
     compute_call_cost,
 )
 from api.services.billing.estimator import (
+    DEFAULT_CHARACTERS_PER_MINUTE,
     DEFAULT_TOKENS_PER_MINUTE,
     MIN_CALLS_FOR_MEASURED_ASSUMPTION,
+    SPOKEN_CHARACTERS_PER_SECOND,
     estimate_cost_per_minute,
 )
 from api.services.billing.markup import resolve_markup_bps
 from api.services.billing.money import mpaise_to_micros_usd
+from api.services.billing.realtime_pricing import CallShape
 
 LONG_AGO = datetime(2020, 1, 1, tzinfo=UTC)
 
@@ -263,6 +266,36 @@ class TestEstimate:
         assert [line.component for line in est.lines] == ["platform"]
         assert est.agent_paise_per_minute == 0
         assert est.telephony_paise_per_minute == 0
+
+
+class TestTheCharacterAssumptionAgreesWithTheCallShape:
+    """The synthesis assumption and ``CallShape`` describe the same minute.
+
+    They did not. The constant read 2,300 characters a minute against a shape
+    that gives the agent 27 seconds of it — 85 characters a second, six times
+    human speech — because a per-minute figure had been multiplied by the turns
+    in that minute. Synthesis is the largest component of an Indic call, so the
+    Everyday card quoted about twice what the call then billed.
+    """
+
+    def test_it_is_the_agents_talk_time_at_a_human_speaking_rate(self):
+        shape = CallShape()
+        expected = round(60.0 * shape.agent_talk_share * SPOKEN_CHARACTERS_PER_SECOND)
+        assert DEFAULT_CHARACTERS_PER_MINUTE == expected
+
+    def test_the_agent_does_not_out_talk_the_call(self):
+        """The failure the old number was: more speech than there is minute to
+        speak it in. Anything at or above the wall clock is arithmetically
+        impossible, whatever the shape says."""
+        seconds_of_speech = DEFAULT_CHARACTERS_PER_MINUTE / SPOKEN_CHARACTERS_PER_SECOND
+        assert seconds_of_speech < 60.0
+
+    def test_a_talkier_shape_would_move_it(self):
+        """Derived, not typed. If this ever stops holding, the constant has been
+        pinned again and the drift it was extracted to prevent is back."""
+        assert DEFAULT_CHARACTERS_PER_MINUTE == round(
+            60.0 * CallShape().agent_talk_share * SPOKEN_CHARACTERS_PER_SECOND
+        )
 
 
 class TestConsumptionAssumption:

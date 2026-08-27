@@ -37,7 +37,10 @@ def _plan(**overrides) -> Plan:
         price_paise=299_900,
         balance_paise=250_000,
         included_numbers=1,
-        extra_number_price_paise=49_900,
+        extra_number_price_paise=55_900,
+        knowledge_base_bytes=25 * 1024 * 1024,
+        knowledge_base_max_file_bytes=5 * 1024 * 1024,
+        platform_rate_mpaise=None,
         razorpay_plan_id="plan_x",
         razorpay_plan_id_export=None,
         enabled=True,
@@ -132,7 +135,7 @@ class TestThePlanConfirmation:
         # Balance that expires has to be stated where the money is committed.
         assert "does not carry over" in notice.body
         assert "1 phone number" in notice.body
-        assert "₹499.00" in notice.body
+        assert "₹559.00" in notice.body
 
     def test_it_says_how_to_stop_it_and_what_stopping_does_not_touch(self):
         """The one thing somebody reading an autopay email wants to know."""

@@ -61,6 +61,16 @@ class Plan:
     balance_paise: int
     included_numbers: int
     extra_number_price_paise: int
+    #: Bytes of knowledge base the plan buys. Zero means the plan does not
+    #: include one at all, which is what an account holding no plan resolves to
+    #: — see :func:`knowledge_base_allowance_for`.
+    knowledge_base_bytes: int
+    #: The largest single document. Zero follows the deployment ceiling.
+    knowledge_base_max_file_bytes: int
+    #: Per-minute platform fee in millipaise, applied when the mandate is
+    #: authorised. ``None`` means the plan says nothing and the account keeps
+    #: the rate it has — not the same as zero, which would give the fee away.
+    platform_rate_mpaise: int | None
     razorpay_plan_id: str | None
     #: The provider plan for a zero-rated account — outside India with an LUT
     #: on file. Created at the **net** price rather than the gross, because
@@ -101,6 +111,18 @@ def _view(row: SubscriptionPlanModel) -> Plan:
             row.extra_number_price_paise
             if row.extra_number_price_paise is not None
             else constants.NUMBER_RENTAL_PRICE_PAISE
+        ),
+        knowledge_base_bytes=int(row.knowledge_base_bytes or 0),
+        # A plan with no figure of its own follows the deployment ceiling,
+        # exactly as extra_number_price_paise follows the rental price.
+        knowledge_base_max_file_bytes=int(
+            row.knowledge_base_max_file_bytes
+            or constants.KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
+        ),
+        platform_rate_mpaise=(
+            int(row.platform_rate_mpaise)
+            if row.platform_rate_mpaise is not None
+            else None
         ),
         razorpay_plan_id=row.razorpay_plan_id,
         razorpay_plan_id_export=row.razorpay_plan_id_export,
@@ -145,6 +167,146 @@ async def resolve(session: AsyncSession, *, code: str | None) -> Plan | None:
     return await get_plan(session, code=code or STARTER)
 
 
+@dataclass(frozen=True)
+class KnowledgeBaseAllowance:
+    """What an account may keep in its knowledge base, and in one file.
+
+    Both numbers together because all three gates need both — the presigned URL
+    is minted against the per-file limit and refused against the total, the
+    process-document call checks the same pair, and the worker enforces the
+    per-file limit again on an object the store never checked. Returning them
+    separately is how two of the three end up reading one and assuming the
+    other.
+    """
+
+    total_bytes: int
+    max_file_bytes: int
+
+    @property
+    def includes_a_knowledge_base(self) -> bool:
+        return self.total_bytes > 0
+
+
+#: What an account with no plan gets. Named rather than written as a bare pair
+#: of zeros at each return, because "no knowledge base at all" is a decision
+#: this module makes and not an absence of one.
+NO_KNOWLEDGE_BASE = KnowledgeBaseAllowance(total_bytes=0, max_file_bytes=0)
+
+
+async def knowledge_base_allowance_for(
+    session: AsyncSession, *, organization_id: int
+) -> KnowledgeBaseAllowance:
+    """How much knowledge base this account's plan buys it.
+
+    Nothing for an account with no authorised plan, and that is the point of
+    the function rather than an edge case in it. Ingestion embeds every document
+    on our own model key, and embeddings have no rate anywhere — so an
+    unsubscribed account uploading a corpus spends our money and bills nothing.
+    Returning nothing is what makes the knowledge base a thing a subscription
+    buys.
+
+    A mandate that exists but is not yet authorised also resolves to nothing.
+    The account has started subscribing and not finished; entitling it on the
+    strength of an instruction the bank has not confirmed would hand out the
+    feature to anyone who begins checkout and abandons it.
+
+    Imported lazily because ``mandates`` imports this module for
+    :func:`resolve`, and the cycle is only benign at call time.
+    """
+    from api.services.billing.mandates import (
+        PURPOSE_STARTER_PLAN,
+        get_mandate,
+        is_authorised,
+    )
+
+    mandate = await get_mandate(
+        session, organization_id=organization_id, purpose=PURPOSE_STARTER_PLAN
+    )
+    if not is_authorised(mandate):
+        return NO_KNOWLEDGE_BASE
+    plan = await resolve(session, code=mandate.plan_code)
+    if plan is None or plan.knowledge_base_bytes <= 0:
+        return NO_KNOWLEDGE_BASE
+    return KnowledgeBaseAllowance(
+        total_bytes=plan.knowledge_base_bytes,
+        max_file_bytes=plan.knowledge_base_max_file_bytes,
+    )
+
+
+async def set_provider_plan_ids(
+    session: AsyncSession,
+    *,
+    code: str,
+    razorpay_plan_id: str | None = None,
+    razorpay_plan_id_export: str | None = None,
+) -> Plan:
+    """Pin a plan's provider ids without touching what it costs or contains.
+
+    Separate from :func:`save` because the two answer different questions.
+    ``save`` rewrites the whole row, so using it to add a missing id would also
+    reset a price an operator had edited -- silently, and to whatever the caller
+    happened to be holding. Pinning is not a re-pricing.
+
+    ``None`` leaves an id alone rather than clearing it, so a caller that knows
+    only the domestic id cannot blank the export one by omission.
+
+    The same-id check from ``save`` applies here too, and for the same reason: a
+    pinned plan holds one fixed amount at the provider, so one id cannot collect
+    both the gross and the net.
+    """
+    row = await session.scalar(
+        select(SubscriptionPlanModel).where(SubscriptionPlanModel.code == code)
+    )
+    if row is None:
+        raise PlanError(f"No plan with code {code!r}.")
+
+    if razorpay_plan_id is not None:
+        row.razorpay_plan_id = razorpay_plan_id.strip() or None
+    if razorpay_plan_id_export is not None:
+        row.razorpay_plan_id_export = razorpay_plan_id_export.strip() or None
+
+    if row.razorpay_plan_id_export and row.razorpay_plan_id_export == (
+        row.razorpay_plan_id
+    ):
+        raise PlanError(
+            "The export plan must be a separate Razorpay plan, created at the "
+            "net price. The same plan cannot collect two different amounts."
+        )
+
+    await session.flush()
+    return _view(row)
+
+
+async def set_plan_platform_rate(
+    session: AsyncSession, *, code: str, platform_rate_mpaise: int | None
+) -> Plan:
+    """Set a plan's per-minute fee without touching anything else about it.
+
+    The narrow sibling of :func:`set_provider_plan_ids`, and separate from
+    :func:`save` for the same reason: ``save`` rewrites the whole row, so using
+    it to price a tier would also reset a balance or an entitlement somebody had
+    edited.
+
+    ``None`` clears the fee, returning accounts that later authorise on this
+    plan to whatever rate they already hold. That is a real thing to want — it
+    is how a tier stops overriding the list price — so it is expressible rather
+    than being conflated with "leave it alone".
+    """
+    row = await session.scalar(
+        select(SubscriptionPlanModel).where(SubscriptionPlanModel.code == code)
+    )
+    if row is None:
+        raise PlanError(f"No plan with code {code!r}.")
+    if platform_rate_mpaise is not None and platform_rate_mpaise < 0:
+        raise PlanError("A plan cannot charge a negative platform fee.")
+
+    row.platform_rate_mpaise = (
+        int(platform_rate_mpaise) if platform_rate_mpaise is not None else None
+    )
+    await session.flush()
+    return _view(row)
+
+
 async def save(
     session: AsyncSession,
     *,
@@ -155,6 +317,9 @@ async def save(
     included_numbers: int,
     blurb: str = "",
     extra_number_price_paise: int | None = None,
+    knowledge_base_bytes: int = 0,
+    knowledge_base_max_file_bytes: int = 0,
+    platform_rate_mpaise: int | None = None,
     razorpay_plan_id: str | None = None,
     razorpay_plan_id_export: str | None = None,
     enabled: bool = True,
@@ -173,8 +338,23 @@ async def save(
         raise PlanError("A plan needs a name customers will read.")
     if price_paise <= 0:
         raise PlanError("A plan's price must be more than nothing.")
-    if balance_paise < 0 or included_numbers < 0:
+    if (
+        balance_paise < 0
+        or included_numbers < 0
+        or knowledge_base_bytes < 0
+        or knowledge_base_max_file_bytes < 0
+    ):
         raise PlanError("A plan cannot include a negative amount of anything.")
+    if platform_rate_mpaise is not None and platform_rate_mpaise < 0:
+        raise PlanError("A plan cannot charge a negative platform fee.")
+    if 0 < knowledge_base_bytes < knowledge_base_max_file_bytes:
+        # A per-file limit above the total is a limit that can never be
+        # reached: the upload is refused by the total first, and the number on
+        # the screen is one no document could ever hit.
+        raise PlanError(
+            "This plan accepts a single file larger than its whole knowledge "
+            "base. Raise the total, or lower the per-file limit."
+        )
     if balance_paise > price_paise:
         # The one that is a loss on contact rather than a thin margin: granted
         # balance is spendable immediately and at our cost.
@@ -205,6 +385,11 @@ async def save(
     row.included_numbers = int(included_numbers)
     row.extra_number_price_paise = (
         int(extra_number_price_paise) if extra_number_price_paise is not None else None
+    )
+    row.knowledge_base_bytes = int(knowledge_base_bytes)
+    row.knowledge_base_max_file_bytes = int(knowledge_base_max_file_bytes)
+    row.platform_rate_mpaise = (
+        int(platform_rate_mpaise) if platform_rate_mpaise is not None else None
     )
     row.razorpay_plan_id = (razorpay_plan_id or "").strip() or None
     row.razorpay_plan_id_export = (razorpay_plan_id_export or "").strip() or None
@@ -257,6 +442,8 @@ async def ensure_seeded(session: AsyncSession) -> Plan:
         balance_paise=constants.STARTER_PLAN_BALANCE_PAISE,
         included_numbers=1,
         extra_number_price_paise=constants.NUMBER_RENTAL_PRICE_PAISE,
+        knowledge_base_bytes=constants.STARTER_PLAN_KNOWLEDGE_BASE_BYTES,
+        knowledge_base_max_file_bytes=constants.STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES,
         razorpay_plan_id=constants.RAZORPAY_STARTER_PLAN_ID,
         sort_order=0,
     )

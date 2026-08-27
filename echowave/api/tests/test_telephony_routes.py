@@ -158,10 +158,17 @@ def test_initiate_call_executes_as_workflow_owner_for_shared_org_workflow():
     assert create_kwargs["user_id"] == workflow.user_id
     assert create_kwargs["organization_id"] == workflow.organization_id
     assert create_kwargs["initial_context"]["template_key"] == "template-value"
+    # This org dials on its own carrier, so no shared-pool slot is taken. The
+    # scope arguments are asserted as None rather than omitted: they are what
+    # bounds Decibyl's own caller-ID pool, and an account with its own carrier
+    # counting against that pool would let one customer's traffic exhaust the
+    # trial line for everybody.
     mock_concurrency.acquire_org_slot.assert_awaited_once_with(
         workflow.organization_id,
         source="telephony_outbound",
         timeout=0,
+        scope_key=None,
+        scope_max_concurrent=None,
     )
     mock_concurrency.bind_workflow_run.assert_awaited_once_with(slot, 501)
 

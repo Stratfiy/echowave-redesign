@@ -20,7 +20,10 @@ from pipecat.utils.run_context import set_current_run_id
 from pydantic import BaseModel
 from starlette.websockets import WebSocketDisconnect
 
-from api.constants import REQUIRE_VERIFIED_TEST_NUMBER
+from api.constants import (
+    REQUIRE_VERIFIED_TEST_NUMBER,
+    SHARED_OUTBOUND_MAX_CONCURRENT,
+)
 from api.db import db_client
 from api.db.models import UserModel
 from api.db.workflow_run_client import WorkflowRunStateConflictError
@@ -51,6 +54,7 @@ from api.services.telephony.factory import (
     get_telephony_provider_by_id,
     get_telephony_provider_for_run,
 )
+from api.services.telephony.shared_outbound import SHARED_OUTBOUND_SCOPE
 from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
@@ -320,12 +324,39 @@ async def initiate_call(
 
     workflow_run_id = request.workflow_run_id
     try:
+        # A trial call on our shared caller IDs is additionally counted against
+        # one platform-wide total. The per-organization limit does not bound
+        # that pool at all: it counts each account separately, so ten
+        # evaluators dialling at once is ten accounts each comfortably inside
+        # their own limit and one carrier account -- ours -- carrying every
+        # minute of it.
+        #
+        # The scope counter is keyed on the scope alone rather than on the
+        # organization (see rate_limiter.try_acquire_concurrent_slot_details),
+        # which is what makes it a platform total, and it is taken in the same
+        # atomic script as the org slot so the two cannot disagree.
         concurrency_slot = await call_concurrency.acquire_org_slot(
             user.selected_organization_id,
             source="telephony_outbound",
             timeout=0,
+            scope_key=SHARED_OUTBOUND_SCOPE if using_shared_caller_id else None,
+            scope_max_concurrent=(
+                SHARED_OUTBOUND_MAX_CONCURRENT if using_shared_caller_id else None
+            ),
         )
     except CallConcurrencyLimitError:
+        if using_shared_caller_id:
+            # Distinguished from the org limit because the remedies are
+            # opposite: this one is not about anything the account did, and
+            # waiting is the whole of the fix.
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Every shared test line is busy right now. Try again in a "
+                    "moment, or connect your own carrier to dial without "
+                    "waiting."
+                ),
+            )
         raise HTTPException(status_code=429, detail="Concurrent call limit reached")
 
     try:

@@ -110,22 +110,32 @@ class TestCountingWhatIsHeld:
         assert await db_client.get_knowledge_base_bytes_used(mine) == 1 * MB
 
 
-class TestTheDefault:
-    def test_the_aggregate_cap_is_far_above_the_per_file_cap(self):
-        """They bound different things. A total equal to the per-file limit
-        would mean one document fills the account, which is not a knowledge
-        base."""
+class TestTheStarterAllowance:
+    """The aggregate ceiling is the plan's, not the deployment's.
+
+    It used to be one environment variable shared by every account, subscriber
+    or not, which is the wrong shape for the thing it bounds: ingestion embeds
+    on our own model key and embeddings have no rate anywhere, so the cap is
+    what stands between an unsubscribed account and a corpus we pay to embed.
+    """
+
+    def test_it_holds_more_than_one_document(self):
+        """They bound different things. A total near the per-file limit would
+        mean one upload fills the account, which is not a knowledge base."""
         from api.constants import (
             KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES,
-            KNOWLEDGE_BASE_MAX_TOTAL_BYTES,
+            STARTER_PLAN_KNOWLEDGE_BASE_BYTES,
         )
 
-        assert KNOWLEDGE_BASE_MAX_TOTAL_BYTES > KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES * 10
+        documents = (
+            STARTER_PLAN_KNOWLEDGE_BASE_BYTES // KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
+        )
+        assert documents >= 5
 
-    def test_the_default_is_generous(self):
-        """Set high on purpose. A cap that trips existing accounts on the day it
-        ships is an outage, not a control — the number can come down once there
-        is data about what real accounts hold."""
-        from api.constants import KNOWLEDGE_BASE_MAX_TOTAL_BYTES
+    def test_the_starter_plan_includes_one(self):
+        """Zero would make the starter plan a plan that cannot use the feature,
+        which is worse than not offering it — the screen would show a knowledge
+        base the account is refused at."""
+        from api.constants import STARTER_PLAN_KNOWLEDGE_BASE_BYTES
 
-        assert KNOWLEDGE_BASE_MAX_TOTAL_BYTES >= 100 * MB
+        assert STARTER_PLAN_KNOWLEDGE_BASE_BYTES > 0
