@@ -240,6 +240,10 @@ async def run_per_node_qa_analysis(
 
     return {
         "node_results": node_results,
+        # The provider travels with the model because the rate card is keyed by
+        # both. Dropping it here is what made QA tokens unpriceable: the usage
+        # key was built from a label, and a label is not a vendor with a rate.
+        "provider": provider,
         "model": model,
     }
 
@@ -347,5 +351,6 @@ async def _run_whole_call_qa_analysis(
 
     return {
         "node_results": {"whole_call": node_result},
+        "provider": provider,
         "model": model,
     }

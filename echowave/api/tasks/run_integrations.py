@@ -142,7 +142,18 @@ async def _update_usage_info_with_qa_tokens(
             if not token_usage or not model:
                 continue
 
-            key = f"QAAnalysis|||{model}"
+            # Keyed by the vendor that served the tokens, not by a label for
+            # the feature that asked for them. ``usage.provider_from_processor``
+            # reads the first half of this key as a provider name and looks up a
+            # rate for it, and there is no vendor called "QAAnalysis" — so every
+            # QA token that reached here was reported uncosted: not billed to
+            # the customer, and not counted as our own cost either, which
+            # overstates margin on exactly the calls doing the most work.
+            #
+            # A result without a provider is one from an older run still being
+            # reprocessed; the old label is the honest thing to write for it,
+            # because that *is* what it was costed under.
+            key = f"{result.get('provider') or 'QAAnalysis'}|||{model}"
             if key in llm_usage:
                 # Aggregate if multiple QA nodes use the same model
                 existing = llm_usage[key]
