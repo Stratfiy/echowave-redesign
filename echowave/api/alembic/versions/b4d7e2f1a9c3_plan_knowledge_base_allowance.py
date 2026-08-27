@@ -33,11 +33,12 @@ down_revision = "c7f4a1b93e28"
 branch_labels = None
 depends_on = None
 
-#: 25MB, matching ``STARTER_PLAN_KNOWLEDGE_BASE_BYTES``. Written out rather
-#: than imported: a migration reproduces what the column held on the day it
-#: ran, and reading a constant that later moves would make replaying this
-#: produce a different database from the one it originally built.
+#: 25MB total and 5MB a file, matching the STARTER_PLAN_KNOWLEDGE_BASE_*
+#: constants. Written out rather than imported: a migration reproduces what the
+#: columns held on the day it ran, and reading a constant that later moves would
+#: make replaying this produce a different database from the one it built.
 _STARTER_BYTES = 25 * 1024 * 1024
+_STARTER_FILE_BYTES = 5 * 1024 * 1024
 
 
 def upgrade() -> None:
@@ -50,16 +51,31 @@ def upgrade() -> None:
             server_default="0",
         ),
     )
+    # Two numbers because they bound different failures: the total is the
+    # standing cost of holding and re-embedding a corpus, the per-file limit is
+    # one upload's worth of worker time and disk.
+    op.add_column(
+        "subscription_plans",
+        sa.Column(
+            "knowledge_base_max_file_bytes",
+            sa.BigInteger(),
+            nullable=False,
+            server_default="0",
+        ),
+    )
     # Only the starter plan, and only where an operator has not already set a
     # figure. A blanket update would overwrite a deliberate allowance on any
     # plan created between this being written and it being run.
     op.execute(
         sa.text(
-            "UPDATE subscription_plans SET knowledge_base_bytes = :bytes "
+            "UPDATE subscription_plans "
+            "SET knowledge_base_bytes = :total, "
+            "    knowledge_base_max_file_bytes = :per_file "
             "WHERE code = 'starter' AND knowledge_base_bytes = 0"
-        ).bindparams(bytes=_STARTER_BYTES)
+        ).bindparams(total=_STARTER_BYTES, per_file=_STARTER_FILE_BYTES)
     )
 
 
 def downgrade() -> None:
+    op.drop_column("subscription_plans", "knowledge_base_max_file_bytes")
     op.drop_column("subscription_plans", "knowledge_base_bytes")

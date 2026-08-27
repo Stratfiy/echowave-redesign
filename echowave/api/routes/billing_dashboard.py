@@ -1440,6 +1440,8 @@ class PlanRequest(BaseModel):
     #: an account on it cannot upload — the knowledge base is a plan feature,
     #: because ingestion embeds on our key and nothing meters embeddings.
     knowledge_base_bytes: int = Field(0, ge=0)
+    #: Largest single document. Zero follows the deployment ceiling.
+    knowledge_base_max_file_bytes: int = Field(0, ge=0)
     razorpay_plan_id: str | None = None
     #: The provider plan for a zero-rated account, created at the **net**
     #: price. A pinned plan charges everyone the same amount, so an export
@@ -1467,6 +1469,7 @@ def _plan_view(plan) -> dict[str, Any]:
         "included_numbers": plan.included_numbers,
         "extra_number_price_paise": plan.extra_number_price_paise,
         "knowledge_base_bytes": plan.knowledge_base_bytes,
+        "knowledge_base_max_file_bytes": plan.knowledge_base_max_file_bytes,
         "numbers_value_paise": plan.numbers_value_paise,
         "parts_paise": plan.parts_paise,
         "discount_paise": plan.discount_paise,

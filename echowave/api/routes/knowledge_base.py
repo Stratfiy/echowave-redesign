@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel
 
-from api.constants import KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
 from api.db import db_client
 from api.enums import PostHogEvent
 from api.schemas.knowledge_base import (
@@ -36,15 +35,15 @@ def _mb(value: int) -> int:
     return value // (1024 * 1024)
 
 
-async def _allowance(organization_id: int) -> int:
-    """Bytes of knowledge base this account's plan buys it."""
+async def _allowance(organization_id: int):
+    """What this account's plan buys it: a total, and a per-file ceiling."""
     async with db_client.async_session() as session:
-        return await subscription_plans.knowledge_base_bytes_for(
+        return await subscription_plans.knowledge_base_allowance_for(
             session, organization_id=organization_id
         )
 
 
-async def _assert_room_to_ingest(organization_id: int) -> None:
+async def _assert_room_to_ingest(organization_id: int):
     """Refuse an upload the account has no plan for, or no room left in.
 
     One function rather than the check written out at each gate, because there
@@ -57,9 +56,12 @@ async def _assert_room_to_ingest(organization_id: int) -> None:
     customer fixes by deleting a document; "not on your plan" is something they
     fix by subscribing, and telling them to delete their way out of it would be
     advice that cannot work.
+
+    Returns the allowance so the caller can mint a URL against the per-file
+    limit without resolving the plan a second time.
     """
     allowance = await _allowance(organization_id)
-    if allowance <= 0:
+    if not allowance.includes_a_knowledge_base:
         raise HTTPException(
             status_code=402,
             detail=(
@@ -68,15 +70,16 @@ async def _assert_room_to_ingest(organization_id: int) -> None:
             ),
         )
     used = await db_client.get_knowledge_base_bytes_used(organization_id)
-    if used >= allowance:
+    if used >= allowance.total_bytes:
         raise HTTPException(
             status_code=413,
             detail=(
                 "Your knowledge base is full "
-                f"({_mb(used)} of {_mb(allowance)} MB used). "
+                f"({_mb(used)} of {_mb(allowance.total_bytes)} MB used). "
                 "Delete a document to make room, or move to a larger plan."
             ),
         )
+    return allowance
 
 
 @router.post(
@@ -106,7 +109,7 @@ async def get_upload_url(
     # cannot carry a size limit, so the only honest place to refuse is before
     # the browser starts sending — the alternative is a progress bar reaching
     # 100% and then being told there was no room.
-    await _assert_room_to_ingest(user.selected_organization_id)
+    allowance = await _assert_room_to_ingest(user.selected_organization_id)
 
     try:
         # Generate unique document UUID for S3 organization
@@ -124,12 +127,13 @@ async def get_upload_url(
         # max_size is advisory — a presigned PUT cannot carry a size limit, see
         # BaseFileSystem.aget_presigned_put_url — so it is stated here to match
         # what the worker will actually accept rather than the 100MB it used to
-        # claim while ingestion refused anything over five.
+        # claim while ingestion refused anything over five. It is the *plan's*
+        # ceiling, which is the one the worker enforces too.
         upload_url = await storage_fs.aget_presigned_put_url(
             file_path=s3_key,
             expiration=1800,  # 30 minutes
             content_type=request.mime_type,
-            max_size=KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES,
+            max_size=allowance.max_file_bytes,
         )
 
         if not upload_url:
@@ -294,6 +298,9 @@ class KnowledgeBaseUsageSchema(BaseModel):
 
     bytes_used: int
     bytes_limit: int
+    #: The largest single document this plan accepts, so the file picker can
+    #: refuse before an upload rather than after one.
+    max_file_bytes: int
     documents: int
 
 
@@ -307,12 +314,14 @@ async def get_usage(user=Depends(get_user)) -> KnowledgeBaseUsageSchema:
     documents = await db_client.get_documents_for_organization(
         organization_id=user.selected_organization_id, limit=100
     )
+    # The account's own allowance, not the deployment ceiling. A screen
+    # reporting everyone the same limit is how a customer discovers at upload
+    # time that the number they were shown was not theirs.
+    allowance = await _allowance(user.selected_organization_id)
     return KnowledgeBaseUsageSchema(
-        # The account's own allowance, not the deployment ceiling. A screen
-        # reporting everyone the same limit is how a customer discovers at
-        # upload time that the number they were shown was not theirs.
         bytes_used=used,
-        bytes_limit=await _allowance(user.selected_organization_id),
+        bytes_limit=allowance.total_bytes,
+        max_file_bytes=allowance.max_file_bytes,
         documents=len(documents),
     )
 

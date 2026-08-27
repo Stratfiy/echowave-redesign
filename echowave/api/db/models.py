@@ -2907,6 +2907,22 @@ class SubscriptionPlanModel(Base):
     knowledge_base_bytes = Column(
         BigInteger, nullable=False, default=0, server_default="0"
     )
+    #: The largest single document the plan accepts, in bytes.
+    #:
+    #: A separate number from the total because they fail differently. The
+    #: total is about the standing cost of holding and re-embedding a corpus;
+    #: this one is about one upload's worth of worker time, memory and disk —
+    #: a 200MB scan is a stalled queue whatever the account's total allowance
+    #: is. Tiering both lets a larger plan take bigger manuals as well as more
+    #: of them, which is the actual difference between a shop's FAQ and an
+    #: insurer's policy library.
+    #:
+    #: Zero falls back to KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES, the deployment
+    #: ceiling, so a plan with no opinion follows the platform rather than
+    #: pinning a copy that goes stale the day it moves.
+    knowledge_base_max_file_bytes = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
 
     #: The provider plan this subscribes to. Pinned per plan for the same
     #: reason the rental plan is pinned: a plan created lazily per environment

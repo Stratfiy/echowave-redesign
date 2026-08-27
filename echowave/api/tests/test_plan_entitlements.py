@@ -17,10 +17,13 @@ an existing customer topping up mid-campaign needs ₹200 to be ₹200.
 
 from __future__ import annotations
 
+import pytest
+
 from api.constants import (
     FIRST_TOPUP_MIN_PAISE,
     MIN_TOPUP_PAISE,
     STARTER_PLAN_KNOWLEDGE_BASE_BYTES,
+    STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES,
     TOPUP_INCREMENT_PAISE,
 )
 from api.db.models import CreditLedgerModel, OrganizationModel, PaymentMandateModel
@@ -70,28 +73,26 @@ async def _topup_row(session, org, *, kind=CreditLedgerKind.TOPUP):
 
 class TestTheKnowledgeBaseIsSomethingAPlanBuys:
     async def test_no_plan_means_no_allowance(self, async_session):
-        """The value the whole column exists for. Zero is not an edge case here
-        — it is what stops an unsubscribed account having a corpus embedded on
-        our key and billed to nobody."""
+        """The value the whole column exists for. Nothing is not an edge case
+        here — it is what stops an unsubscribed account having a corpus
+        embedded on our key and billed to nobody."""
         org = await _org(async_session, "kb-none")
-        assert (
-            await subscription_plans.knowledge_base_bytes_for(
-                async_session, organization_id=org.id
-            )
-            == 0
+        allowance = await subscription_plans.knowledge_base_allowance_for(
+            async_session, organization_id=org.id
         )
+        assert allowance == subscription_plans.NO_KNOWLEDGE_BASE
+        assert not allowance.includes_a_knowledge_base
 
-    async def test_an_authorised_plan_grants_its_own_figure(self, async_session):
+    async def test_an_authorised_plan_grants_its_own_figures(self, async_session):
         org = await _org(async_session, "kb-active")
         await subscription_plans.ensure_seeded(async_session)
         await _mandate(async_session, org, status=MandateStatus.ACTIVE.value)
 
-        assert (
-            await subscription_plans.knowledge_base_bytes_for(
-                async_session, organization_id=org.id
-            )
-            == STARTER_PLAN_KNOWLEDGE_BASE_BYTES
+        allowance = await subscription_plans.knowledge_base_allowance_for(
+            async_session, organization_id=org.id
         )
+        assert allowance.total_bytes == STARTER_PLAN_KNOWLEDGE_BASE_BYTES
+        assert allowance.max_file_bytes == STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES
 
     async def test_a_started_but_unauthorised_mandate_grants_nothing(
         self, async_session
@@ -104,18 +105,16 @@ class TestTheKnowledgeBaseIsSomethingAPlanBuys:
         await _mandate(async_session, org, status=MandateStatus.CREATED.value)
 
         assert (
-            await subscription_plans.knowledge_base_bytes_for(
+            await subscription_plans.knowledge_base_allowance_for(
                 async_session, organization_id=org.id
             )
-            == 0
+            == subscription_plans.NO_KNOWLEDGE_BASE
         )
 
-    async def test_the_allowance_follows_the_plan_not_the_deployment(
-        self, async_session
-    ):
+    async def test_both_figures_follow_the_plan_not_the_deployment(self, async_session):
         """Two plans, two allowances, one deployment. This is the property a
         single environment variable could not express, and the reason the
-        column exists rather than a larger default."""
+        columns exist rather than a larger default."""
         org = await _org(async_session, "kb-big")
         await subscription_plans.save(
             async_session,
@@ -124,23 +123,62 @@ class TestTheKnowledgeBaseIsSomethingAPlanBuys:
             price_paise=1_999_900,
             balance_paise=1_900_000,
             included_numbers=4,
-            knowledge_base_bytes=250 * MB,
+            knowledge_base_bytes=500 * MB,
+            knowledge_base_max_file_bytes=25 * MB,
             razorpay_plan_id="plan_scale",
         )
         await _mandate(
             async_session, org, status=MandateStatus.ACTIVE.value, plan_code="scale"
         )
 
-        assert (
-            await subscription_plans.knowledge_base_bytes_for(
-                async_session, organization_id=org.id
-            )
-            == 250 * MB
+        allowance = await subscription_plans.knowledge_base_allowance_for(
+            async_session, organization_id=org.id
         )
+        assert allowance.total_bytes == 500 * MB
+        assert allowance.max_file_bytes == 25 * MB
 
-    async def test_the_starter_plan_seeds_with_one(self, async_session):
+    async def test_a_plan_with_no_file_figure_follows_the_deployment(
+        self, async_session
+    ):
+        """Null-ish means "whatever the platform allows", exactly as
+        extra_number_price_paise follows the rental price — so a plan that has
+        no opinion does not pin a copy that goes stale."""
+        from api.constants import KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
+
+        plan = await subscription_plans.save(
+            async_session,
+            code="quiet",
+            label="Quiet",
+            price_paise=100_000,
+            balance_paise=100_000,
+            included_numbers=0,
+            knowledge_base_bytes=50 * MB,
+            razorpay_plan_id="plan_quiet",
+        )
+        assert plan.knowledge_base_max_file_bytes == KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
+
+    async def test_a_file_limit_above_the_total_is_refused(self, async_session):
+        """A per-file limit larger than the whole allowance is a number no
+        document could ever reach: the total refuses the upload first. Shown on
+        a screen it reads as a promise the product cannot keep."""
+        with pytest.raises(subscription_plans.PlanError, match="single file larger"):
+            await subscription_plans.save(
+                async_session,
+                code="impossible",
+                label="Impossible",
+                price_paise=100_000,
+                balance_paise=100_000,
+                included_numbers=0,
+                knowledge_base_bytes=10 * MB,
+                knowledge_base_max_file_bytes=25 * MB,
+            )
+
+    async def test_the_starter_plan_seeds_with_both(self, async_session):
         plan = await subscription_plans.ensure_seeded(async_session)
         assert plan.knowledge_base_bytes == STARTER_PLAN_KNOWLEDGE_BASE_BYTES
+        assert plan.knowledge_base_max_file_bytes == (
+            STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES
+        )
         assert plan.knowledge_base_bytes > 0
 
 

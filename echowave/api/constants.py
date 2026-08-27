@@ -223,6 +223,13 @@ STARTER_PLAN_BALANCE_PAISE = int(os.getenv("STARTER_PLAN_BALANCE_PAISE", "250000
 STARTER_PLAN_KNOWLEDGE_BASE_BYTES = int(
     os.getenv("STARTER_PLAN_KNOWLEDGE_BASE_BYTES", str(25 * 1024 * 1024))
 )
+# The largest single document the starter plan accepts. A separate figure from
+# the total because they bound different failures: the total is the standing
+# cost of holding and re-embedding a corpus, this is one upload's worth of
+# worker time, memory and disk. Five of these fill the starter allowance.
+STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES = int(
+    os.getenv("STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES", str(5 * 1024 * 1024))
+)
 STARTER_PLAN_PRICE_PAISE = STARTER_PLAN_BALANCE_PAISE + NUMBER_RENTAL_PRICE_PAISE
 
 # Pin the Razorpay plan, exactly as with the rental plan: a plan created lazily
