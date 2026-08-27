@@ -344,6 +344,20 @@ STT_RATES = (
         _inr(30.0 / 60),
         "Rs30/hour published. The model the default managed tier resolves to.",
     ),
+    # Sarvam's own pricing page prices STT as one flat real-time-streaming
+    # tier -- Rs30/hour -- with no separate figure for saaras:v3. It is the
+    # same product line as saarika:v2.5, priced identically; batch and
+    # diarization are the only rows Sarvam breaks out separately (below).
+    # Confirmed against sarvam.ai/pricing 27 Aug 2026, the day the account's
+    # first real call used this model and found no rate on file for it.
+    DefaultRate(
+        "sarvam",
+        "saaras:v3",
+        CostComponent.STT,
+        RateUnit.MINUTE,
+        _inr(30.0 / 60),
+        "Rs30/hour published, same real-time-streaming tier as saarika:v2.5.",
+    ),
     DefaultRate(
         "elevenlabs",
         "",

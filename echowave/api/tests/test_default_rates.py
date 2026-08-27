@@ -176,6 +176,24 @@ class TestRupeeQuotedVendors:
         mpaise = usd_to_mpaise(row.usd_per_unit, usd_inr=REFERENCE_USD_INR)
         assert mpaise == 50_000  # ₹0.50 per minute
 
+    def test_saaras_v3_is_priced_the_same_as_saarika(self):
+        """Found missing on the first real call to use it, three weeks after
+        it shipped: Sarvam's own pricing page has no separate figure for
+        saaras:v3 -- it is the same real-time-streaming STT tier as
+        saarika:v2.5, priced identically, so this is not a second number to
+        keep in sync -- it is one fact Sarvam publishes once.
+        """
+        row = next(
+            r
+            for r in DEFAULT_RATES
+            if r.provider == "sarvam"
+            and r.component == CostComponent.STT
+            and r.model == "saaras:v3"
+        )
+        mpaise = usd_to_mpaise(row.usd_per_unit, usd_inr=REFERENCE_USD_INR)
+        assert mpaise == 50_000  # ₹0.50 per minute, same as saarika:v2.5
+        assert not row.provisional
+
 
 class TestProvenance:
     def test_the_note_says_it_was_defaulted(self):
