@@ -196,19 +196,36 @@ PLATFORM_PLIVO_APPLICATION_ID = os.getenv("PLATFORM_PLIVO_APPLICATION_ID") or No
 # Defaults are the India local-DID figures the launch plan was costed on.
 # Confirm against Plivo's live price list before relying on the margin.
 NUMBER_RENTAL_COST_PAISE = int(os.getenv("NUMBER_RENTAL_COST_PAISE", "25000"))
-NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "49900"))
+# What an extra number costs a month, beyond whatever the account's plan
+# includes. Rs559 net (Rs659.82 with GST) against Rs250 of Plivo rental --
+# confirmed on the account, not a list price.
+#
+# This is the *extra*-number figure. A plan's own entitlement is priced inside
+# its monthly price; see subscription_plans.included_numbers, and
+# extra_number_price_paise for a plan that wants a different figure from this
+# one.
+NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "55900"))
 
 # --- The starter plan ---------------------------------------------------------
 #
 # One price a month that covers a phone number and a talking allowance:
 #
-#     Rs2,500 of call balance  +  Rs499 for the number  =  Rs2,999 net
+#     Rs2,500 of call balance  +  a number  =  Rs2,999 net
 #
-# The price is **derived**, not typed. Writing 299900 here as a third
-# independent number is how the three drift apart: somebody raises the rental to
-# Rs599, the plan keeps collecting Rs2,999, and the number is sold at a loss by
-# an arithmetic nobody re-did. Deriving it means the plan price follows the
-# rental price by construction.
+# The price used to be **derived** as balance + rental, so the three could not
+# drift. That held while the plan was the only way to hold a number and the two
+# prices were the same thing. They are not any more: Rs559 is what an *extra*
+# number costs, and a plan's included number is priced inside its monthly price
+# like every other tier's is. Deriving through the extra-number figure now means
+# raising it silently re-prices Starter -- and Starter's price is pinned to a
+# Razorpay plan that collects a fixed amount, so the two would come apart at the
+# bank rather than in a spreadsheet.
+#
+# What the derivation actually protected is still enforced, and by the check
+# that can see all of it: subscription_plans.save() refuses a plan granting more
+# balance than it collects, and warns when a plan is priced above its contents.
+# Starter at Rs2,999 against Rs2,500 + Rs559 of parts is a deliberate Rs60
+# discount, the same shape Growth and Scale carry.
 #
 # All three are **net of GST**, like every other figure the ledger deals in. The
 # customer is charged the grossed-up amount — Rs3,538.82 domestic at 18% — and
@@ -230,7 +247,7 @@ STARTER_PLAN_KNOWLEDGE_BASE_BYTES = int(
 STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES = int(
     os.getenv("STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES", str(5 * 1024 * 1024))
 )
-STARTER_PLAN_PRICE_PAISE = STARTER_PLAN_BALANCE_PAISE + NUMBER_RENTAL_PRICE_PAISE
+STARTER_PLAN_PRICE_PAISE = int(os.getenv("STARTER_PLAN_PRICE_PAISE", "299900"))
 
 # Pin the Razorpay plan, exactly as with the rental plan: a plan created lazily
 # per environment fragments the provider's own reporting into pieces that cannot
