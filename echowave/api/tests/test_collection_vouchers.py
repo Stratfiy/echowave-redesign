@@ -44,14 +44,27 @@ from api.db.models import (
 )
 from api.enums import MandateStatus, RecurringChargeStatus, RecurringChargeType
 from api.services.billing import documents, payments, tax
+from api.services.billing.money import round_half_up_div
 from api.services.billing import mandates as mandate_service
 
 OUR_STATE = "29"
 WEBHOOK_SECRET = "whsec_test_do_not_use_in_production"
 
+
 #: ₹2,999 plus 18%, which is what the bank is actually told to collect.
-PLAN_GROSS_PAISE = 353_882
-RENTAL_GROSS_PAISE = 58_882
+#: What the provider reports collecting: the net plus 18% GST.
+#:
+#: Derived rather than typed. These were hand-written copies, and the rental one
+#: went stale the day the extra-number price moved -- the webhook carried the
+#: gross of the new price while the assertions still expected the net of the
+#: old, which reads as the voucher being issued for the wrong amount rather than
+#: as a constant nobody re-did.
+def _gross(net_paise: int) -> int:
+    return net_paise + round_half_up_div(net_paise * 1800, 10_000)
+
+
+PLAN_GROSS_PAISE = _gross(STARTER_PLAN_PRICE_PAISE)
+RENTAL_GROSS_PAISE = _gross(NUMBER_RENTAL_PRICE_PAISE)
 
 
 @pytest.fixture(autouse=True)
