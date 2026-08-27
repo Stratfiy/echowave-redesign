@@ -60,8 +60,18 @@ class DecibylManagedAIModelConfiguration(BaseModel):
     runtime. Requiring a key here made managed mode impossible to save — the
     entire point of choosing it is not having one.
 
-    It is kept rather than deleted so a stored configuration written by the old
-    UI still loads. Nothing reads it.
+    It is kept rather than deleted because it is still the account's model
+    gateway service key, minted once per organization at signup by
+    ``auth/depends.create_user_configuration_with_mps_key``.
+
+    **It is read, and this comment used to say it was not.** ``managed_model_
+    services.get_decibyl_service_api_key`` reads it on every run start, and
+    ``quota_service`` refuses the call with "You have invalid keys in your model
+    configuration" when it comes back empty. Anything building a managed
+    configuration for an existing account must carry the stored value forward:
+    there is no second copy, so writing an empty one does not clear a field, it
+    destroys the credential. The Simple picker's save did exactly that, and
+    every call the account made afterwards was refused.
     """
 
     api_key: str = ""

@@ -460,8 +460,29 @@ async def save_bundle_selection(
     )
     from api.services.configuration import bundles as bundle_service
     from api.services.configuration.ai_model_configuration import (
+        get_organization_ai_model_configuration_v2,
         upsert_organization_ai_model_configuration_v2,
     )
+
+    # The account's model gateway service key, carried forward rather than
+    # rewritten. It is minted once per organization at signup and is the only
+    # copy: nothing here can mint another, so writing a configuration without
+    # it does not "clear a field", it destroys the credential.
+    #
+    # This is not hypothetical. Saving a bundle used to build a fresh managed
+    # configuration and let ``api_key`` take its empty default, which passed
+    # every validator — an empty key is the ordinary case for a managed slot —
+    # and then refused every call the account made with "You have invalid keys
+    # in your model configuration". The stack was right, the tiers were right,
+    # and the credential the gateway authenticates with was gone.
+    #
+    # ``merge_ai_model_configuration_v2_secrets`` does not cover this. It
+    # restores a key the client sent back *masked*; a key that is simply absent
+    # reads as a deliberate empty value and is written as one.
+    existing = await get_organization_ai_model_configuration_v2(organization_id)
+    service_key = ""
+    if existing is not None and existing.decibyl is not None:
+        service_key = existing.decibyl.api_key or ""
 
     rows = await bundle_service.list_bundles(session, enabled_only=True)
     row = next((r for r in rows if r.slug == bundle_slug), None)
@@ -475,6 +496,7 @@ async def save_bundle_selection(
         if chosen and chosen != row.realtime_tier:
             raise SelectionError(f"{row.label} does not offer a {chosen!r} option.")
         managed = DecibylManagedAIModelConfiguration(
+            api_key=service_key,
             bundle=row.slug,
             realtime_tier=row.realtime_tier,
             # Carried so a later switch back to a pipeline bundle does not land
@@ -489,6 +511,7 @@ async def save_bundle_selection(
         if voice and voice not in {v.voice_id for v in voices()}:
             raise SelectionError(f"{voice!r} is not a voice we offer.")
         managed = DecibylManagedAIModelConfiguration(
+            api_key=service_key,
             bundle=row.slug,
             llm_tier=chosen,
             stt_tier=row.stt_tier or "default",
