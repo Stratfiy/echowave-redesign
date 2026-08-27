@@ -913,6 +913,24 @@ COUNTRY_CODES = {
 
 # Floor at 1 so a misconfigured env var (0 or negative) can't silently block
 # every call in the deployment.
+# How many trial calls may be in flight across the whole platform on Decibyl's
+# own shared caller IDs at one time.
+#
+# The pool is ours: our carrier account, our credentials, our rent, and minutes
+# billed to nobody. The per-organization limit does not bound any of that --
+# it counts each account separately, so ten evaluators dialling at once is ten
+# accounts each comfortably inside their own limit and one carrier account
+# carrying all of it.
+#
+# A caller ID is a From header rather than a channel, so nothing about the
+# numbers themselves imposes a ceiling; this is the ceiling. It is a platform
+# total rather than a per-account one because the exposure being bounded is the
+# carrier account, which is shared. Raise it once the Plivo account's own
+# concurrency headroom is known to be higher.
+SHARED_OUTBOUND_MAX_CONCURRENT = max(
+    1, int(os.getenv("SHARED_OUTBOUND_MAX_CONCURRENT", "10"))
+)
+
 DEFAULT_ORG_CONCURRENCY_LIMIT = max(
     1, int(os.getenv("DEFAULT_ORG_CONCURRENCY_LIMIT", "10"))
 )
