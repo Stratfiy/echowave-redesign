@@ -50,10 +50,45 @@ from api.services.billing.usage import byok_tier_from_components
 
 # Consumption per connected minute, used only when we have no measured history
 # for a model. Derived from a typical Indian voice-agent turn: roughly six
-# exchanges a minute, ~150 output tokens and ~380 spoken characters each, with
-# the prompt re-sent per turn dominating input tokens.
+# exchanges a minute, ~150 output tokens each, with the prompt re-sent per turn
+# dominating input tokens.
 DEFAULT_TOKENS_PER_MINUTE = 1_400
-DEFAULT_CHARACTERS_PER_MINUTE = 2_300
+
+#: What speech synthesis actually delivers: 150 words a minute at ~6 characters
+#: a word, the rate conversational TTS is tuned to. Named rather than inlined
+#: because it is the one assumption in the figure below that is about human
+#: speech rather than about the shape of a call.
+SPOKEN_CHARACTERS_PER_SECOND = 15.0
+
+
+def _characters_per_minute() -> int:
+    """Characters of synthesis per connected minute.
+
+    Derived from ``CallShape`` rather than typed, for the same reason
+    ``REALTIME_TOKENS_PER_MINUTE`` below is derived from ``realtime_pricing``:
+    that dataclass is what models how much of a call the agent spends speaking,
+    and a second figure written by hand beside it drifts from it silently.
+
+    This one had. It read 2,300, which across the 27 seconds a minute
+    ``agent_talk_share`` gives the agent works out at 85 characters a second —
+    about six times human speech. The cause is visible in the sentence that
+    documented it: "~380 spoken characters each" is a whole minute of agent
+    speech, and it had been multiplied by the six turns in that minute. So the
+    TTS line on every estimate came back six times over, and since synthesis is
+    the largest component of an Indic call, the Everyday card quoted roughly
+    twice what the same call then billed.
+
+    Invoices were never affected — costing prices measured characters — and the
+    estimate self-corrects per model once ``MIN_CALLS_FOR_MEASURED_ASSUMPTION``
+    calls exist to take a median from. This is what it quotes until then.
+    """
+    from api.services.billing.realtime_pricing import CallShape
+
+    agent_seconds_per_minute = 60.0 * CallShape().agent_talk_share
+    return round(agent_seconds_per_minute * SPOKEN_CHARACTERS_PER_SECOND)
+
+
+DEFAULT_CHARACTERS_PER_MINUTE = _characters_per_minute()
 
 
 #: Speech-to-speech consumes tokens on a completely different scale, and the
