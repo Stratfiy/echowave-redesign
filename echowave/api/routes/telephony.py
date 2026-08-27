@@ -23,6 +23,7 @@ from starlette.websockets import WebSocketDisconnect
 from api.constants import (
     REQUIRE_VERIFIED_TEST_NUMBER,
     SHARED_OUTBOUND_MAX_CONCURRENT,
+    TELEPHONY_WS_REQUIRE_TOKEN,
 )
 from api.db import db_client
 from api.db.models import UserModel
@@ -43,6 +44,7 @@ from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony import (
     number_lifecycle,
     shared_outbound,
+    stream_capability,
     verified_numbers,
     voice_otp,
 )
@@ -758,6 +760,31 @@ async def websocket_endpoint(
     websocket: WebSocket, workflow_id: int, organization_id: int, workflow_run_id: int
 ):
     """WebSocket endpoint for real-time call handling - routes to provider-specific handlers."""
+    # Checked before the handshake is accepted, so an unauthorised connection is
+    # refused rather than accepted-then-closed. Accepting first would mean every
+    # probe got a live socket for as long as it took us to say no.
+    granted = await stream_capability.verify(
+        websocket.query_params.get(stream_capability.TOKEN_PARAM),
+        workflow_id=workflow_id,
+        organization_id=organization_id,
+        workflow_run_id=workflow_run_id,
+    )
+    if not granted:
+        if TELEPHONY_WS_REQUIRE_TOKEN:
+            logger.warning(
+                f"Refusing media socket for run {workflow_run_id} (org "
+                f"{organization_id}): no valid stream capability presented."
+            )
+            await websocket.close(code=4401, reason="Unauthorized")
+            return
+        # The escape hatch is on. Say so on every connection: this is an
+        # unauthenticated socket, and it should be noisy for exactly as long as
+        # somebody leaves it that way.
+        logger.warning(
+            f"Media socket for run {workflow_run_id} presented no valid stream "
+            "capability and TELEPHONY_WS_REQUIRE_TOKEN is off — allowing it."
+        )
+
     await websocket.accept()
     await _handle_telephony_websocket(
         websocket, workflow_id, organization_id, workflow_run_id
@@ -769,12 +796,12 @@ async def _handle_telephony_websocket(
 ):
     """Shared WebSocket handler logic (connection already accepted).
 
-    TODO(security): ``organization_id`` arrives in the URL the provider dials
-    back, so it is caller-supplied and unauthenticated — this socket has no
-    signature check, and the id triple is a guessable bearer capability.
-    Scoping the lookups below by it prevents an accidental cross-org mismatch,
-    not a deliberate one. The real fix is a one-shot capability token minted at
-    run creation and redeemed here.
+    The caller has already established that whoever is connecting holds a
+    capability minted for this exact triple — see
+    ``services/telephony/stream_capability``. The org-scoped lookups below stay
+    as they are: they are what turns a mismatched id into a 4404 rather than
+    another tenant's call, and defence in depth is the right amount of defence
+    for live audio.
     """
     try:
         # Set the run context
@@ -1138,10 +1165,11 @@ async def handle_inbound_run(request: Request):
                     TelephonyError.QUOTA_EXCEEDED
                 )
 
-            backend_endpoint, wss_backend_endpoint = await get_backend_endpoints()
-            websocket_url = (
-                f"{wss_backend_endpoint}/api/v1/telephony/ws/"
-                f"{workflow_id}/{config.organization_id}/{workflow_run_id}"
+            backend_endpoint, _ = await get_backend_endpoints()
+            websocket_url = await stream_capability.stream_url(
+                workflow_id=workflow_id,
+                organization_id=config.organization_id,
+                workflow_run_id=workflow_run_id,
             )
 
             return await provider_instance.start_inbound_stream(
@@ -1306,10 +1334,11 @@ async def handle_inbound_telephony(
                 )
 
             # Generate response URLs
-            backend_endpoint, wss_backend_endpoint = await get_backend_endpoints()
-            websocket_url = (
-                f"{wss_backend_endpoint}/api/v1/telephony/ws/"
-                f"{workflow_id}/{organization_id}/{workflow_run_id}"
+            backend_endpoint, _ = await get_backend_endpoints()
+            websocket_url = await stream_capability.stream_url(
+                workflow_id=workflow_id,
+                organization_id=organization_id,
+                workflow_run_id=workflow_run_id,
             )
 
             response = await provider_instance.start_inbound_stream(

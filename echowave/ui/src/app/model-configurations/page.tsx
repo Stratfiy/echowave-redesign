@@ -40,7 +40,7 @@ export default function ServiceConfigurationPage() {
     return (
         <div className="min-h-screen">
             <div className="container mx-auto px-4 py-8">
-                <div className="mx-auto max-w-4xl space-y-6">
+                <div className="mx-auto max-w-6xl space-y-6">
                     <div
                         role="tablist"
                         aria-label="How much detail to show"

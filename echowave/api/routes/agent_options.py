@@ -9,6 +9,7 @@ non-technical buyer can act on.
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from api.db import db_client
 from api.db.models import UserModel
@@ -131,16 +132,64 @@ async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, An
             session, organization_id=organization_id
         )
 
+    # What this account is on right now, so the picker opens on the saved
+    # choice rather than on the first card every time. Without it the screen
+    # showed a selection it had invented, and pressing Save on what looked like
+    # the current state silently changed it.
+    selected = await agent_options.selected_bundle(organization_id=organization_id)
+
     return {
         "brains": priced,
         "voices": voice_list,
         "bundles": bundles,
+        "selected": selected,
         "balance_paise": int(balance_paise),
         # What the numbers above do and do not contain. A price that excludes
         # the largest variable line has to say so on the screen, or the first
         # invoice is where the customer finds out.
         "telephony": _carriage_view(basis),
     }
+
+
+class BundleSelection(BaseModel):
+    """A Simple-tab choice, as the client is allowed to express it.
+
+    Three fields and no tiers beyond the brain: everything else about the stack
+    is looked up from the bundle server-side. See
+    ``agent_options.save_bundle_selection`` for why that matters.
+    """
+
+    bundle: str
+    tier: str = ""
+    voice: str = ""
+
+
+@router.put("/selection")
+async def save_selection(
+    selection: BundleSelection, user: UserModel = Depends(get_user)
+) -> dict[str, Any]:
+    """Make this bundle the account's default stack.
+
+    The Simple tab's Save. It writes the same stored configuration the Advanced
+    tab writes — one account default, expressed in whichever vocabulary the
+    person prefers — rather than a second setting that would then have to be
+    reconciled with the first.
+    """
+    organization_id = user.selected_organization_id
+    if organization_id is None:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    async with db_client.async_session() as session:
+        try:
+            return await agent_options.save_bundle_selection(
+                session,
+                organization_id=organization_id,
+                bundle_slug=selection.bundle,
+                tier=selection.tier,
+                voice=selection.voice,
+            )
+        except agent_options.SelectionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.get("/minutes")

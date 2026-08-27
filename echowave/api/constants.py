@@ -130,6 +130,28 @@ DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)
 #
 # The default is kept because the managed product genuinely runs at that host,
 # but whether it was *chosen* is now recorded, and the app says so at boot.
+# How long a media-socket capability stays redeemable, in seconds. It has to
+# cover the gap between building the carrier's stream URL and the carrier
+# dialling it back, which is the length of a ring — not the length of a call,
+# because the token is checked once at connect. Five minutes is generous for
+# the first and far short of the second.
+TELEPHONY_STREAM_TOKEN_TTL_SECONDS = int(
+    os.getenv("TELEPHONY_STREAM_TOKEN_TTL_SECONDS", "300")
+)
+
+# Whether the media socket refuses a connection that presents no valid
+# capability. On by default: minting and checking ship together, so the only
+# connections without one are calls already in flight when the API restarted —
+# and a restart drops those sockets anyway.
+#
+# Set to false only to ride out an incident where Redis is unreachable and
+# calls must keep connecting. That is a decision to accept an unauthenticated
+# socket for the duration, so it is an environment change somebody makes
+# deliberately and reverts, never a default anybody inherits.
+TELEPHONY_WS_REQUIRE_TOKEN = (
+    os.getenv("TELEPHONY_WS_REQUIRE_TOKEN", "true").lower() == "true"
+)
+
 DEFAULT_MPS_API_URL = "https://services.decibyl.ai"
 MPS_API_URL = os.getenv("MPS_API_URL") or DEFAULT_MPS_API_URL
 MPS_API_URL_IS_DEFAULT = not os.getenv("MPS_API_URL")
@@ -301,10 +323,13 @@ BYOK_TTS_UPLIFT_MICROS_USD = int(os.getenv("BYOK_TTS_UPLIFT_MICROS_USD", "15000"
 # used on. Zero disables a feature's charge without removing its plumbing, so
 # switching one off is an environment change and not a deploy.
 #
-# These are list prices, not the cost of providing the feature. Post-call QA in
-# particular runs a real LLM inference per call; its tokens are recorded on the
-# run but resolve to no rate, so today they are reported as uncosted and the
-# spend is ours.
+# These are list prices, not the cost of providing the feature. Post-call QA
+# runs a real LLM inference per call; its tokens are now recorded against the
+# vendor that served them, so they resolve to a rate and land on the receipt
+# like any other language-model usage. (They used to be keyed by the feature's
+# own label, and there is no vendor called "QAAnalysis" — so every QA token was
+# reported uncosted: not billed, and not counted as our cost either, which
+# overstated margin on exactly the calls doing the most work.)
 ADDON_KNOWLEDGE_BASE_MICROS_USD = int(
     os.getenv("ADDON_KNOWLEDGE_BASE_MICROS_USD", "5000")
 )

@@ -14,7 +14,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import TelephonyCallStatus, WorkflowRunMode
-from api.services.telephony import credential_encryption
+from api.services.telephony import credential_encryption, stream_capability
 from api.services.telephony.base import (
     CallInitiationResult,
     NormalizedInboundData,
@@ -130,13 +130,18 @@ class CloudonixProvider(TelephonyProvider):
 
         # Prepare call data using Cloudonix callObject schema
         # Note: 'caller-id' is REQUIRED by Cloudonix API
-        backend_endpoint, wss_backend_endpoint = await get_backend_endpoints()
+        backend_endpoint, _ = await get_backend_endpoints()
+        websocket_url = await stream_capability.stream_url(
+            workflow_id=workflow_id,
+            organization_id=organization_id,
+            workflow_run_id=workflow_run_id,
+        )
         data: Dict[str, Any] = {
             "destination": to_number,
             "cxml": f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
-        <Stream url="{wss_backend_endpoint}/api/v1/telephony/ws/{workflow_id}/{organization_id}/{workflow_run_id}"></Stream>
+        <Stream url="{websocket_url}"></Stream>
     </Connect>
     <Pause length="40"/>
 </Response>""",

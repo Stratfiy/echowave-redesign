@@ -224,3 +224,116 @@ class TestTheTiersStillDiffer:
         by_tier = {v["tier"]: v["paise_per_minute"] for v in everyday["variants"]}
 
         assert by_tier["lite"] < by_tier["default"] < by_tier["accurate"]
+
+
+class TestTheBreakdownAndTheHeadlineAreOneCalculation:
+    """The bar beside a price has exactly one job: to add up to it.
+
+    A segmented bar priced separately from the number above it is the same
+    parallel-sum defect this module was written about, wearing a different
+    shape — and it is worse here than on an operator screen, because the
+    customer is looking at both at once.
+    """
+
+    async def test_the_segments_sum_to_the_price_on_the_card(
+        self, db_session, async_session, priced
+    ):
+        cards = await agent_options.bundle_options(async_session, organization_id=None)
+
+        for bundle in cards:
+            for variant in bundle["variants"]:
+                if variant["paise_per_minute"] is None:
+                    assert variant["breakdown"] is None
+                    continue
+                breakdown = variant["breakdown"]
+                assert breakdown is not None
+                grouped = (
+                    breakdown["agent_paise_per_minute"]
+                    + breakdown["telephony_paise_per_minute"]
+                    + breakdown["platform_paise_per_minute"]
+                    + breakdown["addon_paise_per_minute"]
+                )
+                assert grouped == variant["paise_per_minute"], (
+                    f"{bundle['slug']}/{variant['tier']}"
+                )
+
+    async def test_the_breakdown_never_names_a_vendor(
+        self, db_session, async_session, priced
+    ):
+        """The Simple tab is the screen that does not say Sarvam or OpenAI.
+
+        That is not a wording preference — it is the reason the tab exists
+        beside Advanced. A breakdown carrying provider and model would make
+        this the one place a vendor appears, and undo the split by accident.
+        """
+        cards = await agent_options.bundle_options(async_session, organization_id=None)
+
+        for bundle in cards:
+            for variant in bundle["variants"]:
+                for line in (variant["breakdown"] or {}).get("lines", []):
+                    assert set(line) == {"component", "label", "paise_per_minute"}
+                    assert line["label"]
+
+
+class TestABundlePricesItsOwnSpeechTiers:
+    """The speech tiers used to be the literal ``"default"``.
+
+    Correct only for as long as every pipeline bundle happens to run the
+    default pair — which today it does, because ``STT_TIERS`` has one entry.
+    That is exactly why this is worth pinning: the day an operator adds a
+    second one, the card would go on quoting a stack the call does not run,
+    and nothing would fail. So the test asserts what was asked for rather than
+    a price difference no current tier map can produce.
+    """
+
+    async def test_the_bundles_tier_is_what_gets_resolved(
+        self, db_session, async_session, priced, monkeypatch
+    ):
+        asked: list[tuple[str, str | None]] = []
+        real = managed_tiers.resolve
+
+        def recording(component, tier):
+            asked.append((str(getattr(component, "value", component)), tier))
+            return real(component, tier)
+
+        monkeypatch.setattr(managed_tiers, "resolve", recording)
+
+        await agent_options.price_per_minute(
+            async_session,
+            organization_id=None,
+            brain="default",
+            stt_tier="premium-ears",
+            tts_tier="premium-mouth",
+        )
+
+        assert ("stt", "premium-ears") in asked
+        assert ("tts", "premium-mouth") in asked
+
+    async def test_the_cost_side_prices_the_same_stack_as_the_price_side(
+        self, db_session, async_session, priced, monkeypatch
+    ):
+        """``bundle_economics`` subtracts one estimate from another.
+
+        Its price half goes through ``bundle_options``, which passes each
+        bundle's own speech tiers; its cost half calls ``price_per_minute``
+        directly. If only one of them threads the tiers, the margin is the
+        difference between two different bundles — a number that looks
+        plausible and is not a margin at all.
+        """
+        seen: set[tuple[str, str | None]] = set()
+        real = managed_tiers.resolve
+
+        def recording(component, tier):
+            seen.add((str(getattr(component, "value", component)), tier))
+            return real(component, tier)
+
+        monkeypatch.setattr(managed_tiers, "resolve", recording)
+
+        await agent_options.bundle_economics(async_session)
+
+        rows = await bundle_service.list_bundles(async_session, enabled_only=True)
+        for row in rows:
+            if row.architecture != bundle_service.PIPELINE:
+                continue
+            assert ("stt", row.stt_tier or "default") in seen
+            assert ("tts", row.tts_tier or "default") in seen
