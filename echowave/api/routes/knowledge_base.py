@@ -184,6 +184,36 @@ async def process_document(
     * Users can only process documents in their organization.
     """
 
+    # The key arrives from the client, and whatever is at it gets ingested into
+    # this organization's knowledge base — where this organization's agent will
+    # read it aloud. Another organization's key must not be accepted here, so
+    # the key has to be exactly the one /upload-url would have minted for this
+    # caller and this document.
+    #
+    # Ahead of the entitlement check, and the order is load-bearing: a caller
+    # reaching for another tenant's object must be told it is not theirs, not
+    # that their plan is too small for it. Billing first would turn a
+    # tenant-isolation refusal into a pricing message, and would answer a
+    # question about someone else's data with a fact about this account.
+    if not upload_keys.key_belongs_to(
+        user.selected_organization_id, request.document_uuid, request.s3_key
+    ):
+        logger.warning(
+            "Rejected a process-document request for a key outside "
+            "organization {}: {!r} (document {!r}, user {})",
+            user.selected_organization_id,
+            request.s3_key,
+            request.document_uuid,
+            user.id,
+        )
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "This upload key does not belong to your organization. "
+                "Request a fresh upload URL and try again."
+            ),
+        )
+
     # Checked again here, not only when the URL was minted. This is the call
     # that creates the record and queues the embedding job, so it is the gate
     # that actually costs money — and it can be reached directly, or with a
@@ -191,30 +221,6 @@ async def process_document(
     await _assert_room_to_ingest(user.selected_organization_id)
 
     try:
-        # The key arrives from the client, and whatever is at it gets ingested
-        # into this organization's knowledge base — where this organization's
-        # agent will read it aloud. Another organization's key must not be
-        # accepted here, so the key has to be exactly the one /upload-url would
-        # have minted for this caller and this document.
-        if not upload_keys.key_belongs_to(
-            user.selected_organization_id, request.document_uuid, request.s3_key
-        ):
-            logger.warning(
-                "Rejected a process-document request for a key outside "
-                "organization {}: {!r} (document {!r}, user {})",
-                user.selected_organization_id,
-                request.s3_key,
-                request.document_uuid,
-                user.id,
-            )
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "This upload key does not belong to your organization. "
-                    "Request a fresh upload URL and try again."
-                ),
-            )
-
         # Extract filename from s3_key
         filename = request.s3_key.split("/")[-1]
 
