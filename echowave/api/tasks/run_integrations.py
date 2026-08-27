@@ -20,7 +20,10 @@ from api.services.integrations import (
     has_completion_handlers,
     run_completion_handlers,
 )
-from api.services.pipecat.tracing_config import register_org_langfuse_credentials
+from api.services.pipecat.tracing_config import (
+    register_org_langfuse_credentials,
+    unregister_org_langfuse_credentials,
+)
 from api.services.workflow.dto import (
     QANodeData,
     QARFNode,
@@ -227,9 +230,16 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
             logger.warning("No organization found, skipping integrations")
             return
 
-        # Set org context for tracing and register org-specific Langfuse credentials
-        # FIXME: If an org removes langfuse credentials during an exisitng deployment
-        # we should unregister an existing langfuse credentials for that org.
+        # Set org context for tracing, and make this worker's routing match what
+        # the org currently has configured — in both directions.
+        #
+        # Registering was already done here; unregistering was not, so an org
+        # that removed its Langfuse credentials went on having its spans
+        # exported to the account it had just disconnected, on every worker
+        # that had ever run one of its calls, until the process restarted.
+        # Withdrawn credentials are a customer telling us to stop sending them
+        # their data, and continuing to is the kind of thing they find out about
+        # from their own vendor.
         set_current_org_id(organization_id)
         langfuse_config = await db_client.get_configuration_value(
             organization_id,
@@ -242,6 +252,11 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
                 public_key=langfuse_config.get("public_key"),
                 secret_key=langfuse_config.get("secret_key"),
             )
+        else:
+            # Idempotent, and cheap when there was never a registration to
+            # remove — which is the common case, so it is not worth tracking
+            # whether this worker happens to hold one.
+            unregister_org_langfuse_credentials(org_id=organization_id)
 
         # Step 2: Get workflow definition from the run's pinned version
         workflow_definition = workflow_run.definition.workflow_json

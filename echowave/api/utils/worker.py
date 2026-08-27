@@ -22,10 +22,19 @@ def get_worker_id() -> int:
 
     # Try to extract worker number from process name
     # Uvicorn with --workers creates processes like "SpawnProcess-1", "SpawnProcess-2", etc.
-    # TODO FIXME: If a worker process crashes and uvicorn creates a new process,
-    # it assigns ID which may be beyond NUM_FASTAPI_WORKERS. Example: if we have
-    # 2 fastapi workers configured, and one of them dies, we can get a process name with
-    # SpawnProcess-3 which is bad
+    # A respawned worker gets the next number rather than the dead one's, so on
+    # a deployment configured for two workers a crash can produce
+    # SpawnProcess-3 and therefore a worker id of 2. That is not a correctness
+    # problem: the single caller of this uses the id to name a log file, so the
+    # visible effect is that the replacement writes to ``app-worker-2.log``
+    # instead of reopening ``app-worker-1.log``. Recycling ids would mean the
+    # replacement appends to the dead worker's file, which is worse for reading
+    # back what happened around a crash.
+    #
+    # It is written down because the id looks like an index into a fixed set
+    # and is not one. Anything that starts partitioning work by worker id —
+    # sharding a queue, electing a leader — must not assume the ids are dense,
+    # bounded by the worker count, or unique over time.
     if "SpawnProcess" in process_name:
         try:
             # Extract the number after "SpawnProcess-"
