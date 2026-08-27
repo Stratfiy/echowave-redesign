@@ -243,6 +243,40 @@ say "Migrations"
 # Same invocation as scripts/migrate.sh.
 docker compose exec -T api python -m alembic -c api/alembic.ini upgrade head
 
+# The price book, which until now was code that did nothing on its own.
+#
+# `billing/default_rates.py` is a seed *source*: nothing reads it at call time,
+# and a rate added there stays inert until somebody remembers to run this
+# script by hand. Nobody remembered. Four calls were costed with no rate on
+# file for their speech models and their carriage — each one billed the
+# platform fee, dropped the provider lines, and reported margin correspondingly
+# overstated. The rates existed in the repository the whole time.
+#
+# So it runs where the migration runs: a rate lands the moment the code that
+# defines it does.
+#
+# Safe to run on every deploy, and the flags are the reason. `--confirm` writes
+# only rates that are *missing*; a rate an operator has set is skipped, and
+# replacing one needs `--force`, which is deliberately not passed here. A
+# negotiated price must never be reset by a deploy.
+#
+# **What this does not fix**: pricing resolves as at each call's own time, so a
+# rate written now does not reach a call already placed — see the comment in
+# `billing/costing.py` about not rewriting receipts. Calls made before their
+# rate existed stay uncosted until somebody runs
+# `scripts.recost_uncosted_calls`, which moves real money and therefore stays a
+# human decision.
+#
+# Not fatal, for the same reason the docs build is not: a seeding failure is a
+# gap in the price book, not a bad build, and rolling back a healthy API over
+# one would block shipping the fix for it.
+say "Provider rates"
+if docker compose exec -T api python -m scripts.seed_provider_rates --confirm; then
+    say "Provider rates seeded"
+else
+    say "WARNING: seeding provider rates failed; calls on any missing rate will be recorded uncosted"
+fi
+
 # The documentation is a build artifact, not a container. nginx mounts
 # ./docs/dist read-only and serves it off disk, so a deploy that does not build
 # it leaves the docs host answering whatever was last built by hand — or 404,
