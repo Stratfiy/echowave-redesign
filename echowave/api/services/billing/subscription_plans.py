@@ -61,6 +61,10 @@ class Plan:
     balance_paise: int
     included_numbers: int
     extra_number_price_paise: int
+    #: Bytes of knowledge base the plan buys. Zero means the plan does not
+    #: include one at all, which is what an account holding no plan resolves to
+    #: — see :func:`knowledge_base_bytes_for`.
+    knowledge_base_bytes: int
     razorpay_plan_id: str | None
     #: The provider plan for a zero-rated account — outside India with an LUT
     #: on file. Created at the **net** price rather than the gross, because
@@ -102,6 +106,7 @@ def _view(row: SubscriptionPlanModel) -> Plan:
             if row.extra_number_price_paise is not None
             else constants.NUMBER_RENTAL_PRICE_PAISE
         ),
+        knowledge_base_bytes=int(row.knowledge_base_bytes or 0),
         razorpay_plan_id=row.razorpay_plan_id,
         razorpay_plan_id_export=row.razorpay_plan_id_export,
         enabled=bool(row.enabled),
@@ -145,6 +150,40 @@ async def resolve(session: AsyncSession, *, code: str | None) -> Plan | None:
     return await get_plan(session, code=code or STARTER)
 
 
+async def knowledge_base_bytes_for(
+    session: AsyncSession, *, organization_id: int
+) -> int:
+    """How much knowledge base this account's plan buys it, in bytes.
+
+    Zero for an account with no authorised plan, and that is the point of the
+    function rather than an edge case in it. Ingestion embeds every document on
+    our own model key, and embeddings have no rate anywhere — so an unsubscribed
+    account uploading a corpus spends our money and bills nothing. Returning
+    zero is what makes the knowledge base a thing a subscription buys.
+
+    A mandate that exists but is not yet authorised also resolves to zero. The
+    account has started subscribing and not finished; entitling it on the
+    strength of an instruction the bank has not confirmed would hand out the
+    feature to anyone who begins checkout and abandons it.
+
+    Imported lazily because ``mandates`` imports this module for
+    :func:`resolve`, and the cycle is only benign at call time.
+    """
+    from api.services.billing.mandates import (
+        PURPOSE_STARTER_PLAN,
+        get_mandate,
+        is_authorised,
+    )
+
+    mandate = await get_mandate(
+        session, organization_id=organization_id, purpose=PURPOSE_STARTER_PLAN
+    )
+    if not is_authorised(mandate):
+        return 0
+    plan = await resolve(session, code=mandate.plan_code)
+    return plan.knowledge_base_bytes if plan is not None else 0
+
+
 async def save(
     session: AsyncSession,
     *,
@@ -155,6 +194,7 @@ async def save(
     included_numbers: int,
     blurb: str = "",
     extra_number_price_paise: int | None = None,
+    knowledge_base_bytes: int = 0,
     razorpay_plan_id: str | None = None,
     razorpay_plan_id_export: str | None = None,
     enabled: bool = True,
@@ -173,7 +213,7 @@ async def save(
         raise PlanError("A plan needs a name customers will read.")
     if price_paise <= 0:
         raise PlanError("A plan's price must be more than nothing.")
-    if balance_paise < 0 or included_numbers < 0:
+    if balance_paise < 0 or included_numbers < 0 or knowledge_base_bytes < 0:
         raise PlanError("A plan cannot include a negative amount of anything.")
     if balance_paise > price_paise:
         # The one that is a loss on contact rather than a thin margin: granted
@@ -206,6 +246,7 @@ async def save(
     row.extra_number_price_paise = (
         int(extra_number_price_paise) if extra_number_price_paise is not None else None
     )
+    row.knowledge_base_bytes = int(knowledge_base_bytes)
     row.razorpay_plan_id = (razorpay_plan_id or "").strip() or None
     row.razorpay_plan_id_export = (razorpay_plan_id_export or "").strip() or None
     if (
@@ -257,6 +298,7 @@ async def ensure_seeded(session: AsyncSession) -> Plan:
         balance_paise=constants.STARTER_PLAN_BALANCE_PAISE,
         included_numbers=1,
         extra_number_price_paise=constants.NUMBER_RENTAL_PRICE_PAISE,
+        knowledge_base_bytes=constants.STARTER_PLAN_KNOWLEDGE_BASE_BYTES,
         razorpay_plan_id=constants.RAZORPAY_STARTER_PLAN_ID,
         sort_order=0,
     )

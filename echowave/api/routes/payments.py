@@ -100,10 +100,17 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         profile = await billing_profile.get_profile(
             session, organization_id=organization_id
         )
+        # This account's floor, not the deployment's. It is higher until the
+        # first payment lands, and the picker has to offer what the API will
+        # actually accept — otherwise a new account is shown ₹100, pays, and
+        # is refused.
+        min_topup = await payments.minimum_topup_paise(
+            session, organization_id=organization_id
+        )
     return {
         "balance_paise": balance,
         "topups_enabled": payments.is_configured() and payments.webhook_is_configured(),
-        "min_topup_paise": MIN_TOPUP_PAISE,
+        "min_topup_paise": min_topup,
         "max_topup_paise": MAX_TOPUP_PAISE,
         # The step the amount picker moves in, and the balance at which calling
         # stops. Both belong to the screen that has to explain why a call was

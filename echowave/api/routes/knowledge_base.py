@@ -7,10 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel
 
-from api.constants import (
-    KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES,
-    KNOWLEDGE_BASE_MAX_TOTAL_BYTES,
-)
+from api.constants import KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
 from api.db import db_client
 from api.enums import PostHogEvent
 from api.schemas.knowledge_base import (
@@ -24,6 +21,7 @@ from api.schemas.knowledge_base import (
 )
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
+from api.services.billing import subscription_plans
 from api.services.knowledge_base import staleness, upload_keys
 from api.services.posthog_client import capture_event
 from api.services.storage import storage_fs
@@ -36,6 +34,49 @@ router = APIRouter(prefix="/knowledge-base", tags=["knowledge-base"])
 def _mb(value: int) -> int:
     """Bytes as whole megabytes, for a message a person can act on."""
     return value // (1024 * 1024)
+
+
+async def _allowance(organization_id: int) -> int:
+    """Bytes of knowledge base this account's plan buys it."""
+    async with db_client.async_session() as session:
+        return await subscription_plans.knowledge_base_bytes_for(
+            session, organization_id=organization_id
+        )
+
+
+async def _assert_room_to_ingest(organization_id: int) -> None:
+    """Refuse an upload the account has no plan for, or no room left in.
+
+    One function rather than the check written out at each gate, because there
+    are three of them — the browser is refused before it starts sending, the
+    presigned URL is minted against the same ceiling, and the call that queues
+    the embedding job checks again — and they have to agree. They agree by
+    being the same code.
+
+    The two refusals are deliberately different sentences. "Full" is something a
+    customer fixes by deleting a document; "not on your plan" is something they
+    fix by subscribing, and telling them to delete their way out of it would be
+    advice that cannot work.
+    """
+    allowance = await _allowance(organization_id)
+    if allowance <= 0:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                "The knowledge base is part of a subscription. Choose a plan to "
+                "upload documents your agents can answer from."
+            ),
+        )
+    used = await db_client.get_knowledge_base_bytes_used(organization_id)
+    if used >= allowance:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "Your knowledge base is full "
+                f"({_mb(used)} of {_mb(allowance)} MB used). "
+                "Delete a document to make room, or move to a larger plan."
+            ),
+        )
 
 
 @router.post(
@@ -65,16 +106,7 @@ async def get_upload_url(
     # cannot carry a size limit, so the only honest place to refuse is before
     # the browser starts sending — the alternative is a progress bar reaching
     # 100% and then being told there was no room.
-    used = await db_client.get_knowledge_base_bytes_used(user.selected_organization_id)
-    if used >= KNOWLEDGE_BASE_MAX_TOTAL_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=(
-                "Your knowledge base is full "
-                f"({_mb(used)} of {_mb(KNOWLEDGE_BASE_MAX_TOTAL_BYTES)} MB used). "
-                "Delete a document to make room, or contact support to raise the limit."
-            ),
-        )
+    await _assert_room_to_ingest(user.selected_organization_id)
 
     try:
         # Generate unique document UUID for S3 organization
@@ -151,17 +183,8 @@ async def process_document(
     # Checked again here, not only when the URL was minted. This is the call
     # that creates the record and queues the embedding job, so it is the gate
     # that actually costs money — and it can be reached directly, or with a
-    # presigned URL issued before the account filled up.
-    used = await db_client.get_knowledge_base_bytes_used(user.selected_organization_id)
-    if used >= KNOWLEDGE_BASE_MAX_TOTAL_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=(
-                "Your knowledge base is full "
-                f"({_mb(used)} of {_mb(KNOWLEDGE_BASE_MAX_TOTAL_BYTES)} MB used). "
-                "Delete a document to make room, or contact support to raise the limit."
-            ),
-        )
+    # presigned URL issued before the account filled up or its plan lapsed.
+    await _assert_room_to_ingest(user.selected_organization_id)
 
     try:
         # The key arrives from the client, and whatever is at it gets ingested
@@ -285,8 +308,11 @@ async def get_usage(user=Depends(get_user)) -> KnowledgeBaseUsageSchema:
         organization_id=user.selected_organization_id, limit=100
     )
     return KnowledgeBaseUsageSchema(
+        # The account's own allowance, not the deployment ceiling. A screen
+        # reporting everyone the same limit is how a customer discovers at
+        # upload time that the number they were shown was not theirs.
         bytes_used=used,
-        bytes_limit=KNOWLEDGE_BASE_MAX_TOTAL_BYTES,
+        bytes_limit=await _allowance(user.selected_organization_id),
         documents=len(documents),
     )
 

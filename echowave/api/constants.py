@@ -154,24 +154,6 @@ KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES = int(
     os.getenv("KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES", str(5 * 1024 * 1024))
 )
 
-# How much an organization may keep in its knowledge base in total.
-#
-# The per-file limit above bounds one upload; it bounds nothing about how many
-# uploads there are. Every document is embedded at ingestion, on *our* model
-# key for a managed account, and embeddings have no cost component, no rate and
-# no ledger debit anywhere — so an account that re-uploads a corpus nightly
-# costs real money and bills nothing. This is the ceiling on that.
-#
-# A cap rather than a meter, because that is what the category does: ElevenLabs
-# sells RAG as a per-tier allowance (1MB free through 1GB enterprise) and Vapi
-# folds it into the plan silently. Nobody charges per embedded token, and being
-# the only platform that does would cost more to build than it could recover.
-#
-# 250MB of original files is a generous default — a few hundred manuals — set
-# high on purpose so no existing account trips it on the day this ships.
-KNOWLEDGE_BASE_MAX_TOTAL_BYTES = int(
-    os.getenv("KNOWLEDGE_BASE_MAX_TOTAL_BYTES", str(250 * 1024 * 1024))
-)
 # Reading scanned PDFs — pictures of words, with no text layer for pypdf to
 # find. On by default because the alternative is telling a customer to go and
 # OCR their own scan, and it costs nothing on a deployment without tesseract
@@ -234,6 +216,13 @@ NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "49900"))
 # billing profile, so an export customer with an LUT on file is charged the net
 # figure instead.
 STARTER_PLAN_BALANCE_PAISE = int(os.getenv("STARTER_PLAN_BALANCE_PAISE", "250000"))
+# How much knowledge base the starter plan buys. Seeded onto the plan row, not
+# read at upload time — the allowance an account actually gets comes from its
+# own plan, so an operator who raises this for a new tier does not silently
+# raise it for everyone already subscribed to an older one.
+STARTER_PLAN_KNOWLEDGE_BASE_BYTES = int(
+    os.getenv("STARTER_PLAN_KNOWLEDGE_BASE_BYTES", str(25 * 1024 * 1024))
+)
 STARTER_PLAN_PRICE_PAISE = STARTER_PLAN_BALANCE_PAISE + NUMBER_RENTAL_PRICE_PAISE
 
 # Pin the Razorpay plan, exactly as with the rental plan: a plan created lazily
@@ -432,6 +421,23 @@ GOOGLE_CALENDAR_DEFAULT_TIMEZONE = os.getenv(
 # business limit — raise it deliberately for an enterprise invoice.
 MIN_TOPUP_PAISE = int(os.getenv("MIN_TOPUP_PAISE", "10000"))  # Rs 100
 MAX_TOPUP_PAISE = int(os.getenv("MAX_TOPUP_PAISE", "50000000"))  # Rs 5,00,000
+
+# The floor on an account's **first** top-up, which is a different question from
+# the floor on its tenth.
+#
+# The ordinary minimum exists so card fees do not exceed the credit bought. This
+# one is commercial: a first payment of Rs100 buys about twenty minutes, which is
+# not enough call time to find out whether the product works, so the account
+# churns having learned nothing and we carry the onboarding cost. Rs1,000 is
+# roughly four hours of Everyday calling — long enough to reach a verdict.
+#
+# It applies once. An existing customer topping up mid-campaign needs Rs200 to
+# be Rs200, and making them buy Rs1,000 to add it would be a worse experience
+# than the one this is meant to prevent. See ``payments.minimum_topup_paise``.
+#
+# Must be a whole number of TOPUP_INCREMENT_PAISE steps, like the floor it
+# replaces, or the minimum itself is not a purchasable amount.
+FIRST_TOPUP_MIN_PAISE = int(os.getenv("FIRST_TOPUP_MIN_PAISE", "100000"))  # Rs 1,000
 
 # Top-ups are sold in whole steps of this, starting at MIN_TOPUP_PAISE. Rs100,
 # Rs200, Rs300 — never Rs137.

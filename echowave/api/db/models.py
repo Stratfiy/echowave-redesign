@@ -2890,6 +2890,23 @@ class SubscriptionPlanModel(Base):
     #: NUMBER_RENTAL_PRICE_PAISE, so a plan that does not want its own figure
     #: follows the platform rental price rather than pinning a stale copy.
     extra_number_price_paise = Column(BigInteger, nullable=True)
+    #: How much the plan lets an account keep in its knowledge base, in bytes.
+    #:
+    #: An entitlement rather than a meter, which is what the category does:
+    #: ElevenLabs sells RAG as a per-tier allowance and Vapi folds it into the
+    #: plan. Nobody charges per embedded token, and being the only platform
+    #: that does would cost more to build than it could recover.
+    #:
+    #: Zero is the meaningful default, and it is why this is a plan column
+    #: rather than a global ceiling: every document is embedded at ingestion on
+    #: *our* model key, and embeddings have no cost component, no rate and no
+    #: ledger debit anywhere. An account with no plan can therefore spend our
+    #: money without ever being billed for it, and did — the only thing
+    #: standing in the way was one environment variable set the same for
+    #: everyone, subscriber or not.
+    knowledge_base_bytes = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
 
     #: The provider plan this subscribes to. Pinned per plan for the same
     #: reason the rental plan is pinned: a plan created lazily per environment
