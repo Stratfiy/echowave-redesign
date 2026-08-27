@@ -234,3 +234,57 @@ class TestTheFirstTopUpFloor:
         rejected by the very check that set it."""
         assert FIRST_TOPUP_MIN_PAISE % TOPUP_INCREMENT_PAISE == 0
         assert FIRST_TOPUP_MIN_PAISE >= MIN_TOPUP_PAISE
+
+
+class TestTheRentalPlanHasAnExportTwin:
+    """An extra number, sold to an account whose supply is zero-rated.
+
+    Same shape as ``razorpay_plan_id_export`` on a plan row, and it exists for
+    the same reason: a pinned plan holds one fixed amount at the provider, and
+    ``_assert_pinned_plan_amount`` checks it against the gross this account
+    actually owes -- Rs659.62 domestic, Rs559.00 for an export. One id cannot
+    answer both, so pinning only the domestic plan refuses every export account
+    at the guard. Correct, and not a fix.
+    """
+
+    def test_the_two_ids_are_separate_settings(self):
+        from api import constants
+
+        assert hasattr(constants, "RAZORPAY_RENTAL_PLAN_ID")
+        assert hasattr(constants, "RAZORPAY_RENTAL_PLAN_ID_EXPORT")
+
+    async def test_an_export_account_is_sent_to_the_export_plan(self, monkeypatch):
+        from api.services.billing import mandates
+
+        monkeypatch.setattr(mandates, "RAZORPAY_RENTAL_PLAN_ID", "plan_domestic")
+        monkeypatch.setattr(mandates, "RAZORPAY_RENTAL_PLAN_ID_EXPORT", "plan_export")
+
+        seen: dict = {}
+
+        async def _fake_ensure(**kwargs):
+            seen.update(kwargs)
+            return kwargs["pinned"]
+
+        monkeypatch.setattr(mandates, "_ensure_plan", _fake_ensure)
+
+        assert (
+            await mandates.ensure_rental_plan(price_paise=55_900, is_export=True)
+            == "plan_export"
+        )
+        assert seen["env_var"] == "RAZORPAY_RENTAL_PLAN_ID_EXPORT"
+
+    async def test_a_domestic_account_is_sent_to_the_domestic_plan(self, monkeypatch):
+        """The default, and it must stay the default: an account with no export
+        status is domestic, and billing it at the net would collect no GST at
+        all, monthly, by standing instruction."""
+        from api.services.billing import mandates
+
+        monkeypatch.setattr(mandates, "RAZORPAY_RENTAL_PLAN_ID", "plan_domestic")
+        monkeypatch.setattr(mandates, "RAZORPAY_RENTAL_PLAN_ID_EXPORT", "plan_export")
+
+        async def _fake_ensure(**kwargs):
+            return kwargs["pinned"]
+
+        monkeypatch.setattr(mandates, "_ensure_plan", _fake_ensure)
+
+        assert await mandates.ensure_rental_plan(price_paise=65_962) == "plan_domestic"

@@ -413,6 +413,17 @@ RAZORPAY_API_BASE = os.getenv("RAZORPAY_API_BASE", "https://api.razorpay.com/v1"
 # leave unset and let the first mandate create one; pinning is preferable
 # because a plan created per environment quietly fragments the reporting.
 RAZORPAY_RENTAL_PLAN_ID = os.getenv("RAZORPAY_RENTAL_PLAN_ID") or None
+# The same rental for an account whose supply is zero-rated -- outside India
+# with an LUT on file. Created at the **net** figure, because that is the whole
+# of what such an account owes.
+#
+# A second plan rather than a calculation, for the reason
+# subscription_plans.razorpay_plan_id_export exists: a pinned plan is an object
+# at the provider holding one fixed amount, and no arithmetic here can turn it
+# into another once the bank has the instruction. Without this, pinning the
+# domestic plan means an export account renting a number is refused by the
+# amount guard -- correctly, but with no way forward.
+RAZORPAY_RENTAL_PLAN_ID_EXPORT = os.getenv("RAZORPAY_RENTAL_PLAN_ID_EXPORT") or None
 
 # Whether a number may only be issued against an authorised mandate.
 #

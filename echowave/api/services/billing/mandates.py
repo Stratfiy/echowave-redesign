@@ -44,6 +44,7 @@ from api.constants import (
     RAZORPAY_KEY_ID,
     RAZORPAY_KEY_SECRET,
     RAZORPAY_RENTAL_PLAN_ID,
+    RAZORPAY_RENTAL_PLAN_ID_EXPORT,
     RAZORPAY_STARTER_PLAN_ID,
     REQUIRE_MANDATE_FOR_NUMBERS,
     STARTER_PLAN_PRICE_PAISE,
@@ -306,12 +307,27 @@ async def _assert_pinned_plan_amount(
 
 
 async def ensure_rental_plan(
-    *, price_paise: int, client: httpx.AsyncClient | None = None
+    *,
+    price_paise: int,
+    is_export: bool = False,
+    client: httpx.AsyncClient | None = None,
 ) -> str:
-    """The plan id a number-rental subscription is created against."""
+    """The plan id a number-rental subscription is created against.
+
+    Two pinned plans, chosen by whether the supply is zero-rated, for the same
+    reason a plan row carries ``razorpay_plan_id_export``: a pinned plan holds
+    one fixed amount at the provider, and ``_assert_pinned_plan_amount`` checks
+    the gross this account actually owes against it. One id therefore cannot
+    serve both -- pinning the domestic plan alone means an export account is
+    refused at the guard, which is the right direction and not a fix.
+    """
+    pinned = RAZORPAY_RENTAL_PLAN_ID_EXPORT if is_export else RAZORPAY_RENTAL_PLAN_ID
+    env_var = (
+        "RAZORPAY_RENTAL_PLAN_ID_EXPORT" if is_export else "RAZORPAY_RENTAL_PLAN_ID"
+    )
     return await _ensure_plan(
-        pinned=RAZORPAY_RENTAL_PLAN_ID,
-        env_var="RAZORPAY_RENTAL_PLAN_ID",
+        pinned=pinned,
+        env_var=env_var,
         name="Decibyl phone number",
         description="Monthly rental for a Decibyl phone number",
         price_paise=price_paise,
@@ -409,7 +425,9 @@ async def create_rental_mandate(
         # invoice, month after month, by standing instruction.
         raise MandateError(str(exc)) from exc
 
-    plan_id = await ensure_rental_plan(price_paise=gross_paise, client=client)
+    plan_id = await ensure_rental_plan(
+        price_paise=gross_paise, is_export=profile.is_export, client=client
+    )
 
     created = await _post(
         "/subscriptions",
