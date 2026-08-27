@@ -544,6 +544,30 @@ class TestSubprocessorsAreDerived:
         assert "Speech recognition" in entries[0].purpose
         assert "speech synthesis" in entries[0].purpose
 
+    async def test_the_purpose_reads_the_same_whichever_row_was_stored_first(
+        self, async_session
+    ):
+        """The rendered text must be a function of the data, not of storage.
+
+        ``_merge`` capitalises the first purpose it folds in and lower-cases
+        every one after, and both queries behind this used to arrive in
+        PostgreSQL's physical row order. Sarvam serves two speech components, so
+        the same deployment rendered "Speech recognition; speech synthesis" one
+        run and "Speech synthesis; speech recognition" the next — and this is a
+        sub-processor list, where a change to an entry is something a controller
+        has to be notified about. A diff caused by a scan order is a
+        notification nobody can act on.
+
+        Inserted voice-first, which is the order that used to invert it.
+        """
+        await _platform_key(async_session, provider="sarvam", component="tts")
+        await _platform_key(async_session, provider="sarvam", component="stt")
+
+        listed = await subprocessors.in_use(async_session)
+
+        entry = next(s for s in listed if s.name == "sarvam")
+        assert entry.purpose == "Speech recognition; speech synthesis"
+
     async def test_configured_outranks_observed_for_the_same_vendor(
         self, async_session
     ):

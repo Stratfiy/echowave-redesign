@@ -67,6 +67,39 @@ def _purpose_for_component(component: str) -> tuple[str, str]:
     }.get(component, ("Processing", "Call data"))
 
 
+#: The order components are folded into a vendor's purpose, and the reason this
+#: is not left to the database.
+#:
+#: :func:`_merge` capitalises whichever purpose arrives first and lower-cases
+#: every one after it, so the *text* of a published entry depends on the order
+#: rows come back. Neither query below had an ``ORDER BY``, which means that
+#: order was PostgreSQL's physical row order — stable on a quiet table and not
+#: stable at all once rows churn. Sarvam serves both speech components, so one
+#: deployment rendered "Speech recognition; speech synthesis" and the next
+#: rendered "Speech synthesis; speech recognition" from identical data.
+#:
+#: That is a sub-processor list under GDPR Art 28(2), where a change to the list
+#: is a thing a controller has to be told about. A diff that appears because
+#: PostgreSQL chose a different scan order is a notification nobody can act on,
+#: and it teaches the reader to ignore the ones that matter.
+#:
+#: The order is the pipeline's own — what the agent hears, thinks, says, and
+#: what carries the call — because that is how every other surface in this
+#: codebase describes a stack. Anything unrecognised sorts last, alphabetically,
+#: rather than wherever it happened to be stored.
+_COMPONENT_ORDER = ("stt", "llm", "tts", "telephony")
+
+
+def _merge_order(row: tuple[str, str]) -> tuple[str, int, str]:
+    """Sort key making a vendor's rendered purpose a function of the data."""
+    provider, component = row
+    try:
+        rank = _COMPONENT_ORDER.index(component)
+    except ValueError:
+        rank = len(_COMPONENT_ORDER)
+    return (provider, rank, component)
+
+
 def _merge(found: dict[str, Subprocessor], name: str, component: str, basis: str):
     """Fold one (provider, component) pair into the list.
 
@@ -115,8 +148,11 @@ async def in_use(
             )
         )
     ).all()
-    for credential in credentials:
-        _merge(found, credential.provider, credential.component, "configured")
+    # Sorted before folding, never as they arrive — see _COMPONENT_ORDER.
+    for provider, component in sorted(
+        ((c.provider, c.component) for c in credentials), key=_merge_order
+    ):
+        _merge(found, provider, component, "configured")
 
     observed = (
         await session.execute(
@@ -128,9 +164,10 @@ async def in_use(
             .distinct()
         )
     ).all()
-    for provider, component in observed:
-        if provider:
-            _merge(found, provider, component or "", "observed")
+    for provider, component in sorted(
+        ((p, c or "") for p, c in observed if p), key=_merge_order
+    ):
+        _merge(found, provider, component, "observed")
 
     return _with_infrastructure(found)
 

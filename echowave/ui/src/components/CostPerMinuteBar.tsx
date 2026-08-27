@@ -24,6 +24,17 @@ export interface CostStack {
     tts_provider?: string | null;
     tts_model?: string;
     telephony_provider?: string | null;
+    /**
+     * Slots running on the account's own vendor key — "stt", "llm", "tts".
+     *
+     * Not a display detail. A BYOK slot costs nothing from us and the platform
+     * fee is uplifted to replace the margin it takes away, so leaving this out
+     * priced a stack that nobody is billed: the vendor line was charged as
+     * though we had bought the inference, and the fee was quoted at the
+     * managed rate the account will not pay. Both halves of the trade come
+     * from this one field.
+     */
+    customer_keyed?: string[];
 }
 
 interface EstimateLine {
@@ -35,6 +46,7 @@ interface EstimateLine {
     paise_per_minute: number;
     basis: string;
     rate_is_provider_fallback: boolean;
+    customer_keyed: boolean;
 }
 
 interface Estimate {
@@ -44,6 +56,11 @@ interface Estimate {
     platform_paise_per_minute: number;
     lines: EstimateLine[];
     unpriced: string[];
+    // Slots priced at nothing because the account brought the key. Distinct
+    // from `unpriced`, and the distinction matters: unpriced means we do not
+    // know what it costs, customer-keyed means it costs this account nothing
+    // from us. Showing the second as the first would read as a broken quote.
+    customer_keyed: string[];
     // The same total in dollars, which is the unit every competitor quotes.
     // Null only when this account is on a rupee-denominated contract, where
     // there is no dollar price to show.
@@ -293,6 +310,16 @@ export function CostPerMinuteBar({
                                         title="No rate on file for this exact model — priced at the provider's rate"
                                     >
                                         ≈
+                                    </span>
+                                )}
+                                {/* A ₹0.00 row with no explanation reads as a
+                                    rate we failed to find. Say which it is. */}
+                                {line.customer_keyed && (
+                                    <span
+                                        className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                                        title="You run this on your own key and pay the vendor directly, so we charge nothing for it. The platform fee above covers it instead."
+                                    >
+                                        your key
                                     </span>
                                 )}
                             </dt>

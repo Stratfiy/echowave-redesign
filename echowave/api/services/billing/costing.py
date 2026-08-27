@@ -34,6 +34,7 @@ from api.services.billing.rates import resolve_platform_rate, resolve_provider_r
 from api.services.billing.usage import (
     billable_seconds_from_usage_info,
     byok_platform_tier,
+    byok_uplift_micros_usd,
     usage_items_from_usage_info,
 )
 
@@ -68,16 +69,11 @@ def _byok_uplift_micros(usage_info: dict | None) -> int:
     Sized per component because the components are not worth the same: the
     margin a BYOK call takes from us is roughly thirty times larger when it is
     the voice than when it is the language model. ``byok_platform_tier``
-    explains the cut; these two figures are what it costs.
+    explains the cut; ``byok_uplift_micros_usd`` holds what it costs — shared
+    with the estimator, so the quote and this receipt cannot size the same
+    uplift differently.
     """
-    if not constants.BYOK_TIERED_FEE_ENABLED:
-        return 0
-    tier = byok_platform_tier(usage_info)
-    if tier == "tts":
-        return constants.BYOK_TTS_UPLIFT_MICROS_USD
-    if tier == "stt":
-        return constants.BYOK_STT_UPLIFT_MICROS_USD
-    return 0
+    return byok_uplift_micros_usd(byok_platform_tier(usage_info))
 
 
 def _addon_rates_mpaise(

@@ -204,11 +204,11 @@ def compute_call_cost(
             rate_mpaise=spec.rate_mpaise,
             unit=spec.unit,
         )
-        # The markup covers model services bought on our keys — the thing a
-        # customer would otherwise hold their own API key for. Telephony is
-        # excluded: its rate card holds the price we sell a minute at, set
-        # directly, so marking it up again would mean the number an operator
-        # types is not the number a customer pays.
+        # The markup covers everything we buy from a vendor and resell —
+        # carriage included, since every provider row holds what the vendor
+        # charges us rather than what we sell at. See MARKED_UP_COMPONENTS
+        # above for why that is one rule and not four. Our own lines (the
+        # platform fee, add-ons) are never in that set.
         #
         # Marked up per line rather than on the total, so each line on a
         # receipt adds up to the figure printed beside it. Rounding once per

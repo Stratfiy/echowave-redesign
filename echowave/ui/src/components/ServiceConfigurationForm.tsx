@@ -308,6 +308,24 @@ export function ServiceConfigurationForm({
         };
     };
 
+    // Which slots the account runs on its own vendor key, in the estimator's
+    // vocabulary. The same test the backend applies in
+    // `configuration/registry.py:is_managed` — a slot is ours when it names the
+    // managed tier *or* runs a real vendor on our platform key, and is theirs
+    // otherwise — restated here rather than inferred from the provider name
+    // alone, because the direct-managed path names a real vendor too.
+    //
+    // Omitting this priced a stack nobody is billed. A BYOK slot was quoted as
+    // though we had bought the inference, and the platform fee was quoted at
+    // the managed rate rather than the uplifted one the invoice applies. Two
+    // errors in opposite directions, so the total looked plausible.
+    const customerKeyedSlots = (slots: Array<"stt" | "llm" | "tts">) =>
+        slots.filter((slot) => {
+            const provider = serviceProviders[slot];
+            if (!provider) return false;
+            return provider !== MANAGED && usePlatformKey[slot] !== true;
+        });
+
     // The carrier this account actually dials on. Without it the estimate
     // below silently omits telephony, which is not a rounding error: it is an
     // exact per-minute rate and routinely a third of the cost of a minute. A
@@ -1356,6 +1374,12 @@ export function ServiceConfigurationForm({
                     ...pricedSlot("llm", serviceProviders.llm, watch("llm_model") as string),
                     ...pricedSlot("tts", isRealtime ? null : serviceProviders.tts, watch("tts_model") as string),
                     telephony_provider: telephonyProvider,
+                    // Speech-to-speech has no separate transcriber or voice, so
+                    // only the model slot can be on the customer's key — naming
+                    // the other two would zero lines the stack does not have.
+                    customer_keyed: customerKeyedSlots(
+                        isRealtime ? ["llm"] : ["stt", "llm", "tts"],
+                    ),
                 }}
             />
 

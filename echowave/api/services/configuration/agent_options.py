@@ -102,12 +102,18 @@ async def price_per_minute(
     brain: str,
     telephony_provider: str | None = None,
     marked_up: bool = True,
+    vendor_only: bool = False,
 ) -> int:
     """Paise per minute for a managed stack on this brain tier.
 
     Priced against what the tier resolves to today, because that is what the
     call will actually cost. The voice does not vary the price — every managed
     voice is the same tier and the same vendor rate — so it is not a parameter.
+
+    ``vendor_only`` drops the platform fee and returns just what the vendors
+    charge. Paired with ``marked_up=False`` it is the cost side of a margin;
+    the two are separate switches because they answer different questions —
+    one is "at cost or at our price", the other is "whose bill".
     """
     llm = managed_tiers.resolve("llm", brain)
     stt = managed_tiers.resolve("stt", "default")
@@ -125,7 +131,11 @@ async def price_per_minute(
         telephony_provider=telephony_provider,
         marked_up=marked_up,
     )
-    return estimate.total_paise_per_minute
+    return (
+        estimate.provider_paise_per_minute
+        if vendor_only
+        else estimate.total_paise_per_minute
+    )
 
 
 async def realtime_price_per_minute(
@@ -135,6 +145,7 @@ async def realtime_price_per_minute(
     realtime_tier: str,
     telephony_provider: str | None = None,
     marked_up: bool = True,
+    vendor_only: bool = False,
 ) -> int:
     """Paise per minute for a speech-to-speech stack.
 
@@ -153,7 +164,11 @@ async def realtime_price_per_minute(
         telephony_provider=telephony_provider,
         marked_up=marked_up,
     )
-    return estimate.total_paise_per_minute
+    return (
+        estimate.provider_paise_per_minute
+        if vendor_only
+        else estimate.total_paise_per_minute
+    )
 
 
 async def bundle_options(
@@ -254,11 +269,21 @@ async def bundle_economics(
     """The same bundles, with what each one earns.
 
     The operator's version of :func:`bundle_options`. It asks the estimator the
-    same question twice — once with the managed markup and once without — so
-    ``price`` is exactly the number quoted to a customer and ``cost`` is
-    exactly the vendor bill behind it. The margin is their difference, not a
-    third calculation: a margin computed independently is a margin that drifts,
-    and the drift only shows up in a month-end reconciliation.
+    same question twice — once as the customer is quoted, once for the vendor
+    bill underneath — so ``price`` is exactly the number quoted to a customer
+    and ``cost`` is exactly what the vendors charge. The margin is their
+    difference, not a third calculation: a margin computed independently is a
+    margin that drifts, and the drift only shows up in a month-end
+    reconciliation.
+
+    The cost side asks for the **vendor lines only**. Taking the whole
+    unmarked-up estimate instead put the platform fee on both sides of the
+    subtraction, where it cancelled: the screen reported the markup as the
+    entire margin on a bundle and hid our largest revenue line inside its own
+    cost. That also made this screen disagree with the unit-economics one,
+    which has always defined margin as revenue less ``provider_cost_paise`` —
+    a figure the cost engine sets to zero on the platform line precisely
+    because the fee is ours and not a vendor's.
 
     Priced at the **list** rate, with no account attached. Pricing a bundle
     against whichever account happened to be at hand would quote one
@@ -284,6 +309,7 @@ async def bundle_economics(
                     realtime_tier=variant["tier"],
                     telephony_provider=telephony_provider,
                     marked_up=False,
+                    vendor_only=True,
                 )
             else:
                 cost = await price_per_minute(
@@ -292,6 +318,7 @@ async def bundle_economics(
                     brain=variant["tier"],
                     telephony_provider=telephony_provider,
                     marked_up=False,
+                    vendor_only=True,
                 )
             variants.append(
                 {

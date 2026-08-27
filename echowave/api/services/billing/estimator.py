@@ -39,8 +39,10 @@ from api.services.billing.money import (
     mpaise_to_micros_usd,
     platform_fee_paise,
     round_half_up_div,
+    usd_to_mpaise,
 )
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
+from api.services.billing.usage import byok_tier, byok_uplift_micros_usd
 
 # Consumption per connected minute, used only when we have no measured history
 # for a model. Derived from a typical Indian voice-agent turn: roughly six
@@ -167,6 +169,20 @@ class CostEstimate:
     # charged, so the UI can say so.
     pulse_seconds: int = DEFAULT_PULSE_SECONDS
 
+    @property
+    def provider_paise_per_minute(self) -> int:
+        """What the vendors charge for this minute — everything but our own fee.
+
+        The platform fee is Decibyl revenue against a provider cost of zero
+        (see ``cost_engine``), so any figure calling itself a *cost* has to
+        leave it out. ``total_paise_per_minute`` on an estimate asked with
+        ``marked_up=False`` still carries it, and reading that as the vendor
+        bill is what made the bundle screen report the platform fee as both
+        revenue and cost — cancelling our largest margin line out of its own
+        margin.
+        """
+        return self.agent_paise_per_minute + self.telephony_paise_per_minute
+
 
 async def _measured_units_per_minute(
     session: AsyncSession,
@@ -225,10 +241,11 @@ async def _measured_units_per_minute(
 def _with_markup(paise: int, *, component: CostComponent, markup_bps: int) -> int:
     """Apply the managed markup exactly as ``cost_engine`` does, or not at all.
 
-    Same component set, same rounding, once per line. Telephony is excluded
-    there because its rate card already holds the sell price, and it has to be
-    excluded here for the same reason — otherwise the estimate and the receipt
-    would disagree about a line whose rate an operator typed by hand.
+    Same component set — imported from there rather than restated — same
+    rounding, once per line. A component list written out again here is the
+    parallel calculation this module exists to avoid: it would drift the first
+    time one side gained a component, and the symptom would be an estimate that
+    disagrees with the invoice on exactly that line.
     """
     if component.value not in MARKED_UP_COMPONENTS:
         return paise
@@ -427,17 +444,32 @@ async def estimate_cost_per_minute(
     platform = await resolve_platform_rate(
         session, organization_id=organization_id, at=at
     )
+
+    # A BYOK stack pays an uplifted platform rate rather than a second fee
+    # line, and the quote has to say so. Zeroing the provider lines above
+    # without this showed a customer bringing their own voice a *cheaper*
+    # minute than the invoice would charge them — under by the whole uplift,
+    # which is the largest single divergence a quote can carry. Sized and
+    # gated by ``billing/usage.py``, the same call ``billing/costing.py``
+    # makes, so the two cannot drift.
+    platform_rate_mpaise = platform.rate_mpaise
+    uplift_micros = byok_uplift_micros_usd(byok_tier(keyed))
+    if uplift_micros and platform.usd_inr_paise is not None:
+        platform_rate_mpaise += usd_to_mpaise(
+            micros_usd=uplift_micros, usd_inr_paise=platform.usd_inr_paise
+        )
+
     platform_line = EstimateLine(
         component=CostComponent.PLATFORM.value,
         provider=None,
         model=None,
         units_per_minute=1,
-        unit_rate_mpaise=platform.rate_mpaise,
+        unit_rate_mpaise=platform_rate_mpaise,
         # The platform rate is already quoted per minute, so one minute costs
         # the rate itself. Priced through platform_fee_paise rather than by
         # dividing here, so the estimate rounds exactly the way the invoice will.
         paise_per_minute=platform_fee_paise(
-            billable_minutes=1, rate_mpaise=platform.rate_mpaise
+            billable_minutes=1, rate_mpaise=platform_rate_mpaise
         ),
         basis="exact",
     )

@@ -30,8 +30,10 @@ Telephony has no key-ownership concept and always produces a line regardless.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from typing import Any
 
+from api import constants
 from api.enums import CostComponent
 from api.services.billing.cost_engine import UsageItem
 
@@ -179,11 +181,52 @@ def byok_platform_tier(usage_info: dict[str, Any] | None) -> str:
     than inventing an uplift from facts nobody captured.
     """
     key_sources = key_sources_from_usage_info(usage_info)
-    if key_sources.get("tts") == "byok":
+    return byok_tier(
+        component for component, source in key_sources.items() if source == "byok"
+    )
+
+
+def byok_tier(byok_components: Iterable[str]) -> str:
+    """The BYOK tier for a set of components the customer brought keys for.
+
+    The measured half of :func:`byok_platform_tier` — which reads a completed
+    call's ``usage_info`` — split out so the *forward* half can ask the same
+    question of a stack that has not run yet. The estimator knows which slots
+    an account is bringing keys for before there is any usage to read, and it
+    has to arrive at the same tier the invoice will, or the quote is under the
+    bill by whatever the uplift turns out to be.
+
+    Cut on **which** component, never how many; see
+    :func:`byok_platform_tier` for why the language model is not a tier.
+    """
+    brought = {str(component).strip().lower() for component in byok_components}
+    if "tts" in brought:
         return "tts"
-    if key_sources.get("stt") == "byok":
+    if "stt" in brought:
         return "stt"
     return "managed"
+
+
+def byok_uplift_micros_usd(tier: str) -> int:
+    """What a BYOK tier adds to the platform rate, in micro-dollars a minute.
+
+    The single definition of the uplift, read by both the receipt
+    (``billing/costing.py``) and the quote (``billing/estimator.py``). Two
+    copies of this decision is exactly how a wizard comes to quote a price the
+    invoice does not honour, which is the failure the estimator exists to
+    prevent — so the sizes live here once rather than beside each caller.
+
+    Returns zero while ``BYOK_TIERED_FEE_ENABLED`` is off, which makes the flag
+    a single switch over both surfaces rather than one the quote could be
+    missing.
+    """
+    if not constants.BYOK_TIERED_FEE_ENABLED:
+        return 0
+    if tier == "tts":
+        return constants.BYOK_TTS_UPLIFT_MICROS_USD
+    if tier == "stt":
+        return constants.BYOK_STT_UPLIFT_MICROS_USD
+    return 0
 
 
 def usage_items_from_usage_info(

@@ -168,6 +168,58 @@ async def _post(path: str, payload: dict, *, client: httpx.AsyncClient | None = 
     return response.json()
 
 
+async def _get(path: str, *, client: httpx.AsyncClient | None = None):
+    """Read one object from Razorpay. Same error shape as :func:`_post`."""
+    owned = client is None
+    client = client or httpx.AsyncClient(timeout=_TIMEOUT)
+    try:
+        response = await client.get(f"{RAZORPAY_API_BASE}{path}", auth=_auth())
+    except httpx.HTTPError as exc:
+        raise MandateError(f"Razorpay request failed: {exc}") from exc
+    finally:
+        if owned:
+            await client.aclose()
+
+    if response.status_code >= 400:
+        detail = ""
+        try:
+            detail = (response.json().get("error") or {}).get("description") or ""
+        except ValueError:
+            detail = response.text[:200]
+        raise MandateError(
+            f"Razorpay returned {response.status_code} for {path}: {detail}"
+        )
+    return response.json()
+
+
+async def _pinned_plan_amount(
+    plan_id: str, *, client: httpx.AsyncClient | None = None
+) -> int | None:
+    """What the pinned plan actually tells the bank to collect, or None.
+
+    None means we could not read it — a transient provider failure, or an
+    account without permission on the endpoint. Deliberately distinct from a
+    number: the caller proceeds on the pinned plan when the amount is unknown,
+    and only diverges from it on a *confirmed* mismatch. Refusing on a failed
+    read would take every signup down with one Razorpay blip.
+    """
+    try:
+        plan = await _get(f"/plans/{plan_id}", client=client)
+    except MandateError as exc:
+        logger.warning(
+            "Could not read Razorpay plan {} to check its amount ({}); "
+            "proceeding with the pinned plan",
+            plan_id,
+            exc,
+        )
+        return None
+    amount = (plan.get("item") or {}).get("amount")
+    try:
+        return int(amount)
+    except (TypeError, ValueError):
+        return None
+
+
 async def _ensure_plan(
     *,
     pinned: str | None,
@@ -186,9 +238,36 @@ async def _ensure_plan(
     ``price_paise`` is the **gross** figure the bank is told to collect. The
     caller grosses up, because the rate depends on the account's own billing
     profile and this function has no view of one.
+
+    **A pinned plan carries one fixed amount, and not every account owes it.**
+    The caller computes the gross against that account's own billing profile
+    and, until this check existed, the answer was then discarded whenever a
+    plan was pinned: a zero-rated export under an LUT was subscribed to the
+    domestic plan and the bank collected 18% of GST that was never due — every
+    month, by standing instruction, on a supply whose whole point is that it
+    carries none. ``tax.py`` refuses to invoice that; nothing stopped the
+    mandate collecting it.
+
+    So a pinned plan is used when it collects what this account owes, and an
+    account that owes something different gets its own plan at the right
+    figure. Fragmenting the provider's reporting for the handful of accounts
+    on a different tax treatment is a much smaller price than collecting the
+    wrong amount from them indefinitely.
     """
     if pinned:
-        return pinned
+        pinned_amount = await _pinned_plan_amount(pinned, client=client)
+        if pinned_amount is None or pinned_amount == int(price_paise):
+            return pinned
+        logger.error(
+            "Pinned Razorpay plan {} ({}) collects {} paise, but this account "
+            "owes {} paise on its own billing profile — usually a zero-rated "
+            "export against a domestic plan. Creating a plan at the correct "
+            "amount for this account rather than collecting the wrong one.",
+            pinned,
+            env_var,
+            pinned_amount,
+            int(price_paise),
+        )
 
     created = await _post(
         "/plans",

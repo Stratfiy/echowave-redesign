@@ -211,3 +211,88 @@ class TestTheTiersStillDiffer:
         by_tier = {v["tier"]: v["paise_per_minute"] for v in everyday["variants"]}
 
         assert by_tier["lite"] < by_tier["default"] < by_tier["accurate"]
+
+
+class TestWhatCountsAsACost:
+    """The platform fee is revenue, and it must appear on exactly one side.
+
+    It was on both. ``cost`` was the whole estimate asked for without the
+    markup, and that estimate still carries our own per-minute fee — so the fee
+    was subtracted from a price that contained it and cancelled out. The screen
+    reported the markup as a bundle's entire margin and hid the largest revenue
+    line inside its own cost: on the default tiers, 21.7% where the truth was
+    45.7%. An operator setting a bundle price against that would have priced
+    for a margin the product was already earning twice over.
+    """
+
+    async def test_the_cost_side_is_the_vendor_bill_and_nothing_of_ours(
+        self, db_session, async_session, priced
+    ):
+        """Compared against the estimator's own vendor total, not a figure
+        written here — a number written in a test is the second calculation
+        this whole file exists to rule out."""
+        from api.services.billing.estimator import estimate_cost_per_minute
+
+        operator = await agent_options.bundle_economics(async_session)
+
+        checked = 0
+        for bundle in operator:
+            if bundle["architecture"] == "realtime":
+                continue  # priced through the realtime helper; covered below
+            for variant in bundle["variants"]:
+                llm = managed_tiers.resolve("llm", variant["tier"])
+                stt = managed_tiers.resolve("stt", "default")
+                tts = managed_tiers.resolve("tts", "default")
+                at_cost = await estimate_cost_per_minute(
+                    async_session,
+                    organization_id=None,
+                    stt_provider=stt.provider,
+                    stt_model=stt.model,
+                    llm_provider=llm.provider,
+                    llm_model=llm.model,
+                    tts_provider=tts.provider,
+                    tts_model=tts.model,
+                    marked_up=False,
+                )
+                assert (
+                    variant["cost_paise_per_minute"]
+                    == at_cost.provider_paise_per_minute
+                )
+                checked += 1
+
+        assert checked, "no pipeline bundle was priced, so nothing was compared"
+
+    async def test_the_platform_fee_is_inside_the_margin(
+        self, db_session, async_session, priced
+    ):
+        """The fee is charged and costs us nothing, so every paisa of it is
+        margin. A cost figure that swallows it understates what a bundle
+        earns by the single largest line on the receipt."""
+        from api.services.billing.estimator import estimate_cost_per_minute
+
+        fee_only = await estimate_cost_per_minute(async_session, organization_id=None)
+        fee = fee_only.total_paise_per_minute
+        assert fee > 0, "the platform fee priced at zero, so nothing was measured"
+
+        operator = await agent_options.bundle_economics(async_session)
+        for bundle in operator:
+            for variant in bundle["variants"]:
+                assert variant["margin_paise_per_minute"] >= fee, (
+                    f"{bundle['slug']}/{variant['tier']} reports a margin below "
+                    "the platform fee, which it earns before any markup"
+                )
+
+    async def test_an_unpriced_stack_still_costs_nothing(
+        self, db_session, async_session
+    ):
+        """No ``priced`` fixture: with an empty price book there is no vendor
+        bill, and the cost must read zero rather than the platform fee. The
+        guard in the markup test above skips on ``cost == 0``, so a cost that
+        silently became the fee would switch that check off entirely."""
+        await bundle_service.ensure_seeded(async_session)
+        operator = await agent_options.bundle_economics(async_session)
+
+        assert operator, "no bundles were returned, so nothing was checked"
+        for bundle in operator:
+            for variant in bundle["variants"]:
+                assert variant["cost_paise_per_minute"] == 0
