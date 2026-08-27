@@ -200,3 +200,97 @@ class TestOnlyOurOwnCarriageIsMeasured:
         assert len(telephony) == 1
         assert telephony[0].provider == "plivo"
         assert telephony[0].quantity == 143
+
+
+class TestCallDirectionBecomesTheTelephonyModel:
+    """A phone call gained a model dimension the day Plivo billed it that way.
+
+    Found on the first real call placed after the Mumbai migration: the
+    account's Plivo rate was a single blank-model row, so inbound and outbound
+    always resolved to the same figure regardless of which one actually ran.
+    Plivo's own pricing bills the two as separate line items -- today at the
+    same Rs0.38/min, but as separate figures a vendor is free to diverge at any
+    time. ``call_type`` is threaded through so that divergence is a rate-card
+    edit, not a code change.
+    """
+
+    def test_an_outbound_call_is_tagged_outbound(self):
+        items = usage_items_from_usage_info(
+            {
+                "telephony": {"plivo": 21},
+                "key_sources": {"telephony": "managed"},
+            },
+            call_type="outbound",
+        )
+        telephony = [i for i in items if i.component is CostComponent.TELEPHONY]
+        assert len(telephony) == 1
+        assert telephony[0].model == "outbound"
+
+    def test_an_inbound_call_is_tagged_inbound(self):
+        items = usage_items_from_usage_info(
+            {
+                "telephony": {"plivo": 21},
+                "key_sources": {"telephony": "managed"},
+            },
+            call_type="inbound",
+        )
+        telephony = [i for i in items if i.component is CostComponent.TELEPHONY]
+        assert len(telephony) == 1
+        assert telephony[0].model == "inbound"
+
+    def test_no_call_type_falls_back_to_the_blank_model(self):
+        """Every caller that predates this parameter keeps behaving exactly
+        as it did -- resolving against the provider-wide fallback rate, not
+        against a model string nothing set.
+        """
+        items = usage_items_from_usage_info(
+            {
+                "telephony": {"plivo": 21},
+                "key_sources": {"telephony": "managed"},
+            }
+        )
+        telephony = [i for i in items if i.component is CostComponent.TELEPHONY]
+        assert len(telephony) == 1
+        assert telephony[0].model == ""
+
+    def test_direction_does_not_leak_into_the_model_components(self):
+        """call_type is a telephony fact. It must not appear on an LLM, STT or
+        TTS line, which are keyed on the vendor's own model name.
+        """
+        items = usage_items_from_usage_info(
+            {
+                "llm": {"openai|||gpt-4.1": 500},
+                "telephony": {"plivo": 21},
+                "key_sources": {"telephony": "managed"},
+            },
+            call_type="inbound",
+        )
+        llm = [i for i in items if i.component is CostComponent.LLM]
+        assert len(llm) == 1
+        assert llm[0].model == "gpt-4.1"
+
+
+class TestPlivoDirectionRatesAreOnFile:
+    """The two rows this fix exists to add.
+
+    Both currently quote Plivo's Voice AI Telephony page, Rs0.38/min -- equal
+    today, tracked separately because Plivo already bills them as separate
+    line items and will not necessarily keep them equal.
+    """
+
+    def test_outbound_and_inbound_both_have_a_default_rate(self):
+        keyed = {
+            (r.provider, r.model): r for r in TELEPHONY_RATES if r.provider == "plivo"
+        }
+        assert ("plivo", "outbound") in keyed
+        assert ("plivo", "inbound") in keyed
+        # Neither is a stand-in: both cite a real, current Plivo quote.
+        assert not keyed[("plivo", "outbound")].provisional
+        assert not keyed[("plivo", "inbound")].provisional
+
+    def test_the_blank_fallback_row_still_exists(self):
+        """A call whose direction could not be tagged must still cost
+        something rather than falling through to uncosted.
+        """
+        keyed = {(r.provider, r.model) for r in TELEPHONY_RATES}
+        assert ("plivo", "") in keyed

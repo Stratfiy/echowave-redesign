@@ -477,23 +477,42 @@ TELEPHONY_RATES = (
         _inr(1.20),
         "India outbound to mobile, approx Rs1.20/min. Landline approx Rs0.65.",
     ),
-    # Plivo publishes Rs0.60/min for India outbound local, and Rs0.34/min over
-    # SIP / Browser SDK. This row is the higher one deliberately: under-reporting
-    # carriage overstates margin, and which of the two applies depends on how
-    # calls are actually placed. Correct it to Rs0.34 once the account is
-    # confirmed to be dialling over SIP.
+    # Plivo's Voice AI Telephony page (SIP Trunking + Audio Streaming, the
+    # product this platform actually dials through) quotes Rs0.38/min for both
+    # outbound and inbound, confirmed against the account's own console 27 Aug
+    # 2026 -- not the older Rs0.60 outbound / Rs0.34 SIP split this row used to
+    # carry, which was a generic PSTN quote for a different Plivo product.
     #
-    # Worth flagging against the tender model, which assumed Rs0.25/min: even
-    # the SIP rate is above that, and market benchmarks for outbound-to-mobile
-    # via aggregators run Rs0.80-Rs1.80/min. Telephony is the largest single
-    # cost line in a cheap stack and the easiest to under-budget.
+    # The blank-model row is the fallback for a call direction that never got
+    # tagged -- pre-migration history, or a code path that has not been
+    # updated yet. Both direction-specific rows below exist so that when Plivo
+    # inevitably prices the two differently (they already price the pair as
+    # separate line items, even though today's number is identical), only the
+    # affected row needs correcting at /superadmin/billing/rate-card -- not a
+    # code change and not a redeploy.
     DefaultRate(
         "plivo",
         "",
         CostComponent.TELEPHONY,
         RateUnit.MINUTE,
-        _inr(0.60),
-        "India outbound local Rs0.60/min published. SIP / Browser SDK is Rs0.34.",
+        _inr(0.38),
+        "Plivo Voice AI Telephony, Rs0.38/min -- fallback for an untagged call direction.",
+    ),
+    DefaultRate(
+        "plivo",
+        "outbound",
+        CostComponent.TELEPHONY,
+        RateUnit.MINUTE,
+        _inr(0.38),
+        "Plivo Voice AI Telephony, outbound Rs0.38/min, confirmed on account 27 Aug 2026.",
+    ),
+    DefaultRate(
+        "plivo",
+        "inbound",
+        CostComponent.TELEPHONY,
+        RateUnit.MINUTE,
+        _inr(0.38),
+        "Plivo Voice AI Telephony, inbound Rs0.38/min, confirmed on account 27 Aug 2026.",
     ),
     # Four carriers below carry a stand-in rather than a published price, and
     # they are here rather than absent on purpose. A supported carrier with no

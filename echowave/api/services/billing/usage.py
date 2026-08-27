@@ -208,6 +208,8 @@ def byok_platform_tier(usage_info: dict[str, Any] | None) -> str:
 
 def usage_items_from_usage_info(
     usage_info: dict[str, Any] | None,
+    *,
+    call_type: str | None = None,
 ) -> tuple[UsageItem, ...]:
     """Extract costable usage from a run's ``usage_info``.
 
@@ -218,6 +220,15 @@ def usage_items_from_usage_info(
     A component the account ran on its own key produces no line at all: it
     already paid the vendor directly, so pricing it again here would charge
     twice for the same usage. See ``key_sources_from_usage_info``.
+
+    ``call_type`` is ``workflow_runs.call_type`` -- "inbound" or "outbound" --
+    and becomes the telephony line's ``model``. Optional and keyword-only so
+    every existing caller that does not pass it keeps resolving against the
+    blank-model fallback rate exactly as before; the direction-specific rate
+    only applies once a caller opts in. See ``billing/default_rates.py`` for
+    why a phone call gained a model dimension it did not have before: Plivo
+    bills inbound and outbound as separate line items, even on the days their
+    price happens to match.
     """
     usage_info = usage_info or {}
     key_sources = key_sources_from_usage_info(usage_info)
@@ -294,6 +305,10 @@ def usage_items_from_usage_info(
                     UsageItem(
                         component=CostComponent.TELEPHONY,
                         provider=provider_from_processor(processor),
+                        # "" when call_type is unavailable -- matches every
+                        # other component's model default and resolves against
+                        # the provider-wide fallback rate, not a missing one.
+                        model=call_type or "",
                         quantity=seconds,
                     )
                 )
