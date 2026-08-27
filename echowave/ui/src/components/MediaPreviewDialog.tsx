@@ -1,6 +1,6 @@
 'use client';
 
-import { Headphones, Loader2 } from 'lucide-react';
+import { AlertTriangle,Headphones, Loader2 } from 'lucide-react';
 import posthog from 'posthog-js';
 import { useCallback, useState } from 'react';
 
@@ -24,6 +24,19 @@ export function MediaPreviewDialog() {
     const [recordingKey, setRecordingKey] = useState<string | null>(null);
     const [transcriptKey, setTranscriptKey] = useState<string | null>(null);
     const [mediaLoading, setMediaLoading] = useState(false);
+    /**
+     * Why nothing loaded, when something was supposed to.
+     *
+     * This dialog only opens for a run that *has* a recording or transcript key
+     * — `MediaPreviewButton` renders nothing otherwise, and `openPreview`
+     * returns early. So "No recording or transcript available" was never the
+     * right sentence for an empty dialog: the file is on the run, and what
+     * failed was fetching it. It reported a missing recording for a 403 on
+     * somebody else's run, for a key the storage backend had never heard of,
+     * and for MinIO being down, which are three different problems and one of
+     * them is not the customer's.
+     */
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const openPreview = useCallback(
         async (recordingUrl: string | null, transcriptUrl: string | null, runId: number) => {
@@ -31,6 +44,7 @@ export function MediaPreviewDialog() {
             setMediaLoading(true);
             setAudioSignedUrl(null);
             setTranscriptContent(null);
+            setLoadError(null);
             setRecordingKey(recordingUrl);
             setTranscriptKey(transcriptUrl);
             setSelectedRunId(runId);
@@ -41,13 +55,24 @@ export function MediaPreviewDialog() {
                 transcriptUrl ? getSignedUrl(transcriptUrl, true) : null,
             ]);
 
-            if (audioResult) {
-                setAudioSignedUrl(audioResult);
+            const failures: string[] = [];
+
+            if (audioResult?.url) {
+                setAudioSignedUrl(audioResult.url);
+            } else if (audioResult?.error) {
+                failures.push(`Recording: ${audioResult.error}`);
             }
 
-            if (transcriptResult) {
+            if (transcriptResult?.url) {
                 try {
-                    const response = await fetch(transcriptResult);
+                    const response = await fetch(transcriptResult.url);
+                    if (!response.ok) {
+                        // The signed URL was issued and storage still refused
+                        // it. Usually an object the key points at that is not
+                        // there — worth distinguishing from being denied the
+                        // URL in the first place.
+                        throw new Error(`storage returned ${response.status}`);
+                    }
                     const text = await response.text();
                     setTranscriptContent(text);
                     posthog.capture(PostHogEvent.TRANSCRIPT_VIEWED, {
@@ -57,9 +82,17 @@ export function MediaPreviewDialog() {
                     });
                 } catch (error) {
                     console.error('Error fetching transcript:', error);
+                    failures.push(
+                        `Transcript: could not be downloaded (${
+                            error instanceof Error ? error.message : 'unknown error'
+                        }).`,
+                    );
                 }
+            } else if (transcriptResult?.error) {
+                failures.push(`Transcript: ${transcriptResult.error}`);
             }
 
+            setLoadError(failures.length > 0 ? failures.join(' ') : null);
             setMediaLoading(false);
         },
         [],
@@ -103,7 +136,18 @@ export function MediaPreviewDialog() {
                         </pre>
                     )}
 
-                    {!mediaLoading && !audioSignedUrl && !transcriptContent && (
+                    {/* The failure, when there was one. Named rather than
+                        summarised as absence: this run has the file, and
+                        whoever is reading needs to know whether to retry, ask
+                        for access, or tell us storage is down. */}
+                    {!mediaLoading && loadError && (
+                        <div className="mt-4 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                            <span>{loadError}</span>
+                        </div>
+                    )}
+
+                    {!mediaLoading && !loadError && !audioSignedUrl && !transcriptContent && (
                         <div className="flex items-center justify-center py-8 text-muted-foreground">
                             No recording or transcript available.
                         </div>
@@ -114,13 +158,26 @@ export function MediaPreviewDialog() {
                             <Button variant="secondary">Close</Button>
                         </DialogClose>
                         <div className="flex gap-2">
+                            {/* A download that fails now says so. It used to
+                                open nothing and log to a console nobody has
+                                open, which reads as a dead button. */}
                             {recordingKey && (
-                                <Button variant="outline" onClick={() => downloadFile(recordingKey)}>
+                                <Button
+                                    variant="outline"
+                                    onClick={async () =>
+                                        setLoadError(await downloadFile(recordingKey))
+                                    }
+                                >
                                     Download Recording
                                 </Button>
                             )}
                             {transcriptKey && (
-                                <Button variant="outline" onClick={() => downloadFile(transcriptKey)}>
+                                <Button
+                                    variant="outline"
+                                    onClick={async () =>
+                                        setLoadError(await downloadFile(transcriptKey))
+                                    }
+                                >
                                     Download Transcript
                                 </Button>
                             )}
