@@ -17,6 +17,8 @@ an existing customer topping up mid-campaign needs ₹200 to be ₹200.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 
 from api.constants import (
@@ -367,4 +369,98 @@ class TestPinningIsNotRepricing:
         with pytest.raises(subscription_plans.PlanError, match="No plan with code"):
             await subscription_plans.set_provider_plan_ids(
                 async_session, code="ghost", razorpay_plan_id="plan_x"
+            )
+
+
+class TestThePlanSetsThePerMinuteFee:
+    """A tier's per-minute price is applied when the mandate is authorised.
+
+    The platform fee was already per-account and effective-dated, but the only
+    thing that ever wrote a row was an operator on the admin screen. So a tiered
+    price list was something you could describe and not something the product
+    did: every account kept the list rate until somebody went and changed it,
+    one at a time. This is the wiring that makes the ladder real.
+    """
+
+    async def _authorise(self, session, org, *, plan_code: str):
+        """Drive the mandate through the transition the webhook drives."""
+        from api.services.billing import mandates
+
+        session.add(
+            PaymentMandateModel(
+                organization_id=org.id,
+                provider="razorpay",
+                purpose=mandates.PURPOSE_STARTER_PLAN,
+                subscription_id=f"sub_rate_{org.id}",
+                plan_id="plan_x",
+                plan_code=plan_code,
+                status=MandateStatus.CREATED.value,
+                price_paise=799_900,
+            )
+        )
+        await session.flush()
+        return await mandates.apply_subscription_event(
+            session,
+            event={
+                "event": "subscription.activated",
+                "payload": {"subscription": {"entity": {"id": f"sub_rate_{org.id}"}}},
+            },
+        )
+
+    async def _rate(self, session, org) -> int:
+        from api.services.billing.rates import resolve_platform_rate
+
+        resolved = await resolve_platform_rate(
+            session, organization_id=org.id, at=datetime.now(UTC)
+        )
+        return resolved.rate_mpaise
+
+    async def test_authorising_moves_the_account_to_its_tier_rate(self, async_session):
+        from api.constants import STARTER_PLAN_PRICE_PAISE
+
+        org = await _org(async_session, "rate-growth")
+        await subscription_plans.save(
+            async_session,
+            code="growth",
+            label="Growth",
+            price_paise=STARTER_PLAN_PRICE_PAISE,
+            balance_paise=200_000,
+            included_numbers=2,
+            platform_rate_mpaise=200_000,
+            razorpay_plan_id="plan_growth",
+        )
+
+        result = await self._authorise(async_session, org, plan_code="growth")
+        assert result["newly_authorised"] is True
+        assert await self._rate(async_session, org) == 200_000
+
+    async def test_a_plan_with_no_figure_leaves_the_rate_alone(self, async_session):
+        """Null is not zero. A plan with no opinion about the fee must not move
+        an account off a rate somebody negotiated for it."""
+        org = await _org(async_session, "rate-quiet")
+        before = await self._rate(async_session, org)
+
+        await subscription_plans.save(
+            async_session,
+            code="quietplan",
+            label="Quiet",
+            price_paise=100_000,
+            balance_paise=100_000,
+            included_numbers=0,
+            razorpay_plan_id="plan_quiet_rate",
+        )
+        await self._authorise(async_session, org, plan_code="quietplan")
+
+        assert await self._rate(async_session, org) == before
+
+    async def test_a_negative_fee_is_refused(self, async_session):
+        with pytest.raises(subscription_plans.PlanError, match="negative platform fee"):
+            await subscription_plans.save(
+                async_session,
+                code="upsidedown",
+                label="Upside down",
+                price_paise=100_000,
+                balance_paise=100_000,
+                included_numbers=0,
+                platform_rate_mpaise=-1,
             )

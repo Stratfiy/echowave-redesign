@@ -1442,6 +1442,10 @@ class PlanRequest(BaseModel):
     knowledge_base_bytes: int = Field(0, ge=0)
     #: Largest single document. Zero follows the deployment ceiling.
     knowledge_base_max_file_bytes: int = Field(0, ge=0)
+    #: Per-minute platform fee in millipaise, applied when a mandate on this
+    #: plan is authorised. Null leaves the account on the rate it has, which is
+    #: not the same as zero -- that would give the fee away.
+    platform_rate_mpaise: int | None = Field(None, ge=0)
     razorpay_plan_id: str | None = None
     #: The provider plan for a zero-rated account, created at the **net**
     #: price. A pinned plan charges everyone the same amount, so an export
@@ -1470,6 +1474,7 @@ def _plan_view(plan) -> dict[str, Any]:
         "extra_number_price_paise": plan.extra_number_price_paise,
         "knowledge_base_bytes": plan.knowledge_base_bytes,
         "knowledge_base_max_file_bytes": plan.knowledge_base_max_file_bytes,
+        "platform_rate_mpaise": plan.platform_rate_mpaise,
         "numbers_value_paise": plan.numbers_value_paise,
         "parts_paise": plan.parts_paise,
         "discount_paise": plan.discount_paise,

@@ -678,6 +678,67 @@ async def assert_mandate_authorised(
     return mandate
 
 
+async def _apply_plan_platform_rate(
+    session: AsyncSession, *, mandate: PaymentMandateModel
+) -> None:
+    """Put the account on its plan's per-minute fee, if the plan names one.
+
+    In the same transaction as the authorisation that earned it, not after the
+    commit like the confirmation email. A missed email is a courtesy; a missed
+    rate is the customer paying the list price on a plan they bought to get off
+    it, silently, until somebody reconciles a statement.
+
+    A plan with no figure changes nothing. That is the difference between null
+    and zero: null is "this plan has no opinion about the fee", so a negotiated
+    rate survives an upgrade, whereas zero would be a plan that gives the fee
+    away. Pricing a tier months from now therefore cannot retroactively re-rate
+    the accounts already on it.
+
+    Never raises. The authorisation is the customer's instruction to their bank
+    and it stands whether or not we managed to re-rate them; failing the webhook
+    here would have Razorpay retry an authorisation that already succeeded, and
+    the rate is recoverable from the admin screen in a way a lost mandate is
+    not.
+    """
+    # Both imported at call time. subscription_plans reaches back into this
+    # module to resolve an account's entitlements, so the cycle is only benign
+    # once both are loaded.
+    from api.services.billing import rate_card, subscription_plans
+
+    if not mandate.plan_code:
+        return
+    try:
+        plan = await subscription_plans.resolve(session, code=mandate.plan_code)
+        if plan is None or plan.platform_rate_mpaise is None:
+            return
+        await rate_card.set_account_rate(
+            session,
+            # Nobody typed this. The audit row should say the plan did.
+            actor_user_id=None,
+            organization_id=mandate.organization_id,
+            platform_rate_mpaise=plan.platform_rate_mpaise,
+            note=f"Plan {plan.code} authorised",
+        )
+        # Flushed here rather than left for whatever query happens to autoflush
+        # it. The rate is the point of this function, and a write that only
+        # lands if something later reads is not a write anybody can reason
+        # about.
+        await session.flush()
+        logger.info(
+            "Org {} moved to the {} platform rate ({} mpaise) on authorisation",
+            mandate.organization_id,
+            plan.code,
+            plan.platform_rate_mpaise,
+        )
+    except Exception as exc:  # noqa: BLE001 - see docstring
+        logger.error(
+            "Could not apply the {} platform rate to org {}: {}",
+            mandate.plan_code,
+            mandate.organization_id,
+            exc,
+        )
+
+
 async def apply_subscription_event(session: AsyncSession, *, event: dict) -> dict:
     """Move a mandate to the state a verified provider event puts it in.
 
@@ -764,6 +825,13 @@ async def apply_subscription_event(session: AsyncSession, *, event: dict) -> dic
             event_type,
         )
 
+    newly_authorised = (
+        previous not in MandateStatus.authorised()
+        and next_status in MandateStatus.authorised()
+    )
+    if newly_authorised:
+        await _apply_plan_platform_rate(session, mandate=mandate)
+
     return {
         "status": "updated",
         "mandate_id": mandate.id,
@@ -781,10 +849,7 @@ async def apply_subscription_event(session: AsyncSession, *, event: dict) -> dic
         # four times and "just became authorised" once. The confirmation is
         # deduplicated on the mandate as well; this only keeps the common case
         # from reaching the dedupe table at all.
-        "newly_authorised": (
-            previous not in MandateStatus.authorised()
-            and next_status in MandateStatus.authorised()
-        ),
+        "newly_authorised": newly_authorised,
         "plan_code": mandate.plan_code,
         "price_paise": mandate.price_paise,
     }

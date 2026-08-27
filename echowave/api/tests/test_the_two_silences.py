@@ -40,6 +40,7 @@ def _plan(**overrides) -> Plan:
         extra_number_price_paise=55_900,
         knowledge_base_bytes=25 * 1024 * 1024,
         knowledge_base_max_file_bytes=5 * 1024 * 1024,
+        platform_rate_mpaise=None,
         razorpay_plan_id="plan_x",
         razorpay_plan_id_export=None,
         enabled=True,

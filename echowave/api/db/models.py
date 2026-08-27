@@ -2923,6 +2923,20 @@ class SubscriptionPlanModel(Base):
     knowledge_base_max_file_bytes = Column(
         BigInteger, nullable=False, default=0, server_default="0"
     )
+    #: The per-minute platform fee this plan entitles an account to, in
+    #: millipaise. Applied to ``organization_rate_history`` the moment the
+    #: mandate is authorised — see ``mandates.apply_subscription_event``.
+    #:
+    #: Null means the plan says nothing about the fee, and the account keeps
+    #: whatever rate it already had: a negotiated one, or the list price. That
+    #: is deliberately different from zero, which would be a plan that gives
+    #: away the fee entirely. Only a plan with an explicit figure moves anyone,
+    #: so pricing a tier later cannot silently re-rate the accounts on it.
+    #:
+    #: The fee is what a larger plan actually discounts. Balance and numbers are
+    #: cheap to be generous with; this is the number a customer compares against
+    #: a competitor, and the one they move tier to change.
+    platform_rate_mpaise = Column(Integer, nullable=True)
 
     #: The provider plan this subscribes to. Pinned per plan for the same
     #: reason the rental plan is pinned: a plan created lazily per environment

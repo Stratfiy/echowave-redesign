@@ -66,6 +66,10 @@ class TierSeed:
     included_numbers: int
     knowledge_base_bytes: int
     knowledge_base_max_file_bytes: int
+    #: Per-minute platform fee in millipaise. This is what a bigger plan
+    #: actually discounts -- balance and numbers are cheap to be generous with,
+    #: this is the number a customer compares against a competitor.
+    platform_rate_mpaise: int
     sort_order: int
 
 
@@ -82,6 +86,7 @@ TIERS: tuple[TierSeed, ...] = (
         included_numbers=1,
         knowledge_base_bytes=25 * MB,
         knowledge_base_max_file_bytes=5 * MB,
+        platform_rate_mpaise=250_000,  # ₹2.50 a minute
         sort_order=0,
     ),
     TierSeed(
@@ -93,6 +98,7 @@ TIERS: tuple[TierSeed, ...] = (
         included_numbers=2,
         knowledge_base_bytes=100 * MB,
         knowledge_base_max_file_bytes=10 * MB,
+        platform_rate_mpaise=200_000,  # ₹2.00 a minute
         sort_order=10,
     ),
     TierSeed(
@@ -104,6 +110,7 @@ TIERS: tuple[TierSeed, ...] = (
         included_numbers=4,
         knowledge_base_bytes=500 * MB,
         knowledge_base_max_file_bytes=25 * MB,
+        platform_rate_mpaise=150_000,  # ₹1.50 a minute
         sort_order=20,
     ),
 )
@@ -146,7 +153,7 @@ async def main() -> int:
 
     print(
         f"{'code':<10} {'price':>10} {'balance':>10} {'nums':>5} {'KB':>8} "
-        f"{'file':>6}  razorpay"
+        f"{'file':>6} {'fee/min':>8}  razorpay"
     )
     print("-" * 78)
 
@@ -179,7 +186,9 @@ async def main() -> int:
                 f"{tier.code:<10} {_rupees(tier.price_paise):>10} "
                 f"{_rupees(tier.balance_paise):>10} {tier.included_numbers:>5} "
                 f"{_mb(tier.knowledge_base_bytes):>6}MB "
-                f"{_mb(tier.knowledge_base_max_file_bytes):>4}MB  {pinned}  [{state}]"
+                f"{_mb(tier.knowledge_base_max_file_bytes):>4}MB "
+                f"{'₹%.2f' % (tier.platform_rate_mpaise / 100_000):>8}  "
+                f"{pinned}  [{state}]"
             )
 
             if not args.confirm:
@@ -195,15 +204,27 @@ async def main() -> int:
                     getattr(args, f"{tier.code}_id", None),
                     getattr(args, f"{tier.code}_export_id", None),
                 )
-                if not any(supplied):
+                # A fee that has never been set is not a decision either --
+                # on any deployment older than the column it is simply absent.
+                # Filling it in is the same act as filling in a missing id;
+                # changing one an operator chose is not, and needs --force.
+                needs_fee = existing.platform_rate_mpaise is None
+                if not any(supplied) and not needs_fee:
                     continue
                 try:
-                    await subscription_plans.set_provider_plan_ids(
-                        session,
-                        code=tier.code,
-                        razorpay_plan_id=supplied[0],
-                        razorpay_plan_id_export=supplied[1],
-                    )
+                    if any(supplied):
+                        await subscription_plans.set_provider_plan_ids(
+                            session,
+                            code=tier.code,
+                            razorpay_plan_id=supplied[0],
+                            razorpay_plan_id_export=supplied[1],
+                        )
+                    if needs_fee:
+                        await subscription_plans.set_plan_platform_rate(
+                            session,
+                            code=tier.code,
+                            platform_rate_mpaise=tier.platform_rate_mpaise,
+                        )
                 except PlanError as exc:
                     print(f"  ! {tier.code} refused: {exc}")
                     continue
@@ -221,6 +242,7 @@ async def main() -> int:
                     included_numbers=tier.included_numbers,
                     knowledge_base_bytes=tier.knowledge_base_bytes,
                     knowledge_base_max_file_bytes=tier.knowledge_base_max_file_bytes,
+                    platform_rate_mpaise=tier.platform_rate_mpaise,
                     razorpay_plan_id=razorpay_id,
                     razorpay_plan_id_export=export_id,
                     sort_order=tier.sort_order,

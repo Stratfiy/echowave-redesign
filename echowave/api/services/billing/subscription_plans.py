@@ -67,6 +67,10 @@ class Plan:
     knowledge_base_bytes: int
     #: The largest single document. Zero follows the deployment ceiling.
     knowledge_base_max_file_bytes: int
+    #: Per-minute platform fee in millipaise, applied when the mandate is
+    #: authorised. ``None`` means the plan says nothing and the account keeps
+    #: the rate it has — not the same as zero, which would give the fee away.
+    platform_rate_mpaise: int | None
     razorpay_plan_id: str | None
     #: The provider plan for a zero-rated account — outside India with an LUT
     #: on file. Created at the **net** price rather than the gross, because
@@ -114,6 +118,11 @@ def _view(row: SubscriptionPlanModel) -> Plan:
         knowledge_base_max_file_bytes=int(
             row.knowledge_base_max_file_bytes
             or constants.KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
+        ),
+        platform_rate_mpaise=(
+            int(row.platform_rate_mpaise)
+            if row.platform_rate_mpaise is not None
+            else None
         ),
         razorpay_plan_id=row.razorpay_plan_id,
         razorpay_plan_id_export=row.razorpay_plan_id_export,
@@ -268,6 +277,36 @@ async def set_provider_plan_ids(
     return _view(row)
 
 
+async def set_plan_platform_rate(
+    session: AsyncSession, *, code: str, platform_rate_mpaise: int | None
+) -> Plan:
+    """Set a plan's per-minute fee without touching anything else about it.
+
+    The narrow sibling of :func:`set_provider_plan_ids`, and separate from
+    :func:`save` for the same reason: ``save`` rewrites the whole row, so using
+    it to price a tier would also reset a balance or an entitlement somebody had
+    edited.
+
+    ``None`` clears the fee, returning accounts that later authorise on this
+    plan to whatever rate they already hold. That is a real thing to want — it
+    is how a tier stops overriding the list price — so it is expressible rather
+    than being conflated with "leave it alone".
+    """
+    row = await session.scalar(
+        select(SubscriptionPlanModel).where(SubscriptionPlanModel.code == code)
+    )
+    if row is None:
+        raise PlanError(f"No plan with code {code!r}.")
+    if platform_rate_mpaise is not None and platform_rate_mpaise < 0:
+        raise PlanError("A plan cannot charge a negative platform fee.")
+
+    row.platform_rate_mpaise = (
+        int(platform_rate_mpaise) if platform_rate_mpaise is not None else None
+    )
+    await session.flush()
+    return _view(row)
+
+
 async def save(
     session: AsyncSession,
     *,
@@ -280,6 +319,7 @@ async def save(
     extra_number_price_paise: int | None = None,
     knowledge_base_bytes: int = 0,
     knowledge_base_max_file_bytes: int = 0,
+    platform_rate_mpaise: int | None = None,
     razorpay_plan_id: str | None = None,
     razorpay_plan_id_export: str | None = None,
     enabled: bool = True,
@@ -305,6 +345,8 @@ async def save(
         or knowledge_base_max_file_bytes < 0
     ):
         raise PlanError("A plan cannot include a negative amount of anything.")
+    if platform_rate_mpaise is not None and platform_rate_mpaise < 0:
+        raise PlanError("A plan cannot charge a negative platform fee.")
     if 0 < knowledge_base_bytes < knowledge_base_max_file_bytes:
         # A per-file limit above the total is a limit that can never be
         # reached: the upload is refused by the total first, and the number on
@@ -346,6 +388,9 @@ async def save(
     )
     row.knowledge_base_bytes = int(knowledge_base_bytes)
     row.knowledge_base_max_file_bytes = int(knowledge_base_max_file_bytes)
+    row.platform_rate_mpaise = (
+        int(platform_rate_mpaise) if platform_rate_mpaise is not None else None
+    )
     row.razorpay_plan_id = (razorpay_plan_id or "").strip() or None
     row.razorpay_plan_id_export = (razorpay_plan_id_export or "").strip() or None
     if (
