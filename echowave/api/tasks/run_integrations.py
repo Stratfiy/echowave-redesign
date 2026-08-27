@@ -14,7 +14,7 @@ from api.db import db_client
 from api.db.models import WorkflowRunModel
 from api.enums import OrganizationConfigurationKey
 from api.services.billing.addons import CALL_QA as ADDON_CALL_QA
-from api.services.billing.addons import record_addon_used
+from api.services.billing.addons import addon_keys_from_usage_info, record_addon_used
 from api.services.integrations import (
     IntegrationCompletionContext,
     has_completion_handlers,
@@ -134,6 +134,22 @@ async def _update_usage_info_with_qa_tokens(
     """Add QA analysis LLM token usage to the workflow run's usage_info."""
     try:
         usage_info = dict(workflow_run.usage_info or {})
+
+        # Merging is additive, and this job retries. Without a guard a second
+        # attempt adds the same QA tokens on top of the first, and the customer
+        # pays twice for one analysis — the harder half of that to notice being
+        # that the totals still look internally consistent.
+        #
+        # ``record_addon_used`` below writes the marker, and it is written in the
+        # same update as the tokens, so "the marker is present" and "the tokens
+        # are already counted" cannot come apart.
+        if ADDON_CALL_QA in addon_keys_from_usage_info(usage_info):
+            logger.info(
+                f"QA token usage already recorded for run {workflow_run_id}; "
+                "not merging it a second time"
+            )
+            return
+
         llm_usage = dict(usage_info.get("llm", {}))
 
         for _node_key, result in qa_results.items():

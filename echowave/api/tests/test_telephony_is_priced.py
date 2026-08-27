@@ -259,7 +259,16 @@ class TestCallDirectionBecomesTheTelephonyModel:
         """
         items = usage_items_from_usage_info(
             {
-                "llm": {"openai|||gpt-4.1": 500},
+                # The shape the metrics aggregator actually writes: a mapping of
+                # token counts, not a bare number. A plain int here is silently
+                # skipped by the extractor, so a fixture using one tests nothing
+                # and reads as though it does.
+                "llm": {
+                    "openai|||gpt-4.1": {
+                        "prompt_tokens": 400,
+                        "completion_tokens": 100,
+                    }
+                },
                 "telephony": {"plivo": 21},
                 "key_sources": {"telephony": "managed"},
             },

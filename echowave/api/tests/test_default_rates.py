@@ -205,3 +205,41 @@ class TestProvenance:
     def test_each_rate_records_how_it_was_derived(self):
         for rate in DEFAULT_RATES:
             assert rate.basis, f"{rate.provider}/{rate.component.value} has no basis"
+
+
+class TestPostCallAnalysisIsBilledLikeAnyOtherInference:
+    """QA tokens reach the cost engine as an ordinary LLM line.
+
+    Post-call analysis runs real inference on our own key for a managed
+    account. It used to be recorded under the string "QAAnalysis", which is not
+    a vendor and has no rate, so every one of those tokens was reported uncosted
+    -- not billed to the customer, and not counted as our cost either, which
+    overstates margin on exactly the calls doing the most work.
+
+    Competitors fold the same cost into their model-cost line rather than
+    charging a separate analysis fee, which is what this arrangement reproduces:
+    same provider, same model, same rate, same markup as the call's own tokens.
+    """
+
+    def test_a_qa_keyed_usage_row_resolves_to_a_real_provider(self):
+        from api.services.billing.usage import usage_items_from_usage_info
+
+        items = usage_items_from_usage_info(
+            {
+                "llm": {
+                    "openai|||gpt-4.1-mini": {
+                        "prompt_tokens": 3_000,
+                        "completion_tokens": 400,
+                    }
+                }
+            }
+        )
+        assert len(items) == 1
+        assert items[0].provider == "openai"
+        assert items[0].model == "gpt-4.1-mini"
+        assert items[0].quantity == 3_400
+
+    def test_the_old_label_had_no_rate_on_file(self):
+        """The regression this guards. If a rate for "qaanalysis" is ever added,
+        somebody has papered over the bug rather than fixing the key."""
+        assert not any(r.provider == "qaanalysis" for r in DEFAULT_RATES)
