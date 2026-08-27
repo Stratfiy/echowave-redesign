@@ -288,3 +288,83 @@ class TestTheRentalPlanHasAnExportTwin:
         monkeypatch.setattr(mandates, "_ensure_plan", _fake_ensure)
 
         assert await mandates.ensure_rental_plan(price_paise=65_962) == "plan_domestic"
+
+
+class TestPinningIsNotRepricing:
+    """Adding a provider id must not rewrite what the plan costs.
+
+    ``save`` rewrites the whole row, so using it to fill in a missing id also
+    resets every other field to whatever the caller happened to be holding --
+    silently, and over an operator's edit. A null id is "not configured yet"
+    rather than a decision, so filling one in is safe; the price beside it is a
+    decision, and is not this function's to touch.
+    """
+
+    async def test_it_leaves_the_price_alone(self, async_session):
+        await subscription_plans.save(
+            async_session,
+            code="pinme",
+            label="Pin me",
+            price_paise=500_000,
+            balance_paise=400_000,
+            included_numbers=1,
+        )
+        # Stand in for an operator having edited the price after seeding.
+        await subscription_plans.save(
+            async_session,
+            code="pinme",
+            label="Pin me",
+            price_paise=444_000,
+            balance_paise=400_000,
+            included_numbers=1,
+        )
+
+        pinned = await subscription_plans.set_provider_plan_ids(
+            async_session, code="pinme", razorpay_plan_id="plan_live"
+        )
+        assert pinned.razorpay_plan_id == "plan_live"
+        assert pinned.price_paise == 444_000
+
+    async def test_omitting_an_id_does_not_clear_it(self, async_session):
+        """A caller that knows only the domestic id must not blank the export
+        one by saying nothing about it."""
+        await subscription_plans.save(
+            async_session,
+            code="keepme",
+            label="Keep me",
+            price_paise=500_000,
+            balance_paise=400_000,
+            included_numbers=0,
+            razorpay_plan_id="plan_dom",
+            razorpay_plan_id_export="plan_exp",
+        )
+
+        pinned = await subscription_plans.set_provider_plan_ids(
+            async_session, code="keepme", razorpay_plan_id="plan_dom_2"
+        )
+        assert pinned.razorpay_plan_id == "plan_dom_2"
+        assert pinned.razorpay_plan_id_export == "plan_exp"
+
+    async def test_it_still_refuses_one_id_for_both_amounts(self, async_session):
+        """The guard from ``save`` applies here too: a pinned plan holds one
+        fixed amount, so it cannot collect the gross and the net."""
+        await subscription_plans.save(
+            async_session,
+            code="samesame",
+            label="Same",
+            price_paise=500_000,
+            balance_paise=400_000,
+            included_numbers=0,
+            razorpay_plan_id="plan_one",
+        )
+
+        with pytest.raises(subscription_plans.PlanError, match="separate Razorpay"):
+            await subscription_plans.set_provider_plan_ids(
+                async_session, code="samesame", razorpay_plan_id_export="plan_one"
+            )
+
+    async def test_an_unknown_plan_is_refused(self, async_session):
+        with pytest.raises(subscription_plans.PlanError, match="No plan with code"):
+            await subscription_plans.set_provider_plan_ids(
+                async_session, code="ghost", razorpay_plan_id="plan_x"
+            )

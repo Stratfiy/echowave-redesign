@@ -224,6 +224,50 @@ async def knowledge_base_allowance_for(
     )
 
 
+async def set_provider_plan_ids(
+    session: AsyncSession,
+    *,
+    code: str,
+    razorpay_plan_id: str | None = None,
+    razorpay_plan_id_export: str | None = None,
+) -> Plan:
+    """Pin a plan's provider ids without touching what it costs or contains.
+
+    Separate from :func:`save` because the two answer different questions.
+    ``save`` rewrites the whole row, so using it to add a missing id would also
+    reset a price an operator had edited -- silently, and to whatever the caller
+    happened to be holding. Pinning is not a re-pricing.
+
+    ``None`` leaves an id alone rather than clearing it, so a caller that knows
+    only the domestic id cannot blank the export one by omission.
+
+    The same-id check from ``save`` applies here too, and for the same reason: a
+    pinned plan holds one fixed amount at the provider, so one id cannot collect
+    both the gross and the net.
+    """
+    row = await session.scalar(
+        select(SubscriptionPlanModel).where(SubscriptionPlanModel.code == code)
+    )
+    if row is None:
+        raise PlanError(f"No plan with code {code!r}.")
+
+    if razorpay_plan_id is not None:
+        row.razorpay_plan_id = razorpay_plan_id.strip() or None
+    if razorpay_plan_id_export is not None:
+        row.razorpay_plan_id_export = razorpay_plan_id_export.strip() or None
+
+    if row.razorpay_plan_id_export and row.razorpay_plan_id_export == (
+        row.razorpay_plan_id
+    ):
+        raise PlanError(
+            "The export plan must be a separate Razorpay plan, created at the "
+            "net price. The same plan cannot collect two different amounts."
+        )
+
+    await session.flush()
+    return _view(row)
+
+
 async def save(
     session: AsyncSession,
     *,
