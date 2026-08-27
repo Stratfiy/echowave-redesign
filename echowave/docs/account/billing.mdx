@@ -7,13 +7,15 @@ Decibyl is prepaid. You add credit, calls draw it down, and you are never invoic
 
 ## What you pay
 
-**$0.02 per minute** of connected call time, billed per second. Time is counted from answer to hangup — ringing, busy signals and unanswered calls cost nothing.
+**$0.02 per minute** of connected call time, billed in **15-second pulses**. Time is counted from answer to hangup — ringing, busy signals and unanswered calls cost nothing.
+
+A pulse is the smallest unit of time you can be charged for: a 62-second call is billed as 75 seconds, not 120. Most platforms bill whole minutes, which would make that same call cost two. The saving is roughly half a pulse per call — about 17% on a 45-second call and 3% on a four-minute one, so it shows up most on short, high-volume traffic.
 
 That is the platform fee. Alongside it you pay for what the call consumes:
 
 | Component | Billed by |
 | --- | --- |
-| **Platform** | Decibyl, at $0.02/min |
+| **Platform** | Decibyl, at $0.02/min in 15-second pulses |
 | **LLM, speech-to-text, text-to-speech** | Your provider, if you use your own keys — otherwise Decibyl |
 | **Telephony minutes** | Your carrier, if you bring your own account — otherwise Decibyl |
 | **Managed phone number** | Decibyl, monthly per number |

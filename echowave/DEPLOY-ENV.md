@@ -82,10 +82,21 @@ MANAGED_PROVIDER_MARKUP_BPS=14000
 SIGNUP_BONUS_MICROS_USD=5000000
 ```
 
-The markup applies to **stt, llm and tts on our keys only**. Telephony and the
-platform fee are never marked up, and an account on its own key produces no
-provider line to mark up at all — BYOK earns the platform fee and nothing else.
-There is a test holding that invariant (`test_provider_markup.py`).
+The markup applies to **stt, llm, tts and telephony on our keys** —
+`cost_engine.MARKED_UP_COMPONENTS`. Carriage was excluded once, on the belief
+that its rate card row held the *sell* price; the rows never held that, so
+carriage was being resold at cost. One rule now covers every vendor line: the
+number in the rate card is what the vendor charges us, and the markup is what
+we add.
+
+**The platform fee is never marked up** — it is ours, and a margin on our own
+margin is not a number anyone can defend. An account on its own key produces no
+provider line to mark up at all; it pays an *uplifted platform rate* instead,
+sized by which component it brought (`BYOK_TTS_UPLIFT_MICROS_USD`,
+`BYOK_STT_UPLIFT_MICROS_USD`, gated by `BYOK_TIERED_FEE_ENABLED`). There is a
+test holding that invariant (`test_provider_markup.py`), and another asserting
+the quote applies the same uplift the invoice does
+(`test_byok_quote_matches_invoice.py`).
 
 The platform fee and the per-unit rates themselves are **not** environment
 variables — they live in the rate card in the database and are edited at

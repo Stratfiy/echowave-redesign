@@ -16,8 +16,14 @@ billed_seconds = ceil(connected_seconds / pulse) x pulse
 
 * **Platform rate** is ours. List price **$0.02/min**, configurable per account.
 * **Billing granularity is a 15-second pulse**, not a whole minute.
-* **Provider costs** — STT, LLM, TTS, telephony — are passed through **at cost,
-  with no markup**.
+* **Provider costs** — STT, LLM, TTS, telephony — are resold at the **managed
+  markup** (`MANAGED_PROVIDER_MARKUP_BPS`, effective-dated in
+  `billing/markup.py`). The rate card holds what the *vendor* charges us; the
+  markup is what we add. Both figures are stored per line, so a receipt shows
+  cost and price side by side.
+* **A slot on the customer's own key carries no provider line at all** — they
+  paid the vendor directly. The platform rate is uplifted instead, by which
+  component they brought.
 
 ### Priced in dollars, settled in rupees
 
@@ -57,25 +63,46 @@ agents run. The claim belongs there and nowhere else.
 What it costs us is measured, not estimated: see *Unit economics* below.
 
 Not every call has provider costs. An account that brings its own model keys
-pays those providers directly, so Decibyl incurs no inference cost and the
-receipt is a platform fee alone. An account on Decibyl-managed model services
-does incur them, and they appear as itemised pass-through lines.
+pays those providers directly, so Decibyl incurs no inference cost and there is
+no provider line to earn on — the platform rate is *uplifted* instead, by which
+component the customer brought rather than how many. An account on
+Decibyl-managed model services does incur them, and they appear as itemised
+lines carrying both what the vendor charged us and what the customer pays.
 
-### Why a markup is structurally impossible
+### Why a blended number is structurally impossible
 
-This is the commercial differentiator, so it is enforced by the schema rather
-than by convention:
+> **Rewritten 27 Aug 2026.** This section used to be headed "Why a markup is
+> structurally impossible" and said a provider line is only ever usage × the
+> rate on file. That stopped being true when managed model usage began carrying
+> the managed markup, and carriage joined it — leaving the claim as a specific
+> written statement that the code contradicted. What is actually guaranteed is
+> the property below, which is the one every margin figure depends on: the two
+> numbers are never merged.
 
+* **Two figures per provider line, never one.** `cost_paise` is what the
+  customer pays; `provider_cost_paise` is what the vendor charges us. Both are
+  stored, because the markup is a setting that changes and recomputing an old
+  receipt against today's multiple would rewrite what a customer was actually
+  charged last March.
 * Provider cost and the platform fee are **separate rows** in `call_cost_items`
   and **separate columns** (`total_provider_cost_paise`, `total_charged_paise`)
   on `workflow_runs`. Nothing anywhere stores a single blended number.
-* Every provider line records `units`, `unit_rate_mpaise` and `cost_paise`, so
-  any receipt can be re-derived from the rate that was on file.
-* A provider line is only ever measured usage × a rate read from
-  `provider_rates`. There is no code path that can inflate one.
+* Every provider line records `units`, `unit_rate_mpaise`, `cost_paise` and
+  `provider_cost_paise`, so any receipt can be re-derived from the rate that
+  was on file *and* the multiple that was in force.
+* **The platform fee is never marked up.** It is ours, so it carries a provider
+  cost of zero. A margin on our own margin is not a number anyone can defend.
 
-`test_cost_engine.py::TestNoMarkupOnInference` asserts this directly, including
-that gross margin on a managed call equals the platform fee exactly.
+Which components are marked up is `cost_engine.MARKED_UP_COMPONENTS` — STT,
+LLM, TTS and telephony — under one rule: *the rate card holds what the vendor
+charges us, and the markup is what we add.* The multiple itself is
+effective-dated in `billing/markup.py` and resolved as at the call's own time,
+so re-costing a March call prices it against March's multiple.
+
+`test_cost_engine.py::TestNoMarkupOnInference` still asserts the at-cost case
+(it calls `compute_call_cost` with the default `markup_bps=10_000`), which is
+what proves the fee is never folded into a provider line. Its name now
+describes only that case rather than the product.
 
 ---
 
@@ -152,9 +179,10 @@ would understate provider cost and overstate margin.
 | Billable minutes | `ceil(billable_seconds / 60)`, summed. Connected calls only. **Reporting only** — not what the fee is computed from. |
 | Billed seconds | `ceil(billable_seconds / pulse) x pulse`. What the platform fee is actually charged on. |
 | Revenue | `sum(total_charged_paise)` |
-| Provider cost | `sum(cost_paise)` where `component != 'platform'` |
-| Gross margin | `revenue − provider_cost` |
+| Provider cost | `sum(provider_cost_paise)` — what the **vendors** charge us, before the managed markup. Never `sum(cost_paise) where component != 'platform'`: that is what the *customer* pays for those lines, markup included, and using it makes margin read as the platform fee alone. |
+| Gross margin | `revenue − provider_cost`. Contains both the markup on vendor lines and the whole platform fee, because the fee costs us nothing. |
 | Gross margin % | `gross_margin / revenue` |
+| Bundle margin (operator screen) | `price_per_minute − cost_per_minute`, where **cost is the vendor lines only** (`CostEstimate.provider_paise_per_minute`). Taking the whole unmarked-up estimate instead puts the platform fee on both sides and cancels it — the bug fixed on 27 Aug, which showed 21.7% where the truth was 45.7%. |
 | Perceived latency | `t_audio_out − t_user_stopped`, per turn |
 | p50 / p95 | `percentile_cont(0.5 / 0.95) WITHIN GROUP (ORDER BY latency_ms)` |
 | Answer rate | `answered_calls / dialled_calls` |

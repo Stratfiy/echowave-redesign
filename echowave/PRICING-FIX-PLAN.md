@@ -299,6 +299,27 @@ rows is still under Vapi ($0.050), Retell ($0.055) and Bolna ($0.060).**
 
 Nothing here reaches a customer until this is done.
 
+**A third line breaks on the same flag, and it is not in the table above.**
+`docs/account/billing.mdx` says of a BYOK slot: *"You pay the provider directly
+at whatever rate you have with them. Decibyl adds nothing for that component."*
+That is exactly true while `BYOK_TIERED_FEE_ENABLED` is off and exactly false
+the moment it is on — the uplift is added to the platform fee rather than to
+the component, so the sentence is defensible on a technicality and will not
+read that way to somebody holding an invoice. Rewrite it with the tiers, in the
+same change that flips the flag, not after.
+
+**Checked and left alone, 27 Aug:** the $0.02 headline on both pages is
+accurate today, because every charge that would change it is switched off.
+Rewriting it now would make correct pages wrong for however long the flags stay
+down. The trigger for this phase is the flag flip, not the calendar.
+
+**Corrected 27 Aug, because it was wrong regardless of any flag:** both pages
+described the platform fee as *"billed per second"*. It bills in 15-second
+pulses (`money.DEFAULT_PULSE_SECONDS`), so a 62-second call is charged for 75
+seconds — more than the page promised, on every short call, which is the
+direction a customer notices. Both now say so, and say what it buys them
+against competitors who bill whole minutes.
+
 ## Still unmeasured, and worth saying so
 
 Every rupee in the study rests on assumed characters per minute, an assumed

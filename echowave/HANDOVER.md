@@ -124,6 +124,42 @@ preferences.
    are refused outright — deliberately, because the alternative is charging a
    customer and crediting nobody.
 
+9. **What we sell is marked up; what we charge for ourselves is not.**
+   `cost_engine.MARKED_UP_COMPONENTS` is the list, and it holds one rule for
+   every vendor line — speech, language and **carriage alike**: *the number in
+   the rate card is what the vendor charges us, and the markup is what we add.*
+   The platform fee and add-ons are ours, so they carry a provider cost of zero
+   and are never marked up; a margin on our own margin is not a number anyone
+   can defend. Two consequences worth stating because both have been got wrong:
+   anything calling itself a **cost** must exclude the platform fee (that is
+   what `provider_cost_paise` means, and what
+   `CostEstimate.provider_paise_per_minute` returns), and an overstated vendor
+   cost is now **money taken from the customer at 1.3x**, not an internal
+   reporting error.
+
+10. **A quote is the invoice, computed early — never a second calculation.**
+    `billing/estimator.py` must resolve rates, markup and platform rate through
+    the same functions `billing/costing.py` uses, as at the same moment. Every
+    pricing defect found on this branch was a parallel sum that drifted: the
+    wizard quoting without the markup the invoice applied, the realtime tier
+    quoting a text-token assumption against audio, and the BYOK quote omitting
+    the platform uplift its own invoice applies. **A BYOK component is two
+    changes, not one** — no provider line *and* an uplifted platform rate — and
+    both live in `billing/usage.py` (`byok_tier`, `byok_uplift_micros_usd`) so
+    neither surface can apply one without the other.
+    `tests/test_byok_quote_matches_invoice.py` asserts the two are the same
+    integer rather than close.
+
+11. **A pinned provider plan is only usable for an account that owes its
+    amount.** Autopay grosses up per the account's own billing profile, and a
+    pinned Razorpay plan carries one fixed figure — so a zero-rated export under
+    an LUT subscribed to the domestic plan has GST collected from it monthly, by
+    standing instruction, on a supply we cannot issue a taxed invoice for.
+    `mandates._ensure_plan` checks the pinned plan's amount and creates a
+    correctly-priced one for any account that owes something different. A failed
+    *read* of the plan proceeds on the pinned id: act on evidence, never on its
+    absence.
+
 ---
 
 ## 4. Data model

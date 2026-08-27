@@ -148,6 +148,19 @@ still appears, because the question is about the data, not about whose account
 paid for it. Hosting and payments are declared rather than derived, because
 nothing in the application code enumerates its own hosting.
 
+**The rendering is deterministic, and that is a requirement rather than
+tidiness.** Art 28(2) makes a *change* to this list something a controller has
+to be told about, so an entry whose text moves on its own manufactures a
+notification nobody can act on — and teaches the reader to skim the ones that
+matter. A vendor serving two components has both folded into one entry, and
+until 27 Aug 2026 the fold happened in whatever order PostgreSQL returned the
+rows: Sarvam, which does both speech components, rendered as "Speech
+recognition; speech synthesis" on one run and the reverse on the next, from
+identical data. Both queries are now sorted before folding, in the pipeline's
+own order — what the agent hears, thinks, says, and what carries the call —
+with anything unrecognised last. `test_privacy.py` pins it by inserting the
+rows in the order that used to invert the output.
+
 ### Breach scoping — GDPR Art 33
 
 `GET /api/v1/privacy/breach-report`. What was reached between two timestamps, by

@@ -15,6 +15,17 @@ things are configured wrong in ways that lose money silently.
 > the point of this document is that every claim names its evidence, and a
 > blanket refresh would break that.
 
+> **Update — 27 Aug 2026.** The billing sections were re-read against the code
+> on branch `claude/payment-rates-logic-analysis-cb7ktg`, and four money
+> defects were found and fixed there — a BYOK quote that did not apply the
+> uplift its own invoice applies, bundle margin counting the platform fee as a
+> cost, a pinned Razorpay plan ignoring an account's tax treatment, and a
+> sub-processor list whose text depended on PostgreSQL's scan order. Items
+> marked inline below carry the date. **One entry changed severity rather than
+> status and is the thing to read first: cached-token pricing in §2(c) is no
+> longer margin-safe.** See `PRICING-FIX-PLAN.md` for what is still open, in
+> the order it costs money.
+
 ---
 
 ## 1. WHAT SHIPS TODAY
@@ -130,16 +141,34 @@ session (`6beacd2`); **the seed has now been run** and the dashboard shows real
 costs. Before that, every call on every deployment reported ₹0 provider cost and
 100% margin.
 
-**(b) `stt:openai` still has no rate.** Visible in the UI banner right now. Any
-account with OpenAI transcription is undercosted.
+**(b) `stt:openai` still has no rate.** ~~Visible in the UI banner right now.~~
+**Closed, 27 Aug** — not by adding a rate but by making the gap a decision
+somebody had to type. `tests/test_every_service_is_priced.py` enumerates every
+service class the pipeline factory can build and fails on any that is neither
+priced nor listed in `_UNPRICED_BY_DESIGN` with a reason. OpenAI transcription
+is listed there ("Whisper; we price OpenAI language models and synthesis only").
+A silent gap became an audited one, and a new provider cannot be added without
+answering the question.
 
 **(c) Cached LLM tokens are billed at full rate.** `cached_tokens` is captured
-in `pipeline_metrics_aggregator.py:125` and in `turn_metrics`, but
-`usage.py:115` computes `prompt_tokens + completion_tokens` and never subtracts
-or separately rates the cached portion. Cached input is typically 10% of the
-list price. You are **overstating your own cost** — margin-safe, but the unit
-economics screen is wrong, and if you ever pass provider cost through at cost
-you will overcharge customers.
+in `pipeline_metrics_aggregator.py` and serialised into `usage_info` as
+`cache_read_input_tokens`; `usage.py` computes `prompt_tokens +
+completion_tokens` and never reads it back. Cached input is typically 10% of
+the list price.
+
+> **Severity changed, 27 Aug. This is no longer margin-safe.** The sentence
+> above was written when provider cost was passed through at cost, which made
+> an overstated vendor figure our own reporting error. Provider lines now carry
+> the managed markup (`cost_engine.MARKED_UP_COMPONENTS`), so the customer pays
+> `vendor_cost × markup` — and every cached token inflates the vendor cost the
+> markup is applied to. **We are overcharging on cached input at 1.3x**, not
+> merely mis-reporting it. The conditional in the original text ("if you ever
+> pass provider cost through at cost you will overcharge customers") has come
+> true by a different route than the one it anticipated.
+>
+> The fix is not a one-liner: the LLM rate card holds a single input/output
+> *blend* per model, so pricing cache reads separately needs a second rate on
+> the card. That is a pricing decision, not a code change.
 
 ### Zero balance
 
@@ -278,15 +307,15 @@ Ranked. Numbers are dev-days for one person.
 | 1 | Configure Razorpay | Code is done; 503 on every top-up. Nobody can pay you | 0.5 | **Done** — top-up → credit → voucher → email verified 12 Aug |
 | 2 | Fix MinIO signed URLs | `SignatureDoesNotMatch` — recordings and transcripts unreachable. The product's whole value is hearing what the agent said | 0.5 | **Done** — cause was the host fallback in `constants.py`, not the signing |
 | 3 | DND list + calling hours | No DND scrubbing anywhere. TRAI/TCCCPR exposure the moment you dial someone who isn't you. 9am–9pm window also absent | 3 | Open — **the one P0 left** |
-| 4 | Rate for `stt:openai` | Undercosted calls today | 0.25 | Not re-checked |
-| 5 | Mid-call balance enforcement | Customer raises their own max duration and outruns their balance | 2 | Not re-checked |
+| 4 | Rate for `stt:openai` | Undercosted calls today | 0.25 | **Closed** — now a declared gap with a reason, enforced by `test_every_service_is_priced.py` (27 Aug) |
+| 5 | Mid-call balance enforcement | Customer raises their own max duration and outruns their balance | 2 | Open — **bounded, not fixed.** `MAX_CALL_DURATION_SECONDS = 1200` now caps what a workflow can set, so the overrun is at most 20 minutes rather than unbounded |
 
 **P1 — before ten customers**
 
 | # | Item | Why | Days |
 |---|---|---|---|
 | 6 | TTS cache for static phrases | ~6% of AI cost, pure waste, byte-identical text | 2 |
-| 7 | Cached-token pricing | Unit economics screen is wrong | 1 |
+| 7 | Cached-token pricing | **Customers are overcharged at 1.3x on cached input** — see §2(c). Was filed here as a reporting error; the markup on provider lines made it a real one | 1 |
 | 8 | Fix knowledge base (MPS) | Document upload broken; feature is advertised | 2 |
 | 9 | Call transfer on Plivo | `NotImplementedError` on your actual carrier | 3 |
 | 10 | Post-call summary + outcome | Owners will not read transcripts | 2 |
@@ -323,6 +352,16 @@ customer, 27 to ten of them**, single developer.
   costing.** `usage_info` merges, so ordering usually works out, but a callback
   arriving after costing leaves carriage off that receipt permanently unless
   recosted. Worth a scheduled recost sweep.
+
+  *Re-checked 27 Aug, and it is worse than "worth a sweep": there is no sweep
+  that would find it.* `scripts/recost_uncosted_calls.py` deliberately scopes
+  itself to runs whose `uncosted_usage` is a non-empty list — a known, flagged
+  gap. Carriage that arrived **after** costing leaves no such flag: the usage
+  item was simply not there when the receipt was written, so nothing marks the
+  run. Nothing in `tasks/arq.py` sweeps for it either. The detector is a costed
+  run whose `usage_info` carries managed telephony seconds with no `telephony`
+  row in `call_cost_items`, and it does not exist yet. Carriage is routinely a
+  third of what a call costs, so each miss is a third of a receipt.
 - **The class of bug that dominated this week** is a value present in one place
   and absent from its pair: tiers pointing at retired models, Decibyl's language
   vocabulary not translated for Sarvam, a provider registered but not

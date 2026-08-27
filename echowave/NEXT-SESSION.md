@@ -1,7 +1,13 @@
 # Next session — start here
 
-Updated 13 Aug 2026. Read this before touching anything; it exists so the next
+Updated 27 Aug 2026. Read this before touching anything; it exists so the next
 session does not re-derive what previous ones paid for.
+
+> **27 Aug:** the money paths were re-audited and four defects fixed on
+> `claude/payment-rates-logic-analysis-cb7ktg` — see `PRICING-FIX-PLAN.md` for
+> where pricing stands and what is still open, in the order it costs money. The
+> environment recipe in §6 has been replaced with one that was actually run;
+> the old one predates `scripts/setup_requirements.sh` doing the work itself.
 
 This file lives on `main` deliberately. An earlier copy sat only on a feature
 branch, which meant the handoff would have been deleted along with the branch.
@@ -207,38 +213,72 @@ REDIS_URL=redis://127.0.0.1:6379/1
 
 ### Running the API in a fresh container
 
-The test suite cannot collect ~40 modules out of the box because optional
-provider SDKs are missing. This is pre-existing and unrelated to any change —
-unmodified `main` produces 41 collection errors. To get a full run:
+**Replaced 27 Aug 2026 with a recipe that was run end to end**, reaching 3,904
+passed / 10 skipped / 0 failed. The long hand-list of provider SDKs that used
+to be here is gone: `scripts/setup_requirements.sh --dev` installs all of them
+now, including the pipecat extras, so listing them separately was maintaining a
+second copy of `requirements.txt` by hand.
 
 ```bash
-python3 -m venv venv
-venv/bin/pip install -r api/requirements.txt -r api/requirements.dev.txt
-venv/bin/pip install pytest pytest-asyncio
-git submodule update --init --recursive echowave/pipecat   # the FORK, not PyPI
-venv/bin/pip install -e ./pipecat
-venv/bin/pip install soundfile aiortc deepgram-sdk google-genai groq \
-    azure-cognitiveservices-speech google-api-core google-cloud-speech \
-    sarvamai speechmatics-voice opencv-python-headless pgvector \
-    google-cloud-texttospeech camb-sdk
-apt-get install -y postgresql-16-pgvector    # the SERVER extension, not the wheel
-pg_ctlcluster 16 main start && redis-server --daemonize yes
-su postgres -c "createdb decibyl"
-su postgres -c "psql -c \"ALTER ROLE postgres WITH PASSWORD 'postgres'\""
+cd echowave
+git submodule update --init --recursive          # the FORK, not PyPI
+
+/usr/bin/python3.13 -m venv .venv                # 3.12 or 3.13 — see below
+export PATH="$PWD/.venv/bin:$PATH"               # BEFORE the next line
+./scripts/setup_requirements.sh --dev
+
+apt-get install -y postgresql-16-pgvector        # the SERVER extension, not the wheel
+service postgresql start && redis-server --daemonize yes
+su postgres -c "psql -c \"ALTER USER postgres PASSWORD 'postgres'\""
+
+(cd api/mcp_server/ts_validator && npm install)  # or 6 tests fail on node
+
+cat > api/.env.test <<'EOF'
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/test_db
+REDIS_URL=redis://localhost:6379/0
+ENABLE_AWS_S3=false
+MINIO_PUBLIC_ENDPOINT=http://localhost:9000
+DEPLOYMENT_MODE=oss
+ENVIRONMENT=test
+LOG_LEVEL=WARNING
+EOF
+
+cd api && PYTHONPATH=/path/to/echowave pytest tests/ -q
 ```
 
-**The last two packages are new to this list and each costs an hour to
-rediscover.** Without `google-cloud-texttospeech` 43 modules fail to collect;
-without `camb-sdk` exactly one test fails
-(`test_camb_tts_integration::test_create_tts_service_camb`), which reads like a
-real regression and is not one. The extra `pip install pytest` line matters for
-the same reason: `scripts/setup_requirements.sh --dev` does **not** install
-pytest, so a bare `pytest` runs a system copy from outside the venv and dies on
-`ModuleNotFoundError: dotenv` — which looks like a broken conftest.
+Four things each cost real time to rediscover:
 
-With all of it in place the suite is green with no collection errors, so the
-"41 collection errors on unmodified main" note above is a description of a
-missing environment rather than of the repository.
+- **`export PATH` must come before the setup script, not after.** The script
+  resolves `python3` from `PATH`, not from the venv directory — so without
+  this it finds the system 3.11 and refuses with "Python 3.12 or 3.13
+  required", naming an interpreter you never asked it to use.
+- **`postgresql-16-pgvector` is the server extension.** A migration runs
+  `CREATE EXTENSION vector`; the `pgvector` Python wheel does not provide it.
+- **`npm install` in `api/mcp_server/ts_validator`.** Without it
+  `test_mcp_save_workflow.py` fails 6 tests that shell out to node. They read
+  like real failures and are not. CI does this as its own step.
+- **`api/.env.test` is gitignored and does not exist in a fresh clone.**
+  `conftest.py` loads it before importing `api.constants`, so without it the
+  suite points at whatever `api/.env` holds — which on a real machine is the
+  dev database.
+
+`tests/test_tts_endframe_with_audio_write_failure.py` failed once in one full
+run and passed in isolation and in a clean re-run. Pre-existing flakiness; do
+not chase it as a regression, but do not assume every failure there is flaky
+either.
+
+**And do not assume an intermittent failure is a flake.** A run on 27 Aug
+failed `test_privacy.py::test_one_vendor_serving_two_components_is_one_entry`
+once and passed the next time. Stashing the changes and running a clean
+baseline showed the baseline fully green, which made it a real defect rather
+than noise: `subprocessors.in_use` had no `ORDER BY`, and `_merge` capitalises
+whichever purpose arrives first, so the *text* of a published sub-processor
+entry depended on PostgreSQL's scan order. The one-line diagnosis was cheap;
+believing the first "flaky test" read would have shipped it.
+
+Postgres and Redis stop between long gaps — a sudden wall of
+`ConnectionRefusedError ('127.0.0.1', 5432)` means restart them, not that you
+broke something.
 
 `tests/test_tts_endframe_with_audio_write_failure.py` failed once in one full
 run and passed in isolation and in a clean re-run. Pre-existing flakiness; do

@@ -8,14 +8,69 @@ call, not a code change)
 
 Last updated after the compliance and deployment pass.
 
-> **Current test status: `api/tests` is fully green — 1,911 passed, 0 failed,
-> 0 collection errors** (Python 3.13, real Postgres 16 + pgvector, real Redis).
-> Every one of the 51 failures and 130 collection errors previously recorded
-> here was environmental. None was a code defect.
+> **Current test status: `api/tests` is fully green — 3,904 passed, 10 skipped,
+> 0 failed** (27 Aug 2026; Python 3.13, real Postgres 16 + pgvector, real
+> Redis). Every one of the 51 failures and 130 collection errors previously
+> recorded here was environmental. None was a code defect.
+>
+> Two notes for whoever runs it next. `tests/test_mcp_save_workflow.py` shells
+> out to node and fails with 6 errors until `npm install` has been run in
+> `api/mcp_server/ts_validator` — environmental, not a defect, and CI does this
+> as its own step. And `scripts/setup_requirements.sh` resolves `python3` from
+> `PATH`, not from the venv you just made, so the venv's `bin` has to be on
+> `PATH` before you call it or it refuses on a 3.11 it should never have looked
+> at.
 
 ---
 
 ## Open
+
+### 30. Cached LLM tokens are billed at the full rate, and now overcharge
+
+**Status:** OPEN · **Severity: high** (was "reporting only" — it is not)
+
+`PipelineMetricsAggregator` captures `cache_read_input_tokens` and serialises
+it into `usage_info`. `billing/usage.py` computes `prompt_tokens +
+completion_tokens` and never reads it back, so a cache read — which providers
+bill at roughly a tenth of list — is charged at the full blended rate.
+
+This was filed in `STATUS.md` as margin-safe, and it was, while provider cost
+was passed through at cost. Provider lines now carry the managed markup, so the
+customer pays `vendor_cost x markup`: **every cached token is an overcharge at
+1.3x**, not an internal reporting error.
+
+Fixing it is not a one-liner. The LLM rate card holds a single input/output
+*blend* per model, so pricing cache reads separately needs a second rate on the
+card — which is a pricing decision before it is a code change.
+
+### 31. Carriage that arrives after costing is never billed, and nothing finds it
+
+**Status:** OPEN · **Severity: medium-high**
+
+Telephony seconds come from the carrier's status callback; costing is enqueued
+when the call ends. `usage_info` merges, so ordering usually works out. When it
+does not, the receipt is written without a telephony line and stays that way.
+
+The part that makes it durable: **no sweep would find it.**
+`scripts/recost_uncosted_calls.py` scopes itself to runs whose `uncosted_usage`
+is a non-empty list, and a usage item that was absent at costing time leaves no
+flag at all. Nothing in `tasks/arq.py` sweeps for it either.
+
+The detector, for whoever builds it: a costed run whose `usage_info` carries
+managed telephony seconds with no `telephony` row in `call_cost_items`.
+`cost_workflow_run(recost=True)` already exists and is idempotent. Carriage is
+routinely a third of what a call costs.
+
+### 32. No mid-call balance enforcement
+
+**Status:** OPEN · **Severity: medium** (bounded since this was first filed)
+
+Nothing re-checks a balance while a call runs. A call that starts on a valid
+reservation and runs past it is not interrupted.
+
+`MAX_CALL_DURATION_SECONDS = 1200` now caps what a workflow may set, so the
+overrun is bounded at 20 minutes rather than unbounded — which is the
+difference between a leak and an incident, but it is not the fix.
 
 ### 7. Top-level directory is still named `echowave/`
 
