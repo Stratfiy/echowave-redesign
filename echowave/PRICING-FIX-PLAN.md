@@ -19,17 +19,103 @@ anybody is on it**.
 
 ## What is actually built, and where
 
+**Re-read from the code on 27 Aug 2026**, not carried forward. The previous
+version of this table said PR #41 was unmerged and that no bundle or plan code
+existed; both were true when it was written and neither is now. Every row below
+names what was checked.
+
 | | State | Gate |
 |---|---|---|
 | Add-on billing (KB $0.005/min, QA $0.02/min) | Merged | `ADDON_BILLING_ENABLED=false` |
-| BYOK tiered platform fee | **PR #41, unmerged** | `BYOK_TIERED_FEE_ENABLED=false` |
+| BYOK tiered platform fee | **Merged** (PR #41, `00c2ace`) | `BYOK_TIERED_FEE_ENABLED=false` |
 | Number rental ₹499 | Merged, no flag | `MANAGED_TELEPHONY_ENABLED=false` |
 | Agent builder | Merged | `AGENT_BUILDER_ENABLED=false` |
-| Bundles (₹2,999 / ₹6,999) | **Not built** — no plan or bundle code exists | — |
-| Concurrency tiering | **Not built** | — |
+| Starter plan ₹2,999 | **Built** — `billing/plans.py`, one mandate settling a balance grant and a rental period | needs `RAZORPAY_STARTER_PLAN_ID` |
+| Agent bundles (Everyday, speech-to-speech) | **Built** — `configuration/bundles.py`, operator-editable, priced through the estimator | — |
+| Second bundle tier (₹6,999 / two numbers) | Not built | — |
+| Concurrency tiering | Measured, not billed — `billing/pricing_inputs.py` reports peak concurrency; nothing charges for it | — |
 
-Everything that exists is switched off. Today the product charges exactly what
-it charged before the study.
+Everything that charges is still switched off. Today the product charges exactly
+what it charged before the study.
+
+---
+
+## Where this stands — 27 Aug 2026
+
+Re-derived from the code and a full test run (3,904 passing), not from the
+sections below. Read this before working the phases: three of them have moved.
+
+**Phase 1a is done, and not the way this plan proposed.** Flash-Lite's
+retirement was answered by leaving Google rather than repointing at its
+successor — `managed_tiers` now serves `lite` from Sarvam's `sarvam-105b` and
+`default`/`accurate` from OpenAI, and `test_every_service_is_priced.py`
+enumerates every service class the factory can build and fails on any that is
+neither priced nor declared unpriced with a reason. The 16 October deadline is
+no longer a deadline.
+
+**Phase 1b is half done.** The readiness check is real: `_price_book_evidence`
+no longer asserts `count > 0`, it counts calls that were costed with usage it
+held no rate for. The idempotent seeder still does not exist —
+`scripts/seed_provider_rates.py` applies `default_rates.py` but there is no
+dry-run diff of what it would change.
+
+**Phase 0 is now a screen, not a script.** `billing/pricing_inputs.py` derives
+characters-per-minute (headline, by model, by language), peak concurrency and
+monthly minutes per account, and the dashboard reads it. The numbers still have
+to be *looked at*: every price in this document rests on an assumed 2,300
+characters a minute that nobody has yet checked against the measurement.
+
+**Four money defects were found and fixed on 27 Aug** — all of them one number
+computed on two paths that then drifted, which is the same shape as the four
+before them. See the commit; each is pinned by a test that fails against the old
+behaviour. Two matter for the order of work below:
+
+* The BYOK quote did not apply the platform uplift the invoice applies, so
+  **Phase 2 could not safely have been switched on before this** — turning
+  `BYOK_TIERED_FEE_ENABLED` on would have made every wizard quote 75% low on
+  the fee line the moment it applied.
+* Bundle margin counted our own platform fee as a cost, so the operator screen
+  understated what a bundle earns by more than half (21.7% shown against 45.7%
+  actual on Everyday/Smart). **Any bundle price set against that screen before
+  today should be re-derived.**
+
+### Still open, in the order they cost money
+
+1. **Cached LLM tokens are billed at full rate.** `usage.py` computes
+   `prompt_tokens + completion_tokens`; the aggregator captures
+   `cache_read_input_tokens` and serialises it, and nothing reads it back.
+   Providers charge roughly a tenth for a cache read. This was filed in
+   `STATUS.md` as margin-safe and a reporting error — **it is neither any
+   more.** Provider lines now carry the managed markup, so an overstated vendor
+   cost is money taken from the customer, at 1.3x. Fixing it needs a second
+   rate on the card (the LLM row is a single input/output blend), which is why
+   it is not in today's commit.
+2. **No mid-call balance enforcement.** Nothing re-checks a balance while a
+   call runs. Bounded now rather than unbounded — `MAX_CALL_DURATION_SECONDS`
+   caps a workflow at 20 minutes — but an account can still outrun its
+   reservation by the difference.
+3. **Carriage that arrives after costing is never billed.** Telephony seconds
+   come from the carrier's status callback and costing is enqueued at call end;
+   `usage_info` merges, so ordering usually works out, and when it does not the
+   receipt is short a line that is routinely a third of the call. Nothing
+   sweeps for it: `scripts/recost_uncosted_calls.py` only looks at runs whose
+   `uncosted_usage` is non-empty, and a usage item that was absent at costing
+   time leaves no such mark. The detector is a costed run whose `usage_info`
+   carries managed telephony seconds with no `telephony` row in
+   `call_cost_items`.
+4. **No TTS cache for static phrases.** Unchanged since `STATUS.md`: ~6% of AI
+   cost, on text that is byte-identical every call.
+5. **Phase 5 has not been done.** `account/billing` and
+   `getting-started/index` still describe a flat $0.02/min, which stops being
+   true the moment the Phase 2 flags flip.
+
+### Closed since this plan was written
+
+* `stt:openai` having no rate — now a *declared* gap with a reason
+  (`_UNPRICED_BY_DESIGN`, "Whisper; we price OpenAI language models and
+  synthesis only") and a test that fails on any undeclared one.
+* Razorpay configured, recordings readable, docs hosted, DND scrubbing — see
+  `STATUS.md`, whose P0 list is now down to items 5 above.
 
 ---
 
