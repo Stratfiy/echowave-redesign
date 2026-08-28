@@ -304,6 +304,10 @@ class BillingAuditAction(str, Enum):
     # managed call at once, which is why it is the one change that requires a
     # code from the inbox before it applies.
     MANAGED_MARKUP_CHANGED = "managed_markup_changed"
+    # A markup override for one (component, provider, model). Narrower than
+    # MANAGED_MARKUP_CHANGED — moves one line's price, not every account's —
+    # which is why it does not require the OTP code that one does.
+    MANAGED_MARKUP_OVERRIDE_CHANGED = "managed_markup_override_changed"
 
 
 class KycStatus(str, Enum):

@@ -3598,6 +3598,79 @@ class ManagedMarkupHistoryModel(Base):
     )
 
 
+class ManagedMarkupOverrideModel(Base):
+    """Effective-dated markup override for one ``(component, provider, model)``.
+
+    ``ManagedMarkupHistoryModel`` sets one multiple for every managed line on
+    every account. This table narrows that for a specific line — a model that
+    is unusually cheap or expensive to us relative to what the blanket markup
+    would charge for it — without touching what anything else bills. Absence
+    of a row here is the normal case; most lines are priced by the global
+    multiple.
+
+    Keyed exactly like ``ProviderRateModel``: ``model = ""`` is a provider-wide
+    override (every model from that vendor, for that component), and a
+    model-specific row wins over it when both exist. Same reasoning — rates
+    (and here, the multiple on them) differ by more than the provider name
+    alone.
+
+    Never updated in place, for the same re-costing reason every other rate
+    table here follows: recomputing an old call has to reproduce the multiple
+    that was actually charged, not today's.
+
+    No OTP confirmation, unlike the global markup: a single-line override
+    cannot move every account's bill at once the way the global value can, so
+    it follows the same admin-only write pattern as a provider rate edit
+    rather than the two-factor ceremony reserved for the blanket multiple.
+    """
+
+    __tablename__ = "managed_markup_overrides"
+
+    id = Column(Integer, primary_key=True, index=True)
+    provider = Column(String(64), nullable=False)
+    # Empty string means "every model from this provider, for this component"
+    # — the provider-wide fallback. Not nullable, for the same reason
+    # ProviderRateModel.model is not: a partial unique index over a nullable
+    # column would let duplicate open fallbacks through.
+    model = Column(String(128), nullable=False, server_default="", default="")
+    # stt | llm | tts | telephony — see CostComponent. LLM is the case this
+    # was built for, but the key shape is component-general like the rate
+    # card itself, rather than assuming only LLM will ever need one.
+    component = Column(String(16), nullable=False)
+    #: Basis points, same scale as ManagedMarkupHistoryModel.markup_bps.
+    #: 10000 is at cost.
+    markup_bps = Column(Integer, nullable=False)
+    effective_from = Column(DateTime(timezone=True), nullable=False)
+    #: NULL means "still in effect".
+    effective_to = Column(DateTime(timezone=True), nullable=True)
+    set_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    set_by_user = relationship("UserModel")
+
+    __table_args__ = (
+        Index(
+            "ix_managed_markup_overrides_lookup",
+            "provider",
+            "component",
+            "model",
+            "effective_from",
+        ),
+        # One open override per (provider, component, model), exactly the
+        # ProviderRateModel pattern — a provider-wide fallback and a
+        # model-specific override can both be open at once.
+        Index(
+            "uq_managed_markup_overrides_open",
+            "provider",
+            "component",
+            "model",
+            unique=True,
+            postgresql_where=text("effective_to IS NULL"),
+        ),
+    )
+
+
 class MarkupChangeChallengeModel(Base):
     """A pending markup change, waiting on a code from the inbox.
 

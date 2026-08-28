@@ -1419,6 +1419,157 @@ async def confirm_managed_markup_change(
     }
 
 
+class MarkupOverrideRequest(BaseModel):
+    """A markup for one ``(component, provider, model)`` line, replacing the
+    global multiple for that line only. No currency split like a rate — a
+    markup is a multiplier, not a price, so there is only one field for it."""
+
+    provider: str = Field(..., min_length=1, max_length=64)
+    component: str = Field(..., description="stt | llm | tts | telephony")
+    model: str = Field("", max_length=128, description="Empty = provider-wide fallback")
+    markup_bps: int = Field(
+        ...,
+        ge=markup.MIN_OVERRIDE_MARKUP_BPS,
+        le=markup.MAX_OVERRIDE_MARKUP_BPS,
+        description="10000 = 1.0x (at cost), 17000 = 1.7x",
+    )
+    note: str | None = None
+
+
+@router.get("/rate-card/markup-overrides")
+async def list_managed_markup_overrides() -> dict[str, Any]:
+    """Every per-model markup override currently in force.
+
+    Separate from ``GET /rate-card/markup`` (the one global multiple) so a
+    screen can render "1.7x, except these N lines" without the client having
+    to diff two differently-shaped responses.
+    """
+    async with db_client.async_session() as session:
+        overrides = await markup.list_markup_overrides(session)
+    return {
+        "overrides": [
+            {
+                "id": o.id,
+                "provider": o.provider,
+                "component": o.component,
+                "model": o.model,
+                "markup_bps": o.markup_bps,
+                "effective_from": o.effective_from.isoformat(),
+                "note": o.note,
+            }
+            for o in overrides
+        ],
+        "min_bps": markup.MIN_OVERRIDE_MARKUP_BPS,
+        "max_bps": markup.MAX_OVERRIDE_MARKUP_BPS,
+    }
+
+
+@router.put("/rate-card/markup-overrides")
+async def set_managed_markup_override(
+    request: MarkupOverrideRequest, user: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Set (or replace) the markup for one line. No OTP — see
+    ``ManagedMarkupOverrideModel`` for why a single-line override does not need
+    the confirmation ceremony the global multiple does."""
+    async with db_client.async_session() as session:
+        try:
+            applied = await markup.set_markup_override(
+                session,
+                provider=request.provider,
+                component=request.component,
+                model=request.model,
+                markup_bps=request.markup_bps,
+                actor_user_id=user.id,
+                note=request.note,
+            )
+        except markup.MarkupError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        session.add(
+            BillingAuditLogModel(
+                organization_id=None,
+                actor_user_id=user.id,
+                action=BillingAuditAction.MANAGED_MARKUP_OVERRIDE_CHANGED.value,
+                old_value=None,
+                new_value={
+                    "provider": applied.provider,
+                    "component": applied.component,
+                    "model": applied.model,
+                    "markup_bps": applied.markup_bps,
+                },
+                note=applied.note,
+            )
+        )
+        await session.commit()
+        overrides = await markup.list_markup_overrides(session)
+
+    return {
+        "overrides": [
+            {
+                "id": o.id,
+                "provider": o.provider,
+                "component": o.component,
+                "model": o.model,
+                "markup_bps": o.markup_bps,
+                "effective_from": o.effective_from.isoformat(),
+                "note": o.note,
+            }
+            for o in overrides
+        ]
+    }
+
+
+@router.delete("/rate-card/markup-overrides")
+async def clear_managed_markup_override(
+    provider: str = Query(...),
+    component: str = Query(...),
+    model: str = Query(""),
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Remove an override, returning that line to the global markup."""
+    async with db_client.async_session() as session:
+        cleared = await markup.clear_markup_override(
+            session,
+            provider=provider,
+            component=component,
+            model=model,
+            actor_user_id=user.id,
+        )
+        if cleared:
+            session.add(
+                BillingAuditLogModel(
+                    organization_id=None,
+                    actor_user_id=user.id,
+                    action=BillingAuditAction.MANAGED_MARKUP_OVERRIDE_CHANGED.value,
+                    old_value={
+                        "provider": provider,
+                        "component": component,
+                        "model": model,
+                    },
+                    new_value=None,
+                    note="cleared",
+                )
+            )
+        await session.commit()
+        overrides = await markup.list_markup_overrides(session)
+
+    return {
+        "cleared": cleared,
+        "overrides": [
+            {
+                "id": o.id,
+                "provider": o.provider,
+                "component": o.component,
+                "model": o.model,
+                "markup_bps": o.markup_bps,
+                "effective_from": o.effective_from.isoformat(),
+                "note": o.note,
+            }
+            for o in overrides
+        ],
+    }
+
+
 class PlanRequest(BaseModel):
     """A plan an operator is creating or changing.
 

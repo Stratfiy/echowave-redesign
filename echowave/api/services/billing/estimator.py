@@ -37,7 +37,7 @@ from api.services.billing.fees import (
     byok_uplift_micros,
     uplifted_platform_rate_mpaise,
 )
-from api.services.billing.markup import resolve_markup_bps
+from api.services.billing.markup import resolve_markup_bps, resolve_markup_override_bps
 from api.services.billing.money import (
     DEFAULT_PULSE_SECONDS,
     cost_paise,
@@ -344,6 +344,16 @@ async def _inference_line(
     )
     units = measured if measured is not None else default_units
 
+    # A per-model override, if one is on file, replaces the blanket markup for
+    # this line — same lookup costing.py does, so a quote and the invoice it
+    # predicts cannot disagree about which multiple applied. See
+    # billing/fees.py's own docstring on why the two are asked separately and
+    # must answer the same.
+    override_bps = await resolve_markup_override_bps(
+        session, provider=priced_as, component=component, at=at, model=model
+    )
+    effective_markup_bps = override_bps if override_bps is not None else markup_bps
+
     return EstimateLine(
         component=component.value,
         provider=provider,
@@ -353,7 +363,7 @@ async def _inference_line(
         paise_per_minute=_with_markup(
             cost_paise(quantity=units, rate_mpaise=rate.rate_mpaise, unit=rate.unit),
             component=component,
-            markup_bps=markup_bps,
+            markup_bps=effective_markup_bps,
         ),
         basis="measured" if measured is not None else "default",
         rate_is_provider_fallback=bool(model) and rate.model == "",
@@ -389,6 +399,11 @@ async def _per_minute_line(
     if rate is None:
         return None
 
+    override_bps = await resolve_markup_override_bps(
+        session, provider=provider, component=component, at=at, model=model
+    )
+    effective_markup_bps = override_bps if override_bps is not None else markup_bps
+
     return EstimateLine(
         component=component.value,
         provider=provider,
@@ -398,7 +413,7 @@ async def _per_minute_line(
         paise_per_minute=_with_markup(
             cost_paise(quantity=60, rate_mpaise=rate.rate_mpaise, unit=rate.unit),
             component=component,
-            markup_bps=markup_bps,
+            markup_bps=effective_markup_bps,
         ),
         basis="exact",
         rate_is_provider_fallback=bool(model) and rate.model == "",
