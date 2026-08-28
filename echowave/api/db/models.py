@@ -2262,6 +2262,62 @@ class CallCostItemModel(Base):
     )
 
 
+class EmbeddingIngestionCostModel(Base):
+    """One document's ingestion-embedding cost, alongside what it was charged.
+
+    ``call_cost_items`` pairs ``provider_cost_paise`` with ``cost_paise`` for
+    every call, which is what lets the unit-economics screen show a margin
+    rather than only a bill. Ingestion has no ``workflow_run_id`` to write a
+    ``call_cost_items`` row against — this table is its equivalent, written by
+    ``services/billing/embedding_ingestion.py`` in the same transaction as the
+    ``credit_ledger`` debit.
+
+    The ledger row alone would only ever answer "what did we charge for
+    this" — it has no column for what the vendor charged us. Without this
+    table that half of "meter everything" silently didn't happen: the money
+    moved, but the one number margin analysis exists to compare — cost against
+    charge — had nowhere to live.
+    """
+
+    __tablename__ = "embedding_ingestion_costs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    document_id = Column(
+        Integer,
+        ForeignKey("knowledge_base_documents.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    provider = Column(String(64), nullable=False)
+    model = Column(String(128), nullable=False, default="", server_default="")
+    tokens = Column(BigInteger, nullable=False, default=0)
+    # What the vendor charged us, before the managed markup.
+    vendor_cost_paise = Column(BigInteger, nullable=False, default=0)
+    # What this debited the account for — the same figure as the paired
+    # credit_ledger row's -delta_paise, stored here too so a margin query
+    # never has to join back to the ledger to get it.
+    charged_paise = Column(BigInteger, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        Index(
+            "ix_embedding_ingestion_costs_org_created",
+            "organization_id",
+            "created_at",
+        ),
+        # One row per document, mirroring the ledger's own at-most-once rule
+        # (uq_credit_ledger_embedding_ingest_ref) rather than a second place
+        # the two guarantees could drift apart.
+        Index(
+            "uq_embedding_ingestion_costs_document",
+            "document_id",
+            unique=True,
+        ),
+    )
+
+
 class CallTurnMetricModel(Base):
     """Per-turn latency instrumentation for one call.
 

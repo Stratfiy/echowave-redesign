@@ -32,7 +32,7 @@ from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.db.models import CreditLedgerModel
+from api.db.models import CreditLedgerModel, EmbeddingIngestionCostModel
 from api.enums import CostComponent, CreditLedgerKind
 from api.services.billing.markup import resolve_markup_bps, resolve_markup_override_bps
 from api.services.billing.money import cost_paise, round_half_up_div
@@ -137,8 +137,15 @@ async def debit_ingestion_cost(
 ) -> IngestionPrice | None:
     """Debit the ledger for what embedding a document's chunks actually cost.
 
+    Writes two rows in the same transaction: the ``credit_ledger`` debit (what
+    the customer paid) and an ``embedding_ingestion_costs`` row alongside it
+    (what the vendor charged us) — the same charge/cost pairing
+    ``call_cost_items`` keeps for every call, so a margin query has both
+    halves rather than only the bill.
+
     Exactly once per document — checked here, and backed at the database
-    level by ``uq_credit_ledger_embedding_ingest_ref``, the same
+    level by ``uq_credit_ledger_embedding_ingest_ref`` /
+    ``uq_embedding_ingestion_costs_document``, the same
     check-then-insert-with-a-partial-unique-index-backstop shape
     ``costing.py:_debit_ledger`` uses for a call receipt. A retried ingestion
     (the ARQ job re-run after a crash between the vendor call and this write)
@@ -195,6 +202,22 @@ async def debit_ingestion_cost(
             ref_id=ref_id,
             balance_after_paise=balance - price.charged_paise,
             note=f"Knowledge-base ingestion embeddings ({tokens} tokens, {provider}/{model})",
+        )
+    )
+    # The ledger row above is what the customer paid; this is the other half
+    # of the pair call_cost_items keeps for every call -- what the vendor
+    # charged us. Without it, a margin query has nothing to compare the
+    # charge against. Same key as the ledger row, so the two can never drift
+    # into recording different documents.
+    session.add(
+        EmbeddingIngestionCostModel(
+            organization_id=organization_id,
+            document_id=document_id,
+            provider=provider,
+            model=model,
+            tokens=tokens,
+            vendor_cost_paise=price.vendor_cost_paise,
+            charged_paise=price.charged_paise,
         )
     )
     return price
