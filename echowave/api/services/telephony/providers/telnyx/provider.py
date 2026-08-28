@@ -26,6 +26,7 @@ TELNYX_PUBLIC_KEY_BYTES = 32
 TELNYX_SIGNATURE_BYTES = 64
 
 from api.enums import TelephonyCallStatus, WorkflowRunMode
+from api.services.telephony import stream_capability
 from api.services.telephony.base import (
     CallInitiationResult,
     NormalizedInboundData,
@@ -97,14 +98,32 @@ class TelnyxProvider(TelephonyProvider):
             from_number = random.choice(self.from_numbers)
         logger.info(f"Selected phone number {from_number} for outbound call")
 
-        backend_endpoint, wss_backend_endpoint = await get_backend_endpoints()
+        backend_endpoint, _ = await get_backend_endpoints()
 
-        # Build the WebSocket stream URL for inline audio streaming
+        # The media socket URL, capability included. Telnyx is the one provider
+        # that streams inline with the dial rather than from a markup response,
+        # so this is the only outbound URL not built by a webhook handler --
+        # which is exactly how it was missed when the token was introduced and
+        # the other seven call sites were moved onto the shared builder. Every
+        # Telnyx outbound call then rang, was answered, and died at the media
+        # socket, whose handshake was refused because the URL carried no
+        # capability to present.
         workflow_id = kwargs.get("workflow_id")
         organization_id = kwargs.get("organization_id")
-        stream_url = (
-            f"{wss_backend_endpoint}/api/v1/telephony/ws"
-            f"/{workflow_id}/{organization_id}/{workflow_run_id}"
+        if workflow_id is None or organization_id is None or workflow_run_id is None:
+            # Without all three there is no run to mint a capability for, and
+            # the URL would name a socket nothing can connect to. Refuse here,
+            # where the caller can report it, rather than placing a call that
+            # is answered and then dropped.
+            raise ValueError(
+                "Telnyx outbound calls need workflow_id, organization_id and "
+                "workflow_run_id to build an authenticated media socket URL; "
+                f"got {workflow_id}, {organization_id}, {workflow_run_id}."
+            )
+        stream_url = await stream_capability.stream_url(
+            workflow_id=workflow_id,
+            organization_id=organization_id,
+            workflow_run_id=workflow_run_id,
         )
 
         # Build the webhook URL for status callbacks

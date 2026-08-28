@@ -31,6 +31,47 @@ deliberately.
 
 ## Fixed
 
+### 21. Telnyx calls were answered and then dropped
+
+**FIXED.** Reported from a live test as "the call ends after I pick up".
+
+The media socket gained a capability token (`services/telephony/
+stream_capability.py`): the carrier's URL now carries one, and
+`/api/v1/telephony/ws/...` refuses the handshake when none is presented (the
+route closes with 4401 *before* accepting, so the upgrade itself is rejected).
+That change moved seven call sites onto a single builder — five markup stream
+elements and two inbound routes.
+
+There were eight. Telnyx streams **inline with the dial request** rather than
+from a markup response, so its URL was built inside `initiate_call` and was
+not found by looking at webhook handlers. Every Telnyx outbound call therefore
+went out with a token-less URL: the call was placed, it rang, the callee
+answered, Telnyx opened the media socket, and we refused it. The call died at
+the exact moment audio should have started, and nothing in the call's own
+record said why — the only trace was a warning line in the API log.
+
+Telnyx **inbound** was never affected: that URL comes from the route, which
+already used the builder.
+
+Two changes, plus a guard:
+
+* `initiate_call` now calls `stream_capability.stream_url(...)`, and refuses to
+  dial at all if it has no `workflow_id` / `organization_id` /
+  `workflow_run_id` to mint against, rather than dialling a URL naming
+  `/ws/None/None/None`.
+* `stream_url` no longer returns a token-less URL when the socket requires a
+  token. `mint` returns `None` when Redis is unreachable, and the old fallback
+  called that "a call that still connects rather than a call that cannot be
+  placed" — which stopped being true the moment the socket started requiring a
+  token. It was the same failure as above, reachable by a Redis blip on any
+  provider. It now raises `StreamCapabilityUnavailable`, so the error lands
+  where the caller can report it and names the real cause. With
+  `TELEPHONY_WS_REQUIRE_TOKEN=false` — the incident escape hatch — a token-less
+  URL genuinely connects, and that is still what comes back.
+* `tests/test_media_socket_is_authenticated.py` asserts that no module outside
+  the builder spells the socket path. Seven out of eight the first time says
+  grepping for it by hand is not a check worth relying on.
+
 ### 20. The model screen offered three tabs that were never three options
 
 **FIXED.** Full write-up in `MODEL-SELECTION-REDESIGN.md`, including the
