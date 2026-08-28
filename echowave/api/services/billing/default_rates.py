@@ -350,14 +350,6 @@ STT_RATES = (
     # mid-sentence is transcribed rather than lost. Priced by name rather than
     # left on the sarvam provider-wide row, because a tier we sell must not be
     # priced identically to whatever the vendor ships next.
-    DefaultRate(
-        "sarvam",
-        "saaras:v3",
-        CostComponent.STT,
-        RateUnit.MINUTE,
-        0.53 / 60,
-        "$0.53/hour published. Multilingual with automatic language detection.",
-    ),
     # Sarvam's own pricing page prices STT as one flat real-time-streaming
     # tier -- Rs30/hour -- with no separate figure for saaras:v3. It is the
     # same product line as saarika:v2.5, priced identically; batch and
