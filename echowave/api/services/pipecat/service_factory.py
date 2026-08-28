@@ -496,6 +496,18 @@ def create_stt_service(
         )
 
 
+def _create_low_latency_streaming_tts_service(service, /, **kwargs):
+    """Create a streaming TTS service with immediate LLM token delivery.
+
+    Persistent streaming transports can buffer text provider-side while the LLM
+    is still generating. Sentence aggregation would unnecessarily put LLM
+    sentence-completion time on the critical path. Request-based TTS providers
+    intentionally keep Pipecat's sentence default: token mode would create one
+    synthesis request per token, increasing latency, cost, and audible seams.
+    """
+    return service(text_aggregation_mode=TextAggregationMode.TOKEN, **kwargs)
+
+
 def create_tts_service(
     user_config, audio_config: "AudioConfig", correlation_id: str | None = None
 ):
@@ -511,7 +523,8 @@ def create_tts_service(
     # Create function call filter to prevent TTS from speaking function call tags
     xml_function_tag_filter = XMLFunctionTagFilter()
     if user_config.tts.provider == ServiceProviders.DEEPGRAM.value:
-        return DeepgramTTSService(
+        return _create_low_latency_streaming_tts_service(
+            DeepgramTTSService,
             api_key=user_config.tts.api_key,
             settings=DeepgramTTSSettings(voice=user_config.tts.voice),
             text_filters=[xml_function_tag_filter],
@@ -568,7 +581,8 @@ def create_tts_service(
         # scheme-less base_url contract.
         _validate_runtime_service_url(user_config.tts.base_url, "base_url")
         elevenlabs_url = _elevenlabs_websocket_url(user_config.tts.base_url)
-        return ElevenLabsTTSService(
+        return _create_low_latency_streaming_tts_service(
+            ElevenLabsTTSService,
             reconnect_on_error=False,
             api_key=user_config.tts.api_key,
             url=elevenlabs_url,
@@ -595,7 +609,8 @@ def create_tts_service(
             GenerationConfig(**gen_config_kwargs) if gen_config_kwargs else None
         )
         language = getattr(user_config.tts, "language", None) or "en"
-        return CartesiaTTSService(
+        return _create_low_latency_streaming_tts_service(
+            CartesiaTTSService,
             api_key=user_config.tts.api_key,
             settings=CartesiaTTSSettings(
                 voice=user_config.tts.voice,
@@ -617,7 +632,8 @@ def create_tts_service(
         speed = getattr(user_config.tts, "speed", None)
         language = getattr(user_config.tts, "language", None) or "en-US"
         delivery_mode = getattr(user_config.tts, "delivery_mode", None) or "BALANCED"
-        return InworldTTSService(
+        return _create_low_latency_streaming_tts_service(
+            InworldTTSService,
             api_key=user_config.tts.api_key,
             settings=InworldTTSSettings(
                 voice=voice,
@@ -633,7 +649,8 @@ def create_tts_service(
     elif user_config.tts.provider == ServiceProviders.DECIBYL.value:
         # Convert HTTP URL to WebSocket URL for TTS
         base_url = MPS_API_URL.replace("http://", "ws://").replace("https://", "wss://")
-        return DograhTTSService(
+        return _create_low_latency_streaming_tts_service(
+            DograhTTSService,
             base_url=base_url,
             api_key=user_config.tts.api_key,
             correlation_id=correlation_id,
@@ -693,7 +710,8 @@ def create_tts_service(
         }
         if speed and speed != 1.0:
             settings_kwargs["speedAlpha"] = speed
-        return RimeTTSService(
+        return _create_low_latency_streaming_tts_service(
+            RimeTTSService,
             api_key=user_config.tts.api_key,
             settings=RimeTTSSettings(**settings_kwargs),
             text_filters=[xml_function_tag_filter],
@@ -745,10 +763,10 @@ def create_tts_service(
             settings_kwargs["voice"] = voice
         if speed and speed != 1.0:
             settings_kwargs["pace"] = speed
-        return SarvamTTSService(
+        return _create_low_latency_streaming_tts_service(
+            SarvamTTSService,
             api_key=user_config.tts.api_key,
             settings=SarvamTTSSettings(**settings_kwargs),
-            text_aggregation_mode=TextAggregationMode.TOKEN,
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,
@@ -853,7 +871,8 @@ def create_tts_service(
         )
         if speed and speed != 1.0:
             settings_kwargs.speed = speed
-        return SmallestTTSService(
+        return _create_low_latency_streaming_tts_service(
+            SmallestTTSService,
             api_key=user_config.tts.api_key,
             settings=settings_kwargs,
             text_filters=[xml_function_tag_filter],
