@@ -76,6 +76,7 @@ from api.utils.recording_artifacts import (
     get_recording_storage_key,
     has_recording_track,
 )
+from api.utils.run_diagnostics import get_pipeline_error
 
 router = APIRouter(prefix="/workflow")
 
@@ -1545,6 +1546,7 @@ async def get_workflow_run(
         "call_type": run.call_type,
         "logs": run.logs,
         "annotations": run.annotations,
+        "pipeline_error": get_pipeline_error(run.extra),
     }
 
 

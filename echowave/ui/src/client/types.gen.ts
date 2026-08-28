@@ -5712,6 +5712,82 @@ export type PropertyOption = {
 };
 
 /**
+ * LibraryOptions
+ *
+ * Names a catalog of ready-made values the editor can offer for a field.
+ */
+export type LibraryOptions = {
+    /**
+     * Catalog
+     */
+    catalog: string;
+};
+
+/**
+ * LibraryExtraction
+ *
+ * One catalog entry, and the ExtractionSpec it seeds.
+ */
+export type LibraryExtraction = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Prompt
+     */
+    prompt: string;
+    /**
+     * Answer Type
+     */
+    answer_type?: string;
+    /**
+     * Predefined Options
+     */
+    predefined_options?: string;
+    /**
+     * Expected Format
+     */
+    expected_format?: string;
+};
+
+/**
+ * ExtractionLibraryResponse
+ *
+ * The catalog, and the order its sections should be shown in.
+ */
+export type ExtractionLibraryResponse = {
+    /**
+     * Catalog
+     */
+    catalog: string;
+    /**
+     * Categories
+     */
+    categories: Array<string>;
+    /**
+     * Extractions
+     */
+    extractions: Array<LibraryExtraction>;
+};
+
+/**
  * PropertyRendererOptions
  *
  * Typed renderer metadata for node properties.
@@ -5721,6 +5797,7 @@ export type PropertyOption = {
 export type PropertyRendererOptions = {
     layout?: PropertyLayoutOptions | null;
     number_input?: NumberInputOptions | null;
+    library?: LibraryOptions | null;
 };
 
 /**
@@ -8846,6 +8923,12 @@ export type WorkflowRunResponseSchema = {
      * Annotations
      */
     annotations?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Pipeline Error
+     */
+    pipeline_error?: {
         [key: string]: unknown;
     } | null;
 };
@@ -23059,6 +23142,46 @@ export type GetNodeTypeApiV1NodeTypesNameGetResponses = {
 };
 
 export type GetNodeTypeApiV1NodeTypesNameGetResponse = GetNodeTypeApiV1NodeTypesNameGetResponses[keyof GetNodeTypeApiV1NodeTypesNameGetResponses];
+
+export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Catalog
+         */
+        catalog: string;
+    };
+    query?: never;
+    url: '/api/v1/extraction-library/{catalog}';
+};
+
+export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetError = GetExtractionLibraryApiV1ExtractionLibraryCatalogGetErrors[keyof GetExtractionLibraryApiV1ExtractionLibraryCatalogGetErrors];
+
+export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ExtractionLibraryResponse;
+};
+
+export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponse = GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponses[keyof GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponses];
 
 export type AuthorizeUrlApiV1IntegrationsGoogleCalendarAuthorizeUrlGetData = {
     body?: never;
