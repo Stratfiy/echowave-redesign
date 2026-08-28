@@ -383,6 +383,94 @@ class TelephonyConfigurationModel(Base):
     )
 
 
+class ContactListModel(Base):
+    """A named set of callers an inbound number can be matched against.
+
+    Deliberately its own table rather than a view over campaign CSVs. A
+    campaign's contacts are a file in object storage keyed by ``source_id``:
+    fine for reading top to bottom while dialling out, useless for the inbound
+    question, which is a point lookup on a ringing phone. It is also the wrong
+    lifetime — a campaign ends and its file is a historical artifact, while an
+    inbound list is a standing description of who this number serves.
+    """
+
+    __tablename__ = "contact_lists"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    name = Column(String(128), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    contacts = relationship(
+        "ContactModel", back_populates="contact_list", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "name", name="uq_contact_lists_org_name"),
+    )
+
+
+class ContactModel(Base):
+    """One caller, and whatever the account knows about them.
+
+    ``attributes`` is open on purpose. What an account wants in front of an
+    agent is theirs — a policy number, a due date, the name of the branch —
+    and enumerating those columns would mean a migration per customer. It is
+    preloaded into the run's ``initial_context``, where prompt templates
+    already read from.
+
+    Matching is on ``phone_normalized``: the same canonical form
+    ``telephony_phone_numbers`` stores, produced by the same normalizer, so a
+    number written ``+91 98765 43210`` in a CSV matches the digits a carrier
+    actually sends.
+    """
+
+    __tablename__ = "contacts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    contact_list_id = Column(
+        Integer, ForeignKey("contact_lists.id", ondelete="CASCADE"), nullable=False
+    )
+    #: As the account supplied it, kept so a list reads back the way it was
+    #: uploaded rather than in our canonical form.
+    phone_raw = Column(String(255), nullable=False)
+    phone_normalized = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=True)
+    attributes = Column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::json")
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    contact_list = relationship("ContactListModel", back_populates="contacts")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "contact_list_id",
+            "phone_normalized",
+            name="uq_contacts_list_phone",
+        ),
+        # The inbound lookup: one list, one number, on a ringing phone.
+        Index("ix_contacts_lookup", "contact_list_id", "phone_normalized"),
+        Index("ix_contacts_org", "organization_id"),
+    )
+
+
 class TelephonyPhoneNumberModel(Base):
     __tablename__ = "telephony_phone_numbers"
 
@@ -452,6 +540,44 @@ class TelephonyPhoneNumberModel(Base):
     is_default_caller_id = Column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+
+    # ---- Inbound controls -------------------------------------------------
+    #
+    # These live on the number rather than on the workflow because the number
+    # is what a stranger dials. One agent may answer on several numbers — a
+    # published support line and a number given only to existing customers —
+    # and those two want different rules about who gets through.
+
+    #: Callers to match an incoming call against, and whose stored attributes
+    #: are preloaded into the run before the agent speaks. NULL means take
+    #: every caller as an unknown one.
+    inbound_contact_list_id = Column(
+        Integer,
+        ForeignKey("contact_lists.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    #: Refuse a caller who is not in that list. Off by default: a number that
+    #: silently stops answering strangers is a support ticket, so turning a
+    #: published line into a private one has to be a deliberate act.
+    inbound_require_known_caller = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    #: How many calls one caller may place to this number inside the window
+    #: below. NULL is unlimited, which is the default — a limit nobody asked
+    #: for is a dropped call from a customer who redialled after a bad line.
+    inbound_max_calls_per_caller = Column(Integer, nullable=True)
+    #: The window that limit is counted over. A lifetime cap locks out a
+    #: legitimate repeat caller for good, and the person who would notice is
+    #: the caller, who cannot tell us.
+    inbound_call_window_hours = Column(
+        Integer, nullable=False, default=24, server_default=text("24")
+    )
+    #: Normalized callers exempt from the limit. The escape hatch for the
+    #: office line or a monitoring service that legitimately calls all day.
+    inbound_allow_list = Column(
+        JSON, nullable=False, default=list, server_default=text("'[]'::json")
+    )
+
     extra_metadata = Column(
         JSON, nullable=False, default=dict, server_default=text("'{}'::json")
     )

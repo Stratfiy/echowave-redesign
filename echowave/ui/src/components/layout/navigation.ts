@@ -2,6 +2,7 @@ import {
   AudioLines,
   Brain,
   ChartColumnBig,
+  ContactRound,
   Database,
   FileText,
   Handshake,
@@ -205,6 +206,25 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         url: "/files",
         icon: Database,
         keywords: ["knowledge base", "upload", "document"],
+      },
+      // Next to Files because both are "things the agent reads", and an
+      // account looking for where their customer data lives checks there
+      // first. Not under Telephony: a list is attached to a number, but it
+      // is not a property of one, and burying it inside the number dialog
+      // would make it findable only by somebody already editing a number.
+      {
+        title: "Contacts",
+        url: "/contacts",
+        icon: ContactRound,
+        keywords: [
+          "contact list",
+          "caller",
+          "inbound",
+          "csv",
+          "customers",
+          "database",
+          "import",
+        ],
       },
       {
         title: "Recordings",

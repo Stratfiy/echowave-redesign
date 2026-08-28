@@ -405,6 +405,12 @@ class TelephonyPhoneNumberClient(BaseDBClient):
         status: Optional[str] = None,
         carrier_number_id: Optional[str] = None,
         provisioned_at=None,
+        inbound_contact_list_id: Optional[int] = None,
+        clear_inbound_contact_list: bool = False,
+        inbound_require_known_caller: Optional[bool] = None,
+        inbound_max_calls_per_caller: Optional[int] = None,
+        inbound_call_window_hours: Optional[int] = None,
+        inbound_allow_list: Optional[list] = None,
     ) -> Optional[TelephonyPhoneNumberModel]:
         """Partial update. ``address`` is intentionally immutable — create a new
         row instead. Set ``clear_inbound_workflow=True`` to null out the FK."""
@@ -431,6 +437,26 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                 row.carrier_number_id = carrier_number_id
             if provisioned_at is not None:
                 row.provisioned_at = provisioned_at
+
+            if inbound_contact_list_id is not None:
+                row.inbound_contact_list_id = inbound_contact_list_id
+            elif clear_inbound_contact_list:
+                row.inbound_contact_list_id = None
+            if inbound_require_known_caller is not None:
+                row.inbound_require_known_caller = inbound_require_known_caller
+            if inbound_max_calls_per_caller is not None:
+                # <= 0 is the form's way of saying unlimited, and NULL is how
+                # the column says it. Storing 0 or -1 verbatim would make the
+                # guard's "no limit" test depend on which of them was typed.
+                row.inbound_max_calls_per_caller = (
+                    inbound_max_calls_per_caller
+                    if inbound_max_calls_per_caller > 0
+                    else None
+                )
+            if inbound_call_window_hours is not None:
+                row.inbound_call_window_hours = inbound_call_window_hours
+            if inbound_allow_list is not None:
+                row.inbound_allow_list = inbound_allow_list
 
             await session.commit()
             await session.refresh(row)

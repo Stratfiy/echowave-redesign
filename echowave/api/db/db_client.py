@@ -2,6 +2,7 @@ from api.db.activation_client import ActivationClient
 from api.db.agent_trigger_client import AgentTriggerClient
 from api.db.api_key_client import APIKeyClient
 from api.db.campaign_client import CampaignClient
+from api.db.contact_client import ContactClient
 from api.db.do_not_call_client import DoNotCallClient
 from api.db.email_verification_client import EmailVerificationClient
 from api.db.embed_token_client import EmbedTokenClient
@@ -43,6 +44,7 @@ class DBClient(
     IntegrationClient,
     WorkflowTemplateClient,
     CampaignClient,
+    ContactClient,
     ReportsClient,
     APIKeyClient,
     EmbedTokenClient,

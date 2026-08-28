@@ -2,7 +2,7 @@
 
 import re
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -74,6 +74,20 @@ class PhoneNumberUpdateRequest(BaseModel):
     country_code: Optional[str] = Field(default=None, min_length=2, max_length=2)
     extra_metadata: Optional[Dict[str, Any]] = None
 
+    # ---- Inbound controls -------------------------------------------------
+    inbound_contact_list_id: Optional[int] = None
+    #: Set to true to stop matching callers against a list, since ``None`` on a
+    #: partial update means "unchanged" rather than "clear".
+    clear_inbound_contact_list: bool = False
+    inbound_require_known_caller: Optional[bool] = None
+    #: Calls one caller may place inside the window. ``None`` leaves it
+    #: unchanged; ``0`` or below means unlimited, which is how a form that can
+    #: only hold a number says "off" — and is why a limit of zero cannot
+    #: accidentally take a number off the air.
+    inbound_max_calls_per_caller: Optional[int] = Field(default=None, ge=-1)
+    inbound_call_window_hours: Optional[int] = Field(default=None, ge=1, le=24 * 28)
+    inbound_allow_list: Optional[List[str]] = None
+
 
 class ProviderSyncStatus(BaseModel):
     """Result of pushing a phone-number change to the upstream provider.
@@ -99,6 +113,11 @@ class PhoneNumberResponse(BaseModel):
     label: Optional[str] = None
     inbound_workflow_id: Optional[int] = None
     inbound_workflow_name: Optional[str] = None
+    inbound_contact_list_id: Optional[int] = None
+    inbound_require_known_caller: bool = False
+    inbound_max_calls_per_caller: Optional[int] = None
+    inbound_call_window_hours: int = 24
+    inbound_allow_list: List[str] = Field(default_factory=list)
     is_active: bool
     is_default_caller_id: bool
     extra_metadata: Dict[str, Any]

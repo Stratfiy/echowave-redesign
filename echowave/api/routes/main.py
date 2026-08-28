@@ -12,6 +12,7 @@ from api.routes.agent_templates import router as agent_templates_router
 from api.routes.auth import router as auth_router
 from api.routes.billing_dashboard import router as billing_dashboard_router
 from api.routes.campaign import router as campaign_router
+from api.routes.contacts import router as contacts_router
 from api.routes.cost_estimate import router as cost_estimate_router
 from api.routes.credentials import router as credentials_router
 from api.routes.do_not_call import router as do_not_call_router
@@ -99,6 +100,7 @@ router.include_router(folder_router)
 router.include_router(auth_router)
 router.include_router(node_types_router)
 router.include_router(extraction_library_router)
+router.include_router(contacts_router)
 router.include_router(agent_stream_router)
 
 for _integration_router in all_routers():
