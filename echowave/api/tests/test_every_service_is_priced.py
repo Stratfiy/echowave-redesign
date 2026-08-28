@@ -75,7 +75,13 @@ _UNPRICED_BY_DESIGN = {
     "camb": "no platform key",
     "inworld": "no platform key",
     "rime": "no platform key",
-    "xaihttp": "no platform key",
+    "xai": (
+        "no platform key: xAI TTS is BYOK only, so the customer's own key "
+        "pays xAI directly and Decibyl meters no cost for it. Keyed on "
+        "'xai' rather than the former 'xaihttp' because the factory now "
+        "builds XAITTSService, the websocket class, and the billing "
+        "identity follows the class name"
+    ),
     "cartesia_stt": (
         "Cartesia Ink transcription. Cartesia is priced for synthesis only, "
         "and the two are different products at different prices"
