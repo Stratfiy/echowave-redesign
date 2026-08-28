@@ -80,6 +80,7 @@ from pipecat.services.rime.tts import RimeTTSService, RimeTTSSettings
 from pipecat.services.sarvam.llm import SarvamLLMService, SarvamLLMSettings
 from pipecat.services.sarvam.stt import SarvamSTTService, SarvamSTTSettings
 from pipecat.services.sarvam.tts import SarvamTTSService, SarvamTTSSettings
+from pipecat.services.tts_service import TextAggregationMode
 from pipecat.services.smallest.stt import SmallestSTTService, SmallestSTTSettings
 from pipecat.services.smallest.tts import SmallestTTSService, SmallestTTSSettings
 from pipecat.services.speaches.llm import SpeachesLLMService, SpeachesLLMSettings
@@ -729,9 +730,16 @@ def create_tts_service(
         # tier moves.
         voice = (getattr(user_config.tts, "voice", None) or "").strip().lower()
         speed = getattr(user_config.tts, "speed", None)
+        # Sarvam's WebSocket can synthesize while the LLM is still streaming.
+        # Feed tokens immediately and let Sarvam aggregate a short provider-side
+        # buffer. The previous sentence-first + 50-character buffering made TTS
+        # first-byte latency include almost the entire first sentence (6.39s in
+        # production run #67).
         settings_kwargs = {
             "model": user_config.tts.model,
             "language": pipecat_language,
+            "min_buffer_size": 20,
+            "max_chunk_length": 80,
         }
         if voice and voice != DECIBYL_DEFAULT_VOICE:
             settings_kwargs["voice"] = voice
@@ -740,6 +748,7 @@ def create_tts_service(
         return SarvamTTSService(
             api_key=user_config.tts.api_key,
             settings=SarvamTTSSettings(**settings_kwargs),
+            text_aggregation_mode=TextAggregationMode.TOKEN,
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,
