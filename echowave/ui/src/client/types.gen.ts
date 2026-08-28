@@ -5820,6 +5820,40 @@ export type PropertyType = 'string' | 'number' | 'boolean' | 'options' | 'multi_
 /**
  * ProviderRateRequest
  */
+/**
+ * MarkupOverrideRequest
+ *
+ * A markup for one (component, provider, model) line, replacing the global multiple for that line only. No currency split like a rate — a markup is a multiplier, not a price, so there is only one field for it.
+ */
+export type MarkupOverrideRequest = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Component
+     *
+     * stt | llm | tts | telephony
+     */
+    component: string;
+    /**
+     * Model
+     *
+     * Empty = provider-wide fallback
+     */
+    model?: string;
+    /**
+     * Markup Bps
+     *
+     * 10000 = 1.0x (at cost), 17000 = 1.7x
+     */
+    markup_bps: number;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
 export type ProviderRateRequest = {
     /**
      * Provider
@@ -11956,6 +11990,148 @@ export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPost
 };
 
 export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponse = RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponses[keyof RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponses];
+
+export type ListManagedMarkupOverridesApiV1AdminBillingRateCardMarkupOverridesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/rate-card/markup-overrides';
+};
+
+export type ListManagedMarkupOverridesApiV1AdminBillingRateCardMarkupOverridesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListManagedMarkupOverridesApiV1AdminBillingRateCardMarkupOverridesGetError = ListManagedMarkupOverridesApiV1AdminBillingRateCardMarkupOverridesGetErrors[keyof ListManagedMarkupOverridesApiV1AdminBillingRateCardMarkupOverridesGetErrors];
+
+export type ListManagedMarkupOverridesApiV1AdminBillingRateCardMarkupOverridesGetResponses = {
+    /**
+     * Response List Managed Markup Overrides Api V1 Admin Billing Rate Card Markup Overrides Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListManagedMarkupOverridesApiV1AdminBillingRateCardMarkupOverridesGetResponse = ListManagedMarkupOverridesApiV1AdminBillingRateCardMarkupOverridesGetResponses[keyof ListManagedMarkupOverridesApiV1AdminBillingRateCardMarkupOverridesGetResponses];
+
+export type SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutData = {
+    body: MarkupOverrideRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/rate-card/markup-overrides';
+};
+
+export type SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutError = SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutErrors[keyof SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutErrors];
+
+export type SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutResponses = {
+    /**
+     * Response Set Managed Markup Override Api V1 Admin Billing Rate Card Markup Overrides Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutResponse = SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutResponses[keyof SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutResponses];
+
+export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Provider
+         */
+        provider: string;
+        /**
+         * Component
+         */
+        component: string;
+        /**
+         * Model
+         */
+        model?: string;
+    };
+    url: '/api/v1/admin/billing/rate-card/markup-overrides';
+};
+
+export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteError = ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteErrors[keyof ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteErrors];
+
+export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteResponses = {
+    /**
+     * Response Clear Managed Markup Override Api V1 Admin Billing Rate Card Markup Overrides Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteResponse = ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteResponses[keyof ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteResponses];
 
 export type ListPlansApiV1AdminBillingPlansGetData = {
     body?: never;
