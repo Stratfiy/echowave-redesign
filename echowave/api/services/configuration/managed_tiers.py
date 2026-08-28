@@ -156,13 +156,26 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         ("llm", "fast"): _tier("llm", "fast", "sarvam", "sarvam-105b"),
         ("llm", "zen"): _tier("llm", "zen", "sarvam", "sarvam-105b"),
         # --- Speech --------------------------------------------------------
-        # saarika:v2.5, not v2. Sarvam's own configuration class defaults to
-        # v2.5 and offers only v2.5 and saaras:v3 — "saarika:v2" is a name from
-        # a generation the vendor no longer serves, and it appeared nowhere
-        # else in this repository. A managed customer transcribes every call on
-        # this string, so a stale one is not a fallback, it is silence.
-        ("stt", "default"): _tier("stt", "default", "sarvam", "saarika:v2.5"),
-        ("tts", "default"): _tier("tts", "default", "sarvam", "bulbul:v2"),
+        # saaras:v3 rather than saarika:v2.5, and the difference is the whole
+        # Indian case rather than a version bump. saarika transcribes *a*
+        # language; saaras is one model over 22 Indian languages plus English
+        # with automatic detection, trained on code-mixed and noisy telephony
+        # audio. An Indian caller switching between English and their own
+        # language inside one sentence is the normal case here, not an edge —
+        # and on saarika the half of the sentence in the other language is
+        # simply lost.
+        #
+        # It costs $0.53/hour against saarika's Rs30, about 1.7x. That is the
+        # price of the tier understanding the caller, which is not an
+        # optimisation to trade away.
+        ("stt", "default"): _tier("stt", "default", "sarvam", "saaras:v3"),
+        # bulbul:v3 for the matching reason on the way out: it synthesises
+        # code-mixed text with native phonetics, so an English sentence
+        # carrying Hindi words is pronounced rather than spelled out. Twice v2
+        # per character, and the sub-200ms first byte is a latency gain on top
+        # — the two things a caller notices are being understood and not being
+        # kept waiting.
+        ("tts", "default"): _tier("tts", "default", "sarvam", "bulbul:v3"),
         # --- Speech-to-speech ----------------------------------------------
         # A single model that hears and speaks, replacing the STT and TTS pair.
         # Deliberately *not* Sarvam: no Indic speech-to-speech model is good

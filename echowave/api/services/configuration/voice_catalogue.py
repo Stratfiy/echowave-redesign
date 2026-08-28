@@ -41,6 +41,7 @@ from api.services.configuration.registry import ServiceProviders
 #: Sarvam publishes gender with its voices; the picker filters on it, and
 #: guessing from a name would be both wrong and rude.
 _SARVAM_GENDER = {
+    # bulbul:v2
     "anushka": "female",
     "manisha": "female",
     "vidya": "female",
@@ -48,6 +49,49 @@ _SARVAM_GENDER = {
     "abhilash": "male",
     "karun": "male",
     "hitesh": "male",
+    # bulbul:v3. Covers every name in SARVAM_V3_VOICES — a v3 voice missing
+    # here reads as gender-unknown and disappears from the picker's filter,
+    # which is how the whole v3 set became unfilterable when the managed tier
+    # moved off v2.
+    "ritu": "female",
+    "priya": "female",
+    "neha": "female",
+    "pooja": "female",
+    "simran": "female",
+    "kavya": "female",
+    "ishita": "female",
+    "shreya": "female",
+    "roopa": "female",
+    "amelia": "female",
+    "sophia": "female",
+    "tanya": "female",
+    "shruti": "female",
+    "suhani": "female",
+    "kavitha": "female",
+    "rupali": "female",
+    "shubh": "male",
+    "aditya": "male",
+    "rahul": "male",
+    "rohan": "male",
+    "amit": "male",
+    "dev": "male",
+    "ratan": "male",
+    "varun": "male",
+    "manan": "male",
+    "sumit": "male",
+    "kabir": "male",
+    "aayan": "male",
+    "ashutosh": "male",
+    "advait": "male",
+    "anand": "male",
+    "tarun": "male",
+    "sunny": "male",
+    "mani": "male",
+    "gokul": "male",
+    "vijay": "male",
+    "mohit": "male",
+    "rehan": "male",
+    "soham": "male",
 }
 
 
