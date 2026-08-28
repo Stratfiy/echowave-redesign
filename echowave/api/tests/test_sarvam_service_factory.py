@@ -29,9 +29,14 @@ from api.services.pipecat.service_factory import (
 
 class TestSarvamLLMConfiguration:
     def test_default_values(self):
+        """The conversational model, because these agents answer phones.
+
+        sarvam-105b reasons in chain-of-thought before every reply and cannot
+        be told not to, which measured 6,045ms of a 7,554ms turn.
+        """
         config = SarvamLLMConfiguration(api_key="test-key")
         assert config.provider == ServiceProviders.SARVAM
-        assert config.model == "sarvam-105b"
+        assert config.model == "sarvam-105b-conversations"
         assert config.temperature == 0.5
 
     def test_custom_model(self):
@@ -52,7 +57,7 @@ class TestSarvamLLMConfiguration:
 class TestSarvamLLMServiceFactory:
     def test_create_sarvam_llm_service(self):
         with patch(
-            "api.services.pipecat.service_factory.SarvamLLMService"
+            "api.services.pipecat.service_factory.DecibylSarvamLLMService"
         ) as mock_service:
             mock_service.Settings = RealSarvamLLMService.Settings
             create_llm_service_from_provider(
@@ -69,7 +74,7 @@ class TestSarvamLLMServiceFactory:
 
     def test_create_sarvam_llm_service_passes_user_temperature(self):
         with patch(
-            "api.services.pipecat.service_factory.SarvamLLMService"
+            "api.services.pipecat.service_factory.DecibylSarvamLLMService"
         ) as mock_service:
             mock_service.Settings = RealSarvamLLMService.Settings
             create_llm_service_from_provider(
@@ -93,7 +98,7 @@ class TestSarvamLLMServiceFactory:
         )
 
         with patch(
-            "api.services.pipecat.service_factory.SarvamLLMService"
+            "api.services.pipecat.service_factory.DecibylSarvamLLMService"
         ) as mock_service:
             mock_service.Settings = RealSarvamLLMService.Settings
             create_llm_service(user_config)
@@ -405,3 +410,99 @@ class TestTheBufferSettingsStayInsideSarvamsRange:
     def test_max_chunk_length_is_inside_the_range(self):
         low, high = self.MAX_CHUNK_LENGTH_RANGE
         assert low <= self._shipped_settings().max_chunk_length <= high
+
+
+class TestTheConversationalModelIsWhatVoiceGets:
+    """sarvam-105b is a reasoning model, and that is the whole latency story.
+
+    It emits reasoning_content -- chain-of-thought -- before a single word of
+    the answer, on every request. reasoning_effort cannot switch it off: Sarvam
+    accepts only low/medium/high, and against a 600-token cap the default and
+    "low" both spent the entire budget thinking and returned no content at all.
+    Measured on run 77 it was 6,045ms of a 7,554ms turn, with the caller waiting
+    in silence for all of it.
+    """
+
+    def test_the_wrapper_allows_the_conversational_model(self):
+        """Unknown names raise in _validate_model at construction, so widening
+        the allow-list is what makes the model selectable at all."""
+        from api.services.pipecat.sarvam_llm import (
+            SARVAM_CONVERSATIONS_MODEL,
+            DecibylSarvamLLMService,
+        )
+
+        assert SARVAM_CONVERSATIONS_MODEL in DecibylSarvamLLMService._SUPPORTED_MODELS
+
+    def test_the_wrapper_keeps_every_model_upstream_allowed(self):
+        from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+
+        assert RealSarvamLLMService._SUPPORTED_MODELS.issubset(
+            DecibylSarvamLLMService._SUPPORTED_MODELS
+        )
+
+    def test_constructing_the_conversational_model_does_not_raise(self):
+        from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+
+        service = DecibylSarvamLLMService(
+            api_key="test-key",
+            settings=DecibylSarvamLLMService.Settings(
+                model="sarvam-105b-conversations"
+            ),
+        )
+
+        assert service is not None
+
+    def test_the_upstream_class_still_refuses_it(self):
+        """Guards the reason this wrapper exists. If upstream ever ships the
+        model in its own allow-list, this fails and the wrapper can shrink."""
+        with pytest.raises(ValueError):
+            RealSarvamLLMService(
+                api_key="test-key",
+                settings=RealSarvamLLMService.Settings(
+                    model="sarvam-105b-conversations"
+                ),
+            )
+
+    def test_the_voice_tiers_resolve_to_the_conversational_model(self):
+        """The tier is what a managed account actually gets -- a default on the
+        configuration schema never reaches it."""
+        from api.services.configuration import managed_tiers
+
+        for tier in ("lite", "fast", "zen"):
+            upstream = managed_tiers.resolve("llm", tier)
+            assert upstream.provider == "sarvam"
+            assert upstream.model == "sarvam-105b-conversations", tier
+
+    def test_the_conversational_model_is_offered_first(self):
+        from api.services.configuration.options.sarvam import SARVAM_LLM_MODELS
+
+        assert SARVAM_LLM_MODELS[0] == "sarvam-105b-conversations"
+
+
+class TestTheReplyIsStreamed:
+    """stream=False made time-to-first-token equal time-to-whole-response.
+
+    It also cancelled two optimisations that are still configured and now do
+    nothing: the TTS runs in TextAggregationMode.TOKEN so it can synthesise
+    while the LLM is still talking, and Sarvam's min_buffer_size is tuned for
+    the same incremental text. Neither has anything to stream when the LLM
+    speaks once, at the end.
+    """
+
+    def test_the_wrapper_does_not_use_the_one_shot_override(self):
+        from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+
+        assert (
+            DecibylSarvamLLMService.get_chat_completions
+            is not RealSarvamLLMService.get_chat_completions
+        )
+
+    def test_sarvams_parameter_cleanup_is_still_applied(self):
+        """Streaming is restored by skipping one method, not by bypassing the
+        Sarvam class: it still drops the request fields Sarvam rejects."""
+        from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+
+        assert (
+            DecibylSarvamLLMService.build_chat_completion_params
+            is RealSarvamLLMService.build_chat_completion_params
+        )

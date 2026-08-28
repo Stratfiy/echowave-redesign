@@ -764,10 +764,12 @@ class SarvamLLMConfiguration(BaseLLMConfiguration):
     model_config = SARVAM_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.SARVAM] = ServiceProviders.SARVAM
     model: str = Field(
-        default="sarvam-105b",
+        default="sarvam-105b-conversations",
         description=(
-            "Sarvam chat model. sarvam-105b is the current generation; "
-            "sarvam-30b was retired by Sarvam and now returns a 400."
+            "Sarvam chat model. sarvam-105b-conversations is the voice default: "
+            "no reasoning step, first token in ~0.25s, and it still calls tools. "
+            "sarvam-105b reasons before every reply, which costs seconds per "
+            "turn on a call. sarvam-30b was retired by Sarvam and returns a 400."
         ),
         json_schema_extra={"examples": SARVAM_LLM_MODELS, "allow_custom_input": True},
     )

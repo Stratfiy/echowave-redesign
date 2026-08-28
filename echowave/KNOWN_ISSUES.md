@@ -31,6 +31,85 @@ deliberately.
 
 ## Fixed
 
+### 25. The voice agent was running Sarvam's *reasoning* model
+
+**FIXED.** This is the long pause. Reported as "there is a long pause", and
+`call_turn_metrics` on run 77 put a number on it: `latency_ms` 7,554, of which
+`t_llm_first_token_ms - t_stt_final_ms` was **6,045**.
+
+`sarvam-105b` is a reasoning model. It emits `reasoning_content` --
+chain-of-thought -- before a single word of the answer, on every request, with
+the caller listening to silence throughout. It cannot be told not to: Sarvam
+accepts only `low`/`medium`/`high` for `reasoning_effort` (`none` is a 400), and
+measured against a 600-token cap both the default and `low` spent the *entire*
+budget thinking and returned no content at all.
+
+`sarvam-105b-conversations` is the same generation without the reasoning step.
+Measured on the same key, same prompt:
+
+| | reasoning tokens | first content | tool calls |
+|---|---|---|---|
+| `sarvam-105b` | 299 | never (capped) | yes |
+| `sarvam-105b-conversations` | 0 | **0.24s** | yes |
+
+Changed in four places, and the tier is the one that mattered: a managed
+account resolves through `managed_tiers`, so a default on the configuration
+schema would never have reached it. The run log says which path is live --
+`Managed llm resolved to sarvam/<model> on a platform key`.
+
+**Streaming is back on with it.** `SarvamLLMService.get_chat_completions` forces
+`stream=False` and returns the whole reply as one chunk, added to stop Sarvam's
+streaming deltas losing leading whitespace. On the reasoning model that concern
+was real; on the conversational model it does not reproduce -- a three-sentence
+reply streamed as 60 deltas and 48 correctly separated words. It also made
+time-to-first-token equal time-to-*whole-response*, and silently cancelled two
+optimisations that are still configured: the TTS runs in
+`TextAggregationMode.TOKEN` so it can synthesise while the LLM is still talking,
+and issue #22's `min_buffer_size` tuning is for the same incremental text.
+Neither has anything to stream when the LLM speaks once, at the end. Usage
+survives the change -- Sarvam returns `CompletionUsage` inside the stream
+despite the parent stripping `stream_options` -- so per-call cost attribution
+still works.
+
+Both live in `api/services/pipecat/sarvam_llm.py` as a local subclass rather
+than a submodule patch, the same pattern as `DecibylGoogleLLMService` and
+`minimax_tts.py`. Upstream's `_validate_model` raises on any name outside its
+allow-list, so the model is not merely unset -- it is unselectable until that
+set is widened.
+
+**The billing trap this walked into.** `provider_from_processor` derives the
+rate-card provider from the processor's class name. `DecibylSarvamLLMService#0`
+strips to `decibylsarvam`, which has no rate on file -- and an unpriced provider
+does not fail, it costs the call at zero and reports margin at 100%, exactly
+the silent miscosting that function's docstring was written about. Aliased to
+`sarvam` alongside the existing `googlevertex` and `elevenlabsrealtime`
+entries, with a regression case in `test_billing_costing.py`.
+
+**Not fixed, and worth knowing.** `sarvam-30b` is retired (Sarvam 400s it), but
+pipecat still defaults `SarvamLLMService` to it and lists it in
+`_SUPPORTED_MODELS`. Our factory always passes a model explicitly so nothing
+here hits it; a caller that did not would get a dead model.
+
+### 24. Turn-taking: the 600ms that turned out to be 1,172ms
+
+**PARTIALLY FIXED, and the estimate was wrong.** Issue #23 fixed a real bug --
+`DEFAULT_TURN_STOP_STRATEGY` genuinely could not reach the pipeline -- but the
+600ms attached to it was derived from reading code rather than measuring.
+
+`call_turn_metrics` says the endpointing wait is **~1,172ms**, and it is
+strikingly constant: 1171-1174 across 40 turns and 15 calls, under both
+strategies. `t_user_stopped_ms` is hardcoded to 0, so that column is pipecat's
+`user_turn_secs` -- "from when the user actually stopped speaking to when the
+turn was released ... includes VAD silence detection, STT finalization, and any
+turn analyzer wait". It is dominated by **Sarvam STT finalization**, not by
+`user_speech_timeout`, which is why changing the stop strategy barely moves it
+(run 77, on `turn_analyzer`, measured 1,312ms).
+
+So the next real gain on this stage is on the STT side -- an STT that owns its
+own turn boundaries removes the wait entirely -- not in tuning the timeout. Left
+in place rather than reverted: the plumbing fix is correct on its own terms, and
+re-measuring is only meaningful once the LLM stage is no longer six seconds wide.
+
 ### 23. The `turn_analyzer` default never reached the pipeline
 
 **FIXED.** Reported from a live QA call as "there is a long pause". The run's

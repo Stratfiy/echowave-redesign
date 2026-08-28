@@ -77,6 +77,13 @@ _PROVIDER_ALIASES = {
     "elevenlabsrealtime": "elevenlabs",
     "googlevertex": "google",
     "decibylgooglevertex": "decibylgeminilivevertex",
+    # A local subclass is still the vendor it wraps. DecibylSarvamLLMService
+    # exists to allow the conversational model and restore streaming; strip its
+    # suffix and it reads "decibylsarvam", which has no rate on file. That does
+    # not fail loudly -- it prices the call at nothing and reports margin at
+    # 100%, which is precisely the silent miscosting this function's docstring
+    # was written about.
+    "decibylsarvam": "sarvam",
 }
 
 

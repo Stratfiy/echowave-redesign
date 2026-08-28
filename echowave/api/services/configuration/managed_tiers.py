@@ -154,12 +154,18 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # per token than the Gemini it replaces, trained on Indian languages,
         # and the same vendor already serving managed transcription and voice —
         # so the cheap tier is one relationship and one key rather than three.
-        ("llm", "lite"): _tier("llm", "lite", "sarvam", "sarvam-105b"),
+        # The conversational variant, not plain sarvam-105b. These tiers serve
+        # voice calls, and sarvam-105b is a reasoning model: it thinks in
+        # chain-of-thought before every reply and cannot be told not to, which
+        # measured 6,045ms of a 7,554ms turn on run 77 with the caller waiting
+        # in silence for all of it. The conversational model does no reasoning,
+        # reaches first content in ~0.25s, and still calls tools.
+        ("llm", "lite"): _tier("llm", "lite", "sarvam", "sarvam-105b-conversations"),
         ("llm", "default"): _tier("llm", "default", "openai", "gpt-4.1-mini"),
         ("llm", "accurate"): _tier("llm", "accurate", "openai", "gpt-4.1"),
         # Retired names, kept resolving to the model they always served.
-        ("llm", "fast"): _tier("llm", "fast", "sarvam", "sarvam-105b"),
-        ("llm", "zen"): _tier("llm", "zen", "sarvam", "sarvam-105b"),
+        ("llm", "fast"): _tier("llm", "fast", "sarvam", "sarvam-105b-conversations"),
+        ("llm", "zen"): _tier("llm", "zen", "sarvam", "sarvam-105b-conversations"),
         # --- Speech --------------------------------------------------------
         # saaras:v3 rather than saarika:v2.5, and the difference is the whole
         # Indian case rather than a version bump. saarika transcribes *a*

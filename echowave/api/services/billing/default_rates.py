@@ -222,6 +222,20 @@ LLM_RATES = (
         _blend(_inr(4.0), _inr(16.0)),
         "Sarvam-105B — Rs4/Rs16 per 1M published, blended",
     ),
+    # Same family and, as far as Sarvam publishes, the same price -- but named
+    # rather than left to the provider-wide fallback below, for the reason that
+    # fallback's own comment gives: a tier that is a priced product should not
+    # rely on a catch-all that merely happens to describe it. Worth confirming
+    # against Sarvam's price list; if the conversational variant is priced
+    # differently, this is the line to correct.
+    DefaultRate(
+        "sarvam",
+        "sarvam-105b-conversations",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(_inr(4.0), _inr(16.0)),
+        "Sarvam-105B Conversations - Rs4/Rs16 per 1M assumed, blended",
+    ),
     DefaultRate(
         "sarvam",
         "",

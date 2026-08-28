@@ -98,4 +98,15 @@ SARVAM_STT_LANGUAGES_V3 = SARVAM_STT_LANGUAGES_V25 + (
 # been deprecated. Please use one of the available models instead:
 # sarvam-105b." Offering it meant every agent built on the default died mid-call,
 # after the caller had already spoken.
-SARVAM_LLM_MODELS = ("sarvam-105b",)
+#
+# Conversations first, and it is the only one that belongs on a phone line.
+# sarvam-105b is a reasoning model: it emits chain-of-thought before any answer
+# on every request, cannot be told not to (reasoning_effort takes only
+# low/medium/high, and low measured slower than medium), and cost 6,045ms of a
+# 7,554ms turn on run 77. The conversational variant does no reasoning, reaches
+# its first content token in 0.24s, and still emits tool_calls -- which the
+# workflow engine requires, because every node transition is a function call.
+#
+# sarvam-105b is kept selectable rather than removed: it is a legitimate choice
+# for text chat, where several seconds of reasoning buys quality nobody hears.
+SARVAM_LLM_MODELS = ("sarvam-105b-conversations", "sarvam-105b")
