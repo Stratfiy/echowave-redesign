@@ -119,6 +119,13 @@ def test_initiate_call_executes_as_workflow_owner_for_shared_org_workflow():
         # client, and fails closed when it cannot. Unstubbed, every one of
         # these tests refuses its own call with a 451.
         mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
+        # Whether the destination is one this account has verified. The route
+        # reads it through the same client, both to decide if an unverified
+        # number may be dialled at all and to decide whether the calling window
+        # applies. None here means "not verified", which is the stricter path:
+        # these tests keep the window (held open by the fixture above) rather
+        # than taking the exemption.
+        mock_db.get_verified_number = AsyncMock(return_value=None)
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
@@ -239,6 +246,13 @@ def test_initiate_call_uses_organization_preference_phone_number():
         # client, and fails closed when it cannot. Unstubbed, every one of
         # these tests refuses its own call with a 451.
         mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
+        # Whether the destination is one this account has verified. The route
+        # reads it through the same client, both to decide if an unverified
+        # number may be dialled at all and to decide whether the calling window
+        # applies. None here means "not verified", which is the stricter path:
+        # these tests keep the window (held open by the fixture above) rather
+        # than taking the exemption.
+        mock_db.get_verified_number = AsyncMock(return_value=None)
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
@@ -316,6 +330,13 @@ def test_initiate_call_rejects_existing_run_for_different_workflow():
         # client, and fails closed when it cannot. Unstubbed, every one of
         # these tests refuses its own call with a 451.
         mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
+        # Whether the destination is one this account has verified. The route
+        # reads it through the same client, both to decide if an unverified
+        # number may be dialled at all and to decide whether the calling window
+        # applies. None here means "not verified", which is the stricter path:
+        # these tests keep the window (held open by the fixture above) rather
+        # than taking the exemption.
+        mock_db.get_verified_number = AsyncMock(return_value=None)
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
@@ -393,6 +414,13 @@ def test_initiate_call_rejects_when_concurrency_limit_reached():
         # client, and fails closed when it cannot. Unstubbed, every one of
         # these tests refuses its own call with a 451.
         mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
+        # Whether the destination is one this account has verified. The route
+        # reads it through the same client, both to decide if an unverified
+        # number may be dialled at all and to decide whether the calling window
+        # applies. None here means "not verified", which is the stricter path:
+        # these tests keep the window (held open by the fixture above) rather
+        # than taking the exemption.
+        mock_db.get_verified_number = AsyncMock(return_value=None)
         mock_db.get_default_telephony_configuration = AsyncMock(
             return_value=SimpleNamespace(id=55)
         )
@@ -592,3 +620,159 @@ async def test_telephony_websocket_closes_when_state_changes_after_initial_read(
         code=4409, reason="Workflow run not available for connection"
     )
     provider.handle_websocket.assert_not_awaited()
+
+
+def test_a_verified_destination_is_dialled_outside_the_calling_window():
+    """21:54 on your own handset is testing, not telemarketing.
+
+    The TCCCPR window exists so a stranger is not rung at night. Applying it to
+    a number the account has *proved it controls* protects nobody and makes the
+    product untestable for half the working day — which is what it did.
+
+    Note this test does not hold the window open: it lets the real
+    ``within_calling_hours`` see a closed window, so the call only succeeds if
+    the exemption reached the gate.
+    """
+    app = _make_test_app()
+    client = TestClient(app)
+
+    workflow = _workflow()
+    provider = _provider()
+
+    with (
+        patch("api.routes.telephony.db_client") as mock_db,
+        patch("api.routes.telephony.call_concurrency") as mock_concurrency,
+        # The window is genuinely shut, as it was at 21:54 IST.
+        patch(
+            "api.services.compliance.dnd.within_calling_hours",
+            lambda **kwargs: False,
+        ),
+        patch(
+            "api.routes.telephony.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "api.routes.telephony.key_readiness.assert_workflow_may_run",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "api.routes.telephony.authorize_workflow_run_start",
+            new=AsyncMock(
+                return_value=SimpleNamespace(has_quota=True, error_message="")
+            ),
+        ),
+        patch(
+            "api.routes.telephony.get_default_telephony_provider",
+            new=AsyncMock(return_value=provider),
+        ),
+        patch(
+            "api.routes.telephony.get_backend_endpoints",
+            new=AsyncMock(return_value=("https://api.example.com", "wss://ignored")),
+        ),
+    ):
+        mock_concurrency.acquire_org_slot = AsyncMock(return_value=object())
+        mock_concurrency.bind_workflow_run = AsyncMock()
+        mock_concurrency.release_slot = AsyncMock()
+        mock_concurrency.release_workflow_run_slot = AsyncMock()
+
+        mock_db.get_user_configurations = AsyncMock(
+            return_value=SimpleNamespace(test_phone_number=None)
+        )
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
+        # The account verified this handset: a code went to it and came back.
+        mock_db.get_verified_number = AsyncMock(
+            return_value=SimpleNamespace(status="verified")
+        )
+        mock_db.get_default_telephony_configuration = AsyncMock(
+            return_value=SimpleNamespace(id=55)
+        )
+        mock_db.get_telephony_configuration_for_org = AsyncMock(
+            return_value=SimpleNamespace(id=55, is_platform_managed=False)
+        )
+        mock_db.get_workflow = AsyncMock(return_value=workflow)
+        mock_db.create_workflow_run = AsyncMock(
+            return_value=SimpleNamespace(
+                id=502, name="WR-TEL-OUT-00000002", initial_context={}
+            )
+        )
+        mock_db.update_workflow_run = AsyncMock()
+
+        response = client.post(
+            "/telephony/initiate-call",
+            json={"workflow_id": workflow.id, "phone_number": "+919876543210"},
+        )
+
+    assert response.status_code == 200, response.text
+    provider.initiate_call.assert_awaited_once()
+
+
+def test_an_unverified_destination_still_obeys_the_calling_window():
+    """The exemption is proof-gated. Without the proof, the window holds.
+
+    This is the half that keeps the change honest: a number the account has
+    not verified is somebody else's phone, and somebody else's phone does not
+    ring at 21:54 because a test call asked it to.
+    """
+    app = _make_test_app()
+    client = TestClient(app)
+
+    workflow = _workflow()
+    provider = _provider()
+
+    with (
+        patch("api.routes.telephony.db_client") as mock_db,
+        patch("api.routes.telephony.call_concurrency") as mock_concurrency,
+        patch(
+            "api.services.compliance.dnd.within_calling_hours",
+            lambda **kwargs: False,
+        ),
+        patch(
+            "api.routes.telephony.number_lifecycle.assert_configuration_may_serve",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "api.routes.telephony.key_readiness.assert_workflow_may_run",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "api.routes.telephony.authorize_workflow_run_start",
+            new=AsyncMock(
+                return_value=SimpleNamespace(has_quota=True, error_message="")
+            ),
+        ),
+        patch(
+            "api.routes.telephony.get_default_telephony_provider",
+            new=AsyncMock(return_value=provider),
+        ),
+        patch(
+            "api.routes.telephony.get_backend_endpoints",
+            new=AsyncMock(return_value=("https://api.example.com", "wss://ignored")),
+        ),
+    ):
+        mock_concurrency.acquire_org_slot = AsyncMock(return_value=object())
+        mock_concurrency.bind_workflow_run = AsyncMock()
+        mock_concurrency.release_slot = AsyncMock()
+        mock_concurrency.release_workflow_run_slot = AsyncMock()
+
+        mock_db.get_user_configurations = AsyncMock(
+            return_value=SimpleNamespace(test_phone_number=None)
+        )
+        mock_db.is_number_dnd_listed = AsyncMock(return_value=False)
+        mock_db.get_verified_number = AsyncMock(return_value=None)
+        mock_db.get_default_telephony_configuration = AsyncMock(
+            return_value=SimpleNamespace(id=55)
+        )
+        mock_db.get_telephony_configuration_for_org = AsyncMock(
+            return_value=SimpleNamespace(id=55, is_platform_managed=False)
+        )
+        mock_db.get_workflow = AsyncMock(return_value=workflow)
+        mock_db.create_workflow_run = AsyncMock()
+        mock_db.update_workflow_run = AsyncMock()
+
+        response = client.post(
+            "/telephony/initiate-call",
+            json={"workflow_id": workflow.id, "phone_number": "+919876543210"},
+        )
+
+    assert response.status_code == 451
+    provider.initiate_call.assert_not_awaited()

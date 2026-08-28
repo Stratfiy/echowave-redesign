@@ -195,6 +195,7 @@ async def assert_may_call(
     *,
     timezone_name: str | None = None,
     now: datetime | None = None,
+    enforce_calling_hours: bool = True,
     db=None,
 ) -> str:
     """Refuse the call if the number is listed, or the window is closed.
@@ -208,6 +209,20 @@ async def assert_may_call(
     check that just passed; and neither of those is a reason to return
     something undialable.
 
+    ``enforce_calling_hours=False`` drops the window and keeps everything else.
+    It is for the one case the window was never written for: an account dialling
+    a number it has *proved it controls*, which is what a test call is. TCCCPR
+    sets those hours to protect the person on the other end from being rung at
+    night by someone they did not ask to hear from — the account's own verified
+    handset is not that person. Numbers a customer supplies as data (contact
+    lists, campaign rows, the trigger API) are exactly that person, so the
+    default stays on and campaigns never pass this.
+
+    The do-not-disturb list is *not* dropped with it. That list is the
+    organization's own suppression list, so a number on it is there because
+    this account said do not call this, and owning the handset is not a reason
+    to overrule that.
+
     Raises DoNotDisturbListed or OutsideCallingHours. Both are refusals the
     caller is expected to surface, not errors to retry.
     """
@@ -220,7 +235,9 @@ async def assert_may_call(
         # row from consuming a concurrency slot to fail at the trunk.
         raise DoNotDisturbListed(f"{phone_number!r} is not a dialable phone number.")
 
-    if not within_calling_hours(timezone_name=timezone_name, now=now):
+    if enforce_calling_hours and not within_calling_hours(
+        timezone_name=timezone_name, now=now
+    ):
         raise OutsideCallingHours(
             f"Calls are only placed between {CALLING_HOURS_START} and "
             f"{CALLING_HOURS_END} in your organization's timezone. "

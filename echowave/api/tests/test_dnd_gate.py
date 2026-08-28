@@ -261,3 +261,80 @@ class TestWhatTheGateHandsBack:
         assert dnd.to_dialable("919876543210") == "+919876543210"
         assert dnd.to_dialable("+919876543210") == "+919876543210"
         assert dnd.to_dialable(None) is None
+
+
+class TestTheWindowProtectsStrangersNotTheAccountItself:
+    """The calling window is about who is being rung, not who is ringing.
+
+    TCCCPR sets 09:00-21:00 so a person is not called at night by someone they
+    did not ask to hear from. A developer dialling their own verified handset
+    to hear their own agent is not that person, and refusing them protects
+    nobody while making the product untestable for half the working day.
+
+    The exemption is proof-gated, not claim-gated: a number counts as the
+    account's own only once a code has been sent to it and typed back.
+    """
+
+    async def test_a_verified_number_may_be_called_after_hours(
+        self, db_session, async_session
+    ):
+        org_id = await _org(async_session, "own-handset-late")
+
+        result = await dnd.assert_may_call(
+            org_id,
+            "9876543210",
+            timezone_name="Asia/Kolkata",
+            now=_at(22),
+            enforce_calling_hours=False,
+        )
+
+        assert result == "+919876543210"
+
+    async def test_the_window_still_applies_by_default(self, db_session, async_session):
+        """Campaigns and the trigger API never pass the flag, so they keep it.
+
+        This is the assertion that matters: the exemption has to be asked for
+        explicitly, so a caller that dials numbers supplied as data cannot
+        acquire it by accident.
+        """
+        org_id = await _org(async_session, "stranger-late")
+
+        with pytest.raises(dnd.OutsideCallingHours):
+            await dnd.assert_may_call(
+                org_id, "9876543210", timezone_name="Asia/Kolkata", now=_at(22)
+            )
+
+    async def test_the_suppression_list_is_not_waived_with_the_window(
+        self, db_session, async_session
+    ):
+        """Owning the handset is not a reason to overrule your own list.
+
+        A number on the organization's do-not-disturb list is there because
+        this account put it there. The window exemption is about the hour, not
+        about consent.
+        """
+        org_id = await _org(async_session, "own-handset-but-listed")
+        await db_client.add_dnd_entries(org_id, ["919876543210"])
+
+        with pytest.raises(dnd.DoNotDisturbListed):
+            await dnd.assert_may_call(
+                org_id,
+                "9876543210",
+                timezone_name="Asia/Kolkata",
+                now=_at(22),
+                enforce_calling_hours=False,
+            )
+
+    async def test_the_exemption_does_not_let_an_undialable_number_through(
+        self, db_session, async_session
+    ):
+        org_id = await _org(async_session, "own-handset-malformed")
+
+        with pytest.raises(dnd.DoNotDisturbListed):
+            await dnd.assert_may_call(
+                org_id,
+                "not-a-number",
+                timezone_name="Asia/Kolkata",
+                now=_at(22),
+                enforce_calling_hours=False,
+            )

@@ -90,7 +90,7 @@ from pipecat.services.speechmatics.stt import (
     SpeechmaticsSTTSettings,
 )
 from pipecat.services.tts_service import TextAggregationMode
-from pipecat.services.xai.tts import XAIHttpTTSService, XAITTSSettings
+from pipecat.services.xai.tts import XAITTSService, XAIWebsocketTTSSettings
 from pipecat.transcriptions.language import Language
 from pipecat.utils.text.xml_function_tag_filter import XMLFunctionTagFilter
 
@@ -514,6 +514,11 @@ def create_stt_service(
 #   rime        RimeTTSService          websocket base class
 #   sarvam      SarvamTTSService        persistent websocket, sends text on it
 #   smallest    SmallestTTSService      persistent websocket, sends text on it
+#   xai         XAITTSService           websocket base class. The factory built
+#                                       xAI's HTTP class until this audit found
+#                                       the websocket one sitting unused beside
+#                                       it; the settings are a superset, so the
+#                                       swap cost one renamed argument.
 _LOW_LATENCY_STREAMING_TTS_PROVIDERS = frozenset(
     {
         ServiceProviders.DEEPGRAM.value,
@@ -524,6 +529,7 @@ _LOW_LATENCY_STREAMING_TTS_PROVIDERS = frozenset(
         ServiceProviders.RIME.value,
         ServiceProviders.SARVAM.value,
         ServiceProviders.SMALLEST.value,
+        ServiceProviders.XAI.value,
     }
 )
 
@@ -558,13 +564,6 @@ _LOW_LATENCY_STREAMING_TTS_PROVIDERS = frozenset(
 #               A text_aggregation_mode passed here is therefore overwritten
 #               and has no effect: adding rumik to the streaming set would look
 #               like a latency fix and change nothing at all.
-#
-# One is worth revisiting, and it is not a one-line change:
-#
-#   xai         XAIHttpTTSService is what the factory builds, but the fork also
-#               has a websocket XAI TTS class. Switching would be a
-#               real migration — the websocket class takes
-#               XAIWebsocketTTSSettings, not the XAITTSSettings passed today.
 _REQUEST_BASED_TTS_PROVIDERS = frozenset(
     {
         ServiceProviders.OPENAI.value,
@@ -573,7 +572,6 @@ _REQUEST_BASED_TTS_PROVIDERS = frozenset(
         ServiceProviders.MINIMAX.value,
         ServiceProviders.GOOGLE.value,
         ServiceProviders.AZURE_SPEECH.value,
-        ServiceProviders.XAI.value,
         ServiceProviders.RUMIK.value,
     }
 )
@@ -997,13 +995,24 @@ def create_tts_service(
                 pipecat_language = Language.EN
         return _create_tts_service_instance(
             user_config.tts.provider,
-            XAIHttpTTSService,
+            XAITTSService,
             api_key=user_config.tts.api_key,
             sample_rate=audio_config.transport_out_sample_rate,
-            encoding="pcm",
-            settings=XAITTSSettings(
+            # The websocket class calls this "codec" where the HTTP one called
+            # it "encoding". Same request: raw PCM, so nothing downstream has
+            # to decode.
+            codec="pcm",
+            settings=XAIWebsocketTTSSettings(
                 voice=voice,
                 language=pipecat_language,
+                # The websocket service defaults this on, which flips it to
+                # emitting a TTSTextFrame per word instead of one aggregated
+                # frame -- and xAI delivers those timings in bursts decoupled
+                # from the audio. That is a change to what the transcript and
+                # recording router see, which is not what this migration is
+                # for. Off keeps the aggregated-text behaviour the HTTP class
+                # had, so the only thing that changes here is the transport.
+                with_timestamps=False,
             ),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],

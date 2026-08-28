@@ -42,16 +42,16 @@ def test_create_xai_tts_service_uses_pipeline_compatible_audio_format(
         transport_in_sample_rate=16000,
     )
 
-    with patch(
-        "api.services.pipecat.service_factory.XAIHttpTTSService"
-    ) as mock_service:
+    with patch("api.services.pipecat.service_factory.XAITTSService") as mock_service:
         create_tts_service(user_config, audio_config)
 
     assert mock_service.call_count == 1
     kwargs = mock_service.call_args.kwargs
     assert kwargs["api_key"] == "test-key"
     assert kwargs["sample_rate"] == transport_out_sample_rate
-    assert kwargs["encoding"] == "pcm"
+    # The websocket class names this "codec"; same request, raw PCM, so nothing
+    # downstream has to decode.
+    assert kwargs["codec"] == "pcm"
     assert kwargs["settings"].voice == "rex"
     assert kwargs["settings"].language == Language.EN
 
@@ -71,9 +71,7 @@ def test_create_xai_tts_service_converts_language():
         transport_in_sample_rate=16000,
     )
 
-    with patch(
-        "api.services.pipecat.service_factory.XAIHttpTTSService"
-    ) as mock_service:
+    with patch("api.services.pipecat.service_factory.XAITTSService") as mock_service:
         create_tts_service(user_config, audio_config)
 
     kwargs = mock_service.call_args.kwargs
@@ -95,9 +93,7 @@ def test_create_xai_tts_service_falls_back_to_english_for_unknown_language():
         transport_in_sample_rate=16000,
     )
 
-    with patch(
-        "api.services.pipecat.service_factory.XAIHttpTTSService"
-    ) as mock_service:
+    with patch("api.services.pipecat.service_factory.XAITTSService") as mock_service:
         create_tts_service(user_config, audio_config)
 
     kwargs = mock_service.call_args.kwargs
@@ -119,9 +115,7 @@ def test_create_xai_tts_service_preserves_auto_language():
         transport_in_sample_rate=16000,
     )
 
-    with patch(
-        "api.services.pipecat.service_factory.XAIHttpTTSService"
-    ) as mock_service:
+    with patch("api.services.pipecat.service_factory.XAITTSService") as mock_service:
         create_tts_service(user_config, audio_config)
 
     kwargs = mock_service.call_args.kwargs
@@ -159,3 +153,66 @@ def test_xai_key_validation_allows_scoped_key_without_voice_list_access():
     with patch("api.services.configuration.check_validity.httpx.get") as mock_get:
         mock_get.return_value.status_code = 403
         assert validator._check_xai_api_key("xai", "tts-scoped-key") is True
+
+
+def test_xai_streams_tokens_over_a_persistent_socket():
+    """xAI was on the HTTP class while the websocket one sat unused beside it.
+
+    One HTTP request per synthesis means first audio waits for a whole
+    sentence to be aggregated and a fresh connection to be set up. The
+    websocket class holds one connection open, so tokens go out as the LLM
+    produces them.
+    """
+    from pipecat.services.tts_service import TextAggregationMode
+
+    from api.services.pipecat.service_factory import (
+        _LOW_LATENCY_STREAMING_TTS_PROVIDERS,
+    )
+
+    assert ServiceProviders.XAI.value in _LOW_LATENCY_STREAMING_TTS_PROVIDERS
+
+    user_config = SimpleNamespace(
+        tts=SimpleNamespace(
+            provider=ServiceProviders.XAI.value,
+            api_key="test-key",
+            model="xai-tts",
+            voice="eve",
+            language="en",
+        )
+    )
+    audio_config = SimpleNamespace(
+        transport_out_sample_rate=8000, transport_in_sample_rate=16000
+    )
+
+    with patch("api.services.pipecat.service_factory.XAITTSService") as mock_service:
+        create_tts_service(user_config, audio_config)
+
+    kwargs = mock_service.call_args.kwargs
+    assert kwargs["text_aggregation_mode"] == TextAggregationMode.TOKEN
+
+
+def test_xai_keeps_the_aggregated_text_frame_it_always_had():
+    """The websocket class defaults with_timestamps on; the HTTP one had none.
+
+    Left on, it suppresses the aggregated TTSTextFrame in favour of one frame
+    per word, delivered in bursts decoupled from the audio — a change to what
+    the transcript and recording router see. This migration is about the
+    transport, so that behaviour stays as it was.
+    """
+    user_config = SimpleNamespace(
+        tts=SimpleNamespace(
+            provider=ServiceProviders.XAI.value,
+            api_key="test-key",
+            model="xai-tts",
+            voice="eve",
+            language="en",
+        )
+    )
+    audio_config = SimpleNamespace(
+        transport_out_sample_rate=8000, transport_in_sample_rate=16000
+    )
+
+    with patch("api.services.pipecat.service_factory.XAITTSService") as mock_service:
+        create_tts_service(user_config, audio_config)
+
+    assert mock_service.call_args.kwargs["settings"].with_timestamps is False
