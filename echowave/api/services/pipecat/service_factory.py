@@ -504,14 +504,14 @@ def create_stt_service(
 # Several vendors ship both a websocket and an HTTP service and we pick one;
 # the vendor supporting streaming somewhere is not the question.
 #
-#   deepgram    DeepgramTTSService      WebsocketTTSService
-#   elevenlabs  ElevenLabsTTSService    WebsocketTTSService — also derives its
+#   deepgram    DeepgramTTSService      websocket base class
+#   elevenlabs  ElevenLabsTTSService    websocket base class — also derives its
 #                                       own auto_mode from this setting, so it
 #                                       needs no separate tuning here
-#   cartesia    CartesiaTTSService      WebsocketTTSService
-#   inworld     InworldTTSService       WebsocketTTSService
-#   decibyl     DograhTTSService        WebsocketTTSService
-#   rime        RimeTTSService          WebsocketTTSService
+#   cartesia    CartesiaTTSService      websocket base class
+#   inworld     InworldTTSService       websocket base class
+#   decibyl     DograhTTSService        websocket base class
+#   rime        RimeTTSService          websocket base class
 #   sarvam      SarvamTTSService        persistent websocket, sends text on it
 #   smallest    SmallestTTSService      persistent websocket, sends text on it
 _LOW_LATENCY_STREAMING_TTS_PROVIDERS = frozenset(
@@ -534,7 +534,7 @@ _LOW_LATENCY_STREAMING_TTS_PROVIDERS = frozenset(
 #   openai      OpenAITTSService        one HTTP request per synthesis
 #   speaches    SpeachesTTSService      subclasses OpenAITTSService
 #   camb        CambTTSService          one HTTP request per synthesis
-#   minimax     MiniMaxHttpTTSService   one HTTP request per synthesis. The
+#   minimax     MiniMaxHttpTTS (ours)   one HTTP request per synthesis. The
 #                                       "OwnedSession" in our subclass is an
 #                                       aiohttp session's lifecycle, not a
 #                                       streaming session.
@@ -562,7 +562,7 @@ _LOW_LATENCY_STREAMING_TTS_PROVIDERS = frozenset(
 # One is worth revisiting, and it is not a one-line change:
 #
 #   xai         XAIHttpTTSService is what the factory builds, but the fork also
-#               has XAITTSService(WebsocketTTSService). Switching would be a
+#               has a websocket XAI TTS class. Switching would be a
 #               real migration — the websocket class takes
 #               XAIWebsocketTTSSettings, not the XAITTSSettings passed today.
 _REQUEST_BASED_TTS_PROVIDERS = frozenset(
