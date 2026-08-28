@@ -14,6 +14,7 @@ it against the risk of cutting a hesitant caller off.
 import pytest
 
 from api.schemas.workflow_configurations import (
+    DEFAULT_TURN_STOP_STRATEGY,
     DEFAULT_USER_SPEECH_TIMEOUT,
     WorkflowConfigurationDefaults,
 )
@@ -96,3 +97,43 @@ class TestTheStrategyMatchesTheConfiguration:
         )
 
         assert not hasattr(strategies[0], "_user_speech_timeout")
+
+    def test_a_workflow_that_configured_nothing_gets_the_default_strategy(self):
+        """The case every workflow in production actually hits.
+
+        `run_configs` is the stored JSON rather than a validated
+        `WorkflowConfigurationDefaults`, and `create_workflow` persists `{}` —
+        so an unconfigured workflow reaches the pipeline with no
+        `turn_stop_strategy` key at all. Reading it with a bare `.get()` sent
+        all of them down the silence-timeout path regardless of the schema
+        default, which is the whole of the 600ms this module is about.
+        """
+        strategies = build_stop({}, uses_external_turns=False)
+
+        assert not hasattr(strategies[0], "_user_speech_timeout")
+
+    def test_an_explicit_null_is_treated_as_unset_rather_than_as_a_choice(self):
+        """Older clients send nulls for keys nobody configured. A null must
+        take the default, not fall through to the slow path."""
+        strategies = build_stop(
+            {"turn_stop_strategy": None}, uses_external_turns=False
+        )
+
+        assert not hasattr(strategies[0], "_user_speech_timeout")
+
+    def test_transcription_remains_selectable_for_a_workflow_that_wants_it(self):
+        """Flipping the default must not remove the choice. A workflow whose
+        callers pause mid-sentence can still buy the fixed grace period."""
+        strategies = build_stop(
+            {"turn_stop_strategy": "transcription", "user_speech_timeout": 0.5},
+            uses_external_turns=False,
+        )
+
+        assert strategies[0]._user_speech_timeout == 0.5
+
+    def test_the_default_constant_is_the_one_the_pipeline_reads(self):
+        """Guards the specific decoupling that caused this: a default declared
+        in the schema, never imported by the code that branches on it."""
+        from api.services.pipecat import run_pipeline
+
+        assert run_pipeline.DEFAULT_TURN_STOP_STRATEGY == DEFAULT_TURN_STOP_STRATEGY

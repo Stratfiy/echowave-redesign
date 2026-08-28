@@ -14,6 +14,7 @@ from api.schemas.workflow_configurations import (
     DEFAULT_SMART_TURN_STOP_SECS,
     DEFAULT_TURN_START_MIN_WORDS,
     DEFAULT_TURN_START_STRATEGY,
+    DEFAULT_TURN_STOP_STRATEGY,
     DEFAULT_USER_SPEECH_TIMEOUT,
 )
 from api.services.call_concurrency import call_concurrency
@@ -206,16 +207,30 @@ def _create_non_realtime_user_turn_stop_strategies(
     unsure — so it is quick on a finished sentence and slow on an ambiguous
     one.
 
-    **Silence timeouts** (the default). The caller waits out the VAD's
-    ``stop_secs`` and then ``user_speech_timeout`` on every single turn,
-    whether or not they had obviously finished. That total is a floor under
-    perceived latency that no faster model downstream can recover.
+    **Silence timeouts.** The caller waits out the VAD's ``stop_secs`` and then
+    ``user_speech_timeout`` on every single turn, whether or not they had
+    obviously finished. That total is a floor under perceived latency that no
+    faster model downstream can recover.
+
+    Which one an unconfigured workflow gets is decided by
+    ``DEFAULT_TURN_STOP_STRATEGY``, and it has to be read through that constant
+    rather than assumed from a bare ``.get()``. ``run_configs`` is the stored
+    JSON, not a validated ``WorkflowConfigurationDefaults``, and
+    ``create_workflow`` persists ``{}`` — so the key is absent for every
+    workflow that has never been saved through the settings dialog. A ``.get()``
+    with no default sent all of them down the silence-timeout path, which is how
+    a default flipped to ``turn_analyzer`` (and an image rebuilt to carry the
+    model that makes it run) reached production changing nothing at all.
     """
 
     if uses_external_turns:
         return [ExternalUserTurnStopStrategy()]
 
-    if run_configs.get("turn_stop_strategy") == "turn_analyzer":
+    turn_stop_strategy = (
+        run_configs.get("turn_stop_strategy") or DEFAULT_TURN_STOP_STRATEGY
+    )
+
+    if turn_stop_strategy == "turn_analyzer":
         smart_turn_params = SmartTurnParams(
             stop_secs=run_configs.get(
                 "smart_turn_stop_secs", DEFAULT_SMART_TURN_STOP_SECS
@@ -227,7 +242,8 @@ def _create_non_realtime_user_turn_stop_strategies(
             )
         ]
 
-    # Previously left at the library default of 0.6s, which nothing could
+    # Reached only by a workflow that has explicitly chosen "transcription".
+    # The wait was previously the library default of 0.6s, which nothing could
     # configure — so every turn on this path paid it and no workflow could
     # trade it away.
     return [
