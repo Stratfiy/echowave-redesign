@@ -29,7 +29,9 @@ from api.schemas.ai_model_configuration import (
     DecibylManagedAIModelConfiguration,
     EffectiveAIModelConfiguration,
     OrganizationAIModelConfigurationV2,
+    OrganizationAIModelConfigurationV3,
     compile_ai_model_configuration_v2,
+    compile_ai_model_configuration_v3,
 )
 from api.services.configuration.masking import (
     SERVICE_SECRET_FIELDS,
@@ -91,6 +93,68 @@ async def get_resolved_ai_model_configuration(
     )
 
 
+WorkflowAIModelConfiguration = (
+    OrganizationAIModelConfigurationV2 | OrganizationAIModelConfigurationV3
+)
+
+
+def parse_workflow_model_configuration_override(
+    override: dict,
+) -> WorkflowAIModelConfiguration:
+    """Parse the versioned model override stored on an agent.
+
+    The key retains its historical v2 name for compatibility, but new agents
+    write the v3 stack shape. Dispatch must branch on the payload's version
+    rather than assuming the key name describes its contents.
+    """
+    if override.get("version") == 3:
+        return OrganizationAIModelConfigurationV3.model_validate(override)
+    return OrganizationAIModelConfigurationV2.model_validate(override)
+
+
+def compile_workflow_model_configuration_override(
+    override: dict | WorkflowAIModelConfiguration,
+) -> EffectiveAIModelConfiguration:
+    configuration = (
+        parse_workflow_model_configuration_override(override)
+        if isinstance(override, dict)
+        else override
+    )
+    if isinstance(configuration, OrganizationAIModelConfigurationV3):
+        return compile_ai_model_configuration_v3(configuration)
+    return compile_ai_model_configuration_v2(configuration)
+
+
+def merge_workflow_model_configuration_secrets(
+    incoming: WorkflowAIModelConfiguration,
+    existing: WorkflowAIModelConfiguration | None,
+) -> WorkflowAIModelConfiguration:
+    if existing is None or type(incoming) is not type(existing):
+        return incoming
+    if isinstance(incoming, OrganizationAIModelConfigurationV2):
+        return merge_ai_model_configuration_v2_secrets(incoming, existing)
+
+    incoming_dict = incoming.model_dump(mode="json", exclude_none=True)
+    existing_dict = existing.model_dump(mode="json", exclude_none=True)
+    incoming_stack = incoming_dict.get("stack")
+    existing_stack = existing_dict.get("stack")
+    if isinstance(incoming_stack, dict) and isinstance(existing_stack, dict):
+        for section_name in ("llm", "tts", "stt", "realtime", "embeddings"):
+            incoming_section = incoming_stack.get(section_name)
+            existing_section = existing_stack.get(section_name)
+            if isinstance(incoming_section, dict) and isinstance(
+                existing_section, dict
+            ):
+                _merge_service_secret_fields(incoming_section, existing_section)
+    return OrganizationAIModelConfigurationV3.model_validate(incoming_dict)
+
+
+def check_for_masked_keys_in_workflow_model_configuration(
+    configuration: WorkflowAIModelConfiguration,
+) -> None:
+    _raise_if_masked_secret(configuration.model_dump(mode="json", exclude_none=True))
+
+
 async def get_effective_ai_model_configuration_for_workflow(
     *,
     organization_id: int | None,
@@ -104,13 +168,11 @@ async def get_effective_ai_model_configuration_for_workflow(
     # ``OrganizationPreferences.byok_fallback_to_managed``.
     allow_managed_fallback = await _managed_fallback_allowed(organization_id)
 
-    v2_override = workflow_configurations.get(
+    model_override = workflow_configurations.get(
         WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY
     )
-    if v2_override:
-        effective = compile_ai_model_configuration_v2(
-            OrganizationAIModelConfigurationV2.model_validate(v2_override)
-        )
+    if model_override:
+        effective = compile_workflow_model_configuration_override(model_override)
         await byok_resolution.apply(
             effective,
             organization_id=organization_id,

@@ -387,6 +387,13 @@ def compile_ai_model_configuration_v3(
         realtime=stack.realtime if is_realtime else None,
         embeddings=stack.embeddings,
         is_realtime=is_realtime,
+        # Which configuration generation produced this, stamped only when a
+        # slot actually runs on our keys — the same rule the v2 compiler
+        # follows when it stamps 2 on its managed branch and leaves BYOK
+        # unstamped. v3 stamped nothing at all, so a managed stack from the
+        # create wizard was indistinguishable from a BYOK one to anything
+        # reading this field.
+        managed_service_version=3 if stack.managed_slots() else None,
     )
 
 
