@@ -77,6 +77,10 @@ export const ConfigurationsDialog = ({
                 turn_start_strategy: turnStartStrategy,
                 turn_start_min_words: turnStartMinWords,
                 provisional_vad_pause_secs: provisionalVadPauseSecs,
+                // Carried through rather than edited here — this dialog does
+                // not offer endpointing, and omitting it would save the
+                // fallback over whatever the settings screen had set.
+                user_speech_timeout: resolvedWorkflowConfigurations.user_speech_timeout,
                 turn_stop_strategy: turnStopStrategy,
                 transcript_configuration: resolvedWorkflowConfigurations.transcript_configuration,
                 context_compaction_enabled: contextCompactionEnabled,

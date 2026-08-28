@@ -287,6 +287,9 @@ function GeneralSection({
     const [provisionalVadPauseSecs, setProvisionalVadPauseSecs] = useState(
         workflowConfigurations.provisional_vad_pause_secs,
     );
+    const [userSpeechTimeout, setUserSpeechTimeout] = useState(
+        workflowConfigurations.user_speech_timeout,
+    );
     const [turnStopStrategy, setTurnStopStrategy] = useState<TurnStopStrategy>(
         workflowConfigurations.turn_stop_strategy,
     );
@@ -316,12 +319,13 @@ function GeneralSection({
             turnStartStrategy !== workflowConfigurations.turn_start_strategy ||
             turnStartMinWords !== workflowConfigurations.turn_start_min_words ||
             provisionalVadPauseSecs !== workflowConfigurations.provisional_vad_pause_secs ||
+            userSpeechTimeout !== workflowConfigurations.user_speech_timeout ||
             turnStopStrategy !== workflowConfigurations.turn_stop_strategy ||
             contextCompactionEnabled !== workflowConfigurations.context_compaction_enabled ||
             includeTranscriptEndTimestamps !==
             (workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false)
         );
-    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, userSpeechTimeout, turnStopStrategy, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -396,6 +400,7 @@ function GeneralSection({
                     turn_start_strategy: turnStartStrategy,
                     turn_start_min_words: turnStartMinWords,
                     provisional_vad_pause_secs: provisionalVadPauseSecs,
+                    user_speech_timeout: userSpeechTimeout,
                     turn_stop_strategy: turnStopStrategy,
                     context_compaction_enabled: contextCompactionEnabled,
                     transcript_configuration: {
@@ -611,6 +616,44 @@ function GeneralSection({
                             />
                             <p className="text-xs text-muted-foreground">
                                 Max silence duration before ending an incomplete turn. Default: 2 seconds
+                            </p>
+                        </div>
+                    )}
+                    {/* Only the transcription strategy waits. A turn analyzer
+                        decides for itself, and an STT that emits its own turn
+                        boundaries never waits at all — so showing this beside
+                        either would offer a control that does nothing. */}
+                    {turnStopStrategy === "transcription" && (
+                        <div className="space-y-2">
+                            <Label htmlFor="user_speech_timeout" className="text-xs">
+                                Endpointing (seconds)
+                            </Label>
+                            <Input
+                                id="user_speech_timeout"
+                                type="number"
+                                step="0.05"
+                                min="0.15"
+                                max="3"
+                                value={userSpeechTimeout}
+                                onChange={(e) => {
+                                    const value = parseFloat(e.target.value);
+                                    // Bounds mirror the backend's own (0.15-3.0).
+                                    // Clamping here rather than letting the save
+                                    // fail keeps a mistyped digit from costing a
+                                    // round trip to find out.
+                                    if (!isNaN(value)) {
+                                        setUserSpeechTimeout(Math.min(3, Math.max(0.15, value)));
+                                    }
+                                }}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                How long to wait after the caller stops before replying, in
+                                case they were only drawing breath. Paid on every turn, on
+                                top of voice detection&apos;s own 0.2s — so it sets a floor
+                                under how fast the agent can feel that no faster model
+                                downstream can recover. Default: 0.4 seconds. Raise it for
+                                callers who read out numbers or think mid-sentence; lower it
+                                for short scripted confirmations.
                             </p>
                         </div>
                     )}

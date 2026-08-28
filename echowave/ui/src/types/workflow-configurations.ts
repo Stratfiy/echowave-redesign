@@ -21,6 +21,13 @@ export type TurnStopStrategy = NonNullable<GeneratedWorkflowConfigurationDefault
 export type TurnStartStrategy = NonNullable<GeneratedWorkflowConfigurationDefaults["turn_start_strategy"]>;
 export const DEFAULT_TURN_START_MIN_WORDS = 3;
 export const DEFAULT_PROVISIONAL_VAD_PAUSE_SECS = 1.5;
+/** Seconds to wait after the caller stops speaking before replying.
+ *
+ * Mirrors `DEFAULT_USER_SPEECH_TIMEOUT` in
+ * `api/schemas/workflow_configurations.py`. Paid on every turn of the
+ * transcription strategy, on top of voice detection's own 0.2s, so it is the
+ * floor under perceived latency rather than one cost among several. */
+export const DEFAULT_USER_SPEECH_TIMEOUT = 0.4;
 
 export const TURN_START_STRATEGY_OPTIONS: Array<{
     value: TurnStartStrategy;
@@ -107,6 +114,7 @@ type WorkflowConfigurationBase = Omit<
     | "turn_start_strategy"
     | "turn_start_min_words"
     | "provisional_vad_pause_secs"
+    | "user_speech_timeout"
     | "turn_stop_strategy"
     | "dictionary"
     | "context_compaction_enabled"
@@ -120,6 +128,7 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
     turn_start_strategy: TurnStartStrategy;  // Strategy for detecting start of user turn/interruption
     turn_start_min_words: number;  // Minimum transcribed words required for minimum-word interruptions
     provisional_vad_pause_secs: number;  // Seconds to pause bot output while awaiting transcript confirmation
+    user_speech_timeout: number;  // Seconds of silence before the agent replies
     turn_stop_strategy: TurnStopStrategy;  // Strategy for detecting end of user turn
     dictionary?: string;  // Comma-separated words for voice agent to listen for
     voicemail_detection?: VoicemailDetectionConfiguration;
@@ -141,6 +150,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     turn_start_strategy: 'default',  // Default to platform-chosen user turn start detection
     turn_start_min_words: DEFAULT_TURN_START_MIN_WORDS,
     provisional_vad_pause_secs: DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
+    user_speech_timeout: DEFAULT_USER_SPEECH_TIMEOUT,
     turn_stop_strategy: 'transcription',  // Default to transcription-based detection
     dictionary: '',
     transcript_configuration: DEFAULT_TRANSCRIPT_CONFIGURATION,
@@ -184,6 +194,10 @@ export function resolveWorkflowConfigurations(
             configurations?.provisional_vad_pause_secs
             ?? defaults?.provisional_vad_pause_secs
             ?? FALLBACK_WORKFLOW_CONFIGURATIONS.provisional_vad_pause_secs,
+        user_speech_timeout:
+            configurations?.user_speech_timeout
+            ?? defaults?.user_speech_timeout
+            ?? FALLBACK_WORKFLOW_CONFIGURATIONS.user_speech_timeout,
         turn_stop_strategy:
             configurations?.turn_stop_strategy
             ?? defaults?.turn_stop_strategy
