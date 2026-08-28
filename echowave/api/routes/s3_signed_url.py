@@ -210,6 +210,11 @@ async def get_signed_url(
     # ------------------------------------------------------------------
     # 2. Resolve storage backend
     # ------------------------------------------------------------------
+    # Set before the try so a failure inside get_storage_for_backend itself
+    # (e.g. a missing MINIO_PUBLIC_ENDPOINT, which raises ValueError before
+    # `storage` is ever assigned) still has something to name in the log and
+    # response instead of raising UnboundLocalError and masking the real error.
+    storage = None
     try:
         if storage_backend:
             storage = get_storage_for_backend(storage_backend)
@@ -247,9 +252,38 @@ async def get_signed_url(
 
         logger.info(f"Generated signed URL for key={key}, expires_in={expires_in}s")
         return {"url": url, "expires_in": expires_in}
+    except HTTPException:
+        raise
     except ClientError as exc:
-        logger.error(f"Error generating signed URL: {exc}")
-        raise HTTPException(status_code=500, detail="Failed to generate signed URL")
+        backend_name = type(storage).__name__ if storage is not None else "unresolved-backend"
+        logger.error(f"Error generating signed URL (backend={backend_name}): {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate signed URL: storage rejected the request ({backend_name})",
+        )
+    except Exception as exc:
+        # aget_signed_url used to swallow every failure to None, which made a
+        # bad MinIO/S3 config indistinguishable from "no recording" in the UI.
+        # It now raises, so this is reached for anything that isn't the
+        # deliberate ClientError case above — a bad endpoint, missing or
+        # rotated credentials, a malformed bucket config. Logged in full
+        # server-side; the client gets the exception type and which backend it
+        # came from, which is enough to point at the fix without leaking
+        # credentials or internal URLs.
+        backend_name = type(storage).__name__ if storage is not None else "unresolved-backend"
+        logger.error(
+            f"Unexpected error generating signed URL for key={key} "
+            f"(backend={backend_name}): {exc}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Failed to generate signed URL: {type(exc).__name__} from "
+                f"{backend_name}. Check the server logs for this request for "
+                "the underlying cause (likely a storage credentials/endpoint "
+                "misconfiguration)."
+            ),
+        )
 
 
 @router.get(
