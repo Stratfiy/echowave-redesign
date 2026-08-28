@@ -105,16 +105,81 @@ async def _embed_texts_in_batches(
     embedding_service,
     texts: list[str],
     batch_size: int = EMBEDDING_BATCH_SIZE,
-) -> list[list[float]]:
-    """Generate embeddings in bounded batches for provider/MPS stability."""
+) -> tuple[list[list[float]], int]:
+    """Generate embeddings in bounded batches for provider/MPS stability.
+
+    Returns the embeddings alongside the total vendor-reported token usage
+    across every batch call. ``embedding_service.last_usage_tokens`` is
+    overwritten on each call (see ``BaseEmbeddingService``'s docstring), so it
+    has to be accumulated here rather than read once after the loop.
+    """
     embeddings: list[list[float]] = []
+    total_tokens = 0
     for start in range(0, len(texts), batch_size):
         batch = texts[start : start + batch_size]
         logger.info(
             f"Generating embedding batch {start // batch_size + 1} ({len(batch)} texts)"
         )
         embeddings.extend(await embedding_service.embed_texts(batch))
-    return embeddings
+        total_tokens += getattr(embedding_service, "last_usage_tokens", None) or 0
+    return embeddings, total_tokens
+
+
+async def _can_afford_ingestion(
+    *, organization_id: int, document_id: int, provider: str, model: str, tokens: int
+) -> bool:
+    """Whether this account can be charged for embedding ~``tokens`` tokens.
+
+    Fails open (returns True) on a lookup error, the same "an unreachable
+    billing table is not a verdict" reasoning ``_max_file_bytes`` above uses:
+    an account is better served by an ingestion that runs and is later found
+    unbilled than by every upload failing because billing was briefly down.
+    """
+    from api.services.billing import embedding_ingestion as billing
+
+    try:
+        async with db_client.async_session() as session:
+            estimate = await billing.estimate_ingestion_cost_paise(
+                session, provider=provider, model=model, tokens=tokens
+            )
+            return await billing.has_balance_for_estimate(
+                session, organization_id=organization_id, estimate=estimate
+            )
+    except Exception as exc:  # noqa: BLE001 — see docstring
+        logger.warning(
+            f"Could not check balance before embedding document {document_id}: {exc}"
+        )
+        return True
+
+
+async def _debit_ingestion(
+    *, organization_id: int, document_id: int, provider: str, model: str, tokens: int
+) -> None:
+    """Debit the ledger for what embedding this document's chunks cost.
+
+    Called only after the vendor call has already happened, so a failure here
+    is logged at error level rather than raised: the money is already spent
+    either way, and failing the document on top of that would cost the
+    customer their upload for a problem that is entirely ours.
+    """
+    from api.services.billing import embedding_ingestion as billing
+
+    try:
+        async with db_client.async_session() as session:
+            await billing.debit_ingestion_cost(
+                session,
+                organization_id=organization_id,
+                document_id=document_id,
+                provider=provider,
+                model=model,
+                tokens=tokens,
+            )
+            await session.commit()
+    except Exception as exc:  # noqa: BLE001 — see docstring
+        logger.error(
+            f"Could not debit ledger for document {document_id}'s ingestion "
+            f"embeddings ({tokens} tokens on {provider}/{model}): {exc}"
+        )
 
 
 async def process_knowledge_base_document(
@@ -232,6 +297,12 @@ async def process_knowledge_base_document(
         embeddings_base_url = None
         embeddings_endpoint = None
         embeddings_api_version = None
+        # "managed" unless the resolved config says this org brought its own
+        # embeddings key -- same fallback run_pipeline.py uses for the
+        # query-time path, and the same reasoning: an absent key_source on an
+        # old/partial config is not license to skip billing usage nobody
+        # confirmed was BYOK.
+        embeddings_key_source = "managed"
         if retrieval_mode == "chunked":
             from api.services.configuration.ai_model_configuration import (
                 apply_managed_embeddings_base_url,
@@ -257,6 +328,10 @@ async def process_knowledge_base_document(
                 )
                 embeddings_api_version = getattr(
                     effective_config.embeddings, "api_version", None
+                )
+                embeddings_key_source = (
+                    getattr(effective_config.embeddings, "key_source", None)
+                    or "managed"
                 )
                 logger.info(
                     f"Using user embeddings config: provider={embeddings_provider}, "
@@ -360,11 +435,39 @@ async def process_knowledge_base_document(
             )
             chunk_texts.append(contextualized)
 
+        # Checked before the vendor is ever called -- the money-losing
+        # direction is paying for embeddings and then finding out the account
+        # cannot be charged for them. The estimate uses each chunk's own
+        # token_count (from chunking, not the vendor), because the real
+        # figure isn't known until after the call this check exists to gate.
+        if embeddings_key_source == "managed":
+            estimated_tokens = sum(
+                chunk.get("token_count", 0) for chunk in source_chunks
+            )
+            if not await _can_afford_ingestion(
+                organization_id=organization_id,
+                document_id=document_id,
+                provider=embeddings_provider or "openai",
+                model=embedding_service.get_model_id(),
+                tokens=estimated_tokens,
+            ):
+                error_message = (
+                    "Your account balance is too low to process this document. "
+                    "Add funds and try again."
+                )
+                logger.warning(f"Document {document_id}: {error_message}")
+                await db_client.update_document_status(
+                    document_id, "failed", error_message=error_message
+                )
+                return
+
         logger.info(
             f"Generating embeddings for {len(chunk_texts)} chunks "
             f"using {embedding_service.get_model_id()}"
         )
-        embeddings = await _embed_texts_in_batches(embedding_service, chunk_texts)
+        embeddings, embedding_tokens = await _embed_texts_in_batches(
+            embedding_service, chunk_texts
+        )
         if len(embeddings) != len(chunk_records):
             raise ValueError(
                 "Embedding count mismatch: "
@@ -372,6 +475,21 @@ async def process_knowledge_base_document(
             )
         for chunk_record, embedding in zip(chunk_records, embeddings):
             chunk_record.embedding = embedding
+
+        # The vendor has already been paid for embedding_tokens by this
+        # point, regardless of what happens next -- so this debits for real
+        # rather than for an estimate, and a failure here is logged loudly
+        # rather than failing the document: the customer's upload succeeded
+        # and they should not lose it over a billing-write error on money
+        # already spent.
+        if embeddings_key_source == "managed" and embedding_tokens > 0:
+            await _debit_ingestion(
+                organization_id=organization_id,
+                document_id=document_id,
+                provider=embeddings_provider or "openai",
+                model=embedding_service.get_model_id(),
+                tokens=embedding_tokens,
+            )
 
         logger.info("Storing chunks in database")
         await db_client.replace_chunks_for_document(

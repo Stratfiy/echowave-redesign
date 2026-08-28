@@ -3196,6 +3196,17 @@ class CreditLedgerModel(Base):
             unique=True,
             postgresql_where=text("kind = 'rental' AND ref_id IS NOT NULL"),
         ),
+        # A document's ingestion embeddings debit at most once, even if the
+        # ARQ job is retried after crashing between the vendor call and this
+        # write.
+        Index(
+            "uq_credit_ledger_embedding_ingest_ref",
+            "organization_id",
+            "ref_type",
+            "ref_id",
+            unique=True,
+            postgresql_where=text("kind = 'embedding_ingest' AND ref_id IS NOT NULL"),
+        ),
     )
 
 

@@ -294,6 +294,15 @@ class CreditLedgerKind(str, Enum):
     # unexplained debit the size of last month's grant is the single most
     # alarming line a billing screen can show.
     PLAN_EXPIRY = "plan_expiry"
+    # Vendor cost of embedding a knowledge-base document's chunks at upload
+    # time, on our key. Distinct from USAGE because it has no workflow_run
+    # behind it -- ingestion is a background job, not a call -- and a
+    # statement that folded it into usage would tell a customer they were
+    # charged for a call that never happened. Never shown to the customer as
+    # its own line (see PRICING-DECISIONS.md); it is metered here so it is
+    # real and reportable, even while the customer-facing surface combines it
+    # into a broader bucket.
+    EMBEDDING_INGEST = "embedding_ingest"
 
 
 class BillingAuditAction(str, Enum):
