@@ -13,6 +13,58 @@ not here.
 
 ---
 
+## Status — read this first, especially if you're a fresh session picking this up
+
+**Goal: ship today, not "in a few days."** If this session hits its limit
+mid-phase, the next agent should read this block, then the "Resume exactly
+here" line, and continue — not re-read the whole conversation history.
+
+**Founder decisions added 28 Aug, mid-build (see `PRICING-DECISIONS.md` for
+the full record — this is the short version for resuming code):**
+- **Meter everything internally; show customers a combined figure, not
+  every line.** Applies beyond Phase 3 — also changes how Phase 1b's
+  roll-up and the eventual extraction-library display should think about
+  what's *shown* vs what's *tracked*. Full cost breakdown (STT/LLM/TTS/
+  embedding/telephony, and ingestion-time embedding once Phase 3 ships)
+  stays on `call_cost_items` and the internal unit-economics screen exactly
+  as before — nothing about *measurement* changes. What changes is the
+  customer-facing surface: combine into fewer buckets (e.g. one "Model
+  cost" figure), the way Vapi/Bolna show "Agent Cost" rather than
+  itemising STT+LLM+TTS+embedding separately. Reasoning given: competitors
+  don't itemise this and customers react badly to a bill with many small
+  lines.
+- **Markup will rise to bring the effective price toward market**, sized
+  using the internal-cost-vs-billed-cost analytics (see next point) rather
+  than picked round. This is Phase 4, still blocked on the founder running
+  the QA-cost measurement query — no code change needed until that number
+  exists (the raise-markup mechanism, `markup.py`'s OTP flow, already
+  works).
+- **New, not-yet-scoped-into-a-phase item: internal-cost-vs-billed-cost
+  analytics.** The founder wants a screen/report comparing what a call (or
+  a feature) actually cost us against what was billed for it — explicitly
+  framed as groundwork for turning a currently-absorbed feature into a
+  priced one later, with real numbers to justify it. This is close to
+  what `/superadmin/billing/unit-economics` already reports (revenue vs.
+  provider cost, per component and per model) — check whether extending
+  that screen covers it before building a new one. **Not yet slotted into
+  a phase below — do that first if picking this up fresh**, most likely as
+  an addition to Phase 1b (the roll-up work already touches this same
+  cost-display surface) or as its own small Phase 1d.
+
+### Resume exactly here
+
+| Item | Status |
+|---|---|
+| Phase 1a — markup-override admin screen | **Backend + UI done, committed, pushed** (commits through `665431d` on `claude/decibyl-pricing-billing-review-umc7rk`). `tsc --noEmit`, `next lint`, and all 96 `vitest` tests pass. `next build` was still running in the background when this note was written — **check its result before assuming the build is clean**; if it hasn't been checked yet, run `cd echowave/ui && npx next build` and read the output before touching anything else. |
+| Phase 1b — model-cost roll-up display | **Not started.** Scope now includes the combine-for-customers principle above — read it before starting. |
+| Phase 1c — pricing-page "included" copy | **Not started.** |
+| Phase 1d (new) — internal-cost-vs-billed-cost analytics | **Not scoped yet.** Check `/superadmin/billing/unit-economics` first. |
+| Phase 2 — extraction library | **Not started.** |
+| Phase 3 — ingestion-time embedding billing | **Not started. Design decision changed** — see the updated Phase 3 section below; the founder chose "meter, don't show as a separate customer line" rather than the (a)/(b) choice originally posed. |
+| Phase 4 — markup increase | **Blocked on the founder's measurement query, as before.** |
+
+---
+
 ## Order, and why
 
 ```
@@ -186,32 +238,39 @@ cost, and bills nothing at all — not even as `uncosted`. Query-time embedding
 (a KB search during a call) is already fixed (`PRICING-DECISIONS.md §2.5`);
 this is the other half.
 
-### 3.1 The design decision to make before writing code
+### 3.1 Decided: meter it for real, don't surface it as its own customer-facing line
 Ingestion has no `workflow_run_id` — it's a background ARQ job
 (`tasks/knowledge_base_processing.py`), not a call. So it cannot go through
-`cost_engine.compute_call_cost`, which is built around a call receipt. Two
-shapes, pick one:
+`cost_engine.compute_call_cost`, which is built around a call receipt.
 
-- **(a) Direct credit-ledger debit at upload time** — closest to how a
-  number rental works (`services/billing/rentals.py`): compute the cost of
-  the embedding batch (tokens × the same `CostComponent.EMBEDDING` rate rows
-  from Phase-2-of-the-last-round), debit the ledger directly inside
-  `knowledge_base_processing.py`, write a ledger row with a clear kind/note
-  (`"embedding_ingest"` or similar) so it's auditable on `/billing` the same
-  way a rental charge is.
-- **(b) Bundle it into the plan entitlement, unmetered** — the knowledge-base
-  *byte* allowance already gates ingestion (`subscription_plans.knowledge_base_allowance_for`);
-  a plan could simply be priced assuming embedding cost is included in what
-  the KB entitlement already costs to grant, with no separate ledger line.
-  Cheaper to build (nothing new), but re-introduces exactly the "absorbed,
-  unmeasured" pattern flagged as a real gap in Phase 2 — the actual per-org
-  embedding cost stays invisible.
+**The founder resolved the original (a)/(b) choice this section posed, and
+combined them**, matching a principle stated for the whole pricing surface,
+not just this one item: **meter everything internally; show customers a
+combined figure, not every line** — competitors don't itemise this level of
+detail and a bill with many small lines reads badly, but the cost still has
+to be real and tracked, not invisible.
 
-**Recommendation:** (a). It's a small amount of code reusing rate rows that
-already exist, and it's the only shape that makes ingestion cost visible on
-the unit-economics screen the way every other cost in this codebase is
-required to be. (b) is faster but repeats the mistake this whole review
-started by finding.
+Concretely, that means:
+- **Meter and debit for real** — this is still option (a) from the original
+  framing: compute the cost of the embedding batch (tokens × the
+  `CostComponent.EMBEDDING` rate rows added in the previous round), debit
+  the credit ledger directly inside `knowledge_base_processing.py`, same
+  shape as a number rental (`services/billing/rentals.py`). This is not
+  optional — "meter everything" is the explicit instruction, and it is also
+  what makes the internal-cost-vs-billed-cost analytics (new item, see
+  Status section above) possible at all. Silently bundling it into the plan
+  entitlement unmetered (the original option (b)) is now off the table.
+- **Do not give it a standalone line on any customer-facing screen.** No
+  "Embedding ingestion: ₹X" row on the knowledge-base or billing screen.
+  Fold it into whatever combined bucket the Phase 1b roll-up settles on
+  (most likely the same "Model cost" figure, or a "Knowledge base" bucket
+  if that reads more naturally next to a document list) — the customer sees
+  fewer, combined numbers; the ledger, the receipt debit, and the internal
+  unit-economics screen keep the real, itemised figure underneath.
+- **Internal visibility is not optional and does not get combined.**
+  `/superadmin/billing/unit-economics` (or its extension for Phase 1d) must
+  be able to show this cost on its own — combining is a customer-display
+  decision only, never an internal-reporting one.
 
 ### 3.2 Implementation (assuming 3.1 → option a)
 - In `tasks/knowledge_base_processing.py`, after `_embed_texts_in_batches`
@@ -235,10 +294,12 @@ started by finding.
   for the estimated cost of this document) is proportionate; the full
   hold-then-release reservation machinery built for calls would be
   over-engineering here.
-- Surface it: a line on the document/knowledge-base screen showing what
-  ingesting a document cost, and on the unit-economics screen as its own
-  cost line (or folded into the existing embedding cost-intensity row —
-  confirm with whoever owns that screen's layout).
+- Surface it **internally**: its own row on the unit-economics screen (or
+  folded into the existing embedding cost-intensity row — confirm with
+  whoever owns that screen's layout), so it's checkable against real spend.
+  **Do not** add a customer-facing "embedding ingestion cost" line on the
+  knowledge-base/document screen — per §3.1, it gets combined into whatever
+  bucket the customer sees, not shown on its own.
 
 ### 3.3 Tests
 - A test that a document upload debits the ledger by the expected amount for
