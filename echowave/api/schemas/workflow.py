@@ -30,3 +30,7 @@ class WorkflowRunResponseSchema(BaseModel):
     call_type: CallType
     logs: Dict[str, Any] | None = None
     annotations: Dict[str, Any] | None = None
+    # The recorded cause of a fatal pipeline failure, when there was one.
+    # Derived from `extra` rather than exposing that column: see
+    # `api/utils/run_diagnostics.py`.
+    pipeline_error: Dict[str, Any] | None = None

@@ -19,7 +19,7 @@ export interface BranchRulesRow {
     /**
      * How the variable is compared to the value.
      */
-    operator: string;
+    operator: "equals" | "not_equals" | "contains" | "not_contains" | "starts_with" | "ends_with" | "matches_regex" | "greater_than" | "greater_or_equal" | "less_than" | "less_or_equal" | "in_list" | "not_in_list" | "is_empty" | "is_not_empty" | "is_true" | "is_false";
     /**
      * What to compare against. Leave blank for is_empty, is_not_empty, is_true and is_false. For 'is one of', a comma-separated list.
      */

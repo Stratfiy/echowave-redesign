@@ -19,6 +19,7 @@ from api.enums import CallType, StorageBackend
 from api.schemas.workflow import WorkflowRunResponseSchema
 from api.services.workflow.run_usage_response import format_public_cost_info
 from api.utils.recording_artifacts import get_recording_storage_key
+from api.utils.run_diagnostics import get_pipeline_error
 
 
 class WorkflowRunStateConflictError(Exception):
@@ -357,6 +358,7 @@ class WorkflowRunClient(BaseDBClient):
                         "initial_context": run.initial_context,
                         "gathered_context": run.gathered_context,
                         "call_type": run.call_type,
+                        "pipeline_error": get_pipeline_error(run.extra),
                     }
                 )
                 for run in result.scalars().all()

@@ -41,7 +41,11 @@ import secrets
 import redis.asyncio as aioredis
 from loguru import logger
 
-from api.constants import REDIS_URL, TELEPHONY_STREAM_TOKEN_TTL_SECONDS
+from api.constants import (
+    REDIS_URL,
+    TELEPHONY_STREAM_TOKEN_TTL_SECONDS,
+    TELEPHONY_WS_REQUIRE_TOKEN,
+)
 from api.utils.common import get_backend_endpoints
 
 #: Namespaced so a token is never confused with any other short-lived key, and
@@ -54,6 +58,14 @@ _PREFIX = "telephony:stream:"
 TOKEN_PARAM = "t"
 
 
+class StreamCapabilityUnavailable(RuntimeError):
+    """No capability could be minted, and the socket requires one.
+
+    Raised instead of returning a URL the socket is certain to refuse. See
+    ``stream_url``.
+    """
+
+
 async def _redis() -> aioredis.Redis:
     return aioredis.from_url(REDIS_URL, decode_responses=True)
 
@@ -63,12 +75,9 @@ async def mint(
 ) -> str | None:
     """A capability for one run's media socket.
 
-    ``None`` when Redis cannot be reached. The caller then builds the URL
-    without one, which is the same URL it built before this module existed —
-    a call that still connects rather than a call that cannot be placed. Redis
-    being down already stops new calls at the concurrency slot, so this is not
-    a hole somebody can open by attacking Redis; it is what keeps a partial
-    outage from being a total one.
+    ``None`` when Redis cannot be reached. What the caller does with that is
+    ``stream_url``'s decision and depends on ``TELEPHONY_WS_REQUIRE_TOKEN``,
+    because a token-less URL is only usable when the socket accepts one.
     """
     token = secrets.token_urlsafe(32)
     try:
@@ -89,8 +98,8 @@ async def mint(
             await client.aclose()
     except Exception as exc:
         logger.warning(
-            "Could not mint a stream capability for run {}: {}. The socket URL "
-            "will carry no token.",
+            "Could not mint a stream capability for run {}: {}. Whether this "
+            "stops the call depends on TELEPHONY_WS_REQUIRE_TOKEN.",
             workflow_run_id,
             exc,
         )
@@ -144,9 +153,27 @@ async def stream_url(
     """The media socket URL to hand a carrier, capability included.
 
     The one place this URL is spelled. It used to be written out by hand in
-    seven places — five provider stream elements and two inbound routes — which
+    eight places — six provider stream elements and two inbound routes — which
     is why adding anything to it (a token, a version, a region) meant finding
-    all seven and is how six of them would have kept the old shape.
+    all eight, and is how seven of them would have kept the old shape. Telnyx
+    was the one that got away: it streams inline with the dial rather than from
+    a markup response, so it is not reached by grepping for the webhook
+    handlers, and every Telnyx call was answered and then dropped at a socket
+    that refused it.
+
+    **A URL without a token is only handed out when the socket will take one.**
+    When Redis cannot be reached and ``TELEPHONY_WS_REQUIRE_TOKEN`` is on, this
+    raises rather than returning a token-less URL: the socket would refuse that
+    handshake, so returning it means placing a call that rings, is answered, and
+    dies the moment media should start — the worst of the three failures,
+    because the customer has already picked up and nothing in the call's own
+    record says why. Failing here instead puts the error where the caller can
+    report it, and names the real cause.
+
+    With the escape hatch off (``TELEPHONY_WS_REQUIRE_TOKEN=false``) the socket
+    accepts an unauthenticated connection, so a token-less URL is genuinely the
+    degraded-but-working call the hatch exists to allow, and that is what comes
+    back.
     """
     _, wss_backend_endpoint = await get_backend_endpoints()
     url = (
@@ -158,4 +185,14 @@ async def stream_url(
         organization_id=organization_id,
         workflow_run_id=workflow_run_id,
     )
-    return f"{url}?{TOKEN_PARAM}={token}" if token else url
+    if token:
+        return f"{url}?{TOKEN_PARAM}={token}"
+    if TELEPHONY_WS_REQUIRE_TOKEN:
+        raise StreamCapabilityUnavailable(
+            f"Could not mint a stream capability for run {workflow_run_id}, and "
+            "the media socket requires one. The call is not being placed with a "
+            "URL that would be refused after answer. Check Redis; set "
+            "TELEPHONY_WS_REQUIRE_TOKEN=false to accept unauthenticated media "
+            "sockets for the duration of the incident."
+        )
+    return url

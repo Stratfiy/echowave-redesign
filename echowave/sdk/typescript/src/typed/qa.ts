@@ -19,7 +19,7 @@ export interface QaQa_extractionsRow {
     /**
      * Free text lets the model answer in its own words. A fixed set constrains it to one of the options you list — this is how a sentiment field with your own categories (not just positive/neutral/negative) gets built.
      */
-    answer_type?: string;
+    answer_type?: "free_text" | "predefined";
     /**
      * Comma-separated. Only used when Answer Type is 'One of a fixed set'.
      */
@@ -27,7 +27,7 @@ export interface QaQa_extractionsRow {
     /**
      * Constrains a free-text answer to a shape.
      */
-    expected_format?: string;
+    expected_format?: "text" | "numeric" | "boolean" | "timestamp" | "email";
 }
 
 /**

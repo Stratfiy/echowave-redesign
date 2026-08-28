@@ -9,13 +9,16 @@ from api.services.integrations import (
 from api.services.integrations import (
     get_node_data_model as get_integration_node_data_model,
 )
+from api.services.workflow.extraction_library import CATALOG_QA_EXTRACTIONS
 from api.services.workflow.node_data import BaseNodeData
 from api.services.workflow.node_specs._base import (
     DisplayOptions,
     GraphConstraints,
+    LibraryOptions,
     NodeCategory,
     NodeExample,
     PropertyOption,
+    PropertyRendererOptions,
     PropertyType,
 )
 from api.services.workflow.node_specs.constants import DEFAULT_QA_SYSTEM_PROMPT
@@ -1024,7 +1027,19 @@ class ExtractionSpec(BaseModel):
 class QANodeData(BaseNodeData):
     qa_enabled: bool = spec_field(default=True, ui_type=PropertyType.boolean)
     qa_extractions: List[ExtractionSpec] = spec_field(
-        default_factory=list, ui_type=PropertyType.fixed_collection
+        default_factory=list,
+        ui_type=PropertyType.fixed_collection,
+        # An empty Name and an empty Instructions box is a bad place to
+        # start: what comes back is only as good as the prompt somebody
+        # happened to write, and the failure modes (returning the agent's
+        # name, inventing a phone number off unclear audio) are not
+        # obvious until they have happened on a real call. This points the
+        # editor at a catalog of extractions with those cases already
+        # written into the prompt; picking one copies it in and it is the
+        # operator's from then on.
+        renderer_options=PropertyRendererOptions(
+            library=LibraryOptions(catalog=CATALOG_QA_EXTRACTIONS)
+        ),
     )
     qa_use_workflow_llm: bool = spec_field(default=True, ui_type=PropertyType.boolean)
     qa_provider: Optional[str] = spec_field(default=None, ui_type=PropertyType.options)

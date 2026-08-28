@@ -35,6 +35,8 @@ import { useAuth } from '@/lib/auth';
 import { downloadFile, getSignedUrl } from '@/lib/files';
 import { cn } from '@/lib/utils';
 
+import { type PipelineError,PipelineErrorBanner } from './components/PipelineErrorBanner';
+
 interface WorkflowRunResponse {
     mode: string;
     is_completed: boolean;
@@ -50,6 +52,7 @@ interface WorkflowRunResponse {
     gathered_context: Record<string, string | number | boolean | object> | null;
     logs: WorkflowRunLogs | null;
     annotations: Record<string, unknown> | null;
+    pipeline_error: PipelineError | null;
 }
 
 const RUN_SHELL_HEIGHT_CLASS = "h-[calc(100svh-49px)] min-h-[calc(100svh-49px)] max-h-[calc(100svh-49px)]";
@@ -664,6 +667,7 @@ export default function WorkflowRunPage() {
                     gathered_context: runResponse.data?.gathered_context as Record<string, string> | null ?? null,
                     logs: runResponse.data?.logs as WorkflowRunLogs | null ?? null,
                     annotations: runResponse.data?.annotations as Record<string, unknown> | null ?? null,
+                    pipeline_error: (runResponse.data?.pipeline_error as PipelineError | null) ?? null,
                 };
                 setWorkflowRun(runData);
                 posthog.capture(PostHogEvent.WORKFLOW_RUN_DETAILS_VIEWED, {
@@ -834,6 +838,8 @@ export default function WorkflowRunPage() {
                             </div>
                         </CardContent>
                     </Card>
+
+                        <PipelineErrorBanner error={workflowRun?.pipeline_error ?? null} />
 
                         <RunMetricsSection
                             costInfo={workflowRun?.cost_info ?? null}

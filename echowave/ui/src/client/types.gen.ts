@@ -5337,6 +5337,26 @@ export type PhoneNumberResponse = {
     /**
      * Is Active
      */
+    /**
+     * Inbound Contact List Id
+     */
+    inbound_contact_list_id?: number | null;
+    /**
+     * Inbound Require Known Caller
+     */
+    inbound_require_known_caller?: boolean;
+    /**
+     * Inbound Max Calls Per Caller
+     */
+    inbound_max_calls_per_caller?: number | null;
+    /**
+     * Inbound Call Window Hours
+     */
+    inbound_call_window_hours?: number;
+    /**
+     * Inbound Allow List
+     */
+    inbound_allow_list?: Array<string>;
     is_active: boolean;
     /**
      * Is Default Caller Id
@@ -5408,6 +5428,30 @@ export type PhoneNumberUpdateRequest = {
     extra_metadata?: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Inbound Contact List Id
+     */
+    inbound_contact_list_id?: number | null;
+    /**
+     * Clear Inbound Contact List
+     */
+    clear_inbound_contact_list?: boolean;
+    /**
+     * Inbound Require Known Caller
+     */
+    inbound_require_known_caller?: boolean | null;
+    /**
+     * Inbound Max Calls Per Caller
+     */
+    inbound_max_calls_per_caller?: number | null;
+    /**
+     * Inbound Call Window Hours
+     */
+    inbound_call_window_hours?: number | null;
+    /**
+     * Inbound Allow List
+     */
+    inbound_allow_list?: Array<string> | null;
 };
 
 /**
@@ -5712,6 +5756,82 @@ export type PropertyOption = {
 };
 
 /**
+ * LibraryOptions
+ *
+ * Names a catalog of ready-made values the editor can offer for a field.
+ */
+export type LibraryOptions = {
+    /**
+     * Catalog
+     */
+    catalog: string;
+};
+
+/**
+ * LibraryExtraction
+ *
+ * One catalog entry, and the ExtractionSpec it seeds.
+ */
+export type LibraryExtraction = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Prompt
+     */
+    prompt: string;
+    /**
+     * Answer Type
+     */
+    answer_type?: string;
+    /**
+     * Predefined Options
+     */
+    predefined_options?: string;
+    /**
+     * Expected Format
+     */
+    expected_format?: string;
+};
+
+/**
+ * ExtractionLibraryResponse
+ *
+ * The catalog, and the order its sections should be shown in.
+ */
+export type ExtractionLibraryResponse = {
+    /**
+     * Catalog
+     */
+    catalog: string;
+    /**
+     * Categories
+     */
+    categories: Array<string>;
+    /**
+     * Extractions
+     */
+    extractions: Array<LibraryExtraction>;
+};
+
+/**
  * PropertyRendererOptions
  *
  * Typed renderer metadata for node properties.
@@ -5721,6 +5841,7 @@ export type PropertyOption = {
 export type PropertyRendererOptions = {
     layout?: PropertyLayoutOptions | null;
     number_input?: NumberInputOptions | null;
+    library?: LibraryOptions | null;
 };
 
 /**
@@ -8846,6 +8967,12 @@ export type WorkflowRunResponseSchema = {
      * Annotations
      */
     annotations?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Pipeline Error
+     */
+    pipeline_error?: {
         [key: string]: unknown;
     } | null;
 };
@@ -23059,6 +23186,365 @@ export type GetNodeTypeApiV1NodeTypesNameGetResponses = {
 };
 
 export type GetNodeTypeApiV1NodeTypesNameGetResponse = GetNodeTypeApiV1NodeTypesNameGetResponses[keyof GetNodeTypeApiV1NodeTypesNameGetResponses];
+
+export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Catalog
+         */
+        catalog: string;
+    };
+    query?: never;
+    url: '/api/v1/extraction-library/{catalog}';
+};
+
+export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetError = GetExtractionLibraryApiV1ExtractionLibraryCatalogGetErrors[keyof GetExtractionLibraryApiV1ExtractionLibraryCatalogGetErrors];
+
+export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ExtractionLibraryResponse;
+};
+
+export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponse = GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponses[keyof GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponses];
+
+/**
+ * ContactListResponse
+ */
+export type ContactListResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Contact Count
+     */
+    contact_count?: number;
+};
+
+/**
+ * ContactListRequest
+ */
+export type ContactListRequest = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+};
+
+/**
+ * ContactResponse
+ */
+export type ContactResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Phone Raw
+     */
+    phone_raw: string;
+    /**
+     * Phone Normalized
+     */
+    phone_normalized: string;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Attributes
+     */
+    attributes?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * ContactsPage
+ */
+export type ContactsPage = {
+    /**
+     * Contacts
+     */
+    contacts: Array<ContactResponse>;
+    /**
+     * Total Count
+     */
+    total_count: number;
+};
+
+/**
+ * ImportResponse
+ */
+export type ImportResponse = {
+    /**
+     * Imported
+     */
+    imported: number;
+    /**
+     * Skipped
+     */
+    skipped: number;
+    /**
+     * Problems
+     */
+    problems?: Array<string>;
+    /**
+     * Phone Column
+     */
+    phone_column?: string | null;
+    /**
+     * Truncated
+     */
+    truncated?: boolean;
+};
+
+export type ListContactListsApiV1ContactListsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/contact-lists';
+};
+
+export type ListContactListsApiV1ContactListsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListContactListsApiV1ContactListsGetError = ListContactListsApiV1ContactListsGetErrors[keyof ListContactListsApiV1ContactListsGetErrors];
+
+export type ListContactListsApiV1ContactListsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Array<ContactListResponse>;
+};
+
+export type ListContactListsApiV1ContactListsGetResponse = ListContactListsApiV1ContactListsGetResponses[keyof ListContactListsApiV1ContactListsGetResponses];
+
+export type CreateContactListApiV1ContactListsPostData = {
+    body: ContactListRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/contact-lists';
+};
+
+export type CreateContactListApiV1ContactListsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateContactListApiV1ContactListsPostError = CreateContactListApiV1ContactListsPostErrors[keyof CreateContactListApiV1ContactListsPostErrors];
+
+export type CreateContactListApiV1ContactListsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ContactListResponse;
+};
+
+export type CreateContactListApiV1ContactListsPostResponse = CreateContactListApiV1ContactListsPostResponses[keyof CreateContactListApiV1ContactListsPostResponses];
+
+export type DeleteContactListApiV1ContactListsContactListIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Contact List Id
+         */
+        contact_list_id: number;
+    };
+    query?: never;
+    url: '/api/v1/contact-lists/{contact_list_id}';
+};
+
+export type DeleteContactListApiV1ContactListsContactListIdDeleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteContactListApiV1ContactListsContactListIdDeleteError = DeleteContactListApiV1ContactListsContactListIdDeleteErrors[keyof DeleteContactListApiV1ContactListsContactListIdDeleteErrors];
+
+export type DeleteContactListApiV1ContactListsContactListIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ListContactsApiV1ContactListsContactListIdContactsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Contact List Id
+         */
+        contact_list_id: number;
+    };
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+        /**
+         * Search
+         */
+        search?: string | null;
+    };
+    url: '/api/v1/contact-lists/{contact_list_id}/contacts';
+};
+
+export type ListContactsApiV1ContactListsContactListIdContactsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListContactsApiV1ContactListsContactListIdContactsGetError = ListContactsApiV1ContactListsContactListIdContactsGetErrors[keyof ListContactsApiV1ContactListsContactListIdContactsGetErrors];
+
+export type ListContactsApiV1ContactListsContactListIdContactsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ContactsPage;
+};
+
+export type ListContactsApiV1ContactListsContactListIdContactsGetResponse = ListContactsApiV1ContactListsContactListIdContactsGetResponses[keyof ListContactsApiV1ContactListsContactListIdContactsGetResponses];
+
+export type ImportContactsApiV1ContactListsContactListIdImportPostData = {
+    body: {
+        /**
+         * File
+         */
+        file: Blob | File;
+    };
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Contact List Id
+         */
+        contact_list_id: number;
+    };
+    query?: {
+        /**
+         * Phone Column
+         */
+        phone_column?: string | null;
+        /**
+         * Country
+         */
+        country?: string | null;
+    };
+    url: '/api/v1/contact-lists/{contact_list_id}/import';
+};
+
+export type ImportContactsApiV1ContactListsContactListIdImportPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportContactsApiV1ContactListsContactListIdImportPostError = ImportContactsApiV1ContactListsContactListIdImportPostErrors[keyof ImportContactsApiV1ContactListsContactListIdImportPostErrors];
+
+export type ImportContactsApiV1ContactListsContactListIdImportPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportResponse;
+};
+
+export type ImportContactsApiV1ContactListsContactListIdImportPostResponse = ImportContactsApiV1ContactListsContactListIdImportPostResponses[keyof ImportContactsApiV1ContactListsContactListIdImportPostResponses];
 
 export type AuthorizeUrlApiV1IntegrationsGoogleCalendarAuthorizeUrlGetData = {
     body?: never;

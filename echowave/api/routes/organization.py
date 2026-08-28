@@ -961,6 +961,17 @@ async def update_phone_number(
             request.inbound_workflow_id, user.selected_organization_id
         )
 
+    if request.inbound_contact_list_id is not None:
+        # The FK proves the list exists, never that this account owns it — see
+        # the org-scoping rules in api/AGENTS.md. Without this check a caller
+        # could point their number at another tenant's contact list and read it
+        # back one inbound call at a time.
+        if not await db_client.get_contact_list(
+            request.inbound_contact_list_id,
+            organization_id=user.selected_organization_id,
+        ):
+            raise HTTPException(status_code=404, detail="Contact list not found")
+
     row = await db_client.update_phone_number(
         phone_number_id=phone_number_id,
         telephony_configuration_id=config_id,
@@ -970,6 +981,12 @@ async def update_phone_number(
         country_code=request.country_code,
         extra_metadata=request.extra_metadata,
         clear_inbound_workflow=request.clear_inbound_workflow,
+        inbound_contact_list_id=request.inbound_contact_list_id,
+        clear_inbound_contact_list=request.clear_inbound_contact_list,
+        inbound_require_known_caller=request.inbound_require_known_caller,
+        inbound_max_calls_per_caller=request.inbound_max_calls_per_caller,
+        inbound_call_window_hours=request.inbound_call_window_hours,
+        inbound_allow_list=request.inbound_allow_list,
     )
     if not row:
         raise HTTPException(status_code=404, detail="Phone number not found")

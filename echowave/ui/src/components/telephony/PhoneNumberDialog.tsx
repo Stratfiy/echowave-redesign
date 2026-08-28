@@ -9,6 +9,12 @@ import {
   updatePhoneNumberApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersPhoneNumberIdPut,
 } from "@/client/sdk.gen";
 import type { PhoneNumberResponse } from "@/client/types.gen";
+import {
+  EMPTY_INBOUND_SETTINGS,
+  InboundSettingsSection,
+  type InboundSettingsValue,
+  NO_CONTACT_LIST,
+} from "@/components/telephony/InboundSettingsSection";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -77,6 +83,7 @@ export function PhoneNumberDialog({
   const [isActive, setIsActive] = useState(true);
   const [isDefaultCallerId, setIsDefaultCallerId] = useState(false);
   const [inboundWorkflowId, setInboundWorkflowId] = useState<string>(NO_WORKFLOW);
+  const [inbound, setInbound] = useState<InboundSettingsValue>(EMPTY_INBOUND_SETTINGS);
   const [workflows, setWorkflows] = useState<{ id: number; name: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [addressTouched, setAddressTouched] = useState(false);
@@ -92,6 +99,17 @@ export function PhoneNumberDialog({
     setInboundWorkflowId(
       existing?.inbound_workflow_id ? String(existing.inbound_workflow_id) : NO_WORKFLOW,
     );
+    setInbound({
+      contactListId: existing?.inbound_contact_list_id
+        ? String(existing.inbound_contact_list_id)
+        : NO_CONTACT_LIST,
+      requireKnownCaller: existing?.inbound_require_known_caller ?? false,
+      maxCallsPerCaller: existing?.inbound_max_calls_per_caller
+        ? String(existing.inbound_max_calls_per_caller)
+        : "",
+      windowHours: String(existing?.inbound_call_window_hours ?? 24),
+      allowList: existing?.inbound_allow_list ?? [],
+    });
     setAddressTouched(false);
   }, [open, existing]);
 
@@ -131,6 +149,17 @@ export function PhoneNumberDialog({
       const token = await getAccessToken();
       const inboundId =
         inboundWorkflowId === NO_WORKFLOW ? null : Number(inboundWorkflowId);
+      const contactListId =
+        inbound.contactListId === NO_CONTACT_LIST
+          ? null
+          : Number(inbound.contactListId);
+      // Blank means unlimited. -1 is what the backend reads as "no limit" —
+      // sending undefined would leave whatever was there before, which is the
+      // opposite of what clearing the box means.
+      const maxCalls =
+        inbound.maxCallsPerCaller.trim() === ""
+          ? -1
+          : Number(inbound.maxCallsPerCaller);
 
       let providerSync: PhoneNumberResponse["provider_sync"] | undefined;
       if (isEdit && existing) {
@@ -144,6 +173,17 @@ export function PhoneNumberDialog({
               country_code: countryCode || undefined,
               inbound_workflow_id: inboundId ?? undefined,
               clear_inbound_workflow: inboundId === null,
+              inbound_contact_list_id: contactListId ?? undefined,
+              clear_inbound_contact_list: contactListId === null,
+              inbound_require_known_caller: inbound.requireKnownCaller,
+              inbound_max_calls_per_caller: Number.isFinite(maxCalls)
+                ? maxCalls
+                : -1,
+              inbound_call_window_hours:
+                Number(inbound.windowHours) > 0
+                  ? Number(inbound.windowHours)
+                  : 24,
+              inbound_allow_list: inbound.allowList,
             },
           },
         );
@@ -266,6 +306,8 @@ export function PhoneNumberDialog({
               route by the workflow_id in the webhook URL.
             </p>
           </div>
+
+          <InboundSettingsSection value={inbound} onChange={setInbound} />
 
           <div className="flex items-center justify-between rounded border p-3">
             <Label className="text-sm">Active</Label>

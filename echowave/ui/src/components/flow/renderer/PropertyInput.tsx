@@ -1,4 +1,5 @@
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { LibraryIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
 
 import type {
     DocumentResponseSchema,
@@ -18,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 import { evaluateDisplayOptions } from "./displayOptions";
+import { LibraryPickerDialog } from "./LibraryPickerDialog";
 import {
     getPropertyColumnSpan,
     isFractionalNumberInput,
@@ -286,6 +288,11 @@ function FixedCollectionWidget({
 }: WidgetProps & { context: RendererContext }) {
     const rows = (value as Array<Record<string, unknown>> | undefined) ?? [];
     const subProps = spec.properties ?? [];
+    // A field that names a catalog gets a "Browse library" control beside Add.
+    // Driven off the spec rather than the field name so the second field with a
+    // library needs no change here — see LibraryOptions on the backend.
+    const catalog = spec.renderer_options?.library?.catalog ?? null;
+    const [libraryOpen, setLibraryOpen] = useState(false);
 
     const handleRowChange = (idx: number, propName: string, propValue: unknown) => {
         const next = rows.map((row, i) =>
@@ -302,6 +309,17 @@ function FixedCollectionWidget({
         const blank: Record<string, unknown> = {};
         for (const p of subProps) blank[p.name] = p.default ?? undefined;
         onChange([...rows, blank]);
+    };
+
+    // Keep only the keys this field actually declares, so a catalog that has
+    // grown a field the running spec does not know about cannot write an
+    // unknown key onto the node and fail validation on save.
+    const handleAddFromLibrary = (row: Record<string, unknown>) => {
+        const next: Record<string, unknown> = {};
+        for (const p of subProps) {
+            next[p.name] = p.name in row ? row[p.name] : (p.default ?? undefined);
+        }
+        onChange([...rows, next]);
     };
 
     return (
@@ -339,10 +357,36 @@ function FixedCollectionWidget({
                         </div>
                     </div>
                 ))}
-                <Button variant="outline" size="sm" className="w-fit" onClick={handleAdd}>
-                    <PlusIcon className="w-4 h-4 mr-1" /> Add
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-fit"
+                        onClick={handleAdd}
+                    >
+                        <PlusIcon className="w-4 h-4 mr-1" /> Add
+                    </Button>
+                    {catalog && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-fit"
+                            onClick={() => setLibraryOpen(true)}
+                        >
+                            <LibraryIcon className="w-4 h-4 mr-1" /> Browse library
+                        </Button>
+                    )}
+                </div>
             </div>
+            {catalog && (
+                <LibraryPickerDialog
+                    catalog={catalog}
+                    open={libraryOpen}
+                    onOpenChange={setLibraryOpen}
+                    existingNames={rows.map((row) => String(row.name ?? ""))}
+                    onAdd={handleAddFromLibrary}
+                />
+            )}
         </div>
     );
 }

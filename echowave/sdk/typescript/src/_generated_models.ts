@@ -934,6 +934,22 @@ export interface components {
         PropertyRendererOptions: {
             layout?: components["schemas"]["PropertyLayoutOptions"] | null;
             number_input?: components["schemas"]["NumberInputOptions"] | null;
+            library?: components["schemas"]["LibraryOptions"] | null;
+        };
+        /**
+         * LibraryOptions
+         * @description Names a catalog of ready-made values the editor can offer for a field.
+         *
+         *     The renderer stays generic: it shows a "Browse library" control when this
+         *     is set, fetches the named catalog, and appends whatever the user picks to
+         *     the field's existing value.
+         */
+        LibraryOptions: {
+            /**
+             * Catalog
+             * @description Catalog id, served by GET /api/v1/extraction-library/{catalog}.
+             */
+            catalog: string;
         };
         /**
          * PropertySpec

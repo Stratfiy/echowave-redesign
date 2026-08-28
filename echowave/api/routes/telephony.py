@@ -42,6 +42,7 @@ from api.services.configuration import key_readiness
 from api.services.kyc import service as kyc_service
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony import (
+    inbound_guard,
     number_lifecycle,
     shared_outbound,
     stream_capability,
@@ -666,6 +667,7 @@ async def _create_inbound_workflow_run(
     normalized_data,
     telephony_configuration_id: int,
     from_phone_number_id: Optional[int] = None,
+    contact_context: Optional[dict] = None,
 ) -> int:
     """Create workflow run for inbound call and return run ID"""
     call_id = normalized_data.call_id
@@ -679,6 +681,11 @@ async def _create_inbound_workflow_run(
         user_id=user_id,
         call_type=CallType.INBOUND,
         initial_context={
+            # What the number's contact list knows about this caller, if it
+            # recognised them. First so the routing facts below cannot be
+            # overwritten by a column somebody happened to name "provider" in
+            # their spreadsheet.
+            **(contact_context or {}),
             "caller_number": normalized_data.from_number,
             "called_number": normalized_data.to_number,
             "direction": "inbound",
@@ -1143,6 +1150,24 @@ async def handle_inbound_run(request: Request):
                 TelephonyError.SIGNATURE_VALIDATION_FAILED
             )
 
+        # 4. Who is calling, and may they. Before the concurrency slot: a
+        # refused caller should not spend one, and before the run is created,
+        # because a run recorded for a call we never answered is a row that
+        # looks like a failure in every report that counts them.
+        decision = await inbound_guard.evaluate(
+            caller=normalized_data.from_number,
+            phone_number=phone_row,
+            lookup_contact=db_client.find_contact_by_phone,
+        )
+        if not decision.allowed:
+            logger.info(
+                f"/inbound/run: refusing call from {normalized_data.from_number} "
+                f"to {normalized_data.to_number}: {decision.reason}"
+            )
+            return provider_class.generate_validation_error_response(
+                TelephonyError.WORKFLOW_NOT_FOUND
+            )
+
         try:
             concurrency_slot = await call_concurrency.acquire_org_slot(
                 config.organization_id,
@@ -1166,6 +1191,7 @@ async def handle_inbound_run(request: Request):
                 normalized_data,
                 telephony_configuration_id=telephony_configuration_id,
                 from_phone_number_id=phone_row.id,
+                contact_context=decision.contact_context,
             )
             await call_concurrency.bind_workflow_run(concurrency_slot, workflow_run_id)
 
