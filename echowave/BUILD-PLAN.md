@@ -55,13 +55,15 @@ the full record — this is the short version for resuming code):**
 
 | Item | Status |
 |---|---|
-| Phase 1a — markup-override admin screen | **Backend + UI done, committed, pushed** (commits through `665431d` on `claude/decibyl-pricing-billing-review-umc7rk`). `tsc --noEmit`, `next lint`, and all 96 `vitest` tests pass. `next build` was still running in the background when this note was written — **check its result before assuming the build is clean**; if it hasn't been checked yet, run `cd echowave/ui && npx next build` and read the output before touching anything else. |
-| Phase 1b — model-cost roll-up display | **Not started.** Scope now includes the combine-for-customers principle above — read it before starting. |
-| Phase 1c — pricing-page "included" copy | **Not started.** |
-| Phase 1d (new) — internal-cost-vs-billed-cost analytics | **Not scoped yet.** Check `/superadmin/billing/unit-economics` first. |
-| Phase 2 — extraction library | **Not started.** |
-| Phase 3 — ingestion-time embedding billing | **Not started. Design decision changed** — see the updated Phase 3 section below; the founder chose "meter, don't show as a separate customer line" rather than the (a)/(b) choice originally posed. |
+| Phase 1a — markup-override admin screen | **Done, committed, pushed** (`665431d`). |
+| Phase 1b — model-cost roll-up display | **Done (narrowed scope), committed, pushed** (`340205a`). Full breakdown collapsed behind a "Show full breakdown" toggle in `CostPerMinuteBar`, default collapsed — the coloured bar/legend (Agent/Telephony/Platform/Features) was already the combined figure. **Not done**: adding embedding as a 5th estimable stack dimension in `estimate_cost_per_minute` / `CostStack` — bigger scope (new estimator params, a `default_units` assumption for embedding, new UI picker input), deliberately left as follow-up rather than half-built. Pick up only if a real product need for it shows up. |
+| Phase 1c — pricing-page "included" copy | **Done (partial, correctly scoped), committed, pushed** (`43a1e9b`). Badge added on the Knowledge Base files page. QA/summary/sentiment has **no config screen to attach this to yet** — do it when Phase 2 ships one, not before. |
+| Phase 1d (new) — internal-cost-vs-billed-cost analytics | **Not scoped yet.** Check `/superadmin/billing/unit-economics` first — likely an extension, not a new screen. |
+| Phase 2 — extraction library | **Not started. Pick up here next.** |
+| Phase 3 — ingestion-time embedding billing | **Not started.** Design section rewritten — meter for real, never a standalone customer-facing line, see below. |
 | Phase 4 — markup increase | **Blocked on the founder's measurement query, as before.** |
+
+**All of Phase 1 verified in this session:** `npx tsc --noEmit` clean, `npx next lint` clean, all 96 `npx vitest run` tests passing, and one full `npx next build` completed with exit 0 (run once, across the 1a commit — not re-run after every subsequent small change, but the pipeline is confirmed working).
 
 ---
 
