@@ -62,6 +62,15 @@ jobs:
         # No runtime environment variable is required to build: a missing one
         # surfaces as a runtime fault rather than a build failure, which is why
         # this checks the build and not the configuration.
+        #
+        # The heap cap is explicit because the default one on this runner is
+        # ~2 GB, and the app outgrew it: the build died with "Reached heap
+        # limit Allocation failed" at 2,002 MB while compiling, which reads as
+        # "the UI is broken" when nothing is wrong with it. Set here rather
+        # than in package.json so a contributor's local build keeps whatever
+        # their own machine allows.
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: npm run build
 
       - name: Send Slack notification - Failure

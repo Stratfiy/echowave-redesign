@@ -233,9 +233,7 @@ def compute_call_cost(
                 (component_value, item.provider, item.model)
             )
             if line_markup is None:
-                line_markup = markup_overrides.get(
-                    (component_value, item.provider, "")
-                )
+                line_markup = markup_overrides.get((component_value, item.provider, ""))
             if line_markup is None:
                 line_markup = markup_bps
         else:

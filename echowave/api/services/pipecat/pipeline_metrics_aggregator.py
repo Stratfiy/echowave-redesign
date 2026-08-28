@@ -356,7 +356,9 @@ class PipelineMetricsAggregator(FrameProcessor):
             if source in ("byok", "managed"):
                 self._key_sources[component] = source
 
-    def register_embedding_usage(self, *, provider: str, model: str, tokens: int) -> None:
+    def register_embedding_usage(
+        self, *, provider: str, model: str, tokens: int
+    ) -> None:
         """Record real vendor usage from a query-time embedding call.
 
         Additive across repeated retrieval calls in the same conversation —

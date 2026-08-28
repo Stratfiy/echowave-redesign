@@ -36,9 +36,7 @@ def upgrade() -> None:
         "managed_markup_overrides",
         sa.Column("id", sa.Integer(), primary_key=True, index=True),
         sa.Column("provider", sa.String(length=64), nullable=False),
-        sa.Column(
-            "model", sa.String(length=128), nullable=False, server_default=""
-        ),
+        sa.Column("model", sa.String(length=128), nullable=False, server_default=""),
         sa.Column("component", sa.String(length=16), nullable=False),
         sa.Column("markup_bps", sa.Integer(), nullable=False),
         sa.Column("effective_from", sa.DateTime(timezone=True), nullable=False),
