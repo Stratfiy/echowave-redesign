@@ -142,7 +142,9 @@ def merge_workflow_model_configuration_secrets(
         for section_name in ("llm", "tts", "stt", "realtime", "embeddings"):
             incoming_section = incoming_stack.get(section_name)
             existing_section = existing_stack.get(section_name)
-            if isinstance(incoming_section, dict) and isinstance(existing_section, dict):
+            if isinstance(incoming_section, dict) and isinstance(
+                existing_section, dict
+            ):
                 _merge_service_secret_fields(incoming_section, existing_section)
     return OrganizationAIModelConfigurationV3.model_validate(incoming_dict)
 
@@ -150,9 +152,7 @@ def merge_workflow_model_configuration_secrets(
 def check_for_masked_keys_in_workflow_model_configuration(
     configuration: WorkflowAIModelConfiguration,
 ) -> None:
-    _raise_if_masked_secret(
-        configuration.model_dump(mode="json", exclude_none=True)
-    )
+    _raise_if_masked_secret(configuration.model_dump(mode="json", exclude_none=True))
 
 
 async def get_effective_ai_model_configuration_for_workflow(
