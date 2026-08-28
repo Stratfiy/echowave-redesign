@@ -225,7 +225,7 @@ LLM_RATES = (
 )
 
 
-def _realtime_blend(provider: str) -> float:
+def _realtime_blend(provider: str, model: str = "") -> float:
     """Blended USD per 1k tokens for a speech-to-speech model.
 
     Derived from ``realtime_pricing`` rather than written down, so the seeded
@@ -234,7 +234,7 @@ def _realtime_blend(provider: str) -> float:
     from api.services.billing.realtime_pricing import blended_usd_per_1k_tokens
     from api.services.billing.realtime_rates import price_for
 
-    price = price_for(provider)
+    price = price_for(provider, model)
     if price is None:  # pragma: no cover - guarded by a test
         raise KeyError(f"No realtime price book entry for {provider!r}")
     return blended_usd_per_1k_tokens(price)
@@ -275,6 +275,40 @@ REALTIME_RATES = (
         RateUnit.THOUSAND_TOKENS,
         _realtime_blend("openai_realtime"),
         "GPT Realtime audio tokens, blended at a 3-minute call",
+    ),
+    # Every OpenAI realtime model we offer gets a row of its own, and that is
+    # not belt-and-braces. The mini lists at a third of the flagship, so left to
+    # inherit the provider-wide row it would cost at 3.2x what the vendor
+    # charges — and provider lines carry the managed markup, making that money
+    # taken from the customer rather than a reporting slip (KNOWN_ISSUES #35).
+    #
+    # Naming the two flagships as well is what keeps the price book's own
+    # invariant true: the provider-wide fallback must be no dearer than the
+    # dearest named model, so that an *unknown* model under-reports rather than
+    # over-reports. Pricing only the mini would have inverted that.
+    DefaultRate(
+        "decibylopenairealtime",
+        "gpt-realtime-2",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _realtime_blend("openai_realtime", "gpt-realtime-2"),
+        "GPT Realtime 2 audio tokens, blended at a 3-minute call",
+    ),
+    DefaultRate(
+        "decibylopenairealtime",
+        "gpt-realtime-2.1",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _realtime_blend("openai_realtime", "gpt-realtime-2.1"),
+        "GPT Realtime 2.1 audio tokens, blended at a 3-minute call",
+    ),
+    DefaultRate(
+        "decibylopenairealtime",
+        "gpt-realtime-2.1-mini",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _realtime_blend("openai_realtime", "gpt-realtime-2.1-mini"),
+        "GPT Realtime 2.1 mini audio tokens, blended at a 3-minute call",
     ),
     DefaultRate(
         "decibylazurerealtime",

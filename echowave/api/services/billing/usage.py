@@ -73,6 +73,45 @@ _PROVIDER_ALIASES = {
     "decibylgooglevertex": "decibylgeminilivevertex",
 }
 
+#: Speech-to-speech vendors have **two** names, and the difference is the whole
+#: reason this table exists.
+#:
+#: A *configuration* names ``openai_realtime`` — that is the literal a customer
+#: stores and what ``managed_tiers`` resolves a realtime tier to. But the
+#: pipeline runs ``DecibylOpenAIRealtimeLLMService``, so what
+#: :func:`provider_from_processor` derives, and therefore what lands in
+#: ``call_cost_items`` and what the rate card must be keyed by, is
+#: ``decibylopenairealtime``.
+#:
+#: Costing only ever sees the second name and is correct by construction.
+#: Anything that prices a stack *before* it runs starts from the first, and has
+#: to come here — otherwise the rate lookup misses, the model reports as
+#: unpriced, and a realtime bundle is quoted at the bare platform fee while the
+#: invoice charges the full audio rate.
+_REALTIME_RATE_CARD_PROVIDERS = {
+    "openai_realtime": "decibylopenairealtime",
+    "azure_realtime": "decibylazurerealtime",
+    "google_realtime": "decibylgeminilive",
+    "google_vertex_realtime": "decibylgeminilivevertex",
+}
+
+
+def rate_card_provider(provider: str | None) -> str:
+    """The name the rate card is keyed by, for a configuration provider name.
+
+    Identity for everything that is not speech-to-speech — an ordinary vendor
+    is stored under the name it configures under. Only the realtime services
+    carry the split, because only they are reached through a Decibyl-prefixed
+    wrapper class.
+
+    The single definition of that translation. It was previously a private
+    table inside ``billing/estimator.py`` used for the token assumption and not
+    for the rate lookup beside it, which is how a realtime tier came to be both
+    unpriced *and* quoted against the text-token assumption.
+    """
+    normalized = (provider or "").strip().lower()
+    return _REALTIME_RATE_CARD_PROVIDERS.get(normalized, normalized)
+
 
 def provider_from_processor(processor: str) -> str:
     """Best-effort provider name from a pipeline processor class name.

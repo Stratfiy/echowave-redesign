@@ -302,25 +302,34 @@ class TestSpeechToSpeechIsQuotedAtWhatItCosts:
     """
 
     def test_the_two_paths_agree_per_model(self):
+        """Keyed by (provider, model), not by provider alone.
+
+        A realtime vendor can now carry more than one price — the mini lists at
+        a third of the flagship — so a per-provider dict silently kept whichever
+        row was declared last and compared it against a different model's
+        modelled cost. Resolution here mirrors ``resolve_provider_rate``: the
+        model-specific row wins, and the provider-wide one is the fallback.
+        """
         from api.services.billing.default_rates import DEFAULT_RATES
-        from api.services.billing.estimator import (
-            _REALTIME_RATE_CARD_NAMES,
-            REALTIME_TOKENS_PER_MINUTE,
-        )
+        from api.services.billing.estimator import REALTIME_TOKENS_PER_MINUTE
         from api.services.billing.realtime_pricing import (
             CallShape,
             estimate_realtime_call,
         )
         from api.services.billing.realtime_rates import REALTIME_PRICES
+        from api.services.billing.usage import rate_card_provider
 
-        rates = {r.provider: r.usd_per_unit for r in DEFAULT_RATES}
+        rates = {(r.provider, r.model): r.usd_per_unit for r in DEFAULT_RATES}
+        checked = 0
         for price in REALTIME_PRICES:
-            name = _REALTIME_RATE_CARD_NAMES.get(price.provider)
-            if not name or name not in rates:
+            name = rate_card_provider(price.provider)
+            usd_per_unit = rates.get((name, price.model), rates.get((name, "")))
+            if usd_per_unit is None:
                 continue
+            checked += 1
             modelled = estimate_realtime_call(price, CallShape())
             from_module = modelled.micros_usd_per_minute / 1e6
-            from_card = rates[name] * REALTIME_TOKENS_PER_MINUTE[name] / 1000
+            from_card = usd_per_unit * REALTIME_TOKENS_PER_MINUTE[name] / 1000
 
             # Within a tenth of a percent: the two round differently, they do
             # not disagree.
@@ -328,6 +337,8 @@ class TestSpeechToSpeechIsQuotedAtWhatItCosts:
                 f"{price.label}: rate card says ${from_card:.4f}/min, the "
                 f"realtime model says ${from_module:.4f}/min"
             )
+
+        assert checked, "no realtime model was compared, so nothing was checked"
 
     def test_the_assumption_is_per_model_not_one_number(self):
         """Gemini tokenises audio about three times denser than OpenAI, so a

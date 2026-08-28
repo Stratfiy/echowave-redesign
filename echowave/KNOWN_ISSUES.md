@@ -27,7 +27,16 @@ Last updated after the compliance and deployment pass.
 
 ### 33. Signed URLs for recordings and transcripts are failing again in production
 
-**Status:** OPEN · **Severity: high** — observed live 28 Aug 2026
+**Status:** OPEN (cause) · **diagnosability FIXED 28 Aug 2026** ·
+**Severity: high** — observed live 28 Aug 2026
+
+> **The reason it could not be diagnosed is fixed; the outage itself is not.**
+> The route no longer emits one string for two causes — a backend returning no
+> URL now reads "Storage did not return a signed URL", a rejected request reads
+> "Storage rejected the request" — and `filesystem/minio.py` now names the
+> bucket and the endpoint it was signing against instead of logging the bare
+> exception. Re-run the failing preview and the log will say which setting is
+> wrong. The steps below still apply.
 
 `Run Preview` on `app.decibyl.ai/usage` returns, for both artefacts at once:
 
@@ -68,8 +77,25 @@ what turned a config problem into an afternoon.
 
 ### 34. Realtime rates are keyed by one name and read by another
 
-**Status:** OPEN · **Severity: medium-high** — strongly suspected, not yet
-confirmed against the deployed build
+**Status:** FIXED (28 Aug 2026) · was medium-high
+
+**Confirmed, and worse than first reported.** Two lookups sitting one line apart
+in `billing/estimator.py` disagreed about which name to use, and both missed:
+the *rate* was resolved under the configuration name (`openai_realtime`), so
+realtime reported unpriced; the *consumption assumption* was keyed under the
+rate-card name, so it also missed and fell back to the **text** figure — 1,400
+tokens a minute against an audio reality of 4,815 for OpenAI and **14,355** for
+Gemini. A tenfold under-quote on Gemini Live, hidden behind a warning that only
+said "no rate".
+
+Fixed by moving the translation to one place — `usage.rate_card_provider`, next
+to `provider_from_processor`, which is what produces the names it maps to — and
+applying it to both lookups. The line still reports the vendor the caller asked
+about; only the lookup uses the billing name.
+`tests/test_realtime_is_priced_under_one_name.py` pins the translation against
+what costing actually records, so the two cannot drift again.
+
+**Original diagnosis, for the record:**
 
 The rate card seeds speech-to-speech under the **service-class** name that
 `usage.provider_from_processor` derives — `decibylopenairealtime`,
@@ -107,6 +133,13 @@ default"*.
 unpriced model under-reports rather than over-reports; a surprise on the invoice
 should be pleasant"* — and that reasoning holds. The gap is that nothing stops a
 model being **offered** without a rate of its own.
+
+**A first instance of this is now priced around (28 Aug).** Offering both
+`gpt-realtime-2.1` and `gpt-realtime-2.1-mini` would have billed the mini at the
+flagship's provider-wide rate — 3.2x its actual price, and provider lines carry
+the markup, so that is money taken from the customer. The mini now has a rate
+row of its own in `default_rates.py`. That fixes one model; the general problem
+below is unchanged.
 
 Three options, and the first is free:
 

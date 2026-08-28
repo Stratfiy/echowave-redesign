@@ -23,7 +23,7 @@ earned.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import Float, cast, func, select
@@ -42,7 +42,11 @@ from api.services.billing.money import (
     usd_to_mpaise,
 )
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
-from api.services.billing.usage import byok_tier, byok_uplift_micros_usd
+from api.services.billing.usage import (
+    byok_tier,
+    byok_uplift_micros_usd,
+    rate_card_provider,
+)
 
 # Consumption per connected minute, used only when we have no measured history
 # for a model. Derived from a typical Indian voice-agent turn: roughly six
@@ -74,12 +78,11 @@ DEFAULT_CHARACTERS_PER_MINUTE = 2_300
 #: These describe an **uncached** session, which is what we run. Prompt caching
 #: cuts the repeated share by roughly two thirds; switch it on and these have
 #: to come down with it.
-_REALTIME_RATE_CARD_NAMES = {
-    "openai_realtime": "decibylopenairealtime",
-    "azure_realtime": "decibylazurerealtime",
-    "google_realtime": "decibylgeminilive",
-    "google_vertex_realtime": "decibylgeminilivevertex",
-}
+#:
+#: Keyed by the **rate card** name, because that is the name every lookup in
+#: this module is performed under once ``rate_card_provider`` has been applied.
+#: Keying it one way and looking it up the other is the defect this table was
+#: written to prevent and then spent a release exhibiting.
 
 
 def _realtime_tokens_per_minute() -> dict[str, int]:
@@ -90,7 +93,7 @@ def _realtime_tokens_per_minute() -> dict[str, int]:
     minutes = shape.duration_seconds / 60
     out: dict[str, int] = {}
     for price in REALTIME_PRICES:
-        name = _REALTIME_RATE_CARD_NAMES.get(price.provider)
+        name = rate_card_provider(price.provider)
         if not name:
             continue
         sample = estimate_realtime_call(price, shape)
@@ -401,18 +404,33 @@ async def estimate_cost_per_minute(
         if "llm" in keyed:
             lines.append(_free(CostComponent.LLM, llm_provider, llm_model))
         else:
+            # Speech-to-speech configures under one name and bills under
+            # another; the rate card is keyed by the billing one. Translate
+            # once, and use the result for *both* lookups below — the rate and
+            # the consumption assumption. Doing it for one and not the other is
+            # how a realtime tier came to be reported unpriced while its token
+            # assumption silently fell back to the text figure, a third of what
+            # an audio minute actually consumes.
+            priced_as = rate_card_provider(llm_provider)
             line = await _inference_line(
                 session,
                 component=CostComponent.LLM,
-                provider=llm_provider,
+                provider=priced_as,
                 model=llm_model,
                 at=at,
                 default_units=REALTIME_TOKENS_PER_MINUTE.get(
-                    llm_provider.strip().lower(), DEFAULT_TOKENS_PER_MINUTE
+                    priced_as, DEFAULT_TOKENS_PER_MINUTE
                 ),
                 markup_bps=markup_bps,
             )
-            lines.append(line) if line else unpriced.append(f"llm:{llm_provider}")
+            if line is None:
+                unpriced.append(f"llm:{llm_provider}")
+            else:
+                # Report the vendor the caller asked about, not the internal
+                # name it prices under. A quote that answers "openai_realtime"
+                # with "decibylopenairealtime" is answering a question nobody
+                # asked, and the receipt already carries the billing name.
+                lines.append(replace(line, provider=llm_provider))
 
     if tts_provider:
         if "tts" in keyed:

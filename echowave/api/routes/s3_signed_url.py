@@ -229,7 +229,23 @@ async def get_signed_url(
             key, expiration=expires_in, force_inline=inline
         )
         if not url:
-            raise HTTPException(status_code=500, detail="Failed to generate signed URL")
+            # Distinct from the ClientError below on purpose. Both used to say
+            # "Failed to generate signed URL", which made a misconfigured
+            # endpoint, absent credentials and a dead storage backend one
+            # symptom with three cures — and the browser the only place anyone
+            # was looking. The backend logs which setting is wrong; this at
+            # least says which half of the path gave up.
+            logger.error(
+                "Storage backend {} returned no signed URL for key={}. This is "
+                "configuration — presigning never checks that the object "
+                "exists — so look at the endpoint, credentials and bucket.",
+                type(storage).__name__,
+                key,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Storage did not return a signed URL for this file.",
+            )
 
         # Issuing the URL is the moment access becomes possible, so that is what
         # gets logged. Whether the browser then played the audio is not
@@ -248,8 +264,11 @@ async def get_signed_url(
         logger.info(f"Generated signed URL for key={key}, expires_in={expires_in}s")
         return {"url": url, "expires_in": expires_in}
     except ClientError as exc:
-        logger.error(f"Error generating signed URL: {exc}")
-        raise HTTPException(status_code=500, detail="Failed to generate signed URL")
+        logger.error("Storage rejected the signed-URL request for key={}: {}", key, exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Storage rejected the request for this file.",
+        )
 
 
 @router.get(

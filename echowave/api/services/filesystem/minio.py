@@ -196,7 +196,26 @@ class MinioFileSystem(BaseFileSystem):
 
             return await asyncio.to_thread(_sign)
         except Exception as e:
-            logger.error(f"Error generating MinIO signed URL: {e}")
+            # Named, not just typed. Every cause of a failure here is a piece of
+            # configuration, and the exception on its own says which *call*
+            # broke rather than which *setting* is wrong — so the bucket and the
+            # endpoint being signed against go in the line. Twice now this has
+            # been an endpoint pointing somewhere with no /voice-audio/ route,
+            # and twice the log said only that signing failed.
+            #
+            # Presigning does not contact the server and does not check the
+            # object exists, so this is never "the recording is missing": it is
+            # credentials, endpoint or bucket. Worth stating because the obvious
+            # first guess is the wrong one.
+            logger.error(
+                "Error generating MinIO signed URL for {} in bucket {} against "
+                "{} ({}): {}",
+                file_path,
+                self.bucket_name,
+                self.public_endpoint if not use_internal_endpoint else self.endpoint,
+                "internal" if use_internal_endpoint else "public",
+                e,
+            )
             return None
 
     async def aget_file_metadata(self, file_path: str) -> dict[str, Any] | None:

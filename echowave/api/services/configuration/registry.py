@@ -701,7 +701,24 @@ class SarvamLLMConfiguration(BaseLLMConfiguration):
     )
 
 
-OPENAI_REALTIME_MODELS = ["gpt-realtime-2"]
+#: Newest first, because the field's ``examples`` are what an operator picks
+#: from and the first is the one they will take.
+#:
+#: ``gpt-realtime-2.1`` lists at the same $32/$64 per 1M audio tokens as the
+#: ``-2`` it replaces, so moving to it costs nothing. ``-2.1-mini`` is $10/$20 —
+#: 3.2x cheaper on both legs, which is the difference between speech-to-speech
+#: pricing like a premium option and pricing like the cascade it competes with.
+#:
+#: This is an ``examples`` list, not an allowlist: the field is a plain ``str``
+#: with ``allow_custom_input``, so a model absent from here still works and is
+#: passed straight to the vendor. What being absent costs is discoverability —
+#: it does not appear in the picker, and an operator has to know the id to type
+#: it. Keep it current for that reason rather than for correctness.
+OPENAI_REALTIME_MODELS = [
+    "gpt-realtime-2.1",
+    "gpt-realtime-2.1-mini",
+    "gpt-realtime-2",
+]
 OPENAI_REALTIME_VOICES = [
     "alloy",
     "ash",

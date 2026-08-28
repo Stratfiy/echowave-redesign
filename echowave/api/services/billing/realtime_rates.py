@@ -91,6 +91,48 @@ REALTIME_PRICES: tuple[RealtimeModelPrice, ...] = (
         ),
     ),
     RealtimeModelPrice(
+        provider="openai_realtime",
+        model="gpt-realtime-2.1",
+        label="OpenAI GPT Realtime 2.1",
+        # Identical token prices to the ``-2`` it supersedes, which is the
+        # whole reason it is worth moving to: a newer flagship that costs the
+        # same. Carried as its own row rather than left to inherit, so that the
+        # day the two prices diverge one number moves and the other does not.
+        audio_input_usd_per_million=32.00,
+        audio_output_usd_per_million=64.00,
+        cached_audio_input_usd_per_million=0.40,
+        audio_input_tokens_per_second=10.0,
+        audio_output_tokens_per_second=20.0,
+        basis="$32/$64 per 1M audio tokens, $0.40 cached — same as gpt-realtime-2.",
+    ),
+    RealtimeModelPrice(
+        provider="openai_realtime",
+        model="gpt-realtime-2.1-mini",
+        label="OpenAI GPT Realtime 2.1 mini",
+        # $10/$20 against the flagship's $32/$64 — 3.2x cheaper on *both* legs,
+        # which is what makes the blend scale cleanly: the ratio is identical
+        # whatever the mix of input and output turns out to be.
+        #
+        # Priced as its own entry rather than left to the provider-wide row,
+        # because that row is the flagship's. A mini call inheriting it would be
+        # costed at 3.2x what the vendor charges, and provider lines carry the
+        # managed markup — so the error is money taken from the customer, not
+        # an internal reporting slip.
+        audio_input_usd_per_million=10.00,
+        audio_output_usd_per_million=20.00,
+        cached_audio_input_usd_per_million=0.30,
+        # Same tokenisation as the flagship: the mini is a smaller model behind
+        # the same audio front end, so a second of speech becomes the same
+        # number of tokens. Only the per-token price differs.
+        audio_input_tokens_per_second=10.0,
+        audio_output_tokens_per_second=20.0,
+        basis=(
+            "$10/$20 per 1M audio tokens, $0.30 cached, from OpenAI's pricing "
+            "page. Tokenisation assumed identical to gpt-realtime-2 — verify, "
+            "it is inherited rather than published."
+        ),
+    ),
+    RealtimeModelPrice(
         provider="azure_realtime",
         model="gpt-realtime-2",
         label="Azure OpenAI GPT Realtime 2",
@@ -126,11 +168,29 @@ REALTIME_PRICES: tuple[RealtimeModelPrice, ...] = (
 # usage path for realtime, which is a schema change, not a price book entry.
 
 
-#: Keyed for lookup by the provider names the configuration registry uses, so a
-#: configured agent can be priced without a translation table in between.
-REALTIME_PRICES_BY_PROVIDER: dict[str, RealtimeModelPrice] = {
-    price.provider: price for price in REALTIME_PRICES
-}
+#: The entry used when a realtime model has no price of its own — so, the rate
+#: the provider-wide rate card row is seeded from.
+#:
+#: **First entry per provider wins, and that is load-bearing.** A dict
+#: comprehension over ``REALTIME_PRICES`` takes the *last*, which meant adding
+#: ``gpt-realtime-2.1-mini`` below the flagship silently made the mini the
+#: default for all of ``openai_realtime`` — and the two flagships, which have no
+#: model-specific row, would have costed at a third of what they charge. The
+#: order of a list is not a thing to hang a price on, so it is spelled out here
+#: rather than left to whoever appends next.
+#:
+#: The flagship is the right default for the same reason: it is what the tiers
+#: resolve to, so the common case is priced correctly, and a cheaper model that
+#: needs its own row will announce itself as one that costs less rather than
+#: hide as one that costs more.
+def _by_provider() -> dict[str, RealtimeModelPrice]:
+    out: dict[str, RealtimeModelPrice] = {}
+    for price in REALTIME_PRICES:
+        out.setdefault(price.provider, price)
+    return out
+
+
+REALTIME_PRICES_BY_PROVIDER: dict[str, RealtimeModelPrice] = _by_provider()
 
 
 def price_for(provider: str, model: str = "") -> RealtimeModelPrice | None:
