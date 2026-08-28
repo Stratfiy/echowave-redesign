@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 from pipecat.services.sarvam.llm import SarvamLLMService as RealSarvamLLMService
 from pipecat.services.settings import is_given
+from pipecat.services.tts_service import TextAggregationMode
 from pipecat.transcriptions.language import Language
 
 from api.services.configuration.registry import (
@@ -170,6 +171,9 @@ class TestSarvamTTSServiceFactory:
         assert kwargs["settings"].voice == "anushka"
         assert kwargs["settings"].language == Language.HI
         assert kwargs["settings"].pace == 1.25
+        assert kwargs["settings"].min_buffer_size == 20
+        assert kwargs["settings"].max_chunk_length == 80
+        assert kwargs["text_aggregation_mode"] == TextAggregationMode.TOKEN
 
     def test_create_sarvam_tts_service_normalizes_custom_voice_id(self):
         user_config = SimpleNamespace(
