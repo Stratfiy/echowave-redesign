@@ -496,6 +496,24 @@ def create_stt_service(
         )
 
 
+# Providers whose TTS class holds one connection open across synthesis calls,
+# so feeding it LLM tokens as they arrive starts audio sooner instead of
+# starting a new request per token.
+#
+# Membership is per *class the factory actually constructs*, not per vendor.
+# Several vendors ship both a websocket and an HTTP service and we pick one;
+# the vendor supporting streaming somewhere is not the question.
+#
+#   deepgram    DeepgramTTSService      WebsocketTTSService
+#   elevenlabs  ElevenLabsTTSService    WebsocketTTSService — also derives its
+#                                       own auto_mode from this setting, so it
+#                                       needs no separate tuning here
+#   cartesia    CartesiaTTSService      WebsocketTTSService
+#   inworld     InworldTTSService       WebsocketTTSService
+#   decibyl     DograhTTSService        WebsocketTTSService
+#   rime        RimeTTSService          WebsocketTTSService
+#   sarvam      SarvamTTSService        persistent websocket, sends text on it
+#   smallest    SmallestTTSService      persistent websocket, sends text on it
 _LOW_LATENCY_STREAMING_TTS_PROVIDERS = frozenset(
     {
         ServiceProviders.DEEPGRAM.value,
@@ -506,6 +524,57 @@ _LOW_LATENCY_STREAMING_TTS_PROVIDERS = frozenset(
         ServiceProviders.RIME.value,
         ServiceProviders.SARVAM.value,
         ServiceProviders.SMALLEST.value,
+    }
+)
+
+# The rest, and why each one is not an oversight. Written down because "some
+# providers got the low-latency setting and some didn't" reads like unfinished
+# work, and re-deriving the answer means reading a TTS class per provider.
+#
+#   openai      OpenAITTSService        one HTTP request per synthesis
+#   speaches    SpeachesTTSService      subclasses OpenAITTSService
+#   camb        CambTTSService          one HTTP request per synthesis
+#   minimax     MiniMaxHttpTTSService   one HTTP request per synthesis. The
+#                                       "OwnedSession" in our subclass is an
+#                                       aiohttp session's lifecycle, not a
+#                                       streaming session.
+#   google      GoogleTTSService        websocket-free; builds a fresh
+#                                       StreamingSynthesizeConfig and opens a
+#                                       new gRPC streaming call per run_tts,
+#                                       so token mode means one call per token
+#   azure_speech AzureTTSService        the interesting one. Its connection
+#                                       *is* persistent, but each run_tts wraps
+#                                       the text in SSML for a discrete
+#                                       speak_ssml_async, and it drains the
+#                                       audio queue on entry — so a second call
+#                                       arriving mid-playback discards the
+#                                       first one's remaining audio. Token mode
+#                                       here would chop speech, not speed it up.
+#
+#   rumik       RumikTTSService does hold a persistent websocket, like Sarvam
+#               and Smallest — but it defaults to full_response_aggregation and
+#               replaces self._text_aggregator with its own
+#               _FullResponseTextAggregator *after* calling super().__init__().
+#               A text_aggregation_mode passed here is therefore overwritten
+#               and has no effect: adding rumik to the streaming set would look
+#               like a latency fix and change nothing at all.
+#
+# One is worth revisiting, and it is not a one-line change:
+#
+#   xai         XAIHttpTTSService is what the factory builds, but the fork also
+#               has XAITTSService(WebsocketTTSService). Switching would be a
+#               real migration — the websocket class takes
+#               XAIWebsocketTTSSettings, not the XAITTSSettings passed today.
+_REQUEST_BASED_TTS_PROVIDERS = frozenset(
+    {
+        ServiceProviders.OPENAI.value,
+        ServiceProviders.SPEACHES.value,
+        ServiceProviders.CAMB.value,
+        ServiceProviders.MINIMAX.value,
+        ServiceProviders.GOOGLE.value,
+        ServiceProviders.AZURE_SPEECH.value,
+        ServiceProviders.XAI.value,
+        ServiceProviders.RUMIK.value,
     }
 )
 

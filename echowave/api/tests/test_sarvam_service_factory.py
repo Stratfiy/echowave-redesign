@@ -1,3 +1,5 @@
+import re
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -12,9 +14,11 @@ from api.services.configuration.registry import (
     SarvamTTSConfiguration,
     ServiceProviders,
 )
+from api.services.pipecat import service_factory
 from api.services.pipecat.audio_config import AudioConfig
 from api.services.pipecat.service_factory import (
     _LOW_LATENCY_STREAMING_TTS_PROVIDERS,
+    _REQUEST_BASED_TTS_PROVIDERS,
     _create_tts_service_instance,
     create_llm_service,
     create_llm_service_from_provider,
@@ -143,19 +147,7 @@ class TestTTSLatencyPolicy:
             text_aggregation_mode=TextAggregationMode.TOKEN,
         )
 
-    @pytest.mark.parametrize(
-        "provider",
-        [
-            ServiceProviders.OPENAI.value,
-            ServiceProviders.GOOGLE.value,
-            ServiceProviders.CAMB.value,
-            ServiceProviders.SPEACHES.value,
-            ServiceProviders.RUMIK.value,
-            ServiceProviders.MINIMAX.value,
-            ServiceProviders.AZURE_SPEECH.value,
-            ServiceProviders.XAI.value,
-        ],
-    )
+    @pytest.mark.parametrize("provider", sorted(_REQUEST_BASED_TTS_PROVIDERS))
     def test_request_providers_keep_sentence_aggregation(self, provider):
         service = Mock()
 
@@ -295,3 +287,67 @@ class TestSarvamTTSServiceFactory:
 
         settings = mock_service.call_args.kwargs["settings"]
         assert not is_given(settings.voice)
+
+
+class TestEveryTTSProviderHasALatencyDecision:
+    """No TTS provider may sit outside both sets.
+
+    The two frozensets are the audit. A provider absent from both has never
+    been looked at, and it silently gets Pipecat's sentence default — which is
+    the safe answer but an unrecorded one, indistinguishable from a considered
+    decision. Reading it back out of the factory is what makes a new provider's
+    omission visible instead of invisible.
+    """
+
+    @staticmethod
+    def _providers_the_factory_handles() -> set[str]:
+        """Every provider `create_tts_service` branches on."""
+        source = Path(service_factory.__file__).read_text()
+        return set(
+            re.findall(
+                r"user_config\.tts\.provider == ServiceProviders\.(\w+)\.value", source
+            )
+        )
+
+    def test_the_two_sets_do_not_overlap(self):
+        assert not (_LOW_LATENCY_STREAMING_TTS_PROVIDERS & _REQUEST_BASED_TTS_PROVIDERS)
+
+    def test_every_provider_is_classified(self):
+        classified = {
+            ServiceProviders(value).name
+            for value in _LOW_LATENCY_STREAMING_TTS_PROVIDERS
+            | _REQUEST_BASED_TTS_PROVIDERS
+        }
+        missing = self._providers_the_factory_handles() - classified
+
+        assert not missing, (
+            f"TTS providers with no recorded latency decision: {sorted(missing)}. "
+            "Add each to _LOW_LATENCY_STREAMING_TTS_PROVIDERS or to "
+            "_REQUEST_BASED_TTS_PROVIDERS with the reason, having checked "
+            "whether the class the factory builds holds its connection open "
+            "across synthesis calls."
+        )
+
+    def test_no_set_names_a_provider_the_factory_cannot_build(self):
+        """A stale entry is a decision about something that no longer exists."""
+        handled = self._providers_the_factory_handles()
+        classified = {
+            ServiceProviders(value).name
+            for value in _LOW_LATENCY_STREAMING_TTS_PROVIDERS
+            | _REQUEST_BASED_TTS_PROVIDERS
+        }
+
+        assert not (classified - handled)
+
+    def test_azure_is_not_treated_as_streaming(self):
+        """Its connection is persistent; its synthesis is not.
+
+        AzureTTSService drains its audio queue on entry to run_tts, so a second
+        call arriving while the first is still playing discards the rest of
+        that audio. Token mode would chop speech rather than speed it up, which
+        is exactly the kind of mistake the websocket-shaped class invites.
+        """
+        assert (
+            ServiceProviders.AZURE_SPEECH.value
+            not in _LOW_LATENCY_STREAMING_TTS_PROVIDERS
+        )
