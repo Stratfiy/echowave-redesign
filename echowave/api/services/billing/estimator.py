@@ -696,9 +696,18 @@ async def price_components(
         try:
             component = CostComponent(component_value)
         except ValueError:
-            # Not a billed component — embeddings are consumed at ingest and
-            # realtime is metered as LLM usage under the LLM component. Neither
-            # has a per-minute line of its own under that name.
+            # Not a recognised component string at all — e.g. "realtime",
+            # which is metered as LLM usage under the LLM component and has no
+            # per-minute line of its own under that name. "embedding" *is* a
+            # real CostComponent now (query-time knowledge-base retrieval, see
+            # billing/usage.py), so it reaches the branch below rather than
+            # here — but nothing in the current catalogue actually passes
+            # "embedding" as a slot, since there is no managed embedding tier
+            # to price per-minute (see test_managed_tiers_are_priced.py). If
+            # that ever changes, this function's `else` branch defaults to
+            # DEFAULT_CHARACTERS_PER_MINUTE for anything that isn't LLM, which
+            # is the wrong unit basis for embeddings (tokens) — give it its
+            # own units-per-minute default before wiring it in here.
             out[(component_value, provider, model)] = None
             continue
 

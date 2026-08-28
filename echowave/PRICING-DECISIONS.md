@@ -1,11 +1,15 @@
 # Pricing decisions — record of truth
 
-**Written 28 Aug 2026**, after a founder review session. **Updated the same
-day** with round two: the per-model markup override is now built, the bundle
-scope was narrowed to calculation-only, and the KB/QA/sentiment question was
-researched against Vapi and Bolna rather than left as an open flag. This file
-exists so a future session (human or Claude) that has not seen that
-conversation can pick up the current pricing model without re-deriving it.
+**Written 28 Aug 2026**, after a founder review session, and updated twice the
+same day. Round two built the per-model markup override, narrowed the bundle
+scope to calculation-only, and researched KB/QA/sentiment against Vapi and
+Bolna. Round three: query-time embedding is now a real, priced, marked-up
+cost component end to end; KB/QA/sentiment absorption was decided (free,
+recovered via the markup rather than itemised); and telephony billing on a
+Decibyl-provided number was audited and confirmed correctly built, gated only
+on carrier approval. This file exists so a future session (human or Claude)
+that has not seen that conversation can pick up the current pricing model
+without re-deriving it.
 When this file and a chat transcript disagree, **this file wins** — update it
 the same day a decision changes, or it becomes another stale doc like the ones
 it replaces.
@@ -24,12 +28,13 @@ state and current intent.
 | 1 | **₹3.00/min platform fee for pay-as-you-go accounts** (no subscription plan) | Mechanism exists — **needs to be set**, see §2.1 |
 | 2 | **Tiered platform fee, plan-wise** — each subscription plan can carry its own per-minute fee | **Already built and wired**, see §2.2 |
 | 3 | **Dedicated/negotiated platform fee for enterprise & agency accounts** on commit | **Already built**, see §2.3 |
-| 4 | **Per-model markup override** for LLMs — override the blanket managed markup for an individual model | **Not built.** See §2.4 for the gap and what building it involves |
-| 5 | **Bundle LLM + embedding cost into one displayed "model" cost** (e.g. a Sarvam bundle showing STT+TTS+LLM+embedding as one number) | **Not built.** Product/UI decision, see §2.5 |
-| 6 | **Fold Knowledge Base and post-call QA (summary, sentiment, etc.) into model cost** rather than a separate line, since the cost is negligible | **Conflicts with the existing add-on design and an earlier revenue recommendation** — flagged, not silently implemented. See §2.6 |
+| 4 | **Per-model markup override** for LLMs — override the blanket managed markup for an individual model | **Backend built** (schema, resolution, admin API), no admin screen yet. See §2.4 |
+| 5 | **Bundle LLM + embedding cost into one displayed "model" cost** — calculation only, confirmed | **Embedding is now a real priced cost component end to end**; the roll-up display itself is still to build. See §2.5 |
+| 6 | **Fold Knowledge Base and post-call QA (summary, sentiment, etc.) into model cost** rather than a separate line | **Decided: absorb for free, Vapi-shaped, recover via the markup** — researched against Vapi/Bolna/Retell. Pricing page not yet updated. See §2.6 |
 | 7 | **First recharge minimum = ₹1,000** | **Already built**, see §2.7 |
 | 8 | **Numbers included in a subscription must not be billed again** as a separate rental | **Already built and verified in code**, see §2.8 |
 | 9 | **Managed provider markup is currently 1.7x** | **Live in the database, not in the code default** — see §2.9, action needed so a fresh install doesn't regress to 1.4x |
+| 10 | **Telephony on a Decibyl-provided number must be measured and billed** | **Already built and verified in code** — gated only on `MANAGED_TELEPHONY_ENABLED` pending carrier approval, not a code gap. See §3.5 |
 
 ---
 
@@ -151,35 +156,52 @@ multiple. A new, narrower table sits alongside it:
   `pytest api/tests/test_markup_overrides.py` for real before trusting it in
   production** — see §4.
 
-### 2.5 Bundle LLM + embedding + STT + TTS as one displayed "model" cost — scope confirmed: calculation only
+### 2.5 Bundle LLM + embedding + STT + TTS as one displayed "model" cost — embedding is now priced; roll-up display still to build
 
-**Founder clarified: "Bundle means only for calculation."** That resolves the
-open question in the previous version of this section — it's the **roll-up**,
-not a new named catalogue entity. No new picker UI, no `model_bundles` table.
-What it needs:
+**Founder clarified: "Bundle means only for calculation."** Confirmed as the
+**roll-up**, not a new named catalogue entity — no new picker UI, no
+`model_bundles` table.
 
-1. **Embedding needs a real cost component first.** Today it has none — see
-   §2.6's finding that ingestion embeds on our own key and bills nothing, not
-   even as `uncosted`. A number that is always zero cannot usefully be summed
-   into anything. This is the actual prerequisite, and it's a small, contained
-   change: a `CostComponent.EMBEDDING` (or reuse `LLM` with a distinguishing
-   model tag — worth a two-minute decision, not a design problem) plus rate
-   rows in `default_rates.py` for `text-embedding-3-small` and whatever else
-   `DecibylEmbeddingService`/`OpenAIEmbeddingService` can resolve to.
-2. **The roll-up itself is presentation-only** on top of what already exists.
-   `CostPerMinuteBar` / `POST /cost-estimate/per-minute` already computes
-   STT+LLM+TTS as three lines and a total (`DASHBOARD.md §Cost estimate`).
-   Adding embedding to that sum and showing "Model cost: ₹X/min" instead of
-   four separate lines is a small change to that one function plus the
-   component that renders it — no schema change beyond step 1.
-3. **The receipt keeps the itemised lines regardless.** Rolling up the
-   *display* doesn't mean collapsing `call_cost_items` — the underlying
-   per-component rows stay, because that's what the unit-economics screen and
-   every margin figure downstream depend on. This is a UI-layer sum, not a
-   change to what's stored.
+**Done this round — the actual prerequisite:**
+- `CostComponent.EMBEDDING` added (`api/enums.py`), included in
+  `MARKED_UP_COMPONENTS` (`cost_engine.py`) — it is bought from a vendor and
+  resold, exactly like STT/LLM/TTS/telephony, so it gets the same 1.7x.
+- Rate rows in `default_rates.py`: OpenAI `text-embedding-3-small` ($0.02/1M
+  tokens, published) and `text-embedding-3-large` ($0.13/1M), an Azure
+  provider-wide row mirroring OpenAI's list price, and a `decibyl` row for the
+  MPS-managed path — marked `PROVISIONAL`, since what MPS actually charges
+  Decibyl for embeddings isn't published anywhere this file can cite; seeded
+  at the same list price MPS is presumed to be reselling.
+- **The vertical slice is wired end to end, for query-time embedding only**
+  (the embedding a knowledge-base search runs *during* a call, to turn the
+  caller's question into a vector): `OpenAIEmbeddingService`/
+  `AzureOpenAIEmbeddingService` now capture the real token count the vendor's
+  response reports → `knowledge_base.py`'s retrieval passes it out via an
+  out-parameter (deliberately not a key on the LLM-visible result — see that
+  function's docstring) → `PipelineMetricsAggregator.register_embedding_usage`
+  → `usage_info["embedding"]`, respecting BYOK the same way every other
+  component does → `usage.py` turns it into a costable `UsageItem` →
+  `cost_engine` prices and marks it up like anything else we resell.
+- Tests in `api/tests/test_embedding_billing.py`: the aggregator records and
+  accumulates it, BYOK on embedding alone (or alongside a BYOK LLM) is
+  respected independently, an unpriced embedding model reports `uncosted`
+  rather than free, and the cost-engine markup math is checked with real
+  numbers.
 
-**Not yet built — next up once §2.6 lands, since embedding's rate rows serve
-both.** See §4.
+**Deliberately not done: ingestion-time embedding.** Uploading a document
+embeds every chunk once, outside any call — no `workflow_run_id` to attach a
+line item to, so it cannot go through this same per-call receipt mechanism.
+It needs its own billing path (most likely a direct credit-ledger debit at
+upload time, the same shape as a number rental rather than a call cost). Not
+started — flagged as its own item in §5, not silently folded into this one.
+
+**Still to build: the roll-up display itself.** Presentation-only now that
+embedding has a real price — `CostPerMinuteBar` / `POST /cost-estimate/per-minute`
+already compute STT+LLM+TTS as three lines and a total; adding embedding to
+that sum and showing one "Model cost: ₹X/min" figure is a small change to
+that function and whatever renders it. The receipt keeps the itemised lines
+regardless — this is a UI-layer sum on top of `call_cost_items`, not a change
+to what's stored. See §5.
 
 ### 2.6 Fold KB + post-call QA (summary, sentiment, etc.) into model cost — researched against Vapi and Bolna
 
@@ -236,31 +258,47 @@ round and still haven't been able to run** — a query against
 `usage_info["llm"]` filtered to the `QAAnalysis` processor, which the code
 already records per call.
 
-**My recommendation, now with the competitor evidence in hand:** Vapi is real
-precedent for folding this in, which removes my earlier hesitation about
-reversing the $60k/yr case with nothing to point at. I'd still run the one
-measurement above before committing — "negligible" should be a number, not an
-assumption, especially since Retell prices QA at $0.10/min specifically
-*because* it isn't negligible on a larger model. If the real cost comes back
-under roughly $0.001–0.002/min, folding it in is a clean, defensible,
-Vapi-shaped decision. If it's materially more, a hybrid is worth considering:
-fold in KB and sentiment (cheap, thin LLM calls) but keep QA priced (the one
-Retell itself treats as expensive enough to meter).
+**Decided: absorb, Vapi-shaped, for now.** KB, post-call QA and sentiment ship
+free — no separate line, no toggle a customer has to think about.
+`ADDON_BILLING_ENABLED` stays `false`. Recovery is deliberately **not**
+per-feature pricing; it's a blanket lever instead — see below.
 
-**UI work needed either way, which doesn't yet exist:**
-- If folded in: nothing new to *charge*, but the pricing page and the
-  model-cost display (§2.5's roll-up) need to say plainly that KB/QA/sentiment
-  are included, the way Vapi's page does — otherwise a customer never learns
-  the feature exists.
-- If kept separate or hybrid: a toggle/indicator on the agent-builder screen
-  showing which priced features are active on a given agent, and the add-on
-  lines need to actually appear on `/usage` and the receipt once
-  `ADDON_BILLING_ENABLED=true` — right now that UI surfacing doesn't exist
-  either; the addon system bills correctly but nothing shows the customer why.
+**How the founder chose to recover the cost: raise the managed markup rather
+than itemise.** Rather than charging separately for KB/QA/sentiment (Retell's
+shape) or leaving them fully unrecovered, the plan is to fold them in for free
+and bring the *effective* price up toward competitors by increasing
+`MANAGED_PROVIDER_MARKUP_BPS` — already at 1.7x (§2.9) — so the absorbed cost
+comes back through the one number that already touches every managed minute,
+instead of a new line item nobody reads. This is coherent with Vapi's own
+shape: their $0.05/min headline is "everything included," and the price of
+"everything" is baked into that one number, not itemised beside it.
 
-**Still not implemented — needs your call on absorb vs. price vs. hybrid,
-informed by the one measurement above.** I can build any of the three once
-you pick. See §4.
+**What this means arithmetically, worth being precise about before the next
+markup change:** the 1.7x multiplier only touches **provider cost**
+(STT+LLM+TTS+telephony+embedding, marked up). QA/sentiment absorbed for free
+is a **platform cost**, paid once per call regardless of the customer's
+stack, and it does not scale with provider cost — a cheap Indic call and an
+expensive Western one absorb roughly the same QA cost but carry very
+different provider-cost bases to mark up. So a markup bump recovers the
+*average* absorbed cost across the book, over-recovering on expensive calls
+and under-recovering on cheap ones, rather than matching the actual cost to
+the actual call the way a per-minute add-on would have. Not a reason to
+reject the approach — Vapi presumably has exactly this same mismatch — but
+worth sizing once the QA-cost measurement (still not run, see §5) is in hand,
+so the markup number chosen is calibrated to something rather than a round
+figure.
+
+**UI work needed regardless of the free-for-now decision:** the pricing page
+and the model-cost display (§2.5's roll-up) should say plainly that
+KB/summary/sentiment are included, the way Vapi's page does — otherwise a
+customer never learns the feature exists, which was the concern raised
+alongside this decision ("the more it becomes optional and add-on, the user
+doesn't prefer it and won't even know"). Not built yet.
+
+**Still open:** the one measurement (real per-call QA/summary/sentiment cost)
+would tell us how much the markup actually needs to move to break even on
+what's being absorbed, versus how much of any increase is genuine margin
+expansion beyond that. See §5.
 
 ### 2.7 First recharge minimum ₹1,000 — confirmed working
 
@@ -407,6 +445,37 @@ add-on rates above are **priced in the code but not actually charged to
 anyone today.** Worth confirming they're still off, since flipping either is
 a real pricing change the moment it happens.
 
+### 3.5 Telephony on a Decibyl-provided number — confirmed correctly built, and the one thing gating it
+
+**Checked against your specific ask: does a call on a number we provide
+actually get metered and billed per minute?** Yes, and it's more carefully
+built than most of this file's findings:
+
+- `services/telephony/carriage.py:carriage_key_source()` resolves, per call,
+  whether the number involved belongs to a `TelephonyConfigurationModel` with
+  `is_platform_managed=True`. If yes → `key_sources["telephony"] = "managed"`
+  → the call's telephony seconds go through `usage.py` into a normal costed,
+  **marked-up** line (`TELEPHONY` is in `MARKED_UP_COMPONENTS`, same 1.7x as
+  everything else we resell). If no, or unresolvable, it bills nothing —
+  deliberately: "unresolvable means unbilled, loudly," per that module's own
+  docstring, because billing carriage we can't prove we bought is worse than
+  the reverse.
+- `is_platform_managed` gets set to `True` **automatically** the moment KYC
+  approves an organisation for managed telephony
+  (`services/kyc/service.py:733`, inside the function that creates the
+  managed configuration) — not a manual step anyone can forget. An admin
+  route also exists (`routes/telephony_admin.py`) for staff to toggle it by
+  hand if ever needed.
+- So the chain from "customer is on a Decibyl number" to "we bill their
+  telephony minutes, marked up" is real and automatic, not aspirational.
+
+**The one gate: `MANAGED_TELEPHONY_ENABLED`.** Still `false` as of the last
+checkpoint (`GO-LIVE-RUNBOOK.md`), pending Plivo reseller/carrier approval.
+Until it flips, no organisation can actually be issued a Decibyl-managed
+number in the first place — so the correctly-built billing logic above has
+nothing to bill yet. Once the carrier approval lands and this flag flips, no
+further code work is needed on the billing side; it already works.
+
 ---
 
 ## 4. The signed-URL bug (screenshot, Run #64)
@@ -446,43 +515,53 @@ item that needs you** — see §4.
 
 ## 5. The plan — what I can do vs. what you need to do
 
-### Done this round
-- [x] **Per-model markup override** (§2.4) — schema, resolution order in
-      `costing.py` and `estimator.py`, admin API, tests. **Backend only — no
-      admin screen yet, and not run against a real database from this
-      session.**
-- [x] **Bundle scope narrowed** (§2.5) to calculation-only per your
-      clarification — not yet built, but the ambiguity that was blocking it
-      is resolved.
-- [x] **KB/QA/sentiment researched against Vapi and Bolna** (§2.6) — found
-      Vapi bundles all three free (contradicting this repo's own earlier
-      claim that "every competitor" charges for them), Bolna looks similar,
-      Retell is the one that itemises. Not yet implemented — still needs your
-      absorb/price/hybrid call.
-- [x] **Numbers audited** (§3) — nothing is actually tiered yet, the global
-      rate is still $0.02 not ₹3, phone number pricing checks out internally
-      (₹559 rental, ₹60 real discount on Starter), and the ₹499 figure in
-      `COMPETITIVE-BUNDLES-2026.md` is stale.
+### Done this round (round 2)
+- [x] **Query-time embedding is now a real, priced, marked-up cost
+      component** (§2.5) — `CostComponent.EMBEDDING`, rate rows for
+      OpenAI/Azure/Decibyl-managed, and the full vertical slice wired from
+      the vendor's token-usage response through to a receipt line, with
+      tests. **Ingestion-time embedding is deliberately still unbilled** — a
+      different mechanism is needed, see below.
+- [x] **KB/QA/sentiment decision made**: absorb for free (Vapi-shaped),
+      recover via the managed markup rather than a separate line (§2.6).
+      Not yet reflected on the pricing page or the model-cost display.
+- [x] **Telephony on Decibyl-provided numbers confirmed correctly built**
+      (§3.5) — the only thing stopping it from billing today is
+      `MANAGED_TELEPHONY_ENABLED` being off pending carrier approval, not a
+      code gap.
+
+### Done last round (round 1)
+- [x] Per-model markup override — backend, no admin screen (§2.4).
+- [x] Numbers audited (§3) — nothing tiered yet, global rate still $0.02 not
+      ₹3, phone pricing checks out, ₹499 figure is stale.
+- [x] Signed-URL diagnosability fix (§4).
 
 ### I can do now (code, no external access needed)
-- [ ] **Give embedding a real cost component and rate rows** — the actual
-      prerequisite for both §2.5's roll-up and any version of §2.6's fold-in
-      that includes KB (KB retrieval leans on embeddings at query time too).
-- [ ] Build the **model-cost roll-up** (§2.5) once embedding is priced —
-      small, presentation-layer change.
-- [ ] Implement **whichever of absorb / price / hybrid** you pick for §2.6.
-- [ ] Add a **sentiment-analysis addon entry**, priced or at $0 with just the
-      `record_addon_used` hook so usage is at least measured either way.
-- [ ] Bump `MANAGED_PROVIDER_MARKUP_BPS` default to `17000` (§2.9) — one line,
-      ready whenever you confirm 1.7x is durable, not just today's setting.
+- [ ] Build the **model-cost roll-up display** (§2.5) — small,
+      presentation-layer change now that embedding has a real price.
+- [ ] Build the **ingestion-time embedding billing path** — a document
+      upload has no `workflow_run_id`, so this needs its own mechanism (most
+      likely a direct credit-ledger debit at upload time, shaped like a
+      number rental rather than a call receipt), not a variant of the
+      per-call engine. Real scope: this is the actual "internal cost that's
+      never billed" leak from the original review — worth prioritising.
+- [ ] Update the **pricing page / model-cost display** to say KB/summary/
+      sentiment are included, per the §2.6 decision.
+- [ ] Add a **sentiment-analysis addon entry** with a `record_addon_used`
+      hook so usage is at least measured (folded in free per §2.6, but
+      "free and unmeasured" and "free and tracked" are different — the
+      second is what lets you size a future markup change against real
+      volume).
 - [ ] Build the **admin screen** for the per-model markup override (§2.4) —
       the API is done, the UI isn't.
+- [ ] Bump `MANAGED_PROVIDER_MARKUP_BPS` default to `17000` (§2.9) — one
+      line, ready whenever you confirm 1.7x is durable.
 
 ### Needs your decision first (no code until you pick)
-- [ ] **§2.6** — absorb (Vapi-shaped), price (Retell-shaped), or hybrid (fold
-      in KB/sentiment, keep QA priced)? Ideally after the one QA-cost
-      measurement below.
-- [ ] **§2.9** — confirm 1.7x is the number you want as the durable default.
+- [ ] **How much to raise the markup, and when** (§2.6/§2.9) — ideally sized
+      against the QA-cost measurement below rather than picked round.
+- [ ] **§2.9** — confirm 1.7x (or whatever it moves to) is the number you
+      want as the durable env-var default.
 
 ### Needs you specifically (access or actions only you have)
 - [ ] **Set the ₹3.00/min global default** at `/superadmin/billing/rate-card`
@@ -490,17 +569,22 @@ item that needs you** — see §4.
 - [ ] **Set `platform_rate_mpaise` on Starter** (and any plan above it) at
       `/superadmin/billing/plans` — confirmed unset on the one plan that
       exists (§3.1). Nothing is tiered until this is done.
-- [ ] **Run the QA-cost measurement** — a query against `usage_info["llm"]`
-      filtered to the `QAAnalysis` processor. I described the query in §2.6
-      but can't run it without database access.
-- [ ] **Run `pytest api/tests/test_markup_overrides.py`** (and the full
-      suite) for real — I could only compile-check it here.
+- [ ] **Run the QA/summary/sentiment-cost measurement** — a query against
+      `usage_info["llm"]` filtered to the `QAAnalysis` processor. Now doubly
+      useful: it tells you what's genuinely being absorbed for free (§2.6)
+      *and* what a markup increase needs to cover to break even on it.
+- [ ] **Run the test suites for real** —
+      `pytest api/tests/test_markup_overrides.py` and
+      `api/tests/test_embedding_billing.py` at minimum, plus the full suite.
+      I could only compile-check them here; no Postgres/Redis available in
+      this session.
 - [ ] **Check production logs** for the Run #64 signed-URL failure — with
-      today's fix, the *next* failure will show a real reason in the API
-      response itself, so re-trigger it from the UI and read the new error
-      text (or check server logs around `Error generating MinIO/S3 signed
-      URL` if you have SSH/console access to the EC2 box).
+      the diagnosability fix from last round, the *next* failure will show a
+      real reason in the API response itself, so re-trigger it from the UI
+      and read the new error text.
 - [ ] **Verify §2.7 and §2.8** live — sign up a fresh test account and confirm
       ₹1,000 first-recharge and no-double-billed-numbers behave as described.
 - [ ] **Correct the ₹499 figure** wherever it's quoted outside this repo
       (decks, sales conversations) — it should be ₹559 (§3.3).
+- [ ] **Flip `MANAGED_TELEPHONY_ENABLED` once Plivo reseller approval lands**
+      (§3.5) — the billing side needs no further code once it does.

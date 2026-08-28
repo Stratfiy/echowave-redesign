@@ -55,6 +55,7 @@ MARKED_UP_COMPONENTS = frozenset(
         CostComponent.LLM.value,
         CostComponent.TTS.value,
         CostComponent.TELEPHONY.value,
+        CostComponent.EMBEDDING.value,
     }
 )
 from api.services.billing.money import (

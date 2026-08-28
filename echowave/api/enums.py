@@ -219,6 +219,11 @@ class CostComponent(str, Enum):
     LLM = "llm"
     TTS = "tts"
     TELEPHONY = "telephony"
+    #: Query-time embedding usage during in-call knowledge-base retrieval.
+    #: Ingestion-time embedding (document upload) is a separate event with no
+    #: call to attach a line item to — see ``tasks/knowledge_base_processing.py``
+    #: and ``PRICING-DECISIONS.md`` for why that side is not this component.
+    EMBEDDING = "embedding"
     PLATFORM = "platform"
     #: Retired. A BYOK call now carries an uplifted *platform* rate rather
     #: than a second fee line — see ``billing/usage.py:byok_platform_tier``.
@@ -234,7 +239,7 @@ class CostComponent(str, Enum):
     @classmethod
     def provider_components(cls) -> tuple["CostComponent", ...]:
         """Components that represent money paid to a third party."""
-        return (cls.STT, cls.LLM, cls.TTS, cls.TELEPHONY)
+        return (cls.STT, cls.LLM, cls.TTS, cls.TELEPHONY, cls.EMBEDDING)
 
     @classmethod
     def revenue_components(cls) -> tuple["CostComponent", ...]:

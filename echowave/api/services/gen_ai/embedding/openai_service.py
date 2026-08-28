@@ -51,6 +51,14 @@ class OpenAIEmbeddingService(BaseEmbeddingService):
         """
         self.db = db_client
         self.model_id = model_id
+        #: Tokens billed by the vendor for the most recent embed_texts/
+        #: embed_query call, or None when the response carried no usage figure.
+        #: Read by the caller immediately after the call — this is instance
+        #: state on an object built fresh per request (see
+        #: ``gen_ai/embedding/factory.py:build_embedding_service``), not a
+        #: shared/pooled client, so nothing else can interleave and read a
+        #: stale value.
+        self.last_usage_tokens: int | None = None
 
         self._api_key_configured = bool(api_key)
         if self._api_key_configured:
@@ -107,6 +115,8 @@ class OpenAIEmbeddingService(BaseEmbeddingService):
                 model=self.model_id,
                 **self._request_kwargs(),
             )
+            usage = getattr(response, "usage", None)
+            self.last_usage_tokens = getattr(usage, "total_tokens", None)
             return [item.embedding for item in response.data]
         except Exception as e:
             logger.error(f"Error generating OpenAI embeddings: {e}")
