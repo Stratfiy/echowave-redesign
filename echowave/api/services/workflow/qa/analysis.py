@@ -52,6 +52,32 @@ async def _run_llm_inference(
     return text
 
 
+#: What the QA response is contractually parsed into, regardless of what an
+#: operator's system prompt asks the model for. Anything else the model
+#: returns used to be silently discarded — an operator who added their own
+#: extraction instructions to ``qa_system_prompt`` got an LLM call that ran,
+#: was billed, and threw its own answer away.
+_RESERVED_QA_KEYS = frozenset({"tags", "summary", "call_quality_score", "overall_sentiment"})
+
+
+def _extracted_data(parsed: dict[str, Any]) -> dict[str, Any]:
+    """Whatever the model returned beyond the fixed QA fields.
+
+    This is the whole of what makes a custom extraction — a lead score, an
+    appointment time, a sentiment label with the operator's own categories —
+    possible today without new runtime machinery: the QA LLM call already
+    runs once per call on a prompt the operator already controls
+    (``qa_system_prompt``/``QANodeData``), and the JSON it returns already
+    carries anything asked for. This function is the one place that used to
+    throw it away, and now doesn't.
+
+    Empty rather than absent when there is nothing extra, so a reader can
+    always index ``node_result["extracted_data"]`` without a KeyError — the
+    same guarantee every other usage_info-shaped dict in this codebase gives.
+    """
+    return {k: v for k, v in parsed.items() if k not in _RESERVED_QA_KEYS}
+
+
 async def _generate_conversation_summary(
     llm,
     model: str,
@@ -251,6 +277,7 @@ async def run_per_node_qa_analysis(
                 "tags": [],
                 "summary": "",
                 "score": None,
+                "extracted_data": {},
             }
             pending_conversation.extend(node_conversation)
             continue
@@ -282,10 +309,12 @@ async def run_per_node_qa_analysis(
             node_result["summary"] = parsed.get("summary", "")
             node_result["score"] = parsed.get("call_quality_score")
             node_result["overall_sentiment"] = parsed.get("overall_sentiment")
+            node_result["extracted_data"] = _extracted_data(parsed)
         except (json.JSONDecodeError, ValueError):
             node_result["tags"] = []
             node_result["summary"] = ""
             node_result["score"] = None
+            node_result["extracted_data"] = {}
 
         node_results[node_id] = node_result
 
@@ -401,10 +430,12 @@ async def _run_whole_call_qa_analysis(
         node_result["summary"] = parsed.get("summary", "")
         node_result["score"] = parsed.get("call_quality_score")
         node_result["overall_sentiment"] = parsed.get("overall_sentiment")
+        node_result["extracted_data"] = _extracted_data(parsed)
     except (json.JSONDecodeError, ValueError):
         node_result["tags"] = []
         node_result["summary"] = ""
         node_result["score"] = None
+        node_result["extracted_data"] = {}
 
     # Langfuse tracing
     parent_ctx = setup_langfuse_parent_context(workflow_run)
