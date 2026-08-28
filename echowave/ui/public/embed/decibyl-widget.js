@@ -10,6 +10,12 @@
   // Widget configuration defaults
   const DEFAULT_CONFIG = {
     position: 'bottom-right',
+    // The pill can be dragged anywhere in the viewport and remembers where it
+    // was put. On by default: the widget is fixed at 999999 and a host page
+    // has no way to move it out of its own way, so on a narrow screen it can
+    // land on top of the site's own header button with no recourse for the
+    // visitor. Set `draggable: false` to pin it.
+    draggable: true,
     autoStart: false,
     apiBaseUrl: window.location.hostname === 'localhost'
       ? 'http://localhost:8000'
@@ -117,6 +123,7 @@
         embedMode: configData.settings?.embedMode || 'floating',
         containerId: configData.settings?.containerId || 'decibyl-inline-container',
         position: configData.position || DEFAULT_CONFIG.position,
+        draggable: configData.draggable !== false,
         buttonColor: configData.settings?.buttonColor || '#10b981',
         buttonText: configData.settings?.buttonText || 'Talk to Agent',
         callToActionText: configData.settings?.callToActionText || 'Click to start voice conversation',
@@ -177,6 +184,23 @@
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       }
 
+      /* Dragging is pointer-driven, so the browser must not claim the gesture
+         for scrolling first. Only set once dragging is enabled, so a pinned
+         widget keeps normal touch behaviour. */
+      .decibyl-widget-container.decibyl-draggable { touch-action: none; }
+
+      /* While a drag is live: no text selection anywhere, no transition
+         fighting the pointer, and the pill lifts slightly so it reads as
+         picked up rather than stuck. */
+      .decibyl-widget-container.decibyl-dragging { user-select: none; cursor: grabbing; }
+      .decibyl-widget-container.decibyl-dragging .decibyl-widget-cta {
+        transition: none;
+        transform: scale(1.04);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+      }
+      .decibyl-widget-container.decibyl-dragging .decibyl-widget-cta:active { transform: scale(1.04); }
+
+
       .decibyl-widget-container.bottom-right {
         bottom: 20px;
         right: 20px;
@@ -195,6 +219,19 @@
       .decibyl-widget-container.top-left {
         top: 20px;
         left: 20px;
+      }
+
+      /* A pill the visitor has moved is positioned by left/top alone. This has
+         to come after the corner rules: they are the same specificity, so
+         source order is what decides, and leaving the corner's right offset in
+         place stretches the container across the viewport instead of
+         shrink-wrapping the pill. max-content states that shrink-wrap rather
+         than leaving it to the fixed-position sizing rules. */
+      .decibyl-widget-container.decibyl-placed {
+        right: auto;
+        bottom: auto;
+        width: max-content;
+        max-width: calc(100vw - 16px);
       }
 
       .decibyl-widget-cta {
@@ -269,6 +306,163 @@
 
     document.body.appendChild(container);
     renderFloating();
+
+    if (state.config.draggable) makeDraggable(container);
+  }
+
+  /** Where a visitor last put the pill, keyed per origin. */
+  const DRAG_STORAGE_KEY = 'decibyl-widget-position';
+  /** Movement past this many pixels is a drag, below it is a click. Four is
+   *  enough to survive the wobble of a thumb pressing a button without
+   *  swallowing a deliberate short drag. */
+  const DRAG_THRESHOLD_PX = 4;
+  /** Keep at least this much of the pill on screen when clamping. */
+  const DRAG_MARGIN_PX = 8;
+
+  function readStoredPosition() {
+    try {
+      const raw = window.localStorage.getItem(DRAG_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.left !== 'number' || typeof parsed?.top !== 'number') return null;
+      return parsed;
+    } catch {
+      // Private mode, blocked storage, or a corrupt value. The widget keeps
+      // its configured corner rather than failing to render.
+      return null;
+    }
+  }
+
+  function writeStoredPosition(left, top) {
+    try {
+      window.localStorage.setItem(DRAG_STORAGE_KEY, JSON.stringify({ left, top }));
+    } catch {
+      // Not being able to remember the position is not a reason to stop
+      // letting the visitor move it.
+    }
+  }
+
+  /**
+   * Let the visitor drag the pill anywhere and keep it there.
+   *
+   * The widget is `position: fixed` at z-index 999999, which means the host
+   * page cannot move it out of the way of its own UI — on a narrow screen it
+   * can sit squarely on top of the site's header button, and a visitor who
+   * wants that button has no way through. Dragging is the fix that does not
+   * require the host to know anything.
+   *
+   * Bound to the container rather than the button, because `renderFloating`
+   * replaces the button on every status change and a listener on it would be
+   * lost the moment a call started.
+   */
+  function makeDraggable(container) {
+    container.classList.add('decibyl-draggable');
+
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let originLeft = 0;
+    let originTop = 0;
+    let moved = false;
+
+    /** Hold the pill inside the viewport, whatever the viewport just did. */
+    function clamp(left, top) {
+      const rect = container.getBoundingClientRect();
+      const maxLeft = window.innerWidth - rect.width - DRAG_MARGIN_PX;
+      const maxTop = window.innerHeight - rect.height - DRAG_MARGIN_PX;
+      return {
+        left: Math.min(Math.max(left, DRAG_MARGIN_PX), Math.max(maxLeft, DRAG_MARGIN_PX)),
+        top: Math.min(Math.max(top, DRAG_MARGIN_PX), Math.max(maxTop, DRAG_MARGIN_PX)),
+      };
+    }
+
+    function place(left, top) {
+      const safe = clamp(left, top);
+      container.classList.add('decibyl-placed');
+      container.style.left = `${safe.left}px`;
+      container.style.top = `${safe.top}px`;
+      return safe;
+    }
+
+    // Restore where they left it. Clamped on the way in, because the window
+    // they saved it from may have been a different size — or a different
+    // device entirely.
+    const stored = readStoredPosition();
+    if (stored) place(stored.left, stored.top);
+
+    // The move and end listeners live on the document, not the container.
+    // Two things go wrong otherwise, and the browser tests caught both:
+    // capturing the pointer on pointerdown retargets the click that follows
+    // from the button to the container, so the pill stops working as a button
+    // at all; and without capture, a container-bound pointermove stops firing
+    // the instant the pointer outruns the pill, which for a 40px-tall target
+    // is immediately. Listening on the document needs neither compromise.
+    function onMove(event) {
+      if (event.pointerId !== pointerId) return;
+
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+
+      if (!moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+      if (!moved) {
+        moved = true;
+        container.classList.add('decibyl-dragging');
+      }
+
+      event.preventDefault();
+      place(originLeft + dx, originTop + dy);
+    }
+
+    function endDrag(event) {
+      if (event.pointerId !== pointerId) return;
+
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', endDrag);
+      document.removeEventListener('pointercancel', endDrag);
+
+      pointerId = null;
+      container.classList.remove('decibyl-dragging');
+
+      if (!moved) return;
+
+      const rect = container.getBoundingClientRect();
+      writeStoredPosition(rect.left, rect.top);
+
+      // Swallow the click this pointer sequence is about to produce, so
+      // dragging the pill across the screen does not also place a call.
+      container.addEventListener('click', (clickEvent) => {
+        clickEvent.stopPropagation();
+        clickEvent.preventDefault();
+      }, { capture: true, once: true });
+    }
+
+    container.addEventListener('pointerdown', (event) => {
+      // Left button or touch only; a right-click should open the menu.
+      if (event.button !== 0 || pointerId !== null) return;
+
+      pointerId = event.pointerId;
+      moved = false;
+      startX = event.clientX;
+      startY = event.clientY;
+
+      const rect = container.getBoundingClientRect();
+      originLeft = rect.left;
+      originTop = rect.top;
+
+      document.addEventListener('pointermove', onMove, { passive: false });
+      document.addEventListener('pointerup', endDrag);
+      document.addEventListener('pointercancel', endDrag);
+    });
+
+    // A rotation or a resize can leave the pill off-screen, or stranded over
+    // the fold of a keyboard that just opened. Re-clamp rather than reset:
+    // moving it back to the corner would undo a choice the visitor made.
+    window.addEventListener('resize', () => {
+      if (!container.classList.contains('decibyl-placed')) return;
+      const rect = container.getBoundingClientRect();
+      const safe = place(rect.left, rect.top);
+      writeStoredPosition(safe.left, safe.top);
+    });
   }
 
   /**
