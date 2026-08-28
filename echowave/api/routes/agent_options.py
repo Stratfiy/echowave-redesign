@@ -95,8 +95,8 @@ async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, An
     # rather than to buttons that fail when clicked.
     #
     # Resolved in one call rather than two awaits per voice: each lookup is a
-    # round trip to the object store, and doing fourteen of them in sequence
-    # is what a slow store turns into a screen that never loads.
+    # round trip to the object store, and doing one per voice per language in
+    # sequence is what a slow store turns into a screen that never loads.
     voices = list(agent_options.voices())
     samples = await voice_samples.sample_urls([v.voice_id for v in voices])
     voice_list = []

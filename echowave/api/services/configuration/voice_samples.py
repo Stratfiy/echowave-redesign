@@ -53,8 +53,8 @@ SAMPLE_LANGUAGES = ("en", "hi")
 #: never loads. A sample is optional; the screen it sits on is not.
 #:
 #: Generous against a healthy store — a metadata HEAD against MinIO or S3
-#: answers in milliseconds — and short enough that fourteen of them in
-#: parallel cost about a second in the worst case.
+#: answers in milliseconds — and short enough that the whole catalogue,
+#: looked up in parallel, costs about a second in the worst case.
 SAMPLE_LOOKUP_TIMEOUT_SECONDS = 1.5
 
 
@@ -101,9 +101,10 @@ async def sample_urls(
 
     Concurrent rather than serial because the lookups are independent and the
     caller needs all of them to draw one screen: in sequence, the deadline
-    above is paid once per voice per language, and fourteen of those is a wait
-    nobody sits through. Failures stay per-lookup — a store that answers for
-    some keys and not others still gets its play buttons.
+    above is paid once per voice per language, and the catalogue is dozens of
+    voices — a wait nobody sits through, and one that grows every time a voice
+    is added. Failures stay per-lookup — a store that answers for some keys
+    and not others still gets its play buttons.
     """
     keys = [(voice_id, language) for voice_id in voice_ids for language in languages]
     urls = await asyncio.gather(
