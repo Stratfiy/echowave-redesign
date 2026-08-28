@@ -34,6 +34,7 @@ class TestWhatItReads:
             "detail": "Error connecting to Sarvam TTS Websocket: 400",
             "frame_type": "ErrorFrame",
             "at": "2026-08-28T16:56:00+00:00",
+            "fatal": True,
         }
 
     def test_it_publishes_nothing_else_from_extra(self):
@@ -54,7 +55,7 @@ class TestWhatItReads:
             }
         )
 
-        assert set(error) == {"detail", "frame_type", "at"}
+        assert set(error) == {"detail", "frame_type", "at", "fatal"}
 
 
 class TestWhatItRefuses:
@@ -73,10 +74,34 @@ class TestWhatItRefuses:
         assert get_pipeline_error({"pipeline_error": {"detail": 42}}) is None
 
     def test_partial_records_keep_what_they_have(self):
-        """The detail is the whole point; the other two are decoration."""
+        """The detail is the whole point; the others are decoration."""
         error = get_pipeline_error({"pipeline_error": {"detail": "boom"}})
 
-        assert error == {"detail": "boom"}
+        assert error == {"detail": "boom", "fatal": True}
+
+
+class TestFatality:
+    """Whether the error ended the call, which is not the same as there
+    being one.
+
+    A non-fatal error is a service reporting something it recovered from. The
+    call ran, the customer was billed for it, and telling them it "ended on a
+    pipeline error" would send them looking for a failure that did not happen.
+    """
+
+    def test_a_non_fatal_error_says_so(self):
+        error = get_pipeline_error(
+            {"pipeline_error": {"detail": "TTS Error: bad message", "fatal": False}}
+        )
+
+        assert error["fatal"] is False
+
+    def test_a_record_written_before_fatality_was_tracked_reads_as_fatal(self):
+        """Those were written by a handler that ended the call on anything, so
+        fatal is the truthful reading of what happened to that call."""
+        error = get_pipeline_error({"pipeline_error": {"detail": "boom"}})
+
+        assert error["fatal"] is True
 
 
 class TestTheResponseCarriesIt:
@@ -121,4 +146,4 @@ class TestTheResponseCarriesIt:
             }
         )
 
-        assert run.pipeline_error == {"detail": "boom"}
+        assert run.pipeline_error == {"detail": "boom", "fatal": True}

@@ -197,7 +197,37 @@ def register_event_handlers(
 
     @task.event_handler("on_pipeline_error")
     async def on_pipeline_error(_task: PipelineWorker, frame: Frame):
-        logger.warning(f"Pipeline error for workflow run {workflow_run_id}: {frame}")
+        """Every ErrorFrame arrives here. Only a fatal one ends the call.
+
+        Pipecat fires this handler for *every* ErrorFrame and then decides for
+        itself: ``fatal`` cancels the pipeline, anything else is logged as a
+        warning and the bot keeps talking. ``push_error`` defaults to
+        ``fatal=False``, so most of what reaches us is a service reporting a
+        problem it expects to survive.
+
+        This used to hang up on all of them. A provider answering one message
+        with a complaint — the shape of a keepalive, a flush it did not like —
+        produced an ErrorFrame that pipecat would have shrugged off, and we
+        ended the customer's call on it, at 0s, with the disposition
+        ``pipeline_error``. The louder the provider, the shorter the call.
+
+        So fatality is now the provider's decision, as it already was
+        everywhere else in the pipeline. A non-fatal error is still recorded on
+        the run and still shown on the timeline, because "the call worked but
+        TTS complained twice" is worth seeing — it is just not a reason to cut
+        somebody off mid-sentence.
+        """
+        fatal = bool(getattr(frame, "fatal", False))
+        if fatal:
+            logger.error(
+                f"Fatal pipeline error for workflow run {workflow_run_id}: {frame}"
+            )
+        else:
+            logger.warning(
+                f"Non-fatal pipeline error for workflow run {workflow_run_id} "
+                f"(the call continues): {frame}"
+            )
+
         try:
             # Persist what actually went wrong. Until this existed the run
             # recorded the bare string "pipeline_error" and the cause lived only
@@ -206,6 +236,12 @@ def register_event_handlers(
             await _record_pipeline_error(workflow_run_id, frame)
         except Exception as exc:  # noqa: BLE001 - never let reporting kill the call
             logger.error("Could not record the pipeline error detail: {}", exc)
+
+        if not fatal:
+            # Not a failed call: no circuit-breaker strike, no CALL_FAILED, and
+            # above all no hangup. Counting these would trip a campaign's
+            # breaker on calls that completed and were charged for.
+            return
 
         try:
             workflow_run = await db_client.get_workflow_run_by_id(workflow_run_id)
@@ -487,5 +523,9 @@ async def _record_pipeline_error(workflow_run_id: int, frame) -> None:
         "detail": str(detail)[:1000],
         "frame_type": type(frame).__name__,
         "at": datetime.now(UTC).isoformat(),
+        # Whether this ended the call. Without it the reader cannot tell a call
+        # that died from one that finished after a provider grumbled, and the
+        # UI would tell somebody their working call had ended on an error.
+        "fatal": bool(getattr(frame, "fatal", False)),
     }
     await db_client.update_workflow_run(workflow_run_id, extra=extra)

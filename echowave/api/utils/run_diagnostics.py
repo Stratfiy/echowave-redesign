@@ -41,4 +41,9 @@ def get_pipeline_error(extra: dict | None) -> dict[str, Any] | None:
         value = recorded.get(key)
         if isinstance(value, str) and value:
             error[key] = value
+
+    # Absent on records written before fatality was tracked. Those were all
+    # written by a handler that ended the call on anything, so treating a
+    # missing flag as fatal describes what actually happened to that call.
+    error["fatal"] = bool(recorded.get("fatal", True))
     return error
