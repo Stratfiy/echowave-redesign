@@ -157,6 +157,28 @@ class NumberInputOptions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class LibraryOptions(BaseModel):
+    """Names a catalog of ready-made values the editor can offer for a field.
+
+    The renderer stays generic: it shows a "Browse library" control when this
+    is set, fetches the named catalog, and appends whatever the user picks to
+    the field's existing value. Which catalog, and what is in it, are decided
+    on the backend beside the code that consumes the values — the alternative
+    is a picker hard-coded against one field name, which is how the second
+    field with a library ends up copy-pasting the first one's dialog.
+
+    Picking from a library copies. Nothing is referenced by id afterwards, so
+    a value an operator has since tuned is never silently replaced by an edit
+    to the catalog.
+    """
+
+    catalog: str = Field(
+        description="Catalog id, served by GET /api/v1/extraction-library/{catalog}.",
+    )
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class PropertyRendererOptions(BaseModel):
     """Typed renderer metadata for node properties.
 
@@ -165,6 +187,7 @@ class PropertyRendererOptions(BaseModel):
 
     layout: Optional[PropertyLayoutOptions] = None
     number_input: Optional[NumberInputOptions] = None
+    library: Optional[LibraryOptions] = None
 
     model_config = ConfigDict(extra="forbid")
 

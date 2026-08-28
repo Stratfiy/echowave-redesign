@@ -257,6 +257,19 @@ def _resolve_property_type(annotation: Any, meta: dict[str, Any]) -> PropertyTyp
     if _is_enum(inner) or _is_literal(inner):
         return PropertyType.options
 
+    # A field that lists its own options is an options field, whatever it is
+    # annotated as. Without this, `spec_field(default="free_text", options=[...])`
+    # on a plain `str` silently rendered a free-text box: the options were
+    # carried all the way to the client and then ignored, so the operator typed
+    # the value a dropdown was meant to pick — and any `display_options` keyed
+    # on it only fired if they happened to type the literal exactly.
+    #
+    # It failed quietly in both directions, which is why three fields had it at
+    # once (the branch node's operator and both of the QA extraction selectors).
+    # Declaring options and getting a text input is never what the author meant.
+    if meta.get("options"):
+        return PropertyType.options
+
     if inner in (str,):
         return PropertyType.string
     if inner in (int, float):

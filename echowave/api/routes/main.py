@@ -15,6 +15,7 @@ from api.routes.campaign import router as campaign_router
 from api.routes.cost_estimate import router as cost_estimate_router
 from api.routes.credentials import router as credentials_router
 from api.routes.do_not_call import router as do_not_call_router
+from api.routes.extraction_library import router as extraction_library_router
 from api.routes.folder import router as folder_router
 from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.kyc import router as kyc_router
@@ -97,6 +98,7 @@ router.include_router(workflow_recording_router)
 router.include_router(folder_router)
 router.include_router(auth_router)
 router.include_router(node_types_router)
+router.include_router(extraction_library_router)
 router.include_router(agent_stream_router)
 
 for _integration_router in all_routers():
