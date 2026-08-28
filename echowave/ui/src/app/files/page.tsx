@@ -3,6 +3,7 @@
 import { ExternalLink, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -49,7 +50,20 @@ export default function FilesPage() {
     return (
         <div className="container mx-auto px-4 py-8">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold mb-2">Knowledge Base Files</h1>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <h1 className="text-3xl font-bold">Knowledge Base Files</h1>
+                    {/* Retrieval during a call is a real, measured cost, but it
+                        is not billed as a separate line today — see
+                        PRICING-DECISIONS.md. An absorbed feature nobody is
+                        told about earns nothing, so this says so where an
+                        account actually decides whether to use it. */}
+                    <Badge
+                        variant="secondary"
+                        className="bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
+                    >
+                        Included — no extra charge
+                    </Badge>
+                </div>
                 <p className="text-muted-foreground">
                     Upload and manage documents for your voice agents to reference.{" "}
                     <a href="https://docs.decibyl.ai/voice-agent/knowledge-base" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">

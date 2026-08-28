@@ -133,11 +133,19 @@ class TestStagingAChange:
         """One at a time, so an abandoned change is harmless and a stale code
         cannot apply a value nobody is looking at any more."""
         user = await _user(async_session, "replace")
+        # Both values must differ from whatever is currently in force —
+        # start_change refuses a no-op change — so derive them from the
+        # current value rather than hardcoding. Hardcoded 17_000 here broke
+        # the moment MANAGED_PROVIDER_MARKUP_BPS became 1.7x.
+        current = await markup.resolve_markup_bps(async_session)
+        first_bps = current + 1_000
+        second_bps = current + 2_000
+
         first = await markup.start_change(
-            async_session, markup_bps=20_000, actor_user_id=user.id
+            async_session, markup_bps=first_bps, actor_user_id=user.id
         )
         await markup.start_change(
-            async_session, markup_bps=17_000, actor_user_id=user.id
+            async_session, markup_bps=second_bps, actor_user_id=user.id
         )
 
         with pytest.raises(markup.MarkupError):

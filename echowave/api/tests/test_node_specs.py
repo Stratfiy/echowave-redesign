@@ -283,6 +283,10 @@ def test_all_registered_node_models_inherit_base_node_data():
                 "name",
                 "qa_enabled",
                 "qa_system_prompt",
+                # Directly after the prompt it extends: an operator reading
+                # down the panel meets "what to ask the model" and then "what
+                # else to pull out of the same answer".
+                "qa_extractions",
                 "qa_min_call_duration",
                 "qa_voicemail_calls",
                 "qa_sample_rate",

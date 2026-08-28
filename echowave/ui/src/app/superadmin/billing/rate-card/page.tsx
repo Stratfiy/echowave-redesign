@@ -29,6 +29,7 @@ import {
     setVolumeTierApiV1AdminBillingRateCardTiersPut,
 } from "@/client/sdk.gen";
 import { ManagedMarkupCard } from "@/components/billing/ManagedMarkupCard";
+import { MarkupOverridesCard } from "@/components/billing/MarkupOverridesCard";
 import { ProviderCatalogue } from "@/components/billing/ProviderCatalogue";
 import { useAuthReady } from "@/components/charts/primitives";
 import { Badge } from "@/components/ui/badge";
@@ -152,6 +153,11 @@ export default function RateCardPage() {
                 the rates without knowing the multiple in force gives the wrong
                 answer to "what does a customer pay". */}
             <ManagedMarkupCard />
+            {/* Narrows the multiple above for one model or one provider,
+                without the confirmation-code ceremony the blanket value
+                needs — a single line can't move every account's bill the
+                way that one can. */}
+            <MarkupOverridesCard />
             <VolumeTierPanel card={card} onSaved={load} />
             <ExchangeRatePanel card={card} onSaved={load} />
             {/* Grouped by vendor rather than listed flat. The list could not

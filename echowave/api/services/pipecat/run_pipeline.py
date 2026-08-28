@@ -991,6 +991,10 @@ async def _run_pipeline_impl(
             key_sources["tts"] = (
                 getattr(user_config.tts, "key_source", None) or "managed"
             )
+        if getattr(user_config, "embeddings", None) is not None:
+            key_sources["embedding"] = (
+                getattr(user_config.embeddings, "key_source", None) or "managed"
+            )
     pipeline_metrics_aggregator.register_key_sources(key_sources)
     # The engine reports priced features here as they run — knowledge-base
     # retrieval today. Set after the aggregator exists rather than passed to

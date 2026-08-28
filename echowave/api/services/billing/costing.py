@@ -27,7 +27,7 @@ from api.enums import CreditLedgerKind
 from api.services.billing.addons import addon_keys_from_usage_info
 from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_cost
 from api.services.billing.fees import addon_rates_mpaise, uplifted_platform_rate_mpaise
-from api.services.billing.markup import resolve_markup_bps
+from api.services.billing.markup import resolve_markup_bps, resolve_markup_override_bps
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
 from api.services.billing.usage import (
     billable_seconds_from_usage_info,
@@ -123,21 +123,35 @@ async def cost_workflow_run(
     # Keyed by (component, provider, model). The engine looks up the exact
     # model first and falls back to the "" provider-wide entry.
     provider_rates: dict[tuple[str, str, str], RateSpec] = {}
+    # Same shape, same lookup rule, for a per-model markup override — see
+    # cost_engine.compute_call_cost. Built alongside provider_rates because
+    # both are resolved from the same usage items and both are per-call
+    # optional lookups; keeping them in one loop avoids iterating usage twice.
+    markup_overrides: dict[tuple[str, str, str], int] = {}
     for item in usage:
         key = (item.component.value, item.provider, item.model)
-        if key in provider_rates:
-            continue
-        resolved = await resolve_provider_rate(
-            session,
-            provider=item.provider,
-            component=item.component,
-            at=at,
-            model=item.model,
-        )
-        if resolved is not None:
-            provider_rates[key] = RateSpec(
-                rate_mpaise=resolved.rate_mpaise, unit=resolved.unit
+        if key not in provider_rates:
+            resolved = await resolve_provider_rate(
+                session,
+                provider=item.provider,
+                component=item.component,
+                at=at,
+                model=item.model,
             )
+            if resolved is not None:
+                provider_rates[key] = RateSpec(
+                    rate_mpaise=resolved.rate_mpaise, unit=resolved.unit
+                )
+        if key not in markup_overrides:
+            override_bps = await resolve_markup_override_bps(
+                session,
+                provider=item.provider,
+                component=item.component,
+                at=at,
+                model=item.model,
+            )
+            if override_bps is not None:
+                markup_overrides[key] = override_bps
 
     # A BYOK call pays an uplifted platform rate rather than a second fee
     # line. Applied here rather than in resolve_platform_rate because the tier
@@ -169,6 +183,9 @@ async def cost_workflow_run(
         # that was in force in March. That is the whole reason the value is a
         # history and not a setting.
         markup_bps=await resolve_markup_bps(session, at=at),
+        # Per-model overrides, same "as at the call's own time" reasoning as
+        # the blanket markup above — see the loop that builds this.
+        markup_overrides=markup_overrides,
     )
 
     uncosted_labels = [

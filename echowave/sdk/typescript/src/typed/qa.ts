@@ -4,6 +4,31 @@
 // Source of truth: the backend's model-backed node-spec catalog served
 // from `/api/v1/node-types`.
 
+/**
+ * Named fields to pull out of the call alongside the QA review — a lead score, an appointment time, a sentiment label with your own categories. Each one runs inside the same QA pass rather than a separate LLM call, so adding extractions here does not add a new charge per field.
+ */
+export interface QaQa_extractionsRow {
+    /**
+     * What this becomes in the call's extracted data — e.g. 'lead_score', 'appointment_time'. Used as the JSON key the value comes back under.
+     */
+    name: string;
+    /**
+     * What to look for in the transcript, and how to decide the value.
+     */
+    prompt: string;
+    /**
+     * Free text lets the model answer in its own words. A fixed set constrains it to one of the options you list — this is how a sentiment field with your own categories (not just positive/neutral/negative) gets built.
+     */
+    answer_type?: string;
+    /**
+     * Comma-separated. Only used when Answer Type is 'One of a fixed set'.
+     */
+    predefined_options?: string;
+    /**
+     * Constrains a free-text answer to a shape.
+     */
+    expected_format?: string;
+}
 
 /**
  * Run LLM quality analysis on the call transcript.
@@ -24,6 +49,10 @@ export interface Qa {
      * Instructions to the QA reviewer LLM. Supports placeholders: `{node_summary}`, `{previous_conversation_summary}`, `{transcript}`, `{metrics}`.
      */
     qa_system_prompt?: string;
+    /**
+     * Named fields to pull out of the call alongside the QA review — a lead score, an appointment time, a sentiment label with your own categories. Each one runs inside the same QA pass rather than a separate LLM call, so adding extractions here does not add a new charge per field.
+     */
+    qa_extractions?: Array<QaQa_extractionsRow>;
     /**
      * Calls shorter than this are skipped.
      */

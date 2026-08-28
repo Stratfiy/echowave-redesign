@@ -52,6 +52,10 @@ class AzureOpenAIEmbeddingService(BaseEmbeddingService):
         """
         self.db = db_client
         self.model_id = model_id
+        #: Tokens billed by the vendor for the most recent embed_texts/
+        #: embed_query call. See OpenAIEmbeddingService for why instance state
+        #: is safe here.
+        self.last_usage_tokens: int | None = None
 
         self._configured = bool(api_key and endpoint)
         if self._configured:
@@ -89,6 +93,8 @@ class AzureOpenAIEmbeddingService(BaseEmbeddingService):
                 input=texts,
                 model=self.model_id,
             )
+            usage = getattr(response, "usage", None)
+            self.last_usage_tokens = getattr(usage, "total_tokens", None)
             embeddings = [item.embedding for item in response.data]
             self._validate_embedding_dimensions(embeddings)
             return embeddings

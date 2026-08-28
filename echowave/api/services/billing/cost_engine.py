@@ -55,6 +55,7 @@ MARKED_UP_COMPONENTS = frozenset(
         CostComponent.LLM.value,
         CostComponent.TTS.value,
         CostComponent.TELEPHONY.value,
+        CostComponent.EMBEDDING.value,
     }
 )
 from api.services.billing.money import (
@@ -152,6 +153,7 @@ def compute_call_cost(
     usage: tuple[UsageItem, ...] | list[UsageItem] = (),
     provider_rates: Mapping[tuple[str, str, str], RateSpec] | None = None,
     addon_rates: Mapping[str, int] | None = None,
+    markup_overrides: Mapping[tuple[str, str, str], int] | None = None,
 ) -> CallCost:
     """Cost one call. Pure — no I/O, no clock, no database.
 
@@ -162,6 +164,14 @@ def compute_call_cost(
     lookup below tries the exact model first. A key matching neither means no
     rate is on file; that usage is reported in ``uncosted`` instead of being
     priced at zero, so an unpriced model understates nothing silently.
+
+    ``markup_overrides`` is keyed and resolved exactly the same way — a
+    per-``(component, provider, model)`` multiple that replaces ``markup_bps``
+    for that one line only. Absent for a line, that line falls back to
+    ``markup_bps``, which is what makes an empty map behave exactly as it did
+    before this parameter existed. This is the one-line version of the global
+    markup: a model that is unusually cheap or expensive to us relative to the
+    blanket multiple gets its own number without moving anyone else's bill.
 
     The platform fee is charged on time rounded up to a whole ``pulse_seconds``,
     not to a whole minute. At ``pulse_seconds=60`` this reproduces whole-minute
@@ -178,6 +188,7 @@ def compute_call_cost(
     so an invoice always reconciles against its own line items.
     """
     provider_rates = provider_rates or {}
+    markup_overrides = markup_overrides or {}
     minutes = to_billable_minutes(billable_seconds)
     billed = to_billed_seconds(billable_seconds, pulse_seconds)
 
@@ -212,7 +223,21 @@ def compute_call_cost(
         # Marked up per line rather than on the total, so each line on a
         # receipt adds up to the figure printed beside it. Rounding once per
         # line is the same rule the rest of this module follows.
-        line_markup = markup_bps if component_value in MARKED_UP_COMPONENTS else 10_000
+        #
+        # A per-model override wins over the blanket multiple for that one
+        # line, exactly the way a model-specific provider rate wins over the
+        # provider-wide fallback: exact model first, then the "" fallback,
+        # then the flat markup_bps this call was given.
+        if component_value in MARKED_UP_COMPONENTS:
+            line_markup = markup_overrides.get(
+                (component_value, item.provider, item.model)
+            )
+            if line_markup is None:
+                line_markup = markup_overrides.get((component_value, item.provider, ""))
+            if line_markup is None:
+                line_markup = markup_bps
+        else:
+            line_markup = 10_000
         lines.append(
             CostLine(
                 component=component_value,

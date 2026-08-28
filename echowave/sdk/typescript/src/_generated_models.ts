@@ -451,6 +451,11 @@ export interface components {
             processing_status: string;
             /** Processing Error */
             processing_error?: string | null;
+            /**
+             * Needs Reingest
+             * @default false
+             */
+            needs_reingest: boolean;
             /** Total Chunks */
             total_chunks: number;
             /**
@@ -1238,10 +1243,15 @@ export interface components {
             provisional_vad_pause_secs: number;
             /**
              * Turn Stop Strategy
-             * @default transcription
+             * @default turn_analyzer
              * @enum {string}
              */
             turn_stop_strategy: "transcription" | "turn_analyzer";
+            /**
+             * User Speech Timeout
+             * @default 0.4
+             */
+            user_speech_timeout: number;
             /**
              * Dictionary
              * @default
@@ -1267,6 +1277,11 @@ export interface components {
             /** Status */
             status: string;
             /**
+             * Is Live
+             * @default true
+             */
+            is_live: boolean;
+            /**
              * Created At
              * Format: date-time
              */
@@ -1286,6 +1301,11 @@ export interface components {
             name: string;
             /** Status */
             status: string;
+            /**
+             * Is Live
+             * @default true
+             */
+            is_live: boolean;
             /**
              * Created At
              * Format: date-time

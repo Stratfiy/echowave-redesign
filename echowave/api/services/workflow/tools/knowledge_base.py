@@ -95,6 +95,7 @@ async def retrieve_from_knowledge_base(
     embeddings_api_version: Optional[str] = None,
     correlation_id: Optional[str] = None,
     tracing_context=None,
+    billing_sink: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Retrieve relevant information from the knowledge base using vector similarity search.
 
@@ -112,6 +113,14 @@ async def retrieve_from_knowledge_base(
         embeddings_model: Optional model ID for embedding service
         embeddings_base_url: Optional base URL for embedding service
         tracing_context: Optional OpenTelemetry context for tracing
+        billing_sink: Optional dict the caller owns. If the query embedding
+            actually runs, this is populated in place with
+            ``{"provider", "model", "tokens"}`` before this function returns —
+            an out-parameter rather than a return value, deliberately, because
+            it must never become a key on the returned dict below: every key
+            there is serialised straight into the LLM's context, and a billing
+            figure has no business in a conversation. ``tokens`` is ``None``
+            when the vendor's response carried no usage figure to read.
 
     Returns:
         Dictionary containing:
@@ -146,6 +155,7 @@ async def retrieve_from_knowledge_base(
                 embeddings_endpoint,
                 embeddings_api_version,
                 correlation_id,
+                billing_sink=billing_sink,
             )
 
         # Create span with parent context
@@ -187,6 +197,7 @@ async def retrieve_from_knowledge_base(
                         embeddings_endpoint,
                         embeddings_api_version,
                         correlation_id,
+                        billing_sink=billing_sink,
                     )
 
                     # Add result metadata to span
@@ -265,6 +276,7 @@ async def retrieve_from_knowledge_base(
                 embeddings_endpoint,
                 embeddings_api_version,
                 correlation_id,
+                billing_sink=billing_sink,
             )
     else:
         # Tracing is disabled - perform retrieval without tracing
@@ -280,6 +292,7 @@ async def retrieve_from_knowledge_base(
             embeddings_endpoint,
             embeddings_api_version,
             correlation_id,
+            billing_sink=billing_sink,
         )
 
 
@@ -295,6 +308,7 @@ async def _perform_retrieval(
     embeddings_endpoint: Optional[str] = None,
     embeddings_api_version: Optional[str] = None,
     correlation_id: Optional[str] = None,
+    billing_sink: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Internal function to perform the actual retrieval operation.
 
@@ -354,6 +368,22 @@ async def _perform_retrieval(
                 limit=limit,
                 document_uuids=chunked_uuids if chunked_uuids else None,
             )
+
+            # The query embedding above is real vendor usage, paid for on
+            # whichever key `embeddings_api_key` resolved to. Handed back
+            # through the out-parameter rather than the returned dict — see
+            # this function's own docstring on `billing_sink` for why it must
+            # not become a key the LLM reads. `embeddings_provider` is the
+            # configured provider name ("openai", "decibyl", ...), which is
+            # what the rate card is keyed on; `search_similar_chunks` has
+            # already run by this point, so `last_usage_tokens` reflects the
+            # call that just happened, not a stale value from construction.
+            if billing_sink is not None:
+                billing_sink["provider"] = embeddings_provider or "openai"
+                billing_sink["model"] = embedding_service.get_model_id()
+                billing_sink["tokens"] = getattr(
+                    embedding_service, "last_usage_tokens", None
+                )
 
             for result in results:
                 chunk_info = {

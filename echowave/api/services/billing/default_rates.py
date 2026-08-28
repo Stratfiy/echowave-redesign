@@ -613,12 +613,71 @@ TELEPHONY_RATES = (
     ),
 )
 
+#: Embeddings — unit is 1k tokens, unblended (vendors quote embeddings at one
+#: flat rate, unlike LLM input/output). Only query-time embedding during
+#: in-call knowledge-base retrieval prices against this table; ingestion-time
+#: embedding (document upload) is a separate, unmetered event — see
+#: ``PRICING-DECISIONS.md``.
+EMBEDDING_RATES = (
+    DefaultRate(
+        "openai",
+        "",
+        CostComponent.EMBEDDING,
+        RateUnit.THOUSAND_TOKENS,
+        0.00002,
+        "text-embedding-3-small, $0.02/1M tokens — the account's own OpenAI key.",
+    ),
+    DefaultRate(
+        "openai",
+        "text-embedding-3-small",
+        CostComponent.EMBEDDING,
+        RateUnit.THOUSAND_TOKENS,
+        0.00002,
+        "$0.02/1M tokens published list price.",
+    ),
+    DefaultRate(
+        "openai",
+        "text-embedding-3-large",
+        CostComponent.EMBEDDING,
+        RateUnit.THOUSAND_TOKENS,
+        0.00013,
+        "$0.13/1M tokens published list price.",
+    ),
+    # Azure OpenAI mirrors OpenAI's list pricing for the same deployment model,
+    # the same convention PROVIDER-PRICING.md documents for Azure's LLM rows.
+    DefaultRate(
+        "azure",
+        "",
+        CostComponent.EMBEDDING,
+        RateUnit.THOUSAND_TOKENS,
+        0.00002,
+        "Azure OpenAI mirrors OpenAI list pricing for the same deployment.",
+    ),
+    # The Decibyl-managed path (MPS) proxies to an OpenAI-compatible embeddings
+    # endpoint on our own key, defaulting to the same text-embedding-3-small.
+    # What MPS actually charges Decibyl for it is not published anywhere this
+    # file can cite, so this is seeded at the same list price MPS is presumed
+    # to be reselling — provisional until reconciled against an actual MPS
+    # invoice, the same caveat PROVIDER-PRICING.md raises for every seeded row.
+    DefaultRate(
+        "decibyl",
+        "",
+        CostComponent.EMBEDDING,
+        RateUnit.THOUSAND_TOKENS,
+        0.00002,
+        f"{PROVISIONAL_MARKER} — assumed equal to OpenAI's $0.02/1M list price; "
+        "not reconciled against an MPS invoice.",
+        provisional=True,
+    ),
+)
+
 DEFAULT_RATES: tuple[DefaultRate, ...] = (
     *LLM_RATES,
     *REALTIME_RATES,
     *STT_RATES,
     *TTS_RATES,
     *TELEPHONY_RATES,
+    *EMBEDDING_RATES,
 )
 
 

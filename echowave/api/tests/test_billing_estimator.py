@@ -31,7 +31,7 @@ from api.services.billing.estimator import (
     estimate_cost_per_minute,
 )
 from api.services.billing.markup import resolve_markup_bps
-from api.services.billing.money import mpaise_to_micros_usd
+from api.services.billing.money import mpaise_to_micros_usd, round_half_up_div
 from api.services.billing.realtime_pricing import CallShape
 
 LONG_AGO = datetime(2020, 1, 1, tzinfo=UTC)
@@ -102,18 +102,24 @@ class TestEstimate:
             + est.platform_paise_per_minute
         )
         # A per-minute component is exact: 25000 mpaise/min = 25 paise of
-        # vendor cost — and 35 to the customer, because STT is bought on our
-        # key and carries the managed markup. Quoting the 25 would have
-        # promised a price the invoice does not honour.
+        # vendor cost — and more than that to the customer, because STT is
+        # bought on our key and carries the managed markup. Quoting the 25
+        # would have promised a price the invoice does not honour.
+        #
+        # Derived from the multiple in force rather than written out: these
+        # were hardcoded at the 1.4x figures and broke the moment the markup
+        # moved. What is under test is that the markup is applied at all, not
+        # what it happens to be today.
+        markup_bps = await resolve_markup_bps(async_session)
         stt = next(l for l in est.lines if l.component == "stt")
-        assert stt.paise_per_minute == 35
+        assert stt.paise_per_minute == round_half_up_div(25 * markup_bps, 10_000)
         assert stt.basis == "exact"
 
         # Telephony carries the markup too: 55000 mpaise/min is what the
         # carrier charges us, and carriage is bought and resold like any other
-        # component. 55 x 1.4 = 77.
+        # component.
         telephony = next(l for l in est.lines if l.component == "telephony")
-        assert telephony.paise_per_minute == 77
+        assert telephony.paise_per_minute == round_half_up_div(55 * markup_bps, 10_000)
 
     async def test_the_quote_is_what_the_receipt_will_charge(self, async_session):
         """The estimate and the invoice, computed the same way from the same rows.

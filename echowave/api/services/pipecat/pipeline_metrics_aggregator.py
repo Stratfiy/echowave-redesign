@@ -57,6 +57,13 @@ class PipelineMetricsAggregator(FrameProcessor):
         self._llm_usage_metrics: Dict[str, LLMTokenUsage] = {}
         self._tts_usage_metrics: Dict[str, int] = defaultdict(int)
         self._stt_usage_metrics: Dict[str, float] = defaultdict(float)
+        # {f"{provider}|||{model}": total tokens}. Unlike the three above, this
+        # is never populated by a pipecat frame — an embedding call during
+        # in-call knowledge-base retrieval happens outside the frame pipeline
+        # entirely (a direct HTTP call from a tool function), so it is
+        # recorded via register_embedding_usage instead. See
+        # PipecatEngine._record_embedding_usage.
+        self._embedding_usage_metrics: Dict[str, int] = defaultdict(int)
         # "{processor}|||{model}" of the STT service on this pipeline, when
         # there is one. Set by run_pipeline; see register_stt_service.
         self._stt_key: Optional[str] = None
@@ -349,6 +356,22 @@ class PipelineMetricsAggregator(FrameProcessor):
             if source in ("byok", "managed"):
                 self._key_sources[component] = source
 
+    def register_embedding_usage(
+        self, *, provider: str, model: str, tokens: int
+    ) -> None:
+        """Record real vendor usage from a query-time embedding call.
+
+        Additive across repeated retrieval calls in the same conversation —
+        a call that searches the knowledge base three times pays for three
+        embeddings, and the key (provider + model) is exactly what
+        ``billing/usage.py`` needs to resolve a rate against, the same shape
+        every other component here already uses.
+        """
+        if tokens <= 0:
+            return
+        key = f"{provider}|||{model}"
+        self._embedding_usage_metrics[key] += tokens
+
     def register_addon_used(self, addon_key: str) -> None:
         """Record that a priced feature ran on this call.
 
@@ -409,6 +432,7 @@ class PipelineMetricsAggregator(FrameProcessor):
             "llm": serialized_llm,
             "tts": dict(self._tts_usage_metrics),
             "stt": stt,
+            "embedding": dict(self._embedding_usage_metrics),
             "call_duration_seconds": call_duration,
             "key_sources": dict(self._key_sources),
             # Sorted so two calls that used the same features serialize
@@ -422,6 +446,7 @@ class PipelineMetricsAggregator(FrameProcessor):
         self._llm_usage_metrics.clear()
         self._tts_usage_metrics.clear()
         self._stt_usage_metrics.clear()
+        self._embedding_usage_metrics.clear()
         self._key_sources.clear()
         self._addons_used.clear()
         self._turn_stage_ttfb.clear()

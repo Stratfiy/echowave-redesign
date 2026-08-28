@@ -72,9 +72,20 @@ That is what makes "store a key" and "choose a model" two separate jobs; before,
 a key could only be entered while choosing a model, and switching a slot's
 provider discarded the key you had just pasted.
 
-Still open from this work: the per-agent model override. The backend has
-supported it all along (`model_configuration_v2_override` on the workflow) and
-the UI has never surfaced it. Cheapest remaining win.
+~~Still open from this work: the per-agent model override.~~ **Done — this
+line was stale and cost a later session real time.** The per-agent override is
+fully built in `ui/src/app/workflow/[workflowId]/settings/page.tsx`: a
+"Give this agent its own models" switch, the shared
+`AIModelConfigurationV2Editor` bound to
+`workflow_configurations.model_configuration_v2_override`, and a graceful
+path when the org has no `organization_v2` configuration yet (an explanatory
+message and a link to `/model-configurations`, rather than a hidden section).
+
+Worth noting for anyone auditing coverage the same way: this feature is a
+**field on `workflow_configurations`**, saved through the ordinary workflow
+update endpoint — not an endpoint of its own. Any "which backend features
+have no UI" scan driven by unused generated-client operations is structurally
+blind to it, and to anything else shaped like it.
 
 ### 19. The two silent billing killers had no signal
 

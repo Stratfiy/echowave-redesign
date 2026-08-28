@@ -1,6 +1,7 @@
 """Main QA analysis orchestrator — per-node and whole-call fallback."""
 
 import json
+import re
 from typing import Any
 
 from loguru import logger
@@ -50,6 +51,90 @@ async def _run_llm_inference(
     if usage_total is not None:
         accumulate_token_usage(usage_total, getattr(llm, "last_inference_usage", None))
     return text
+
+
+#: What the QA response is contractually parsed into, regardless of what an
+#: operator's system prompt asks the model for. Anything else the model
+#: returns used to be silently discarded — an operator who added their own
+#: extraction instructions to ``qa_system_prompt`` got an LLM call that ran,
+#: was billed, and threw its own answer away.
+_RESERVED_QA_KEYS = frozenset(
+    {"tags", "summary", "call_quality_score", "overall_sentiment"}
+)
+
+
+def _extracted_data(parsed: dict[str, Any]) -> dict[str, Any]:
+    """Whatever the model returned beyond the fixed QA fields.
+
+    This is the whole of what makes a custom extraction — a lead score, an
+    appointment time, a sentiment label with the operator's own categories —
+    possible today without new runtime machinery: the QA LLM call already
+    runs once per call on a prompt the operator already controls
+    (``qa_system_prompt``/``QANodeData``), and the JSON it returns already
+    carries anything asked for. This function is the one place that used to
+    throw it away, and now doesn't.
+
+    Empty rather than absent when there is nothing extra, so a reader can
+    always index ``node_result["extracted_data"]`` without a KeyError — the
+    same guarantee every other usage_info-shaped dict in this codebase gives.
+    """
+    return {k: v for k, v in parsed.items() if k not in _RESERVED_QA_KEYS}
+
+
+def _extraction_key(name: str) -> str:
+    """A named extraction's display name, made safe as a JSON object key.
+
+    An operator types "Lead Score" in the node editor; the model is asked to
+    return it as ``lead_score`` so it round-trips through ``json.loads``
+    without a reader having to guess the exact casing and punctuation someone
+    typed into a form field.
+    """
+    key = re.sub(r"[^a-z0-9]+", "_", name.strip().lower()).strip("_")
+    return key or "field"
+
+
+def render_extraction_instructions(extractions: list) -> str:
+    """The prompt fragment asking for an operator's named extractions.
+
+    Appended to the QA system prompt, never sent as a separate LLM call —
+    that is the whole reason adding an extraction does not add a new charge:
+    it rides on the QA pass's one inference instead of paying for its own.
+    Written to fit after the QA prompt's own "Output format" section, which
+    is why it says *"alongside"* rather than restating what a JSON object is.
+
+    Empty string when there is nothing to add, so a caller can always
+    concatenate the result onto a prompt without an ``if`` at the call site.
+    """
+    if not extractions:
+        return ""
+
+    lines = [
+        "",
+        "## Additional fields to extract",
+        "",
+        "Include these keys in the same JSON object, alongside the fields "
+        "above. Use `null` for any you cannot determine from the transcript.",
+        "",
+    ]
+    for spec in extractions:
+        key = _extraction_key(getattr(spec, "name", "") or "")
+        prompt = (getattr(spec, "prompt", "") or "").strip()
+        answer_type = getattr(spec, "answer_type", "free_text")
+        if answer_type == "predefined":
+            options = (getattr(spec, "predefined_options", "") or "").strip()
+            shape = (
+                f"one of: {options}" if options else "one of your configured options"
+            )
+        else:
+            shape = {
+                "numeric": "a number",
+                "boolean": "true or false",
+                "timestamp": "a date or time, in the caller's own words if exact isn't stated",
+                "email": "an email address",
+            }.get(getattr(spec, "expected_format", "text"), "text")
+        lines.append(f"- `{key}` ({shape}): {prompt}")
+
+    return "\n".join(lines)
 
 
 async def _generate_conversation_summary(
@@ -151,6 +236,12 @@ async def run_per_node_qa_analysis(
     if not system_prompt:
         logger.warning("No system prompt defined for QA Node")
         return {"error": "no_system_prompt", "node_results": {}}
+    # Appended once, outside the per-node loop below: the instructions are the
+    # same for every node's pass, and computing them per-iteration would just
+    # rebuild the identical string once per node in the call.
+    system_prompt += render_extraction_instructions(
+        getattr(qa_data, "qa_extractions", None) or []
+    )
 
     # Resolve LLM config
     provider, model, api_key, service_kwargs = await resolve_llm_config(
@@ -251,6 +342,7 @@ async def run_per_node_qa_analysis(
                 "tags": [],
                 "summary": "",
                 "score": None,
+                "extracted_data": {},
             }
             pending_conversation.extend(node_conversation)
             continue
@@ -282,10 +374,12 @@ async def run_per_node_qa_analysis(
             node_result["summary"] = parsed.get("summary", "")
             node_result["score"] = parsed.get("call_quality_score")
             node_result["overall_sentiment"] = parsed.get("overall_sentiment")
+            node_result["extracted_data"] = _extracted_data(parsed)
         except (json.JSONDecodeError, ValueError):
             node_result["tags"] = []
             node_result["summary"] = ""
             node_result["score"] = None
+            node_result["extracted_data"] = {}
 
         node_results[node_id] = node_result
 
@@ -337,6 +431,9 @@ async def _run_whole_call_qa_analysis(
     if not system_prompt:
         logger.warning("No system prompt defined for QA Node")
         return {"error": "no_system_prompt", "node_results": {}}
+    system_prompt += render_extraction_instructions(
+        getattr(qa_data, "qa_extractions", None) or []
+    )
 
     provider, model, api_key, service_kwargs = await resolve_llm_config(
         qa_data, workflow_run
@@ -401,10 +498,12 @@ async def _run_whole_call_qa_analysis(
         node_result["summary"] = parsed.get("summary", "")
         node_result["score"] = parsed.get("call_quality_score")
         node_result["overall_sentiment"] = parsed.get("overall_sentiment")
+        node_result["extracted_data"] = _extracted_data(parsed)
     except (json.JSONDecodeError, ValueError):
         node_result["tags"] = []
         node_result["summary"] = ""
         node_result["score"] = None
+        node_result["extracted_data"] = {}
 
     # Langfuse tracing
     parent_ctx = setup_langfuse_parent_context(workflow_run)

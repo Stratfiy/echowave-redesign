@@ -20,9 +20,17 @@ class CSVSyncService(CampaignSourceSyncService):
 
     async def _fetch_csv_data(self, file_key: str) -> List[List[str]]:
         """Download and parse CSV file from storage. Returns all rows including header."""
-        signed_url = await storage_fs.aget_signed_url(
-            file_key, expiration=3600, use_internal_endpoint=True
-        )
+        try:
+            signed_url = await storage_fs.aget_signed_url(
+                file_key, expiration=3600, use_internal_endpoint=True
+            )
+        except Exception as e:
+            # aget_signed_url now raises on a storage/config failure instead of
+            # returning None (see api/services/filesystem), so this call site
+            # needs to translate that into the ValueError contract this method
+            # already promised its caller.
+            logger.error(f"Failed to sign CSV file {file_key}: {e}")
+            raise ValueError(f"Failed to access CSV file: {file_key}") from e
 
         if not signed_url:
             raise ValueError(f"Failed to access CSV file: {file_key}")
