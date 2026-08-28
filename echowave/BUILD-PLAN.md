@@ -58,14 +58,18 @@ the full record — this is the short version for resuming code):**
 | Phase 1a — markup-override admin screen | **Done, committed, pushed** (`665431d`). |
 | Phase 1b — model-cost roll-up display | **Done (narrowed scope), committed, pushed** (`340205a`). Full breakdown collapsed behind a "Show full breakdown" toggle in `CostPerMinuteBar`, default collapsed — the coloured bar/legend (Agent/Telephony/Platform/Features) was already the combined figure. **Not done**: adding embedding as a 5th estimable stack dimension in `estimate_cost_per_minute` / `CostStack` — bigger scope (new estimator params, a `default_units` assumption for embedding, new UI picker input), deliberately left as follow-up rather than half-built. Pick up only if a real product need for it shows up. |
 | Phase 1c — pricing-page "included" copy | **Done (partial, correctly scoped), committed, pushed** (`43a1e9b`). Badge added on the Knowledge Base files page. QA/summary/sentiment has **no config screen to attach this to yet** — do it when Phase 2 ships one, not before. |
-| Phase 1d (new) — internal-cost-vs-billed-cost analytics | **Not scoped yet.** Check `/superadmin/billing/unit-economics` first — likely an extension, not a new screen. |
+| Phase 1d (new) — internal-cost-vs-billed-cost analytics | **Not scoped as its own screen yet — but now has a concrete, unblocked first task, see below.** |
 | Phase 2 — extraction library | **Done, committed, pushed** (`182c749`, `796967c`) — **scope narrowed from the original §2.1–2.4 design, see note below Phase 2's heading.** No new table, no new config screen, no new LLM call: extractions are a field on the existing QA node, rendered into the QA node's existing single LLM call. Config UI and result read-back both come free from existing generic components. |
-| Phase 3 — ingestion-time embedding billing | **Not started. Pick up here next.** Design section rewritten — meter for real, never a standalone customer-facing line, see below. |
+| Phase 3 — ingestion-time embedding billing | **Done (ledger side), committed, pushed** (`8785220`). **Not done: the unit-economics screen doesn't show it yet** — see below, folded into Phase 1d as its natural first task rather than left dangling. |
 | Phase 4 — markup increase | **Blocked on the founder's measurement query, as before.** |
 
 **All of Phase 1 verified in this session:** `npx tsc --noEmit` clean, `npx next lint` clean, all 96 `npx vitest run` tests passing, and one full `npx next build` completed with exit 0 (run once, across the 1a commit — not re-run after every subsequent small change, but the pipeline is confirmed working).
 
 **Phase 2 verified in this session:** `ruff check` clean, `ruff format --check` clean, `python3 -m py_compile` clean on every changed file. **Not run: live pytest** — this sandbox has no Postgres/Redis/pipecat, so `test_qa_extracted_data.py`'s new `TestExtractionKey`/`TestRenderExtractionInstructions`/`TestQAExtractionsOnTheNode` classes are unexecuted. Run the real suite (`source venv/bin/activate && set -a && source api/.env.test && set +a && python -m pytest api/tests/test_qa_extracted_data.py -v`) before calling Phase 2 done-done.
+
+**Phase 3 verified in this session:** same discipline — `ruff check`/`ruff format --check`/`python3 -m py_compile` clean on every changed file, plus the new migration's position in the graph confirmed with a standalone AST-based head script (no live `alembic` — this sandbox is missing `alembic_postgresql_enum`/`pgvector`). **Not run: live pytest**, and **the migration has never been applied to a real database** — run it for real before this ships. `api/tests/test_embedding_ingestion_billing.py` covers pricing, the per-model markup override, the balance-affordability gate, and at-most-once-per-document idempotency, all unexecuted here.
+
+**Phase 3 left one thing genuinely undone, not hidden:** `services/billing/embedding_ingestion.py` debits `credit_ledger` for real (kind `embedding_ingest`), so the money and the row exist and are queryable today. What's missing is a place an operator actually looks: `/superadmin/billing/unit-economics` (`db/billing_kpi_client.py`) is built entirely on `CallCostItemModel`, which only exists for a workflow-run receipt — ingestion has no run to attach one to, so this new cost is invisible on that screen even though it's real in the ledger. **This is Phase 1d's first concrete task**: extend `billing_kpi_client.py` (or add a sibling query) to fold `credit_ledger WHERE kind = 'embedding_ingest'` into the unit-economics report — grouped by org/day the way the rest of that screen already is. Small, well-scoped, and unblocked (no founder decision needed) — a good next pickup for a fresh session before Phase 4.
 
 ---
 
@@ -281,6 +285,18 @@ every other feature in this codebase is.
 
 ## Phase 3 — Ingestion-time embedding billing
 
+**Shipped** (`8785220`): `services/billing/embedding_ingestion.py` +
+`tasks/knowledge_base_processing.py` implement §3.1–3.2 below almost exactly
+as designed — balance checked before the vendor is called, the ledger
+debited for the real vendor-reported token count afterward, at most once per
+document (DB-backed by a partial unique index, migration `f4a2c8e91b73`),
+never a standalone customer-facing line. The one piece of §3.2 not done:
+its last bullet ("its own row on the unit-economics screen") — see the
+Status section above, now Phase 1d's first task. §3.3's three tests are
+covered by `test_embedding_ingestion_billing.py`, unexecuted in this sandbox
+like everything else Python this session (see Status section for the
+verification discipline).
+
 The one item that closes the *original* finding from this whole review:
 document upload embeds every chunk on Decibyl's own key, for real vendor
 cost, and bills nothing at all — not even as `uncosted`. Query-time embedding
@@ -395,8 +411,15 @@ action through an already-built flow, not new code.
 
 ## What I'd start on first, if you don't specify
 
+**Historical — this was the proposed order before building started; the
+"Status" section at the top of this file is the live one, read that first.**
+
 **1a → 1c → 1b → Phase 2 → Phase 3**, in that order: the three Phase-1 items
 finish fast and close out work that's sitting half-done, in ascending effort;
 Phase 2 is the biggest single win and has no dependency on anything else;
 Phase 3 closes the original finding but is smaller and can follow. Say the
 word to start, or name a different order — none of these block each other.
+
+As actually built: 1a → 1b (narrowed) → 1c (partial) → Phase 2 (narrowed) →
+Phase 3. Remaining: Phase 1d (unblocked, small — see Status section), Phase
+4 (blocked on the founder).
