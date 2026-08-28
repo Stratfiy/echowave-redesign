@@ -12,7 +12,29 @@ DEFAULT_SMART_TURN_STOP_SECS = 2.0
 DEFAULT_TURN_START_STRATEGY = "default"
 DEFAULT_TURN_START_MIN_WORDS = 3
 DEFAULT_PROVISIONAL_VAD_PAUSE_SECS = 1.5
-DEFAULT_TURN_STOP_STRATEGY = "transcription"
+# "turn_analyzer", not "transcription". The difference is the whole of
+# perceived latency on this platform.
+#
+# "transcription" waits out the VAD's 0.2s and then user_speech_timeout's 0.4s
+# on every single turn, whether or not the caller had obviously finished — 600ms
+# of dead air that no faster model downstream can recover, paid even when
+# somebody has just said "yes".
+#
+# "turn_analyzer" asks a local model whether the utterance *sounds* finished,
+# and only falls back to smart_turn_stop_secs of silence when it is unsure. So
+# it is quick on a finished sentence and patient on an ambiguous one, which is
+# what a person does.
+#
+# The reason this was not already the default is that the dependency was
+# missing: LocalSmartTurnAnalyzerV3 needs pipecat's local-smart-turn-v3 extra,
+# and the image did not install it, so choosing this setting produced an agent
+# that would not start. That is fixed in api/Dockerfile alongside this change.
+# Both have to ship together — flipping this default against an image without
+# the extra breaks every call.
+#
+# The model weights are bundled inside pipecat rather than downloaded, so there
+# is no first-call stall, and inference is ~12ms on CPU.
+DEFAULT_TURN_STOP_STRATEGY = "turn_analyzer"
 # How long the turn waits after the VAD reports silence, in case the caller was
 # only drawing breath. Paid on every turn of the default "transcription"
 # strategy, on top of the VAD's own 0.2s — so it sets a floor under perceived

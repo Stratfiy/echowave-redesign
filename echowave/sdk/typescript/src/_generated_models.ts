@@ -1243,7 +1243,7 @@ export interface components {
             provisional_vad_pause_secs: number;
             /**
              * Turn Stop Strategy
-             * @default transcription
+             * @default turn_analyzer
              * @enum {string}
              */
             turn_stop_strategy: "transcription" | "turn_analyzer";

@@ -34,6 +34,42 @@ from dataclasses import dataclass
 INDIA_PROCESSED = frozenset({"sarvam"})
 
 
+def embeddings_stay_in_india(base_url: str | None) -> bool:
+    """Whether document text is embedded on infrastructure we control.
+
+    Read off the endpoint rather than the provider name, because for
+    embeddings the provider name is the wire protocol and not the
+    destination: an OpenAI-compatible server running a local model answers as
+    "openai" while never leaving the host it runs on. Judging by name alone
+    reported text as going abroad while it sat on our own disk — the mirror of
+    the failure this module exists to prevent, and worse, because it
+    understates rather than overstates what we keep.
+
+    Private, loopback and unqualified hosts only. A public hostname is not
+    evidence of anything: it may be our own Mumbai box or it may be a vendor,
+    and this module does not guess. Blank means api.openai.com.
+    """
+    if not base_url or not base_url.strip():
+        return False
+
+    from ipaddress import ip_address
+    from urllib.parse import urlparse
+
+    host = (urlparse(base_url.strip()).hostname or "").strip().lower()
+    if not host:
+        return False
+    if host in {"localhost"} or host.endswith(".local") or host.endswith(".internal"):
+        return True
+    # A bare service name, which is how one container addresses another on a
+    # compose network — "http://embeddings:80/v1" never leaves the host.
+    if "." not in host:
+        return True
+    try:
+        return ip_address(host).is_private or ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 @dataclass(frozen=True)
 class Residency:
     """Where a stack processes, and what to say about it."""
@@ -62,6 +98,7 @@ def assess(
     tts_tier: str | None = "default",
     realtime_tier: str | None = None,
     has_knowledge_base: bool = False,
+    embeddings_base_url: str | None = None,
 ) -> Residency:
     """Where this stack processes speech and language.
 
@@ -87,9 +124,13 @@ def assess(
             if _vendor_of(component, tier) not in INDIA_PROCESSED:
                 leaves.append(label)
 
-    if has_knowledge_base:
+    if has_knowledge_base and not embeddings_stay_in_india(embeddings_base_url):
         # The case a declared badge would miss: nothing about the call
         # configuration changed, and text still goes abroad at ingest.
+        #
+        # Skipped only when the embeddings endpoint is demonstrably ours. The
+        # default is unchanged — no endpoint configured still means OpenAI,
+        # and still counts.
         leaves.append("knowledge base indexing")
 
     if not leaves:

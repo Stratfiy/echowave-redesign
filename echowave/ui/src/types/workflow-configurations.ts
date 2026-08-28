@@ -141,7 +141,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     turn_start_strategy: 'default',  // Default to platform-chosen user turn start detection
     turn_start_min_words: DEFAULT_TURN_START_MIN_WORDS,
     provisional_vad_pause_secs: DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
-    turn_stop_strategy: 'transcription',  // Default to transcription-based detection
+    turn_stop_strategy: 'turn_analyzer',  // Local model ends the turn; see DEFAULT_TURN_STOP_STRATEGY
     dictionary: '',
     transcript_configuration: DEFAULT_TRANSCRIPT_CONFIGURATION,
     context_compaction_enabled: false,
