@@ -7,6 +7,23 @@ that" had four plausible answers depending on who you asked, and three of them
 were wrong. It is the reference; `PRICING-FIX-PLAN.md` is the to-do list and
 `DASHBOARD.md` explains what each dashboard number means.
 
+## What production is actually set to
+
+Read off the superadmin rate card on **28 Aug 2026**. The rest of this document
+explains the machinery; these are the numbers currently in it.
+
+| Setting | Value | Note |
+|---|---|---|
+| Platform price | **₹3.00/min**, quoted in **Rupees** | In force since 27 Aug. Rupee-native — read §3, it has consequences |
+| Pulse | **15 seconds** | A 62-second call bills 75 |
+| Managed model markup | **1.7×** | A vendor line costing ₹1.00 is charged at ₹1.70 |
+| Volume tiers | none configured | So every account without an override pays ₹3.00 |
+
+A worked check against a real quote, which is how these were confirmed: managed
+Indic showed Transcription ₹0.85, Brain ₹0.02, Voice ₹1.04, Platform ₹3.00.
+Divide the vendor lines by 1.7 and transcription comes back to ₹0.50/min —
+exactly Sarvam's ₹30/hour. The markup and the rate card agree.
+
 ---
 
 ## 1. The whole thing in one formula
@@ -120,9 +137,19 @@ at all from a screen.
 > **How to tell which you have:** if a quote shows a `$` figure beside the `₹`,
 > the rate is dollar-denominated. No `$`, and it is rupee-native.
 >
-> **₹3.00/min set through the rupee toggle is rupee-native.** The form sends
-> `platform_rate_mpaise = 3 × 100 × 1000 = 300000`. To get ₹3.00 *and* keep
-> add-ons working, set it in **dollars** instead: **$0.03125** at ₹96/USD.
+> **This is the live configuration, confirmed 28 Aug.** The platform price is
+> set to ₹3.00 with "Quoted in" on **Rupees**, so `platform_rate_mpaise =
+> 3 × 100 × 1000 = 300000` and `usd_inr_paise` is `None`.
+>
+> **It is doing no harm today**, because both features it gates —
+> `ADDON_BILLING_ENABLED` and `BYOK_TIERED_FEE_ENABLED` — are already off. The
+> cost is *latent*: the day somebody switches add-on billing on, Knowledge Base
+> and Call QA will bill nothing at all, the flag will read as enabled, and
+> nothing will say why.
+>
+> To keep ₹3.00 and remove the trap, set it in **dollars** at **$0.03125**
+> (at ₹96/USD). Same price to the customer; the rate then also tracks the rupee,
+> which is what a dollar-quoted list price is for.
 
 ---
 
@@ -253,22 +280,28 @@ The starter plan price, rental price, add-on prices and the BYOK uplifts are
 
 ## 9. A worked minute
 
-Managed Indic stack, one connected minute, at ₹96/USD and a 1.3× markup:
+Managed Indic stack, one connected minute, at the **live** settings — ₹3.00
+platform fee, 1.7× markup:
 
 ```
-Transcription  sarvam saarika:v2.5   60s × rate            ₹0.85
-Language       openai gpt-4.1-mini   ~1,400 tokens         ₹0.17
-Voice          sarvam bulbul:v2      ~2,300 chars          ₹1.04
-                                                           -----
-Vendor lines (already marked up)                           ₹2.06
-Platform fee   $0.02 → ₹1.92 (or whatever §2 resolves)     ₹1.92
-                                                           -----
-Customer pays                                              ₹3.98
+                         vendor cost   × 1.7   customer pays
+Transcription  sarvam       ₹0.50               ₹0.85
+Language       openai       ₹0.10               ₹0.17
+Voice          sarvam       ₹0.61               ₹1.04
+                            -----               -----
+Vendor lines                ₹1.21               ₹2.06
+Platform fee                ₹0.00               ₹3.00   ← ours, never marked up
+                            -----               -----
+                            ₹1.21               ₹5.06
 ```
 
-Margin is **the markup on the vendor lines plus the entire platform fee**,
-because the fee costs us nothing. It is *not* the difference between the two
-totals above.
+**Margin is ₹3.85 of a ₹5.06 minute — 76%.** It is the markup on the vendor
+lines (₹0.85) *plus the entire platform fee* (₹3.00), because the fee costs us
+nothing.
+
+It is **not** ₹5.06 − ₹2.06. That subtraction treats the marked-up price as a
+cost and is the mistake that made the bundle screen report 21.7% where the truth
+was 45.7%.
 
 Telephony is absent here because on a customer's own carrier we record no
 carriage at all — those minutes are on their carrier's invoice, not ours

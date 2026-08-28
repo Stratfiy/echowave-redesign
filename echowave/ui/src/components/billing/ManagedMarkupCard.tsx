@@ -158,9 +158,10 @@ export function ManagedMarkupCard() {
                         Managed model markup
                     </h2>
                     <p className="mt-0.5 max-w-xl text-xs leading-relaxed tracking-[-0.01em] text-muted-foreground">
-                        What we charge on model usage bought with our keys. Applies to
-                        speech, language and voice — never to telephony, the platform
-                        fee, or an account running on its own key.
+                        What we charge on usage bought with our keys — speech,
+                        language, voice and telephony alike. Never applies to the
+                        platform fee, which is ours already, nor to an account
+                        running on its own key, which we did not buy.
                     </p>
                 </div>
                 <div className="text-right">
