@@ -131,9 +131,7 @@ class TestSarvamSTTServiceFactory:
 
 
 class TestTTSLatencyPolicy:
-    @pytest.mark.parametrize(
-        "provider", sorted(_LOW_LATENCY_STREAMING_TTS_PROVIDERS)
-    )
+    @pytest.mark.parametrize("provider", sorted(_LOW_LATENCY_STREAMING_TTS_PROVIDERS))
     def test_streaming_providers_receive_tokens_immediately(self, provider):
         service = Mock()
 
