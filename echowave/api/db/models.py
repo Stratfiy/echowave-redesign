@@ -2292,13 +2292,21 @@ class EmbeddingIngestionCostModel(Base):
     )
     provider = Column(String(64), nullable=False)
     model = Column(String(128), nullable=False, default="", server_default="")
-    tokens = Column(BigInteger, nullable=False, default=0)
+    # server_default alongside the Python default on each of these, matching
+    # what migration b6d3f0a4c9e5 actually creates. Declaring one side only is
+    # schema drift `alembic check` fails on, and it is the same trap
+    # KNOWN_ISSUES.md #10 records: a default set by a migration but absent
+    # from the model makes every later --autogenerate propose a spurious
+    # change that somebody has to know to delete by hand.
+    tokens = Column(BigInteger, nullable=False, default=0, server_default="0")
     # What the vendor charged us, before the managed markup.
-    vendor_cost_paise = Column(BigInteger, nullable=False, default=0)
+    vendor_cost_paise = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
     # What this debited the account for — the same figure as the paired
     # credit_ledger row's -delta_paise, stored here too so a margin query
     # never has to join back to the ledger to get it.
-    charged_paise = Column(BigInteger, nullable=False, default=0)
+    charged_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     __table_args__ = (

@@ -14,6 +14,39 @@ from decibyl_sdk.typed._base import TypedNode
 
 
 @dataclass(kw_only=True)
+class Qa_Qa_extractionsRow:
+    """
+    Named fields to pull out of the call alongside the QA review — a lead
+    score, an appointment time, a sentiment label with your own categories.
+    Each one runs inside the same QA pass rather than a separate LLM call,
+    so adding extractions here does not add a new charge per field.
+    """
+
+    name: str
+    """
+    What this becomes in the call's extracted data — e.g. 'lead_score',
+    'appointment_time'. Used as the JSON key the value comes back under.
+    """
+    prompt: str
+    """
+    What to look for in the transcript, and how to decide the value.
+    """
+    answer_type: str = 'free_text'
+    """
+    Free text lets the model answer in its own words. A fixed set constrains
+    it to one of the options you list — this is how a sentiment field with
+    your own categories (not just positive/neutral/negative) gets built.
+    """
+    predefined_options: str = ''
+    """
+    Comma-separated. Only used when Answer Type is 'One of a fixed set'.
+    """
+    expected_format: str = 'text'
+    """
+    Constrains a free-text answer to a shape.
+    """
+
+@dataclass(kw_only=True)
 class Qa(TypedNode):
     """
     Run LLM quality analysis on the call transcript.  LLM hint: Runs an LLM
@@ -40,6 +73,14 @@ class Qa(TypedNode):
     Instructions to the QA reviewer LLM. Supports placeholders:
     `{node_summary}`, `{previous_conversation_summary}`, `{transcript}`,
     `{metrics}`.
+    """
+
+    qa_extractions: list[Qa_Qa_extractionsRow] = field(default_factory=list)
+    """
+    Named fields to pull out of the call alongside the QA review — a lead
+    score, an appointment time, a sentiment label with your own categories.
+    Each one runs inside the same QA pass rather than a separate LLM call,
+    so adding extractions here does not add a new charge per field.
     """
 
     qa_min_call_duration: float = 15
