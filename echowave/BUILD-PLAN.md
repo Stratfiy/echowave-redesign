@@ -59,11 +59,13 @@ the full record — this is the short version for resuming code):**
 | Phase 1b — model-cost roll-up display | **Done (narrowed scope), committed, pushed** (`340205a`). Full breakdown collapsed behind a "Show full breakdown" toggle in `CostPerMinuteBar`, default collapsed — the coloured bar/legend (Agent/Telephony/Platform/Features) was already the combined figure. **Not done**: adding embedding as a 5th estimable stack dimension in `estimate_cost_per_minute` / `CostStack` — bigger scope (new estimator params, a `default_units` assumption for embedding, new UI picker input), deliberately left as follow-up rather than half-built. Pick up only if a real product need for it shows up. |
 | Phase 1c — pricing-page "included" copy | **Done (partial, correctly scoped), committed, pushed** (`43a1e9b`). Badge added on the Knowledge Base files page. QA/summary/sentiment has **no config screen to attach this to yet** — do it when Phase 2 ships one, not before. |
 | Phase 1d (new) — internal-cost-vs-billed-cost analytics | **Not scoped yet.** Check `/superadmin/billing/unit-economics` first — likely an extension, not a new screen. |
-| Phase 2 — extraction library | **Not started. Pick up here next.** |
-| Phase 3 — ingestion-time embedding billing | **Not started.** Design section rewritten — meter for real, never a standalone customer-facing line, see below. |
+| Phase 2 — extraction library | **Done, committed, pushed** (`182c749`, `796967c`) — **scope narrowed from the original §2.1–2.4 design, see note below Phase 2's heading.** No new table, no new config screen, no new LLM call: extractions are a field on the existing QA node, rendered into the QA node's existing single LLM call. Config UI and result read-back both come free from existing generic components. |
+| Phase 3 — ingestion-time embedding billing | **Not started. Pick up here next.** Design section rewritten — meter for real, never a standalone customer-facing line, see below. |
 | Phase 4 — markup increase | **Blocked on the founder's measurement query, as before.** |
 
 **All of Phase 1 verified in this session:** `npx tsc --noEmit` clean, `npx next lint` clean, all 96 `npx vitest run` tests passing, and one full `npx next build` completed with exit 0 (run once, across the 1a commit — not re-run after every subsequent small change, but the pipeline is confirmed working).
+
+**Phase 2 verified in this session:** `ruff check` clean, `ruff format --check` clean, `python3 -m py_compile` clean on every changed file. **Not run: live pytest** — this sandbox has no Postgres/Redis/pipecat, so `test_qa_extracted_data.py`'s new `TestExtractionKey`/`TestRenderExtractionInstructions`/`TestQAExtractionsOnTheNode` classes are unexecuted. Run the real suite (`source venv/bin/activate && set -a && source api/.env.test && set +a && python -m pytest api/tests/test_qa_extracted_data.py -v`) before calling Phase 2 done-done.
 
 ---
 
@@ -153,11 +155,56 @@ asking support.
 
 ## Phase 2 — Configurable extraction library (the Bolna-shaped feature)
 
-The largest item in the queue. Full detail on what Bolna ships is in
-`PRICING-DECISIONS.md §2.6a` — this phase reproduces the same shape (name +
-prompt + answer type + model), not a sentiment-only feature.
+**Shipped, in a narrower shape than §2.1–2.4 below propose.** Read the
+existing code before re-planning this: `QANodeData.qa_system_prompt`
+was already operator-editable per-workflow, and the QA node already ran
+exactly one LLM call per finished call regardless of what that prompt
+asked for. That collapsed the "new table + new LLM call(s) + new config
+screen" design below into three small changes instead:
 
-### 2.1 Schema
+- `api/services/workflow/dto.py` — new `ExtractionSpec` (name, prompt,
+  `answer_type` free_text/predefined, `predefined_options`,
+  `expected_format`), and `QANodeData.qa_extractions: List[ExtractionSpec]`
+  using `ui_type=PropertyType.fixed_collection` — the same generic
+  list-of-structured-objects widget already powering `BranchNodeData.rules`,
+  so the "2.3 Config UI" add/edit/remove screen is free, zero new frontend
+  code.
+- `api/services/workflow/qa/analysis.py` — `render_extraction_instructions()`
+  turns the configured extractions into a prompt fragment appended to the
+  *existing* `qa_system_prompt`, in both `run_per_node_qa_analysis` and
+  `_run_whole_call_qa_analysis`. Still exactly one LLM call — no batching
+  decision to make, because there was never a second call to batch against.
+  `_extraction_key()` sanitizes each name into the JSON key the instructions
+  ask the model to use.
+- Results land in the same place QA results already land — no new
+  `extracted_data` column and no `workflow_run_extractions` table:
+  `_extracted_data()` (previous commit `182c749`) already stops discarding
+  any field outside the four reserved ones, so a configured extraction's
+  answer just shows up under its key. Read-back is free too —
+  `ContextDisplay` already renders `workflow_run.annotations` generically,
+  the same place Bolna's "Execution payload" would show it.
+- **Cost measurement:** no separate `record_addon_used` call was added, and
+  none is needed — an extraction's cost isn't a new event, it's a few more
+  output tokens on the QA LLM call that was already being measured (and,
+  per the Phase 1c/PRICING-DECISIONS folding decision, already billed as
+  part of the folded-in QA feature). "Free and tracked, not free and
+  unmeasured" falls out of reusing the existing call rather than needing
+  its own instrumentation.
+
+None of §2.1–2.4 below shipped as written (no new `agent_extractions`
+table, no per-extraction `model` picker, no `regex` format, no
+`workflow_run_extractions` table). If a real need for any of those shows
+up later — e.g. running an extraction on a different/cheaper model than
+the QA call's own LLM config — treat it as new scope, not a gap in this
+phase; the sections below are left as-is for that reference, not as a
+remaining to-do.
+
+Full detail on what Bolna ships is in `PRICING-DECISIONS.md §2.6a` — this
+phase reproduces the same shape (name + prompt + answer type), not a
+sentiment-only feature, just via a smaller implementation than first
+scoped.
+
+### 2.1 Schema (superseded — see narrower shape shipped above)
 New table, e.g. `agent_extractions`:
 
 | Column | Notes |
@@ -178,7 +225,7 @@ pattern of an ordinary config table (this isn't a rate — no history table
 needed, a normal `updated_at` is enough since past calls store their own
 result, not a live reference to the config row).
 
-### 2.2 Runtime wiring
+### 2.2 Runtime wiring (superseded — see narrower shape shipped above)
 - Extend `services/workflow/qa/analysis.py` (where `_run_whole_call_qa_analysis`
   already runs one LLM pass per finished call) to also run each enabled
   extraction for the workflow, in the same pass if the prompt design allows
@@ -199,7 +246,7 @@ result, not a live reference to the config row).
   lets a future markup or pricing decision be sized against real volume
   instead of a guess.
 
-### 2.3 Config UI
+### 2.3 Config UI (superseded — see narrower shape shipped above)
 - A new section in the agent builder (alongside where knowledge base and QA
   are already configured) listing an agent's extractions, with add/edit/
   remove.
@@ -210,7 +257,7 @@ result, not a live reference to the config row).
   existing transcript/summary/QA-score display, the same place Bolna surfaces
   it in their "Execution payload."
 
-### 2.4 Tests
+### 2.4 Tests (superseded — see narrower shape shipped above; actual tests are in `test_qa_extracted_data.py`)
 - Unit tests for the extraction runtime (batched vs per-extraction LLM call,
   predefined-option validation, regex-format validation) mirroring the
   existing `qa/analysis.py` test patterns.
