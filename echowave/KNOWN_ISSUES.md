@@ -197,6 +197,13 @@ This does **not** discharge the `ap-south-1` migration on the pre-tender
 checklist — an existing deployment's data does not move because a default
 changed. It stops the next one from starting out wrong.
 
+The migration of the deployment that already exists is `MIGRATE-TO-MUMBAI.md`,
+and it is verified rather than declared: `scripts/verify_region_migration.py`
+asks S3 where each bucket actually is, rather than reading back the variable
+that says where it should be. Until that is green on the box, this issue is
+half-fixed — right for every future deployment, and unchanged for the data
+already sitting in Virginia.
+
 ### 15. `usage/daily-breakdown` returned 400 for an unconfigured account
 
 **FIXED.** The guard was right — an account with no `price_per_second_usd` has

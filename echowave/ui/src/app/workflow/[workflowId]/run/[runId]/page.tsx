@@ -261,11 +261,26 @@ function SplitTracksSection({
 
         async function loadTracks() {
             try {
-                const [userUrl, botUrl] = await Promise.all([
+                const [userResult, botResult] = await Promise.all([
                     getSignedUrl(userRecordingUrl, true),
                     getSignedUrl(botRecordingUrl, true),
                 ]);
                 if (!isActive) return;
+
+                // Each half now reports why it could not be signed. Logged
+                // rather than surfaced here: this player degrades to the mixed
+                // track, so a split-track failure is a smaller thing than the
+                // media dialog's — but silently returning null is what made it
+                // look like the run simply had no split recording.
+                const userUrl = userResult.url;
+                const botUrl = botResult.url;
+                if (userResult.error || botResult.error) {
+                    console.error(
+                        'Could not sign split track recordings:',
+                        userResult.error,
+                        botResult.error,
+                    );
+                }
 
                 setSignedUrls({ user: userUrl, bot: botUrl });
                 if (!userUrl || !botUrl) return;

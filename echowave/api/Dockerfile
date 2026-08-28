@@ -203,6 +203,14 @@ COPY --chown=decibyl:decibyl ./api ./api
 # docstring tells you to run `docker compose exec api python -m
 # scripts.diagnose_call`, failing with "No module named scripts.diagnose_call"
 # on precisely the installs that need it.
+#
+# verify_region_migration.py answers "did the deployment actually move", and it
+# was written, shipped and run against a real migration before anyone noticed
+# it was not on this list — failing with "No module named
+# scripts.verify_region_migration" on the one box it existed for, which is the
+# failure the two paragraphs above already describe. A script that reads the
+# running deployment's own database, buckets and credentials cannot be run
+# anywhere else, so it belongs in the image by the same argument.
 COPY --chown=decibyl:decibyl \
      ./scripts/start_services_docker.sh \
      ./scripts/run_migrate.sh \
@@ -219,6 +227,8 @@ COPY --chown=decibyl:decibyl \
      ./scripts/rehearse_concurrency.py \
      ./scripts/verify_managed_model_tier.py \
      ./scripts/diagnose_call.py \
+     ./scripts/verify_region_migration.py \
+     ./scripts/seed_subscription_plans.py \
      ./scripts/
 
 # ts_validator Node deps (built in ts-deps stage with full node:22-slim image).

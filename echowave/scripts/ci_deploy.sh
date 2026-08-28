@@ -116,8 +116,22 @@ say "Now on $NEW_SHA"
 # Read from postgres rather than from alembic, because the whole point is to
 # answer this when the api container will not start.
 db_revision() {
+    # `postgres`, not `decibyl`. docker-compose.yaml hardcodes
+    # `POSTGRES_DB: postgres` on the postgres service — it is not interpolated
+    # from .env — and the default DATABASE_URL ends in /postgres, so that is the
+    # database the platform actually uses. There has never been a `decibyl`
+    # database to read.
+    #
+    # This mattered more than a wrong default usually does. POSTGRES_DB is not
+    # exported into the shell SSM runs this in, so the fallback was always what
+    # applied; psql failed with "database \"decibyl\" does not exist", 2>/dev/null
+    # swallowed it, and this function returned empty on every deploy. Empty is
+    # indistinguishable here from "could not read it", so rollback() took the
+    # old unguarded path and rolled back past migrations — which is precisely
+    # the outage of 24 Aug 2026 that the guard was added to prevent. The guard
+    # was correct and had simply never once been able to run.
     docker compose exec -T postgres \
-        psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-decibyl}" \
+        psql -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}" \
         -tAc 'select version_num from alembic_version' 2>/dev/null | tr -d '[:space:]'
 }
 
@@ -228,6 +242,40 @@ say "Migrations"
 # in configuration", which reads like a broken config rather than a wrong path.
 # Same invocation as scripts/migrate.sh.
 docker compose exec -T api python -m alembic -c api/alembic.ini upgrade head
+
+# The price book, which until now was code that did nothing on its own.
+#
+# `billing/default_rates.py` is a seed *source*: nothing reads it at call time,
+# and a rate added there stays inert until somebody remembers to run this
+# script by hand. Nobody remembered. Four calls were costed with no rate on
+# file for their speech models and their carriage — each one billed the
+# platform fee, dropped the provider lines, and reported margin correspondingly
+# overstated. The rates existed in the repository the whole time.
+#
+# So it runs where the migration runs: a rate lands the moment the code that
+# defines it does.
+#
+# Safe to run on every deploy, and the flags are the reason. `--confirm` writes
+# only rates that are *missing*; a rate an operator has set is skipped, and
+# replacing one needs `--force`, which is deliberately not passed here. A
+# negotiated price must never be reset by a deploy.
+#
+# **What this does not fix**: pricing resolves as at each call's own time, so a
+# rate written now does not reach a call already placed — see the comment in
+# `billing/costing.py` about not rewriting receipts. Calls made before their
+# rate existed stay uncosted until somebody runs
+# `scripts.recost_uncosted_calls`, which moves real money and therefore stays a
+# human decision.
+#
+# Not fatal, for the same reason the docs build is not: a seeding failure is a
+# gap in the price book, not a bad build, and rolling back a healthy API over
+# one would block shipping the fix for it.
+say "Provider rates"
+if docker compose exec -T api python -m scripts.seed_provider_rates --confirm; then
+    say "Provider rates seeded"
+else
+    say "WARNING: seeding provider rates failed; calls on any missing rate will be recorded uncosted"
+fi
 
 # The documentation is a build artifact, not a container. nginx mounts
 # ./docs/dist read-only and serves it off disk, so a deploy that does not build

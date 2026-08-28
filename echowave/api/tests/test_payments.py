@@ -20,6 +20,7 @@ import json
 import pytest
 from sqlalchemy import func, select
 
+from api import constants
 from api.db.models import CreditLedgerModel, OrganizationModel, PaymentModel
 from api.enums import CreditLedgerKind
 from api.services.billing import payments
@@ -503,11 +504,16 @@ class TestOrderCreation:
         monkeypatch.setattr(payments, "RAZORPAY_KEY_SECRET", None)
         org = await _org(async_session, "nokeys")
 
+        # Above the first-payment floor. The amount is checked before the
+        # credentials are -- deliberately, so a mistyped amount does not come
+        # back as "Razorpay is not configured" -- so an amount under the floor
+        # would raise the wrong error and this test would pass for the wrong
+        # reason.
         with pytest.raises(payments.PaymentNotConfigured):
             await payments.create_topup_order(
                 async_session,
                 organization_id=org.id,
-                amount_paise=50_000,
+                amount_paise=constants.FIRST_TOPUP_MIN_PAISE,
                 created_by=None,
             )
 

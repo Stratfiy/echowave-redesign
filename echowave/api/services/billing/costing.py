@@ -105,7 +105,11 @@ async def cost_workflow_run(
     if billable_seconds is None:
         billable_seconds = billable_seconds_from_usage_info(run.usage_info)
 
-    usage = usage_items_from_usage_info(run.usage_info)
+    # run.call_type is already the plain string SQLAlchemy stores for the
+    # Enum column ("inbound" / "outbound"), which is exactly the model
+    # string billing/default_rates.py keys the direction-specific Plivo
+    # rows on -- no CallType import needed here.
+    usage = usage_items_from_usage_info(run.usage_info, call_type=run.call_type)
 
     platform = await resolve_platform_rate(
         session,

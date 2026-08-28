@@ -120,26 +120,31 @@ def _priced(estimate, *, what: str) -> int | None:
     return estimate.total_paise_per_minute
 
 
-async def price_per_minute(
+async def pipeline_estimate(
     session: AsyncSession,
     *,
     organization_id: int | None,
     brain: str,
+    stt_tier: str = "default",
+    tts_tier: str = "default",
     telephony_provider: str | None = None,
     marked_up: bool = True,
-) -> int | None:
-    """Paise per minute for a managed stack on this brain tier.
+):
+    """The itemised estimate for a managed pipeline, or ``None`` if unpriced.
 
-    Priced against what the tier resolves to today, because that is what the
-    call will actually cost. The voice does not vary the price — every managed
-    voice is the same tier and the same vendor rate — so it is not a parameter.
+    Split out from :func:`price_per_minute` because two screens want different
+    depths of the same answer and pricing twice is how the two drift: the card
+    needs one number, the breakdown bar beside it needs the lines that add up
+    to that number. One estimate serves both.
 
-    ``None`` when any component of the stack has no rate on file. See
-    :func:`_priced`.
+    ``stt_tier`` and ``tts_tier`` are parameters rather than the constant
+    ``"default"`` they used to be. A bundle names its own speech tiers, and
+    hardcoding them here priced every bundle as though it ran the default pair
+    — correct only for as long as every pipeline bundle happened to.
     """
     llm = managed_tiers.resolve("llm", brain)
-    stt = managed_tiers.resolve("stt", "default")
-    tts = managed_tiers.resolve("tts", "default")
+    stt = managed_tiers.resolve("stt", stt_tier or "default")
+    tts = managed_tiers.resolve("tts", tts_tier or "default")
 
     estimate = await estimate_cost_per_minute(
         session,
@@ -153,7 +158,40 @@ async def price_per_minute(
         telephony_provider=telephony_provider,
         marked_up=marked_up,
     )
-    return _priced(estimate, what=f"the {brain} brain")
+    return (
+        estimate if _priced(estimate, what=f"the {brain} brain") is not None else None
+    )
+
+
+async def price_per_minute(
+    session: AsyncSession,
+    *,
+    organization_id: int | None,
+    brain: str,
+    stt_tier: str = "default",
+    tts_tier: str = "default",
+    telephony_provider: str | None = None,
+    marked_up: bool = True,
+) -> int | None:
+    """Paise per minute for a managed stack on this brain tier.
+
+    Priced against what the tier resolves to today, because that is what the
+    call will actually cost. The voice does not vary the price — every managed
+    voice is the same tier and the same vendor rate — so it is not a parameter.
+
+    ``None`` when any component of the stack has no rate on file. See
+    :func:`_priced`.
+    """
+    estimate = await pipeline_estimate(
+        session,
+        organization_id=organization_id,
+        brain=brain,
+        stt_tier=stt_tier,
+        tts_tier=tts_tier,
+        telephony_provider=telephony_provider,
+        marked_up=marked_up,
+    )
+    return None if estimate is None else estimate.total_paise_per_minute
 
 
 async def realtime_price_per_minute(
@@ -178,6 +216,30 @@ async def realtime_price_per_minute(
 
     ``None`` when the model has no rate on file. See :func:`_priced`.
     """
+    estimate = await realtime_estimate(
+        session,
+        organization_id=organization_id,
+        realtime_tier=realtime_tier,
+        telephony_provider=telephony_provider,
+        marked_up=marked_up,
+    )
+    return None if estimate is None else estimate.total_paise_per_minute
+
+
+async def realtime_estimate(
+    session: AsyncSession,
+    *,
+    organization_id: int | None,
+    realtime_tier: str,
+    telephony_provider: str | None = None,
+    marked_up: bool = True,
+):
+    """The itemised estimate for a speech-to-speech stack, or ``None``.
+
+    The realtime counterpart of :func:`pipeline_estimate`, and it exists for
+    the same reason: the card and the breakdown beside it must be two views of
+    one calculation rather than two calculations.
+    """
     upstream = managed_tiers.resolve(managed_tiers.REALTIME_COMPONENT, realtime_tier)
     estimate = await estimate_cost_per_minute(
         session,
@@ -187,7 +249,54 @@ async def realtime_price_per_minute(
         telephony_provider=telephony_provider,
         marked_up=marked_up,
     )
-    return _priced(estimate, what=f"the {realtime_tier} speech-to-speech tier")
+    priced = _priced(estimate, what=f"the {realtime_tier} speech-to-speech tier")
+    return estimate if priced is not None else None
+
+
+#: The component lines a Simple-tab breakdown may name. Anything the estimator
+#: itemises that is not in here is folded into "agent" rather than shown, so a
+#: new line added to the estimator cannot leak a vendor onto this screen by
+#: appearing on it unannounced.
+_SIMPLE_LINE_LABELS: dict[str, str] = {
+    "stt": "Transcription",
+    "llm": "Brain",
+    "tts": "Voice",
+    "telephony": "Telephony",
+    "platform": "Platform fee",
+}
+
+
+def _breakdown(estimate) -> dict | None:
+    """What makes up a variant's price, with the vendors taken out.
+
+    The Simple tab is the screen that deliberately does not name Sarvam or
+    OpenAI — that is the whole reason it exists beside Advanced. So this
+    carries the same figures the itemised bar on Advanced shows and none of the
+    ``provider``/``model`` fields, because a breakdown that named them would
+    undo the split by being the one place a vendor appears.
+
+    Built from the estimate the card's own price came from, never a second
+    call: a bar whose segments are priced separately from the headline above
+    them is a bar that disagrees with it the first time a rate moves.
+    """
+    if estimate is None:
+        return None
+    lines = [
+        {
+            "component": line.component,
+            "label": _SIMPLE_LINE_LABELS.get(line.component, "Agent"),
+            "paise_per_minute": line.paise_per_minute,
+        }
+        for line in estimate.lines
+    ]
+    return {
+        "agent_paise_per_minute": estimate.agent_paise_per_minute,
+        "telephony_paise_per_minute": estimate.telephony_paise_per_minute,
+        "platform_paise_per_minute": estimate.platform_paise_per_minute,
+        "addon_paise_per_minute": estimate.addon_paise_per_minute,
+        "pulse_seconds": estimate.pulse_seconds,
+        "lines": lines,
+    }
 
 
 async def bundle_options(
@@ -219,7 +328,7 @@ async def bundle_options(
         variants: list[dict] = []
 
         if row.architecture == bundle_service.REALTIME:
-            price = await realtime_price_per_minute(
+            estimate = await realtime_estimate(
                 session,
                 organization_id=organization_id,
                 realtime_tier=row.realtime_tier,
@@ -230,7 +339,10 @@ async def bundle_options(
                     "tier": row.realtime_tier,
                     "label": row.label,
                     "blurb": "",
-                    "paise_per_minute": price,
+                    "paise_per_minute": (
+                        None if estimate is None else estimate.total_paise_per_minute
+                    ),
+                    "breakdown": _breakdown(estimate),
                     "india_only": assess(
                         architecture="realtime", realtime_tier=row.realtime_tier
                     ).india_only,
@@ -244,10 +356,12 @@ async def bundle_options(
                 label, blurb = managed_tiers.LLM_TIER_LABELS.get(
                     tier, (tier.title(), "")
                 )
-                price = await price_per_minute(
+                estimate = await pipeline_estimate(
                     session,
                     organization_id=organization_id,
                     brain=tier,
+                    stt_tier=row.stt_tier or "default",
+                    tts_tier=row.tts_tier or "default",
                     telephony_provider=telephony_provider,
                 )
                 variants.append(
@@ -255,7 +369,12 @@ async def bundle_options(
                         "tier": tier,
                         "label": label,
                         "blurb": blurb,
-                        "paise_per_minute": price,
+                        "paise_per_minute": (
+                            None
+                            if estimate is None
+                            else estimate.total_paise_per_minute
+                        ),
+                        "breakdown": _breakdown(estimate),
                         "india_only": assess(
                             architecture="pipeline",
                             llm_tier=tier,
@@ -282,6 +401,145 @@ async def bundle_options(
     return out
 
 
+class SelectionError(ValueError):
+    """A bundle choice that could not be saved as asked for."""
+
+
+async def selected_bundle(*, organization_id: int | None) -> dict | None:
+    """The Simple choice currently in force, or ``None`` if there is not one.
+
+    Read from the account's stored managed configuration rather than kept in a
+    second table. There is one answer to "what does this account run on" and it
+    is the configuration the call itself resolves — a parallel record of the
+    picker's last click is a record that goes stale the first time somebody
+    saves from the Advanced tab.
+
+    ``None`` when the account is on BYOK or has never saved: the Simple picker
+    has nothing to restore, and it should show its defaults rather than claim a
+    selection the account is not on.
+    """
+    from api.services.configuration.ai_model_configuration import (
+        get_organization_ai_model_configuration_v2,
+    )
+
+    stored = await get_organization_ai_model_configuration_v2(organization_id)
+    if stored is None or stored.mode != "decibyl" or stored.decibyl is None:
+        return None
+    managed = stored.decibyl
+    realtime_tier = (managed.realtime_tier or "").strip()
+    return {
+        "bundle": managed.bundle or "",
+        "tier": realtime_tier or managed.llm_tier,
+        "voice": managed.voice,
+    }
+
+
+async def save_bundle_selection(
+    session: AsyncSession,
+    *,
+    organization_id: int,
+    bundle_slug: str,
+    tier: str,
+    voice: str,
+) -> dict:
+    """Store a Simple choice as this account's default managed stack.
+
+    Everything the customer chose is resolved here from the bundle row rather
+    than taken from the request: the client sends a slug, a tier and a voice,
+    and the speech tiers behind them are looked up. A client that could name
+    its own STT tier could name one nobody has priced, and the first anyone
+    would know is a call billed against a rate that does not exist.
+
+    Writes the same v2 managed shape the Advanced tab writes, so the two tabs
+    remain two vocabularies for one stored answer rather than two stores.
+    """
+    from api.schemas.ai_model_configuration import (
+        DecibylManagedAIModelConfiguration,
+        OrganizationAIModelConfigurationV2,
+        compile_ai_model_configuration_v2,
+    )
+    from api.services.configuration import bundles as bundle_service
+    from api.services.configuration.ai_model_configuration import (
+        get_organization_ai_model_configuration_v2,
+        upsert_organization_ai_model_configuration_v2,
+    )
+
+    # The account's model gateway service key, carried forward rather than
+    # rewritten. It is minted once per organization at signup and is the only
+    # copy: nothing here can mint another, so writing a configuration without
+    # it does not "clear a field", it destroys the credential.
+    #
+    # This is not hypothetical. Saving a bundle used to build a fresh managed
+    # configuration and let ``api_key`` take its empty default, which passed
+    # every validator — an empty key is the ordinary case for a managed slot —
+    # and then refused every call the account made with "You have invalid keys
+    # in your model configuration". The stack was right, the tiers were right,
+    # and the credential the gateway authenticates with was gone.
+    #
+    # ``merge_ai_model_configuration_v2_secrets`` does not cover this. It
+    # restores a key the client sent back *masked*; a key that is simply absent
+    # reads as a deliberate empty value and is written as one.
+    existing = await get_organization_ai_model_configuration_v2(organization_id)
+    service_key = ""
+    if existing is not None and existing.decibyl is not None:
+        service_key = existing.decibyl.api_key or ""
+
+    rows = await bundle_service.list_bundles(session, enabled_only=True)
+    row = next((r for r in rows if r.slug == bundle_slug), None)
+    if row is None:
+        raise SelectionError(f"{bundle_slug!r} is not a bundle on offer.")
+
+    chosen = (tier or "").strip()
+    if row.architecture == bundle_service.REALTIME:
+        # One model hears and speaks, so there is exactly one tier it can be
+        # and the request does not get to name a different one.
+        if chosen and chosen != row.realtime_tier:
+            raise SelectionError(f"{row.label} does not offer a {chosen!r} option.")
+        managed = DecibylManagedAIModelConfiguration(
+            api_key=service_key,
+            bundle=row.slug,
+            realtime_tier=row.realtime_tier,
+            # Carried so a later switch back to a pipeline bundle does not land
+            # on a tier nobody chose. It is not read while realtime_tier is set.
+            llm_tier="default",
+            voice=voice or DECIBYL_DEFAULT_VOICE,
+        )
+    else:
+        offered = [row.llm_tier] if row.llm_tier else list(managed_tiers.LLM_TIERS)
+        if chosen not in offered:
+            raise SelectionError(f"{row.label} does not offer a {chosen!r} brain.")
+        if voice and voice not in {v.voice_id for v in voices()}:
+            raise SelectionError(f"{voice!r} is not a voice we offer.")
+        managed = DecibylManagedAIModelConfiguration(
+            api_key=service_key,
+            bundle=row.slug,
+            llm_tier=chosen,
+            stt_tier=row.stt_tier or "default",
+            tts_tier=row.tts_tier or "default",
+            voice=voice or DECIBYL_DEFAULT_VOICE,
+        )
+
+    configuration = OrganizationAIModelConfigurationV2(
+        version=2, mode="decibyl", decibyl=managed
+    )
+    # Compiled before it is stored, not after. Everything above is built from a
+    # bundle row an operator owns, so a combination that cannot be flattened
+    # into a runnable stack is a misconfigured bundle — and the place to find
+    # that out is here, as a refused save, rather than on the first call the
+    # account makes.
+    try:
+        compile_ai_model_configuration_v2(configuration)
+    except ValueError as exc:
+        raise SelectionError(str(exc)) from exc
+
+    await upsert_organization_ai_model_configuration_v2(organization_id, configuration)
+    return {
+        "bundle": managed.bundle,
+        "tier": (managed.realtime_tier or "").strip() or managed.llm_tier,
+        "voice": managed.voice,
+    }
+
+
 async def bundle_economics(
     session: AsyncSession, *, telephony_provider: str | None = None
 ) -> list[dict]:
@@ -302,9 +560,19 @@ async def bundle_economics(
     the brain is the customer's choice, and Lite and Smart do not earn the
     same thing.
     """
+    from api.services.configuration import bundles as bundle_service
+
     priced = await bundle_options(
         session, organization_id=None, telephony_provider=telephony_provider
     )
+    # The speech tiers each bundle runs on, which the customer-facing payload
+    # above deliberately does not carry. The cost side has to price the same
+    # stack the price side did, or the margin is the difference between two
+    # different bundles.
+    speech = {
+        row.slug: (row.stt_tier or "default", row.tts_tier or "default")
+        for row in await bundle_service.list_bundles(session, enabled_only=True)
+    }
     out: list[dict] = []
 
     for bundle in priced:
@@ -320,10 +588,13 @@ async def bundle_economics(
                     marked_up=False,
                 )
             else:
+                stt_tier, tts_tier = speech.get(bundle["slug"], ("default", "default"))
                 cost = await price_per_minute(
                     session,
                     organization_id=None,
                     brain=variant["tier"],
+                    stt_tier=stt_tier,
+                    tts_tier=tts_tier,
                     telephony_provider=telephony_provider,
                     marked_up=False,
                 )

@@ -47,6 +47,27 @@ async def _org(session, slug: str) -> OrganizationModel:
     return org
 
 
+async def _has_paid_before(session, org) -> None:
+    """Give the account one settled top-up.
+
+    The first-payment floor is higher than the ordinary one, so a brand-new
+    account is refused on the minimum before the step check is ever reached.
+    These tests are about the step, so they need an account past its first
+    payment — otherwise they assert on a message the amount never got to.
+    """
+    session.add(
+        CreditLedgerModel(
+            organization_id=org.id,
+            delta_paise=100_000,
+            kind=CreditLedgerKind.TOPUP.value,
+            ref_type="payment",
+            ref_id=f"pay_seed_{org.id}",
+            balance_after_paise=100_000,
+        )
+    )
+    await session.flush()
+
+
 async def _mandate(session, org, *, purpose, plan_code=None, sub="sub_1"):
     mandate = PaymentMandateModel(
         organization_id=org.id,
@@ -367,6 +388,7 @@ class TestTopUpsComeInSteps:
         from api.services.billing.payments import PaymentError, create_topup_order
 
         org = await _org(async_session, f"topup-ok-{amount}")
+        await _has_paid_before(async_session, org)
         # Refused for want of Razorpay credentials, never for the amount: the
         # amount check runs first and this asserts it did not fire.
         with pytest.raises(PaymentError) as caught:
@@ -385,6 +407,7 @@ class TestTopUpsComeInSteps:
         from api.services.billing.payments import PaymentError, create_topup_order
 
         org = await _org(async_session, f"topup-bad-{amount}")
+        await _has_paid_before(async_session, org)
         with pytest.raises(PaymentError, match="steps of ₹100"):
             await create_topup_order(
                 async_session,

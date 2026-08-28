@@ -33,18 +33,48 @@ from api.services.knowledge_base import (
 )
 from api.services.storage import storage_fs
 
+#: The deployment ceiling, used when an account has no plan figure of its own.
+#: A plan's own limit is resolved per document — see :func:`_max_file_bytes`.
 MAX_FILE_SIZE_BYTES = KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
 EMBEDDING_BATCH_SIZE = 64
 
 
-def _too_large_message(size_bytes: int) -> str:
+async def _max_file_bytes(organization_id: int) -> int:
+    """The largest document this account's plan accepts.
+
+    Resolved here as well as at the upload gates, and it has to be: a presigned
+    PUT cannot carry a size limit, so nothing between the browser and this
+    worker has actually enforced the number the upload endpoint claimed. This
+    is the only check an object in the store has passed.
+
+    Falls back to the deployment ceiling if the plan cannot be read. A worker
+    that refuses every document because the billing tables were briefly
+    unreachable is worse than one that briefly applies the platform default.
+    """
+    from api.db import db_client as _db
+    from api.services.billing import subscription_plans
+
+    try:
+        async with _db.async_session() as session:
+            allowance = await subscription_plans.knowledge_base_allowance_for(
+                session, organization_id=organization_id
+            )
+    except Exception as exc:  # noqa: BLE001 — a limit lookup is not a verdict
+        logger.warning(
+            f"Could not resolve the plan file limit for {organization_id}: {exc}"
+        )
+        return MAX_FILE_SIZE_BYTES
+    return allowance.max_file_bytes or MAX_FILE_SIZE_BYTES
+
+
+def _too_large_message(size_bytes: int, limit_bytes: int) -> str:
     return (
         f"File size ({size_bytes / (1024 * 1024):.1f}MB) exceeds the "
-        f"maximum allowed size of {MAX_FILE_SIZE_BYTES // (1024 * 1024)}MB."
+        f"maximum allowed size of {limit_bytes // (1024 * 1024)}MB."
     )
 
 
-async def _oversized_before_download(s3_key: str) -> int | None:
+async def _oversized_before_download(s3_key: str, limit_bytes: int) -> int | None:
     """The object's size, if storage already says it is too big to accept.
 
     A presigned PUT cannot carry a size limit — SigV4 signs a URL, not a
@@ -66,7 +96,7 @@ async def _oversized_before_download(s3_key: str) -> int | None:
         return None
 
     size = (metadata or {}).get("size")
-    if isinstance(size, int) and size > MAX_FILE_SIZE_BYTES:
+    if isinstance(size, int) and size > limit_bytes:
         return size
     return None
 
@@ -124,9 +154,10 @@ async def process_knowledge_base_document(
         temp_file_path = temp_file.name
         temp_file.close()
 
-        oversized = await _oversized_before_download(s3_key)
+        limit_bytes = await _max_file_bytes(organization_id)
+        oversized = await _oversized_before_download(s3_key, limit_bytes)
         if oversized is not None:
-            error_message = _too_large_message(oversized)
+            error_message = _too_large_message(oversized, limit_bytes)
             logger.warning(f"Document {document_id}: {error_message} (not downloaded)")
             await db_client.update_document_status(
                 document_id, "failed", error_message=error_message
@@ -143,9 +174,9 @@ async def process_knowledge_base_document(
         file_size = os.path.getsize(temp_file_path)
         logger.info(f"Downloaded file size: {file_size} bytes")
 
-        if file_size > MAX_FILE_SIZE_BYTES:
+        if file_size > limit_bytes:
             # Reached when storage would not report a size before the download.
-            error_message = _too_large_message(file_size)
+            error_message = _too_large_message(file_size, limit_bytes)
             logger.warning(f"Document {document_id}: {error_message}")
             await db_client.update_document_status(
                 document_id, "failed", error_message=error_message

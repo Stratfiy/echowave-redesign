@@ -2890,6 +2890,53 @@ class SubscriptionPlanModel(Base):
     #: NUMBER_RENTAL_PRICE_PAISE, so a plan that does not want its own figure
     #: follows the platform rental price rather than pinning a stale copy.
     extra_number_price_paise = Column(BigInteger, nullable=True)
+    #: How much the plan lets an account keep in its knowledge base, in bytes.
+    #:
+    #: An entitlement rather than a meter, which is what the category does:
+    #: ElevenLabs sells RAG as a per-tier allowance and Vapi folds it into the
+    #: plan. Nobody charges per embedded token, and being the only platform
+    #: that does would cost more to build than it could recover.
+    #:
+    #: Zero is the meaningful default, and it is why this is a plan column
+    #: rather than a global ceiling: every document is embedded at ingestion on
+    #: *our* model key, and embeddings have no cost component, no rate and no
+    #: ledger debit anywhere. An account with no plan can therefore spend our
+    #: money without ever being billed for it, and did — the only thing
+    #: standing in the way was one environment variable set the same for
+    #: everyone, subscriber or not.
+    knowledge_base_bytes = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    #: The largest single document the plan accepts, in bytes.
+    #:
+    #: A separate number from the total because they fail differently. The
+    #: total is about the standing cost of holding and re-embedding a corpus;
+    #: this one is about one upload's worth of worker time, memory and disk —
+    #: a 200MB scan is a stalled queue whatever the account's total allowance
+    #: is. Tiering both lets a larger plan take bigger manuals as well as more
+    #: of them, which is the actual difference between a shop's FAQ and an
+    #: insurer's policy library.
+    #:
+    #: Zero falls back to KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES, the deployment
+    #: ceiling, so a plan with no opinion follows the platform rather than
+    #: pinning a copy that goes stale the day it moves.
+    knowledge_base_max_file_bytes = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    #: The per-minute platform fee this plan entitles an account to, in
+    #: millipaise. Applied to ``organization_rate_history`` the moment the
+    #: mandate is authorised — see ``mandates.apply_subscription_event``.
+    #:
+    #: Null means the plan says nothing about the fee, and the account keeps
+    #: whatever rate it already had: a negotiated one, or the list price. That
+    #: is deliberately different from zero, which would be a plan that gives
+    #: away the fee entirely. Only a plan with an explicit figure moves anyone,
+    #: so pricing a tier later cannot silently re-rate the accounts on it.
+    #:
+    #: The fee is what a larger plan actually discounts. Balance and numbers are
+    #: cheap to be generous with; this is the number a customer compares against
+    #: a competitor, and the one they move tier to change.
+    platform_rate_mpaise = Column(Integer, nullable=True)
 
     #: The provider plan this subscribes to. Pinned per plan for the same
     #: reason the rental plan is pinned: a plan created lazily per environment

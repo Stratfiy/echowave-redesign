@@ -130,19 +130,39 @@ async def _balance(session, org) -> int:
     )
 
 
-class TestThePriceIsDerived:
-    """The three numbers cannot drift, because only two of them are typed."""
+class TestThePriceIsNeverAboveItsParts:
+    """Starter may discount its contents. It may never sell above them.
 
-    def test_the_plan_is_exactly_its_parts(self):
+    The price used to be derived as balance + rental so the three could not
+    drift. That held while a plan was the only way to hold a number and the two
+    prices were the same figure. They are not any more: Rs559 is what an *extra*
+    number costs, while Starter's included number is priced inside its monthly
+    price like every other tier's is. Deriving through the extra-number figure
+    would mean raising it silently re-prices Starter — and Starter's price is
+    pinned to a Razorpay plan collecting a fixed amount, so the two would come
+    apart at the bank rather than in a spreadsheet.
+
+    What the derivation actually protected is the invariant below, and it is
+    also enforced by ``subscription_plans.save()``, which can see the whole
+    plan rather than just these constants.
+    """
+
+    def test_the_plan_never_costs_more_than_it_contains(self):
         assert (
             STARTER_PLAN_PRICE_PAISE
-            == STARTER_PLAN_BALANCE_PAISE + NUMBER_RENTAL_PRICE_PAISE
+            <= STARTER_PLAN_BALANCE_PAISE + NUMBER_RENTAL_PRICE_PAISE
         )
 
+    def test_it_never_grants_more_balance_than_it_collects(self):
+        """The one that is a loss on contact: granted balance is spendable
+        immediately and at our cost."""
+        assert STARTER_PLAN_BALANCE_PAISE <= STARTER_PLAN_PRICE_PAISE
+
     def test_the_advertised_figures_are_the_ones_shipped(self):
-        """Rs2,500 + Rs499 = Rs2,999, as sold."""
+        """Rs2,500 of balance and a number, sold at Rs2,999 — a Rs60 discount
+        against Rs559 of number, the same shape Growth and Scale carry."""
         assert STARTER_PLAN_BALANCE_PAISE == 250_000
-        assert NUMBER_RENTAL_PRICE_PAISE == 49_900
+        assert NUMBER_RENTAL_PRICE_PAISE == 55_900
         assert STARTER_PLAN_PRICE_PAISE == 299_900
 
 

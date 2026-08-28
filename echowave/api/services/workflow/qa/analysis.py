@@ -16,7 +16,10 @@ from api.services.workflow.qa.conversation import (
     format_transcript,
     split_events_by_node,
 )
-from api.services.workflow.qa.llm_config import resolve_llm_config
+from api.services.workflow.qa.llm_config import (
+    accumulate_token_usage,
+    resolve_llm_config,
+)
 from api.services.workflow.qa.metrics import compute_call_metrics
 from api.services.workflow.qa.node_summary import (
     CONVERSATION_SUMMARY_SYSTEM_PROMPT,
@@ -31,12 +34,22 @@ from api.utils.template_renderer import render_template
 
 
 async def _run_llm_inference(
-    llm, messages: list[dict], system_prompt: str
+    llm, messages: list[dict], system_prompt: str, usage_total: dict | None = None
 ) -> str | None:
-    """Run a one-shot LLM inference using the pipecat service."""
+    """Run a one-shot LLM inference using the pipecat service.
+
+    ``usage_total`` accumulates what every inference on this run spent, so the
+    caller can hand one figure to billing. Post-call analysis is real model
+    usage on our own key for a managed account — the same tokens at the same
+    price as the call itself — and until it was recorded here it was charged to
+    nobody.
+    """
     context = LLMContext()
     context.set_messages(messages)
-    return await llm.run_inference(context, system_instruction=system_prompt)
+    text = await llm.run_inference(context, system_instruction=system_prompt)
+    if usage_total is not None:
+        accumulate_token_usage(usage_total, getattr(llm, "last_inference_usage", None))
+    return text
 
 
 async def _generate_conversation_summary(
@@ -45,18 +58,42 @@ async def _generate_conversation_summary(
     transcript: str,
     parent_ctx,
     node_name: str,
+    previous_summary: str = "",
+    usage_total: dict | None = None,
 ) -> str:
-    """Generate a summary of the conversation so far (before the current node).
+    """Summarise the conversation so far, folding in the summary we already had.
 
     Traced to Langfuse as conversation-summary-before-{node_name}.
+
+    ``transcript`` is only the stretch since the last summary, and
+    ``previous_summary`` is what we concluded before it. That is the whole
+    optimisation: this used to
+    be handed the entire conversation from the top on every node, so an n-node
+    call re-read node 1's transcript n times and the input grew with every step
+    — quadratic tokens, and a wait that got longer the further into the call the
+    node was. Folding makes each step's input roughly constant: one summary plus
+    one node.
+
+    The trade is that later summaries are summaries-of-summaries rather than of
+    the raw transcript. For "what happened before this node", which is the
+    question the QA prompt actually asks, that is the same answer at a fraction
+    of the tokens.
     """
+    conversation = (
+        f"## Summary of the conversation so far\n{previous_summary}\n\n"
+        f"## Conversation since then\n{transcript}"
+        if previous_summary
+        else f"## Conversation\n{transcript}"
+    )
     messages = [
-        {"role": "user", "content": f"## Conversation\n{transcript}"},
+        {"role": "user", "content": conversation},
     ]
 
     try:
         summary = (
-            await _run_llm_inference(llm, messages, CONVERSATION_SUMMARY_SYSTEM_PROMPT)
+            await _run_llm_inference(
+                llm, messages, CONVERSATION_SUMMARY_SYSTEM_PROMPT, usage_total
+            )
             or ""
         )
 
@@ -125,9 +162,15 @@ async def run_per_node_qa_analysis(
         )
         return {"error": "no_api_key", "node_results": {}}
 
+    # Tokens spent by this analysis, handed back for billing. Post-call QA runs
+    # real inference on our own key for a managed account; recording it here is
+    # what stops it being charged to nobody. Declared before the first
+    # inference, which is the summary backfill below.
+    usage_total: dict = {}
+
     # Ensure node summaries
     node_summaries = await ensure_node_summaries(
-        workflow_definition, definition_id, workflow_run, qa_data
+        workflow_definition, definition_id, workflow_run, qa_data, usage_total
     )
 
     # Set up Langfuse tracing
@@ -144,7 +187,12 @@ async def run_per_node_qa_analysis(
     )
 
     node_results: dict[str, Any] = {}
-    prior_conversation: list[dict] = []  # Running accumulation of all prior nodes
+    # Only the node most recently seen, plus the summary that already folded in
+    # everything before it. The whole conversation used to be kept here and
+    # re-summarised from the top at every node, which made the token bill and
+    # the wait grow with the square of the node count.
+    pending_conversation: list[dict] = []
+    running_summary = ""
 
     for idx, (node_id, node_name, node_events) in enumerate(node_splits):
         # Build this node's conversation and transcript
@@ -159,17 +207,21 @@ async def run_per_node_qa_analysis(
         # Get node summary
         node_summary = get_node_summary_text(node_summaries, node_id)
 
-        # Generate conversation summary from prior nodes (if not first)
-        previous_conversation_summary = ""
-        if idx > 0 and prior_conversation:
-            prior_transcript = format_transcript(prior_conversation)
-            previous_conversation_summary = await _generate_conversation_summary(
+        # Fold everything before this node into one running summary. The input
+        # is one summary plus one node's transcript, whatever the node count.
+        previous_conversation_summary = running_summary
+        if idx > 0 and pending_conversation:
+            running_summary = await _generate_conversation_summary(
                 llm,
                 model,
-                prior_transcript,
+                format_transcript(pending_conversation),
                 parent_ctx,
                 node_name,
+                previous_summary=running_summary,
+                usage_total=usage_total,
             )
+            pending_conversation = []
+            previous_conversation_summary = running_summary
 
         # Substitute placeholders in the user's system prompt
         template_context = {
@@ -186,7 +238,9 @@ async def run_per_node_qa_analysis(
 
         # Call QA LLM
         try:
-            raw_response = await _run_llm_inference(llm, messages, system_content)
+            raw_response = await _run_llm_inference(
+                llm, messages, system_content, usage_total
+            )
         except Exception as e:
             logger.error(
                 f"QA LLM call failed for node '{node_name}' on run {workflow_run_id}: {e}"
@@ -198,7 +252,7 @@ async def run_per_node_qa_analysis(
                 "summary": "",
                 "score": None,
             }
-            prior_conversation.extend(node_conversation)
+            pending_conversation.extend(node_conversation)
             continue
 
         # Trace
@@ -235,11 +289,19 @@ async def run_per_node_qa_analysis(
 
         node_results[node_id] = node_result
 
-        # Append this node's conversation to running total
-        prior_conversation.extend(node_conversation)
+        # Held until the next node folds it into the running summary.
+        pending_conversation.extend(node_conversation)
 
     return {
         "node_results": node_results,
+        # What this analysis actually spent. run_integrations writes it onto the
+        # run's usage_info, where the cost engine prices it as an ordinary LLM
+        # line at the same rate and markup as the call's own tokens.
+        "token_usage": usage_total,
+        # The provider travels with the model because the rate card is keyed by
+        # both. Dropping it here is what made QA tokens unpriceable: the usage
+        # key was built from a label, and a label is not a vendor with a rate.
+        "provider": provider,
         "model": model,
     }
 
@@ -308,7 +370,12 @@ async def _run_whole_call_qa_analysis(
     )
 
     try:
-        raw_response = await _run_llm_inference(llm, messages, system_content)
+        # Whole-call QA is one inference, but it is the same real spend as the
+        # per-node path and needs recording for the same reason.
+        usage_total: dict = {}
+        raw_response = await _run_llm_inference(
+            llm, messages, system_content, usage_total
+        )
     except Exception as e:
         logger.error(f"QA LLM call failed for run {workflow_run_id}: {e}")
         return {"error": str(e), "node_results": {}}
@@ -347,5 +414,7 @@ async def _run_whole_call_qa_analysis(
 
     return {
         "node_results": {"whole_call": node_result},
+        "provider": provider,
         "model": model,
+        "token_usage": usage_total,
     }

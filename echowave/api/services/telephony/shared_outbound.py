@@ -24,10 +24,17 @@ authenticated way to make Decibyl ring a stranger — the same objection that
 `verified_numbers` exists to answer, except that here the carriage is ours.
 Callers pass ``require_verified`` and the gate is applied by the route.
 
-*Capacity is small and shared.* Two numbers is a pool of two for the whole
-platform, and a third simultaneous trial call waits. That is a real limit to
-know before promising a test line to thirty accounts, not a reason to skip the
-feature at two.
+*Capacity is capped, and the cap is not the number count.* A caller ID is a
+From header rather than a channel, so one shared number can originate as many
+simultaneous calls as the carrier account allows — the pool size bounds nothing
+by itself. This docstring used to claim "a third simultaneous trial call waits",
+which was never true: the caller ID is chosen with ``random.choice`` and nothing
+reserved it. What bounds the pool is :data:`SHARED_OUTBOUND_SCOPE`, a
+platform-wide concurrency counter taken in the same atomic acquisition as the
+org's own slot (see ``routes/telephony.py``). The per-organization limit cannot
+do that job: it counts each account separately, so ten evaluators dialling at
+once sit comfortably inside ten separate limits while one carrier account — ours
+— carries every minute.
 """
 
 from __future__ import annotations
@@ -39,6 +46,15 @@ from loguru import logger
 from api.db import db_client
 from api.services.telephony import registry
 from api.services.telephony.base import TelephonyProvider
+
+#: Concurrency scope for trial calls placed on the shared caller IDs.
+#:
+#: Deliberately not keyed by organization: the counter it names is a platform
+#: total, because the thing being bounded — our carrier account, our credentials
+#: and minutes billed to nobody — is shared by every account using the pool. See
+#: ``rate_limiter.try_acquire_concurrent_slot_details``, which keys the scope
+#: counter on this string alone.
+SHARED_OUTBOUND_SCOPE = "shared_outbound"
 
 
 class NoSharedNumber(Exception):

@@ -17,6 +17,20 @@ from api.services.campaign.source_sync_factory import get_sync_service
 PHONE_NUMBER_POOL_EXHAUSTED_COUNTER_KEY = "phone_number_pool_exhausted_attempts"
 MAX_PHONE_NUMBER_POOL_EXHAUSTED_ATTEMPTS = 3
 
+#: Consecutive unexpected batch failures a campaign survives before it is
+#: failed. One batch is ten calls out of however many thousand the campaign is;
+#: killing the whole thing because a single dispatch hit a blip — a carrier 502,
+#: a database reconnect — throws away every row not yet dialled and needs a
+#: human to notice and restart it.
+#:
+#: Consecutive is the word that matters: the counter is reset by any batch that
+#: completes, so this tolerates a bad minute and still fails a campaign that is
+#: genuinely broken, on the third attempt, exactly as before for that case.
+#: Mirrors the pool-exhaustion budget above rather than inventing a second
+#: retry vocabulary.
+CONSECUTIVE_BATCH_FAILURE_COUNTER_KEY = "consecutive_batch_failures"
+MAX_CONSECUTIVE_BATCH_FAILURES = 3
+
 
 async def sync_campaign_source(ctx: Dict, campaign_id: int) -> None:
     """
@@ -108,9 +122,8 @@ async def process_campaign_batch(
     - Updates campaign.processed_rows counter
     - Publishes batch_completed event for orchestrator
 
-    # TODO: May be not fail the campaign immediately on a single batch failure
-    # and propagate the error to campaign orchestrator which can fail the campaign
-    # on some consecutive batch failures.
+    An unexpected failure in one batch no longer fails the campaign outright;
+    see ``MAX_CONSECUTIVE_BATCH_FAILURES``.
     """
     logger.info(f"Processing batch for campaign {campaign_id}, batch_size={batch_size}")
 
@@ -126,6 +139,14 @@ async def process_campaign_batch(
                 campaign_id=campaign_id,
                 key=PHONE_NUMBER_POOL_EXHAUSTED_COUNTER_KEY,
             )
+
+        # A batch that got through clears the budget. Without this the counter
+        # is a lifetime total rather than a run of failures, and a long campaign
+        # would eventually be killed by three unrelated blips hours apart.
+        await db_client.reset_campaign_metadata_counter(
+            campaign_id=campaign_id,
+            key=CONSECUTIVE_BATCH_FAILURE_COUNTER_KEY,
+        )
 
         # Publish batch completed event - orchestrator will handle next batch scheduling
         publisher = await get_campaign_event_publisher()
@@ -229,10 +250,48 @@ async def process_campaign_batch(
         raise
 
     except Exception as e:
-        logger.error(f"Error processing batch for campaign {campaign_id}: {e}")
+        attempt = await db_client.increment_campaign_metadata_counter(
+            campaign_id=campaign_id,
+            key=CONSECUTIVE_BATCH_FAILURE_COUNTER_KEY,
+        )
+        logger.error(
+            f"Error processing batch for campaign {campaign_id}: {e}; "
+            f"attempt={attempt}/{MAX_CONSECUTIVE_BATCH_FAILURES}"
+        )
+
+        publisher = await get_campaign_event_publisher()
+
+        if attempt < MAX_CONSECUTIVE_BATCH_FAILURES:
+            # Logged at warning rather than swallowed: the campaign is still
+            # running, and somebody reading its log should see that it is
+            # limping rather than only finding out if it dies.
+            await db_client.append_campaign_log(
+                campaign_id=campaign_id,
+                level="warning",
+                event="batch_failed_retry",
+                message=(
+                    f"Batch processing failed: {e}; retry attempt "
+                    f"{attempt}/{MAX_CONSECUTIVE_BATCH_FAILURES}"
+                ),
+                details={
+                    "error": str(e),
+                    "attempt": attempt,
+                    "max_attempts": MAX_CONSECUTIVE_BATCH_FAILURES,
+                },
+            )
+            # Reported as a completed batch that processed nothing, which is
+            # what tells the orchestrator to schedule the next one. Publishing
+            # batch_failed here would fail the campaign through the very path
+            # this budget exists to avoid.
+            await publisher.publish_batch_completed(
+                campaign_id=campaign_id,
+                processed_count=0,
+                failed_count=0,
+                batch_size=batch_size,
+            )
+            return
 
         # Publish batch failed event
-        publisher = await get_campaign_event_publisher()
         await publisher.publish_batch_failed(
             campaign_id=campaign_id,
             error=str(e),
@@ -245,7 +304,13 @@ async def process_campaign_batch(
             campaign_id=campaign_id,
             level="error",
             event="batch_failed",
-            message=f"Batch processing failed: {e}",
-            details={"error": str(e)},
+            message=(
+                f"Batch processing failed after {attempt} consecutive attempts: {e}"
+            ),
+            details={
+                "error": str(e),
+                "attempt": attempt,
+                "max_attempts": MAX_CONSECUTIVE_BATCH_FAILURES,
+            },
         )
         raise

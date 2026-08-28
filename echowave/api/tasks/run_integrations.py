@@ -14,13 +14,16 @@ from api.db import db_client
 from api.db.models import WorkflowRunModel
 from api.enums import OrganizationConfigurationKey
 from api.services.billing.addons import CALL_QA as ADDON_CALL_QA
-from api.services.billing.addons import record_addon_used
+from api.services.billing.addons import addon_keys_from_usage_info, record_addon_used
 from api.services.integrations import (
     IntegrationCompletionContext,
     has_completion_handlers,
     run_completion_handlers,
 )
-from api.services.pipecat.tracing_config import register_org_langfuse_credentials
+from api.services.pipecat.tracing_config import (
+    register_org_langfuse_credentials,
+    unregister_org_langfuse_credentials,
+)
 from api.services.workflow.dto import (
     QANodeData,
     QARFNode,
@@ -134,6 +137,22 @@ async def _update_usage_info_with_qa_tokens(
     """Add QA analysis LLM token usage to the workflow run's usage_info."""
     try:
         usage_info = dict(workflow_run.usage_info or {})
+
+        # Merging is additive, and this job retries. Without a guard a second
+        # attempt adds the same QA tokens on top of the first, and the customer
+        # pays twice for one analysis — the harder half of that to notice being
+        # that the totals still look internally consistent.
+        #
+        # ``record_addon_used`` below writes the marker, and it is written in the
+        # same update as the tokens, so "the marker is present" and "the tokens
+        # are already counted" cannot come apart.
+        if ADDON_CALL_QA in addon_keys_from_usage_info(usage_info):
+            logger.info(
+                f"QA token usage already recorded for run {workflow_run_id}; "
+                "not merging it a second time"
+            )
+            return
+
         llm_usage = dict(usage_info.get("llm", {}))
 
         for _node_key, result in qa_results.items():
@@ -142,7 +161,18 @@ async def _update_usage_info_with_qa_tokens(
             if not token_usage or not model:
                 continue
 
-            key = f"QAAnalysis|||{model}"
+            # Keyed by the vendor that served the tokens, not by a label for
+            # the feature that asked for them. ``usage.provider_from_processor``
+            # reads the first half of this key as a provider name and looks up a
+            # rate for it, and there is no vendor called "QAAnalysis" — so every
+            # QA token that reached here was reported uncosted: not billed to
+            # the customer, and not counted as our own cost either, which
+            # overstates margin on exactly the calls doing the most work.
+            #
+            # A result without a provider is one from an older run still being
+            # reprocessed; the old label is the honest thing to write for it,
+            # because that *is* what it was costed under.
+            key = f"{result.get('provider') or 'QAAnalysis'}|||{model}"
             if key in llm_usage:
                 # Aggregate if multiple QA nodes use the same model
                 existing = llm_usage[key]
@@ -200,9 +230,16 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
             logger.warning("No organization found, skipping integrations")
             return
 
-        # Set org context for tracing and register org-specific Langfuse credentials
-        # FIXME: If an org removes langfuse credentials during an exisitng deployment
-        # we should unregister an existing langfuse credentials for that org.
+        # Set org context for tracing, and make this worker's routing match what
+        # the org currently has configured — in both directions.
+        #
+        # Registering was already done here; unregistering was not, so an org
+        # that removed its Langfuse credentials went on having its spans
+        # exported to the account it had just disconnected, on every worker
+        # that had ever run one of its calls, until the process restarted.
+        # Withdrawn credentials are a customer telling us to stop sending them
+        # their data, and continuing to is the kind of thing they find out about
+        # from their own vendor.
         set_current_org_id(organization_id)
         langfuse_config = await db_client.get_configuration_value(
             organization_id,
@@ -215,6 +252,11 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
                 public_key=langfuse_config.get("public_key"),
                 secret_key=langfuse_config.get("secret_key"),
             )
+        else:
+            # Idempotent, and cheap when there was never a registration to
+            # remove — which is the common case, so it is not worth tracking
+            # whether this worker happens to hold one.
+            unregister_org_langfuse_credentials(org_id=organization_id)
 
         # Step 2: Get workflow definition from the run's pinned version
         workflow_definition = workflow_run.definition.workflow_json

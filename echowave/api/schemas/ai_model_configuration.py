@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 from api.services.configuration.registry import (
     DecibylEmbeddingsConfiguration,
     DecibylLLMService,
+    DecibylRealtimeConfiguration,
     DecibylSTTService,
     DecibylTTSService,
     EmbeddingsConfig,
@@ -59,8 +60,18 @@ class DecibylManagedAIModelConfiguration(BaseModel):
     runtime. Requiring a key here made managed mode impossible to save — the
     entire point of choosing it is not having one.
 
-    It is kept rather than deleted so a stored configuration written by the old
-    UI still loads. Nothing reads it.
+    It is kept rather than deleted because it is still the account's model
+    gateway service key, minted once per organization at signup by
+    ``auth/depends.create_user_configuration_with_mps_key``.
+
+    **It is read, and this comment used to say it was not.** ``managed_model_
+    services.get_decibyl_service_api_key`` reads it on every run start, and
+    ``quota_service`` refuses the call with "You have invalid keys in your model
+    configuration" when it comes back empty. Anything building a managed
+    configuration for an existing account must carry the stored value forward:
+    there is no second copy, so writing an empty one does not clear a field, it
+    destroys the credential. The Simple picker's save did exactly that, and
+    every call the account made afterwards was refused.
     """
 
     api_key: str = ""
@@ -77,6 +88,29 @@ class DecibylManagedAIModelConfiguration(BaseModel):
     #: rejecting it at load would break an agent that has been dialling
     #: happily for months.
     llm_tier: str = "default"
+
+    #: Which bundle the Simple picker was on when this was saved. Stored so the
+    #: picker can show what is currently in force, which it previously could
+    #: not: the tiers below describe the stack but two bundles can resolve to
+    #: the same pair, so reopening the screen guessed rather than knew.
+    #:
+    #: A label for the screen, never an input to resolution. A bundle renamed
+    #: or withdrawn leaves the tiers below untouched and the agent dialling.
+    bundle: str = ""
+
+    #: The speech tiers this account runs on. Defaulted to ``"default"``
+    #: because that is the literal these two slots were hardcoded to before the
+    #: fields existed, so every configuration stored by the old UI compiles to
+    #: exactly what it compiled to then.
+    stt_tier: str = "default"
+    tts_tier: str = "default"
+
+    #: Non-empty when the account is on a speech-to-speech bundle. It replaces
+    #: the transcriber and the voice rather than joining them, so it is checked
+    #: first and the pipeline slots are not emitted at all — the same shape
+    #: ``agent_options.managed_stack_override`` writes at the agent level, which
+    #: managed mode had no way to express at the account level until now.
+    realtime_tier: str = ""
 
 
 # The two classes below no longer reject ``decibyl`` in a slot.
@@ -177,6 +211,35 @@ def compile_ai_model_configuration_v2(
 def _compile_decibyl_configuration(
     configuration: DecibylManagedAIModelConfiguration,
 ) -> EffectiveAIModelConfiguration:
+    embeddings = DecibylEmbeddingsConfiguration(
+        provider=ServiceProviders.DECIBYL,
+        api_key=configuration.api_key,
+        model="decibyl_embedding_v1",
+    )
+
+    realtime_tier = (configuration.realtime_tier or "").strip()
+    if realtime_tier:
+        # No stt or tts slot at all. A realtime section that also named a
+        # transcriber would be two answers to one question, and the compiler
+        # would have to pick one. The llm slot still names the same tier
+        # because a realtime model *is* the language model.
+        return EffectiveAIModelConfiguration(
+            llm=DecibylLLMService(
+                provider=ServiceProviders.DECIBYL,
+                api_key=configuration.api_key,
+                model=realtime_tier,
+            ),
+            realtime=DecibylRealtimeConfiguration(
+                provider=ServiceProviders.DECIBYL,
+                api_key=configuration.api_key,
+                model=realtime_tier,
+                voice=configuration.voice,
+            ),
+            embeddings=embeddings,
+            is_realtime=True,
+            managed_service_version=2,
+        )
+
     return EffectiveAIModelConfiguration(
         llm=DecibylLLMService(
             provider=ServiceProviders.DECIBYL,
@@ -188,21 +251,17 @@ def _compile_decibyl_configuration(
         tts=DecibylTTSService(
             provider=ServiceProviders.DECIBYL,
             api_key=configuration.api_key,
-            model="default",
+            model=configuration.tts_tier,
             voice=configuration.voice,
             speed=configuration.speed,
         ),
         stt=DecibylSTTService(
             provider=ServiceProviders.DECIBYL,
             api_key=configuration.api_key,
-            model="default",
+            model=configuration.stt_tier,
             language=configuration.language,
         ),
-        embeddings=DecibylEmbeddingsConfiguration(
-            provider=ServiceProviders.DECIBYL,
-            api_key=configuration.api_key,
-            model="decibyl_embedding_v1",
-        ),
+        embeddings=embeddings,
         is_realtime=False,
         managed_service_version=2,
     )

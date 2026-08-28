@@ -22,6 +22,28 @@ class RateLimiter:
         self.redis_client: Optional[aioredis.Redis] = None
         self.stale_call_timeout = 1200  # 20 minutes in seconds
 
+    @staticmethod
+    def _org_concurrent_key(organization_id: int) -> str:
+        """The counter holding one account's in-flight calls."""
+        return f"concurrent_calls:{organization_id}"
+
+    @staticmethod
+    def _scope_concurrent_key(scope_key: str) -> str:
+        """The counter holding one scope's in-flight calls.
+
+        Keyed on the scope alone, with no organization in it. That is what
+        makes a scope like ``shared_outbound`` a **platform** total rather than
+        a per-account one -- which is the whole reason it exists, since the
+        thing such a scope bounds (a campaign's own fan-out, our shared carrier
+        account) is not owned by any single account.
+
+        Named rather than written inline because the same format is built at
+        acquire time and again at release, and a counter incremented under one
+        spelling and decremented under another leaks slots until nobody can
+        dial.
+        """
+        return f"concurrent_calls:{scope_key}"
+
     async def _get_redis(self) -> aioredis.Redis:
         """Get or create Redis connection"""
         if self.redis_client is None:
@@ -134,8 +156,10 @@ class RateLimiter:
         """
         redis_client = await self._get_redis()
 
-        concurrent_key = f"concurrent_calls:{organization_id}"
-        scope_concurrent_key = f"concurrent_calls:{scope_key}" if scope_key else ""
+        concurrent_key = self._org_concurrent_key(organization_id)
+        scope_concurrent_key = (
+            self._scope_concurrent_key(scope_key) if scope_key else ""
+        )
         now = time.time()
         stale_cutoff = now - self.stale_call_timeout
 
@@ -217,12 +241,12 @@ class RateLimiter:
             return False
 
         redis_client = await self._get_redis()
-        concurrent_key = f"concurrent_calls:{organization_id}"
+        concurrent_key = self._org_concurrent_key(organization_id)
 
         try:
             removed = await redis_client.zrem(concurrent_key, slot_id)
             if scope_key:
-                await redis_client.zrem(f"concurrent_calls:{scope_key}", slot_id)
+                await redis_client.zrem(self._scope_concurrent_key(scope_key), slot_id)
             if removed:
                 logger.debug(
                     f"Released concurrent slot {slot_id} for org {organization_id}"
@@ -238,7 +262,7 @@ class RateLimiter:
         Automatically cleans up stale entries.
         """
         redis_client = await self._get_redis()
-        concurrent_key = f"concurrent_calls:{organization_id}"
+        concurrent_key = self._org_concurrent_key(organization_id)
 
         try:
             # Clean up stale entries first

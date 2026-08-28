@@ -130,6 +130,28 @@ DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)
 #
 # The default is kept because the managed product genuinely runs at that host,
 # but whether it was *chosen* is now recorded, and the app says so at boot.
+# How long a media-socket capability stays redeemable, in seconds. It has to
+# cover the gap between building the carrier's stream URL and the carrier
+# dialling it back, which is the length of a ring — not the length of a call,
+# because the token is checked once at connect. Five minutes is generous for
+# the first and far short of the second.
+TELEPHONY_STREAM_TOKEN_TTL_SECONDS = int(
+    os.getenv("TELEPHONY_STREAM_TOKEN_TTL_SECONDS", "300")
+)
+
+# Whether the media socket refuses a connection that presents no valid
+# capability. On by default: minting and checking ship together, so the only
+# connections without one are calls already in flight when the API restarted —
+# and a restart drops those sockets anyway.
+#
+# Set to false only to ride out an incident where Redis is unreachable and
+# calls must keep connecting. That is a decision to accept an unauthenticated
+# socket for the duration, so it is an environment change somebody makes
+# deliberately and reverts, never a default anybody inherits.
+TELEPHONY_WS_REQUIRE_TOKEN = (
+    os.getenv("TELEPHONY_WS_REQUIRE_TOKEN", "true").lower() == "true"
+)
+
 DEFAULT_MPS_API_URL = "https://services.decibyl.ai"
 MPS_API_URL = os.getenv("MPS_API_URL") or DEFAULT_MPS_API_URL
 MPS_API_URL_IS_DEFAULT = not os.getenv("MPS_API_URL")
@@ -154,24 +176,6 @@ KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES = int(
     os.getenv("KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES", str(5 * 1024 * 1024))
 )
 
-# How much an organization may keep in its knowledge base in total.
-#
-# The per-file limit above bounds one upload; it bounds nothing about how many
-# uploads there are. Every document is embedded at ingestion, on *our* model
-# key for a managed account, and embeddings have no cost component, no rate and
-# no ledger debit anywhere — so an account that re-uploads a corpus nightly
-# costs real money and bills nothing. This is the ceiling on that.
-#
-# A cap rather than a meter, because that is what the category does: ElevenLabs
-# sells RAG as a per-tier allowance (1MB free through 1GB enterprise) and Vapi
-# folds it into the plan silently. Nobody charges per embedded token, and being
-# the only platform that does would cost more to build than it could recover.
-#
-# 250MB of original files is a generous default — a few hundred manuals — set
-# high on purpose so no existing account trips it on the day this ships.
-KNOWLEDGE_BASE_MAX_TOTAL_BYTES = int(
-    os.getenv("KNOWLEDGE_BASE_MAX_TOTAL_BYTES", str(250 * 1024 * 1024))
-)
 # Reading scanned PDFs — pictures of words, with no text layer for pypdf to
 # find. On by default because the alternative is telling a customer to go and
 # OCR their own scan, and it costs nothing on a deployment without tesseract
@@ -214,19 +218,36 @@ PLATFORM_PLIVO_APPLICATION_ID = os.getenv("PLATFORM_PLIVO_APPLICATION_ID") or No
 # Defaults are the India local-DID figures the launch plan was costed on.
 # Confirm against Plivo's live price list before relying on the margin.
 NUMBER_RENTAL_COST_PAISE = int(os.getenv("NUMBER_RENTAL_COST_PAISE", "25000"))
-NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "49900"))
+# What an extra number costs a month, beyond whatever the account's plan
+# includes. Rs559 net (Rs659.82 with GST) against Rs250 of Plivo rental --
+# confirmed on the account, not a list price.
+#
+# This is the *extra*-number figure. A plan's own entitlement is priced inside
+# its monthly price; see subscription_plans.included_numbers, and
+# extra_number_price_paise for a plan that wants a different figure from this
+# one.
+NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "55900"))
 
 # --- The starter plan ---------------------------------------------------------
 #
 # One price a month that covers a phone number and a talking allowance:
 #
-#     Rs2,500 of call balance  +  Rs499 for the number  =  Rs2,999 net
+#     Rs2,500 of call balance  +  a number  =  Rs2,999 net
 #
-# The price is **derived**, not typed. Writing 299900 here as a third
-# independent number is how the three drift apart: somebody raises the rental to
-# Rs599, the plan keeps collecting Rs2,999, and the number is sold at a loss by
-# an arithmetic nobody re-did. Deriving it means the plan price follows the
-# rental price by construction.
+# The price used to be **derived** as balance + rental, so the three could not
+# drift. That held while the plan was the only way to hold a number and the two
+# prices were the same thing. They are not any more: Rs559 is what an *extra*
+# number costs, and a plan's included number is priced inside its monthly price
+# like every other tier's is. Deriving through the extra-number figure now means
+# raising it silently re-prices Starter -- and Starter's price is pinned to a
+# Razorpay plan that collects a fixed amount, so the two would come apart at the
+# bank rather than in a spreadsheet.
+#
+# What the derivation actually protected is still enforced, and by the check
+# that can see all of it: subscription_plans.save() refuses a plan granting more
+# balance than it collects, and warns when a plan is priced above its contents.
+# Starter at Rs2,999 against Rs2,500 + Rs559 of parts is a deliberate Rs60
+# discount, the same shape Growth and Scale carry.
 #
 # All three are **net of GST**, like every other figure the ledger deals in. The
 # customer is charged the grossed-up amount — Rs3,538.82 domestic at 18% — and
@@ -234,7 +255,21 @@ NUMBER_RENTAL_PRICE_PAISE = int(os.getenv("NUMBER_RENTAL_PRICE_PAISE", "49900"))
 # billing profile, so an export customer with an LUT on file is charged the net
 # figure instead.
 STARTER_PLAN_BALANCE_PAISE = int(os.getenv("STARTER_PLAN_BALANCE_PAISE", "250000"))
-STARTER_PLAN_PRICE_PAISE = STARTER_PLAN_BALANCE_PAISE + NUMBER_RENTAL_PRICE_PAISE
+# How much knowledge base the starter plan buys. Seeded onto the plan row, not
+# read at upload time — the allowance an account actually gets comes from its
+# own plan, so an operator who raises this for a new tier does not silently
+# raise it for everyone already subscribed to an older one.
+STARTER_PLAN_KNOWLEDGE_BASE_BYTES = int(
+    os.getenv("STARTER_PLAN_KNOWLEDGE_BASE_BYTES", str(25 * 1024 * 1024))
+)
+# The largest single document the starter plan accepts. A separate figure from
+# the total because they bound different failures: the total is the standing
+# cost of holding and re-embedding a corpus, this is one upload's worth of
+# worker time, memory and disk. Five of these fill the starter allowance.
+STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES = int(
+    os.getenv("STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES", str(5 * 1024 * 1024))
+)
+STARTER_PLAN_PRICE_PAISE = int(os.getenv("STARTER_PLAN_PRICE_PAISE", "299900"))
 
 # Pin the Razorpay plan, exactly as with the rental plan: a plan created lazily
 # per environment fragments the provider's own reporting into pieces that cannot
@@ -288,10 +323,13 @@ BYOK_TTS_UPLIFT_MICROS_USD = int(os.getenv("BYOK_TTS_UPLIFT_MICROS_USD", "15000"
 # used on. Zero disables a feature's charge without removing its plumbing, so
 # switching one off is an environment change and not a deploy.
 #
-# These are list prices, not the cost of providing the feature. Post-call QA in
-# particular runs a real LLM inference per call; its tokens are recorded on the
-# run but resolve to no rate, so today they are reported as uncosted and the
-# spend is ours.
+# These are list prices, not the cost of providing the feature. Post-call QA
+# runs a real LLM inference per call; its tokens are now recorded against the
+# vendor that served them, so they resolve to a rate and land on the receipt
+# like any other language-model usage. (They used to be keyed by the feature's
+# own label, and there is no vendor called "QAAnalysis" — so every QA token was
+# reported uncosted: not billed, and not counted as our cost either, which
+# overstated margin on exactly the calls doing the most work.)
 ADDON_KNOWLEDGE_BASE_MICROS_USD = int(
     os.getenv("ADDON_KNOWLEDGE_BASE_MICROS_USD", "5000")
 )
@@ -400,6 +438,17 @@ RAZORPAY_API_BASE = os.getenv("RAZORPAY_API_BASE", "https://api.razorpay.com/v1"
 # leave unset and let the first mandate create one; pinning is preferable
 # because a plan created per environment quietly fragments the reporting.
 RAZORPAY_RENTAL_PLAN_ID = os.getenv("RAZORPAY_RENTAL_PLAN_ID") or None
+# The same rental for an account whose supply is zero-rated -- outside India
+# with an LUT on file. Created at the **net** figure, because that is the whole
+# of what such an account owes.
+#
+# A second plan rather than a calculation, for the reason
+# subscription_plans.razorpay_plan_id_export exists: a pinned plan is an object
+# at the provider holding one fixed amount, and no arithmetic here can turn it
+# into another once the bank has the instruction. Without this, pinning the
+# domestic plan means an export account renting a number is refused by the
+# amount guard -- correctly, but with no way forward.
+RAZORPAY_RENTAL_PLAN_ID_EXPORT = os.getenv("RAZORPAY_RENTAL_PLAN_ID_EXPORT") or None
 
 # Whether a number may only be issued against an authorised mandate.
 #
@@ -432,6 +481,23 @@ GOOGLE_CALENDAR_DEFAULT_TIMEZONE = os.getenv(
 # business limit — raise it deliberately for an enterprise invoice.
 MIN_TOPUP_PAISE = int(os.getenv("MIN_TOPUP_PAISE", "10000"))  # Rs 100
 MAX_TOPUP_PAISE = int(os.getenv("MAX_TOPUP_PAISE", "50000000"))  # Rs 5,00,000
+
+# The floor on an account's **first** top-up, which is a different question from
+# the floor on its tenth.
+#
+# The ordinary minimum exists so card fees do not exceed the credit bought. This
+# one is commercial: a first payment of Rs100 buys about twenty minutes, which is
+# not enough call time to find out whether the product works, so the account
+# churns having learned nothing and we carry the onboarding cost. Rs1,000 is
+# roughly four hours of Everyday calling — long enough to reach a verdict.
+#
+# It applies once. An existing customer topping up mid-campaign needs Rs200 to
+# be Rs200, and making them buy Rs1,000 to add it would be a worse experience
+# than the one this is meant to prevent. See ``payments.minimum_topup_paise``.
+#
+# Must be a whole number of TOPUP_INCREMENT_PAISE steps, like the floor it
+# replaces, or the minimum itself is not a purchasable amount.
+FIRST_TOPUP_MIN_PAISE = int(os.getenv("FIRST_TOPUP_MIN_PAISE", "100000"))  # Rs 1,000
 
 # Top-ups are sold in whole steps of this, starting at MIN_TOPUP_PAISE. Rs100,
 # Rs200, Rs300 — never Rs137.
@@ -883,6 +949,24 @@ COUNTRY_CODES = {
 
 # Floor at 1 so a misconfigured env var (0 or negative) can't silently block
 # every call in the deployment.
+# How many trial calls may be in flight across the whole platform on Decibyl's
+# own shared caller IDs at one time.
+#
+# The pool is ours: our carrier account, our credentials, our rent, and minutes
+# billed to nobody. The per-organization limit does not bound any of that --
+# it counts each account separately, so ten evaluators dialling at once is ten
+# accounts each comfortably inside their own limit and one carrier account
+# carrying all of it.
+#
+# A caller ID is a From header rather than a channel, so nothing about the
+# numbers themselves imposes a ceiling; this is the ceiling. It is a platform
+# total rather than a per-account one because the exposure being bounded is the
+# carrier account, which is shared. Raise it once the Plivo account's own
+# concurrency headroom is known to be higher.
+SHARED_OUTBOUND_MAX_CONCURRENT = max(
+    1, int(os.getenv("SHARED_OUTBOUND_MAX_CONCURRENT", "10"))
+)
+
 DEFAULT_ORG_CONCURRENCY_LIMIT = max(
     1, int(os.getenv("DEFAULT_ORG_CONCURRENCY_LIMIT", "10"))
 )

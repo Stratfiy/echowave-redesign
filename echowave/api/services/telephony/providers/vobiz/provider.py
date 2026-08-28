@@ -15,6 +15,7 @@ from fastapi import HTTPException
 from loguru import logger
 
 from api.enums import TelephonyCallStatus, WorkflowRunMode
+from api.services.telephony import stream_capability
 from api.services.telephony.base import (
     CallInitiationResult,
     NormalizedInboundData,
@@ -265,11 +266,15 @@ class VobizProvider(TelephonyProvider):
         - audioTrack: Which audio to stream (inbound, outbound, both)
         - contentType: audio/x-mulaw;rate=8000
         """
-        _, wss_backend_endpoint = await get_backend_endpoints()
+        websocket_url = await stream_capability.stream_url(
+            workflow_id=workflow_id,
+            organization_id=organization_id,
+            workflow_run_id=workflow_run_id,
+        )
 
         vobiz_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Stream bidirectional="true" keepCallAlive="true" contentType="audio/x-mulaw;rate=8000">{wss_backend_endpoint}/api/v1/telephony/ws/{workflow_id}/{organization_id}/{workflow_run_id}</Stream>
+    <Stream bidirectional="true" keepCallAlive="true" contentType="audio/x-mulaw;rate=8000">{websocket_url}</Stream>
 </Response>"""
         return vobiz_xml
 

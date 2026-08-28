@@ -20,7 +20,11 @@ from pipecat.utils.run_context import set_current_run_id
 from pydantic import BaseModel
 from starlette.websockets import WebSocketDisconnect
 
-from api.constants import REQUIRE_VERIFIED_TEST_NUMBER
+from api.constants import (
+    REQUIRE_VERIFIED_TEST_NUMBER,
+    SHARED_OUTBOUND_MAX_CONCURRENT,
+    TELEPHONY_WS_REQUIRE_TOKEN,
+)
 from api.db import db_client
 from api.db.models import UserModel
 from api.db.workflow_run_client import WorkflowRunStateConflictError
@@ -40,6 +44,7 @@ from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony import (
     number_lifecycle,
     shared_outbound,
+    stream_capability,
     verified_numbers,
     voice_otp,
 )
@@ -51,6 +56,7 @@ from api.services.telephony.factory import (
     get_telephony_provider_by_id,
     get_telephony_provider_for_run,
 )
+from api.services.telephony.shared_outbound import SHARED_OUTBOUND_SCOPE
 from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
@@ -320,12 +326,39 @@ async def initiate_call(
 
     workflow_run_id = request.workflow_run_id
     try:
+        # A trial call on our shared caller IDs is additionally counted against
+        # one platform-wide total. The per-organization limit does not bound
+        # that pool at all: it counts each account separately, so ten
+        # evaluators dialling at once is ten accounts each comfortably inside
+        # their own limit and one carrier account -- ours -- carrying every
+        # minute of it.
+        #
+        # The scope counter is keyed on the scope alone rather than on the
+        # organization (see rate_limiter.try_acquire_concurrent_slot_details),
+        # which is what makes it a platform total, and it is taken in the same
+        # atomic script as the org slot so the two cannot disagree.
         concurrency_slot = await call_concurrency.acquire_org_slot(
             user.selected_organization_id,
             source="telephony_outbound",
             timeout=0,
+            scope_key=SHARED_OUTBOUND_SCOPE if using_shared_caller_id else None,
+            scope_max_concurrent=(
+                SHARED_OUTBOUND_MAX_CONCURRENT if using_shared_caller_id else None
+            ),
         )
     except CallConcurrencyLimitError:
+        if using_shared_caller_id:
+            # Distinguished from the org limit because the remedies are
+            # opposite: this one is not about anything the account did, and
+            # waiting is the whole of the fix.
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Every shared test line is busy right now. Try again in a "
+                    "moment, or connect your own carrier to dial without "
+                    "waiting."
+                ),
+            )
         raise HTTPException(status_code=429, detail="Concurrent call limit reached")
 
     try:
@@ -727,6 +760,31 @@ async def websocket_endpoint(
     websocket: WebSocket, workflow_id: int, organization_id: int, workflow_run_id: int
 ):
     """WebSocket endpoint for real-time call handling - routes to provider-specific handlers."""
+    # Checked before the handshake is accepted, so an unauthorised connection is
+    # refused rather than accepted-then-closed. Accepting first would mean every
+    # probe got a live socket for as long as it took us to say no.
+    granted = await stream_capability.verify(
+        websocket.query_params.get(stream_capability.TOKEN_PARAM),
+        workflow_id=workflow_id,
+        organization_id=organization_id,
+        workflow_run_id=workflow_run_id,
+    )
+    if not granted:
+        if TELEPHONY_WS_REQUIRE_TOKEN:
+            logger.warning(
+                f"Refusing media socket for run {workflow_run_id} (org "
+                f"{organization_id}): no valid stream capability presented."
+            )
+            await websocket.close(code=4401, reason="Unauthorized")
+            return
+        # The escape hatch is on. Say so on every connection: this is an
+        # unauthenticated socket, and it should be noisy for exactly as long as
+        # somebody leaves it that way.
+        logger.warning(
+            f"Media socket for run {workflow_run_id} presented no valid stream "
+            "capability and TELEPHONY_WS_REQUIRE_TOKEN is off — allowing it."
+        )
+
     await websocket.accept()
     await _handle_telephony_websocket(
         websocket, workflow_id, organization_id, workflow_run_id
@@ -738,12 +796,12 @@ async def _handle_telephony_websocket(
 ):
     """Shared WebSocket handler logic (connection already accepted).
 
-    TODO(security): ``organization_id`` arrives in the URL the provider dials
-    back, so it is caller-supplied and unauthenticated — this socket has no
-    signature check, and the id triple is a guessable bearer capability.
-    Scoping the lookups below by it prevents an accidental cross-org mismatch,
-    not a deliberate one. The real fix is a one-shot capability token minted at
-    run creation and redeemed here.
+    The caller has already established that whoever is connecting holds a
+    capability minted for this exact triple — see
+    ``services/telephony/stream_capability``. The org-scoped lookups below stay
+    as they are: they are what turns a mismatched id into a 4404 rather than
+    another tenant's call, and defence in depth is the right amount of defence
+    for live audio.
     """
     try:
         # Set the run context
@@ -1107,10 +1165,11 @@ async def handle_inbound_run(request: Request):
                     TelephonyError.QUOTA_EXCEEDED
                 )
 
-            backend_endpoint, wss_backend_endpoint = await get_backend_endpoints()
-            websocket_url = (
-                f"{wss_backend_endpoint}/api/v1/telephony/ws/"
-                f"{workflow_id}/{config.organization_id}/{workflow_run_id}"
+            backend_endpoint, _ = await get_backend_endpoints()
+            websocket_url = await stream_capability.stream_url(
+                workflow_id=workflow_id,
+                organization_id=config.organization_id,
+                workflow_run_id=workflow_run_id,
             )
 
             return await provider_instance.start_inbound_stream(
@@ -1275,10 +1334,11 @@ async def handle_inbound_telephony(
                 )
 
             # Generate response URLs
-            backend_endpoint, wss_backend_endpoint = await get_backend_endpoints()
-            websocket_url = (
-                f"{wss_backend_endpoint}/api/v1/telephony/ws/"
-                f"{workflow_id}/{organization_id}/{workflow_run_id}"
+            backend_endpoint, _ = await get_backend_endpoints()
+            websocket_url = await stream_capability.stream_url(
+                workflow_id=workflow_id,
+                organization_id=organization_id,
+                workflow_run_id=workflow_run_id,
             )
 
             response = await provider_instance.start_inbound_stream(
