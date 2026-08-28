@@ -30,11 +30,16 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from loguru import logger
-from sqlalchemy import select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import MANAGED_PROVIDER_MARKUP_BPS
-from api.db.models import ManagedMarkupHistoryModel, MarkupChangeChallengeModel
+from api.db.models import (
+    ManagedMarkupHistoryModel,
+    ManagedMarkupOverrideModel,
+    MarkupChangeChallengeModel,
+)
+from api.enums import CostComponent
 from api.services.auth import otp
 
 #: Where a code for a markup change is sent. Deliberately a fixed operator
@@ -275,6 +280,228 @@ async def confirm_change(
         effective_from=moment,
         note=note,
     )
+
+
+#: Same bounds as the global markup. A per-model override that sold below cost
+#: or fat-fingered a fifth digit would be exactly as damaging on one line as
+#: the global value would be on every line — just slower to notice, because
+#: it only shows up in one model's margin.
+MIN_OVERRIDE_MARKUP_BPS = MIN_MARKUP_BPS
+MAX_OVERRIDE_MARKUP_BPS = MAX_MARKUP_BPS
+
+
+@dataclass(frozen=True)
+class MarkupOverride:
+    """A per-``(component, provider, model)`` markup as the rest of the system
+    reads it — a view over the row, not the ORM object, for the same reason
+    ``subscription_plans.Plan`` is a view rather than the model."""
+
+    id: int
+    provider: str
+    component: str
+    #: "" is the provider-wide fallback, matching ProviderRateModel.
+    model: str
+    markup_bps: int
+    effective_from: datetime
+    note: str | None
+
+
+def _view(row: ManagedMarkupOverrideModel) -> MarkupOverride:
+    return MarkupOverride(
+        id=row.id,
+        provider=row.provider,
+        component=row.component,
+        model=row.model or "",
+        markup_bps=row.markup_bps,
+        effective_from=row.effective_from,
+        note=row.note,
+    )
+
+
+async def resolve_markup_override_bps(
+    session: AsyncSession,
+    *,
+    provider: str,
+    component: CostComponent | str,
+    at: datetime,
+    model: str = "",
+) -> int | None:
+    """The markup override in force for this line, or ``None`` if there is
+    none — in which case the caller falls back to ``resolve_markup_bps``.
+
+    Most specific wins, exactly ``resolve_provider_rate``'s rule: a
+    model-specific row beats the provider-wide ``model=""`` fallback.
+    """
+    component_value = (
+        component.value if isinstance(component, CostComponent) else str(component)
+    )
+    normalized_model = (model or "").strip().lower()
+
+    row = await session.scalar(
+        select(ManagedMarkupOverrideModel)
+        .where(
+            ManagedMarkupOverrideModel.provider == provider,
+            ManagedMarkupOverrideModel.component == component_value,
+            ManagedMarkupOverrideModel.model.in_(
+                [normalized_model, ""] if normalized_model else [""]
+            ),
+            ManagedMarkupOverrideModel.effective_from <= at,
+            or_(
+                ManagedMarkupOverrideModel.effective_to.is_(None),
+                ManagedMarkupOverrideModel.effective_to > at,
+            ),
+        )
+        .order_by(
+            (ManagedMarkupOverrideModel.model == "").asc(),
+            ManagedMarkupOverrideModel.effective_from.desc(),
+        )
+        .limit(1)
+    )
+    return row.markup_bps if row is not None else None
+
+
+async def list_markup_overrides(
+    session: AsyncSession, *, at: datetime | None = None
+) -> list[MarkupOverride]:
+    """Every override currently in force, for the admin screen.
+
+    Ordered by provider then component then model so the same list renders in
+    the same grouping every time, rather than in whatever order rows happen to
+    have been written.
+    """
+    moment = at or datetime.now(UTC)
+    rows = (
+        await session.execute(
+            select(ManagedMarkupOverrideModel).where(
+                and_(
+                    ManagedMarkupOverrideModel.effective_from <= moment,
+                    or_(
+                        ManagedMarkupOverrideModel.effective_to.is_(None),
+                        ManagedMarkupOverrideModel.effective_to > moment,
+                    ),
+                )
+            )
+        )
+    ).scalars()
+    return sorted(
+        (_view(row) for row in rows),
+        key=lambda o: (o.provider, o.component, o.model),
+    )
+
+
+async def set_markup_override(
+    session: AsyncSession,
+    *,
+    provider: str,
+    component: CostComponent | str,
+    markup_bps: int,
+    actor_user_id: int | None,
+    model: str = "",
+    note: str | None = None,
+    now: datetime | None = None,
+) -> MarkupOverride:
+    """Set (or replace) the markup override for one ``(component, provider,
+    model)``. No OTP — see ``ManagedMarkupOverrideModel`` for why a
+    single-line override does not need the ceremony the global value does.
+
+    Closes whatever is open for this exact key before opening the new row —
+    the partial unique index would refuse the insert otherwise, same as every
+    other effective-dated table here.
+    """
+    component_value = (
+        component.value if isinstance(component, CostComponent) else str(component)
+    )
+    provider = (provider or "").strip().lower()
+    if not provider:
+        raise MarkupError("An override needs a provider.")
+    normalized_model = (model or "").strip().lower()
+    value = validate_markup_bps(markup_bps)
+    if not MIN_OVERRIDE_MARKUP_BPS <= value <= MAX_OVERRIDE_MARKUP_BPS:
+        raise MarkupError(
+            f"The markup must be between {MIN_OVERRIDE_MARKUP_BPS / 10_000:g}x "
+            f"and {MAX_OVERRIDE_MARKUP_BPS / 10_000:g}x."
+        )
+
+    moment = now or datetime.now(UTC)
+    await session.execute(
+        update(ManagedMarkupOverrideModel)
+        .where(
+            ManagedMarkupOverrideModel.provider == provider,
+            ManagedMarkupOverrideModel.component == component_value,
+            ManagedMarkupOverrideModel.model == normalized_model,
+            ManagedMarkupOverrideModel.effective_to.is_(None),
+        )
+        .values(effective_to=moment)
+    )
+    await session.flush()
+
+    row = ManagedMarkupOverrideModel(
+        provider=provider,
+        component=component_value,
+        model=normalized_model,
+        markup_bps=value,
+        effective_from=moment,
+        set_by=actor_user_id,
+        note=note,
+    )
+    session.add(row)
+    await session.flush()
+
+    logger.info(
+        "Markup override set: {}:{}/{} -> {}x by user {}",
+        component_value,
+        provider,
+        normalized_model or "*",
+        value / 10_000,
+        actor_user_id,
+    )
+    return _view(row)
+
+
+async def clear_markup_override(
+    session: AsyncSession,
+    *,
+    provider: str,
+    component: CostComponent | str,
+    actor_user_id: int | None,
+    model: str = "",
+    now: datetime | None = None,
+) -> bool:
+    """Remove the override for one key, returning it to the global markup.
+
+    Closes the open row rather than deleting it — the history stays for
+    re-costing calls billed while the override was in force, the same rule
+    every other rate table here follows. Returns ``False`` when nothing was
+    open, so a caller can tell "cleared" from "there was nothing to clear."
+    """
+    component_value = (
+        component.value if isinstance(component, CostComponent) else str(component)
+    )
+    provider = (provider or "").strip().lower()
+    normalized_model = (model or "").strip().lower()
+    moment = now or datetime.now(UTC)
+
+    result = await session.execute(
+        update(ManagedMarkupOverrideModel)
+        .where(
+            ManagedMarkupOverrideModel.provider == provider,
+            ManagedMarkupOverrideModel.component == component_value,
+            ManagedMarkupOverrideModel.model == normalized_model,
+            ManagedMarkupOverrideModel.effective_to.is_(None),
+        )
+        .values(effective_to=moment)
+    )
+    await session.flush()
+    cleared = result.rowcount is not None and result.rowcount > 0
+    if cleared:
+        logger.info(
+            "Markup override cleared: {}:{}/{} by user {}",
+            component_value,
+            provider,
+            normalized_model or "*",
+            actor_user_id,
+        )
+    return cleared
 
 
 def notice_subject() -> str:

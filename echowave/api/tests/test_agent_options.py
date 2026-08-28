@@ -20,6 +20,9 @@ from api.services.configuration.agent_options import (
 from api.services.configuration.ai_model_configuration import (
     WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY as OVERRIDE_KEY,
 )
+from api.services.configuration.ai_model_configuration import (
+    get_effective_ai_model_configuration_for_workflow,
+)
 
 
 async def _org(session, slug: str) -> OrganizationModel:
@@ -108,6 +111,33 @@ class TestOverride:
         effective = compile_ai_model_configuration_v3(stack)
         assert effective.tts.voice == "vidya"
         assert effective.llm.model == "default"
+
+    async def test_a_wizard_created_v3_agent_reaches_call_readiness(self, monkeypatch):
+        """The create wizard stores v3 under the historical v2 override key.
+
+        Call readiness must dispatch on the payload version, not the key name.
+        This is the production regression that returned an HTTP 500 before a
+        workflow run or carrier call could be created.
+        """
+
+        async def leave_managed_slots_unresolved(_effective):
+            return None
+
+        monkeypatch.setattr(
+            "api.services.configuration.ai_model_configuration."
+            "managed_resolution.apply",
+            leave_managed_slots_unresolved,
+        )
+        override = managed_stack_override(voice="karun", llm_tier="lite")
+
+        effective = await get_effective_ai_model_configuration_for_workflow(
+            organization_id=None,
+            workflow_configurations=override,
+        )
+
+        assert effective.llm.model == "lite"
+        assert effective.tts.voice == "karun"
+        assert effective.managed_service_version == 3
 
 
 class TestVoiceSamples:

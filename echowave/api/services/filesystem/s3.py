@@ -3,6 +3,7 @@ from typing import Any
 import aioboto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from loguru import logger
 
 from .base import AsyncReadable, BaseFileSystem
 
@@ -143,8 +144,17 @@ class S3FileSystem(BaseFileSystem):
                     ExpiresIn=expiration,
                 )
             return url
-        except ClientError:
-            return None
+        except Exception as e:
+            # Signing is local (no round trip to S3), so a failure here is a
+            # configuration problem — missing/rotated credentials, a bad
+            # region or endpoint — not a missing object. Previously only
+            # ClientError was caught and swallowed to None; anything else
+            # (e.g. NoCredentialsError, which is not a ClientError) escaped as
+            # an unhandled 500 with no useful message. Both are now logged and
+            # re-raised so the route can say why, instead of every failure
+            # reading as "no recording".
+            logger.error(f"Error generating S3 signed URL: {e}")
+            raise
 
     async def aget_file_metadata(self, file_path: str) -> dict[str, Any] | None:
         """Get S3 object metadata."""

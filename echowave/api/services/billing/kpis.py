@@ -87,6 +87,9 @@ async def unit_economics_report(
     pulse = await kpi_client.pulse_effect(session, start=start, end=end)
     uncosted = await kpi_client.uncosted_usage(session, start=start, end=end)
     accounts = await kpi_client.margin_by_account(session, start=start, end=end)
+    embedding_ingestion = await kpi_client.embedding_ingestion_totals(
+        session, start=start, end=end
+    )
 
     fx_paise = fx["paise_per_usd"] if fx else None
 
@@ -155,6 +158,19 @@ async def unit_economics_report(
         ],
         "pulse": _pulse_block(pulse, totals),
         "uncosted": uncosted,
+        # Document-level, not per-minute -- see embedding_ingestion_totals's
+        # own docstring for why this is a sibling block rather than folded
+        # into revenue_paise/provider_cost_paise above. Never rendered to a
+        # customer as its own line (PRICING-DECISIONS.md); this is the
+        # internal-only view the founder asked for so a future pricing
+        # decision here has real numbers behind it.
+        "embedding_ingestion": {
+            **embedding_ingestion,
+            "margin_paise": (
+                embedding_ingestion["charged_paise"]
+                - embedding_ingestion["vendor_cost_paise"]
+            ),
+        },
         "accounts": [
             {
                 **row,

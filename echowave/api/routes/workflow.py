@@ -16,7 +16,6 @@ from api.db.agent_trigger_client import TriggerPathConflictError
 from api.db.models import UserModel
 from api.db.workflow_template_client import WorkflowTemplateClient
 from api.enums import CallType, PostHogEvent, StorageBackend, WorkflowStatus
-from api.schemas.ai_model_configuration import OrganizationAIModelConfigurationV2
 from api.schemas.workflow import WorkflowRunResponseSchema
 from api.schemas.workflow_configurations import WorkflowConfigurationDefaults
 from api.sdk_expose import sdk_expose
@@ -24,11 +23,12 @@ from api.services.auth.depends import get_user
 from api.services.configuration.agent_options import managed_stack_override
 from api.services.configuration.ai_model_configuration import (
     WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
-    check_for_masked_keys_in_ai_model_configuration_v2,
-    compile_ai_model_configuration_v2,
+    check_for_masked_keys_in_workflow_model_configuration,
+    compile_workflow_model_configuration_override,
     convert_legacy_ai_model_configuration_to_v2,
     get_resolved_ai_model_configuration,
-    merge_ai_model_configuration_v2_secrets,
+    merge_workflow_model_configuration_secrets,
+    parse_workflow_model_configuration_override,
 )
 from api.services.configuration.check_validity import UserConfigurationValidator
 from api.services.configuration.masking import (
@@ -1227,34 +1227,32 @@ async def update_workflow(
                 WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY
             )
             try:
-                incoming_v2_override = (
-                    OrganizationAIModelConfigurationV2.model_validate(
-                        workflow_configurations[
-                            WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY
-                        ]
-                    )
+                incoming_override = parse_workflow_model_configuration_override(
+                    workflow_configurations[
+                        WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY
+                    ]
                 )
-                existing_v2_override_config = (
-                    OrganizationAIModelConfigurationV2.model_validate(
-                        existing_v2_override
-                    )
+                existing_override_config = (
+                    parse_workflow_model_configuration_override(existing_v2_override)
                     if existing_v2_override
                     else None
                 )
-                v2_override = merge_ai_model_configuration_v2_secrets(
-                    incoming_v2_override,
-                    existing_v2_override_config,
+                model_override = merge_workflow_model_configuration_secrets(
+                    incoming_override,
+                    existing_override_config,
                 )
-                if existing_v2_override_config is None:
+                if existing_override_config is None:
                     resolved_config = await get_resolved_ai_model_configuration(
                         organization_id=user.selected_organization_id,
                     )
-                    v2_override = merge_ai_model_configuration_v2_secrets(
-                        v2_override,
+                    model_override = merge_workflow_model_configuration_secrets(
+                        model_override,
                         resolved_config.organization_configuration,
                     )
-                check_for_masked_keys_in_ai_model_configuration_v2(v2_override)
-                effective = compile_ai_model_configuration_v2(v2_override)
+                check_for_masked_keys_in_workflow_model_configuration(model_override)
+                effective = compile_workflow_model_configuration_override(
+                    model_override
+                )
                 await UserConfigurationValidator().validate(
                     effective,
                     organization_id=user.selected_organization_id,
@@ -1264,7 +1262,7 @@ async def update_workflow(
                 raise HTTPException(status_code=422, detail=str(e))
             workflow_configurations = {
                 **workflow_configurations,
-                WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY: v2_override.model_dump(
+                WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY: model_override.model_dump(
                     mode="json",
                     exclude_none=True,
                 ),

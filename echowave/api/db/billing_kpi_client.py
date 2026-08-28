@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import (
     CallCostItemModel,
+    EmbeddingIngestionCostModel,
     OrganizationModel,
     ProviderRateModel,
     UsdInrRateHistoryModel,
@@ -133,6 +134,50 @@ async def cost_by_component(
         }
         for r in rows
     ]
+
+
+async def embedding_ingestion_totals(
+    session: AsyncSession, *, start: date, end: date
+) -> dict:
+    """Cost and charge for knowledge-base ingestion embeddings in the range.
+
+    Deliberately **not** folded into :func:`unit_economics`'s totals: that
+    query's revenue/cost are per connected minute, and ingestion has no call
+    behind it to attribute minutes to — mixing the two would inflate a
+    per-minute figure with a document-level charge that has nothing to do
+    with a minute of talk time. This is its own small report instead, the
+    document-level counterpart to the call-level one above.
+
+    Every ``embedding_ingestion_costs`` row already exists specifically so
+    this margin is answerable — see that model's docstring.
+    """
+    lo, hi = _range_utc(start, end)
+    row = (
+        await session.execute(
+            select(
+                func.count().label("documents"),
+                func.coalesce(func.sum(EmbeddingIngestionCostModel.tokens), 0).label(
+                    "tokens"
+                ),
+                func.coalesce(
+                    func.sum(EmbeddingIngestionCostModel.vendor_cost_paise), 0
+                ).label("vendor_cost_paise"),
+                func.coalesce(
+                    func.sum(EmbeddingIngestionCostModel.charged_paise), 0
+                ).label("charged_paise"),
+            ).where(
+                EmbeddingIngestionCostModel.created_at >= lo,
+                EmbeddingIngestionCostModel.created_at < hi,
+            )
+        )
+    ).one()
+
+    return {
+        "documents": int(row.documents or 0),
+        "tokens": int(row.tokens or 0),
+        "vendor_cost_paise": int(row.vendor_cost_paise or 0),
+        "charged_paise": int(row.charged_paise or 0),
+    }
 
 
 async def cost_by_model(

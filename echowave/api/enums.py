@@ -219,6 +219,11 @@ class CostComponent(str, Enum):
     LLM = "llm"
     TTS = "tts"
     TELEPHONY = "telephony"
+    #: Query-time embedding usage during in-call knowledge-base retrieval.
+    #: Ingestion-time embedding (document upload) is a separate event with no
+    #: call to attach a line item to — see ``tasks/knowledge_base_processing.py``
+    #: and ``PRICING-DECISIONS.md`` for why that side is not this component.
+    EMBEDDING = "embedding"
     PLATFORM = "platform"
     #: Retired. A BYOK call now carries an uplifted *platform* rate rather
     #: than a second fee line — see ``billing/usage.py:byok_platform_tier``.
@@ -234,7 +239,7 @@ class CostComponent(str, Enum):
     @classmethod
     def provider_components(cls) -> tuple["CostComponent", ...]:
         """Components that represent money paid to a third party."""
-        return (cls.STT, cls.LLM, cls.TTS, cls.TELEPHONY)
+        return (cls.STT, cls.LLM, cls.TTS, cls.TELEPHONY, cls.EMBEDDING)
 
     @classmethod
     def revenue_components(cls) -> tuple["CostComponent", ...]:
@@ -289,6 +294,15 @@ class CreditLedgerKind(str, Enum):
     # unexplained debit the size of last month's grant is the single most
     # alarming line a billing screen can show.
     PLAN_EXPIRY = "plan_expiry"
+    # Vendor cost of embedding a knowledge-base document's chunks at upload
+    # time, on our key. Distinct from USAGE because it has no workflow_run
+    # behind it -- ingestion is a background job, not a call -- and a
+    # statement that folded it into usage would tell a customer they were
+    # charged for a call that never happened. Never shown to the customer as
+    # its own line (see PRICING-DECISIONS.md); it is metered here so it is
+    # real and reportable, even while the customer-facing surface combines it
+    # into a broader bucket.
+    EMBEDDING_INGEST = "embedding_ingest"
 
 
 class BillingAuditAction(str, Enum):
@@ -304,6 +318,10 @@ class BillingAuditAction(str, Enum):
     # managed call at once, which is why it is the one change that requires a
     # code from the inbox before it applies.
     MANAGED_MARKUP_CHANGED = "managed_markup_changed"
+    # A markup override for one (component, provider, model). Narrower than
+    # MANAGED_MARKUP_CHANGED — moves one line's price, not every account's —
+    # which is why it does not require the OTP code that one does.
+    MANAGED_MARKUP_OVERRIDE_CHANGED = "managed_markup_override_changed"
 
 
 class KycStatus(str, Enum):

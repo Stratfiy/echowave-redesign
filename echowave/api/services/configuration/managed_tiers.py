@@ -91,12 +91,17 @@ REALTIME_TIER_LABELS: dict[str, tuple[str, str]] = {
     ),
 }
 
-#: Embeddings are not a billing component — they are consumed at knowledge-base
-#: ingest rather than per call, so there is no ``CostComponent.EMBEDDINGS`` and
-#: no per-call line item for them. They still need a real provider and a real
-#: key, which is why they are mapped here alongside the rest: a managed
-#: configuration emits an embeddings section too, and until this existed that
-#: section named a provider nothing could resolve.
+#: Embeddings are billed, in both of the places they are incurred, and this
+#: comment used to say they were not. ``CostComponent.EMBEDDING`` now exists:
+#: a knowledge-base search during a call produces an ordinary marked-up line
+#: item on that call's receipt, and ingesting a document debits the ledger
+#: directly through ``services/billing/embedding_ingestion.py`` — that one has
+#: no call to attach a receipt to, which is the grain of truth the old comment
+#: was built on.
+#:
+#: The mapping below is still why this constant exists: a managed
+#: configuration emits an embeddings section, and it needs a real provider and
+#: a real key to resolve to.
 EMBEDDINGS_COMPONENT = "embeddings"
 
 #: Speech-to-speech is not a billing component either — a realtime model is

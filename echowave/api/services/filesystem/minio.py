@@ -196,8 +196,15 @@ class MinioFileSystem(BaseFileSystem):
 
             return await asyncio.to_thread(_sign)
         except Exception as e:
+            # Signing is a local computation (no round trip to MinIO), so a
+            # failure here is a configuration problem — a bad endpoint,
+            # rotated credentials, a missing bucket — not a missing object.
+            # Swallowing it to None used to make every such failure look
+            # identical to "no recording", which is what made this
+            # undiagnosable from the UI. Re-raised so the caller — and
+            # ultimately the route the customer sees — gets the real reason.
             logger.error(f"Error generating MinIO signed URL: {e}")
-            return None
+            raise
 
     async def aget_file_metadata(self, file_path: str) -> dict[str, Any] | None:
         """Get MinIO object metadata."""

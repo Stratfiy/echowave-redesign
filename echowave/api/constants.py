@@ -292,7 +292,15 @@ RAZORPAY_STARTER_PLAN_ID = os.getenv("RAZORPAY_STARTER_PLAN_ID") or None
 # replaced by it. Baking the markup into the rate card instead would have made
 # provider_rates hold retail, and every margin figure on the unit-economics
 # screen would silently read zero.
-MANAGED_PROVIDER_MARKUP_BPS = int(os.getenv("MANAGED_PROVIDER_MARKUP_BPS", "14000"))
+# 1.7x, matching the value actually in force via ``managed_markup_history``.
+# This is only the fallback for when that table has no row covering the moment
+# being priced — a fresh environment, a restored database, a new region. It
+# read 1.4x while live billing ran at 1.7x, so any deployment that lost its
+# history table would have silently sold every managed component ~18% cheaper
+# than intended, with nothing raising an error. The fallback and the live
+# value are meant to be the same number; when the markup is next raised
+# through the OTP flow, raise this to match.
+MANAGED_PROVIDER_MARKUP_BPS = int(os.getenv("MANAGED_PROVIDER_MARKUP_BPS", "17000"))
 
 # What the platform fee rises to when the customer brings their own keys, in
 # micro-dollars per billable minute *on top of* whatever rate resolved for the

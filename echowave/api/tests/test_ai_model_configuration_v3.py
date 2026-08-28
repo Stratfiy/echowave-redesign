@@ -179,6 +179,26 @@ class TestCompilingToWhatThePipelineReads:
         )
         assert effective.stt.provider.value == "decibyl"
 
+    def test_a_stack_with_a_managed_slot_says_which_generation_it_came_from(self):
+        """v2's compiler stamps 2 on its managed branch; v3 stamped nothing.
+
+        Anything asking "is this account on our keys, and under which
+        generation's rules" — see ``managed_model_services`` — read the field
+        and could not tell a wizard-built managed stack from a BYOK one.
+        """
+        effective = compile_ai_model_configuration_v3(
+            OrganizationAIModelConfigurationV3(stack=_stack(stt=MANAGED))
+        )
+        assert effective.managed_service_version == 3
+
+    def test_an_all_byok_stack_is_left_unstamped(self):
+        """The field means "runs on our keys", not "was stored as v3". A stack
+        on the customer's own keys is not managed under any generation."""
+        effective = compile_ai_model_configuration_v3(
+            OrganizationAIModelConfigurationV3(stack=_stack())
+        )
+        assert effective.managed_service_version is None
+
 
 class TestReadingAStoredV2Configuration:
     """Upgrading on read rather than migrating the data.

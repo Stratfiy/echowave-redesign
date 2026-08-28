@@ -16,6 +16,7 @@
 import {
     AlertTriangle,
     Coins,
+    Database,
     Gauge,
     Info,
     TrendingDown,
@@ -118,6 +119,17 @@ type Report = {
         by_usage: Array<{ usage: string; calls: number }>;
     };
     accounts: AccountRow[];
+    // Document-level, not per-minute -- see billing_kpi_client.embedding_
+    // ingestion_totals for why this is its own block rather than folded into
+    // revenue_paise/provider_cost_paise above. Staff-only, same as the rest
+    // of this page: never rendered to a customer as its own line.
+    embedding_ingestion: {
+        documents: number;
+        tokens: number;
+        vendor_cost_paise: number;
+        charged_paise: number;
+        margin_paise: number;
+    };
 };
 
 const COMPONENT_LABELS: Record<string, string> = {
@@ -338,6 +350,8 @@ export default function UnitEconomicsPage() {
                 </ChartCard>
             </div>
 
+            <IngestionEmbeddingPanel report={report} loading={loading} />
+
             <ChartCard
                 title="Thinnest margins by account"
                 description="Worst first — the account losing money on every minute is rarely the biggest"
@@ -466,6 +480,68 @@ function PulsePanel({ report, loading }: { report: Report | null; loading: boole
                         on.
                     </p>
                 </>
+            )}
+        </section>
+    );
+}
+
+/**
+ * What document upload actually costs us, and what it's charged for.
+ *
+ * Never shown to a customer as a line of its own -- see PRICING-DECISIONS.md.
+ * This is the internal view that exists so a future pricing decision here has
+ * real numbers behind it instead of a guess: currently absorbed into what the
+ * account is billed elsewhere, and this is the margin that absorption costs.
+ */
+function IngestionEmbeddingPanel({
+    report,
+    loading,
+}: {
+    report: Report | null;
+    loading: boolean;
+}) {
+    const ingestion = report?.embedding_ingestion;
+
+    return (
+        <section className="glass-panel px-5 pb-5 pt-4">
+            <h2 className="flex items-center gap-2 text-[0.9375rem] font-semibold tracking-[-0.018em] text-foreground">
+                <Database className="h-4 w-4" />
+                Knowledge-base ingestion
+            </h2>
+            <p className="mt-0.5 text-xs tracking-[-0.01em] text-muted-foreground">
+                Embedding cost for documents uploaded in this period. Absorbed today,
+                not billed as its own line to any customer.
+            </p>
+
+            {loading ? (
+                <div className="mt-4 h-16 animate-pulse rounded-xl bg-foreground/[0.04]" />
+            ) : !ingestion || ingestion.documents === 0 ? (
+                <p className="mt-4 text-sm text-muted-foreground">
+                    No document ingestion in this period.
+                </p>
+            ) : (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                    <Figure
+                        label="Documents"
+                        value={formatNumber(ingestion.documents)}
+                    />
+                    <Figure label="Tokens embedded" value={formatNumber(ingestion.tokens)} />
+                    <Figure
+                        label="Vendor cost"
+                        value={formatPaise(ingestion.vendor_cost_paise)}
+                        sub="What we paid, before markup"
+                    />
+                    <Figure
+                        label="Charged"
+                        value={formatPaise(ingestion.charged_paise)}
+                        sub="Debited to the ledger, absorbed elsewhere"
+                    />
+                    <Figure
+                        label="Margin"
+                        value={formatPaise(ingestion.margin_paise)}
+                        tone={ingestion.margin_paise < 0 ? "amber" : undefined}
+                    />
+                </div>
             )}
         </section>
     );

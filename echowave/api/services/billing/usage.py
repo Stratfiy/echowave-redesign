@@ -7,14 +7,21 @@ The pipeline writes ``workflow_runs.usage_info`` in the shape produced by
       "llm": {"<processor>|||<model>": {"prompt_tokens": .., "completion_tokens": ..}},
       "tts": {"<processor>|||<model>": <characters>},
       "stt": {"<processor>|||<model>": <seconds>},
+      "embedding": {"<provider>|||<model>": <tokens>},
       "telephony": {"<provider>": <connected seconds>},
       "call_duration_seconds": <seconds>,
-      "key_sources": {"llm"|"stt"|"tts"|"telephony": "byok"|"managed"},
+      "key_sources": {"llm"|"stt"|"tts"|"telephony"|"embedding": "byok"|"managed"},
     }
 
-All four cost components are measured: LLM tokens and TTS characters from the
+All five cost components are measured: LLM tokens and TTS characters from the
 pipeline's metrics aggregator, STT seconds from the same aggregator's
-transcription frames, and telephony seconds from the provider status callback.
+transcription frames, telephony seconds from the provider status callback, and
+embedding tokens from a knowledge-base retrieval's query embedding, recorded
+directly by ``PipecatEngine`` rather than via a pipecat frame — see
+``PipelineMetricsAggregator.register_embedding_usage``. Only the query
+embedding is here; document-ingestion embedding is a different event with no
+call to attach a line item to, and is deliberately out of scope for this
+per-call receipt — see ``PRICING-DECISIONS.md``.
 
 A component the pipeline did not record simply produces no line. That is
 deliberate — the cost engine reports usage it cannot price rather than
@@ -277,6 +284,27 @@ def usage_items_from_usage_info(
                         provider=provider_from_processor(processor),
                         model=model,
                         quantity=seconds,
+                    )
+                )
+
+    # Embedding is query-time usage from in-call knowledge-base retrieval —
+    # see PipelineMetricsAggregator.register_embedding_usage. The key is
+    # already a clean provider name ("openai", "decibyl", ...), not a pipecat
+    # processor class name, but provider_from_processor is still the right
+    # normaliser: it lower-cases and is a no-op on a name with no service
+    # suffix to strip, and using it keeps every component's provider going
+    # through one function.
+    if key_sources.get("embedding") != "byok":
+        for key, value in _as_mapping(usage_info.get("embedding")).items():
+            processor, model = _split_key(key)
+            tokens = _as_int(value)
+            if tokens:
+                items.append(
+                    UsageItem(
+                        component=CostComponent.EMBEDDING,
+                        provider=provider_from_processor(processor),
+                        model=model,
+                        quantity=tokens,
                     )
                 )
 

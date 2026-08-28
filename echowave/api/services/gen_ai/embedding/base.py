@@ -9,6 +9,16 @@ class BaseEmbeddingService(ABC):
 
     All embedding services (SentenceTransformer, OpenAI, etc.) should inherit from this class
     and implement the required methods.
+
+    **Convention, not an abstract requirement:** an implementation that can
+    read a token count off its vendor's response should set
+    ``self.last_usage_tokens: int | None`` after ``embed_texts``/
+    ``embed_query`` — see ``OpenAIEmbeddingService`` and
+    ``AzureOpenAIEmbeddingService``. It's how the caller (in-call
+    knowledge-base retrieval) attributes a real cost to the query embedding it
+    just paid for, rather than assuming one. Not made abstract because a local
+    or self-hosted embedding model has no vendor invoice to read a count from,
+    and ``None`` there is correct, not a gap.
     """
 
     @abstractmethod

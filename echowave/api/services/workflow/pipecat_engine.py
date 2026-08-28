@@ -415,6 +415,30 @@ class PipecatEngine:
         except Exception:  # noqa: BLE001 - see docstring
             logger.debug("Could not record add-on usage for {}", addon_key)
 
+    def _record_embedding_usage(self, billing: dict) -> None:
+        """Note query-time embedding usage from a knowledge-base retrieval.
+
+        ``billing`` is the out-parameter ``retrieve_from_knowledge_base``
+        populated (or left empty, if retrieval never reached the embedding
+        call). A missing or ``None`` token count is dropped rather than
+        recorded as zero — the cost engine treats "we don't know" and "it was
+        free" as different facts, and this is the boundary where that
+        distinction has to be preserved rather than collapsed to 0.
+
+        Never raises, for the same reason ``_record_addon_used`` doesn't.
+        """
+        try:
+            tokens = billing.get("tokens")
+            if not tokens or self._metrics_aggregator is None:
+                return
+            self._metrics_aggregator.register_embedding_usage(
+                provider=billing.get("provider") or "",
+                model=billing.get("model") or "",
+                tokens=int(tokens),
+            )
+        except Exception:  # noqa: BLE001 - see docstring
+            logger.debug("Could not record embedding usage for {}", billing)
+
     async def _register_knowledge_base_function(
         self, document_uuids: list[str]
     ) -> None:
@@ -445,6 +469,12 @@ class PipecatEngine:
                         "Organization ID not available for knowledge base retrieval"
                     )
 
+                # Populated in place by retrieve_from_knowledge_base if the
+                # query embedding actually runs — see that function's
+                # docstring on why this travels as an out-parameter rather
+                # than a key on `result`, which goes straight into the LLM's
+                # context.
+                embedding_billing: dict = {}
                 result = await retrieve_from_knowledge_base(
                     query=query,
                     organization_id=organization_id,
@@ -460,6 +490,7 @@ class PipecatEngine:
                         MPS_CORRELATION_ID_CONTEXT_KEY
                     ),
                     tracing_context=self._get_otel_context(),
+                    billing_sink=embedding_billing,
                 )
 
                 # Billable only once retrieval has actually returned
@@ -468,6 +499,7 @@ class PipecatEngine:
                 # never benefited from is the kind of line item that loses an
                 # account.
                 self._record_addon_used(ADDON_KNOWLEDGE_BASE)
+                self._record_embedding_usage(embedding_billing)
 
                 await function_call_params.result_callback(result)
 

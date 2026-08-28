@@ -48,6 +48,42 @@ router = APIRouter(prefix="/s3", tags=["s3"])
 ORG_SCOPED_STORAGE_PREFIXES = ("campaigns", "knowledge_base")
 
 
+def _storage_for_recorded_backend(backend: str, key: str):
+    """The backend a file was stored under, or the current one if this
+    deployment has no configuration for it.
+
+    A run records which backend held its artifacts, and that is normally the
+    right thing to read them back with. But a deployment that migrates —
+    MinIO to S3, one region to another — leaves every old run naming a
+    backend that no longer exists here, and constructing it raises
+    ``ValueError`` for a missing ``MINIO_PUBLIC_ENDPOINT`` or ``S3_BUCKET``
+    *before* anything is signed. That surfaced as a bare "Failed to generate
+    signed URL" on the recording and the transcript alike — identical
+    symptoms for both, because the failure is per-deployment, not per-file.
+
+    Falling back is not a guess. Presigning never checks that the object
+    exists (see ``S3FileSystem.aget_signed_url``), so the worst case here is
+    a URL that 404s on use — which tells an operator "migrated deployment,
+    object not carried across". The alternative is a hard failure that tells
+    them nothing, on a file that has very often been migrated and is
+    perfectly readable.
+
+    Loud on the way past, because the other reason a run names an
+    unconfigured backend is that the storage config is simply wrong, and
+    that must not be quietly absorbed.
+    """
+    try:
+        return get_storage_for_backend(backend)
+    except ValueError as exc:
+        logger.error(
+            f"Artifact {key} names storage backend {backend!r}, which is not "
+            f"configured in this deployment ({exc}). Falling back to the "
+            "current backend. If this deployment has not migrated storage, "
+            "the storage configuration is wrong and this is the bug."
+        )
+        return storage_fs
+
+
 def _extract_org_id_from_key(key: str) -> int | None:
     """Try to extract an organization ID from a storage key.
 
@@ -210,15 +246,22 @@ async def get_signed_url(
     # ------------------------------------------------------------------
     # 2. Resolve storage backend
     # ------------------------------------------------------------------
+    # Set before the try so a failure inside get_storage_for_backend itself
+    # (e.g. a missing MINIO_PUBLIC_ENDPOINT, which raises ValueError before
+    # `storage` is ever assigned) still has something to name in the log and
+    # response instead of raising UnboundLocalError and masking the real error.
+    storage = None
     try:
         if storage_backend:
+            # Explicitly asked for by the caller, so a misconfiguration is
+            # theirs to see rather than something to fall back from.
             storage = get_storage_for_backend(storage_backend)
         elif (
             workflow_run
             and hasattr(workflow_run, "storage_backend")
             and workflow_run.storage_backend
         ):
-            storage = get_storage_for_backend(workflow_run.storage_backend)
+            storage = _storage_for_recorded_backend(workflow_run.storage_backend, key)
         else:
             storage = storage_fs
 
@@ -247,9 +290,42 @@ async def get_signed_url(
 
         logger.info(f"Generated signed URL for key={key}, expires_in={expires_in}s")
         return {"url": url, "expires_in": expires_in}
+    except HTTPException:
+        raise
     except ClientError as exc:
-        logger.error(f"Error generating signed URL: {exc}")
-        raise HTTPException(status_code=500, detail="Failed to generate signed URL")
+        backend_name = (
+            type(storage).__name__ if storage is not None else "unresolved-backend"
+        )
+        logger.error(f"Error generating signed URL (backend={backend_name}): {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate signed URL: storage rejected the request ({backend_name})",
+        )
+    except Exception as exc:
+        # aget_signed_url used to swallow every failure to None, which made a
+        # bad MinIO/S3 config indistinguishable from "no recording" in the UI.
+        # It now raises, so this is reached for anything that isn't the
+        # deliberate ClientError case above — a bad endpoint, missing or
+        # rotated credentials, a malformed bucket config. Logged in full
+        # server-side; the client gets the exception type and which backend it
+        # came from, which is enough to point at the fix without leaking
+        # credentials or internal URLs.
+        backend_name = (
+            type(storage).__name__ if storage is not None else "unresolved-backend"
+        )
+        logger.error(
+            f"Unexpected error generating signed URL for key={key} "
+            f"(backend={backend_name}): {exc}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Failed to generate signed URL: {type(exc).__name__} from "
+                f"{backend_name}. Check the server logs for this request for "
+                "the underlying cause (likely a storage credentials/endpoint "
+                "misconfiguration)."
+            ),
+        )
 
 
 @router.get(
@@ -287,7 +363,10 @@ async def get_file_metadata(
             and workflow_run.storage_backend
         ):
             backend = workflow_run.storage_backend
-            storage = get_storage_for_backend(backend)
+            # Same fallback as the signed-url path: a run naming a backend
+            # this deployment no longer configures must not turn into an
+            # opaque 500 on the one endpoint built for debugging that.
+            storage = _storage_for_recorded_backend(backend, key)
             logger.info(
                 f"METADATA: Using stored {backend} for metadata request - key: {key}"
             )

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle, ChevronDown, Info } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { getCostPerMinuteApiV1CostEstimatePerMinutePost } from "@/client/sdk.gen";
@@ -124,6 +124,15 @@ export function CostPerMinuteBar({
     const { user, loading: authLoading } = useAuth();
     const [estimate, setEstimate] = useState<Estimate | null>(null);
     const [error, setError] = useState<string | null>(null);
+    // Collapsed by default: the coloured bar and its four-group legend below
+    // already are the combined figure — this toggle is only for the
+    // per-provider, per-model itemisation underneath it. Competitors show a
+    // handful of combined categories, not a full line list, and a customer
+    // reacts differently to "Agent cost ₹0.06" than to five rows naming every
+    // vendor. The detail is not removed, only tucked behind one click for
+    // whoever wants to audit it — internal trust in the number does not
+    // require it to be the first thing on screen.
+    const [showBreakdown, setShowBreakdown] = useState(false);
 
     // Serialised so the effect re-runs on a genuine stack change rather than on
     // every re-render that rebuilds the object.
@@ -303,45 +312,63 @@ export function CostPerMinuteBar({
                     </p>
                 )}
 
-                {/* The itemisation. A headline number nobody can decompose is a
-                    number nobody can argue with, which is the wrong property
-                    for a bill. */}
-                <dl className="mt-3 space-y-1 border-t pt-2">
-                    {estimate.lines.map((line) => (
-                        <div
-                            key={`${line.component}-${line.provider ?? ""}`}
-                            className="flex items-baseline justify-between gap-4 text-xs"
-                        >
-                            <dt className="text-muted-foreground">
-                                {COMPONENT_LABELS[line.component] ?? line.component}
-                                {line.provider && (
-                                    <span className="ml-1.5 text-muted-foreground/70">
-                                        {/* An add-on's `provider` is a catalogue
-                                            key, not a vendor: rendering it raw
-                                            put "knowledge_base" on a price
-                                            breakdown a customer reads. */}
-                                        {line.component === "addon"
-                                            ? (ADDON_LABELS[line.provider] ??
-                                              line.provider)
-                                            : line.provider}
-                                        {line.model ? ` · ${line.model}` : ""}
-                                    </span>
-                                )}
-                                {line.rate_is_provider_fallback && (
-                                    <span
-                                        className="ml-1.5 text-amber-600 dark:text-amber-400"
-                                        title="No rate on file for this exact model — priced at the provider's rate"
-                                    >
-                                        ≈
-                                    </span>
-                                )}
-                            </dt>
-                            <dd className="shrink-0 tabular-nums">
-                                {rupees(line.paise_per_minute)}
-                            </dd>
-                        </div>
-                    ))}
-                </dl>
+                {/* The itemisation, one click away rather than always on —
+                    see the note on `showBreakdown` above. Every figure is
+                    still measured and still reconciles to the total; this is
+                    a display default, not a change to what's tracked. */}
+                <button
+                    type="button"
+                    onClick={() => setShowBreakdown((v) => !v)}
+                    className="mt-3 flex w-full items-center gap-1 border-t pt-2 text-xs text-muted-foreground hover:text-foreground"
+                    aria-expanded={showBreakdown}
+                >
+                    <ChevronDown
+                        className={cn(
+                            "h-3 w-3 shrink-0 transition-transform",
+                            showBreakdown && "rotate-180",
+                        )}
+                    />
+                    {showBreakdown ? "Hide" : "Show"} full breakdown
+                </button>
+
+                {showBreakdown && (
+                    <dl className="mt-2 space-y-1">
+                        {estimate.lines.map((line) => (
+                            <div
+                                key={`${line.component}-${line.provider ?? ""}`}
+                                className="flex items-baseline justify-between gap-4 text-xs"
+                            >
+                                <dt className="text-muted-foreground">
+                                    {COMPONENT_LABELS[line.component] ?? line.component}
+                                    {line.provider && (
+                                        <span className="ml-1.5 text-muted-foreground/70">
+                                            {/* An add-on's `provider` is a catalogue
+                                                key, not a vendor: rendering it raw
+                                                put "knowledge_base" on a price
+                                                breakdown a customer reads. */}
+                                            {line.component === "addon"
+                                                ? (ADDON_LABELS[line.provider] ??
+                                                  line.provider)
+                                                : line.provider}
+                                            {line.model ? ` · ${line.model}` : ""}
+                                        </span>
+                                    )}
+                                    {line.rate_is_provider_fallback && (
+                                        <span
+                                            className="ml-1.5 text-amber-600 dark:text-amber-400"
+                                            title="No rate on file for this exact model — priced at the provider's rate"
+                                        >
+                                            ≈
+                                        </span>
+                                    )}
+                                </dt>
+                                <dd className="shrink-0 tabular-nums">
+                                    {rupees(line.paise_per_minute)}
+                                </dd>
+                            </div>
+                        ))}
+                    </dl>
+                )}
 
                 {estimate.unpriced.length > 0 && (
                     <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">

@@ -41,8 +41,13 @@ def _rate_for(provider: str, model: str, component: CostComponent):
 
 
 #: (component, the CostComponent it bills as). Embeddings are absent
-#: deliberately — they are consumed at knowledge-base ingest rather than per
-#: call, so there is no per-call line item and nothing to price here.
+#: deliberately, but not because they are unpriced: query-time embedding
+#: during in-call knowledge-base retrieval does bill (CostComponent.EMBEDDING,
+#: see billing/usage.py), it just does not go through a *managed tier* the way
+#: llm/stt/tts do — there is no "fast"/"lite"/"accurate" embedding picker, so
+#: there is nothing here for this file's tier-resolution check to exercise.
+#: Ingestion-time embedding (document upload) is the one that genuinely has no
+#: per-call line item to attach to — see PRICING-DECISIONS.md.
 _BILLED = (
     ("llm", CostComponent.LLM),
     ("stt", CostComponent.STT),
