@@ -787,6 +787,79 @@ class WebhookNodeData(BaseNodeData):
     )
 
 
+class ExtractionSpec(BaseModel):
+    """One named field to pull out of the call, alongside the QA analysis.
+
+    Reuses the QA pass's own LLM call rather than adding a new one per
+    extraction — the instructions this renders into are appended to the same
+    system prompt, so a call with five extractions configured still runs one
+    LLM inference, not six. See ``qa/analysis.py:_render_extraction_instructions``.
+
+    The value comes back under ``name`` as a key in the QA JSON response, and
+    ``_extracted_data`` (which already keeps anything the model returns beyond
+    the four fixed QA fields) is what gets it onto the run without further
+    wiring.
+    """
+
+    name: str = spec_field(
+        ...,
+        min_length=1,
+        ui_type=PropertyType.string,
+        display_name="Name",
+        description=(
+            "What this becomes in the call's extracted data — e.g. "
+            "'lead_score', 'appointment_time'. Used as the JSON key the "
+            "value comes back under."
+        ),
+        llm_hint="Lower-case, underscore-separated — becomes a JSON object key verbatim.",
+        required=True,
+    )
+    prompt: str = spec_field(
+        ...,
+        min_length=1,
+        ui_type=PropertyType.string,
+        display_name="Instructions",
+        description="What to look for in the transcript, and how to decide the value.",
+        editor="textarea",
+        required=True,
+    )
+    answer_type: str = spec_field(
+        default="free_text",
+        display_name="Answer Type",
+        description=(
+            "Free text lets the model answer in its own words. A fixed set "
+            "constrains it to one of the options you list — this is how a "
+            "sentiment field with your own categories (not just "
+            "positive/neutral/negative) gets built."
+        ),
+        spec_default="free_text",
+        options=[
+            PropertyOption(value="free_text", label="Free text"),
+            PropertyOption(value="predefined", label="One of a fixed set"),
+        ],
+    )
+    predefined_options: str = spec_field(
+        default="",
+        display_name="Options",
+        description="Comma-separated. Only used when Answer Type is 'One of a fixed set'.",
+        display_options=DisplayOptions(show={"answer_type": ["predefined"]}),
+    )
+    expected_format: str = spec_field(
+        default="text",
+        display_name="Format",
+        description="Constrains a free-text answer to a shape.",
+        spec_default="text",
+        options=[
+            PropertyOption(value="text", label="Text"),
+            PropertyOption(value="numeric", label="Number"),
+            PropertyOption(value="boolean", label="True / false"),
+            PropertyOption(value="timestamp", label="Date or time"),
+            PropertyOption(value="email", label="Email address"),
+        ],
+        display_options=DisplayOptions(show={"answer_type": ["free_text"]}),
+    )
+
+
 @node_spec(
     name="qa",
     display_name="QA Analysis",
@@ -813,7 +886,34 @@ class WebhookNodeData(BaseNodeData):
                 "qa_min_call_duration": 30,
                 "qa_sample_rate": 100,
             },
-        )
+        ),
+        NodeExample(
+            name="qa_with_extractions",
+            data={
+                "name": "Post-call extraction",
+                "qa_enabled": True,
+                "qa_extractions": [
+                    {
+                        "name": "lead_score",
+                        "prompt": (
+                            "Rate how qualified this caller is as a sales lead "
+                            "from 1 (not interested) to 10 (ready to buy), based "
+                            "on what they said."
+                        ),
+                        "answer_type": "free_text",
+                        "expected_format": "numeric",
+                    },
+                    {
+                        "name": "sentiment",
+                        "prompt": "The caller's overall tone across the call.",
+                        "answer_type": "predefined",
+                        "predefined_options": "positive, neutral, negative",
+                    },
+                ],
+                "qa_min_call_duration": 15,
+                "qa_sample_rate": 100,
+            },
+        ),
     ],
     graph_constraints=GraphConstraints(
         min_incoming=0, max_incoming=0, min_outgoing=0, max_outgoing=0
@@ -822,6 +922,7 @@ class WebhookNodeData(BaseNodeData):
         "name",
         "qa_enabled",
         "qa_system_prompt",
+        "qa_extractions",
         "qa_min_call_duration",
         "qa_voicemail_calls",
         "qa_sample_rate",
@@ -849,6 +950,16 @@ class WebhookNodeData(BaseNodeData):
             ),
             "spec_default": DEFAULT_QA_SYSTEM_PROMPT,
             "editor": "textarea",
+        },
+        "qa_extractions": {
+            "display_name": "Extractions",
+            "description": (
+                "Named fields to pull out of the call alongside the QA "
+                "review — a lead score, an appointment time, a sentiment "
+                "label with your own categories. Each one runs inside the "
+                "same QA pass rather than a separate LLM call, so adding "
+                "extractions here does not add a new charge per field."
+            ),
         },
         "qa_min_call_duration": {
             "display_name": "Minimum Call Duration (seconds)",
@@ -912,6 +1023,9 @@ class WebhookNodeData(BaseNodeData):
 )
 class QANodeData(BaseNodeData):
     qa_enabled: bool = spec_field(default=True, ui_type=PropertyType.boolean)
+    qa_extractions: List[ExtractionSpec] = spec_field(
+        default_factory=list, ui_type=PropertyType.fixed_collection
+    )
     qa_use_workflow_llm: bool = spec_field(default=True, ui_type=PropertyType.boolean)
     qa_provider: Optional[str] = spec_field(default=None, ui_type=PropertyType.options)
     qa_model: Optional[str] = spec_field(default=None, ui_type=PropertyType.string)

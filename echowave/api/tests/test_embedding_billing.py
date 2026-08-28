@@ -12,8 +12,6 @@ is a different event with no call to attach a line item to — see
 ``PRICING-DECISIONS.md``.
 """
 
-import pytest
-
 from api.enums import CostComponent, RateUnit
 from api.services.billing.cost_engine import RateSpec, UsageItem, compute_call_cost
 from api.services.billing.usage import usage_items_from_usage_info
@@ -23,7 +21,9 @@ from api.services.pipecat.pipeline_metrics_aggregator import PipelineMetricsAggr
 class TestTheAggregatorRecordsIt:
     def test_a_registered_call_appears_in_the_serialized_usage(self):
         agg = PipelineMetricsAggregator()
-        agg.register_embedding_usage(provider="openai", model="text-embedding-3-small", tokens=42)
+        agg.register_embedding_usage(
+            provider="openai", model="text-embedding-3-small", tokens=42
+        )
 
         usage = agg.get_all_usage_metrics_serialized()
 
@@ -33,8 +33,12 @@ class TestTheAggregatorRecordsIt:
         """A conversation that searches the knowledge base three times pays
         for three embeddings."""
         agg = PipelineMetricsAggregator()
-        agg.register_embedding_usage(provider="openai", model="text-embedding-3-small", tokens=10)
-        agg.register_embedding_usage(provider="openai", model="text-embedding-3-small", tokens=15)
+        agg.register_embedding_usage(
+            provider="openai", model="text-embedding-3-small", tokens=10
+        )
+        agg.register_embedding_usage(
+            provider="openai", model="text-embedding-3-small", tokens=15
+        )
 
         usage = agg.get_all_usage_metrics_serialized()
 
@@ -44,7 +48,9 @@ class TestTheAggregatorRecordsIt:
         """Mirrors how the rest of this codebase treats a non-positive
         quantity as nothing happened, not as a free line."""
         agg = PipelineMetricsAggregator()
-        agg.register_embedding_usage(provider="openai", model="text-embedding-3-small", tokens=0)
+        agg.register_embedding_usage(
+            provider="openai", model="text-embedding-3-small", tokens=0
+        )
 
         assert agg.get_all_usage_metrics_serialized()["embedding"] == {}
 
@@ -56,7 +62,9 @@ class TestTheAggregatorRecordsIt:
 
     def test_reset_clears_it(self):
         agg = PipelineMetricsAggregator()
-        agg.register_embedding_usage(provider="openai", model="text-embedding-3-small", tokens=10)
+        agg.register_embedding_usage(
+            provider="openai", model="text-embedding-3-small", tokens=10
+        )
         agg.reset_metrics()
         assert agg.get_all_usage_metrics_serialized()["embedding"] == {}
 
@@ -98,7 +106,9 @@ class TestUsageExtraction:
         """Each component's key ownership is independent — a call can bring
         its own LLM key and still run embeddings on ours."""
         usage_info = {
-            "llm": {"openai|||gpt-4o-mini": {"prompt_tokens": 100, "completion_tokens": 50}},
+            "llm": {
+                "openai|||gpt-4o-mini": {"prompt_tokens": 100, "completion_tokens": 50}
+            },
             "embedding": {"openai|||text-embedding-3-small": 50},
             "key_sources": {"llm": "byok", "embedding": "managed"},
         }
@@ -123,7 +133,10 @@ class TestCostEngineMarksItUp:
             markup_bps=17_000,  # 1.7x
             usage=(
                 UsageItem(
-                    CostComponent.EMBEDDING, "openai", 1_000, model="text-embedding-3-small"
+                    CostComponent.EMBEDDING,
+                    "openai",
+                    1_000,
+                    model="text-embedding-3-small",
                 ),
             ),
             provider_rates={
