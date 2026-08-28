@@ -40,6 +40,12 @@ what it charged before the study.
 
 ---
 
+> **If you are here to understand how pricing *works* rather than what is left
+> to fix, read `PRICING-LOGIC.md` first.** This file is the to-do list; that one
+> is the reference, and it settles the questions that keep being re-asked —
+> which ladder resolves the platform fee, why tiers are minutes and not plans,
+> and what a rupee-denominated rate quietly switches off.
+
 ## Where this stands — 27 Aug 2026
 
 Re-derived from the code and a full test run (3,904 passing), not from the

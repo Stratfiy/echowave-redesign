@@ -8,7 +8,8 @@ a set of rules; the detail lives next to the code:
 
 | For | Read |
 |---|---|
-| How a call is priced, and what every dashboard number means | `DASHBOARD.md` |
+| **How a call is priced, end to end** | **`PRICING-LOGIC.md`** — start here |
+| What every dashboard number means | `DASHBOARD.md` |
 | Deploying, environment variables, the EC2 runbook | `DEPLOY.md` |
 | Data protection: what is built and why it is built that way | `PRIVACY.md` |
 | ROPA, DPA annex, privacy notice facts, trust page | `compliance/` |
