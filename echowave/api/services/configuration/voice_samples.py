@@ -19,6 +19,8 @@ one-off script; nothing at runtime depends on it having been run.
 
 from __future__ import annotations
 
+import asyncio
+
 from api.services.storage import get_storage
 
 #: Where samples live. Separate prefix so a retention sweep over call audio
@@ -41,6 +43,20 @@ SAMPLE_LINES: dict[str, str] = {
 #: the reading problem this was meant to solve.
 SAMPLE_LANGUAGES = ("en", "hi")
 
+#: How long one sample lookup may take before the picker stops waiting for it.
+#:
+#: Catching the exception below was not enough on its own. An object store that
+#: is *unreachable* does not fail fast — the client retries with backoff, and
+#: the call eventually succeeds at failing. Serially, once per voice per
+#: language, that turned "no samples" into a model picker that took 468 seconds
+#: to answer with the store down, which a browser experiences as a screen that
+#: never loads. A sample is optional; the screen it sits on is not.
+#:
+#: Generous against a healthy store — a metadata HEAD against MinIO or S3
+#: answers in milliseconds — and short enough that fourteen of them in
+#: parallel cost about a second in the worst case.
+SAMPLE_LOOKUP_TIMEOUT_SECONDS = 1.5
+
 
 def sample_path(voice_id: str, language: str) -> str:
     """Storage key for one voice in one language. Derived, never stored."""
@@ -60,10 +76,37 @@ async def sample_url(voice_id: str, language: str = "en") -> str | None:
     storage = get_storage()
     path = sample_path(voice_id, language)
     try:
-        if await storage.aget_file_metadata(path) is None:
-            return None
-        return await storage.aget_signed_url(path)
-    except Exception:
+        return await asyncio.wait_for(
+            _resolve(storage, path),
+            timeout=SAMPLE_LOOKUP_TIMEOUT_SECONDS,
+        )
+    except (Exception, asyncio.TimeoutError):
         # Storage being unreachable must not take the model picker down with
-        # it. No sample is a worse picker; an exception here is no picker.
+        # it — neither by raising nor by making it wait. No sample is a worse
+        # picker; either of those is no picker.
         return None
+
+
+async def _resolve(storage, path: str) -> str | None:
+    if await storage.aget_file_metadata(path) is None:
+        return None
+    return await storage.aget_signed_url(path)
+
+
+async def sample_urls(
+    voice_ids: list[str],
+    languages: tuple[str, ...] = SAMPLE_LANGUAGES,
+) -> dict[tuple[str, str], str | None]:
+    """Every voice's sample URL, looked up at once.
+
+    Concurrent rather than serial because the lookups are independent and the
+    caller needs all of them to draw one screen: in sequence, the deadline
+    above is paid once per voice per language, and fourteen of those is a wait
+    nobody sits through. Failures stay per-lookup — a store that answers for
+    some keys and not others still gets its play buttons.
+    """
+    keys = [(voice_id, language) for voice_id in voice_ids for language in languages]
+    urls = await asyncio.gather(
+        *(sample_url(voice_id, language) for voice_id, language in keys)
+    )
+    return dict(zip(keys, urls))

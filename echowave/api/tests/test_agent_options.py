@@ -147,6 +147,56 @@ class TestVoiceSamples:
         for language in SAMPLE_LANGUAGES:
             assert SAMPLE_LINES.get(language, "").strip()
 
+    async def test_a_hanging_store_costs_the_budget_and_not_the_screen(
+        self, monkeypatch
+    ):
+        """Catching the exception was never enough on its own.
+
+        A store that is unreachable rather than broken does not raise — it
+        retries, with backoff, and answers late. Serially that took
+        /agent-options to 468 seconds with the store down, which reads to a
+        browser as a screen that never loads.
+        """
+        import asyncio
+
+        from api.services.configuration import voice_samples
+
+        class HangingStore:
+            async def aget_file_metadata(self, path):
+                await asyncio.sleep(30)
+
+        monkeypatch.setattr(voice_samples, "get_storage", lambda: HangingStore())
+        monkeypatch.setattr(voice_samples, "SAMPLE_LOOKUP_TIMEOUT_SECONDS", 0.05)
+
+        started = asyncio.get_running_loop().time()
+        assert await voice_samples.sample_url("anushka", "en") is None
+        assert asyncio.get_running_loop().time() - started < 5
+
+    async def test_the_whole_picker_waits_once_not_once_per_voice(self, monkeypatch):
+        """The lookups are independent and one screen needs all of them, so
+        paying the deadline once per voice per language is the thing that
+        turned a bounded wait back into an unbounded one."""
+        import asyncio
+
+        from api.services.configuration import voice_samples
+
+        class HangingStore:
+            async def aget_file_metadata(self, path):
+                await asyncio.sleep(30)
+
+        monkeypatch.setattr(voice_samples, "get_storage", lambda: HangingStore())
+        monkeypatch.setattr(voice_samples, "SAMPLE_LOOKUP_TIMEOUT_SECONDS", 0.05)
+
+        voice_ids = [f"voice-{n}" for n in range(20)]
+        started = asyncio.get_running_loop().time()
+        urls = await voice_samples.sample_urls(voice_ids)
+        elapsed = asyncio.get_running_loop().time() - started
+
+        assert set(urls.values()) == {None}
+        assert len(urls) == len(voice_ids) * len(voice_samples.SAMPLE_LANGUAGES)
+        # Serial would be 40 x the budget. Anything near that is the bug back.
+        assert elapsed < 0.05 * 10
+
 
 class TestTheSimplePickersCards:
     """Three cards, priced, each carrying the residency badge.

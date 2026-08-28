@@ -93,8 +93,14 @@ async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, An
     # picker renders a play button only where there is something to play, so a
     # deployment that has never run the generation script degrades to names
     # rather than to buttons that fail when clicked.
+    #
+    # Resolved in one call rather than two awaits per voice: each lookup is a
+    # round trip to the object store, and doing fourteen of them in sequence
+    # is what a slow store turns into a screen that never loads.
+    voices = list(agent_options.voices())
+    samples = await voice_samples.sample_urls([v.voice_id for v in voices])
     voice_list = []
-    for voice in agent_options.voices():
+    for voice in voices:
         voice_list.append(
             {
                 "voice_id": voice.voice_id,
@@ -102,8 +108,8 @@ async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, An
                 "gender": voice.gender,
                 "description": voice.description,
                 "is_default": voice.is_default,
-                "sample_url": await voice_samples.sample_url(voice.voice_id, "en"),
-                "sample_url_hi": await voice_samples.sample_url(voice.voice_id, "hi"),
+                "sample_url": samples.get((voice.voice_id, "en")),
+                "sample_url_hi": samples.get((voice.voice_id, "hi")),
             }
         )
 
