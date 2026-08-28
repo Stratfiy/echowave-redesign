@@ -31,6 +31,39 @@ deliberately.
 
 ## Fixed
 
+### 22. Sarvam's TTS buffer was set below the value Sarvam accepts
+
+**FIXED.** Reported from a live test as "the call ends after I pick up", on
+Plivo, with run #70 recording `pipeline_error` at 0s duration.
+
+`min_buffer_size` and `max_chunk_length` are sent to Sarvam in the config
+message at websocket connect, and Sarvam validates them. Its API reference
+gives `min_buffer_size` as **30-200** (default 50). The first-byte latency work
+shipped it at **20**, under the floor. A refused config becomes a fatal
+`ErrorFrame`, `on_pipeline_error` fires, and the call is ended immediately —
+so the failure is not "the voice sounds wrong", it is a call that is answered
+and dies before the first word. `max_chunk_length` at 80 is inside its own
+50-500 range and is unchanged.
+
+Now 30: the documented floor, and still a large cut from the default 50. The
+token-level aggregation is where most of the latency win came from anyway, and
+it is untouched.
+
+Sarvam's Pipecat integration guide separately suggests 15-25, contradicting
+their own API reference. **Worth resolving with them** — if 20 is genuinely
+accepted, this is not the cause and the run log will say so. Until then the
+reference is the number to hold: too high costs a little first-byte latency,
+too low costs every call.
+
+`test_sarvam_service_factory.py` now asserts both values sit inside the
+documented ranges, so the next latency pass cannot quietly go under again.
+
+**How to confirm on a live box**, since the cause is recorded either way:
+
+* The run's own timeline — open run #70 in the UI; a fatal pipeline error is
+  rendered as a "Fatal Pipeline Error" notice carrying the provider's message.
+* Or the API log: `Pipeline error for workflow run 70: ...`.
+
 ### 21. Telnyx calls were answered and then dropped
 
 **FIXED.** Reported from a live test as "the call ends after I pick up".

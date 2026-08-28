@@ -199,7 +199,7 @@ class TestSarvamTTSServiceFactory:
         assert kwargs["settings"].voice == "anushka"
         assert kwargs["settings"].language == Language.HI
         assert kwargs["settings"].pace == 1.25
-        assert kwargs["settings"].min_buffer_size == 20
+        assert kwargs["settings"].min_buffer_size == 30
         assert kwargs["settings"].max_chunk_length == 80
         assert kwargs["text_aggregation_mode"] == TextAggregationMode.TOKEN
 
@@ -351,3 +351,57 @@ class TestEveryTTSProviderHasALatencyDecision:
             ServiceProviders.AZURE_SPEECH.value
             not in _LOW_LATENCY_STREAMING_TTS_PROVIDERS
         )
+
+
+class TestTheBufferSettingsStayInsideSarvamsRange:
+    """These two numbers are validated by Sarvam, not by us.
+
+    They are sent in the config message at websocket connect. A value outside
+    the accepted range is refused there, and pipecat turns that into a fatal
+    ErrorFrame — so the call is answered and then dies at 0s with
+    ``pipeline_error`` rather than merely sounding wrong. There is no gentle
+    version of getting these wrong, which is why the bound is asserted rather
+    than left to a comment.
+
+    Ranges from Sarvam's API reference: ``min_buffer_size`` 30-200 (default
+    50), ``max_chunk_length`` 50-500 (default 150).
+    """
+
+    MIN_BUFFER_SIZE_RANGE = (30, 200)
+    MAX_CHUNK_LENGTH_RANGE = (50, 500)
+
+    @staticmethod
+    def _shipped_settings():
+        user_config = SimpleNamespace(
+            tts=SimpleNamespace(
+                provider=ServiceProviders.SARVAM.value,
+                api_key="test-key",
+                model="bulbul:v2",
+                voice="anushka",
+                language="hi-IN",
+                speed=1.0,
+            )
+        )
+        audio_config = AudioConfig(
+            transport_in_sample_rate=16000, transport_out_sample_rate=16000
+        )
+        with patch(
+            "api.services.pipecat.service_factory.SarvamTTSService"
+        ) as mock_service:
+            create_tts_service(user_config, audio_config)
+        return mock_service.call_args.kwargs["settings"]
+
+    def test_min_buffer_size_is_not_below_the_floor(self):
+        """It shipped at 20, under Sarvam's documented minimum of 30.
+
+        Their Pipecat integration guide suggests 15-25, which contradicts their
+        own API reference. Until that is settled with them the reference is the
+        number to hold: too high costs a little first-byte latency, too low
+        costs the entire call.
+        """
+        low, high = self.MIN_BUFFER_SIZE_RANGE
+        assert low <= self._shipped_settings().min_buffer_size <= high
+
+    def test_max_chunk_length_is_inside_the_range(self):
+        low, high = self.MAX_CHUNK_LENGTH_RANGE
+        assert low <= self._shipped_settings().max_chunk_length <= high

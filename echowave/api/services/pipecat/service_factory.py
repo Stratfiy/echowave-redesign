@@ -849,10 +849,23 @@ def create_tts_service(
         # buffer. The previous sentence-first + 50-character buffering made TTS
         # first-byte latency include almost the entire first sentence (6.39s in
         # production run #67).
+        #
+        # **These two are Sarvam's numbers, not ours, and it validates them.**
+        # The config is sent over the websocket at connect; a value outside the
+        # accepted range is refused there, which surfaces as a fatal ErrorFrame
+        # before the first word — a call that is answered and then dies at 0s,
+        # not a call that sounds slightly wrong. Sarvam's API reference gives
+        # min_buffer_size as 30-200 (default 50) and max_chunk_length as 50-500
+        # (default 150), so 30 is the floor and the whole of the available win;
+        # this shipped at 20, under it. Their Pipecat integration guide does
+        # suggest 15-25, which contradicts their own reference — until that is
+        # resolved with them, the documented floor is the number to hold, since
+        # being wrong in this direction costs a little latency and being wrong
+        # in the other costs every call.
         settings_kwargs = {
             "model": user_config.tts.model,
             "language": pipecat_language,
-            "min_buffer_size": 20,
+            "min_buffer_size": 30,
             "max_chunk_length": 80,
         }
         if voice and voice != DECIBYL_DEFAULT_VOICE:
