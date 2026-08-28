@@ -576,6 +576,11 @@ item that needs you** — see §4.
 
 ## 5. The plan — what I can do vs. what you need to do
 
+**`BUILD-PLAN.md` has the sequenced, task-level version of the "I can do
+now" items below** — phases, dependencies, effort estimates, and what "done"
+looks like for each. This section stays the decision-tracking summary; that
+one is the thing to open when actually starting to build.
+
 ### Done this round (round 4)
 - [x] **Read Bolna's extraction/sentiment feature directly** (§2.6a) — their
       docs and open-source prompt library, not the screenshot alone. It's one
