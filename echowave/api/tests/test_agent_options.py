@@ -19,6 +19,8 @@ from api.services.configuration.agent_options import (
 )
 from api.services.configuration.ai_model_configuration import (
     WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY as OVERRIDE_KEY,
+)
+from api.services.configuration.ai_model_configuration import (
     get_effective_ai_model_configuration_for_workflow,
 )
 
@@ -110,9 +112,7 @@ class TestOverride:
         assert effective.tts.voice == "vidya"
         assert effective.llm.model == "default"
 
-    async def test_a_wizard_created_v3_agent_reaches_call_readiness(
-        self, monkeypatch
-    ):
+    async def test_a_wizard_created_v3_agent_reaches_call_readiness(self, monkeypatch):
         """The create wizard stores v3 under the historical v2 override key.
 
         Call readiness must dispatch on the payload version, not the key name.
