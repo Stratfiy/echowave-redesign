@@ -31,7 +31,7 @@ class Qa_Qa_extractionsRow:
     """
     What to look for in the transcript, and how to decide the value.
     """
-    answer_type: str = 'free_text'
+    answer_type: Literal['free_text', 'predefined'] = 'free_text'
     """
     Free text lets the model answer in its own words. A fixed set constrains
     it to one of the options you list — this is how a sentiment field with
@@ -41,7 +41,7 @@ class Qa_Qa_extractionsRow:
     """
     Comma-separated. Only used when Answer Type is 'One of a fixed set'.
     """
-    expected_format: str = 'text'
+    expected_format: Literal['text', 'numeric', 'boolean', 'timestamp', 'email'] = 'text'
     """
     Constrains a free-text answer to a shape.
     """

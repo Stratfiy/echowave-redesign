@@ -30,7 +30,7 @@ class Branch_RulesRow:
     Name of the variable to test — from extraction, the trigger payload, a
     campaign column, or a pre-call fetch.
     """
-    operator: str = 'equals'
+    operator: Literal['equals', 'not_equals', 'contains', 'not_contains', 'starts_with', 'ends_with', 'matches_regex', 'greater_than', 'greater_or_equal', 'less_than', 'less_or_equal', 'in_list', 'not_in_list', 'is_empty', 'is_not_empty', 'is_true', 'is_false'] = 'equals'
     """
     How the variable is compared to the value.
     """
