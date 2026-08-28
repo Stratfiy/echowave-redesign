@@ -22,14 +22,11 @@ That is the platform fee. Alongside it you pay for what the call consumes:
 
 There is no seat licence and no minimum commitment. Agents you build and never call cost nothing.
 
-### Your keys or ours
+### Models run on our keys
 
-Every model slot — LLM, transcription, voice — is independently either **yours** or **ours**.
+Every model slot — LLM, transcription, voice — runs on Decibyl's provider accounts. You do not need an account with OpenAI, Sarvam or anyone else, and there are no keys to obtain, store or rotate. Usage appears on your Decibyl invoice as its own line, so you can see what each component of a call cost.
 
-- **Your key (BYOK).** You pay the provider directly at whatever rate you have with them. Decibyl adds nothing for that component.
-- **Our key (managed).** Usage appears on your Decibyl invoice, and you do not need an account with the provider at all.
-
-Mixing is normal and supported: your own OpenAI key for the LLM, our Sarvam for Indian-language speech, for example. See [Inference providers](/configurations/inference-providers).
+**Telephony is the exception, and deliberately so.** You may bring your own carrier account — Twilio, Plivo, your own SIP — in which case those minutes are billed to you by that carrier and never appear on a Decibyl invoice. See [Telephony](/configurations/telephony).
 
 ## Adding credit
 

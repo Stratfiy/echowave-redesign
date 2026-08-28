@@ -120,7 +120,17 @@ second rate row.
 
 ### 35. The provider-wide fallback silently prices a model at a thirteenth of its cost
 
-**Status:** OPEN · **Severity: medium** · partly a **DECISION NEEDED**
+**Status:** OPEN · **Severity: medium**
+
+> **Decided 28 Aug: the models stay selectable.** Option 1 below — trimming the
+> offer to what the tiers resolve to — is **rejected**; an Advanced user may pick
+> any of them. That settles the product question and sharpens the engineering
+> one, because it removes the free fix: if every offered model can be chosen,
+> every offered model needs a rate of its own, and the provider-wide fallback
+> stops being a safety net and becomes the thing that quietly under-bills. The
+> remaining options are 2 and 3, and 3 is now the one that matches the decision:
+> a model with no rate of its own should not be offerable, the same way an
+> unpriced *provider* already cannot be added by accident.
 
 A rate row with `model = ""` is the provider-wide fallback, and any offered
 model without its own row bills at it. For OpenAI that fallback is the
@@ -151,12 +161,31 @@ Three options, and the first is free:
 3. Refuse to offer a model with no rate of its own, the way an unpriced provider
    is already refused.
 
-### 36. Is bring-your-own-key for models a product at all?
+### 36. Bring-your-own-key for models is not a product
 
-**Status:** DECISION NEEDED · **Severity: medium**
+**Status:** DECIDED 28 Aug 2026 — **not sold for now** · implementation OPEN
 
-Stated by the product owner on 27 Aug: *"BYOK is not there, only our provided
-models and STT TTS. BYOK is only for telephony."*
+The product owner has answered: **model BYOK is not offered**. Telephony BYOK is,
+and remains the default. "For now" was the wording, so the machinery should be
+*gated*, not deleted.
+
+What that leaves to do, and the order matters:
+
+1. **The customer documentation is the urgent half** — it advertised a product
+   that is not sold, to customers, in writing. Corrected in the same change as
+   this note.
+2. **Gate the offering, never the resolution.** A flag should hide the
+   tenant-facing Provider Keys entry and the per-slot "My own key" toggle so
+   nobody can *newly* select it. `byok_resolution` must keep working untouched:
+   any account already running on a stored key has to keep running, and turning
+   a live agent off to tidy a nav bar is not a trade worth making.
+3. **Leave the platform-fee uplift alone.** It is already behind
+   `BYOK_TIERED_FEE_ENABLED` and already off. Dead code behind a dead flag costs
+   nothing; removing it costs the option of changing our mind, which "for now"
+   explicitly reserves.
+
+Originally stated by the product owner on 27 Aug: *"BYOK is not there, only our
+provided models and STT TTS. BYOK is only for telephony."*
 
 The code says otherwise, and extensively. There is a tenant-facing **Provider
 Keys** page in the main navigation (reads deliberately not admin-gated), a

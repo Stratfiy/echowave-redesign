@@ -323,14 +323,17 @@ rows is still under Vapi ($0.050), Retell ($0.055) and Bolna ($0.060).**
 
 Nothing here reaches a customer until this is done.
 
-**A third line breaks on the same flag, and it is not in the table above.**
-`docs/account/billing.mdx` says of a BYOK slot: *"You pay the provider directly
-at whatever rate you have with them. Decibyl adds nothing for that component."*
-That is exactly true while `BYOK_TIERED_FEE_ENABLED` is off and exactly false
-the moment it is on — the uplift is added to the platform fee rather than to
-the component, so the sentence is defensible on a technicality and will not
-read that way to somebody holding an invoice. Rewrite it with the tiers, in the
-same change that flips the flag, not after.
+~~**A third line breaks on the same flag**~~ — **moot as of 28 Aug.**
+`docs/account/billing.mdx` described bringing your own key per model. The
+product owner has since confirmed model BYOK is not sold (`KNOWN_ISSUES.md`
+#36), so the page now says models run on our keys and names telephony as the
+one place a customer brings their own account. There is no longer a BYOK
+sentence for the flag to falsify.
+
+That narrows this phase itself: with model BYOK not on sale, the three-row
+tiered-fee table above describes a fee no customer can currently trigger. It
+stays here as the design, but none of it reaches a customer-facing page until
+model BYOK is actually offered.
 
 **Checked and left alone, 27 Aug:** the $0.02 headline on both pages is
 accurate today, because every charge that would change it is switched off.
