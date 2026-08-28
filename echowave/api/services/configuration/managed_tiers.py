@@ -68,7 +68,37 @@ LLM_TIER_LABELS: dict[str, tuple[str, str]] = {
         "For calls where getting it wrong is expensive.",
     ),
 }
-STT_TIERS = ("default",)
+#: Two, and the second one is a latency choice with a language price attached.
+#:
+#: ``default`` is saaras:v3 -- 22 Indian languages, code-mixed, and it holds
+#: the turn until its final transcript lands. That wait measures ~1,172ms on
+#: every turn (`call_turn_metrics`, `t_endpoint_fired_ms - t_user_stopped_ms`)
+#: and is the largest single stage of a turn once the LLM is not misconfigured.
+#:
+#: ``instant`` is Deepgram Flux, which emits its own turn boundaries -- see
+#: ``stt_uses_external_turns``. The endpointing budget does not shrink, it
+#: disappears: nothing downstream waits on silence at all.
+#:
+#: It is not the default and should not become one. Flux multilingual covers
+#: de/en/es/fr/hi/it/ja/nl/pt/ru. Hindi yes; Telugu, Tamil, Kannada, Bengali
+#: and Marathi no -- and a caller answering in one of those is transcribed as
+#: nothing, which is a worse call than a slow one. An agent that knows its
+#: callers speak English or Hindi can buy the second back; an agent serving
+#: the 22-language case cannot, and keeps the default.
+#: What the customer reads, the same discipline as the brain tiers: what the
+#: choice does, not who serves it. The language limit belongs on the screen --
+#: it is the entire reason this is a choice and not an upgrade.
+STT_TIER_LABELS: dict[str, tuple[str, str]] = {
+    "default": (
+        "Every language",
+        "Understands 22 Indian languages, including switching mid-sentence.",
+    ),
+    "instant": (
+        "Instant",
+        "Replies about a second sooner. English and Hindi only.",
+    ),
+}
+STT_TIERS = ("default", "instant")
 TTS_TIERS = ("default",)
 EMBEDDINGS_TIERS = ("default",)
 #: Speech-to-speech tiers. Two, because the two vendors are not a quality
@@ -180,6 +210,14 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # price of the tier understanding the caller, which is not an
         # optimisation to trade away.
         ("stt", "default"): _tier("stt", "default", "sarvam", "saaras:v3"),
+        # Deepgram Flux: the model decides a turn ended from acoustic and
+        # semantic context, so `stt_uses_external_turns` routes the aggregator
+        # to external turn strategies and the whole VAD-plus-timeout budget is
+        # skipped rather than tuned. Priced at $0.0078/min in default_rates,
+        # and it needs a Deepgram platform key -- without one,
+        # `managed_resolution` logs and leaves the section alone, so the agent
+        # keeps whatever it had rather than failing.
+        ("stt", "instant"): _tier("stt", "instant", "deepgram", "flux-general-multi"),
         # bulbul:v3 for the matching reason on the way out: it synthesises
         # code-mixed text with native phonetics, so an English sentence
         # carrying Hindi words is pronounced rather than spelled out. Twice v2

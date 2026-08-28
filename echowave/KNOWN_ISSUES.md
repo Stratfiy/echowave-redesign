@@ -31,6 +31,61 @@ deliberately.
 
 ## Fixed
 
+### 26. The fast transcriber was sitting in the codebase, unreachable
+
+**FIXED (opt-in).** Found by reading upstream (`dograh-hq/dograh`) after the
+report that "initially it was so smooth". It was: upstream defaults to
+**OpenAI + ElevenLabs + Deepgram**. This fork moved all three legs to Sarvam
+for DPDP residency, Indian-language coverage and ~8x cheaper tokens. Those are
+good reasons and nothing here argues with them -- but the latency cost was
+never written down, and "it used to be smooth" is that cost being noticed.
+
+Worth recording that this fork is *ahead* of upstream in two places, so the
+comparison is not one-way: upstream has no TTS token-streaming at all
+(`TextAggregationMode.TOKEN` appears zero times there) and still runs pipecat's
+0.6s `user_speech_timeout` default where this uses 0.4. Upstream also carries
+the same `.get("turn_stop_strategy")` bug fixed in #23 -- inherited, not
+introduced.
+
+The portable idea is upstream's managed STT: it routes to **Deepgram Flux**
+whenever the language allows, and Flux emits its own turn boundaries. Nothing
+waits on silence at all, so the ~1,172ms endpointing stage of #24 does not
+shrink, it disappears.
+
+**That entire path already exists here** -- `decibyl_stt_uses_flux_language`,
+the Flux branch in `create_stt_service`, `stt_uses_external_turns`, and rate
+rows for both Flux models. It was simply unreachable, because `("stt",
+"default")` pins `sarvam/saaras:v3` and the branch that would pick Flux never
+runs.
+
+Added as a second tier rather than a new default, and the reason is a language
+limit, not caution. Flux multilingual covers de/en/es/fr/hi/it/ja/nl/pt/ru:
+Hindi yes; Telugu, Tamil, Kannada, Bengali and Marathi no. A caller answering
+in one of those transcribes as nothing, which is a worse call than a slow one
+-- and the QA transcript that started this whole investigation ends with the
+caller saying "థ్యాంక్ యూ", in Telugu. So:
+
+| tier | model | endpointing | languages |
+|---|---|---|---|
+| `default` | `sarvam/saaras:v3` | ~1,172ms | 22 Indian, code-mixed |
+| `instant` | `deepgram/flux-general-multi` | **none** | 10, Hindi the only Indic one |
+
+An agent that knows its callers speak English or Hindi can buy that second
+back. An agent serving the 22-language case cannot, and keeps the default.
+
+**It needs a Deepgram platform key.** Without one `managed_resolution` logs and
+leaves the section alone, so an agent choosing the tier keeps what it had
+rather than failing -- quiet, but not broken.
+
+**A loose end from #25, closed here.** `platform_models` is what the customer's
+picker sells, and `model_catalogue` offers a model only when it is in that
+table, has a platform key, and has a rate row. The tier change in #25 moved
+what calls resolve to without the catalogue following, so
+`sarvam-105b-conversations` ran on every managed call while not being on sale.
+Resolution never reads that table -- which is why the calls worked -- but the
+picker does. Migration `a3f7c21e9b04` seeds both it and the Flux STT entry,
+idempotently.
+
 ### 25. The voice agent was running Sarvam's *reasoning* model
 
 **FIXED.** This is the long pause. Reported as "there is a long pause", and

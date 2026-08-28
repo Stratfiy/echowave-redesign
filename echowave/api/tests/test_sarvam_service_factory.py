@@ -506,3 +506,90 @@ class TestTheReplyIsStreamed:
             DecibylSarvamLLMService.build_chat_completion_params
             is RealSarvamLLMService.build_chat_completion_params
         )
+
+
+class TestTheInstantTranscriberIsOptInOnly:
+    """Deepgram Flux emits its own turn boundaries, so the endpointing wait
+    disappears rather than shrinking -- worth ~1,172ms a turn, the largest
+    single stage once the LLM is not misconfigured.
+
+    It is not the default and must not become one. Flux multilingual covers
+    de/en/es/fr/hi/it/ja/nl/pt/ru: Hindi yes, Telugu and Tamil no. A caller
+    answering in Telugu is transcribed as nothing, which is a worse call than a
+    slow one -- and Telugu is what the QA transcript that started this actually
+    ended in.
+    """
+
+    def test_the_default_transcriber_still_understands_indian_languages(self):
+        from api.services.configuration import managed_tiers
+
+        upstream = managed_tiers.resolve("stt", "default")
+
+        assert upstream.provider == "sarvam"
+        assert upstream.model == "saaras:v3"
+
+    def test_the_instant_tier_resolves_to_a_turn_owning_model(self):
+        from api.services.configuration import managed_tiers
+        from api.services.configuration.options.deepgram import DEEPGRAM_FLUX_MODELS
+
+        upstream = managed_tiers.resolve("stt", "instant")
+
+        assert upstream.provider == "deepgram"
+        assert upstream.model in DEEPGRAM_FLUX_MODELS
+
+    def test_the_instant_tier_actually_skips_the_endpointing_budget(self):
+        """The point of the tier. If this model did not report external turns,
+        it would cost more and save nothing."""
+        from types import SimpleNamespace
+
+        from api.services.configuration import managed_tiers
+
+        upstream = managed_tiers.resolve("stt", "instant")
+        config = SimpleNamespace(
+            stt=SimpleNamespace(
+                provider=upstream.provider, model=upstream.model, language="multi"
+            )
+        )
+
+        assert service_factory.stt_uses_external_turns(config) is True
+
+    def test_the_default_tier_does_not_claim_external_turns(self):
+        """Guards the inverse: saaras holds the turn until its final transcript
+        lands, which is where the ~1,172ms goes."""
+        from types import SimpleNamespace
+
+        from api.services.configuration import managed_tiers
+
+        upstream = managed_tiers.resolve("stt", "default")
+        config = SimpleNamespace(
+            stt=SimpleNamespace(
+                provider=upstream.provider, model=upstream.model, language="multi"
+            )
+        )
+
+        assert service_factory.stt_uses_external_turns(config) is False
+
+    def test_the_instant_tier_is_priced(self):
+        """An unpriced tier does not fail -- it bills the platform fee alone and
+        reports margin nobody earned."""
+        from api.enums import CostComponent
+        from api.services.billing.default_rates import DEFAULT_RATES
+        from api.services.configuration import managed_tiers
+
+        upstream = managed_tiers.resolve("stt", "instant")
+        priced = {
+            (r.provider, r.model)
+            for r in DEFAULT_RATES
+            if r.component == CostComponent.STT
+        }
+
+        assert (upstream.provider, upstream.model) in priced
+
+    def test_both_tiers_carry_a_label_that_names_the_trade(self):
+        """The language limit is the whole reason this is a choice rather than
+        an upgrade, so it has to reach the screen."""
+        from api.services.configuration import managed_tiers
+
+        for tier in managed_tiers.STT_TIERS:
+            label, blurb = managed_tiers.STT_TIER_LABELS[tier]
+            assert label and blurb
