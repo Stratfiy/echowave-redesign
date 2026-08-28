@@ -117,6 +117,11 @@ config:
   minioEndpoint: ""  # internal cluster endpoint (auto-set when internalMinio)
   minioPublicEndpoint: ""  # browser-visible endpoint (auto-set when ingress/gateway path exposes MinIO)
   minioSecure: false
+  # Region the MinIO/S3 client signs for. Lets presigning happen locally
+  # instead of costing a GetBucketLocation round trip per URL. MinIO ignores
+  # it for placement; set a real region only for an S3-compatible store that
+  # enforces one.
+  minioRegion: us-east-1
   enableAwsS3: false
   enableTelemetry: true
   posthogHost: https://us.i.posthog.com

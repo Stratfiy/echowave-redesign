@@ -257,6 +257,11 @@ services:
       MINIO_SECRET_KEY: "${MINIO_ROOT_PASSWORD:-minioadmin}"
       MINIO_BUCKET: "voice-audio"
       MINIO_SECURE: "false"
+      # Lets the SDK sign presigned URLs locally. Without it every signature
+      # costs a GetBucketLocation round trip to the public host first, and on a
+      # split-hostname install that request gets redirected and the signature
+      # is rejected. MinIO ignores the value for placement.
+      MINIO_REGION: "${MINIO_REGION:-us-east-1}"
 
       # Number of uvicorn worker processes (each is its own process bound to a
       # distinct port starting at 8000). decibyl-init renders nginx upstreams

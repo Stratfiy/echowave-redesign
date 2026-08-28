@@ -40,6 +40,17 @@ class MinioFileSystem(BaseFileSystem):
     A presigned URL is signed **for a specific host**, so a URL signed against
     ``minio:9000`` fails when the browser fetches it from ``example.com``. Hence
     two clients: one bound to each, each signing for its own audience.
+
+    Both clients are given an explicit ``region``. Without one the SDK will not
+    sign locally — it first resolves the bucket's region over the network with a
+    GetBucketLocation request against whichever host that client is bound to.
+    For the public client that means a request to the *public* host on the bare
+    bucket path, and on a split-hostname install nginx answers it with a 301
+    adding a trailing slash. The SDK follows the redirect, the path changes from
+    ``/voice-audio`` to ``/voice-audio/``, and since SigV4 signs over the path,
+    MinIO rejects the request with SignatureDoesNotMatch. Every recording and
+    transcript then failed with "S3Error from MinioFileSystem", which read like
+    a credentials problem and was not one.
     """
 
     def __init__(
@@ -50,6 +61,7 @@ class MinioFileSystem(BaseFileSystem):
         bucket_name: str = "voice-audio",
         secure: bool = False,
         public_endpoint: str | None = None,
+        region: str = "us-east-1",
     ):
         if not public_endpoint:
             raise ValueError(
@@ -70,11 +82,16 @@ class MinioFileSystem(BaseFileSystem):
         self.secure = secure
         self.access_key = access_key
         self.secret_key = secret_key
+        self.region = region
 
         # Client for internal operations (uploads, stat, copy) and for signing
         # URLs that the API itself will fetch.
         self.client = Minio(
-            endpoint, access_key=access_key, secret_key=secret_key, secure=secure
+            endpoint,
+            access_key=access_key,
+            secret_key=secret_key,
+            secure=secure,
+            region=region,
         )
 
         # A second client bound to the public hostname, used only to sign URLs a
@@ -93,6 +110,7 @@ class MinioFileSystem(BaseFileSystem):
                 access_key=access_key,
                 secret_key=secret_key,
                 secure=public_secure,
+                region=region,
             )
 
         try:
@@ -196,9 +214,10 @@ class MinioFileSystem(BaseFileSystem):
 
             return await asyncio.to_thread(_sign)
         except Exception as e:
-            # Signing is a local computation (no round trip to MinIO), so a
-            # failure here is a configuration problem — a bad endpoint,
-            # rotated credentials, a missing bucket — not a missing object.
+            # With an explicit region on the client this is a local computation
+            # (no round trip to MinIO), so a failure here is a configuration
+            # problem — a bad endpoint, rotated credentials, a missing bucket —
+            # not a missing object.
             # Swallowing it to None used to make every such failure look
             # identical to "no recording", which is what made this
             # undiagnosable from the UI. Re-raised so the caller — and
