@@ -287,10 +287,12 @@ class TestCostEngineUsesTheOverride:
         )
 
         line = next(line for line in cost.line_items if line.component == "llm")
-        # 1000 tokens at 10000 mpaise/1k tokens = 10000 mpaise = 1000 paise
-        # vendor cost, at 2.0x override = 2000 paise, not 1.4x = 1400.
-        assert line.provider_cost_paise == 1_000
-        assert line.cost_paise == 2_000
+        # 1000 tokens at 10_000 mpaise/1k tokens. A rate is in milli-paise and
+        # MPAISE_PER_PAISE is 1000, so 10_000 mpaise is 10 paise (Rs0.10) per
+        # 1k tokens -> 10 paise vendor cost. At the 2.0x override that is 20
+        # paise, where the blanket 1.4x would have charged 14.
+        assert line.provider_cost_paise == 10
+        assert line.cost_paise == 20
 
     def test_a_line_with_no_override_still_uses_the_flat_markup(self):
         """An empty overrides map must behave exactly as if the parameter did
@@ -309,7 +311,7 @@ class TestCostEngineUsesTheOverride:
         )
 
         line = next(line for line in cost.line_items if line.component == "llm")
-        assert line.cost_paise == 1_400  # 1000 paise at 1.4x
+        assert line.cost_paise == 14  # 10 paise vendor cost at 1.4x
 
     def test_a_provider_wide_override_applies_to_a_model_with_no_override_of_its_own(
         self,
@@ -328,10 +330,10 @@ class TestCostEngineUsesTheOverride:
         )
 
         line = next(line for line in cost.line_items if line.component == "tts")
-        # 1000 chars at 40000 mpaise/1k = 40000 mpaise = 4000 paise vendor
-        # cost, at 1.7x = 6800.
-        assert line.provider_cost_paise == 4_000
-        assert line.cost_paise == 6_800
+        # 1000 chars at 40_000 mpaise/1k chars = 40 paise vendor cost (see the
+        # mpaise note above), at the provider-wide 1.7x override = 68 paise.
+        assert line.provider_cost_paise == 40
+        assert line.cost_paise == 68
 
     def test_the_platform_fee_is_never_touched_by_an_override(self):
         """Overrides key on (component, provider, model) and are only ever
@@ -346,7 +348,9 @@ class TestCostEngineUsesTheOverride:
             usage=(),
             markup_overrides={("platform", "", ""): 99_000},
         )
-        fee_line = next(line for line in cost.line_items if line.component == "platform")
+        fee_line = next(
+            line for line in cost.line_items if line.component == "platform"
+        )
         expected_fee = cost_paise(quantity=60, rate_mpaise=20_000, unit=RateUnit.MINUTE)
         assert fee_line.cost_paise == expected_fee
         assert fee_line.provider_cost_paise == 0
