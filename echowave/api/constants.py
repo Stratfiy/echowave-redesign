@@ -853,6 +853,25 @@ MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "voice-audio")
 MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
 
+# The region the MinIO client signs for.
+#
+# This is not cosmetic. Without a region the MinIO SDK cannot sign locally: it
+# resolves the bucket's region first, over the network, with a
+# GetBucketLocation request to `<endpoint>/<bucket>?location=`. On a
+# split-hostname install that request goes to the *public* host, where nginx
+# 301s it to add a trailing slash. The SDK follows the redirect, the path it
+# signed over changes from `/voice-audio` to `/voice-audio/`, and MinIO rejects
+# the now-wrong signature with SignatureDoesNotMatch. That surfaced as
+# "Failed to generate signed URL: S3Error from MinioFileSystem" on every
+# recording and transcript in the dashboard.
+#
+# Setting it makes presigning what the code always claimed it was: a local
+# computation with no round trip. MinIO ignores the region for storage
+# placement, so "us-east-1" is right for any single-node MinIO; point it at a
+# real region only when MINIO_* is aimed at an S3-compatible store that
+# enforces one.
+MINIO_REGION = os.getenv("MINIO_REGION", "us-east-1")
+
 # Whether to grant the recordings bucket an anonymous read/write/delete policy.
 #
 # Off by default, and it must stay off anywhere the MinIO endpoint is reachable

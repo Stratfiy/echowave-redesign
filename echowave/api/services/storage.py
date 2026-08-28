@@ -7,6 +7,7 @@ from api.constants import (
     MINIO_BUCKET,
     MINIO_ENDPOINT,
     MINIO_PUBLIC_ENDPOINT,
+    MINIO_REGION,
     MINIO_SECRET_KEY,
     MINIO_SECURE,
     S3_ADDRESSING_STYLE,
@@ -47,6 +48,7 @@ def get_storage_for_backend(backend: str) -> BaseFileSystem:
             bucket_name=MINIO_BUCKET,
             secure=MINIO_SECURE,
             public_endpoint=MINIO_PUBLIC_ENDPOINT,
+            region=MINIO_REGION,
         )
 
     # Code 1: AWS S3 implementation (cloud deployments)

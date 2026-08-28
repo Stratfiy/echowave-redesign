@@ -30,6 +30,7 @@ from api.constants import (
     KYC_BUCKET,
     MINIO_ACCESS_KEY,
     MINIO_ENDPOINT,
+    MINIO_REGION,
     MINIO_SECRET_KEY,
     MINIO_SECURE,
 )
@@ -59,6 +60,9 @@ def _client() -> Minio:
         access_key=MINIO_ACCESS_KEY,
         secret_key=MINIO_SECRET_KEY,
         secure=MINIO_SECURE,
+        # Explicit, for the same reason the recordings client sets it: without
+        # a region the SDK resolves one over the network before it will sign.
+        region=MINIO_REGION,
     )
 
 

@@ -691,6 +691,12 @@ decibyl_download_init_support_bundle() {
     decibyl_download_bundle_file_for_ref "$project_dir/scripts/run_decibyl_init.sh" "scripts/run_decibyl_init.sh" "$ref"
     chmod +x "$project_dir/scripts/run_decibyl_init.sh"
     decibyl_download_bundle_file_for_ref "$project_dir/deploy/templates/nginx.remote.conf.template" "deploy/templates/nginx.remote.conf.template" "$ref"
+    # The subdomain template too. It was missing here, so a split-hostname
+    # install kept whatever nginx config it was first provisioned with and no
+    # correction to this template could ever reach it -- which is how a fix
+    # already made to nginx.remote.conf.template sat unapplied on the host that
+    # needed it.
+    decibyl_download_bundle_file_for_ref "$project_dir/deploy/templates/nginx.subdomains.conf.template" "deploy/templates/nginx.subdomains.conf.template" "$ref"
     decibyl_download_bundle_file_for_ref "$project_dir/deploy/templates/turnserver.remote.conf.template" "deploy/templates/turnserver.remote.conf.template" "$ref"
 }
 

@@ -11,6 +11,7 @@ data:
   BACKEND_API_ENDPOINT: {{ .Values.config.backendApiEndpoint | quote }}
   MINIO_BUCKET: {{ .Values.config.minioBucket | quote }}
   MINIO_SECURE: {{ .Values.config.minioSecure | quote }}
+  MINIO_REGION: {{ .Values.config.minioRegion | default "us-east-1" | quote }}
   ENABLE_AWS_S3: {{ ternary "true" "false" (eq .Values.storage.mode "s3") | quote }}
   ENABLE_TELEMETRY: {{ .Values.config.enableTelemetry | quote }}
   POSTHOG_HOST: {{ .Values.config.posthogHost | quote }}

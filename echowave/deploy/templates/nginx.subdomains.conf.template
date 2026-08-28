@@ -241,6 +241,30 @@ server {
         client_max_body_size 100M;
     }
 
+    # Exact match for the bare bucket path, no trailing slash.
+    #
+    # A MinIO client with no configured region resolves the bucket's region
+    # before it will sign anything, with GET /voice-audio?location=. Without
+    # this block that request does not match `location /voice-audio/` and nginx
+    # 301s it to add a trailing slash. The client follows the redirect, so the
+    # path it signed over changes, and since SigV4 signs the path MinIO answers
+    # SignatureDoesNotMatch -- which surfaced as "Failed to generate signed URL:
+    # S3Error from MinioFileSystem" on every recording and transcript.
+    #
+    # The API now sets MINIO_REGION, so it no longer makes this request at all.
+    # This block stays for any other S3 client pointed at the same host, and so
+    # that the two nginx templates do not disagree about a path that took a
+    # production outage to get right the first time.
+    location = /voice-audio {
+        proxy_pass http://minio:9000/voice-audio;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
     # Recordings and transcripts. On the API host rather than the app host
     # because they are fetched by presigned URL from the SDK and the dashboard
     # alike, and the SDK should need exactly one hostname.

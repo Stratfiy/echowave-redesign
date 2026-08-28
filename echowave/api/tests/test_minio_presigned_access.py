@@ -168,3 +168,52 @@ class TestSigningHost:
         )
 
         assert fs.public_client is fs.client
+
+
+class TestSigningNeedsNoRoundTrip:
+    """Both clients must be given a region.
+
+    Without one the MinIO SDK will not sign locally. It resolves the bucket's
+    region first, over the network, with ``GET <endpoint>/<bucket>?location=``.
+    For the public client that request goes to the browser-facing host on the
+    bare bucket path — and on a split-hostname install nginx answers it with a
+    301 adding a trailing slash. The SDK follows the redirect, the path it
+    signed over changes, and SigV4 signs the path, so MinIO rejects it with
+    SignatureDoesNotMatch. Every recording and transcript then failed with
+    "Failed to generate signed URL: S3Error from MinioFileSystem" — a message
+    that reads like bad credentials and is not.
+    """
+
+    def test_the_internal_client_is_given_a_region(self, minio_clients, monkeypatch):
+        monkeypatch.setattr(minio_module, "MINIO_PUBLIC_BUCKET", False)
+        _factory, clients = minio_clients
+
+        _fs(region="ap-south-1")
+
+        _args, kwargs = clients[0]._init_args
+        assert kwargs["region"] == "ap-south-1"
+
+    def test_the_public_client_is_given_a_region(self, minio_clients, monkeypatch):
+        """The one that actually signs the URLs the browser fetches."""
+        monkeypatch.setattr(minio_module, "MINIO_PUBLIC_BUCKET", False)
+        _factory, clients = minio_clients
+
+        fs = _fs(region="ap-south-1")
+
+        # Two distinct hosts, so two distinct clients.
+        assert fs.public_client is not fs.client
+        _args, kwargs = clients[1]._init_args
+        assert kwargs["region"] == "ap-south-1"
+
+    def test_a_region_is_set_even_when_nobody_configured_one(
+        self, minio_clients, monkeypatch
+    ):
+        """A default of "no region" is the bug. Any region avoids the lookup."""
+        monkeypatch.setattr(minio_module, "MINIO_PUBLIC_BUCKET", False)
+        _factory, clients = minio_clients
+
+        _fs()
+
+        for client in clients:
+            _args, kwargs = client._init_args
+            assert kwargs.get("region")

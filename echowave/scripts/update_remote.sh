@@ -225,6 +225,7 @@ for f in \
     scripts/run_decibyl_init.sh \
     scripts/lib/setup_common.sh \
     deploy/templates/nginx.remote.conf.template \
+    deploy/templates/nginx.subdomains.conf.template \
     deploy/templates/turnserver.remote.conf.template
 do
     if [[ -f "$f" ]]; then
@@ -288,7 +289,7 @@ echo -e "  ${BLUE}./remote_up.sh${NC}"
 echo ""
 echo -e "${YELLOW}To roll back, restore the backups and re-run the wrapper:${NC}"
 echo ""
-echo -e "  ${BLUE}for f in docker-compose.yaml nginx.conf turnserver.conf .env remote_up.sh scripts/run_decibyl_init.sh scripts/lib/setup_common.sh deploy/templates/nginx.remote.conf.template deploy/templates/turnserver.remote.conf.template; do${NC}"
+echo -e "  ${BLUE}for f in docker-compose.yaml nginx.conf turnserver.conf .env remote_up.sh scripts/run_decibyl_init.sh scripts/lib/setup_common.sh deploy/templates/nginx.remote.conf.template deploy/templates/nginx.subdomains.conf.template deploy/templates/turnserver.remote.conf.template; do${NC}"
 echo -e "  ${BLUE}  [[ -f \"\$f.bak.$TIMESTAMP\" ]] && cp \"\$f.bak.$TIMESTAMP\" \"\$f\"${NC}"
 echo -e "  ${BLUE}done${NC}"
 echo -e "  ${BLUE}./remote_up.sh${NC}"
