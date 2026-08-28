@@ -80,7 +80,6 @@ from pipecat.services.rime.tts import RimeTTSService, RimeTTSSettings
 from pipecat.services.sarvam.llm import SarvamLLMService, SarvamLLMSettings
 from pipecat.services.sarvam.stt import SarvamSTTService, SarvamSTTSettings
 from pipecat.services.sarvam.tts import SarvamTTSService, SarvamTTSSettings
-from pipecat.services.tts_service import TextAggregationMode
 from pipecat.services.smallest.stt import SmallestSTTService, SmallestSTTSettings
 from pipecat.services.smallest.tts import SmallestTTSService, SmallestTTSSettings
 from pipecat.services.speaches.llm import SpeachesLLMService, SpeachesLLMSettings
@@ -90,6 +89,7 @@ from pipecat.services.speechmatics.stt import (
     SpeechmaticsSTTService,
     SpeechmaticsSTTSettings,
 )
+from pipecat.services.tts_service import TextAggregationMode
 from pipecat.services.xai.tts import XAIHttpTTSService, XAITTSSettings
 from pipecat.transcriptions.language import Language
 from pipecat.utils.text.xml_function_tag_filter import XMLFunctionTagFilter
