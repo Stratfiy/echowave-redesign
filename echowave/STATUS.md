@@ -41,7 +41,7 @@ things are configured wrong in ways that lose money silently.
 | BYOK credential vault | Encrypted, masked, per-org, tenant-scoped |
 | Managed model tier | Platform keys, per-slot managed/BYOK mixing |
 | Per-turn latency capture | `call_turn_metrics`, 6-point timeline, p50/p95 in SQL |
-| Recordings + transcripts | Stored fine. Read-back **fixed** — `BACKEND_API_ENDPOINT` and `MINIO_PUBLIC_ENDPOINT` were falling back to the root host; `constants.py` now derives the API subdomain the same way the deploy renderer does |
+| Recordings + transcripts | Stored fine. Read-back was fixed on 12 Aug — `BACKEND_API_ENDPOINT` and `MINIO_PUBLIC_ENDPOINT` were falling back to the root host; `constants.py` now derives the API subdomain the same way the deploy renderer does. **Broken again as of 28 Aug** — see `KNOWN_ISSUES.md` #33. Do not read this row as working |
 
 ### Half-built
 
@@ -305,7 +305,7 @@ Ranked. Numbers are dev-days for one person.
 | # | Item | Why | Days | Status |
 |---|---|---|---|---|
 | 1 | Configure Razorpay | Code is done; 503 on every top-up. Nobody can pay you | 0.5 | **Done** — top-up → credit → voucher → email verified 12 Aug |
-| 2 | Fix MinIO signed URLs | `SignatureDoesNotMatch` — recordings and transcripts unreachable. The product's whole value is hearing what the agent said | 0.5 | **Done** — cause was the host fallback in `constants.py`, not the signing |
+| 2 | Fix MinIO signed URLs | `SignatureDoesNotMatch` — recordings and transcripts unreachable. The product's whole value is hearing what the agent said | 0.5 | **REGRESSED — reopened 28 Aug.** Run Preview returns "Failed to generate signed URL" for recording *and* transcript on live traffic. The 12 Aug fix was the host fallback in `constants.py`; this is that again or a second cause behind the same message. See `KNOWN_ISSUES.md` #33 |
 | 3 | DND list + calling hours | No DND scrubbing anywhere. TRAI/TCCCPR exposure the moment you dial someone who isn't you. 9am–9pm window also absent | 3 | Open — **the one P0 left** |
 | 4 | Rate for `stt:openai` | Undercosted calls today | 0.25 | **Closed** — now a declared gap with a reason, enforced by `test_every_service_is_priced.py` (27 Aug) |
 | 5 | Mid-call balance enforcement | Customer raises their own max duration and outruns their balance | 2 | Open — **bounded, not fixed.** `MAX_CALL_DURATION_SECONDS = 1200` now caps what a workflow can set, so the overrun is at most 20 minutes rather than unbounded |

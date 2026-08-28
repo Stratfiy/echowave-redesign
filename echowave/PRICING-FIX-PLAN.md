@@ -79,6 +79,27 @@ behaviour. Two matter for the order of work below:
   actual on Everyday/Smart). **Any bundle price set against that screen before
   today should be re-derived.**
 
+### Added 28 Aug, from configuring the live rate card
+
+Working through the superadmin catalogue on production turned up three things
+that belong here rather than in a chat log:
+
+* **A model can be offered without a rate of its own**, and then bills at the
+  provider-wide fallback — for OpenAI, the gpt-4o-mini blend. A ticked
+  `gpt-4.1` bills at roughly a thirteenth of its cost. `KNOWN_ISSUES.md` #35.
+  The cheapest free fix is to offer only what the managed tiers actually
+  resolve to: three LLM models, not seven.
+* **Realtime rates are keyed under one name and read under another**, so the
+  screen reports "no rate" for models that have one, and inviting an operator
+  to add a rate under the name the screen shows would produce a price the
+  invoice never uses. `KNOWN_ISSUES.md` #34.
+* **Verified against OpenAI's current list**: the seeded blends for `gpt-4.1`
+  ($2.00/$8.00) and `gpt-4.1-mini` ($0.40/$1.60) still match to the cent, so
+  `default_rates.py` is not stale for the models the tiers use. `gpt-4o-mini-tts`
+  cannot be entered at all — OpenAI prices it per audio *token* while the rate
+  card's TTS unit is 1k characters, and the conversion needs the
+  characters-per-minute measurement Phase 0 exists to produce.
+
 ### Still open, in the order they cost money
 
 1. **Cached LLM tokens are billed at full rate.** `usage.py` computes

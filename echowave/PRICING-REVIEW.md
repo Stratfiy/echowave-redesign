@@ -164,9 +164,18 @@ when you do — a price book with no date is one nobody can tell is stale.
 
 ---
 
-## 4. The README contradicts this
+## 4. The README contradicted this — fixed 28 Aug 2026
 
-`README.md` still says, under **Pricing model**:
+**Resolved.** `README.md` under **Pricing model** now says what the code does:
+vendor cost and customer price are recorded separately on every line, managed
+model and telephony usage is resold at the markup, and the platform fee is never
+marked up. `DASHBOARD.md` and `DEPLOY-ENV.md` were corrected in the same pass —
+both still described a world with no markup, and `DEPLOY-ENV.md` additionally
+said telephony was excluded from it, which stopped being true when carriage
+started being charged like everything else.
+
+The rest of this section is kept because the reasoning is still the reasoning,
+and because it is the record of how long the claim stood. It said:
 
 > A platform fee plus provider costs passed through **at cost, with no markup**
 

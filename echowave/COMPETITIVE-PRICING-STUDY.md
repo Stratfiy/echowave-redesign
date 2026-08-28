@@ -189,12 +189,20 @@ a service, compliance attestations, and the provider markup.
 
 ### Positioning exposure — resolve before the next customer signs
 
-`README.md §Pricing model` states provider costs are passed through **"at cost,
-with no markup."** Untrue for managed inference since the markup shipped; now
-1.4×. Still true for BYOK. **This is a pricing claim in a public repository that
-contradicts what we bill.** The defence is sound — we carry the vendor account,
-credit risk and key rotation — but it must be *stated*. Narrow the sentence to
-BYOK, or publish the multiple.
+**The README half is fixed (28 Aug 2026).** `README.md §Pricing model` stated
+provider costs were passed through **"at cost, with no markup"** — untrue for
+managed inference since the markup shipped. It now says vendor cost and customer
+price are recorded separately on every line, that managed model and telephony
+usage is resold at a published markup, and that the platform fee never is.
+`DASHBOARD.md` and `DEPLOY-ENV.md` carried the same claim and were corrected in
+the same pass.
+
+**The "60% cheaper" claim is untouched and still exposure.** Nothing in that
+pass verified it.
+
+The original note, for the record: *this is a pricing claim in a public
+repository that contradicts what we bill. The defence is sound — we carry the
+vendor account, credit risk and key rotation — but it must be stated.*
 
 ---
 
@@ -204,7 +212,7 @@ BYOK, or publish the multiple.
 |---|---|---|
 | Week 1 | **Measure chars/min and token split** on production traffic | unblocks everything |
 | Week 1 | **Add the ElevenLabs multilingual rate row** | +$34,500/yr |
-| Week 2 | **Correct both pricing claims** (README "no markup"; "60% cheaper") | removes exposure |
+| Week 2 | ~~README "no markup"~~ **done 28 Aug**; **"60% cheaper" still unverified** | removes exposure |
 | Week 3–4 | **Price the add-ons** — KB, PII redaction, QA, branded calls, attestations | +$60,000/yr |
 | Week 4 | **Bill concurrency** above 20 slots at ₹600/slot/mo | +$22,800/yr |
 | Week 5 | **Regionalise the fee** — $0.04 USD-settled, hold ₹ at $0.02 | 2× on dollar minutes |

@@ -25,6 +25,131 @@ Last updated after the compliance and deployment pass.
 
 ## Open
 
+### 33. Signed URLs for recordings and transcripts are failing again in production
+
+**Status:** OPEN · **Severity: high** — observed live 28 Aug 2026
+
+`Run Preview` on `app.decibyl.ai/usage` returns, for both artefacts at once:
+
+    Recording: Failed to generate signed URL  Transcript: Failed to generate signed URL
+
+`STATUS.md` records this as **Done on 12 Aug** — the cause then was
+`MINIO_PUBLIC_ENDPOINT` falling back to the root host, fixed by deriving the API
+subdomain in `constants.py`. Either that regressed or this is a second cause
+wearing the same face.
+
+**The error is unactionable by construction, and that is half the defect.**
+`routes/s3_signed_url.py` emits the identical string from two unrelated
+branches — a falsy return from `aget_signed_url`, and a boto3 `ClientError` —
+and `filesystem/minio.py:aget_signed_url` catches **every** exception, logs it,
+and returns `None`. So a missing bucket, wrong credentials, an unreachable
+endpoint and a dead storage backend are indistinguishable from the browser. The
+cause exists only in the API log.
+
+Worth knowing while diagnosing: `presigned_get_object` does **not** check that
+the object exists — MinIO will sign a URL for any key. So a signing *failure*
+points at configuration or credentials, not at a missing recording. A missing
+object shows up as a 404 when the link is followed, which is a different
+symptom.
+
+Where to look, in order:
+
+1. `docker compose logs api | grep -i "signed URL"` — the real message is
+   `Error generating MinIO signed URL: …` or `Error generating signed URL: …`.
+2. `MINIO_PUBLIC_ENDPOINT` on the running API. Unset, it derives from
+   `DECIBYL_API_HOST` then `PUBLIC_BASE_URL`; the second is the fallback that
+   caused the 12 Aug outage, because nginx proxies `/voice-audio/` from the API
+   host alone.
+3. `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` / `MINIO_BUCKET`, and whether the
+   bucket exists.
+
+The fix should also split that error string. Two causes sharing one message is
+what turned a config problem into an afternoon.
+
+### 34. Realtime rates are keyed by one name and read by another
+
+**Status:** OPEN · **Severity: medium-high** — strongly suspected, not yet
+confirmed against the deployed build
+
+The rate card seeds speech-to-speech under the **service-class** name that
+`usage.provider_from_processor` derives — `decibylopenairealtime`,
+`decibylgeminilive` — because that is what lands in `call_cost_items` and so
+what costing resolves against. `default_rates.py` says so in a comment, at
+length, and is right to.
+
+But `managed_tiers` resolves the realtime tiers to the **configuration** names
+`openai_realtime` and `google_realtime`, and both the provider catalogue and
+`estimator.realtime_price_per_minute` look up rates under those. The lookup
+finds nothing, and the superadmin screen reports *"no rate on the rate card"*
+for models that very likely have one.
+
+Consequence, and the reason this is not cosmetic: an operator reading that
+warning will add a rate under `openai_realtime`. That gives a price the
+**quote** can see and the **invoice** never uses — realtime calls keep billing
+uncosted while the screen says they are priced, which is worse than the warning
+it replaced.
+
+Fix in code, by making one name authoritative; do not paper over it with a
+second rate row.
+
+### 35. The provider-wide fallback silently prices a model at a thirteenth of its cost
+
+**Status:** OPEN · **Severity: medium** · partly a **DECISION NEEDED**
+
+A rate row with `model = ""` is the provider-wide fallback, and any offered
+model without its own row bills at it. For OpenAI that fallback is the
+gpt-4o-mini blend. A ticked `gpt-4.1` therefore bills at roughly **1/13th** of
+what it costs us, and a gpt-5-class model at a fortieth, with no warning beyond
+a superadmin line reading *"N models are priced against their provider's
+default"*.
+
+`default_rates.py` chose the cheapest model as the fallback deliberately — *"an
+unpriced model under-reports rather than over-reports; a surprise on the invoice
+should be pleasant"* — and that reasoning holds. The gap is that nothing stops a
+model being **offered** without a rate of its own.
+
+Three options, and the first is free:
+
+1. **Offer only what is priced.** The managed tiers resolve to three LLM models
+   in total; anything else ticked is unpriced surface nobody's tier points at.
+2. Set the fallback to the dearest *offered* model. Protects margin, but the
+   customer pays `vendor_cost x markup`, so it **overcharges** on cheap models —
+   a trade, not a win.
+3. Refuse to offer a model with no rate of its own, the way an unpriced provider
+   is already refused.
+
+### 36. Is bring-your-own-key for models a product at all?
+
+**Status:** DECISION NEEDED · **Severity: medium**
+
+Stated by the product owner on 27 Aug: *"BYOK is not there, only our provided
+models and STT TTS. BYOK is only for telephony."*
+
+The code says otherwise, and extensively. There is a tenant-facing **Provider
+Keys** page in the main navigation (reads deliberately not admin-gated), a
+per-slot **"My own key"** toggle in the model picker, a Fernet-encrypted
+per-tenant vault (`organization_credentials`), a whole resolution path
+(`configuration/byok_resolution.py`), a tiered platform-fee uplift for BYOK
+calls, and `docs/account/billing.mdx` advertising *"Your key (BYOK) — you pay
+the provider directly"* for LLM, STT and TTS to customers.
+
+Telephony BYOK is real and is the default — `telephony_configurations.
+is_platform_managed` defaults to False, and `services/telephony/carriage.py`
+exists precisely to avoid billing for carriage we did not buy. That half matches
+what was said.
+
+So one of two things is true, and they need different work:
+
+* **Model BYOK is not sold** — then the nav entry, the per-slot toggle and the
+  customer documentation all describe something customers can select and should
+  not, and they should be gated off. The uplift machinery becomes dead code to
+  retire rather than maintain.
+* **Model BYOK is sold** — then the docs are right and this note is the thing
+  that is wrong.
+
+Nothing should be deleted on the strength of one sentence in a chat. Recorded
+here so the question is answered once, deliberately, by somebody who can decide.
+
 ### 30. Cached LLM tokens are billed at the full rate, and now overcharge
 
 **Status:** OPEN · **Severity: high** (was "reporting only" — it is not)

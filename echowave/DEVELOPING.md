@@ -540,7 +540,7 @@ Everything above, as one list. Ticked means built and verified in this repo.
 - [ ] Collapse or differentiate `fast` / `lite` / `zen`, which are the same model
 - [ ] Formatting-only commit to clear the drift that will fail the first PR
 - [ ] Measure `LLM_INPUT_SHARE` against real traffic
-- [ ] Decide how to describe managed pricing — the README says "at cost, with no markup", which is true for BYOK and not for managed (see `PRICING-REVIEW.md` §4)
+- [x] Decide how to describe managed pricing — **done 28 Aug 2026.** The README, `DASHBOARD.md` and `DEPLOY-ENV.md` now say vendor cost and customer price are recorded separately, that managed model and telephony usage carries the markup, and that the platform fee never does (see `PRICING-REVIEW.md` §4)
 
 **Real features, in dependency order**
 

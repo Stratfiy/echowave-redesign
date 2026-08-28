@@ -355,10 +355,39 @@ The code is in `smtp.log`. Quote `EMAIL_FROM_ADDRESS` — unquoted, the shell
 parses `[email` as an identifier, the variable never gets set, and the API logs
 "SMTP is not configured", which looks exactly like a code fault.
 
-### Production is not reachable from the agent container
+### Production IS reachable from the agent container
 
-The proxy resolves `api.decibyl.ai` to `127.0.0.1`. Diagnose from code and
-config, and say so rather than implying you observed the live system.
+**Corrected 28 Aug 2026.** This section said the proxy resolves
+`api.decibyl.ai` to `127.0.0.1` and that you must diagnose from code alone.
+That is no longer true, and believing it costs you the fastest diagnostic you
+have. Observed:
+
+```
+curl https://api.decibyl.ai/health          -> the API's own greeting
+curl https://api.decibyl.ai/api/v1/privacy/readiness   -> 401 (as it should)
+curl https://app.decibyl.ai/                -> 307
+```
+
+So live state can be checked directly, given a token. The browser cookie
+`decibyl_auth_token` on `app.decibyl.ai` is one, or `POST /api/v1/auth/login`
+returns one on a local-JWT deployment.
+
+The old caution still applies in spirit: **say which you did.** "The readiness
+endpoint returns X" and "the code would return X" are different claims, and only
+one of them is evidence.
+
+### The deployed build can be ahead of every branch you can see
+
+Also 28 Aug. Production was running a provider/model catalogue — per-model
+"offer" ticks, customer-facing model names, "Re-read" against the vendor's own
+model list, keys labelled "Seeded from environment" — **none of which exists on
+`main` or on any branch this repo has a remote for.**
+
+Before diagnosing a screen from source, check that the screen you are reading
+about is the screen being looked at. Grep for a distinctive string from it
+(`withdrawn from sale` was the one that settled it here); if it is absent, you
+are reading a different product and should say so rather than reasoning
+confidently from the wrong code.
 
 ---
 

@@ -84,10 +84,20 @@ Each subtree has an `AGENTS.md` with the conventions that apply inside it.
 
 ## Pricing model
 
-A platform fee plus provider costs passed through **at cost, with no markup** —
-enforced by the schema rather than by convention: provider cost and platform fee
-are separate rows and separate columns, and nothing anywhere stores a blended
-number.
+A platform fee plus provider usage, with **what the vendor charged us and what
+the customer pays recorded separately on every line** — enforced by the schema
+rather than by convention: provider cost and platform fee are separate rows and
+separate columns, and nothing anywhere stores a blended number.
+
+Model and telephony usage **on Decibyl's keys** is resold at a published markup
+(`MANAGED_PROVIDER_MARKUP_BPS`, effective-dated). The platform fee is never
+marked up — it is ours, and a margin on our own margin is not a number anyone
+can defend.
+
+> This paragraph read "at cost, with no markup" until 28 Aug 2026. That stopped
+> being true for managed inference when the markup shipped, and
+> `COMPETITIVE-PRICING-STUDY.md` had already flagged it as a public claim worth
+> correcting.
 
 Time is billed in **15-second pulses** rather than whole minutes, so a
 62-second call bills 75 seconds and not 120. Every price is set in the admin

@@ -98,6 +98,50 @@ test holding that invariant (`test_provider_markup.py`), and another asserting
 the quote applies the same uplift the invoice does
 (`test_byok_quote_matches_invoice.py`).
 
+### Platform provider keys are stored per component
+
+A key is a row per `(component, provider)`, not per vendor — `CREDENTIAL_COMPONENTS`
+is `(stt, llm, tts)`. Storing Sarvam for transcription and voice does **not**
+make it usable as a language model, and the symptom is indirect: the vendor card
+reads *"Covers model, transcription and voice"* while the key underneath says
+*"Used for transcription and voice only"*, no `sarvam · llm` block appears, and
+the managed **Lite** tier resolves to a provider with no key.
+
+Store the same key again for the third component, or use
+`apply_to_all_components` on `PUT /api/v1/admin/provider-keys`.
+
+Speech-to-speech is the exception and needs no key of its own: providers named
+`<vendor>_realtime` authenticate with that vendor's ordinary key — see the
+fallback in `platform_credentials.resolve_api_key`. Connecting OpenAI is what
+makes `openai_realtime` usable.
+
+### Entering a rate by hand: the arithmetic
+
+The rate card UI takes **rupees per rate unit** and converts (`mpaise / 100_000`).
+The API underneath takes `rate_mpaise`, an integer. So:
+
+```
+rupees per unit  =  USD per unit  x  Rs per USD
+rate_mpaise      =  USD per unit  x  Rs per USD  x  100,000
+```
+
+For a language model the rate is a **blend**, because the schema has one field
+and vendors quote two prices. `LLM_INPUT_SHARE = 0.7`:
+
+```
+USD per 1k tokens  =  (0.7 x input_per_1M + 0.3 x output_per_1M) / 1000
+```
+
+Seventy per cent input is not arbitrary — a voice agent resends a growing
+transcript every turn, so input dominates.
+
+**Provider rates are stored INR-native, so the exchange rate is baked in at the
+moment you save.** They do not float with the rupee the way the platform fee
+does. Set the FX rate *before* entering a batch, or every row carries whatever
+rate was in force when it was typed — and if `usd_inr_rate_history` is empty
+that is the Rs96 fallback against a real rate nearer Rs104, which is every
+provider cost roughly 8% light and margin overstated to match.
+
 The platform fee and the per-unit rates themselves are **not** environment
 variables — they live in the rate card in the database and are edited at
 `/superadmin/billing`.
