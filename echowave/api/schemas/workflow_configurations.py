@@ -12,29 +12,36 @@ DEFAULT_SMART_TURN_STOP_SECS = 2.0
 DEFAULT_TURN_START_STRATEGY = "default"
 DEFAULT_TURN_START_MIN_WORDS = 3
 DEFAULT_PROVISIONAL_VAD_PAUSE_SECS = 1.5
-# "turn_analyzer", not "transcription". The difference is the whole of
-# perceived latency on this platform.
+# "transcription", on measurement rather than on the argument below.
 #
-# "transcription" waits out the VAD's 0.2s and then user_speech_timeout's 0.4s
-# on every single turn, whether or not the caller had obviously finished — 600ms
-# of dead air that no faster model downstream can recover, paid even when
-# somebody has just said "yes".
+# The argument for "turn_analyzer" is good and it is still here because it may
+# well be right on another stack: a local model asks whether the utterance
+# *sounds* finished, so it is quick on a completed sentence and patient on an
+# ambiguous one, where "transcription" waits a fixed timer either way.
 #
-# "turn_analyzer" asks a local model whether the utterance *sounds* finished,
-# and only falls back to smart_turn_stop_secs of silence when it is unsure. So
-# it is quick on a finished sentence and patient on an ambiguous one, which is
-# what a person does.
+# It is not what happens here. From `call_turn_metrics`, the endpointing stage
+# (`t_endpoint_fired_ms - t_user_stopped_ms`) measures:
 #
-# The reason this was not already the default is that the dependency was
-# missing: LocalSmartTurnAnalyzerV3 needs pipecat's local-smart-turn-v3 extra,
-# and the image did not install it, so choosing this setting produced an agent
-# that would not start. That is fixed in api/Dockerfile alongside this change.
-# Both have to ship together — flipping this default against an image without
-# the extra breaks every call.
+#     transcription    1171-1174ms, across 40 turns of 15 calls
+#     turn_analyzer    1311-1312ms, runs 77 and 78
 #
-# The model weights are bundled inside pipecat rather than downloaded, so there
-# is no first-call stall, and inference is ~12ms on CPU.
-DEFAULT_TURN_STOP_STRATEGY = "turn_analyzer"
+# Two things follow. The stage never cost the 600ms this comment used to claim
+# — that figure was VAD stop_secs plus user_speech_timeout added up from
+# reading the code, and the measured stage is ~1172ms whichever strategy runs.
+# What actually dominates it is Sarvam STT finalisation: the turn is not
+# released until the final transcript lands, and no turn-stop strategy can
+# return time the STT has not finished spending. Against that floor the
+# analyzer's own inference is pure addition, and it reads as a steady +139ms.
+#
+# So the real gain on this stage is not here. An STT that emits its own turn
+# boundaries (Deepgram Flux, Cartesia ink-2) removes the wait rather than
+# tuning it — see `_create_non_realtime_user_turn_stop_strategies`, where such
+# a model skips this budget entirely.
+#
+# "turn_analyzer" stays selectable, and the dependency it needs is installed
+# (api/Dockerfile carries pipecat's local-smart-turn-v3 extra). A workflow on a
+# faster-finalising STT is exactly where it should win.
+DEFAULT_TURN_STOP_STRATEGY = "transcription"
 # How long the turn waits after the VAD reports silence, in case the caller was
 # only drawing breath. Paid on every turn of the default "transcription"
 # strategy, on top of the VAD's own 0.2s — so it sets a floor under perceived

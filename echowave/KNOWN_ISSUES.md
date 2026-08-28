@@ -90,9 +90,9 @@ pipecat still defaults `SarvamLLMService` to it and lists it in
 `_SUPPORTED_MODELS`. Our factory always passes a model explicitly so nothing
 here hits it; a caller that did not would get a dead model.
 
-### 24. Turn-taking: the 600ms that turned out to be 1,172ms
+### 24. Turn-taking: the 600ms that turned out to be 1,172ms, and cost 139ms
 
-**PARTIALLY FIXED, and the estimate was wrong.** Issue #23 fixed a real bug --
+**FIXED, and the original estimate was wrong twice over.** Issue #23 fixed a real bug --
 `DEFAULT_TURN_STOP_STRATEGY` genuinely could not reach the pipeline -- but the
 600ms attached to it was derived from reading code rather than measuring.
 
@@ -105,10 +105,29 @@ turn analyzer wait". It is dominated by **Sarvam STT finalization**, not by
 `user_speech_timeout`, which is why changing the stop strategy barely moves it
 (run 77, on `turn_analyzer`, measured 1,312ms).
 
-So the next real gain on this stage is on the STT side -- an STT that owns its
-own turn boundaries removes the wait entirely -- not in tuning the timeout. Left
-in place rather than reverted: the plumbing fix is correct on its own terms, and
-re-measuring is only meaningful once the LLM stage is no longer six seconds wide.
+Re-measured once issue #25 took the LLM stage from 6,045ms to 1,079ms and the
+noise floor dropped. `turn_analyzer` is a consistent **+139ms**:
+
+    transcription    1171-1174ms, across 40 turns of 15 calls
+    turn_analyzer    1311-1312ms, runs 77 and 78
+
+Two samples, both within a millisecond of each other, against a baseline
+sampled forty times. Not noise. `DEFAULT_TURN_STOP_STRATEGY` is therefore
+`"transcription"` -- chosen on measurement, against the reasoning in its own
+comment, which is left in place because it is sound and may well hold on a
+different STT.
+
+The plumbing fix from #23 stays: reading the default through the constant is
+correct regardless of which value it holds, and it is what made this
+measurable at all. The tests now assert that the unconfigured path agrees with
+`DEFAULT_TURN_STOP_STRATEGY` rather than naming a strategy, so the default can
+move again on evidence without a test rewrite.
+
+The real gain on this stage is not in either strategy. ~1,172ms of it is
+Sarvam STT finalisation -- the turn is not released until the final transcript
+lands -- so an STT that emits its own turn boundaries (Deepgram Flux, Cartesia
+ink-2) removes the wait rather than tuning it. That is the next move on this
+stage, and it is now the largest single slice of a turn at 38%.
 
 ### 23. The `turn_analyzer` default never reached the pipeline
 

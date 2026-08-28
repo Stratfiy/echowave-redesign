@@ -26,6 +26,21 @@ from api.services.pipecat.run_pipeline import (
 )
 
 
+def _strategy_types(run_configs: dict):
+    return [type(s) for s in build_stop(run_configs, uses_external_turns=False)]
+
+
+def _expected_for(strategy: str):
+    """The strategy types `build_stop` yields for a strategy named explicitly.
+
+    Types rather than instances: the strategy objects define no `__eq__`, so
+    comparing them directly compares identity and passes only by accident.
+    Comparing against a freshly built pair means the assertion tracks the
+    default wherever it moves, instead of encoding today's choice.
+    """
+    return _strategy_types({"turn_stop_strategy": strategy})
+
+
 class TestTheWaitIsConfigurable:
     def test_the_default_is_shorter_than_the_library_default(self):
         """0.4 against pipecat's 0.6. The 200ms saved is larger than the whole
@@ -104,22 +119,22 @@ class TestTheStrategyMatchesTheConfiguration:
         `run_configs` is the stored JSON rather than a validated
         `WorkflowConfigurationDefaults`, and `create_workflow` persists `{}` —
         so an unconfigured workflow reaches the pipeline with no
-        `turn_stop_strategy` key at all. Reading it with a bare `.get()` sent
-        all of them down the silence-timeout path regardless of the schema
-        default, which is the whole of the 600ms this module is about.
-        """
-        strategies = build_stop({}, uses_external_turns=False)
+        `turn_stop_strategy` key at all. Read with a bare `.get()` it took the
+        silence-timeout path whatever the schema said, which made the declared
+        default unreachable.
 
-        assert not hasattr(strategies[0], "_user_speech_timeout")
+        Asserted against the constant rather than against a named strategy: the
+        point is that the two agree, not which one currently wins. The default
+        has already moved once on measurement and may move again.
+        """
+        assert _strategy_types({}) == _expected_for(DEFAULT_TURN_STOP_STRATEGY)
 
     def test_an_explicit_null_is_treated_as_unset_rather_than_as_a_choice(self):
         """Older clients send nulls for keys nobody configured. A null must
-        take the default, not fall through to the slow path."""
-        strategies = build_stop(
-            {"turn_stop_strategy": None}, uses_external_turns=False
+        take the default rather than being read as a choice."""
+        assert _strategy_types({"turn_stop_strategy": None}) == _expected_for(
+            DEFAULT_TURN_STOP_STRATEGY
         )
-
-        assert not hasattr(strategies[0], "_user_speech_timeout")
 
     def test_transcription_remains_selectable_for_a_workflow_that_wants_it(self):
         """Flipping the default must not remove the choice. A workflow whose
