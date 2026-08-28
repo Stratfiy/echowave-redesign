@@ -31,6 +31,78 @@ deliberately.
 
 ## Fixed
 
+### 23. The `turn_analyzer` default never reached the pipeline
+
+**FIXED.** Reported from a live QA call as "there is a long pause". The run's
+transcript shows a steady-state reply latency of ~1.8-2.0s once the call is
+warm, on an agent that was never configured for the slow path and never chose
+it.
+
+`DEFAULT_TURN_STOP_STRATEGY` was flipped to `turn_analyzer` in
+`schemas/workflow_configurations.py`, and `api/Dockerfile` was changed to
+install pipecat's `local-smart-turn-v3` extra so the setting could actually
+run. Neither reached production, because `run_pipeline.py` branched on
+
+```python
+if run_configs.get("turn_stop_strategy") == "turn_analyzer":
+```
+
+with **no default**, and never imported the constant. Two facts make that fall
+through for essentially every workflow:
+
+- `run_configs` is the stored JSON, not a validated
+  `WorkflowConfigurationDefaults`, so a Pydantic default cannot apply to it.
+- `create_workflow` persists `workflow_configurations or {}` and the create
+  route passes nothing, so **every workflow is born with `{}`**. The key only
+  appears once a human opens the settings dialog and saves.
+
+So every unconfigured agent took the silence-timeout path and paid the VAD's
+0.2s plus `user_speech_timeout`'s 0.4s — **600ms of dead air on every turn**,
+which is exactly the cost the default was flipped to remove. The smart-turn
+model sat in the image, installed and unused.
+
+Now resolved through `DEFAULT_TURN_STOP_STRATEGY`, using `or` rather than a
+`.get()` default so an explicit `null` from an older client is treated as
+unset rather than as a choice. `transcription` remains selectable for
+workflows whose callers pause mid-sentence.
+
+Two things worth recording, because both read like reasons not to ship this
+and neither is:
+
+- **The dependency is already proven present.** `LocalSmartTurnAnalyzerV3` is
+  imported at module scope in `run_pipeline.py`, so an image lacking the extra
+  could not import the module at all and would fail every call today. Calls
+  run, therefore the extra is installed.
+- **Inference does not land on the shared event loop.** `analyze_end_of_turn`
+  dispatches through `run_in_executor`, and the ONNX session is pinned to
+  `inter_op_num_threads=1` / `intra_op_num_threads=1`. This matters because
+  `FASTAPI_WORKERS` is 1 on the Hostinger deploy and the API workers are also
+  the media workers (see `INFRASTRUCTURE.md`).
+
+`test_user_turn_stop_timing.py` covered the configured cases but never
+`build_stop({})` — the one every production workflow actually hits. It does
+now, along with the explicit-null case and an assertion that the pipeline reads
+the same constant the schema declares.
+
+### 24. Tool rows were re-read from the database on every node transition
+
+**FIXED.** Found while tracing the same slow call. A node transition composes
+the node's function schemas (`compose_functions_for_node` →
+`CustomToolManager.get_tool_schemas`) and then registers its handlers
+(`register_handlers`), and both called `db_client.get_tools_by_uuids` for the
+same rows — two round trips per transition, inside the tool call the caller is
+sitting in silence waiting for.
+
+`CustomToolManager` now holds the rows for the life of the call and fetches
+only uuids it has not seen. Safe because a run is pinned to one published
+workflow definition version, so the tools a node may use cannot change
+underneath it. Uuids that return no row are remembered as misses, so a node
+pointing at a deleted tool does not reissue the same empty query on every
+transition for the rest of the call.
+
+Not a 600ms item — tens of milliseconds per transition — but it lands at the
+worst possible moment, and the fix has no behavioural surface.
+
 ### 22. Sarvam's TTS buffer was set below the value Sarvam accepts
 
 **FIXED.** Reported from a live test as "the call ends after I pick up", on

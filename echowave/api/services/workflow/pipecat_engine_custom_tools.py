@@ -108,6 +108,44 @@ class CustomToolManager:
 
     def __init__(self, engine: "PipecatEngine") -> None:
         self._engine = engine
+        # Tool rows for the life of this call, keyed by tool_uuid.
+        #
+        # Every node transition composes the node's function schemas and then
+        # registers its handlers, and both halves fetched the same rows — so a
+        # workflow with tools paid two database round trips per transition,
+        # inside the tool call the caller is sitting in silence waiting for.
+        #
+        # Safe to hold for the whole run because a run is pinned to one
+        # published workflow definition version: the set of tools a node may
+        # use cannot change underneath it. Editing a tool mid-call and
+        # expecting the change to land on that call was never a behaviour
+        # anything offered.
+        self._tool_cache: Dict[str, Any] = {}
+
+    async def _load_tools(self, tool_uuids: list[str], organization_id: int) -> list:
+        """Return tool rows for these uuids, fetching only the ones not yet seen.
+
+        Ordered to match ``tool_uuids`` rather than the database's return order,
+        so callers that build schema lists stay stable across transitions, and
+        deduplicated the way the ``IN`` query it replaces implicitly was — a
+        uuid listed twice on a node must not register its function twice.
+        """
+        requested = list(dict.fromkeys(tool_uuids))
+        missing = [key for key in requested if key not in self._tool_cache]
+        if missing:
+            fetched = await db_client.get_tools_by_uuids(missing, organization_id)
+            for tool in fetched:
+                self._tool_cache[tool.tool_uuid] = tool
+            # Record the misses that returned nothing, so a uuid pointing at a
+            # deleted tool is not re-queried on every subsequent transition.
+            for key in missing:
+                self._tool_cache.setdefault(key, None)
+
+        return [
+            self._tool_cache[key]
+            for key in requested
+            if self._tool_cache.get(key) is not None
+        ]
 
     async def _play_config_message(
         self, config: dict, *, append_to_context: bool = False
@@ -179,7 +217,7 @@ class CustomToolManager:
             return []
 
         try:
-            tools = await db_client.get_tools_by_uuids(tool_uuids, organization_id)
+            tools = await self._load_tools(tool_uuids, organization_id)
 
             schemas: list[FunctionSchema] = []
             for tool in tools:
@@ -274,7 +312,7 @@ class CustomToolManager:
             return
 
         try:
-            tools = await db_client.get_tools_by_uuids(tool_uuids, organization_id)
+            tools = await self._load_tools(tool_uuids, organization_id)
 
             for tool in tools:
                 if tool.category == ToolCategory.CALCULATOR.value:
