@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from pipecat.services.sarvam.llm import SarvamLLMService as RealSarvamLLMService
@@ -14,6 +14,8 @@ from api.services.configuration.registry import (
 )
 from api.services.pipecat.audio_config import AudioConfig
 from api.services.pipecat.service_factory import (
+    _LOW_LATENCY_STREAMING_TTS_PROVIDERS,
+    _create_tts_service_instance,
     create_llm_service,
     create_llm_service_from_provider,
     create_stt_service,
@@ -126,6 +128,42 @@ class TestSarvamSTTServiceFactory:
 
         kwargs = mock_service.call_args.kwargs
         assert kwargs["settings"].language == expected_language
+
+
+class TestTTSLatencyPolicy:
+    @pytest.mark.parametrize(
+        "provider", sorted(_LOW_LATENCY_STREAMING_TTS_PROVIDERS)
+    )
+    def test_streaming_providers_receive_tokens_immediately(self, provider):
+        service = Mock()
+
+        result = _create_tts_service_instance(provider, service, api_key="test-key")
+
+        assert result is service.return_value
+        service.assert_called_once_with(
+            api_key="test-key",
+            text_aggregation_mode=TextAggregationMode.TOKEN,
+        )
+
+    @pytest.mark.parametrize(
+        "provider",
+        [
+            ServiceProviders.OPENAI.value,
+            ServiceProviders.GOOGLE.value,
+            ServiceProviders.CAMB.value,
+            ServiceProviders.SPEACHES.value,
+            ServiceProviders.RUMIK.value,
+            ServiceProviders.MINIMAX.value,
+            ServiceProviders.AZURE_SPEECH.value,
+            ServiceProviders.XAI.value,
+        ],
+    )
+    def test_request_providers_keep_sentence_aggregation(self, provider):
+        service = Mock()
+
+        _create_tts_service_instance(provider, service, api_key="test-key")
+
+        service.assert_called_once_with(api_key="test-key")
 
 
 class TestSarvamTTSServiceFactory:
