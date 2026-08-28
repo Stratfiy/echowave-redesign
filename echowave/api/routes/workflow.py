@@ -1233,9 +1233,7 @@ async def update_workflow(
                     ]
                 )
                 existing_override_config = (
-                    parse_workflow_model_configuration_override(
-                        existing_v2_override
-                    )
+                    parse_workflow_model_configuration_override(existing_v2_override)
                     if existing_v2_override
                     else None
                 )
@@ -1251,9 +1249,7 @@ async def update_workflow(
                         model_override,
                         resolved_config.organization_configuration,
                     )
-                check_for_masked_keys_in_workflow_model_configuration(
-                    model_override
-                )
+                check_for_masked_keys_in_workflow_model_configuration(model_override)
                 effective = compile_workflow_model_configuration_override(
                     model_override
                 )
