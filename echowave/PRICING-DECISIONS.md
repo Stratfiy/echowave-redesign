@@ -1,15 +1,18 @@
 # Pricing decisions — record of truth
 
-**Written 28 Aug 2026**, after a founder review session, and updated twice the
-same day. Round two built the per-model markup override, narrowed the bundle
-scope to calculation-only, and researched KB/QA/sentiment against Vapi and
-Bolna. Round three: query-time embedding is now a real, priced, marked-up
+**Written 28 Aug 2026**, after a founder review session, and updated three
+times the same day. Round 2 built the per-model markup override, narrowed the
+bundle scope to calculation-only, and researched KB/QA/sentiment against Vapi
+and Bolna. Round 3: query-time embedding became a real, priced, marked-up
 cost component end to end; KB/QA/sentiment absorption was decided (free,
 recovered via the markup rather than itemised); and telephony billing on a
 Decibyl-provided number was audited and confirmed correctly built, gated only
-on carrier approval. This file exists so a future session (human or Claude)
-that has not seen that conversation can pick up the current pricing model
-without re-deriving it.
+on carrier approval. Round 4: read Bolna's actual extraction/sentiment
+feature (docs + open-source prompt library, not just the screenshot), found
+it's one generic configurable mechanism rather than a sentiment-specific
+feature, and surfaced that our own QA system has no equivalent. This file
+exists so a future session (human or Claude) that has not seen that
+conversation can pick up the current pricing model without re-deriving it.
 When this file and a chat transcript disagree, **this file wins** — update it
 the same day a decision changes, or it becomes another stale doc like the ones
 it replaces.
@@ -300,6 +303,64 @@ would tell us how much the markup actually needs to move to break even on
 what's being absorbed, versus how much of any increase is genuine margin
 expansion beyond that. See §5.
 
+#### 2.6a What Bolna actually ships — checked against their docs directly, not inferred
+
+The founder's follow-up pointed at Bolna's UI showing a "prompt library" for
+extraction and sentiment. Read their docs (`bolna.ai/docs/call-details`) and
+their open-source prompt templates (`github.com/bolna-ai/bolna/blob/master/bolna/prompts.py`)
+directly rather than guessing from the screenshot.
+
+**It is not a sentiment feature. It's one generic mechanism — "Extractions" —
+and sentiment is just one configured instance of it.** An operator defines,
+per extraction:
+
+| Field | What it does |
+|---|---|
+| Name | Label — "Sentiment", "Lead Score", "Appointment Date", anything |
+| Extraction Prompt | Free-text instructions, supports variables like `{{name}}`, `{{email}}` |
+| Answer Type | **Free Text** or **Pre-defined** (a fixed set of categories — this is how "positive/neutral/negative" sentiment gets built) |
+| Expected Format | Text, Timestamp, Numeric, Boolean, Email, or a custom regex (free-text only) |
+| Model | Defaults to **gpt-4.1-mini** — the cheap model, not their best one |
+
+Output is nested per category, and carries more than an answer — a
+confidence score, a confidence label, and separate reasoning fields:
+
+```json
+"extracted_data": {
+  "Category Name": {
+    "Extraction Name": {
+      "subjective": "...", "objective": "...",
+      "confidence": 0.0-1.0, "confidence_label": "High/Medium/Low",
+      "reasoning_subjective": "...", "reasoning_objective": "..."
+    }
+  }
+}
+```
+
+**No pricing disclosed anywhere for this feature** — consistent with the
+Vapi finding above. Bundled into the base rate, defaulted to a cheap model,
+same "absorb it" shape already decided in this section.
+
+**The actual gap this surfaces, checked against our own code
+(`services/workflow/qa/analysis.py`): Decibyl's post-call QA is
+fixed-purpose** — per-node scoring, whole-call analysis, a conversation
+summary — **with no equivalent of "define your own named extraction with
+your own prompt."** That is the real thing to build, and it is bigger and
+more useful than a single sentiment toggle: one generic mechanism (name +
+prompt + answer type + model, mirroring Bolna's shape above), and
+sentiment/lead-score/appointment-capture all become **configuration**, not
+separate code paths each time someone wants a new one. It also folds
+cleanly into the absorb-and-default-to-a-cheap-model decision already made
+in this section.
+
+**Not started.** Scope for a real build: a config table (name, prompt,
+answer type, expected format, model — same shape as the table above), an
+admin/agent-builder screen to define extractions per agent, wiring into the
+existing whole-call QA runtime so it runs once per call, and a
+`record_addon_used`-style hook so usage is measured even while it's free —
+matching the pattern the rest of this document already argues for
+everywhere else. See §5.
+
 ### 2.7 First recharge minimum ₹1,000 — confirmed working
 
 `FIRST_TOPUP_MIN_PAISE = 100000` (₹1,000) in `api/constants.py:500`.
@@ -515,7 +576,16 @@ item that needs you** — see §4.
 
 ## 5. The plan — what I can do vs. what you need to do
 
-### Done this round (round 2)
+### Done this round (round 4)
+- [x] **Read Bolna's extraction/sentiment feature directly** (§2.6a) — their
+      docs and open-source prompt library, not the screenshot alone. It's one
+      generic "Extractions" mechanism (name + prompt + answer type + model,
+      defaulting to gpt-4.1-mini), not a sentiment-specific feature, and no
+      pricing is disclosed for it — consistent with the absorb decision
+      already made. Surfaced the real gap: our QA system has no equivalent
+      configurable mechanism at all. Not built — see below.
+
+### Done round 3
 - [x] **Query-time embedding is now a real, priced, marked-up cost
       component** (§2.5) — `CostComponent.EMBEDDING`, rate rows for
       OpenAI/Azure/Decibyl-managed, and the full vertical slice wired from
@@ -530,13 +600,19 @@ item that needs you** — see §4.
       `MANAGED_TELEPHONY_ENABLED` being off pending carrier approval, not a
       code gap.
 
-### Done last round (round 1)
+### Done round 2
 - [x] Per-model markup override — backend, no admin screen (§2.4).
 - [x] Numbers audited (§3) — nothing tiered yet, global rate still $0.02 not
       ₹3, phone pricing checks out, ₹499 figure is stale.
 - [x] Signed-URL diagnosability fix (§4).
 
 ### I can do now (code, no external access needed)
+- [ ] Build the **configurable extraction library** (§2.6a) — the Bolna-shaped
+      gap: a config table (name, prompt, answer type, expected format, model),
+      an agent-builder screen to define extractions per agent, wiring into the
+      existing whole-call QA runtime, and a usage hook so it's measured even
+      while free. This is the real build behind "sentiment analysis" — worth
+      scoping as its own item rather than a one-off sentiment toggle.
 - [ ] Build the **model-cost roll-up display** (§2.5) — small,
       presentation-layer change now that embedding has a real price.
 - [ ] Build the **ingestion-time embedding billing path** — a document
