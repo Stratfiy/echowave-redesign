@@ -496,16 +496,31 @@ def create_stt_service(
         )
 
 
-def _create_low_latency_streaming_tts_service(service, /, **kwargs):
-    """Create a streaming TTS service with immediate LLM token delivery.
+_LOW_LATENCY_STREAMING_TTS_PROVIDERS = frozenset(
+    {
+        ServiceProviders.DEEPGRAM.value,
+        ServiceProviders.ELEVENLABS.value,
+        ServiceProviders.CARTESIA.value,
+        ServiceProviders.INWORLD.value,
+        ServiceProviders.DECIBYL.value,
+        ServiceProviders.RIME.value,
+        ServiceProviders.SARVAM.value,
+        ServiceProviders.SMALLEST.value,
+    }
+)
 
-    Persistent streaming transports can buffer text provider-side while the LLM
-    is still generating. Sentence aggregation would unnecessarily put LLM
-    sentence-completion time on the critical path. Request-based TTS providers
-    intentionally keep Pipecat's sentence default: token mode would create one
-    synthesis request per token, increasing latency, cost, and audible seams.
+
+def _create_tts_service_instance(provider, service, /, **kwargs):
+    """Apply the transport-aware TTS latency policy to every provider.
+
+    Persistent streaming transports receive LLM tokens immediately and buffer
+    provider-side while generation continues. Request-based transports retain
+    Pipecat's sentence default: token mode would create one synthesis request
+    per token, increasing latency, cost, and audible seams.
     """
-    return service(text_aggregation_mode=TextAggregationMode.TOKEN, **kwargs)
+    if provider in _LOW_LATENCY_STREAMING_TTS_PROVIDERS:
+        kwargs["text_aggregation_mode"] = TextAggregationMode.TOKEN
+    return service(**kwargs)
 
 
 def create_tts_service(
@@ -523,7 +538,8 @@ def create_tts_service(
     # Create function call filter to prevent TTS from speaking function call tags
     xml_function_tag_filter = XMLFunctionTagFilter()
     if user_config.tts.provider == ServiceProviders.DEEPGRAM.value:
-        return _create_low_latency_streaming_tts_service(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
             DeepgramTTSService,
             api_key=user_config.tts.api_key,
             settings=DeepgramTTSSettings(voice=user_config.tts.voice),
@@ -537,7 +553,9 @@ def create_tts_service(
         if base_url:
             _validate_runtime_service_url(base_url, "base_url")
             kwargs["base_url"] = base_url
-        return OpenAITTSService(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
+            OpenAITTSService,
             api_key=user_config.tts.api_key,
             sample_rate=OPENAI_SAMPLE_RATE,
             settings=OpenAITTSSettings(model=user_config.tts.model),
@@ -562,7 +580,9 @@ def create_tts_service(
         if speed is not None and speed != 1.0:
             settings_kwargs["speaking_rate"] = speed
 
-        return GoogleTTSService(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
+            GoogleTTSService,
             credentials=credentials,
             location=location,
             settings=GoogleTTSSettings(**settings_kwargs),
@@ -581,7 +601,8 @@ def create_tts_service(
         # scheme-less base_url contract.
         _validate_runtime_service_url(user_config.tts.base_url, "base_url")
         elevenlabs_url = _elevenlabs_websocket_url(user_config.tts.base_url)
-        return _create_low_latency_streaming_tts_service(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
             ElevenLabsTTSService,
             reconnect_on_error=False,
             api_key=user_config.tts.api_key,
@@ -609,7 +630,8 @@ def create_tts_service(
             GenerationConfig(**gen_config_kwargs) if gen_config_kwargs else None
         )
         language = getattr(user_config.tts, "language", None) or "en"
-        return _create_low_latency_streaming_tts_service(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
             CartesiaTTSService,
             api_key=user_config.tts.api_key,
             settings=CartesiaTTSSettings(
@@ -632,7 +654,8 @@ def create_tts_service(
         speed = getattr(user_config.tts, "speed", None)
         language = getattr(user_config.tts, "language", None) or "en-US"
         delivery_mode = getattr(user_config.tts, "delivery_mode", None) or "BALANCED"
-        return _create_low_latency_streaming_tts_service(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
             InworldTTSService,
             api_key=user_config.tts.api_key,
             settings=InworldTTSSettings(
@@ -649,7 +672,8 @@ def create_tts_service(
     elif user_config.tts.provider == ServiceProviders.DECIBYL.value:
         # Convert HTTP URL to WebSocket URL for TTS
         base_url = MPS_API_URL.replace("http://", "ws://").replace("https://", "wss://")
-        return _create_low_latency_streaming_tts_service(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
             DograhTTSService,
             base_url=base_url,
             api_key=user_config.tts.api_key,
@@ -668,7 +692,9 @@ def create_tts_service(
 
         voice_id = int(getattr(user_config.tts, "voice", None) or "147320")
         language = getattr(user_config.tts, "language", None) or "en-us"
-        tts = CambTTSService(
+        tts = _create_tts_service_instance(
+            user_config.tts.provider,
+            CambTTSService,
             api_key=user_config.tts.api_key,
             voice_id=voice_id,
             model=user_config.tts.model,
@@ -680,7 +706,9 @@ def create_tts_service(
         return tts
     elif user_config.tts.provider == ServiceProviders.SPEACHES.value:
         _validate_runtime_service_url(user_config.tts.base_url, "base_url")
-        return SpeachesTTSService(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
+            SpeachesTTSService,
             base_url=user_config.tts.base_url,
             api_key=user_config.tts.api_key or "none",
             settings=SpeachesTTSSettings(
@@ -710,7 +738,8 @@ def create_tts_service(
         }
         if speed and speed != 1.0:
             settings_kwargs["speedAlpha"] = speed
-        return _create_low_latency_streaming_tts_service(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
             RimeTTSService,
             api_key=user_config.tts.api_key,
             settings=RimeTTSSettings(**settings_kwargs),
@@ -763,7 +792,8 @@ def create_tts_service(
             settings_kwargs["voice"] = voice
         if speed and speed != 1.0:
             settings_kwargs["pace"] = speed
-        return _create_low_latency_streaming_tts_service(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
             SarvamTTSService,
             api_key=user_config.tts.api_key,
             settings=SarvamTTSSettings(**settings_kwargs),
@@ -793,7 +823,9 @@ def create_tts_service(
         if voice and model != "muga":
             rumik_settings["voice"] = voice
 
-        return RumikTTSService(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
+            RumikTTSService,
             api_key=user_config.tts.api_key,
             gateway_url=RUMIK_GATEWAY_URL,
             settings=RumikTTSService.Settings(**rumik_settings),
@@ -821,7 +853,9 @@ def create_tts_service(
         _validate_runtime_service_url(base_url, "base_url")
 
         session = aiohttp.ClientSession()
-        return MiniMaxOwnedSessionTTSService(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
+            MiniMaxOwnedSessionTTSService,
             api_key=user_config.tts.api_key,
             group_id=group_id,
             base_url=base_url,
@@ -848,7 +882,9 @@ def create_tts_service(
         }
         if rate:
             settings_kwargs["rate"] = rate
-        return AzureTTSService(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
+            AzureTTSService,
             api_key=user_config.tts.api_key,
             region=region,
             settings=AzureTTSSettings(**settings_kwargs),
@@ -871,7 +907,8 @@ def create_tts_service(
         )
         if speed and speed != 1.0:
             settings_kwargs.speed = speed
-        return _create_low_latency_streaming_tts_service(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
             SmallestTTSService,
             api_key=user_config.tts.api_key,
             settings=settings_kwargs,
@@ -889,7 +926,9 @@ def create_tts_service(
                 pipecat_language = Language(language_code)
             except ValueError:
                 pipecat_language = Language.EN
-        return XAIHttpTTSService(
+        return _create_tts_service_instance(
+            user_config.tts.provider,
+            XAIHttpTTSService,
             api_key=user_config.tts.api_key,
             sample_rate=audio_config.transport_out_sample_rate,
             encoding="pcm",
