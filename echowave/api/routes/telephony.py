@@ -212,11 +212,19 @@ async def initiate_call(
     # but that argument is about an account dialling on *its own* trunk, where
     # an unverified destination is its own affair. On ours it is Decibyl ringing
     # a stranger, for free, from a number that identifies us.
+    # Resolved once, because two decisions turn on it: whether this account may
+    # dial the number at all, and whether the calling window applies to it.
+    destination_is_verified = await verified_numbers.is_verified(
+        user.selected_organization_id,
+        phone_number,
+        # This route's own client, for the reason spelled out at the DND gate
+        # below: is_verified would otherwise import its own, which is a second
+        # engine on a second event loop.
+        db=db_client,
+    )
     if (
         REQUIRE_VERIFIED_TEST_NUMBER or using_shared_caller_id
-    ) and not await verified_numbers.is_verified(
-        user.selected_organization_id, phone_number
-    ):
+    ) and not destination_is_verified:
         # Telling someone to verify a number on a deployment that cannot send a
         # code is a loop: they follow the instruction, the verify screen answers
         # 502, and nothing on either screen says the step is impossible here.
@@ -261,6 +269,15 @@ async def initiate_call(
     # the window is a fact about now, and "now" moves between queueing a call
     # and dialling it.
     #
+    # The window does not apply to a number this account has verified. Those
+    # hours exist so a stranger is not rung at night; a developer testing their
+    # own agent on their own handset at 21:54 is not a stranger, and refusing
+    # that call protects nobody while making the product untestable for half
+    # the working day. Ownership is proved, not asserted — `is_verified` means
+    # a code was sent to that handset and typed back. Campaigns and the trigger
+    # API dial numbers supplied as data and keep the full window; this is the
+    # one path where the destination belongs to the caller.
+    #
     # 451 rather than 403: the call is refused for a legal reason, not because
     # this user lacks permission. The distinction matters to whoever reads the
     # log, because the two have completely different remedies.
@@ -269,6 +286,7 @@ async def initiate_call(
             user.selected_organization_id,
             phone_number,
             timezone_name=preferences.timezone,
+            enforce_calling_hours=not destination_is_verified,
             # The module-level client this route uses for everything else.
             # assert_may_call would otherwise import its own, which is a second
             # engine on a second event loop — harmless in production and a
