@@ -16,6 +16,7 @@ import {
     startCampaignApiV1CampaignCampaignIdStartPost,
 } from '@/client/sdk.gen';
 import type { CampaignResponse } from '@/client/types.gen';
+import { CampaignSummaryCard } from '@/components/campaign/CampaignSummaryCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -596,6 +597,12 @@ export default function CampaignDetailPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* The §10 aggregate — rates, retries, languages, daily progress.
+                    Above the per-call detail deliberately: someone opening a
+                    campaign wants to know how it is doing before they want to
+                    know what happened on call 4,812. */}
+                <CampaignSummaryCard campaignId={campaignId} />
 
                 {/* Campaign Details */}
                 <Card className="mb-6">
