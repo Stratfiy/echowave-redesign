@@ -8,10 +8,20 @@ call, not a code change)
 
 Last updated after the compliance and deployment pass.
 
-> **Current test status: `api/tests` is fully green — 1,911 passed, 0 failed,
-> 0 collection errors** (Python 3.13, real Postgres 16 + pgvector, real Redis).
-> Every one of the 51 failures and 130 collection errors previously recorded
-> here was environmental. None was a code defect.
+> **Current test status: `api/tests` is 4,436 passed, 5 failed, 11 skipped,
+> 0 collection errors** (real Postgres 16 + pgvector, real Redis; measured on
+> Python 3.11 — see the caveat below). The five are pre-existing and reproduce
+> identically on the merge base `1a54d22`: three in
+> `test_pipecat_engine_tool_calls.py`, one in `test_user_idle_handler.py`, one
+> in `integrations/test_run_pipeline_text_greeting.py`. All five assert a
+> `MockLLMService` generation count.
+>
+> The earlier "1,911 passed" figure in this line was stale: collection now
+> finds 4,452 tests, so it was reporting well under half the suite.
+>
+> **Caveat:** the project requires Python 3.13 and this was run on 3.11.15.
+> Collection was clean and nothing failed in a version-specific way, but a
+> green result here is not a substitute for CI on the pinned interpreter.
 
 ---
 
@@ -638,6 +648,14 @@ sarvam,soundfile,silero,webrtc,speechmatics,openrouter,camb,mcp,inworld,smallest
 
 # ts_validator needs its own npm deps or ~22 MCP tests fail
 (cd api/mcp_server/ts_validator && npm install)
+
+# Not reached by the requirements files above, and each one fails tests by
+# itself: camb-sdk backs pipecat.services.camb.tts (13 tests), pipecat-rumik
+# backs the Rumik voice (14), and NLTK's punkt_tab tokenizer is loaded at
+# runtime by the pipeline rather than at import, so its absence surfaces as
+# ErrorFrames mid-test rather than a missing module.
+pip install camb-sdk pipecat-rumik
+python -c "import nltk; nltk.download('punkt_tab')"
 
 # Services. Postgres needs the pgvector extension: a migration runs
 # CREATE EXTENSION vector.
