@@ -31,6 +31,60 @@ deliberately.
 
 ## Fixed
 
+### 27. The 1,172ms turn wait was one hardcoded constant
+
+**FIXED.** The question was "why can't we do anything about turn detection" and
+the answer is that there was never anything physical to fix.
+
+`turn_detect` measured **1171-1174ms across 40 turns of 15 calls, +/-1ms**. A
+stage that constant is not measuring work -- no network round trip is stable to
+a millisecond. It is `SpeechTimeoutUserTurnStopStrategy`'s second timer.
+
+The strategy runs two timers after VAD silence and releases the turn when both
+finish *and* a final transcript has arrived:
+
+* `user_speech_timeout` -- the policy floor, 0.4s here.
+* `stt_timeout` -- a safety net sized from the STT's **published P99
+  time-to-final-segment**, delivered in `STTMetadataFrame`. It is
+  short-circuited the moment the STT marks a transcript `finalized=True`.
+
+    turn_detect = stop_secs + max(user_speech_timeout, ttfs_p99 - stop_secs)
+
+`pipecat/services/stt_latency.py` publishes `SARVAM_TTFS_P99 = 1.17`. With the
+recommended 0.2s VAD that is `0.2 + max(0.4, 0.97) = 1.17s` -- the measurement,
+exactly. And **Sarvam's STT never sets `finalized`** (Deepgram does, via
+`confirm_finalize`), so the short-circuit never fires and every turn pays the
+published worst case whether or not the transcript arrived long before.
+
+**This is the regression from forking.** Upstream Dograh defaults transcription
+to Deepgram, published at 0.35: `0.2 + max(0.4, 0.15) = 0.6s`. Moving to Sarvam
+added 570ms to every turn, silently, in a constant nobody had reason to read.
+It is not model time and not network time.
+
+`ttfs_p99_latency` is a constructor parameter and the factory never passed one,
+so every call took the library default. It now passes
+`SARVAM_STT_TTFS_P99_DEFAULT = 0.5`, overridable with `SARVAM_STT_TTFS_P99`
+without a release.
+
+**Lowering it cannot cut a caller off.** The turn also requires a final
+transcript (`wait_for_transcript=True`), so the timer is a floor on the wait,
+not a cap: set too low, the turn waits for the transcript instead. What it does
+risk is the *tail* of a long utterance, where an STT emitting several final
+segments still has one in flight. Raise it if transcripts start losing their
+last few words.
+
+0.5 is a starting point, not a measurement -- 1.17 is a P99 taken against
+Sarvam from wherever the benchmark ran, and this deployment is in ap-south-1
+alongside Sarvam's own API. The useful part is that with it in place
+`turn_detect` stops being a constant and starts reporting how long Sarvam
+actually takes, which is the number that should replace it.
+
+**The proper fix is upstream of this**, and it is worth doing: teach
+`SarvamSTTService` to mark its final transcript `finalized=True`. Then the
+safety net short-circuits on every turn and the wait becomes however long
+Sarvam really took, with no constant to tune at all. That is a submodule
+change, which is why it is not in this one.
+
 ### 26. The fast transcriber was sitting in the codebase, unreachable
 
 **FIXED (opt-in).** Found by reading upstream (`dograh-hq/dograh`) after the

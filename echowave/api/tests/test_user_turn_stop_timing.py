@@ -152,3 +152,78 @@ class TestTheStrategyMatchesTheConfiguration:
         from api.services.pipecat import run_pipeline
 
         assert run_pipeline.DEFAULT_TURN_STOP_STRATEGY == DEFAULT_TURN_STOP_STRATEGY
+
+
+class TestTheSTTSafetyNetIsTheLargestStage:
+    """`turn_detect` was 1171-1174ms across 40 turns of 15 calls, +/-1ms.
+
+    A stage that constant is not measuring work. It is
+    `SpeechTimeoutUserTurnStopStrategy`'s second timer: a safety net sized from
+    the STT's published P99 time-to-final-segment, which the turn waits out
+    whenever the STT does not mark a transcript `finalized`. Sarvam never does,
+    so every turn paid the full published figure.
+
+        turn_detect = stop_secs + max(user_speech_timeout, ttfs_p99 - stop_secs)
+
+    Pipecat publishes SARVAM_TTFS_P99 = 1.17, which is the measurement, exactly.
+    """
+
+    @staticmethod
+    def _turn_detect(ttfs_p99: float, stop_secs: float = 0.2) -> float:
+        from api.schemas.workflow_configurations import DEFAULT_USER_SPEECH_TIMEOUT
+
+        return stop_secs + max(
+            DEFAULT_USER_SPEECH_TIMEOUT, max(0.0, ttfs_p99 - stop_secs)
+        )
+
+    def test_the_published_sarvam_figure_reproduces_the_measurement(self):
+        from pipecat.services.stt_latency import SARVAM_TTFS_P99
+
+        assert round(self._turn_detect(SARVAM_TTFS_P99) * 1000) == 1170
+
+    def test_the_configured_value_costs_what_upstreams_deepgram_costs(self):
+        """Dograh defaults transcription to Deepgram, whose published 0.35
+        collapses this timer under the speech timeout entirely. Matching that
+        is the whole of the regression from moving to Sarvam."""
+        from pipecat.services.stt_latency import DEEPGRAM_TTFS_P99
+
+        from api.services.pipecat.service_factory import sarvam_stt_ttfs_p99
+
+        assert self._turn_detect(sarvam_stt_ttfs_p99()) == self._turn_detect(
+            DEEPGRAM_TTFS_P99
+        )
+
+    def test_the_configured_value_is_well_under_the_published_default(self):
+        from pipecat.services.stt_latency import SARVAM_TTFS_P99
+
+        from api.services.pipecat.service_factory import sarvam_stt_ttfs_p99
+
+        assert sarvam_stt_ttfs_p99() < SARVAM_TTFS_P99
+
+    def test_an_operator_can_retune_it_without_a_release(self, monkeypatch):
+        """It is a starting point, not a measurement. Once it stops dominating,
+        `turn_detect` reports Sarvam's real latency and that number should
+        replace it."""
+        from api.services.pipecat import service_factory
+
+        monkeypatch.setenv("SARVAM_STT_TTFS_P99", "0.75")
+        assert service_factory.sarvam_stt_ttfs_p99() == 0.75
+
+    def test_a_nonsense_override_falls_back_rather_than_crashing_the_call(
+        self, monkeypatch
+    ):
+        from api.services.pipecat import service_factory
+
+        monkeypatch.setenv("SARVAM_STT_TTFS_P99", "soon")
+        assert (
+            service_factory.sarvam_stt_ttfs_p99()
+            == service_factory.SARVAM_STT_TTFS_P99_DEFAULT
+        )
+
+    def test_a_negative_override_is_floored_rather_than_inverted(
+        self, monkeypatch
+    ):
+        from api.services.pipecat import service_factory
+
+        monkeypatch.setenv("SARVAM_STT_TTFS_P99", "-3")
+        assert service_factory.sarvam_stt_ttfs_p99() == 0.0
