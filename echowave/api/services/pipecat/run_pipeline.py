@@ -8,12 +8,12 @@ from api.constants import FOLLOW_CALLER_LANGUAGE
 from api.db import db_client
 from api.enums import WorkflowRunMode
 from api.schemas.workflow_configurations import (
+    DEFAULT_INTERRUPTION_BACKOFF_SECS,
     DEFAULT_MAX_CALL_DURATION_SECONDS,
     DEFAULT_MAX_USER_IDLE_TIMEOUT_SECONDS,
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     DEFAULT_SMART_TURN_STOP_SECS,
     DEFAULT_TURN_START_MIN_WORDS,
-    DEFAULT_INTERRUPTION_BACKOFF_SECS,
     DEFAULT_TURN_START_STRATEGY,
     DEFAULT_USER_SPEECH_TIMEOUT,
 )
@@ -35,6 +35,7 @@ from api.services.pipecat.event_handlers import (
     register_event_handlers,
 )
 from api.services.pipecat.in_memory_buffers import InMemoryLogsBuffer
+from api.services.pipecat.interruption_backoff import InterruptionBackoff
 from api.services.pipecat.pipeline_builder import (
     build_pipeline,
     build_realtime_pipeline,
@@ -58,15 +59,12 @@ from api.services.pipecat.recording_audio_cache import (
     warm_recording_cache,
 )
 from api.services.pipecat.recording_router_processor import RecordingRouterProcessor
-from api.services.pipecat.interruption_backoff import InterruptionBackoff
 from api.services.pipecat.service_factory import (
-    create_stt_service_with_backups,
-    create_tts_service_with_backups,
     create_llm_service,
     create_llm_service_from_provider,
     create_realtime_llm_service,
-    create_stt_service,
-    create_tts_service,
+    create_stt_service_with_backups,
+    create_tts_service_with_backups,
     stt_uses_external_turns,
 )
 from api.services.pipecat.tracing_config import (
@@ -138,9 +136,7 @@ def _create_interruption_backoff(run_configs: dict):
     frames it ran before.
     """
     seconds = float(
-        run_configs.get(
-            "interruption_backoff_secs", DEFAULT_INTERRUPTION_BACKOFF_SECS
-        )
+        run_configs.get("interruption_backoff_secs", DEFAULT_INTERRUPTION_BACKOFF_SECS)
         or 0.0
     )
     if seconds <= 0:
@@ -215,7 +211,9 @@ def _create_non_realtime_user_turn_start_strategies(
     # question still starts their turn on the first word. And it reads interim
     # transcriptions, so mid-utterance barge-in does not wait for a final.
     return [
-        MinWordsUserTurnStartStrategy(min_words=_resolve_turn_start_min_words(run_configs))
+        MinWordsUserTurnStartStrategy(
+            min_words=_resolve_turn_start_min_words(run_configs)
+        )
     ]
 
 

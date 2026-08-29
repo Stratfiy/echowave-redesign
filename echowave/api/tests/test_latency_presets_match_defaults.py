@@ -21,7 +21,10 @@ from api.schemas.workflow_configurations import (
 
 _PRESETS_TS = (
     Path(__file__).resolve().parents[2]
-    / "ui" / "src" / "types" / "workflow-configurations.ts"
+    / "ui"
+    / "src"
+    / "types"
+    / "workflow-configurations.ts"
 )
 
 #: TS spells some values as its own mirrored constants; resolve them by name.
@@ -65,7 +68,11 @@ def test_the_presets_are_ordered_from_quickest_to_most_patient():
         _preset_values("patient"),
     )
 
-    for field in ("user_speech_timeout", "smart_turn_stop_secs", "turn_start_min_words"):
+    for field in (
+        "user_speech_timeout",
+        "smart_turn_stop_secs",
+        "turn_start_min_words",
+    ):
         assert rapid[field] < balanced[field] < patient[field], field
 
 

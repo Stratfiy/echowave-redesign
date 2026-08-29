@@ -21,9 +21,9 @@ from api.services.pipecat.transport_params import (
 _API = Path(transport_params.__file__).parents[2]
 #: Every module that builds pipecat ``TransportParams``: the seven telephony
 #: providers plus the WebRTC factory.
-_TRANSPORTS = sorted(
-    _API.glob("services/telephony/providers/*/transport.py")
-) + [_API / "services/pipecat/transport_setup.py"]
+_TRANSPORTS = sorted(_API.glob("services/telephony/providers/*/transport.py")) + [
+    _API / "services/pipecat/transport_setup.py"
+]
 
 
 def test_the_transports_are_all_discovered():
@@ -33,7 +33,8 @@ def test_the_transports_are_all_discovered():
 
 def test_every_transport_uses_the_shared_overrides():
     missing = [
-        p.parent.name for p in _TRANSPORTS
+        p.parent.name
+        for p in _TRANSPORTS
         if "**transport_param_overrides(" not in p.read_text()
     ]
     assert not missing, (

@@ -31,8 +31,10 @@ def _llm_factory_source() -> str:
     """
     tree = ast.parse(SOURCE)
     fn = next(
-        n for n in tree.body
-        if isinstance(n, ast.FunctionDef) and n.name == "create_llm_service_from_provider"
+        n
+        for n in tree.body
+        if isinstance(n, ast.FunctionDef)
+        and n.name == "create_llm_service_from_provider"
     )
     return ast.get_source_segment(SOURCE, fn) or ""
 
@@ -61,7 +63,8 @@ def _llm_tuning():
     """The helper, lifted out of a module that imports every vendor SDK."""
     tree = ast.parse(SOURCE)
     fn = next(
-        n for n in tree.body
+        n
+        for n in tree.body
         if isinstance(n, ast.FunctionDef) and n.name == "_llm_tuning"
     )
     ns: dict = {}
@@ -157,7 +160,10 @@ class TestTheControlsReachTheCall:
             assert {"temperature", "max_tokens"} <= fields, name
 
         # Realtime is a different path; neither control reaches it this way.
-        for name in ("OpenAIRealtimeLLMConfiguration", "GoogleRealtimeLLMConfiguration"):
+        for name in (
+            "OpenAIRealtimeLLMConfiguration",
+            "GoogleRealtimeLLMConfiguration",
+        ):
             fields = set(getattr(R, name).model_fields)
             assert not ({"temperature", "max_tokens"} & fields), name
 

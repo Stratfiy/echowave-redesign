@@ -37,7 +37,9 @@ def _branch_providers() -> set[str]:
 
 def _policy_rows() -> dict[str, str]:
     """Provider -> the body of its TTSPolicy(...) call."""
-    table = _SOURCE[_SOURCE.index("TTS_POLICY: dict") : _SOURCE.index("#: Derived views")]
+    table = _SOURCE[
+        _SOURCE.index("TTS_POLICY: dict") : _SOURCE.index("#: Derived views")
+    ]
     return {
         m.group(1): m.group("body")
         for m in re.finditer(

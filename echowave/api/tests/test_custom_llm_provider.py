@@ -30,7 +30,10 @@ SERVICE_FACTORY = (
 #: Read rather than imported: the module pulls in a vendor SDK per provider,
 #: and every question here is about what the source says.
 CHECK_VALIDITY = (
-    Path(__file__).resolve().parents[1] / "services" / "configuration" / "check_validity.py"
+    Path(__file__).resolve().parents[1]
+    / "services"
+    / "configuration"
+    / "check_validity.py"
 )
 
 
@@ -114,9 +117,7 @@ class TestTheWiringIsComplete:
         """It shares the no-key path with Speaches. Without that, a valid
         keyless endpoint falls through to the generic "key missing" branch."""
         text = CHECK_VALIDITY.read_text()
-        exemption = re.search(
-            r"if provider in \((?P<body>[^)]*)\):", text, re.DOTALL
-        )
+        exemption = re.search(r"if provider in \((?P<body>[^)]*)\):", text, re.DOTALL)
         assert exemption, "The no-API-key branch has moved."
         assert "CUSTOM_LLM" in exemption.group("body")
 

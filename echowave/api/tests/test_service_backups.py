@@ -54,10 +54,15 @@ class TestBackupsBecomeRealConfigurationSections:
             fallback_tts=[{"provider": "elevenlabs"}, {"provider": "cartesia"}]
         )
 
-        assert [_provider(s) for s in effective.fallback_tts] == ["elevenlabs", "cartesia"]
+        assert [_provider(s) for s in effective.fallback_tts] == [
+            "elevenlabs",
+            "cartesia",
+        ]
 
     def test_transcriber_backups_build_too(self):
-        effective = _with_backups(fallback_stt=[{"provider": "deepgram", "model": "nova-3"}])
+        effective = _with_backups(
+            fallback_stt=[{"provider": "deepgram", "model": "nova-3"}]
+        )
 
         assert _provider(effective.fallback_stt[0]) == "deepgram"
 
