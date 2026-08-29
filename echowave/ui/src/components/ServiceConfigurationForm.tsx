@@ -42,6 +42,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { VoiceSelector } from "@/components/VoiceSelector";
 import { LANGUAGE_DISPLAY_NAMES } from "@/constants/languages";
 import { useUserConfig } from "@/context/UserConfigContext";
+import { pricedStack } from "@/lib/billing/pricedStack";
 import type { ModelOverrides } from "@/types/workflow-configurations";
 
 export type ServiceSegment = "llm" | "tts" | "stt" | "embeddings" | "realtime";
@@ -335,22 +336,6 @@ export function ServiceConfigurationForm({
     keysFromVault,
     keysHeld,
 }: ServiceConfigurationFormProps) {
-    // A slot set to "decibyl" is priced at whatever that tier resolves to
-    // today. Passing "decibyl" straight through would report it as unpriced —
-    // the estimator is keyed by real provider and model — so the managed
-    // option would look like the one we cannot cost, which is the opposite of
-    // true.
-    const pricedSlot = (
-        slot: "stt" | "llm" | "tts",
-        provider: string | null | undefined,
-        model: string,
-    ) => {
-        const upstream = provider === "decibyl" ? managedUpstream?.[slot] : undefined;
-        return {
-            [`${slot}_provider`]: upstream?.provider ?? provider ?? null,
-            [`${slot}_model`]: upstream?.model ?? model ?? "",
-        };
-    };
 
     // The carrier whose minutes will land on *this account's* invoice, which
     // is not the same as the carrier it dials on. Both mistakes are available
@@ -1687,12 +1672,16 @@ export function ServiceConfigurationForm({
             <CostPerMinuteBar
                 className="mb-4"
                 carriageNote={carriageNote}
-                stack={{
-                    ...pricedSlot("stt", isRealtime ? null : serviceProviders.stt, watch("stt_model") as string),
-                    ...pricedSlot("llm", serviceProviders.llm, watch("llm_model") as string),
-                    ...pricedSlot("tts", isRealtime ? null : serviceProviders.tts, watch("tts_model") as string),
-                    telephony_provider: telephonyProvider,
-                }}
+                stack={pricedStack(
+                    {
+                        stt: { provider: serviceProviders.stt, model: watch("stt_model") as string },
+                        llm: { provider: serviceProviders.llm, model: watch("llm_model") as string },
+                        tts: { provider: serviceProviders.tts, model: watch("tts_model") as string },
+                        is_realtime: isRealtime,
+                    },
+                    managedUpstream,
+                    telephonyProvider,
+                )}
             />
 
             <Card>

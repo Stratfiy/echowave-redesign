@@ -23,6 +23,7 @@ import {
     AIModelConfigurationV2Editor,
     type ModelConfigurationDefaultsV2,
 } from "@/components/AIModelConfigurationV2Editor";
+import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
 import { FlowEdge, FlowNode } from "@/components/flow/types";
 import { LLMConfigSelector } from "@/components/LLMConfigSelector";
 import SpinLoader from "@/components/SpinLoader";
@@ -42,6 +43,7 @@ import { UnsavedChangesProvider, useUnsavedChanges, useUnsavedChangesContext } f
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { priceableFromV2, pricedStack } from "@/lib/billing/pricedStack";
 import logger from "@/lib/logger";
 import {
     type AmbientNoiseConfiguration,
@@ -1340,6 +1342,24 @@ function WorkflowModelOverridesSection({
 
                 {!modelConfigurationLoading && !modelConfigurationError && hasOrgConfiguration && modelConfigurationDefaults && organizationModelConfiguration && (
                     <>
+                        {/* What a minute of this agent costs, before anyone dials it.
+                            Priced from the stack the agent will actually run: its own
+                            override where it has one, the organization default where it
+                            does not. Telephony is left out deliberately -- the carrier
+                            is chosen per call, not per agent, so a number here would be
+                            a guess presented as a rate. */}
+                        <CostPerMinuteBar
+                            carriageNote="Telephony is not included: the carrier is chosen when the call is placed."
+                            stack={pricedStack(
+                                savedV2Override
+                                    ? priceableFromV2(savedV2Override)
+                                    : (organizationModelConfiguration.effective_configuration as
+                                          | Parameters<typeof pricedStack>[0]
+                                          | null),
+                                modelConfigurationDefaults.decibyl?.upstream,
+                            )}
+                        />
+
                         <div className="flex items-center justify-between rounded-md border p-4">
                             <div className="space-y-0.5">
                                 <Label htmlFor="workflow-model-v2-override" className="text-sm font-medium">
