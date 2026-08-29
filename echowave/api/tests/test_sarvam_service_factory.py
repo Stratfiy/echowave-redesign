@@ -142,10 +142,10 @@ class TestTTSLatencyPolicy:
         result = _create_tts_service_instance(provider, service, api_key="test-key")
 
         assert result is service.return_value
-        service.assert_called_once_with(
-            api_key="test-key",
-            text_aggregation_mode=TextAggregationMode.TOKEN,
-        )
+        service.assert_called_once()
+        kwargs = service.call_args.kwargs
+        assert kwargs["api_key"] == "test-key"
+        assert kwargs["text_aggregation_mode"] is TextAggregationMode.TOKEN
 
     @pytest.mark.parametrize("provider", sorted(_REQUEST_BASED_TTS_PROVIDERS))
     def test_request_providers_keep_sentence_aggregation(self, provider):
@@ -153,7 +153,13 @@ class TestTTSLatencyPolicy:
 
         _create_tts_service_instance(provider, service, api_key="test-key")
 
-        service.assert_called_once_with(api_key="test-key")
+        service.assert_called_once()
+        kwargs = service.call_args.kwargs
+        assert kwargs["api_key"] == "test-key"
+        # Absent rather than set to a sentence mode: what a request-based
+        # provider should keep is Pipecat's own default, and passing a value
+        # that happens to match it would still be the factory deciding.
+        assert "text_aggregation_mode" not in kwargs
 
 
 class TestSarvamTTSServiceFactory:
