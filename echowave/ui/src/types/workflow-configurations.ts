@@ -20,6 +20,11 @@ export type AmbientNoiseConfiguration = Omit<
 export type TurnStopStrategy = NonNullable<GeneratedWorkflowConfigurationDefaults["turn_stop_strategy"]>;
 export type TurnStartStrategy = NonNullable<GeneratedWorkflowConfigurationDefaults["turn_start_strategy"]>;
 export const DEFAULT_TURN_START_MIN_WORDS = 3;
+// Mirrors DEFAULT_USER_SPEECH_TIMEOUT in api/schemas/workflow_configurations.py,
+// where the 0.15 floor is also enforced.
+export const DEFAULT_USER_SPEECH_TIMEOUT = 0.4;
+export const MIN_USER_SPEECH_TIMEOUT = 0.15;
+export const MAX_USER_SPEECH_TIMEOUT = 3.0;
 export const DEFAULT_PROVISIONAL_VAD_PAUSE_SECS = 1.5;
 
 export const TURN_START_STRATEGY_OPTIONS: Array<{
@@ -108,6 +113,7 @@ type WorkflowConfigurationBase = Omit<
     | "turn_start_min_words"
     | "provisional_vad_pause_secs"
     | "turn_stop_strategy"
+    | "user_speech_timeout"
     | "dictionary"
     | "context_compaction_enabled"
 >;
@@ -121,6 +127,7 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
     turn_start_min_words: number;  // Minimum transcribed words required for minimum-word interruptions
     provisional_vad_pause_secs: number;  // Seconds to pause bot output while awaiting transcript confirmation
     turn_stop_strategy: TurnStopStrategy;  // Strategy for detecting end of user turn
+    user_speech_timeout: number;  // Silence after VAD stop before the turn ends; "transcription" strategy only
     dictionary?: string;  // Comma-separated words for voice agent to listen for
     voicemail_detection?: VoicemailDetectionConfiguration;
     transcript_configuration: TranscriptConfiguration;
@@ -142,6 +149,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     turn_start_min_words: DEFAULT_TURN_START_MIN_WORDS,
     provisional_vad_pause_secs: DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     turn_stop_strategy: 'turn_analyzer',  // Local model ends the turn; see DEFAULT_TURN_STOP_STRATEGY
+    user_speech_timeout: DEFAULT_USER_SPEECH_TIMEOUT,
     dictionary: '',
     transcript_configuration: DEFAULT_TRANSCRIPT_CONFIGURATION,
     context_compaction_enabled: false,
@@ -188,6 +196,10 @@ export function resolveWorkflowConfigurations(
             configurations?.turn_stop_strategy
             ?? defaults?.turn_stop_strategy
             ?? FALLBACK_WORKFLOW_CONFIGURATIONS.turn_stop_strategy,
+        user_speech_timeout:
+            configurations?.user_speech_timeout
+            ?? defaults?.user_speech_timeout
+            ?? FALLBACK_WORKFLOW_CONFIGURATIONS.user_speech_timeout,
         dictionary:
             configurations?.dictionary
             ?? defaults?.dictionary

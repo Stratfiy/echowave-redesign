@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { SETTINGS_DOCUMENTATION_URLS } from "@/constants/documentation";
@@ -46,7 +47,10 @@ import {
     type AmbientNoiseConfiguration,
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     DEFAULT_TURN_START_MIN_WORDS,
+    DEFAULT_USER_SPEECH_TIMEOUT,
     DEFAULT_VOICEMAIL_DETECTION_CONFIGURATION,
+    MAX_USER_SPEECH_TIMEOUT,
+    MIN_USER_SPEECH_TIMEOUT,
     resolveWorkflowConfigurations,
     TURN_START_STRATEGY_OPTIONS,
     type TurnStartStrategy,
@@ -290,6 +294,9 @@ function GeneralSection({
     const [turnStopStrategy, setTurnStopStrategy] = useState<TurnStopStrategy>(
         workflowConfigurations.turn_stop_strategy,
     );
+    const [userSpeechTimeout, setUserSpeechTimeout] = useState(
+        workflowConfigurations.user_speech_timeout,
+    );
     const [contextCompactionEnabled, setContextCompactionEnabled] = useState(
         workflowConfigurations.context_compaction_enabled,
     );
@@ -317,11 +324,12 @@ function GeneralSection({
             turnStartMinWords !== workflowConfigurations.turn_start_min_words ||
             provisionalVadPauseSecs !== workflowConfigurations.provisional_vad_pause_secs ||
             turnStopStrategy !== workflowConfigurations.turn_stop_strategy ||
+            userSpeechTimeout !== workflowConfigurations.user_speech_timeout ||
             contextCompactionEnabled !== workflowConfigurations.context_compaction_enabled ||
             includeTranscriptEndTimestamps !==
             (workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false)
         );
-    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -397,6 +405,7 @@ function GeneralSection({
                     turn_start_min_words: turnStartMinWords,
                     provisional_vad_pause_secs: provisionalVadPauseSecs,
                     turn_stop_strategy: turnStopStrategy,
+                    user_speech_timeout: userSpeechTimeout,
                     context_compaction_enabled: contextCompactionEnabled,
                     transcript_configuration: {
                         ...(workflowConfigurations.transcript_configuration ?? {}),
@@ -593,26 +602,30 @@ function GeneralSection({
                         </p>
                     </div>
                     {turnStopStrategy === "turn_analyzer" && (
-                        <div className="space-y-2">
-                            <Label htmlFor="smart_turn_stop_secs" className="text-xs">
-                                Incomplete Turn Timeout (seconds)
-                            </Label>
-                            <Input
-                                id="smart_turn_stop_secs"
-                                type="number"
-                                step="0.5"
-                                min="0.5"
-                                max="10"
-                                value={smartTurnStopSecs}
-                                onChange={(e) => {
-                                    const value = parseFloat(e.target.value);
-                                    if (!isNaN(value) && value >= 0.5) setSmartTurnStopSecs(value);
-                                }}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Max silence duration before ending an incomplete turn. Default: 2 seconds
-                            </p>
-                        </div>
+                        <Slider
+                            id="smart_turn_stop_secs"
+                            label="Incomplete Turn Timeout"
+                            unit="s"
+                            min={0.5}
+                            max={10}
+                            step={0.5}
+                            value={smartTurnStopSecs}
+                            onValueChange={setSmartTurnStopSecs}
+                            hint="How long to wait when the analyzer is unsure the caller has finished. Only reached on an ambiguous turn. Default: 2s"
+                        />
+                    )}
+                    {turnStopStrategy === "transcription" && (
+                        <Slider
+                            id="user_speech_timeout"
+                            label="Endpointing Delay"
+                            unit="s"
+                            min={MIN_USER_SPEECH_TIMEOUT}
+                            max={MAX_USER_SPEECH_TIMEOUT}
+                            step={0.05}
+                            value={userSpeechTimeout}
+                            onValueChange={setUserSpeechTimeout}
+                            hint={`Silence to wait after the caller stops, on top of the VAD's own 0.2s, before the turn ends. Paid on every turn, so it sets a floor under response time that no faster model can recover. Below ${MIN_USER_SPEECH_TIMEOUT}s it starts cutting people off mid-sentence. Ignored when the transcriber reports its own turn boundaries. Default: ${DEFAULT_USER_SPEECH_TIMEOUT}s`}
+                        />
                     )}
                 </div>
 
@@ -648,48 +661,30 @@ function GeneralSection({
                         </p>
                     </div>
                     {turnStartStrategy === "min_words" && (
-                        <div className="space-y-2">
-                            <Label htmlFor="turn_start_min_words" className="text-xs">
-                                Minimum Words Before Interruption
-                            </Label>
-                            <Input
-                                id="turn_start_min_words"
-                                type="number"
-                                step="1"
-                                min="1"
-                                max="10"
-                                value={turnStartMinWords}
-                                onChange={(e) => {
-                                    const value = parseInt(e.target.value);
-                                    if (!isNaN(value) && value >= 1) setTurnStartMinWords(value);
-                                }}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Number of transcribed words needed to interrupt while the bot is speaking. Default: {DEFAULT_TURN_START_MIN_WORDS}
-                            </p>
-                        </div>
+                        <Slider
+                            id="turn_start_min_words"
+                            label="Minimum Words Before Interruption"
+                            unit=" words"
+                            min={1}
+                            max={10}
+                            step={1}
+                            value={turnStartMinWords}
+                            onValueChange={setTurnStartMinWords}
+                            hint={`Transcribed words needed to interrupt the agent. Raise it so a cough, a "mhm" or background speech no longer cuts the agent off mid-sentence. Default: ${DEFAULT_TURN_START_MIN_WORDS}`}
+                        />
                     )}
                     {turnStartStrategy === "provisional_vad" && (
-                        <div className="space-y-2">
-                            <Label htmlFor="provisional_vad_pause_secs" className="text-xs">
-                                Provisional Pause (seconds)
-                            </Label>
-                            <Input
-                                id="provisional_vad_pause_secs"
-                                type="number"
-                                step="0.1"
-                                min="0.1"
-                                max="5"
-                                value={provisionalVadPauseSecs}
-                                onChange={(e) => {
-                                    const value = parseFloat(e.target.value);
-                                    if (!isNaN(value) && value >= 0.1) setProvisionalVadPauseSecs(value);
-                                }}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Seconds to pause bot audio while waiting for transcript confirmation. Default: {DEFAULT_PROVISIONAL_VAD_PAUSE_SECS}
-                            </p>
-                        </div>
+                        <Slider
+                            id="provisional_vad_pause_secs"
+                            label="Provisional Pause"
+                            unit="s"
+                            min={0.1}
+                            max={5}
+                            step={0.1}
+                            value={provisionalVadPauseSecs}
+                            onValueChange={setProvisionalVadPauseSecs}
+                            hint={`How long to pause the agent's audio while waiting for the transcript to confirm the caller really spoke. Default: ${DEFAULT_PROVISIONAL_VAD_PAUSE_SECS}s`}
+                        />
                     )}
                 </div>
 
