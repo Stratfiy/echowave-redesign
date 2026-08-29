@@ -29,7 +29,8 @@ function Slider({
   disabled,
 }: {
   id: string
-  label: string
+  /** Omit where a <Label> is already rendered above; the readout still shows. */
+  label?: string
   value: number
   min: number
   max: number
@@ -51,10 +52,17 @@ function Slider({
 
   return (
     <div className={cn("space-y-2", className)} data-slot="slider">
-      <div className="flex items-baseline justify-between gap-4">
-        <label htmlFor={id} className="text-xs font-medium">
-          {label}
-        </label>
+      <div
+        className={cn(
+          "flex items-baseline gap-4",
+          label ? "justify-between" : "justify-end",
+        )}
+      >
+        {label ? (
+          <label htmlFor={id} className="text-xs font-medium">
+            {label}
+          </label>
+        ) : null}
         <span className="text-xs tabular-nums text-muted-foreground">
           {value.toFixed(decimals)}
           {unit ? <span className="ml-0.5">{unit}</span> : null}

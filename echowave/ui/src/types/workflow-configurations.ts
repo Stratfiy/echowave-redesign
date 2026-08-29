@@ -34,7 +34,7 @@ export const TURN_START_STRATEGY_OPTIONS: Array<{
 }> = [
     {
         value: 'default',
-        label: 'Default',
+        label: 'Automatic (Recommended)',
         description: 'Recommended. Uses the transcriber\'s own turn signals when it has them, otherwise requires a minimum number of words — so background noise cannot cut the agent off.',
     },
     {

@@ -591,14 +591,16 @@ function GeneralSection({
                                 <SelectValue placeholder="Select strategy" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="transcription">Transcription-based</SelectItem>
-                                <SelectItem value="turn_analyzer">Smart Turn Analyzer</SelectItem>
+                                <SelectItem value="turn_analyzer">
+                                    Smart Turn Analyzer (Recommended)
+                                </SelectItem>
+                                <SelectItem value="transcription">Silence timeout</SelectItem>
                             </SelectContent>
                         </Select>
                         <p className="text-xs text-muted-foreground">
                             {turnStopStrategy === "transcription"
-                                ? "Best for short responses (1-2 word statements). Ends turn when transcription indicates completion."
-                                : "Best for longer responses with natural pauses. Uses ML model to detect end of turn."}
+                                ? "Waits a fixed silence after every turn, whether or not the caller had obviously finished. Predictable, but that wait is paid even on a one-word answer."
+                                : "A local model judges whether the sentence sounds finished, and only waits out the silence below when it is unsure. Quick on a finished sentence, patient on an ambiguous one — about 12ms to decide."}
                         </p>
                     </div>
                     {turnStopStrategy === "turn_analyzer" && (

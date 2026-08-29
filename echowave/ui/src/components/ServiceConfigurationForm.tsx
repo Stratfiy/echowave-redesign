@@ -35,6 +35,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,6 +49,17 @@ export type ServiceSegment = "llm" | "tts" | "stt" | "embeddings" | "realtime";
 interface SchemaProperty {
     type?: string;
     default?: string | number | boolean;
+    // Pydantic emits these from Field(ge=..., le=...). Every provider class in
+    // configuration/registry declares its own range -- ElevenLabs speed is
+    // 0.1-2.0, Cartesia's is 0.6-1.5 -- and until they were read here the form
+    // rendered an unbounded box and let the server reject the value.
+    minimum?: number;
+    maximum?: number;
+    // Pydantic's gt=/lt= land here instead. MiniMax's temperature is gt=0
+    // because MiniMax rejects 0, so reading only `minimum` would leave that
+    // one field as an unbounded box while every sibling got a slider.
+    exclusiveMinimum?: number;
+    exclusiveMaximum?: number;
     enum?: string[];
     examples?: string[];
     model_options?: Record<string, string[]>;
@@ -1536,6 +1548,51 @@ export function ServiceConfigurationForm({
                     {...register(`${service}_${field}`, {
                         required: service !== "embeddings" && providerSchema.required?.includes(field),
                     })}
+                />
+            );
+        }
+
+        // A number the schema has bounded is a range, so show it as one. The
+        // provider classes carry the real limits, so this needs no per-provider
+        // knowledge here: ElevenLabs stability, Cartesia speed and Sarvam speed
+        // all arrive with their own min, max and default already attached.
+        const lower = actualSchema?.minimum ?? actualSchema?.exclusiveMinimum;
+        const upper = actualSchema?.maximum ?? actualSchema?.exclusiveMaximum;
+        if (
+            actualSchema?.type === "number"
+            && typeof lower === "number"
+            && typeof upper === "number"
+        ) {
+            const fieldKey = `${service}_${field}`;
+            const span = upper - lower;
+            // Integer-looking ranges step by 1; everything else gets a tidy
+            // 0.1/0.05/0.01 rather than an arbitrary fraction of the span.
+            const step = Number.isInteger(lower)
+                && Number.isInteger(upper)
+                && Number.isInteger(actualSchema.default ?? 0)
+                && span >= 4
+                ? 1
+                : span > 5 ? 0.1 : span >= 1 ? 0.05 : 0.01;
+            // An exclusive bound excludes its own value, so start one step in:
+            // a slider that can be dragged to a number the server rejects is
+            // worse than one that cannot reach it.
+            const min = actualSchema.minimum === undefined ? lower + step : lower;
+            const max = actualSchema.maximum === undefined ? upper - step : upper;
+            const fallback = typeof actualSchema.default === "number"
+                ? actualSchema.default
+                : min;
+            const current = Number(watch(fieldKey) ?? fallback);
+
+            return (
+                <Slider
+                    id={fieldKey}
+                    min={min}
+                    max={max}
+                    step={step}
+                    value={Number.isFinite(current) ? current : fallback}
+                    onValueChange={(next) =>
+                        setValue(fieldKey, next, { shouldDirty: true })
+                    }
                 />
             );
         }

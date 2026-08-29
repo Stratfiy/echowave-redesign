@@ -1107,6 +1107,42 @@ class ElevenlabsTTSConfiguration(BaseServiceConfiguration):
         description="ElevenLabs voice ID from your Voice Library.",
     )
     speed: float = Field(default=1.0, ge=0.1, le=2.0, description="Speed of the voice.")
+    # These three were literals inside the TTS factory branch, so the only way
+    # to change how an ElevenLabs voice sounds was to edit and redeploy. The
+    # defaults here are exactly what that branch passed, so declaring them
+    # changes no call -- it only makes them reachable.
+    #
+    # ElevenLabs' own defaults are stability 0.5 and style 0.0; 0.8 is ours,
+    # chosen for a phone line where a wandering delivery is worse than a flat
+    # one. Somebody reading a script wants it higher, somebody doing warm
+    # outbound wants it lower, and neither should need a deploy.
+    stability: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "How steady the delivery is. Higher is more consistent and more "
+            "monotone; lower is more expressive and more variable between runs."
+        ),
+    )
+    similarity_boost: float = Field(
+        default=0.75,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "How closely the output tracks the original voice. Very high values "
+            "can reproduce artefacts present in the source recording."
+        ),
+    )
+    style: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Style exaggeration. Above 0 it costs latency, so it stays off "
+            "unless a voice actually needs it."
+        ),
+    )
     model: str = Field(
         default="eleven_flash_v2_5",
         description="ElevenLabs TTS model.",

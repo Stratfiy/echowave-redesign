@@ -677,9 +677,18 @@ def create_tts_service(
             settings=ElevenLabsTTSSettings(
                 voice=voice_id,
                 model=user_config.tts.model,
-                stability=0.8,
+                # getattr, not attribute access: after managed_resolution a
+                # section can be a Decibyl tier class answering
+                # provider == "elevenlabs" while carrying no tuning fields at
+                # all -- the same reason _carry() guards every field it copies.
+                # The fallbacks are the literals this branch used to pass, so a
+                # tier slot still sounds exactly as it did.
+                stability=getattr(user_config.tts, "stability", 0.8),
                 speed=user_config.tts.speed,
-                similarity_boost=0.75,
+                similarity_boost=getattr(
+                    user_config.tts, "similarity_boost", 0.75
+                ),
+                style=getattr(user_config.tts, "style", 0.0),
             ),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
