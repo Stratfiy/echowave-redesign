@@ -50,6 +50,32 @@ BYOK_SECTIONS: tuple[tuple[str, CostComponent], ...] = (
 )
 
 
+#: Ordered backups, which need a key resolved and a key_source stamped exactly
+#: like the primary they stand in for. Skipping them would leave a backup with
+#: no key -- silence at the moment the primary failed, which is the one moment
+#: it exists for -- and unattributed usage if it ever ran.
+FALLBACK_SECTIONS: tuple[tuple[str, CostComponent], ...] = (
+    ("fallback_stt", CostComponent.STT),
+    ("fallback_tts", CostComponent.TTS),
+)
+
+
+def _all_sections(effective):
+    """Yield ``(label, component, section)`` for every section needing a key.
+
+    A label rather than an attribute name, because a backup is one entry of a
+    list and "fallback_tts" alone would not say which.
+    """
+    for name, component in BYOK_SECTIONS:
+        section = getattr(effective, name, None)
+        if section is not None:
+            yield name, component, section
+
+    for name, component in FALLBACK_SECTIONS:
+        for index, section in enumerate(getattr(effective, name, None) or []):
+            yield f"{name}[{index}]", component, section
+
+
 def _is_managed(section) -> bool:
     return section is not None and section.is_managed
 
@@ -126,28 +152,23 @@ async def apply(
     # off ``usage_info`` at the end of the call to decide whether a component
     # was ours to charge for or the account's to have paid the vendor for
     # directly -- see ``api/services/billing/usage.py``.
-    for name, _component in BYOK_SECTIONS:
-        section = getattr(effective, name, None)
-        if section is not None:
-            section.key_source = "managed" if _is_managed(section) else "byok"
+    for _label, _component, section in _all_sections(effective):
+        section.key_source = "managed" if _is_managed(section) else "byok"
 
     if organization_id is None:
         return []
 
     candidates = [
-        (name, component)
-        for name, component in BYOK_SECTIONS
-        if (section := getattr(effective, name, None)) is not None
-        and not _is_managed(section)
-        and not _has_own_key(section)
+        (label, component, section)
+        for label, component, section in _all_sections(effective)
+        if not _is_managed(section) and not _has_own_key(section)
     ]
     if not candidates:
         return []
 
     unresolved: list[str] = []
     async with db_client.async_session() as session:
-        for name, component in candidates:
-            section = getattr(effective, name)
+        for name, component, section in candidates:
             provider = _provider_value(section)
 
             api_key = await organization_credentials.resolve_api_key(

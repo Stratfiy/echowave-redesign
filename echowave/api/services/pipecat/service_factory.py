@@ -90,6 +90,10 @@ from pipecat.services.speechmatics.stt import (
     SpeechmaticsSTTService,
     SpeechmaticsSTTSettings,
 )
+from pipecat.pipeline.service_switcher import (
+    ServiceSwitcher,
+    ServiceSwitcherStrategyFailover,
+)
 from pipecat.services.tts_service import TextAggregationMode
 from pipecat.services.xai.tts import XAITTSService, XAIWebsocketTTSSettings
 from pipecat.transcriptions.language import Language
@@ -1103,6 +1107,81 @@ def create_tts_service(
         raise HTTPException(
             status_code=400, detail=f"Invalid TTS provider {user_config.tts.provider}"
         )
+
+
+
+def _with_backups(primary, backups: list, component: str):
+    """Return the primary, or a switcher that fails over to the backups.
+
+    ``ServiceSwitcherStrategyFailover`` moves to the next service when the
+    active one pushes a *non-fatal* error, which is what a provider having a
+    bad minute looks like. A fatal error still ends the call: the provider is
+    saying the call cannot continue, and pretending otherwise would hand the
+    caller a second broken service instead of the first.
+
+    Returning the primary unchanged when there are no backups matters. A
+    switcher wrapping one service is a ParallelPipeline and a pair of filters
+    around every frame, for a failover that can never happen -- so the common
+    configuration pays nothing for a feature it did not ask for.
+    """
+    if not backups:
+        return primary
+
+    switcher = ServiceSwitcher(
+        services=[primary, *backups],
+        strategy_type=ServiceSwitcherStrategyFailover,
+    )
+
+    @switcher.strategy.event_handler("on_service_switched")
+    async def _log_switch(_strategy, service):
+        logger.warning(
+            "{} failed over to {}. The call continues on the backup; the "
+            "primary is not retried for the rest of it.",
+            component,
+            getattr(service, "name", service),
+        )
+
+    return switcher
+
+
+def create_tts_service_with_backups(
+    user_config, audio_config: "AudioConfig", correlation_id: str | None = None
+):
+    """The configured voice, plus any backups, as one processor.
+
+    A voice failing mid-call is dead air, which is the worst thing this product
+    can hand a caller. Each backup is a fully resolved configuration section, so
+    it is built by the same branch of ``create_tts_service`` as any primary --
+    there is no second construction path to keep in step.
+    """
+    primary = create_tts_service(user_config, audio_config, correlation_id)
+    backups = [
+        create_tts_service(
+            user_config.model_copy(update={"tts": section}), audio_config, correlation_id
+        )
+        for section in getattr(user_config, "fallback_tts", None) or []
+    ]
+    return _with_backups(primary, backups, "TTS")
+
+
+def create_stt_service_with_backups(
+    user_config,
+    audio_config: "AudioConfig",
+    keyterms: list[str] | None = None,
+    correlation_id: str | None = None,
+):
+    """The configured transcriber, plus any backups, as one processor."""
+    primary = create_stt_service(user_config, audio_config, keyterms, correlation_id)
+    backups = [
+        create_stt_service(
+            user_config.model_copy(update={"stt": section}),
+            audio_config,
+            keyterms,
+            correlation_id,
+        )
+        for section in getattr(user_config, "fallback_stt", None) or []
+    ]
+    return _with_backups(primary, backups, "Transcriber"), primary
 
 
 def _migrate_deprecated_google_model(model: str) -> str:

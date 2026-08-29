@@ -155,6 +155,79 @@ def check_for_masked_keys_in_workflow_model_configuration(
     _raise_if_masked_secret(configuration.model_dump(mode="json", exclude_none=True))
 
 
+def _attach_backups(effective, workflow_configurations: dict) -> None:
+    """Put the workflow's backups on the effective configuration.
+
+    Before key resolution, so a backup goes through the vault and the billing
+    stamp exactly as the primary does.
+    """
+    from api.services.configuration.registry import ServiceType
+
+    effective.fallback_stt = _backup_sections(
+        workflow_configurations.get("fallback_stt"), ServiceType.STT
+    )
+    effective.fallback_tts = _backup_sections(
+        workflow_configurations.get("fallback_tts"), ServiceType.TTS
+    )
+
+
+def _backup_sections(specs, service_type) -> list:
+    """Turn a workflow's backup specs into real provider configuration sections.
+
+    A spec names a provider and, at most, a model, voice and language. Building
+    the provider's own configuration class from it means a backup is the same
+    kind of object as the primary from here on: it resolves its key from the
+    vault, carries its billing attribution, and is built by the factory through
+    the same branch. A lighter shape would have had to reimplement all three.
+
+    ``api_key`` is set to the empty string deliberately -- that is the value
+    meaning "the key comes from somewhere else", which is what sends the
+    section to the account's vault in ``byok_resolution``.
+    """
+    from api.services.configuration.registry import REGISTRY, ServiceProviders
+
+    classes = {
+        (name.value if hasattr(name, "value") else name): cls
+        for name, cls in REGISTRY[service_type].items()
+    }
+
+    sections = []
+    for spec in specs or []:
+        provider = (spec or {}).get("provider") if isinstance(spec, dict) else None
+        provider = provider or getattr(spec, "provider", None)
+        if not provider:
+            continue
+        if provider == ServiceProviders.DECIBYL.value:
+            # A backup on Decibyl's key is a pricing decision, not a reliability
+            # one, and nothing here asked the account to agree to it.
+            logger.warning(
+                "Ignoring a managed backup for {}: a backup runs on the "
+                "account's own key.",
+                service_type,
+            )
+            continue
+
+        cls = classes.get(provider)
+        if cls is None:
+            logger.warning("Ignoring backup for unknown provider {}.", provider)
+            continue
+
+        fields = {"provider": provider, "api_key": ""}
+        for field in ("model", "voice", "language"):
+            value = (
+                (spec or {}).get(field)
+                if isinstance(spec, dict)
+                else getattr(spec, field, None)
+            )
+            if value and field in cls.model_fields:
+                fields[field] = value
+        try:
+            sections.append(cls(**fields))
+        except Exception as exc:  # noqa: BLE001 - a bad backup must not stop the call
+            logger.warning("Ignoring unusable backup for {}: {}", provider, exc)
+    return sections
+
+
 async def get_effective_ai_model_configuration_for_workflow(
     *,
     organization_id: int | None,
@@ -173,6 +246,7 @@ async def get_effective_ai_model_configuration_for_workflow(
     )
     if model_override:
         effective = compile_workflow_model_configuration_override(model_override)
+        _attach_backups(effective, workflow_configurations)
         await byok_resolution.apply(
             effective,
             organization_id=organization_id,
@@ -188,6 +262,7 @@ async def get_effective_ai_model_configuration_for_workflow(
         resolved_config.effective,
         workflow_configurations.get("model_overrides"),
     )
+    _attach_backups(effective, workflow_configurations)
     # Two key sources, in this order.
     #
     # A section naming a vendor but carrying no key is BYOK with the key in the

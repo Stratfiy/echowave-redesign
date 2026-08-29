@@ -47,7 +47,7 @@ import type { ModelOverrides } from "@/types/workflow-configurations";
 
 export type ServiceSegment = "llm" | "tts" | "stt" | "embeddings" | "realtime";
 
-interface SchemaProperty {
+export interface SchemaProperty {
     type?: string;
     default?: string | number | boolean;
     // Pydantic emits these from Field(ge=..., le=...). Every provider class in

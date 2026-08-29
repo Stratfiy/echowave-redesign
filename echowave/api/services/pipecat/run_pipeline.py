@@ -58,6 +58,8 @@ from api.services.pipecat.recording_audio_cache import (
 )
 from api.services.pipecat.recording_router_processor import RecordingRouterProcessor
 from api.services.pipecat.service_factory import (
+    create_stt_service_with_backups,
+    create_tts_service_with_backups,
     create_llm_service,
     create_llm_service_from_provider,
     create_realtime_llm_service,
@@ -717,6 +719,7 @@ async def _run_pipeline_impl(
         llm = create_realtime_llm_service(user_config, audio_config)
         stt = None
         tts = None
+        primary_stt = None
         # Realtime services don't implement run_inference, so create a
         # separate text LLM for variable extraction and other out-of-band
         # inference calls.
@@ -725,13 +728,17 @@ async def _run_pipeline_impl(
             correlation_id=mps_correlation_id,
         )
     else:
-        stt = create_stt_service(
+        # `stt` may be a switcher wrapping the transcriber and its backups;
+        # `primary_stt` is always the transcriber itself. The metrics
+        # aggregator registers the service to read its latency metadata, which
+        # a switcher does not have.
+        stt, primary_stt = create_stt_service_with_backups(
             user_config,
             audio_config,
             keyterms=keyterms,
             correlation_id=mps_correlation_id,
         )
-        tts = create_tts_service(
+        tts = create_tts_service_with_backups(
             user_config,
             audio_config,
             correlation_id=mps_correlation_id,
@@ -992,7 +999,9 @@ async def _run_pipeline_impl(
     # STT service by watching frames — tell it which one this pipeline built,
     # or speech-to-text drops out of provider cost. `stt` is None on realtime
     # speech-to-speech pipelines, which correctly have no separate STT charge.
-    pipeline_metrics_aggregator.register_stt_service(stt)
+    # The transcriber itself, never the switcher around it: this reads the
+    # service's own latency metadata.
+    pipeline_metrics_aggregator.register_stt_service(primary_stt or stt)
     # Tell billing which components ran on the account's own key. A realtime
     # pipeline has no separate stt/tts stage, so only its single "llm" bucket
     # (backed by the realtime section) carries a key_source.

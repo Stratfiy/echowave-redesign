@@ -24,6 +24,7 @@ import {
     type ModelConfigurationDefaultsV2,
 } from "@/components/AIModelConfigurationV2Editor";
 import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
+import { FallbackChain } from "@/components/FallbackChain";
 import { FlowEdge, FlowNode } from "@/components/flow/types";
 import { LLMConfigSelector } from "@/components/LLMConfigSelector";
 import SpinLoader from "@/components/SpinLoader";
@@ -51,6 +52,7 @@ import {
     DEFAULT_TURN_START_MIN_WORDS,
     DEFAULT_USER_SPEECH_TIMEOUT,
     DEFAULT_VOICEMAIL_DETECTION_CONFIGURATION,
+    type FallbackService,
     LATENCY_PRESETS,
     type LatencyPreset,
     matchLatencyPreset,
@@ -274,11 +276,13 @@ function GeneralSection({
     workflowName,
     workflowId,
     onSave,
+    modelConfigurationDefaults,
 }: {
     workflowConfigurations: WorkflowConfigurations;
     workflowName: string;
     workflowId: number;
     onSave: (configurations: WorkflowConfigurations, workflowName: string) => Promise<void>;
+    modelConfigurationDefaults: ModelConfigurationDefaultsV2 | null;
 }) {
     const [name, setName] = useState(workflowName);
     const [ambientNoiseConfig, setAmbientNoiseConfig] = useState<AmbientNoiseConfiguration>(
@@ -307,6 +311,12 @@ function GeneralSection({
     );
     const [includeTranscriptEndTimestamps, setIncludeTranscriptEndTimestamps] = useState(
         workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false,
+    );
+    const [fallbackTts, setFallbackTts] = useState<FallbackService[]>(
+        workflowConfigurations.fallback_tts ?? [],
+    );
+    const [fallbackStt, setFallbackStt] = useState<FallbackService[]>(
+        workflowConfigurations.fallback_stt ?? [],
     );
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingAudio, setIsUploadingAudio] = useState(false);
@@ -346,11 +356,13 @@ function GeneralSection({
             provisionalVadPauseSecs !== workflowConfigurations.provisional_vad_pause_secs ||
             turnStopStrategy !== workflowConfigurations.turn_stop_strategy ||
             userSpeechTimeout !== workflowConfigurations.user_speech_timeout ||
+            JSON.stringify(fallbackTts) !== JSON.stringify(workflowConfigurations.fallback_tts ?? []) ||
+            JSON.stringify(fallbackStt) !== JSON.stringify(workflowConfigurations.fallback_stt ?? []) ||
             contextCompactionEnabled !== workflowConfigurations.context_compaction_enabled ||
             includeTranscriptEndTimestamps !==
             (workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false)
         );
-    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -427,6 +439,8 @@ function GeneralSection({
                     provisional_vad_pause_secs: provisionalVadPauseSecs,
                     turn_stop_strategy: turnStopStrategy,
                     user_speech_timeout: userSpeechTimeout,
+                    fallback_tts: fallbackTts,
+                    fallback_stt: fallbackStt,
                     context_compaction_enabled: contextCompactionEnabled,
                     transcript_configuration: {
                         ...(workflowConfigurations.transcript_configuration ?? {}),
@@ -801,6 +815,39 @@ function GeneralSection({
                             onCheckedChange={setContextCompactionEnabled}
                         />
                     </div>
+                </div>
+
+                <Separator />
+
+                {/* Fallbacks */}
+                <div className="space-y-5">
+                    <div>
+                        <h3 className="text-sm font-medium">Fallbacks</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Where the call goes if a provider fails while someone is on the
+                            line. Tried in order, and only for a provider reporting a problem
+                            it expects to survive — a provider saying the call cannot
+                            continue still ends it.
+                        </p>
+                    </div>
+
+                    <FallbackChain
+                        label="Voice"
+                        kind="tts"
+                        description="A voice that stops mid-sentence is dead air, which is the worst thing a caller can be handed."
+                        schemas={modelConfigurationDefaults?.byok?.pipeline?.tts}
+                        value={fallbackTts}
+                        onChange={setFallbackTts}
+                    />
+
+                    <FallbackChain
+                        label="Transcriber"
+                        kind="stt"
+                        description="A transcriber that fails leaves the agent unable to hear, so it waits through a caller who is already talking."
+                        schemas={modelConfigurationDefaults?.byok?.pipeline?.stt}
+                        value={fallbackStt}
+                        onChange={setFallbackStt}
+                    />
                 </div>
 
                 <Separator />
@@ -1637,6 +1684,7 @@ function WorkflowSettingsInner({
                                 workflowName={workflowName || workflow.name}
                                 workflowId={workflowId}
                                 onSave={saveWorkflowConfigurations}
+                                modelConfigurationDefaults={modelConfigurationDefaults}
                             />
 
                             <WorkflowModelOverridesSection

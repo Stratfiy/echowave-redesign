@@ -619,6 +619,35 @@ export interface components {
             extractions: components["schemas"]["LibraryExtraction"][];
         };
         /**
+         * FallbackServiceConfiguration
+         * @description One backup in an ordered chain, tried when the one before it fails.
+         *
+         *     Deliberately thin. A backup is chosen to keep a live call alive, not to be
+         *     tuned -- so it names a provider and, where the provider needs them, a model
+         *     and a voice, and takes the provider's defaults for everything else. The key
+         *     comes from the account's vault at dial time, so a backup can only be a
+         *     provider this account can actually authenticate to.
+         */
+        FallbackServiceConfiguration: {
+            /** Provider */
+            provider: string;
+            /**
+             * Model
+             * @default
+             */
+            model: string;
+            /**
+             * Voice
+             * @default
+             */
+            voice: string;
+            /**
+             * Language
+             * @default
+             */
+            language: string;
+        };
+        /**
          * GoogleCalendarToolDefinition
          * @description Tool definition for creating an event on the organization's connected
          *     Google Calendar. No config: unlike an HTTP API tool there is no URL,
@@ -1411,6 +1440,10 @@ export interface components {
              * @default false
              */
             context_compaction_enabled: boolean;
+            /** Fallback Tts */
+            fallback_tts?: components["schemas"]["FallbackServiceConfiguration"][];
+            /** Fallback Stt */
+            fallback_stt?: components["schemas"]["FallbackServiceConfiguration"][];
         } & {
             [key: string]: unknown;
         };
@@ -1506,6 +1539,7 @@ export type DocumentResponseSchema = components['schemas']['DocumentResponseSche
 export type EndCallConfig = components['schemas']['EndCallConfig'];
 export type EndCallToolDefinition = components['schemas']['EndCallToolDefinition'];
 export type ExtractionLibraryResponse = components['schemas']['ExtractionLibraryResponse'];
+export type FallbackServiceConfiguration = components['schemas']['FallbackServiceConfiguration'];
 export type GoogleCalendarToolDefinition = components['schemas']['GoogleCalendarToolDefinition'];
 export type GraphConstraints = components['schemas']['GraphConstraints'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];

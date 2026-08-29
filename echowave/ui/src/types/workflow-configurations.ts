@@ -113,6 +113,14 @@ export const TURN_START_STRATEGY_OPTIONS: Array<{
     },
 ];
 
+/** One backup in an ordered chain. Mirrors FallbackServiceConfiguration. */
+export interface FallbackService {
+    provider: string;
+    model?: string;
+    voice?: string;
+    language?: string;
+}
+
 export interface VoicemailDetectionConfiguration {
     enabled: boolean;
     use_workflow_llm: boolean;
@@ -193,6 +201,8 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
     turn_stop_strategy: TurnStopStrategy;  // Strategy for detecting end of user turn
     user_speech_timeout: number;  // Silence after VAD stop before the turn ends; "transcription" strategy only
     dictionary?: string;  // Comma-separated words for voice agent to listen for
+    fallback_tts?: FallbackService[];  // Ordered voice backups, tried when the one before fails
+    fallback_stt?: FallbackService[];  // Ordered transcriber backups
     voicemail_detection?: VoicemailDetectionConfiguration;
     transcript_configuration: TranscriptConfiguration;
     context_compaction_enabled: boolean;  // Summarize context on node transitions to remove stale tool calls

@@ -49,6 +49,24 @@ DEFAULT_USER_SPEECH_TIMEOUT = 0.4
 DEFAULT_CONTEXT_COMPACTION_ENABLED = False
 
 
+class FallbackServiceConfiguration(BaseModel):
+    """One backup in an ordered chain, tried when the one before it fails.
+
+    Deliberately thin. A backup is chosen to keep a live call alive, not to be
+    tuned -- so it names a provider and, where the provider needs them, a model
+    and a voice, and takes the provider's defaults for everything else. The key
+    comes from the account's vault at dial time, so a backup can only be a
+    provider this account can actually authenticate to.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str = Field(min_length=1)
+    model: str = ""
+    voice: str = ""
+    language: str = ""
+
+
 class AmbientNoiseConfigurationDefaults(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -99,6 +117,19 @@ class WorkflowConfigurationDefaults(BaseModel):
     )
     dictionary: str = ""
     context_compaction_enabled: bool = DEFAULT_CONTEXT_COMPACTION_ENABLED
+    # Ordered backups, tried in turn when the service in front of them reports
+    # a non-fatal error mid-call. Empty means what it always did: one provider,
+    # and a failure the caller hears as dead air.
+    #
+    # Capped because each backup is a live connection held open for a failure
+    # that usually never comes; past a couple the cost is certain and the
+    # benefit is not.
+    fallback_tts: list[FallbackServiceConfiguration] = Field(
+        default_factory=list, max_length=2
+    )
+    fallback_stt: list[FallbackServiceConfiguration] = Field(
+        default_factory=list, max_length=2
+    )
 
 
 def get_default_workflow_configurations() -> WorkflowConfigurationDefaults:
