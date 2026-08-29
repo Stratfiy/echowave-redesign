@@ -2610,18 +2610,6 @@ export type DecibylLlmService = {
      * Decibyl-hosted model tier.
      */
     model?: string;
-    /**
-     * Temperature
-     *
-     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
-     */
-    temperature?: number | null;
-    /**
-     * Max Tokens
-     *
-     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
-     */
-    max_tokens?: number | null;
 };
 
 /**
