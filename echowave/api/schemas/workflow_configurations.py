@@ -46,7 +46,31 @@ DEFAULT_TURN_STOP_STRATEGY = "turn_analyzer"
 # for a workflow whose callers read out numbers or think mid-sentence; lower it
 # for short scripted confirmations.
 DEFAULT_USER_SPEECH_TIMEOUT = 0.4
+# Off by default, and off means the processor is never built into the pipeline
+# at all -- an agent nobody configured this on runs exactly the frames it ran
+# before. The pause only helps where an interruption was brief; everywhere else
+# the caller finishing, the turn being detected, the model answering and speech
+# being synthesised already take longer than any sensible value here.
+DEFAULT_INTERRUPTION_BACKOFF_SECS = 0.0
 DEFAULT_CONTEXT_COMPACTION_ENABLED = False
+
+
+class FallbackServiceConfiguration(BaseModel):
+    """One backup in an ordered chain, tried when the one before it fails.
+
+    Deliberately thin. A backup is chosen to keep a live call alive, not to be
+    tuned -- so it names a provider and, where the provider needs them, a model
+    and a voice, and takes the provider's defaults for everything else. The key
+    comes from the account's vault at dial time, so a backup can only be a
+    provider this account can actually authenticate to.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str = Field(min_length=1)
+    model: str = ""
+    voice: str = ""
+    language: str = ""
 
 
 class AmbientNoiseConfigurationDefaults(BaseModel):
@@ -79,9 +103,14 @@ class WorkflowConfigurationDefaults(BaseModel):
     )
     max_user_idle_timeout: float = DEFAULT_MAX_USER_IDLE_TIMEOUT_SECONDS
     smart_turn_stop_secs: float = DEFAULT_SMART_TURN_STOP_SECS
-    turn_start_strategy: Literal["default", "min_words", "provisional_vad"] = (
-        DEFAULT_TURN_START_STRATEGY
-    )
+    # "default" resolves per transcriber: an STT that emits its own turn
+    # boundaries owns interruption, otherwise a minimum word count does. "vad"
+    # is that older raw-voice-activity fallback, kept selectable for a
+    # transcriber that emits no interim results -- see
+    # _create_non_realtime_user_turn_start_strategies.
+    turn_start_strategy: Literal[
+        "default", "min_words", "provisional_vad", "vad"
+    ] = DEFAULT_TURN_START_STRATEGY
     turn_start_min_words: int = DEFAULT_TURN_START_MIN_WORDS
     provisional_vad_pause_secs: float = DEFAULT_PROVISIONAL_VAD_PAUSE_SECS
     turn_stop_strategy: Literal["transcription", "turn_analyzer"] = (
@@ -93,7 +122,23 @@ class WorkflowConfigurationDefaults(BaseModel):
         default=DEFAULT_USER_SPEECH_TIMEOUT, ge=0.15, le=3.0
     )
     dictionary: str = ""
+    interruption_backoff_secs: float = Field(
+        default=DEFAULT_INTERRUPTION_BACKOFF_SECS, ge=0.0, le=3.0
+    )
     context_compaction_enabled: bool = DEFAULT_CONTEXT_COMPACTION_ENABLED
+    # Ordered backups, tried in turn when the service in front of them reports
+    # a non-fatal error mid-call. Empty means what it always did: one provider,
+    # and a failure the caller hears as dead air.
+    #
+    # Capped because each backup is a live connection held open for a failure
+    # that usually never comes; past a couple the cost is certain and the
+    # benefit is not.
+    fallback_tts: list[FallbackServiceConfiguration] = Field(
+        default_factory=list, max_length=2
+    )
+    fallback_stt: list[FallbackServiceConfiguration] = Field(
+        default_factory=list, max_length=2
+    )
 
 
 def get_default_workflow_configurations() -> WorkflowConfigurationDefaults:

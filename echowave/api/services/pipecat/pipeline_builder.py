@@ -38,6 +38,7 @@ def build_pipeline(
     voicemail_detector=None,
     recording_router=None,
     language_follower=None,
+    interruption_backoff=None,
 ):
     """Build the main pipeline with all components.
 
@@ -96,6 +97,9 @@ def build_pipeline(
         [
             llm,  # LLM
             *post_llm,
+            # Absent unless configured, so an agent that never asked for it
+            # runs the frames it always ran.
+            *([interruption_backoff] if interruption_backoff else []),
             tts,  # TTS
             transport.output(),  # Transport bot output
             audio_buffer,  # AudioBufferProcessor - records both input and output audio

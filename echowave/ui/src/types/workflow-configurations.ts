@@ -20,7 +20,74 @@ export type AmbientNoiseConfiguration = Omit<
 export type TurnStopStrategy = NonNullable<GeneratedWorkflowConfigurationDefaults["turn_stop_strategy"]>;
 export type TurnStartStrategy = NonNullable<GeneratedWorkflowConfigurationDefaults["turn_start_strategy"]>;
 export const DEFAULT_TURN_START_MIN_WORDS = 3;
+// Mirrors DEFAULT_USER_SPEECH_TIMEOUT in api/schemas/workflow_configurations.py,
+// where the 0.15 floor is also enforced.
+export const DEFAULT_USER_SPEECH_TIMEOUT = 0.4;
+export const MIN_USER_SPEECH_TIMEOUT = 0.15;
+export const MAX_USER_SPEECH_TIMEOUT = 3.0;
 export const DEFAULT_PROVISIONAL_VAD_PAUSE_SECS = 1.5;
+// Off by default. Zero means the processor is never built into the pipeline,
+// so an agent nobody set this on runs exactly the frames it ran before.
+export const DEFAULT_INTERRUPTION_BACKOFF_SECS = 0;
+
+/**
+ * Named response-rate settings, in the spirit of Bolna's Rapid/Normal/Patient.
+ *
+ * The three numbers below interact, so exposing them as independent sliders
+ * means every caller who touches one is running a combination nobody has
+ * tested. A preset is a tested tuple with a name, and it collapses that space
+ * to three points plus an escape hatch.
+ *
+ * Deliberately NOT a stored field. The selected preset is derived from the
+ * numbers themselves (see `matchLatencyPreset`), so:
+ *   - no migration, and no new column to keep in sync with the values;
+ *   - a workflow already tuned by hand keeps its numbers and simply reads as
+ *     "Custom" — picking a preset is the only thing that overwrites them;
+ *   - the pipeline keeps reading the same three fields it always did.
+ *
+ * `balanced` is exactly the committed defaults, so every existing workflow
+ * lands on it unchanged.
+ */
+export const LATENCY_PRESETS = {
+    rapid: {
+        label: 'Rapid',
+        blurb: 'Short confirmations and IVR-style flows. Cuts in quickly; will occasionally clip someone who pauses mid-sentence.',
+        values: { user_speech_timeout: 0.2, smart_turn_stop_secs: 1.0, turn_start_min_words: 2 },
+    },
+    balanced: {
+        label: 'Balanced',
+        blurb: 'The default, and what every workflow runs today. Start here and only move if calls tell you to.',
+        values: { user_speech_timeout: DEFAULT_USER_SPEECH_TIMEOUT, smart_turn_stop_secs: 2.0, turn_start_min_words: DEFAULT_TURN_START_MIN_WORDS },
+    },
+    patient: {
+        label: 'Patient',
+        blurb: 'Callers reading out numbers, thinking mid-sentence, or on a noisy line. Waits longer and interrupts less.',
+        values: { user_speech_timeout: 0.8, smart_turn_stop_secs: 3.0, turn_start_min_words: 5 },
+    },
+} as const;
+
+export type LatencyPreset = keyof typeof LATENCY_PRESETS;
+export type LatencyPresetOrCustom = LatencyPreset | 'custom';
+
+/** Which preset these settings correspond to, or 'custom' if none. */
+export function matchLatencyPreset(
+    config: Pick<
+        WorkflowConfigurations,
+        'user_speech_timeout' | 'smart_turn_stop_secs' | 'turn_start_min_words'
+    >,
+): LatencyPresetOrCustom {
+    for (const [name, preset] of Object.entries(LATENCY_PRESETS)) {
+        const v = preset.values;
+        if (
+            config.user_speech_timeout === v.user_speech_timeout
+            && config.smart_turn_stop_secs === v.smart_turn_stop_secs
+            && config.turn_start_min_words === v.turn_start_min_words
+        ) {
+            return name as LatencyPreset;
+        }
+    }
+    return 'custom';
+}
 
 export const TURN_START_STRATEGY_OPTIONS: Array<{
     value: TurnStartStrategy;
@@ -29,8 +96,8 @@ export const TURN_START_STRATEGY_OPTIONS: Array<{
 }> = [
     {
         value: 'default',
-        label: 'Default',
-        description: 'Use the platform default: external STT turn signals when available, otherwise local VAD.',
+        label: 'Automatic (Recommended)',
+        description: 'Recommended. Uses the transcriber\'s own turn signals when it has them, otherwise requires a minimum number of words — so background noise cannot cut the agent off.',
     },
     {
         value: 'min_words',
@@ -42,7 +109,20 @@ export const TURN_START_STRATEGY_OPTIONS: Array<{
         label: 'Provisional VAD',
         description: 'Pause bot audio on voice activity, then confirm the interruption with transcription.',
     },
+    {
+        value: 'vad',
+        label: 'Voice activity only',
+        description: 'Interrupt on any sound loud enough to read as speech. Fastest to react and the least discriminating — a cough or background talk will stop the agent. Use only if your transcriber emits no interim results.',
+    },
 ];
+
+/** One backup in an ordered chain. Mirrors FallbackServiceConfiguration. */
+export interface FallbackService {
+    provider: string;
+    model?: string;
+    voice?: string;
+    language?: string;
+}
 
 export interface VoicemailDetectionConfiguration {
     enabled: boolean;
@@ -108,6 +188,8 @@ type WorkflowConfigurationBase = Omit<
     | "turn_start_min_words"
     | "provisional_vad_pause_secs"
     | "turn_stop_strategy"
+    | "user_speech_timeout"
+    | "interruption_backoff_secs"
     | "dictionary"
     | "context_compaction_enabled"
 >;
@@ -121,7 +203,11 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
     turn_start_min_words: number;  // Minimum transcribed words required for minimum-word interruptions
     provisional_vad_pause_secs: number;  // Seconds to pause bot output while awaiting transcript confirmation
     turn_stop_strategy: TurnStopStrategy;  // Strategy for detecting end of user turn
+    user_speech_timeout: number;  // Silence after VAD stop before the turn ends; "transcription" strategy only
+    interruption_backoff_secs: number;  // Pause before the agent speaks again after being cut off
     dictionary?: string;  // Comma-separated words for voice agent to listen for
+    fallback_tts?: FallbackService[];  // Ordered voice backups, tried when the one before fails
+    fallback_stt?: FallbackService[];  // Ordered transcriber backups
     voicemail_detection?: VoicemailDetectionConfiguration;
     transcript_configuration: TranscriptConfiguration;
     context_compaction_enabled: boolean;  // Summarize context on node transitions to remove stale tool calls
@@ -142,6 +228,8 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     turn_start_min_words: DEFAULT_TURN_START_MIN_WORDS,
     provisional_vad_pause_secs: DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     turn_stop_strategy: 'turn_analyzer',  // Local model ends the turn; see DEFAULT_TURN_STOP_STRATEGY
+    user_speech_timeout: DEFAULT_USER_SPEECH_TIMEOUT,
+    interruption_backoff_secs: DEFAULT_INTERRUPTION_BACKOFF_SECS,
     dictionary: '',
     transcript_configuration: DEFAULT_TRANSCRIPT_CONFIGURATION,
     context_compaction_enabled: false,
@@ -188,6 +276,14 @@ export function resolveWorkflowConfigurations(
             configurations?.turn_stop_strategy
             ?? defaults?.turn_stop_strategy
             ?? FALLBACK_WORKFLOW_CONFIGURATIONS.turn_stop_strategy,
+        user_speech_timeout:
+            configurations?.user_speech_timeout
+            ?? defaults?.user_speech_timeout
+            ?? FALLBACK_WORKFLOW_CONFIGURATIONS.user_speech_timeout,
+        interruption_backoff_secs:
+            configurations?.interruption_backoff_secs
+            ?? defaults?.interruption_backoff_secs
+            ?? FALLBACK_WORKFLOW_CONFIGURATIONS.interruption_backoff_secs,
         dictionary:
             configurations?.dictionary
             ?? defaults?.dictionary

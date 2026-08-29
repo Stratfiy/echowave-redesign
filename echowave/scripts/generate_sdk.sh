@@ -61,19 +61,63 @@ python - <<PY
 import json
 from loguru import logger
 logger.remove()
-from fastapi.openapi.utils import get_openapi
 from api.app import app
 
-sdk_routes = [
-    r for r in app.routes
-    if getattr(r, "openapi_extra", None)
-    and "x-sdk-method" in (r.openapi_extra or {})
-]
-spec = get_openapi(title=app.title, version=app.version, routes=sdk_routes)
+# Filter the published document rather than app.routes. FastAPI 0.141 stopped
+# flattening included routers, so the whole API is one lazy _IncludedRouter
+# object and a route-level filter matches nothing -- which produced an empty
+# spec and a codegen failure rather than an error naming the cause. The
+# generator consumes the published document anyway, so this reads the same
+# thing it does. See tests/test_mcp_tool_creation.py for the same correction.
+full = app.openapi()
+
+paths = {}
+for path, item in full.get("paths", {}).items():
+    kept = {
+        method: op
+        for method, op in item.items()
+        if isinstance(op, dict) and "x-sdk-method" in op
+    }
+    if kept:
+        paths[path] = kept
+
+# Keep only the schemas those operations can actually reach, transitively --
+# datamodel-codegen emits a class for every schema it is handed, and the SDK
+# surface is meant to stay small and auditable.
+all_schemas = full.get("components", {}).get("schemas", {})
+
+
+def refs(node):
+    if isinstance(node, dict):
+        ref = node.get("\$ref")
+        if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
+            yield ref.rsplit("/", 1)[-1]
+        for value in node.values():
+            yield from refs(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from refs(value)
+
+
+reachable, frontier = set(), set(refs(paths))
+while frontier:
+    name = frontier.pop()
+    if name in reachable or name not in all_schemas:
+        continue
+    reachable.add(name)
+    frontier |= set(refs(all_schemas[name]))
+
+spec = {
+    "openapi": full.get("openapi", "3.1.0"),
+    "info": full.get("info", {"title": app.title, "version": app.version}),
+    "paths": paths,
+    "components": {"schemas": {k: all_schemas[k] for k in sorted(reachable)}},
+}
 with open("$OPENAPI_JSON", "w") as f:
     json.dump(spec, f)
-print(f"  → {len(sdk_routes)} operations, "
-      f"{len(spec.get('components', {}).get('schemas', {}))} schemas reachable")
+
+operations = sum(len(methods) for methods in paths.values())
+print(f"  → {operations} operations, {len(reachable)} schemas reachable")
 PY
 
 # ── 3. Request/response models (off-the-shelf) ────────────────────────

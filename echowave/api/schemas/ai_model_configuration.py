@@ -33,6 +33,12 @@ class EffectiveAIModelConfiguration(BaseModel):
     tts: TTSConfig | None = None
     embeddings: EmbeddingsConfig | None = None
     realtime: RealtimeConfig | None = None
+    # Ordered backups for the two components a caller hears fail. Full
+    # configuration sections rather than a lighter shape, so a backup resolves
+    # its key, stamps its billing attribution and is built by the factory
+    # through exactly the same path as the primary it stands in for.
+    fallback_stt: list[STTConfig] = Field(default_factory=list)
+    fallback_tts: list[TTSConfig] = Field(default_factory=list)
     is_realtime: bool = False
     managed_service_version: int | None = None
     test_phone_number: str | None = None

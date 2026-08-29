@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode, urlparse, urlunparse
 
@@ -88,6 +89,10 @@ from pipecat.services.speaches.tts import SpeachesTTSService, SpeachesTTSSetting
 from pipecat.services.speechmatics.stt import (
     SpeechmaticsSTTService,
     SpeechmaticsSTTSettings,
+)
+from pipecat.pipeline.service_switcher import (
+    ServiceSwitcher,
+    ServiceSwitcherStrategyFailover,
 )
 from pipecat.services.tts_service import TextAggregationMode
 from pipecat.services.xai.tts import XAITTSService, XAIWebsocketTTSSettings
@@ -400,6 +405,10 @@ def create_stt_service(
         return AssemblyAISTTService(
             api_key=user_config.stt.api_key,
             settings=AssemblyAISTTSettings(**settings_kwargs),
+            # The user turn strategies decide what counts as an interruption;
+            # this service would otherwise broadcast one itself the moment it
+            # hears speech, which bypasses turn_start_strategy entirely.
+            should_interrupt=False,
             sample_rate=audio_config.transport_in_sample_rate,
         )
     elif user_config.stt.provider == ServiceProviders.GLADIA.value:
@@ -415,6 +424,10 @@ def create_stt_service(
         return GladiaSTTService(
             api_key=user_config.stt.api_key,
             settings=GladiaSTTSettings(**settings_kwargs),
+            # The user turn strategies decide what counts as an interruption;
+            # this service would otherwise broadcast one itself the moment it
+            # hears speech, which bypasses turn_start_strategy entirely.
+            should_interrupt=False,
             sample_rate=audio_config.transport_in_sample_rate,
         )
     elif user_config.stt.provider == ServiceProviders.SPEECHMATICS.value:
@@ -441,6 +454,10 @@ def create_stt_service(
                 operating_point=operating_point,
                 additional_vocab=additional_vocab,
             ),
+            # The user turn strategies decide what counts as an interruption;
+            # this service would otherwise broadcast one itself the moment it
+            # hears speech, which bypasses turn_start_strategy entirely.
+            should_interrupt=False,
             sample_rate=audio_config.transport_in_sample_rate,
         )
     elif user_config.stt.provider == ServiceProviders.AZURE_SPEECH.value:
@@ -496,97 +513,178 @@ def create_stt_service(
         )
 
 
-# Providers whose TTS class holds one connection open across synthesis calls,
-# so feeding it LLM tokens as they arrive starts audio sooner instead of
-# starting a new request per token.
-#
-# Membership is per *class the factory actually constructs*, not per vendor.
-# Several vendors ship both a websocket and an HTTP service and we pick one;
-# the vendor supporting streaming somewhere is not the question.
-#
-#   deepgram    DeepgramTTSService      websocket base class
-#   elevenlabs  ElevenLabsTTSService    websocket base class — also derives its
-#                                       own auto_mode from this setting, so it
-#                                       needs no separate tuning here
-#   cartesia    CartesiaTTSService      websocket base class
-#   inworld     InworldTTSService       websocket base class
-#   decibyl     DograhTTSService        websocket base class
-#   rime        RimeTTSService          websocket base class
-#   sarvam      SarvamTTSService        persistent websocket, sends text on it
-#   smallest    SmallestTTSService      persistent websocket, sends text on it
-#   xai         XAITTSService           websocket base class. The factory built
-#                                       xAI's HTTP class until this audit found
-#                                       the websocket one sitting unused beside
-#                                       it; the settings are a superset, so the
-#                                       swap cost one renamed argument.
-_LOW_LATENCY_STREAMING_TTS_PROVIDERS = frozenset(
-    {
-        ServiceProviders.DEEPGRAM.value,
-        ServiceProviders.ELEVENLABS.value,
-        ServiceProviders.CARTESIA.value,
-        ServiceProviders.INWORLD.value,
-        ServiceProviders.DECIBYL.value,
-        ServiceProviders.RIME.value,
-        ServiceProviders.SARVAM.value,
-        ServiceProviders.SMALLEST.value,
-        ServiceProviders.XAI.value,
-    }
-)
+#: Trailing silence pushed after a synthesis stops. Pipecat's own default is
+#: 2.0s, which is a long tail on a phone call.
+DEFAULT_TTS_SILENCE_TIME_S = 1.0
 
-# The rest, and why each one is not an oversight. Written down because "some
-# providers got the low-latency setting and some didn't" reads like unfinished
-# work, and re-deriving the answer means reading a TTS class per provider.
-#
-#   openai      OpenAITTSService        one HTTP request per synthesis
-#   speaches    SpeachesTTSService      subclasses OpenAITTSService
-#   camb        CambTTSService          one HTTP request per synthesis
-#   minimax     MiniMaxHttpTTS (ours)   one HTTP request per synthesis. The
-#                                       "OwnedSession" in our subclass is an
-#                                       aiohttp session's lifecycle, not a
-#                                       streaming session.
-#   google      GoogleTTSService        websocket-free; builds a fresh
-#                                       StreamingSynthesizeConfig and opens a
-#                                       new gRPC streaming call per run_tts,
-#                                       so token mode means one call per token
-#   azure_speech AzureTTSService        the interesting one. Its connection
-#                                       *is* persistent, but each run_tts wraps
-#                                       the text in SSML for a discrete
-#                                       speak_ssml_async, and it drains the
-#                                       audio queue on entry — so a second call
-#                                       arriving mid-playback discards the
-#                                       first one's remaining audio. Token mode
-#                                       here would chop speech, not speed it up.
-#
-#   rumik       RumikTTSService does hold a persistent websocket, like Sarvam
-#               and Smallest — but it defaults to full_response_aggregation and
-#               replaces self._text_aggregator with its own
-#               _FullResponseTextAggregator *after* calling super().__init__().
-#               A text_aggregation_mode passed here is therefore overwritten
-#               and has no effect: adding rumik to the streaming set would look
-#               like a latency fix and change nothing at all.
+
+@dataclass(frozen=True)
+class TTSPolicy:
+    """What ``create_tts_service`` needs to know about a provider.
+
+    One row per provider, each carrying its reason, so the answer to "why does
+    this one differ" is next to the value rather than in a class two
+    repositories away. ``tests/test_sarvam_service_factory.py`` fails if a
+    provider the factory can build has no row.
+
+    Attributes:
+        streams: Whether the class the factory constructs holds one connection
+            open across synthesis calls. True feeds it LLM tokens as they
+            arrive, so audio starts sooner; False keeps Pipecat's sentence
+            default, where token mode would mean one request per token.
+        reason: Why this provider is classified as it is. Required, because
+            "some providers got the low-latency setting and some didn't" reads
+            like unfinished work, and re-deriving the answer means reading a
+            TTS class per provider.
+        silence_time_s: Trailing silence after a stop, or None to leave the
+            provider on Pipecat's default.
+    """
+
+    streams: bool
+    reason: str
+    silence_time_s: float | None = DEFAULT_TTS_SILENCE_TIME_S
+
+
+#: Membership is per *class the factory actually constructs*, not per vendor.
+#: Several vendors ship both a websocket and an HTTP service and we pick one;
+#: the vendor supporting streaming somewhere is not the question.
+TTS_POLICY: dict[str, TTSPolicy] = {
+    ServiceProviders.DEEPGRAM.value: TTSPolicy(
+        streams=True, reason="DeepgramTTSService — websocket base class"
+    ),
+    ServiceProviders.ELEVENLABS.value: TTSPolicy(
+        streams=True,
+        reason=(
+            "ElevenLabsTTSService — websocket base class. Also derives its own "
+            "auto_mode from this setting, so it needs no separate tuning"
+        ),
+    ),
+    ServiceProviders.CARTESIA.value: TTSPolicy(
+        streams=True, reason="CartesiaTTSService — websocket base class"
+    ),
+    ServiceProviders.INWORLD.value: TTSPolicy(
+        streams=True, reason="InworldTTSService — websocket base class"
+    ),
+    ServiceProviders.DECIBYL.value: TTSPolicy(
+        streams=True, reason="DograhTTSService — websocket base class"
+    ),
+    ServiceProviders.RIME.value: TTSPolicy(
+        streams=True, reason="RimeTTSService — websocket base class"
+    ),
+    ServiceProviders.SARVAM.value: TTSPolicy(
+        streams=True, reason="SarvamTTSService — persistent websocket, sends text on it"
+    ),
+    ServiceProviders.SMALLEST.value: TTSPolicy(
+        streams=True, reason="SmallestTTSService — persistent websocket, sends text on it"
+    ),
+    ServiceProviders.XAI.value: TTSPolicy(
+        streams=True,
+        reason=(
+            "XAITTSService — websocket base class. The factory built xAI's HTTP "
+            "class until an audit found the websocket one sitting unused beside "
+            "it; the settings are a superset, so the swap cost one renamed argument"
+        ),
+    ),
+    ServiceProviders.OPENAI.value: TTSPolicy(
+        streams=False, reason="OpenAITTSService — one HTTP request per synthesis"
+    ),
+    ServiceProviders.SPEACHES.value: TTSPolicy(
+        streams=False, reason="SpeachesTTSService — subclasses OpenAITTSService"
+    ),
+    ServiceProviders.MINIMAX.value: TTSPolicy(
+        streams=False,
+        reason=(
+            "MiniMaxHttpTTS (ours) — one HTTP request per synthesis. The "
+            '"OwnedSession" in our subclass is an aiohttp session\'s lifecycle, '
+            "not a streaming session"
+        ),
+    ),
+    ServiceProviders.GOOGLE.value: TTSPolicy(
+        streams=False,
+        reason=(
+            "GoogleTTSService — websocket-free; builds a fresh "
+            "StreamingSynthesizeConfig and opens a new gRPC streaming call per "
+            "run_tts, so token mode means one call per token"
+        ),
+    ),
+    ServiceProviders.AZURE_SPEECH.value: TTSPolicy(
+        streams=False,
+        reason=(
+            "AzureTTSService — the interesting one. Its connection *is* "
+            "persistent, but each run_tts wraps the text in SSML for a discrete "
+            "speak_ssml_async and drains the audio queue on entry, so a second "
+            "call arriving mid-playback discards the first one's remaining "
+            "audio. Token mode here would chop speech, not speed it up"
+        ),
+    ),
+    ServiceProviders.CAMB.value: TTSPolicy(
+        streams=False,
+        reason="CambTTSService — one HTTP request per synthesis",
+        # Never set for this provider, so it runs on Pipecat's 2.0s tail while
+        # fourteen others push 1.0s. CambTTSService subclasses TTSService and
+        # would accept the shorter value; recorded rather than changed, because
+        # trailing silence is heard on a call and the change wants one listen.
+        silence_time_s=None,
+    ),
+    ServiceProviders.RUMIK.value: TTSPolicy(
+        streams=False,
+        reason=(
+            "RumikTTSService does hold a persistent websocket, like Sarvam and "
+            "Smallest — but it defaults to full_response_aggregation and "
+            "replaces self._text_aggregator with its own "
+            "_FullResponseTextAggregator *after* calling super().__init__(). A "
+            "text_aggregation_mode passed here is therefore overwritten and has "
+            "no effect: classifying rumik as streaming would look like a latency "
+            "fix and change nothing at all"
+        ),
+        # As Camb, and less certain: the service ships in a third-party package,
+        # so that it accepts this at all is unverified here.
+        silence_time_s=None,
+    ),
+}
+
+#: Derived views, kept because they read better at the call site than a
+#: dict lookup and because the exhaustiveness tests are written against them.
+_LOW_LATENCY_STREAMING_TTS_PROVIDERS = frozenset(
+    provider for provider, policy in TTS_POLICY.items() if policy.streams
+)
 _REQUEST_BASED_TTS_PROVIDERS = frozenset(
-    {
-        ServiceProviders.OPENAI.value,
-        ServiceProviders.SPEACHES.value,
-        ServiceProviders.CAMB.value,
-        ServiceProviders.MINIMAX.value,
-        ServiceProviders.GOOGLE.value,
-        ServiceProviders.AZURE_SPEECH.value,
-        ServiceProviders.RUMIK.value,
-    }
+    provider for provider, policy in TTS_POLICY.items() if not policy.streams
 )
 
 
 def _create_tts_service_instance(provider, service, /, **kwargs):
-    """Apply the transport-aware TTS latency policy to every provider.
+    """Build a TTS service, applying everything TTS_POLICY decides.
 
     Persistent streaming transports receive LLM tokens immediately and buffer
     provider-side while generation continues. Request-based transports retain
     Pipecat's sentence default: token mode would create one synthesis request
     per token, increasing latency, cost, and audible seams.
+
+    The rest is what every provider needs identically -- a filter so function
+    call tags are never spoken, and the aggregators to skip. Applied here
+    rather than repeated per branch, which is how a provider ends up quietly
+    missing one.
+
+    A branch may still pass any of these explicitly; an explicit value wins,
+    so a provider that genuinely needs to differ says so at its own call site.
     """
-    if provider in _LOW_LATENCY_STREAMING_TTS_PROVIDERS:
-        kwargs["text_aggregation_mode"] = TextAggregationMode.TOKEN
+    policy = TTS_POLICY.get(provider)
+    if policy is None:
+        # Not reachable through create_tts_service, whose branches are exactly
+        # the table's keys, but an unclassified provider must not silently
+        # inherit another one's decisions.
+        raise HTTPException(
+            status_code=400, detail=f"No TTS policy recorded for provider {provider}"
+        )
+
+    if policy.streams:
+        kwargs.setdefault("text_aggregation_mode", TextAggregationMode.TOKEN)
+    if policy.silence_time_s is not None:
+        kwargs.setdefault("silence_time_s", policy.silence_time_s)
+    kwargs.setdefault("text_filters", [XMLFunctionTagFilter()])
+    kwargs.setdefault("skip_aggregator_types", ["recording_router", "recording"])
+
     return service(**kwargs)
 
 
@@ -602,17 +700,12 @@ def create_tts_service(
     logger.info(
         f"Creating TTS service: provider={user_config.tts.provider}, model={user_config.tts.model}"
     )
-    # Create function call filter to prevent TTS from speaking function call tags
-    xml_function_tag_filter = XMLFunctionTagFilter()
     if user_config.tts.provider == ServiceProviders.DEEPGRAM.value:
         return _create_tts_service_instance(
             user_config.tts.provider,
             DeepgramTTSService,
             api_key=user_config.tts.api_key,
             settings=DeepgramTTSSettings(voice=user_config.tts.voice),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     elif user_config.tts.provider == ServiceProviders.OPENAI.value:
         kwargs = {}
@@ -626,9 +719,6 @@ def create_tts_service(
             api_key=user_config.tts.api_key,
             sample_rate=OPENAI_SAMPLE_RATE,
             settings=OpenAITTSSettings(model=user_config.tts.model),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
             **kwargs,
         )
     elif user_config.tts.provider == ServiceProviders.GOOGLE.value:
@@ -653,9 +743,6 @@ def create_tts_service(
             credentials=credentials,
             location=location,
             settings=GoogleTTSSettings(**settings_kwargs),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     elif user_config.tts.provider == ServiceProviders.ELEVENLABS.value:
         # Backward compatible with older configuration "Name - voice_id"
@@ -666,8 +753,18 @@ def create_tts_service(
         # ElevenLabs TTS consumes the full normalized WebSocket URL. Realtime
         # STT uses the same normalization before adapting it to Pipecat's
         # scheme-less base_url contract.
-        _validate_runtime_service_url(user_config.tts.base_url, "base_url")
-        elevenlabs_url = _elevenlabs_websocket_url(user_config.tts.base_url)
+        # getattr with the class default, not a direct read. After
+        # managed_resolution a section can answer provider == "elevenlabs"
+        # while being a Decibyl tier class, which carries voice and speed but
+        # no endpoint -- reading it directly is an AttributeError at pipeline
+        # build, i.e. a call that connects and dies before its first frame.
+        # Latent while the managed TTS tier points at Sarvam, but MANAGED_TTS_*
+        # repoints tiers from the environment, so it is one ops change away.
+        elevenlabs_base_url = (
+            getattr(user_config.tts, "base_url", None) or "https://api.elevenlabs.io"
+        )
+        _validate_runtime_service_url(elevenlabs_base_url, "base_url")
+        elevenlabs_url = _elevenlabs_websocket_url(elevenlabs_base_url)
         return _create_tts_service_instance(
             user_config.tts.provider,
             ElevenLabsTTSService,
@@ -677,13 +774,19 @@ def create_tts_service(
             settings=ElevenLabsTTSSettings(
                 voice=voice_id,
                 model=user_config.tts.model,
-                stability=0.8,
+                # getattr, not attribute access: after managed_resolution a
+                # section can be a Decibyl tier class answering
+                # provider == "elevenlabs" while carrying no tuning fields at
+                # all -- the same reason _carry() guards every field it copies.
+                # The fallbacks are the literals this branch used to pass, so a
+                # tier slot still sounds exactly as it did.
+                stability=getattr(user_config.tts, "stability", 0.8),
                 speed=user_config.tts.speed,
-                similarity_boost=0.75,
+                similarity_boost=getattr(
+                    user_config.tts, "similarity_boost", 0.75
+                ),
+                style=getattr(user_config.tts, "style", 0.0),
             ),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     elif user_config.tts.provider == ServiceProviders.CARTESIA.value:
         speed = getattr(user_config.tts, "speed", None)
@@ -711,9 +814,6 @@ def create_tts_service(
                     else {}
                 ),
             ),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     elif user_config.tts.provider == ServiceProviders.INWORLD.value:
         voice = getattr(user_config.tts, "voice", None) or "Ashley"
@@ -732,9 +832,6 @@ def create_tts_service(
                 speaking_rate=speed,
                 delivery_mode=delivery_mode,
             ),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     elif user_config.tts.provider == ServiceProviders.DECIBYL.value:
         # Convert HTTP URL to WebSocket URL for TTS
@@ -750,9 +847,6 @@ def create_tts_service(
                 voice=user_config.tts.voice,
                 speed=user_config.tts.speed,
             ),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     elif user_config.tts.provider == ServiceProviders.CAMB.value:
         from pipecat.services.camb.tts import CambTTSService
@@ -765,27 +859,25 @@ def create_tts_service(
             api_key=user_config.tts.api_key,
             voice_id=voice_id,
             model=user_config.tts.model,
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
         )
         # Set language directly as BCP-47 code (bypasses Language enum conversion)
         tts._settings.language = language
         return tts
     elif user_config.tts.provider == ServiceProviders.SPEACHES.value:
-        _validate_runtime_service_url(user_config.tts.base_url, "base_url")
+        speaches_base_url = (
+            getattr(user_config.tts, "base_url", None) or "http://localhost:8000/v1"
+        )
+        _validate_runtime_service_url(speaches_base_url, "base_url")
         return _create_tts_service_instance(
             user_config.tts.provider,
             SpeachesTTSService,
-            base_url=user_config.tts.base_url,
+            base_url=speaches_base_url,
             api_key=user_config.tts.api_key or "none",
             settings=SpeachesTTSSettings(
                 model=user_config.tts.model,
                 voice=user_config.tts.voice,
                 speed=user_config.tts.speed,
             ),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     elif user_config.tts.provider == ServiceProviders.RIME.value:
         speed = getattr(user_config.tts, "speed", None)
@@ -810,9 +902,6 @@ def create_tts_service(
             RimeTTSService,
             api_key=user_config.tts.api_key,
             settings=RimeTTSSettings(**settings_kwargs),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     elif user_config.tts.provider == ServiceProviders.SARVAM.value:
         # Map Sarvam language code to pipecat Language enum for TTS
@@ -877,9 +966,6 @@ def create_tts_service(
             SarvamTTSService,
             api_key=user_config.tts.api_key,
             settings=SarvamTTSSettings(**settings_kwargs),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     elif user_config.tts.provider == ServiceProviders.RUMIK.value:
         # Rumik ships its own pipecat service, so there is no client to write
@@ -909,8 +995,6 @@ def create_tts_service(
             api_key=user_config.tts.api_key,
             gateway_url=RUMIK_GATEWAY_URL,
             settings=RumikTTSService.Settings(**rumik_settings),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
         )
     elif user_config.tts.provider == ServiceProviders.MINIMAX.value:
         group_id = getattr(user_config.tts, "group_id", None)
@@ -945,9 +1029,6 @@ def create_tts_service(
                 voice=voice,
                 speed=speed,
             ),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     elif user_config.tts.provider == ServiceProviders.AZURE_SPEECH.value:
         region = getattr(user_config.tts, "region", None) or "eastus"
@@ -968,9 +1049,6 @@ def create_tts_service(
             api_key=user_config.tts.api_key,
             region=region,
             settings=AzureTTSSettings(**settings_kwargs),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     elif user_config.tts.provider == ServiceProviders.SMALLEST.value:
         language_code = getattr(user_config.tts, "language", None) or "en"
@@ -992,9 +1070,6 @@ def create_tts_service(
             SmallestTTSService,
             api_key=user_config.tts.api_key,
             settings=settings_kwargs,
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     elif user_config.tts.provider == ServiceProviders.XAI.value:
         voice = getattr(user_config.tts, "voice", None) or "eve"
@@ -1027,14 +1102,86 @@ def create_tts_service(
                 # had, so the only thing that changes here is the transport.
                 with_timestamps=False,
             ),
-            text_filters=[xml_function_tag_filter],
-            skip_aggregator_types=["recording_router", "recording"],
-            silence_time_s=1.0,
         )
     else:
         raise HTTPException(
             status_code=400, detail=f"Invalid TTS provider {user_config.tts.provider}"
         )
+
+
+
+def _with_backups(primary, backups: list, component: str):
+    """Return the primary, or a switcher that fails over to the backups.
+
+    ``ServiceSwitcherStrategyFailover`` moves to the next service when the
+    active one pushes a *non-fatal* error, which is what a provider having a
+    bad minute looks like. A fatal error still ends the call: the provider is
+    saying the call cannot continue, and pretending otherwise would hand the
+    caller a second broken service instead of the first.
+
+    Returning the primary unchanged when there are no backups matters. A
+    switcher wrapping one service is a ParallelPipeline and a pair of filters
+    around every frame, for a failover that can never happen -- so the common
+    configuration pays nothing for a feature it did not ask for.
+    """
+    if not backups:
+        return primary
+
+    switcher = ServiceSwitcher(
+        services=[primary, *backups],
+        strategy_type=ServiceSwitcherStrategyFailover,
+    )
+
+    @switcher.strategy.event_handler("on_service_switched")
+    async def _log_switch(_strategy, service):
+        logger.warning(
+            "{} failed over to {}. The call continues on the backup; the "
+            "primary is not retried for the rest of it.",
+            component,
+            getattr(service, "name", service),
+        )
+
+    return switcher
+
+
+def create_tts_service_with_backups(
+    user_config, audio_config: "AudioConfig", correlation_id: str | None = None
+):
+    """The configured voice, plus any backups, as one processor.
+
+    A voice failing mid-call is dead air, which is the worst thing this product
+    can hand a caller. Each backup is a fully resolved configuration section, so
+    it is built by the same branch of ``create_tts_service`` as any primary --
+    there is no second construction path to keep in step.
+    """
+    primary = create_tts_service(user_config, audio_config, correlation_id)
+    backups = [
+        create_tts_service(
+            user_config.model_copy(update={"tts": section}), audio_config, correlation_id
+        )
+        for section in getattr(user_config, "fallback_tts", None) or []
+    ]
+    return _with_backups(primary, backups, "TTS")
+
+
+def create_stt_service_with_backups(
+    user_config,
+    audio_config: "AudioConfig",
+    keyterms: list[str] | None = None,
+    correlation_id: str | None = None,
+):
+    """The configured transcriber, plus any backups, as one processor."""
+    primary = create_stt_service(user_config, audio_config, keyterms, correlation_id)
+    backups = [
+        create_stt_service(
+            user_config.model_copy(update={"stt": section}),
+            audio_config,
+            keyterms,
+            correlation_id,
+        )
+        for section in getattr(user_config, "fallback_stt", None) or []
+    ]
+    return _with_backups(primary, backups, "Transcriber"), primary
 
 
 def _migrate_deprecated_google_model(model: str) -> str:
@@ -1048,6 +1195,38 @@ def _migrate_deprecated_google_model(model: str) -> str:
         )
         return migrated
     return model
+
+
+def _llm_tuning(
+    temperature: float | None,
+    max_tokens: int | None,
+    *,
+    default_temperature: float | None = None,
+) -> dict:
+    """Settings kwargs for the generation controls, or nothing.
+
+    ``default_temperature`` is whatever literal that provider's branch passed
+    before these became configurable, so an unset config produces byte-identical
+    settings and no existing call changes. A provider that passed no temperature
+    at all keeps passing none.
+
+    ``max_tokens`` is omitted unless set: every settings class here inherits
+    the OpenAI-shaped settings base (or declares its own) and treats an absent
+    value as the provider's default, which is not the same as a number we
+    invented.
+
+    (The base class is described rather than named. ``test_every_service_is_priced``
+    derives "every service the factory can build" by regex over this file's
+    source, so spelling a ``*Service`` class name in a comment invents a service
+    that needs a rate row -- the same trap ``_carry`` records below.)
+    """
+    tuning: dict = {}
+    resolved = temperature if temperature is not None else default_temperature
+    if resolved is not None:
+        tuning["temperature"] = resolved
+    if max_tokens is not None:
+        tuning["max_tokens"] = max_tokens
+    return tuning
 
 
 def create_llm_service_from_provider(
@@ -1065,6 +1244,7 @@ def create_llm_service_from_provider(
     location: str | None = None,
     credentials: str | None = None,
     temperature: float | None = None,
+    max_tokens: int | None = None,
     bill_to: str | None = None,
 ):
     """Create an LLM service from explicit provider/model/api_key.
@@ -1083,18 +1263,27 @@ def create_llm_service_from_provider(
                 settings=OpenAILLMSettings(
                     model=model,
                     extra={"reasoning_effort": "minimal", "verbosity": "low"},
+                    # No temperature, configured or otherwise: the reasoning
+                    # models this branch exists for reject the parameter.
+                    **_llm_tuning(None, max_tokens),
                 ),
                 **kwargs,
             )
         return OpenAILLMService(
             api_key=api_key,
-            settings=OpenAILLMSettings(model=model, temperature=0.1),
+            settings=OpenAILLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
             **kwargs,
         )
     elif provider == ServiceProviders.GROQ.value:
         return GroqLLMService(
             api_key=api_key,
-            settings=GroqLLMSettings(model=model, temperature=0.1),
+            settings=GroqLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
         )
     elif provider == ServiceProviders.OPENROUTER.value:
         kwargs = {}
@@ -1103,21 +1292,30 @@ def create_llm_service_from_provider(
             kwargs["base_url"] = base_url
         return OpenRouterLLMService(
             api_key=api_key,
-            settings=OpenRouterLLMSettings(model=model, temperature=0.1),
+            settings=OpenRouterLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
             **kwargs,
         )
     elif provider == ServiceProviders.GOOGLE.value:
         model = _migrate_deprecated_google_model(model)
         return DecibylGoogleLLMService(
             api_key=api_key,
-            settings=GoogleLLMSettings(model=model, temperature=0.1),
+            settings=GoogleLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
         )
     elif provider == ServiceProviders.GOOGLE_VERTEX.value:
         return DecibylGoogleVertexLLMService(
             credentials=credentials,
             project_id=project_id,
             location=location or "us-east4",
-            settings=GoogleVertexLLMSettings(model=model, temperature=0.1),
+            settings=GoogleVertexLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
         )
     elif provider == ServiceProviders.AZURE.value:
         if endpoint:
@@ -1125,21 +1323,28 @@ def create_llm_service_from_provider(
         return AzureLLMService(
             api_key=api_key,
             endpoint=endpoint,
-            settings=AzureLLMSettings(model=model, temperature=0.1),
+            settings=AzureLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
         )
     elif provider == ServiceProviders.DECIBYL.value:
         return DograhLLMService(
             base_url=f"{MPS_API_URL}/api/v1/llm",
             api_key=api_key,
             correlation_id=correlation_id,
-            settings=OpenAILLMSettings(model=model),
+            settings=OpenAILLMSettings(
+                model=model, **_llm_tuning(temperature, max_tokens)
+            ),
         )
     elif provider == ServiceProviders.AWS_BEDROCK.value:
         return AWSBedrockLLMService(
             aws_access_key=aws_access_key,
             aws_secret_key=aws_secret_key,
             aws_region=aws_region,
-            settings=AWSBedrockLLMSettings(model=model),
+            settings=AWSBedrockLLMSettings(
+                model=model, **_llm_tuning(temperature, max_tokens)
+            ),
         )
     elif provider == ServiceProviders.SPEACHES.value:
         base_url = base_url or "http://localhost:11434/v1"
@@ -1147,7 +1352,27 @@ def create_llm_service_from_provider(
         return SpeachesLLMService(
             base_url=base_url,
             api_key=api_key or "none",
-            settings=SpeachesLLMSettings(model=model),
+            settings=SpeachesLLMSettings(
+                model=model, **_llm_tuning(temperature, max_tokens)
+            ),
+        )
+    elif provider == ServiceProviders.CUSTOM_LLM.value:
+        # Built by OpenAILLMService because that is what "OpenAI-compatible"
+        # means; the base_url is the whole configuration. Validated like every
+        # other customer-supplied endpoint -- this one is by definition a URL we
+        # have never seen, so the SSRF guard matters more here than anywhere.
+        if not base_url:
+            raise HTTPException(
+                status_code=400,
+                detail="base_url is required for a custom LLM endpoint",
+            )
+        _validate_runtime_service_url(base_url, "base_url")
+        return OpenAILLMService(
+            api_key=api_key or "none",
+            base_url=base_url,
+            settings=OpenAILLMSettings(
+                model=model, **_llm_tuning(temperature, max_tokens)
+            ),
         )
     elif provider == ServiceProviders.HUGGINGFACE.value:
         base_url = base_url or "https://router.huggingface.co/v1"
@@ -1156,7 +1381,10 @@ def create_llm_service_from_provider(
             api_key=api_key,
             base_url=base_url,
             bill_to=bill_to,
-            settings=HuggingFaceLLMSettings(model=model, temperature=0.1),
+            settings=HuggingFaceLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
         )
     elif provider == ServiceProviders.MINIMAX.value:
         base_url = base_url or "https://api.minimax.io/v1"
@@ -1166,7 +1394,7 @@ def create_llm_service_from_provider(
             base_url=base_url,
             settings=MiniMaxLLMService.Settings(
                 model=model,
-                temperature=temperature if temperature is not None else 1.0,
+                **_llm_tuning(temperature, max_tokens, default_temperature=1.0),
             ),
         )
     elif provider == ServiceProviders.SARVAM.value:
@@ -1174,7 +1402,7 @@ def create_llm_service_from_provider(
             api_key=api_key,
             settings=SarvamLLMSettings(
                 model=model,
-                temperature=temperature if temperature is not None else 0.5,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.5),
             ),
         )
     else:
@@ -1450,6 +1678,8 @@ def create_llm_service(user_config, correlation_id: str | None = None):
         _carry(kwargs, user_config.llm, "endpoint")
     elif provider == ServiceProviders.SPEACHES.value:
         _carry(kwargs, user_config.llm, "base_url")
+    elif provider == ServiceProviders.CUSTOM_LLM.value:
+        _carry(kwargs, user_config.llm, "base_url")
     elif provider == ServiceProviders.HUGGINGFACE.value:
         _carry(kwargs, user_config.llm, "base_url", "bill_to")
     elif provider == ServiceProviders.AWS_BEDROCK.value:
@@ -1463,9 +1693,13 @@ def create_llm_service(user_config, correlation_id: str | None = None):
     elif provider == ServiceProviders.GOOGLE_VERTEX.value:
         _carry(kwargs, user_config.llm, "project_id", "location", "credentials")
     elif provider == ServiceProviders.MINIMAX.value:
-        _carry(kwargs, user_config.llm, "base_url", "temperature")
-    elif provider == ServiceProviders.SARVAM.value:
-        _carry(kwargs, user_config.llm, "temperature")
+        _carry(kwargs, user_config.llm, "base_url")
+
+    # Every pipeline LLM class carries these (see PipelineLLMTuning); a managed
+    # tier class carries neither, and _carry omits what is absent. Done once
+    # after the branches rather than per provider, so a new provider gets the
+    # generation controls by declaring the fields and nothing else.
+    _carry(kwargs, user_config.llm, "temperature", "max_tokens")
 
     return create_llm_service_from_provider(
         provider,

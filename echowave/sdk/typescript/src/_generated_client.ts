@@ -7,10 +7,13 @@
 // `_generated_models` (openapi-typescript output, --root-types).
 
 import type {
+    ContactListRequest,
+    ContactListResponse,
     CreateToolRequest,
     CreateWorkflowRequest,
     CredentialResponse,
     DocumentListResponseSchema,
+    ExtractionLibraryResponse,
     InitiateCallRequest,
     NodeSpec,
     NodeTypesResponse,
@@ -28,6 +31,11 @@ export abstract class _GeneratedClient {
         opts?: { json?: unknown; params?: Record<string, unknown> },
     ): Promise<T>;
 
+    /** Create a contact list. */
+    async createContactList(opts: { body: ContactListRequest }): Promise<ContactListResponse> {
+        return this.request<ContactListResponse>("POST", "/contact-lists", { json: opts.body });
+    }
+
     /** Create a reusable tool for the authenticated organization. */
     async createTool(opts: { body: CreateToolRequest }): Promise<ToolResponse> {
         return this.request<ToolResponse>("POST", "/tools/", { json: opts.body });
@@ -38,6 +46,11 @@ export abstract class _GeneratedClient {
         return this.request<WorkflowResponse>("POST", "/workflow/create/definition", { json: opts.body });
     }
 
+    /** Ready-made extractions for a catalog named by a node property's renderer_options.library.catalog. */
+    async getExtractionLibrary(catalog: string): Promise<ExtractionLibraryResponse> {
+        return this.request<ExtractionLibraryResponse>("GET", `/extraction-library/${catalog}`);
+    }
+
     /** Fetch a single node spec by name. */
     async getNodeType(name: string): Promise<NodeSpec> {
         return this.request<NodeSpec>("GET", `/node-types/${name}`);
@@ -46,6 +59,11 @@ export abstract class _GeneratedClient {
     /** Get a single workflow by ID (returns draft if one exists, else published). */
     async getWorkflow(workflowId: number): Promise<WorkflowResponse> {
         return this.request<WorkflowResponse>("GET", `/workflow/fetch/${workflowId}`);
+    }
+
+    /** List the organization's contact lists. */
+    async listContactLists(): Promise<ContactListResponse[]> {
+        return this.request<ContactListResponse[]>("GET", "/contact-lists");
     }
 
     /** List webhook credentials available to the authenticated organization. */

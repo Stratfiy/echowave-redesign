@@ -13,6 +13,7 @@ from api.schemas.workflow_configurations import (
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     DEFAULT_SMART_TURN_STOP_SECS,
     DEFAULT_TURN_START_MIN_WORDS,
+    DEFAULT_INTERRUPTION_BACKOFF_SECS,
     DEFAULT_TURN_START_STRATEGY,
     DEFAULT_USER_SPEECH_TIMEOUT,
 )
@@ -57,7 +58,10 @@ from api.services.pipecat.recording_audio_cache import (
     warm_recording_cache,
 )
 from api.services.pipecat.recording_router_processor import RecordingRouterProcessor
+from api.services.pipecat.interruption_backoff import InterruptionBackoff
 from api.services.pipecat.service_factory import (
+    create_stt_service_with_backups,
+    create_tts_service_with_backups,
     create_llm_service,
     create_llm_service_from_provider,
     create_realtime_llm_service,
@@ -126,6 +130,24 @@ def _resolve_user_turn_stop_timeout(
     return DEFAULT_USER_TURN_STOP_TIMEOUT
 
 
+def _create_interruption_backoff(run_configs: dict):
+    """The pause after a cut-in, or nothing at all.
+
+    Returning None when unconfigured is the point: the pipeline is then built
+    without the processor, so an agent nobody set this on runs exactly the
+    frames it ran before.
+    """
+    seconds = float(
+        run_configs.get(
+            "interruption_backoff_secs", DEFAULT_INTERRUPTION_BACKOFF_SECS
+        )
+        or 0.0
+    )
+    if seconds <= 0:
+        return None
+    return InterruptionBackoff(seconds=seconds)
+
+
 def _resolve_turn_start_min_words(run_configs: dict) -> int:
     return max(
         1,
@@ -167,6 +189,12 @@ def _create_non_realtime_user_turn_start_strategies(
             )
         ]
 
+    if turn_start_strategy == "vad":
+        # Raw voice activity, the behaviour "default" used to fall back to.
+        # Kept reachable for a workflow whose transcriber emits no interim
+        # results, where waiting for words means waiting too long.
+        return [VADUserTurnStartStrategy()]
+
     if uses_external_turns:
         # The STT emits its own turn boundaries and owns interruptions. Local
         # VAD is deliberately kept out of the default start strategies: it would
@@ -174,7 +202,21 @@ def _create_non_realtime_user_turn_start_strategies(
         # confirms a real turn.
         return [ExternalUserTurnStartStrategy(enable_interruptions=True)]
 
-    return [VADUserTurnStartStrategy()]
+    # No external turn signal, so something local has to decide what counts as
+    # the caller starting to talk. Words, not volume.
+    #
+    # VADUserTurnStartStrategy fires on voice activity alone, which on a phone
+    # line means a cough, a door, a television or the other half of somebody
+    # else's conversation stops the agent mid-sentence. Being cut off by a
+    # noise reads as broken in a way that a slower reply does not.
+    #
+    # This costs nothing on a normal turn: MinWords applies its threshold only
+    # while the bot is speaking and uses 1 otherwise, so the caller answering a
+    # question still starts their turn on the first word. And it reads interim
+    # transcriptions, so mid-utterance barge-in does not wait for a final.
+    return [
+        MinWordsUserTurnStartStrategy(min_words=_resolve_turn_start_min_words(run_configs))
+    ]
 
 
 def _resolve_user_speech_timeout(run_configs: dict) -> float:
@@ -697,6 +739,7 @@ async def _run_pipeline_impl(
         llm = create_realtime_llm_service(user_config, audio_config)
         stt = None
         tts = None
+        primary_stt = None
         # Realtime services don't implement run_inference, so create a
         # separate text LLM for variable extraction and other out-of-band
         # inference calls.
@@ -705,13 +748,17 @@ async def _run_pipeline_impl(
             correlation_id=mps_correlation_id,
         )
     else:
-        stt = create_stt_service(
+        # `stt` may be a switcher wrapping the transcriber and its backups;
+        # `primary_stt` is always the transcriber itself. The metrics
+        # aggregator registers the service to read its latency metadata, which
+        # a switcher does not have.
+        stt, primary_stt = create_stt_service_with_backups(
             user_config,
             audio_config,
             keyterms=keyterms,
             correlation_id=mps_correlation_id,
         )
-        tts = create_tts_service(
+        tts = create_tts_service_with_backups(
             user_config,
             audio_config,
             correlation_id=mps_correlation_id,
@@ -972,7 +1019,9 @@ async def _run_pipeline_impl(
     # STT service by watching frames — tell it which one this pipeline built,
     # or speech-to-text drops out of provider cost. `stt` is None on realtime
     # speech-to-speech pipelines, which correctly have no separate STT charge.
-    pipeline_metrics_aggregator.register_stt_service(stt)
+    # The transcriber itself, never the switcher around it: this reads the
+    # service's own latency metadata.
+    pipeline_metrics_aggregator.register_stt_service(primary_stt or stt)
     # Tell billing which components ran on the account's own key. A realtime
     # pipeline has no separate stt/tts stage, so only its single "llm" bucket
     # (backed by the realtime section) carries a key_source.
@@ -1146,6 +1195,7 @@ async def _run_pipeline_impl(
             voicemail_detector=voicemail_detector,
             recording_router=recording_router,
             language_follower=language_follower,
+            interruption_backoff=_create_interruption_backoff(run_configs),
         )
 
     # Create pipeline task with audio configuration

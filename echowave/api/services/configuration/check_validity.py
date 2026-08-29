@@ -49,7 +49,7 @@ class UserConfigurationValidator:
             ServiceProviders.SPEECHMATICS.value: self._check_speechmatics_api_key,
             ServiceProviders.CAMB.value: self._check_camb_api_key,
             ServiceProviders.AWS_BEDROCK.value: self._check_aws_bedrock_api_key,
-            ServiceProviders.SPEACHES.value: self._check_speaches_api_key,
+            ServiceProviders.SPEACHES.value: self._check_self_hosted_api_key,
             ServiceProviders.HUGGINGFACE.value: self._check_huggingface_api_key,
             ServiceProviders.GOOGLE_VERTEX.value: self._check_google_vertex_llm_api_key,
             ServiceProviders.OPENAI_REALTIME.value: self._check_openai_api_key,
@@ -64,6 +64,7 @@ class UserConfigurationValidator:
             ServiceProviders.MINIMAX.value: self._check_minimax_api_key,
             ServiceProviders.SMALLEST.value: self._check_smallest_api_key,
             ServiceProviders.XAI.value: self._check_xai_api_key,
+            ServiceProviders.CUSTOM_LLM.value: self._check_self_hosted_api_key,
         }
 
     async def validate(
@@ -134,10 +135,16 @@ class UserConfigurationValidator:
                 except ValueError as e:
                     return [{"model": service_name, "message": str(e)}]
 
-        # Speaches doesn't require an API key
-        if provider == ServiceProviders.SPEACHES.value:
+        # Neither of these is required to have an API key: both are endpoints
+        # the customer runs or fronts themselves, and plenty need no bearer
+        # token. Without this they fall through to the generic "key missing"
+        # path and a valid configuration cannot be saved.
+        if provider in (
+            ServiceProviders.SPEACHES.value,
+            ServiceProviders.CUSTOM_LLM.value,
+        ):
             try:
-                if not self._check_speaches_api_key(provider, service_config):
+                if not self._check_endpoint_is_configured(provider, service_config):
                     return [
                         {
                             "model": service_name,
@@ -431,9 +438,27 @@ class UserConfigurationValidator:
     def _check_camb_api_key(self, model: str, api_key: str) -> bool:
         return True
 
-    def _check_speaches_api_key(self, model: str, service_config) -> bool:
+    def _check_endpoint_is_configured(self, provider: str, service_config) -> bool:
+        """For providers whose configuration *is* the endpoint.
+
+        There is no key to verify against a vendor, so the only thing that can
+        be wrong at save time is a missing base_url -- and that is worth
+        catching here rather than at dial time, where it becomes a call that
+        connects and dies.
+        """
         if not getattr(service_config, "base_url", None):
-            raise ValueError("base_url is required for Speaches services")
+            raise ValueError(f"base_url is required for {provider} services")
+        return True
+
+    def _check_self_hosted_api_key(self, model: str, api_key: str) -> bool:
+        """For endpoints the customer runs or fronts themselves.
+
+        There is no vendor to ask and no key format to match -- a custom
+        endpoint may use any auth scheme, or none. Verifying it would mean
+        sending the customer's traffic somewhere we know nothing about. What
+        can actually be wrong is the endpoint, and
+        _check_endpoint_is_configured covers that before this is reached.
+        """
         return True
 
     def _check_huggingface_api_key(self, model: str, api_key: str) -> bool:

@@ -35,19 +35,32 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceSelector } from "@/components/VoiceSelector";
 import { LANGUAGE_DISPLAY_NAMES } from "@/constants/languages";
 import { useUserConfig } from "@/context/UserConfigContext";
+import { pricedStack } from "@/lib/billing/pricedStack";
 import type { ModelOverrides } from "@/types/workflow-configurations";
 
 export type ServiceSegment = "llm" | "tts" | "stt" | "embeddings" | "realtime";
 
-interface SchemaProperty {
+export interface SchemaProperty {
     type?: string;
     default?: string | number | boolean;
+    // Pydantic emits these from Field(ge=..., le=...). Every provider class in
+    // configuration/registry declares its own range -- ElevenLabs speed is
+    // 0.1-2.0, Cartesia's is 0.6-1.5 -- and until they were read here the form
+    // rendered an unbounded box and let the server reject the value.
+    minimum?: number;
+    maximum?: number;
+    // Pydantic's gt=/lt= land here instead. MiniMax's temperature is gt=0
+    // because MiniMax rejects 0, so reading only `minimum` would leave that
+    // one field as an unbounded box while every sibling got a slider.
+    exclusiveMinimum?: number;
+    exclusiveMaximum?: number;
     enum?: string[];
     examples?: string[];
     model_options?: Record<string, string[]>;
@@ -323,22 +336,6 @@ export function ServiceConfigurationForm({
     keysFromVault,
     keysHeld,
 }: ServiceConfigurationFormProps) {
-    // A slot set to "decibyl" is priced at whatever that tier resolves to
-    // today. Passing "decibyl" straight through would report it as unpriced —
-    // the estimator is keyed by real provider and model — so the managed
-    // option would look like the one we cannot cost, which is the opposite of
-    // true.
-    const pricedSlot = (
-        slot: "stt" | "llm" | "tts",
-        provider: string | null | undefined,
-        model: string,
-    ) => {
-        const upstream = provider === "decibyl" ? managedUpstream?.[slot] : undefined;
-        return {
-            [`${slot}_provider`]: upstream?.provider ?? provider ?? null,
-            [`${slot}_model`]: upstream?.model ?? model ?? "",
-        };
-    };
 
     // The carrier whose minutes will land on *this account's* invoice, which
     // is not the same as the carrier it dials on. Both mistakes are available
@@ -1540,6 +1537,60 @@ export function ServiceConfigurationForm({
             );
         }
 
+        // A number the schema has bounded is a range, so show it as one. The
+        // provider classes carry the real limits, so this needs no per-provider
+        // knowledge here: ElevenLabs stability, Cartesia speed and Sarvam speed
+        // all arrive with their own min, max and default already attached.
+        const lower = actualSchema?.minimum ?? actualSchema?.exclusiveMinimum;
+        const upper = actualSchema?.maximum ?? actualSchema?.exclusiveMaximum;
+        // A bounded number is a slider only while dragging is the easier way to
+        // set it. max_tokens runs 16-4096: as a track that is four thousand
+        // indistinguishable positions, and nobody wants "about 250" — they want
+        // 250. Wide ranges stay a box, which is what Vapi shows for that field
+        // and a slider for temperature, for the same reason.
+        const sliderStops = typeof lower === "number" && typeof upper === "number"
+            ? upper - lower
+            : 0;
+        if (
+            actualSchema?.type === "number"
+            && typeof lower === "number"
+            && typeof upper === "number"
+            && sliderStops <= 100
+        ) {
+            const fieldKey = `${service}_${field}`;
+            const span = upper - lower;
+            // Integer-looking ranges step by 1; everything else gets a tidy
+            // 0.1/0.05/0.01 rather than an arbitrary fraction of the span.
+            const step = Number.isInteger(lower)
+                && Number.isInteger(upper)
+                && Number.isInteger(actualSchema.default ?? 0)
+                && span >= 4
+                ? 1
+                : span > 5 ? 0.1 : span >= 1 ? 0.05 : 0.01;
+            // An exclusive bound excludes its own value, so start one step in:
+            // a slider that can be dragged to a number the server rejects is
+            // worse than one that cannot reach it.
+            const min = actualSchema.minimum === undefined ? lower + step : lower;
+            const max = actualSchema.maximum === undefined ? upper - step : upper;
+            const fallback = typeof actualSchema.default === "number"
+                ? actualSchema.default
+                : min;
+            const current = Number(watch(fieldKey) ?? fallback);
+
+            return (
+                <Slider
+                    id={fieldKey}
+                    min={min}
+                    max={max}
+                    step={step}
+                    value={Number.isFinite(current) ? current : fallback}
+                    onValueChange={(next) =>
+                        setValue(fieldKey, next, { shouldDirty: true })
+                    }
+                />
+            );
+        }
+
         return (
             <Input
                 type={actualSchema?.type === "number" ? "number" : "text"}
@@ -1621,12 +1672,16 @@ export function ServiceConfigurationForm({
             <CostPerMinuteBar
                 className="mb-4"
                 carriageNote={carriageNote}
-                stack={{
-                    ...pricedSlot("stt", isRealtime ? null : serviceProviders.stt, watch("stt_model") as string),
-                    ...pricedSlot("llm", serviceProviders.llm, watch("llm_model") as string),
-                    ...pricedSlot("tts", isRealtime ? null : serviceProviders.tts, watch("tts_model") as string),
-                    telephony_provider: telephonyProvider,
-                }}
+                stack={pricedStack(
+                    {
+                        stt: { provider: serviceProviders.stt, model: watch("stt_model") as string },
+                        llm: { provider: serviceProviders.llm, model: watch("llm_model") as string },
+                        tts: { provider: serviceProviders.tts, model: watch("tts_model") as string },
+                        is_realtime: isRealtime,
+                    },
+                    managedUpstream,
+                    telephonyProvider,
+                )}
             />
 
             <Card>

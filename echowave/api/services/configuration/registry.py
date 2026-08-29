@@ -9,6 +9,7 @@ from pydantic import (
     PrivateAttr,
     computed_field,
     field_validator,
+    model_validator,
 )
 
 from api.services.configuration.options import (
@@ -107,6 +108,7 @@ class ServiceProviders(str, Enum):
     AZURE_REALTIME = "azure_realtime"
     SMALLEST = "smallest"
     XAI = "xai"
+    CUSTOM_LLM = "custom_llm"
 
 
 class BaseServiceConfiguration(BaseModel):
@@ -138,6 +140,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.SARVAM,
         ServiceProviders.SMALLEST,
         ServiceProviders.XAI,
+        ServiceProviders.CUSTOM_LLM,
     ]
     # Stays required. A vault-backed slot sends an explicit empty string, which
     # satisfies this and is a different statement from omitting the field: it
@@ -424,6 +427,13 @@ def provider_model_config(
 
 # Suggested models for each provider (used for UI dropdown)
 OPENAI_PROVIDER_MODEL_CONFIG = provider_model_config("OpenAI")
+CUSTOM_LLM_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Custom LLM",
+    description=(
+        "Any OpenAI-compatible chat-completions endpoint: a self-hosted "
+        "model, a gateway, or a provider we do not list yet."
+    ),
+)
 GOOGLE_PROVIDER_MODEL_CONFIG = provider_model_config("Google")
 GROQ_PROVIDER_MODEL_CONFIG = provider_model_config("Groq")
 OPENROUTER_PROVIDER_MODEL_CONFIG = provider_model_config("Open Router")
@@ -528,8 +538,47 @@ AWS_BEDROCK_MODELS = [
 ]
 
 
+class PipelineLLMTuning(BaseModel):
+    """Generation controls every pipeline LLM accepts, declared in one place.
+
+    Both are ``None`` by default and mean "say nothing to the provider", which
+    is what makes adding them safe: the factory keeps whatever literal that
+    branch already passed as its fallback, so no existing call changes until
+    somebody moves a slider.
+
+    A provider that wants a different default just redeclares the field --
+    MiniMax and Sarvam already do, and their own declaration wins over this
+    one.
+
+    Not on ``BaseLLMConfiguration``: the realtime (speech-to-speech) classes
+    inherit that too, and neither control reaches them through this path.
+    """
+
+    temperature: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+        description=(
+            "How much the wording varies between runs. Low is repeatable and "
+            "sticks to the prompt; high is more creative and drifts from it "
+            "more often."
+        ),
+    )
+    max_tokens: int | None = Field(
+        default=None,
+        ge=16,
+        le=4096,
+        description=(
+            "Ceiling on the reply length for one turn. On a phone call this is "
+            "a latency control as much as a cost one -- without streaming the "
+            "caller waits for the whole reply to generate. Too low truncates "
+            "mid-sentence, which sounds like the agent hung up."
+        ),
+    )
+
+
 @register_llm
-class OpenAILLMService(BaseLLMConfiguration):
+class OpenAILLMService(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = OPENAI_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.OPENAI] = ServiceProviders.OPENAI
     model: str = Field(
@@ -544,7 +593,7 @@ class OpenAILLMService(BaseLLMConfiguration):
 
 
 @register_llm
-class GoogleLLMService(BaseLLMConfiguration):
+class GoogleLLMService(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = GOOGLE_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.GOOGLE] = ServiceProviders.GOOGLE
     model: str = Field(
@@ -555,7 +604,7 @@ class GoogleLLMService(BaseLLMConfiguration):
 
 
 @register_llm
-class GoogleVertexLLMConfiguration(BaseLLMConfiguration):
+class GoogleVertexLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = GOOGLE_VERTEX_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.GOOGLE_VERTEX] = ServiceProviders.GOOGLE_VERTEX
     model: str = Field(
@@ -589,7 +638,7 @@ class GoogleVertexLLMConfiguration(BaseLLMConfiguration):
 
 
 @register_llm
-class GroqLLMService(BaseLLMConfiguration):
+class GroqLLMService(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = GROQ_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.GROQ] = ServiceProviders.GROQ
     model: str = Field(
@@ -600,7 +649,7 @@ class GroqLLMService(BaseLLMConfiguration):
 
 
 @register_llm
-class OpenRouterLLMConfiguration(BaseLLMConfiguration):
+class OpenRouterLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = OPENROUTER_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.OPENROUTER] = ServiceProviders.OPENROUTER
     model: str = Field(
@@ -616,7 +665,7 @@ class OpenRouterLLMConfiguration(BaseLLMConfiguration):
 
 
 @register_llm
-class AzureLLMService(BaseLLMConfiguration):
+class AzureLLMService(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = AZURE_OPENAI_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.AZURE] = ServiceProviders.AZURE
     model: str = Field(
@@ -631,6 +680,12 @@ class AzureLLMService(BaseLLMConfiguration):
 
 
 @register_llm
+# No PipelineLLMTuning: a managed tier is a tier, not a vendor slot. The
+# customer chose "lite" and not a model to tune, managed_resolution already
+# resets a customer-set endpoint back to the default before lending our key,
+# and _carry relies on a managed section carrying no tuning field to omit one.
+# Declaring the controls here would put sliders on a slot whose whole promise
+# is that we pick the settings.
 class DecibylLLMService(BaseLLMConfiguration):
     model_config = DECIBYL_PROVIDER_MODEL_CONFIG
     # Managed slots carry no key from the customer — that is the entire point
@@ -652,7 +707,7 @@ class DecibylLLMService(BaseLLMConfiguration):
 
 
 @register_llm
-class AWSBedrockLLMConfiguration(BaseLLMConfiguration):
+class AWSBedrockLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = AWS_BEDROCK_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.AWS_BEDROCK] = ServiceProviders.AWS_BEDROCK
     model: str = Field(
@@ -682,7 +737,7 @@ SPEACHES_LLM_MODELS = ["llama3", "mistral", "phi3", "qwen2", "gemma2", "deepseek
 
 
 @register_llm
-class SpeachesLLMConfiguration(BaseLLMConfiguration):
+class SpeachesLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = SPEACHES_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.SPEACHES] = ServiceProviders.SPEACHES
     model: str = Field(
@@ -703,6 +758,57 @@ class SpeachesLLMConfiguration(BaseLLMConfiguration):
     )
 
 
+@register_llm
+class CustomLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
+    """Any OpenAI-compatible chat-completions endpoint.
+
+    Distinct from Speaches, which is a specific self-hosted product with its
+    own default endpoint and model list. This is the escape hatch: a gateway, a
+    fine-tune, or a vendor we have not added yet. Both are built by the same
+    OpenAI-shaped service class, so the only thing this really adds is a name
+    that tells a customer the option exists -- which was the whole gap, since
+    pointing `openai` at your own base_url already worked and nobody could tell.
+    """
+
+    model_config = CUSTOM_LLM_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.CUSTOM_LLM] = ServiceProviders.CUSTOM_LLM
+    model: str = Field(
+        description=(
+            "Model name exactly as your endpoint expects it in the request body."
+        ),
+        json_schema_extra={"allow_custom_input": True},
+    )
+    base_url: str = Field(
+        description=(
+            "Base URL of the OpenAI-compatible endpoint, including the version "
+            "segment (e.g. https://your-gateway.example.com/v1)."
+        ),
+    )
+    api_key: str | list[str] | None = Field(
+        default=None,
+        description=(
+            "Bearer token your endpoint expects. Leave blank if it needs none."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def reject_platform_key(self):
+        """There is no platform key for somebody else's endpoint.
+
+        Left allowed this is a silent billing error rather than a failed call:
+        the factory builds this with the OpenAI service class, so usage would
+        be attributed to OpenAI and metered at OpenAI's rate for an endpoint we
+        neither run nor pay for. Refusing it at save time is the difference
+        between an error someone reads and a margin figure nobody checks.
+        """
+        if self.use_platform_key:
+            raise ValueError(
+                "A custom LLM endpoint runs on your own key. Leave the "
+                "platform-key option off and supply the endpoint's own token."
+            )
+        return self
+
+
 HUGGINGFACE_LLM_MODELS = [
     "openai/gpt-oss-120b:cerebras",
     "deepseek-ai/DeepSeek-R1:fastest",
@@ -711,7 +817,7 @@ HUGGINGFACE_LLM_MODELS = [
 
 
 @register_llm
-class HuggingFaceLLMConfiguration(BaseLLMConfiguration):
+class HuggingFaceLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = HUGGINGFACE_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.HUGGINGFACE] = ServiceProviders.HUGGINGFACE
     model: str = Field(
@@ -740,7 +846,7 @@ MINIMAX_MODELS = [
 
 
 @register_llm
-class MiniMaxLLMConfiguration(BaseLLMConfiguration):
+class MiniMaxLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     provider: Literal[ServiceProviders.MINIMAX] = ServiceProviders.MINIMAX
     model: str = Field(
         default="MiniMax-M2.7",
@@ -760,7 +866,7 @@ class MiniMaxLLMConfiguration(BaseLLMConfiguration):
 
 
 @register_llm
-class SarvamLLMConfiguration(BaseLLMConfiguration):
+class SarvamLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = SARVAM_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.SARVAM] = ServiceProviders.SARVAM
     model: str = Field(
@@ -1052,6 +1158,7 @@ LLMConfig = Annotated[
         HuggingFaceLLMConfiguration,
         MiniMaxLLMConfiguration,
         SarvamLLMConfiguration,
+        CustomLLMConfiguration,
     ],
     Field(discriminator="provider"),
 ]
@@ -1107,6 +1214,42 @@ class ElevenlabsTTSConfiguration(BaseServiceConfiguration):
         description="ElevenLabs voice ID from your Voice Library.",
     )
     speed: float = Field(default=1.0, ge=0.1, le=2.0, description="Speed of the voice.")
+    # These three were literals inside the TTS factory branch, so the only way
+    # to change how an ElevenLabs voice sounds was to edit and redeploy. The
+    # defaults here are exactly what that branch passed, so declaring them
+    # changes no call -- it only makes them reachable.
+    #
+    # ElevenLabs' own defaults are stability 0.5 and style 0.0; 0.8 is ours,
+    # chosen for a phone line where a wandering delivery is worse than a flat
+    # one. Somebody reading a script wants it higher, somebody doing warm
+    # outbound wants it lower, and neither should need a deploy.
+    stability: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "How steady the delivery is. Higher is more consistent and more "
+            "monotone; lower is more expressive and more variable between runs."
+        ),
+    )
+    similarity_boost: float = Field(
+        default=0.75,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "How closely the output tracks the original voice. Very high values "
+            "can reproduce artefacts present in the source recording."
+        ),
+    )
+    style: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Style exaggeration. Above 0 it costs latency, so it stays off "
+            "unless a voice actually needs it."
+        ),
+    )
     model: str = Field(
         default="eleven_flash_v2_5",
         description="ElevenLabs TTS model.",

@@ -23,6 +23,8 @@ import {
     AIModelConfigurationV2Editor,
     type ModelConfigurationDefaultsV2,
 } from "@/components/AIModelConfigurationV2Editor";
+import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
+import { FallbackChain } from "@/components/FallbackChain";
 import { FlowEdge, FlowNode } from "@/components/flow/types";
 import { LLMConfigSelector } from "@/components/LLMConfigSelector";
 import SpinLoader from "@/components/SpinLoader";
@@ -34,6 +36,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { SETTINGS_DOCUMENTATION_URLS } from "@/constants/documentation";
@@ -41,12 +44,20 @@ import { UnsavedChangesProvider, useUnsavedChanges, useUnsavedChangesContext } f
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { priceableFromV2, pricedStack } from "@/lib/billing/pricedStack";
 import logger from "@/lib/logger";
 import {
     type AmbientNoiseConfiguration,
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     DEFAULT_TURN_START_MIN_WORDS,
+    DEFAULT_USER_SPEECH_TIMEOUT,
     DEFAULT_VOICEMAIL_DETECTION_CONFIGURATION,
+    type FallbackService,
+    LATENCY_PRESETS,
+    type LatencyPreset,
+    matchLatencyPreset,
+    MAX_USER_SPEECH_TIMEOUT,
+    MIN_USER_SPEECH_TIMEOUT,
     resolveWorkflowConfigurations,
     TURN_START_STRATEGY_OPTIONS,
     type TurnStartStrategy,
@@ -265,11 +276,13 @@ function GeneralSection({
     workflowName,
     workflowId,
     onSave,
+    modelConfigurationDefaults,
 }: {
     workflowConfigurations: WorkflowConfigurations;
     workflowName: string;
     workflowId: number;
     onSave: (configurations: WorkflowConfigurations, workflowName: string) => Promise<void>;
+    modelConfigurationDefaults: ModelConfigurationDefaultsV2 | null;
 }) {
     const [name, setName] = useState(workflowName);
     const [ambientNoiseConfig, setAmbientNoiseConfig] = useState<AmbientNoiseConfiguration>(
@@ -290,14 +303,42 @@ function GeneralSection({
     const [turnStopStrategy, setTurnStopStrategy] = useState<TurnStopStrategy>(
         workflowConfigurations.turn_stop_strategy,
     );
+    const [userSpeechTimeout, setUserSpeechTimeout] = useState(
+        workflowConfigurations.user_speech_timeout,
+    );
     const [contextCompactionEnabled, setContextCompactionEnabled] = useState(
         workflowConfigurations.context_compaction_enabled,
     );
     const [includeTranscriptEndTimestamps, setIncludeTranscriptEndTimestamps] = useState(
         workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false,
     );
+    const [interruptionBackoffSecs, setInterruptionBackoffSecs] = useState(
+        workflowConfigurations.interruption_backoff_secs,
+    );
+    const [fallbackTts, setFallbackTts] = useState<FallbackService[]>(
+        workflowConfigurations.fallback_tts ?? [],
+    );
+    const [fallbackStt, setFallbackStt] = useState<FallbackService[]>(
+        workflowConfigurations.fallback_stt ?? [],
+    );
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+
+    // Derived, never stored: the preset is a reading of the three numbers, so
+    // a workflow tuned by hand keeps its values and simply reads as Custom.
+    const activePreset = matchLatencyPreset({
+        user_speech_timeout: userSpeechTimeout,
+        smart_turn_stop_secs: smartTurnStopSecs,
+        turn_start_min_words: turnStartMinWords,
+    });
+
+    const applyLatencyPreset = (preset: LatencyPreset) => {
+        const { user_speech_timeout, smart_turn_stop_secs, turn_start_min_words } =
+            LATENCY_PRESETS[preset].values;
+        setUserSpeechTimeout(user_speech_timeout);
+        setSmartTurnStopSecs(smart_turn_stop_secs);
+        setTurnStartMinWords(turn_start_min_words);
+    };
     const [audioUploadError, setAudioUploadError] = useState<string | null>(null);
     const ambientFileInputRef = useRef<HTMLInputElement>(null);
     const { playingId, toggle: togglePlayback } = useAudioPlayback();
@@ -317,11 +358,15 @@ function GeneralSection({
             turnStartMinWords !== workflowConfigurations.turn_start_min_words ||
             provisionalVadPauseSecs !== workflowConfigurations.provisional_vad_pause_secs ||
             turnStopStrategy !== workflowConfigurations.turn_stop_strategy ||
+            userSpeechTimeout !== workflowConfigurations.user_speech_timeout ||
+            interruptionBackoffSecs !== workflowConfigurations.interruption_backoff_secs ||
+            JSON.stringify(fallbackTts) !== JSON.stringify(workflowConfigurations.fallback_tts ?? []) ||
+            JSON.stringify(fallbackStt) !== JSON.stringify(workflowConfigurations.fallback_stt ?? []) ||
             contextCompactionEnabled !== workflowConfigurations.context_compaction_enabled ||
             includeTranscriptEndTimestamps !==
             (workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false)
         );
-    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -397,6 +442,10 @@ function GeneralSection({
                     turn_start_min_words: turnStartMinWords,
                     provisional_vad_pause_secs: provisionalVadPauseSecs,
                     turn_stop_strategy: turnStopStrategy,
+                    user_speech_timeout: userSpeechTimeout,
+                    interruption_backoff_secs: interruptionBackoffSecs,
+                    fallback_tts: fallbackTts,
+                    fallback_stt: fallbackStt,
                     context_compaction_enabled: contextCompactionEnabled,
                     transcript_configuration: {
                         ...(workflowConfigurations.transcript_configuration ?? {}),
@@ -564,6 +613,48 @@ function GeneralSection({
 
                 <Separator />
 
+                {/* Response Rate */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Response Rate</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            How quickly the agent takes its turn. Sets the three timings below together.
+                        </p>
+                    </div>
+                    <div className="space-y-2">
+                        <Select
+                            value={activePreset}
+                            onValueChange={(value) => {
+                                if (value !== "custom") applyLatencyPreset(value as LatencyPreset);
+                            }}
+                        >
+                            <SelectTrigger id="latency_preset">
+                                <SelectValue placeholder="Select a response rate" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {(Object.keys(LATENCY_PRESETS) as LatencyPreset[]).map((key) => (
+                                    <SelectItem key={key} value={key}>
+                                        {LATENCY_PRESETS[key].label}
+                                        {key === "balanced" ? " (Recommended)" : ""}
+                                    </SelectItem>
+                                ))}
+                                {/* Only reachable by moving a slider, so it is
+                                    shown rather than offered. */}
+                                {activePreset === "custom" && (
+                                    <SelectItem value="custom">Custom</SelectItem>
+                                )}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                            {activePreset === "custom"
+                                ? "Your own combination of the timings below. Pick a preset to reset them."
+                                : LATENCY_PRESETS[activePreset].blurb}
+                        </p>
+                    </div>
+                </div>
+
+                <Separator />
+
                 {/* Turn Detection */}
                 <div className="space-y-4">
                     <div>
@@ -582,37 +673,43 @@ function GeneralSection({
                                 <SelectValue placeholder="Select strategy" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="transcription">Transcription-based</SelectItem>
-                                <SelectItem value="turn_analyzer">Smart Turn Analyzer</SelectItem>
+                                <SelectItem value="turn_analyzer">
+                                    Smart Turn Analyzer (Recommended)
+                                </SelectItem>
+                                <SelectItem value="transcription">Silence timeout</SelectItem>
                             </SelectContent>
                         </Select>
                         <p className="text-xs text-muted-foreground">
                             {turnStopStrategy === "transcription"
-                                ? "Best for short responses (1-2 word statements). Ends turn when transcription indicates completion."
-                                : "Best for longer responses with natural pauses. Uses ML model to detect end of turn."}
+                                ? "Waits a fixed silence after every turn, whether or not the caller had obviously finished. Predictable, but that wait is paid even on a one-word answer."
+                                : "A local model judges whether the sentence sounds finished, and only waits out the silence below when it is unsure. Quick on a finished sentence, patient on an ambiguous one — about 12ms to decide."}
                         </p>
                     </div>
                     {turnStopStrategy === "turn_analyzer" && (
-                        <div className="space-y-2">
-                            <Label htmlFor="smart_turn_stop_secs" className="text-xs">
-                                Incomplete Turn Timeout (seconds)
-                            </Label>
-                            <Input
-                                id="smart_turn_stop_secs"
-                                type="number"
-                                step="0.5"
-                                min="0.5"
-                                max="10"
-                                value={smartTurnStopSecs}
-                                onChange={(e) => {
-                                    const value = parseFloat(e.target.value);
-                                    if (!isNaN(value) && value >= 0.5) setSmartTurnStopSecs(value);
-                                }}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Max silence duration before ending an incomplete turn. Default: 2 seconds
-                            </p>
-                        </div>
+                        <Slider
+                            id="smart_turn_stop_secs"
+                            label="Incomplete Turn Timeout"
+                            unit="s"
+                            min={0.5}
+                            max={10}
+                            step={0.5}
+                            value={smartTurnStopSecs}
+                            onValueChange={setSmartTurnStopSecs}
+                            hint="How long to wait when the analyzer is unsure the caller has finished. Only reached on an ambiguous turn. Default: 2s"
+                        />
+                    )}
+                    {turnStopStrategy === "transcription" && (
+                        <Slider
+                            id="user_speech_timeout"
+                            label="Endpointing Delay"
+                            unit="s"
+                            min={MIN_USER_SPEECH_TIMEOUT}
+                            max={MAX_USER_SPEECH_TIMEOUT}
+                            step={0.05}
+                            value={userSpeechTimeout}
+                            onValueChange={setUserSpeechTimeout}
+                            hint={`Silence to wait after the caller stops, on top of the VAD's own 0.2s, before the turn ends. Paid on every turn, so it sets a floor under response time that no faster model can recover. Below ${MIN_USER_SPEECH_TIMEOUT}s it starts cutting people off mid-sentence. Ignored when the transcriber reports its own turn boundaries. Default: ${DEFAULT_USER_SPEECH_TIMEOUT}s`}
+                        />
                     )}
                 </div>
 
@@ -648,48 +745,41 @@ function GeneralSection({
                         </p>
                     </div>
                     {turnStartStrategy === "min_words" && (
-                        <div className="space-y-2">
-                            <Label htmlFor="turn_start_min_words" className="text-xs">
-                                Minimum Words Before Interruption
-                            </Label>
-                            <Input
-                                id="turn_start_min_words"
-                                type="number"
-                                step="1"
-                                min="1"
-                                max="10"
-                                value={turnStartMinWords}
-                                onChange={(e) => {
-                                    const value = parseInt(e.target.value);
-                                    if (!isNaN(value) && value >= 1) setTurnStartMinWords(value);
-                                }}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Number of transcribed words needed to interrupt while the bot is speaking. Default: {DEFAULT_TURN_START_MIN_WORDS}
-                            </p>
-                        </div>
+                        <Slider
+                            id="turn_start_min_words"
+                            label="Minimum Words Before Interruption"
+                            unit=" words"
+                            min={1}
+                            max={10}
+                            step={1}
+                            value={turnStartMinWords}
+                            onValueChange={setTurnStartMinWords}
+                            hint={`Transcribed words needed to interrupt the agent. Raise it so a cough, a "mhm" or background speech no longer cuts the agent off mid-sentence. Default: ${DEFAULT_TURN_START_MIN_WORDS}`}
+                        />
                     )}
+                    <Slider
+                        id="interruption_backoff_secs"
+                        label="Pause After Being Interrupted"
+                        unit="s"
+                        min={0}
+                        max={3}
+                        step={0.1}
+                        value={interruptionBackoffSecs}
+                        onValueChange={setInterruptionBackoffSecs}
+                        hint="How long to wait before the agent speaks again after the caller cuts in, so a short interruption is not answered before they have finished. Usually costs nothing: the caller finishing, the turn being detected and the reply being generated normally take longer than this. 0 turns it off entirely."
+                    />
                     {turnStartStrategy === "provisional_vad" && (
-                        <div className="space-y-2">
-                            <Label htmlFor="provisional_vad_pause_secs" className="text-xs">
-                                Provisional Pause (seconds)
-                            </Label>
-                            <Input
-                                id="provisional_vad_pause_secs"
-                                type="number"
-                                step="0.1"
-                                min="0.1"
-                                max="5"
-                                value={provisionalVadPauseSecs}
-                                onChange={(e) => {
-                                    const value = parseFloat(e.target.value);
-                                    if (!isNaN(value) && value >= 0.1) setProvisionalVadPauseSecs(value);
-                                }}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Seconds to pause bot audio while waiting for transcript confirmation. Default: {DEFAULT_PROVISIONAL_VAD_PAUSE_SECS}
-                            </p>
-                        </div>
+                        <Slider
+                            id="provisional_vad_pause_secs"
+                            label="Provisional Pause"
+                            unit="s"
+                            min={0.1}
+                            max={5}
+                            step={0.1}
+                            value={provisionalVadPauseSecs}
+                            onValueChange={setProvisionalVadPauseSecs}
+                            hint={`How long to pause the agent's audio while waiting for the transcript to confirm the caller really spoke. Default: ${DEFAULT_PROVISIONAL_VAD_PAUSE_SECS}s`}
+                        />
                     )}
                 </div>
 
@@ -741,6 +831,39 @@ function GeneralSection({
                             onCheckedChange={setContextCompactionEnabled}
                         />
                     </div>
+                </div>
+
+                <Separator />
+
+                {/* Fallbacks */}
+                <div className="space-y-5">
+                    <div>
+                        <h3 className="text-sm font-medium">Fallbacks</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Where the call goes if a provider fails while someone is on the
+                            line. Tried in order, and only for a provider reporting a problem
+                            it expects to survive — a provider saying the call cannot
+                            continue still ends it.
+                        </p>
+                    </div>
+
+                    <FallbackChain
+                        label="Voice"
+                        kind="tts"
+                        description="A voice that stops mid-sentence is dead air, which is the worst thing a caller can be handed."
+                        schemas={modelConfigurationDefaults?.byok?.pipeline?.tts}
+                        value={fallbackTts}
+                        onChange={setFallbackTts}
+                    />
+
+                    <FallbackChain
+                        label="Transcriber"
+                        kind="stt"
+                        description="A transcriber that fails leaves the agent unable to hear, so it waits through a caller who is already talking."
+                        schemas={modelConfigurationDefaults?.byok?.pipeline?.stt}
+                        value={fallbackStt}
+                        onChange={setFallbackStt}
+                    />
                 </div>
 
                 <Separator />
@@ -1282,6 +1405,24 @@ function WorkflowModelOverridesSection({
 
                 {!modelConfigurationLoading && !modelConfigurationError && hasOrgConfiguration && modelConfigurationDefaults && organizationModelConfiguration && (
                     <>
+                        {/* What a minute of this agent costs, before anyone dials it.
+                            Priced from the stack the agent will actually run: its own
+                            override where it has one, the organization default where it
+                            does not. Telephony is left out deliberately -- the carrier
+                            is chosen per call, not per agent, so a number here would be
+                            a guess presented as a rate. */}
+                        <CostPerMinuteBar
+                            carriageNote="Telephony is not included: the carrier is chosen when the call is placed."
+                            stack={pricedStack(
+                                savedV2Override
+                                    ? priceableFromV2(savedV2Override)
+                                    : (organizationModelConfiguration.effective_configuration as
+                                          | Parameters<typeof pricedStack>[0]
+                                          | null),
+                                modelConfigurationDefaults.decibyl?.upstream,
+                            )}
+                        />
+
                         <div className="flex items-center justify-between rounded-md border p-4">
                             <div className="space-y-0.5">
                                 <Label htmlFor="workflow-model-v2-override" className="text-sm font-medium">
@@ -1559,6 +1700,7 @@ function WorkflowSettingsInner({
                                 workflowName={workflowName || workflow.name}
                                 workflowId={workflowId}
                                 onSave={saveWorkflowConfigurations}
+                                modelConfigurationDefaults={modelConfigurationDefaults}
                             />
 
                             <WorkflowModelOverridesSection

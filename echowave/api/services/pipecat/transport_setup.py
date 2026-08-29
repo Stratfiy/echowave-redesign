@@ -6,7 +6,7 @@ This module hosts only the shared, non-telephony transports (WebRTC).
 
 from api.services.pipecat.audio_config import AudioConfig
 from api.services.pipecat.audio_mixer import build_audio_out_mixer
-from api.services.pipecat.transport_params import realtime_param_overrides
+from api.services.pipecat.transport_params import transport_param_overrides
 from pipecat.transports.base_transport import TransportParams
 from pipecat.transports.smallwebrtc.connection import SmallWebRTCConnection
 from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
@@ -32,6 +32,6 @@ async def create_webrtc_transport(
             audio_in_sample_rate=audio_config.transport_in_sample_rate,
             audio_out_sample_rate=audio_config.transport_out_sample_rate,
             audio_out_mixer=mixer,
-            **realtime_param_overrides(is_realtime),
+            **transport_param_overrides(is_realtime),
         ),
     )
