@@ -1059,6 +1059,33 @@ def _migrate_deprecated_google_model(model: str) -> str:
     return model
 
 
+def _llm_tuning(
+    temperature: float | None,
+    max_tokens: int | None,
+    *,
+    default_temperature: float | None = None,
+) -> dict:
+    """Settings kwargs for the generation controls, or nothing.
+
+    ``default_temperature`` is whatever literal that provider's branch passed
+    before these became configurable, so an unset config produces byte-identical
+    settings and no existing call changes. A provider that passed no temperature
+    at all keeps passing none.
+
+    ``max_tokens`` is omitted unless set: every settings class here descends
+    from ``BaseOpenAILLMService.Settings`` (or declares its own) and treats an
+    absent value as the provider's default, which is not the same as a number
+    we invented.
+    """
+    tuning: dict = {}
+    resolved = temperature if temperature is not None else default_temperature
+    if resolved is not None:
+        tuning["temperature"] = resolved
+    if max_tokens is not None:
+        tuning["max_tokens"] = max_tokens
+    return tuning
+
+
 def create_llm_service_from_provider(
     provider: str,
     model: str,
@@ -1074,6 +1101,7 @@ def create_llm_service_from_provider(
     location: str | None = None,
     credentials: str | None = None,
     temperature: float | None = None,
+    max_tokens: int | None = None,
     bill_to: str | None = None,
 ):
     """Create an LLM service from explicit provider/model/api_key.
@@ -1092,18 +1120,27 @@ def create_llm_service_from_provider(
                 settings=OpenAILLMSettings(
                     model=model,
                     extra={"reasoning_effort": "minimal", "verbosity": "low"},
+                    # No temperature, configured or otherwise: the reasoning
+                    # models this branch exists for reject the parameter.
+                    **_llm_tuning(None, max_tokens),
                 ),
                 **kwargs,
             )
         return OpenAILLMService(
             api_key=api_key,
-            settings=OpenAILLMSettings(model=model, temperature=0.1),
+            settings=OpenAILLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
             **kwargs,
         )
     elif provider == ServiceProviders.GROQ.value:
         return GroqLLMService(
             api_key=api_key,
-            settings=GroqLLMSettings(model=model, temperature=0.1),
+            settings=GroqLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
         )
     elif provider == ServiceProviders.OPENROUTER.value:
         kwargs = {}
@@ -1112,21 +1149,30 @@ def create_llm_service_from_provider(
             kwargs["base_url"] = base_url
         return OpenRouterLLMService(
             api_key=api_key,
-            settings=OpenRouterLLMSettings(model=model, temperature=0.1),
+            settings=OpenRouterLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
             **kwargs,
         )
     elif provider == ServiceProviders.GOOGLE.value:
         model = _migrate_deprecated_google_model(model)
         return DecibylGoogleLLMService(
             api_key=api_key,
-            settings=GoogleLLMSettings(model=model, temperature=0.1),
+            settings=GoogleLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
         )
     elif provider == ServiceProviders.GOOGLE_VERTEX.value:
         return DecibylGoogleVertexLLMService(
             credentials=credentials,
             project_id=project_id,
             location=location or "us-east4",
-            settings=GoogleVertexLLMSettings(model=model, temperature=0.1),
+            settings=GoogleVertexLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
         )
     elif provider == ServiceProviders.AZURE.value:
         if endpoint:
@@ -1134,21 +1180,28 @@ def create_llm_service_from_provider(
         return AzureLLMService(
             api_key=api_key,
             endpoint=endpoint,
-            settings=AzureLLMSettings(model=model, temperature=0.1),
+            settings=AzureLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
         )
     elif provider == ServiceProviders.DECIBYL.value:
         return DograhLLMService(
             base_url=f"{MPS_API_URL}/api/v1/llm",
             api_key=api_key,
             correlation_id=correlation_id,
-            settings=OpenAILLMSettings(model=model),
+            settings=OpenAILLMSettings(
+                model=model, **_llm_tuning(temperature, max_tokens)
+            ),
         )
     elif provider == ServiceProviders.AWS_BEDROCK.value:
         return AWSBedrockLLMService(
             aws_access_key=aws_access_key,
             aws_secret_key=aws_secret_key,
             aws_region=aws_region,
-            settings=AWSBedrockLLMSettings(model=model),
+            settings=AWSBedrockLLMSettings(
+                model=model, **_llm_tuning(temperature, max_tokens)
+            ),
         )
     elif provider == ServiceProviders.SPEACHES.value:
         base_url = base_url or "http://localhost:11434/v1"
@@ -1156,7 +1209,9 @@ def create_llm_service_from_provider(
         return SpeachesLLMService(
             base_url=base_url,
             api_key=api_key or "none",
-            settings=SpeachesLLMSettings(model=model),
+            settings=SpeachesLLMSettings(
+                model=model, **_llm_tuning(temperature, max_tokens)
+            ),
         )
     elif provider == ServiceProviders.HUGGINGFACE.value:
         base_url = base_url or "https://router.huggingface.co/v1"
@@ -1165,7 +1220,10 @@ def create_llm_service_from_provider(
             api_key=api_key,
             base_url=base_url,
             bill_to=bill_to,
-            settings=HuggingFaceLLMSettings(model=model, temperature=0.1),
+            settings=HuggingFaceLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
         )
     elif provider == ServiceProviders.MINIMAX.value:
         base_url = base_url or "https://api.minimax.io/v1"
@@ -1175,7 +1233,7 @@ def create_llm_service_from_provider(
             base_url=base_url,
             settings=MiniMaxLLMService.Settings(
                 model=model,
-                temperature=temperature if temperature is not None else 1.0,
+                **_llm_tuning(temperature, max_tokens, default_temperature=1.0),
             ),
         )
     elif provider == ServiceProviders.SARVAM.value:
@@ -1183,7 +1241,7 @@ def create_llm_service_from_provider(
             api_key=api_key,
             settings=SarvamLLMSettings(
                 model=model,
-                temperature=temperature if temperature is not None else 0.5,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.5),
             ),
         )
     else:
@@ -1472,9 +1530,13 @@ def create_llm_service(user_config, correlation_id: str | None = None):
     elif provider == ServiceProviders.GOOGLE_VERTEX.value:
         _carry(kwargs, user_config.llm, "project_id", "location", "credentials")
     elif provider == ServiceProviders.MINIMAX.value:
-        _carry(kwargs, user_config.llm, "base_url", "temperature")
-    elif provider == ServiceProviders.SARVAM.value:
-        _carry(kwargs, user_config.llm, "temperature")
+        _carry(kwargs, user_config.llm, "base_url")
+
+    # Every pipeline LLM class carries these (see PipelineLLMTuning); a managed
+    # tier class carries neither, and _carry omits what is absent. Done once
+    # after the branches rather than per provider, so a new provider gets the
+    # generation controls by declaring the fields and nothing else.
+    _carry(kwargs, user_config.llm, "temperature", "max_tokens")
 
     return create_llm_service_from_provider(
         provider,

@@ -528,8 +528,47 @@ AWS_BEDROCK_MODELS = [
 ]
 
 
+class PipelineLLMTuning(BaseModel):
+    """Generation controls every pipeline LLM accepts, declared in one place.
+
+    Both are ``None`` by default and mean "say nothing to the provider", which
+    is what makes adding them safe: the factory keeps whatever literal that
+    branch already passed as its fallback, so no existing call changes until
+    somebody moves a slider.
+
+    A provider that wants a different default just redeclares the field --
+    MiniMax and Sarvam already do, and their own declaration wins over this
+    one.
+
+    Not on ``BaseLLMConfiguration``: the realtime (speech-to-speech) classes
+    inherit that too, and neither control reaches them through this path.
+    """
+
+    temperature: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+        description=(
+            "How much the wording varies between runs. Low is repeatable and "
+            "sticks to the prompt; high is more creative and drifts from it "
+            "more often."
+        ),
+    )
+    max_tokens: int | None = Field(
+        default=None,
+        ge=16,
+        le=4096,
+        description=(
+            "Ceiling on the reply length for one turn. On a phone call this is "
+            "a latency control as much as a cost one -- without streaming the "
+            "caller waits for the whole reply to generate. Too low truncates "
+            "mid-sentence, which sounds like the agent hung up."
+        ),
+    )
+
+
 @register_llm
-class OpenAILLMService(BaseLLMConfiguration):
+class OpenAILLMService(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = OPENAI_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.OPENAI] = ServiceProviders.OPENAI
     model: str = Field(
@@ -544,7 +583,7 @@ class OpenAILLMService(BaseLLMConfiguration):
 
 
 @register_llm
-class GoogleLLMService(BaseLLMConfiguration):
+class GoogleLLMService(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = GOOGLE_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.GOOGLE] = ServiceProviders.GOOGLE
     model: str = Field(
@@ -555,7 +594,7 @@ class GoogleLLMService(BaseLLMConfiguration):
 
 
 @register_llm
-class GoogleVertexLLMConfiguration(BaseLLMConfiguration):
+class GoogleVertexLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = GOOGLE_VERTEX_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.GOOGLE_VERTEX] = ServiceProviders.GOOGLE_VERTEX
     model: str = Field(
@@ -589,7 +628,7 @@ class GoogleVertexLLMConfiguration(BaseLLMConfiguration):
 
 
 @register_llm
-class GroqLLMService(BaseLLMConfiguration):
+class GroqLLMService(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = GROQ_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.GROQ] = ServiceProviders.GROQ
     model: str = Field(
@@ -600,7 +639,7 @@ class GroqLLMService(BaseLLMConfiguration):
 
 
 @register_llm
-class OpenRouterLLMConfiguration(BaseLLMConfiguration):
+class OpenRouterLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = OPENROUTER_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.OPENROUTER] = ServiceProviders.OPENROUTER
     model: str = Field(
@@ -616,7 +655,7 @@ class OpenRouterLLMConfiguration(BaseLLMConfiguration):
 
 
 @register_llm
-class AzureLLMService(BaseLLMConfiguration):
+class AzureLLMService(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = AZURE_OPENAI_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.AZURE] = ServiceProviders.AZURE
     model: str = Field(
@@ -631,7 +670,7 @@ class AzureLLMService(BaseLLMConfiguration):
 
 
 @register_llm
-class DecibylLLMService(BaseLLMConfiguration):
+class DecibylLLMService(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = DECIBYL_PROVIDER_MODEL_CONFIG
     # Managed slots carry no key from the customer — that is the entire point
     # of choosing one. ``managed_resolution`` substitutes our platform key at
@@ -652,7 +691,7 @@ class DecibylLLMService(BaseLLMConfiguration):
 
 
 @register_llm
-class AWSBedrockLLMConfiguration(BaseLLMConfiguration):
+class AWSBedrockLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = AWS_BEDROCK_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.AWS_BEDROCK] = ServiceProviders.AWS_BEDROCK
     model: str = Field(
@@ -682,7 +721,7 @@ SPEACHES_LLM_MODELS = ["llama3", "mistral", "phi3", "qwen2", "gemma2", "deepseek
 
 
 @register_llm
-class SpeachesLLMConfiguration(BaseLLMConfiguration):
+class SpeachesLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = SPEACHES_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.SPEACHES] = ServiceProviders.SPEACHES
     model: str = Field(
@@ -711,7 +750,7 @@ HUGGINGFACE_LLM_MODELS = [
 
 
 @register_llm
-class HuggingFaceLLMConfiguration(BaseLLMConfiguration):
+class HuggingFaceLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = HUGGINGFACE_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.HUGGINGFACE] = ServiceProviders.HUGGINGFACE
     model: str = Field(
@@ -740,7 +779,7 @@ MINIMAX_MODELS = [
 
 
 @register_llm
-class MiniMaxLLMConfiguration(BaseLLMConfiguration):
+class MiniMaxLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     provider: Literal[ServiceProviders.MINIMAX] = ServiceProviders.MINIMAX
     model: str = Field(
         default="MiniMax-M2.7",
@@ -760,7 +799,7 @@ class MiniMaxLLMConfiguration(BaseLLMConfiguration):
 
 
 @register_llm
-class SarvamLLMConfiguration(BaseLLMConfiguration):
+class SarvamLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
     model_config = SARVAM_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.SARVAM] = ServiceProviders.SARVAM
     model: str = Field(

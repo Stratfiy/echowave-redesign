@@ -1558,10 +1558,19 @@ export function ServiceConfigurationForm({
         // all arrive with their own min, max and default already attached.
         const lower = actualSchema?.minimum ?? actualSchema?.exclusiveMinimum;
         const upper = actualSchema?.maximum ?? actualSchema?.exclusiveMaximum;
+        // A bounded number is a slider only while dragging is the easier way to
+        // set it. max_tokens runs 16-4096: as a track that is four thousand
+        // indistinguishable positions, and nobody wants "about 250" — they want
+        // 250. Wide ranges stay a box, which is what Vapi shows for that field
+        // and a slider for temperature, for the same reason.
+        const sliderStops = typeof lower === "number" && typeof upper === "number"
+            ? upper - lower
+            : 0;
         if (
             actualSchema?.type === "number"
             && typeof lower === "number"
             && typeof upper === "number"
+            && sliderStops <= 100
         ) {
             const fieldKey = `${service}_${field}`;
             const span = upper - lower;
