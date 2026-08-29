@@ -1246,7 +1246,7 @@ export interface components {
              * @default default
              * @enum {string}
              */
-            turn_start_strategy: "default" | "min_words" | "provisional_vad";
+            turn_start_strategy: "default" | "min_words" | "provisional_vad" | "vad";
             /**
              * Turn Start Min Words
              * @default 3

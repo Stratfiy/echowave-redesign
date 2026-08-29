@@ -35,7 +35,7 @@ export const TURN_START_STRATEGY_OPTIONS: Array<{
     {
         value: 'default',
         label: 'Default',
-        description: 'Use the platform default: external STT turn signals when available, otherwise local VAD.',
+        description: 'Recommended. Uses the transcriber\'s own turn signals when it has them, otherwise requires a minimum number of words — so background noise cannot cut the agent off.',
     },
     {
         value: 'min_words',
@@ -46,6 +46,11 @@ export const TURN_START_STRATEGY_OPTIONS: Array<{
         value: 'provisional_vad',
         label: 'Provisional VAD',
         description: 'Pause bot audio on voice activity, then confirm the interruption with transcription.',
+    },
+    {
+        value: 'vad',
+        label: 'Voice activity only',
+        description: 'Interrupt on any sound loud enough to read as speech. Fastest to react and the least discriminating — a cough or background talk will stop the agent. Use only if your transcriber emits no interim results.',
     },
 ];
 

@@ -613,6 +613,7 @@ class TurnStartStrategy(Enum):
     default = 'default'
     min_words = 'min_words'
     provisional_vad = 'provisional_vad'
+    vad = 'vad'
 
 
 class TurnStopStrategy(Enum):

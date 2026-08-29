@@ -134,13 +134,68 @@ def test_non_realtime_default_uses_external_start_for_external_turn_stt():
     assert strategies[0]._enable_interruptions is True
 
 
-def test_non_realtime_default_uses_vad_start_for_standard_stt():
+def test_non_realtime_default_requires_words_not_volume_for_standard_stt():
+    """A cough is voice activity. It is not the caller taking their turn.
+
+    With no external turn signal something local has to decide, and this used
+    to be raw VAD -- so any noise loud enough to read as speech stopped the
+    agent mid-sentence.
+    """
     strategies = _create_non_realtime_user_turn_start_strategies(
         {},
         uses_external_turns=False,
     )
 
     assert len(strategies) == 1
+    assert isinstance(strategies[0], MinWordsUserTurnStartStrategy)
+    assert strategies[0]._min_words == DEFAULT_TURN_START_MIN_WORDS
+
+
+def test_the_default_costs_nothing_when_the_agent_is_not_speaking():
+    """The word threshold guards barge-in only.
+
+    If it applied to every turn it would be a latency regression: a caller
+    answering "yes" would wait for two more words that never come. MinWords
+    uses a threshold of 1 while the bot is silent, so it does not.
+    """
+    strategy = _create_non_realtime_user_turn_start_strategies(
+        {}, uses_external_turns=False
+    )[0]
+
+    assert strategy._bot_speaking is False
+    assert strategy._use_interim is True, (
+        "Interim transcriptions are what keep barge-in prompt; waiting for a "
+        "final would trade the cough for a delay."
+    )
+
+
+def test_external_turn_stt_still_owns_its_own_interruptions():
+    """The default must not take interruption away from an STT that has it."""
+    strategies = _create_non_realtime_user_turn_start_strategies(
+        {},
+        uses_external_turns=True,
+    )
+
+    assert isinstance(strategies[0], ExternalUserTurnStartStrategy)
+
+
+def test_raw_vad_is_still_reachable_when_asked_for():
+    """Changing a default must not remove the behaviour it replaced."""
+    strategies = _create_non_realtime_user_turn_start_strategies(
+        {"turn_start_strategy": "vad"},
+        uses_external_turns=False,
+    )
+
+    assert len(strategies) == 1
+    assert isinstance(strategies[0], VADUserTurnStartStrategy)
+
+
+def test_explicit_vad_beats_an_external_turn_signal():
+    strategies = _create_non_realtime_user_turn_start_strategies(
+        {"turn_start_strategy": "vad"},
+        uses_external_turns=True,
+    )
+
     assert isinstance(strategies[0], VADUserTurnStartStrategy)
 
 

@@ -79,9 +79,14 @@ class WorkflowConfigurationDefaults(BaseModel):
     )
     max_user_idle_timeout: float = DEFAULT_MAX_USER_IDLE_TIMEOUT_SECONDS
     smart_turn_stop_secs: float = DEFAULT_SMART_TURN_STOP_SECS
-    turn_start_strategy: Literal["default", "min_words", "provisional_vad"] = (
-        DEFAULT_TURN_START_STRATEGY
-    )
+    # "default" resolves per transcriber: an STT that emits its own turn
+    # boundaries owns interruption, otherwise a minimum word count does. "vad"
+    # is that older raw-voice-activity fallback, kept selectable for a
+    # transcriber that emits no interim results -- see
+    # _create_non_realtime_user_turn_start_strategies.
+    turn_start_strategy: Literal[
+        "default", "min_words", "provisional_vad", "vad"
+    ] = DEFAULT_TURN_START_STRATEGY
     turn_start_min_words: int = DEFAULT_TURN_START_MIN_WORDS
     provisional_vad_pause_secs: float = DEFAULT_PROVISIONAL_VAD_PAUSE_SECS
     turn_stop_strategy: Literal["transcription", "turn_analyzer"] = (

@@ -167,6 +167,12 @@ def _create_non_realtime_user_turn_start_strategies(
             )
         ]
 
+    if turn_start_strategy == "vad":
+        # Raw voice activity, the behaviour "default" used to fall back to.
+        # Kept reachable for a workflow whose transcriber emits no interim
+        # results, where waiting for words means waiting too long.
+        return [VADUserTurnStartStrategy()]
+
     if uses_external_turns:
         # The STT emits its own turn boundaries and owns interruptions. Local
         # VAD is deliberately kept out of the default start strategies: it would
@@ -174,7 +180,21 @@ def _create_non_realtime_user_turn_start_strategies(
         # confirms a real turn.
         return [ExternalUserTurnStartStrategy(enable_interruptions=True)]
 
-    return [VADUserTurnStartStrategy()]
+    # No external turn signal, so something local has to decide what counts as
+    # the caller starting to talk. Words, not volume.
+    #
+    # VADUserTurnStartStrategy fires on voice activity alone, which on a phone
+    # line means a cough, a door, a television or the other half of somebody
+    # else's conversation stops the agent mid-sentence. Being cut off by a
+    # noise reads as broken in a way that a slower reply does not.
+    #
+    # This costs nothing on a normal turn: MinWords applies its threshold only
+    # while the bot is speaking and uses 1 otherwise, so the caller answering a
+    # question still starts their turn on the first word. And it reads interim
+    # transcriptions, so mid-utterance barge-in does not wait for a final.
+    return [
+        MinWordsUserTurnStartStrategy(min_words=_resolve_turn_start_min_words(run_configs))
+    ]
 
 
 def _resolve_user_speech_timeout(run_configs: dict) -> float:

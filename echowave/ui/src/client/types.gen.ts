@@ -8644,7 +8644,7 @@ export type WorkflowConfigurationDefaults = {
     /**
      * Turn Start Strategy
      */
-    turn_start_strategy?: 'default' | 'min_words' | 'provisional_vad';
+    turn_start_strategy?: 'default' | 'min_words' | 'provisional_vad' | 'vad';
     /**
      * Turn Start Min Words
      */
