@@ -401,6 +401,10 @@ def create_stt_service(
         return AssemblyAISTTService(
             api_key=user_config.stt.api_key,
             settings=AssemblyAISTTSettings(**settings_kwargs),
+            # The user turn strategies decide what counts as an interruption;
+            # this service would otherwise broadcast one itself the moment it
+            # hears speech, which bypasses turn_start_strategy entirely.
+            should_interrupt=False,
             sample_rate=audio_config.transport_in_sample_rate,
         )
     elif user_config.stt.provider == ServiceProviders.GLADIA.value:
@@ -416,6 +420,10 @@ def create_stt_service(
         return GladiaSTTService(
             api_key=user_config.stt.api_key,
             settings=GladiaSTTSettings(**settings_kwargs),
+            # The user turn strategies decide what counts as an interruption;
+            # this service would otherwise broadcast one itself the moment it
+            # hears speech, which bypasses turn_start_strategy entirely.
+            should_interrupt=False,
             sample_rate=audio_config.transport_in_sample_rate,
         )
     elif user_config.stt.provider == ServiceProviders.SPEECHMATICS.value:
@@ -442,6 +450,10 @@ def create_stt_service(
                 operating_point=operating_point,
                 additional_vocab=additional_vocab,
             ),
+            # The user turn strategies decide what counts as an interruption;
+            # this service would otherwise broadcast one itself the moment it
+            # hears speech, which bypasses turn_start_strategy entirely.
+            should_interrupt=False,
             sample_rate=audio_config.transport_in_sample_rate,
         )
     elif user_config.stt.provider == ServiceProviders.AZURE_SPEECH.value:
