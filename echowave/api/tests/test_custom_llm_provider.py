@@ -47,6 +47,29 @@ class TestTheEndpointIsTheConfiguration:
         }
         assert ServiceProviders.CUSTOM_LLM.value in registered
 
+    def test_a_stored_section_actually_validates(self):
+        """Registering is not the same as being usable.
+
+        `@register_llm` puts a class in REGISTRY, which is what fills the
+        provider dropdown -- but a saved configuration is parsed through the
+        `LLMConfig` discriminated union, which is written by hand. A class in
+        one and not the other is offered on screen and then refused on save.
+        """
+        from pydantic import TypeAdapter
+
+        from api.services.configuration.registry import LLMConfig
+
+        section = TypeAdapter(LLMConfig).validate_python(
+            {
+                "provider": "custom_llm",
+                "model": "my-model",
+                "base_url": "https://gw.example.com/v1",
+                "api_key": "sk-x",
+            }
+        )
+
+        assert isinstance(section, CustomLLMConfiguration)
+
     def test_base_url_is_required_at_save_time(self):
         """Not at dial time, where it becomes a call that connects and dies."""
         with pytest.raises(pydantic.ValidationError):

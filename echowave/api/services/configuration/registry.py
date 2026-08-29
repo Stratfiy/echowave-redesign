@@ -1152,6 +1152,7 @@ LLMConfig = Annotated[
         HuggingFaceLLMConfiguration,
         MiniMaxLLMConfiguration,
         SarvamLLMConfiguration,
+        CustomLLMConfiguration,
     ],
     Field(discriminator="provider"),
 ]

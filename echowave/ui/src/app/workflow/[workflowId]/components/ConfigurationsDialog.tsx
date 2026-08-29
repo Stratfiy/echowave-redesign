@@ -78,6 +78,10 @@ export const ConfigurationsDialog = ({
                 turn_start_min_words: turnStartMinWords,
                 provisional_vad_pause_secs: provisionalVadPauseSecs,
                 turn_stop_strategy: turnStopStrategy,
+                // Preserved rather than edited: this dialog offers no control
+                // for it, and rebuilding the object without it would reset a
+                // value set on the settings screen.
+                user_speech_timeout: resolvedWorkflowConfigurations.user_speech_timeout,
                 transcript_configuration: resolvedWorkflowConfigurations.transcript_configuration,
                 context_compaction_enabled: contextCompactionEnabled,
             }, name);

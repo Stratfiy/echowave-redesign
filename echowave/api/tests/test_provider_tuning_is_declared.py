@@ -129,3 +129,33 @@ class TestBoundedNumbersReachTheFormAsRanges:
         assert _properties(ServiceType.TTS, "cartesia")["speed"]["maximum"] == 1.5
         assert _properties(ServiceType.TTS, "sarvam")["speed"]["minimum"] == 0.5
         assert _properties(ServiceType.TTS, "elevenlabs")["speed"]["maximum"] == 2.0
+
+
+class TestRegisteringIsNotEnough:
+    """Every registered provider must also be parseable as a stored section.
+
+    `@register_llm` fills the provider dropdown; the `LLMConfig` union is what
+    a saved configuration is validated against, and it is maintained by hand.
+    A provider in one and not the other can be chosen on screen and then fails
+    on save with a discriminator error that names nothing useful.
+    """
+
+    def test_every_registered_llm_is_in_the_union(self):
+        import typing
+
+        from api.services.configuration.registry import LLMConfig
+
+        in_union = {
+            member.model_fields["provider"].default
+            for member in typing.get_args(typing.get_args(LLMConfig)[0])
+        }
+        in_union = {p.value if hasattr(p, "value") else p for p in in_union}
+        registered = {
+            (p.value if hasattr(p, "value") else p) for p in REGISTRY[ServiceType.LLM]
+        }
+
+        missing = registered - in_union
+        assert not missing, (
+            f"Registered but not in LLMConfig: {sorted(missing)}. The provider "
+            "appears in the dropdown and then fails to save."
+        )
