@@ -76,6 +76,8 @@ def _labels(component: str, tier: str) -> tuple[str, str]:
         managed_tiers.REALTIME_TIER_LABELS
     ):
         return managed_tiers.REALTIME_TIER_LABELS[tier]
+    if component == "stt" and tier in managed_tiers.STT_TIER_LABELS:
+        return managed_tiers.STT_TIER_LABELS[tier]
     return (tier.title(), "")
 
 

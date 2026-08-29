@@ -95,6 +95,11 @@ class TestUsageExtraction:
             ("DeepgramSTTService#1", "deepgram"),
             ("ElevenLabsTTSService#12", "elevenlabs"),
             ("DograhFluxSTTService#0", "dograh"),
+            # A local subclass is still the vendor it wraps. Without its alias
+            # this strips to "decibylsarvam", which has no rate on file -- and
+            # an unpriced provider does not fail, it silently costs the call at
+            # zero and reports margin at 100%.
+            ("DecibylSarvamLLMService#0", "sarvam"),
         ],
     )
     def test_the_instance_suffix_pipecat_actually_emits_is_stripped(

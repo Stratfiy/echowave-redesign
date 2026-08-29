@@ -2027,3 +2027,100 @@ class TestUpdateLLMContext:
         assert schema.description == "Check if service is alive"
         assert schema.properties == {}
         assert schema.required == []
+
+
+class TestToolRowsAreFetchedOncePerCall:
+    """A node transition happens while the caller is waiting in silence.
+
+    Composing a node's function schemas and registering its handlers both need
+    the same tool rows, and each fetched them independently — so a workflow
+    with tools paid two database round trips per transition, on the latency
+    path a caller actually feels.
+    """
+
+    @staticmethod
+    def _manager():
+        from api.services.workflow.pipecat_engine_custom_tools import CustomToolManager
+
+        return CustomToolManager(engine=SimpleNamespace())
+
+    @pytest.mark.asyncio
+    async def test_a_second_transition_over_the_same_tools_hits_no_database(self):
+        tool = MockToolModel(
+            tool_uuid="tool-a",
+            name="lookup",
+            description="",
+            category="http",
+            definition={},
+        )
+        manager = self._manager()
+
+        with patch("api.services.workflow.pipecat_engine_custom_tools.db_client") as db:
+            db.get_tools_by_uuids = AsyncMock(return_value=[tool])
+
+            first = await manager._load_tools(["tool-a"], organization_id=1)
+            second = await manager._load_tools(["tool-a"], organization_id=1)
+
+            assert first == [tool]
+            assert second == [tool]
+            db.get_tools_by_uuids.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_only_the_uuids_not_yet_seen_are_fetched(self):
+        """A later node introducing one new tool must not re-read the others."""
+        tool_a = MockToolModel("tool-a", "a", "", "http", {})
+        tool_b = MockToolModel("tool-b", "b", "", "http", {})
+        manager = self._manager()
+
+        with patch("api.services.workflow.pipecat_engine_custom_tools.db_client") as db:
+            db.get_tools_by_uuids = AsyncMock(return_value=[tool_a])
+            await manager._load_tools(["tool-a"], organization_id=1)
+
+            db.get_tools_by_uuids = AsyncMock(return_value=[tool_b])
+            result = await manager._load_tools(["tool-a", "tool-b"], organization_id=1)
+
+            db.get_tools_by_uuids.assert_awaited_once_with(["tool-b"], 1)
+            assert result == [tool_a, tool_b]
+
+    @pytest.mark.asyncio
+    async def test_a_uuid_with_no_row_is_not_re_queried_every_transition(self):
+        """A node pointing at a deleted tool would otherwise reissue the same
+        empty query on every transition for the rest of the call."""
+        manager = self._manager()
+
+        with patch("api.services.workflow.pipecat_engine_custom_tools.db_client") as db:
+            db.get_tools_by_uuids = AsyncMock(return_value=[])
+
+            assert await manager._load_tools(["gone"], organization_id=1) == []
+            assert await manager._load_tools(["gone"], organization_id=1) == []
+            db.get_tools_by_uuids.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_results_follow_the_requested_order_not_the_database_order(self):
+        """Schemas are built from this list, so a stable order keeps the LLM's
+        tool list identical across transitions."""
+        tool_a = MockToolModel("tool-a", "a", "", "http", {})
+        tool_b = MockToolModel("tool-b", "b", "", "http", {})
+        manager = self._manager()
+
+        with patch("api.services.workflow.pipecat_engine_custom_tools.db_client") as db:
+            db.get_tools_by_uuids = AsyncMock(return_value=[tool_b, tool_a])
+
+            result = await manager._load_tools(["tool-a", "tool-b"], organization_id=1)
+
+            assert result == [tool_a, tool_b]
+
+    @pytest.mark.asyncio
+    async def test_a_uuid_listed_twice_registers_its_function_once(self):
+        """The `IN` query this replaces collapsed duplicates implicitly. Losing
+        that would register the same function twice with the LLM."""
+        tool_a = MockToolModel("tool-a", "a", "", "http", {})
+        manager = self._manager()
+
+        with patch("api.services.workflow.pipecat_engine_custom_tools.db_client") as db:
+            db.get_tools_by_uuids = AsyncMock(return_value=[tool_a])
+
+            result = await manager._load_tools(["tool-a", "tool-a"], organization_id=1)
+
+            db.get_tools_by_uuids.assert_awaited_once_with(["tool-a"], 1)
+            assert result == [tool_a]

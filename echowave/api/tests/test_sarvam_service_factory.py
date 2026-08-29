@@ -29,9 +29,14 @@ from api.services.pipecat.service_factory import (
 
 class TestSarvamLLMConfiguration:
     def test_default_values(self):
+        """The conversational model, because these agents answer phones.
+
+        sarvam-105b reasons in chain-of-thought before every reply and cannot
+        be told not to, which measured 6,045ms of a 7,554ms turn.
+        """
         config = SarvamLLMConfiguration(api_key="test-key")
         assert config.provider == ServiceProviders.SARVAM
-        assert config.model == "sarvam-105b"
+        assert config.model == "sarvam-105b-conversations"
         assert config.temperature == 0.5
 
     def test_custom_model(self):
@@ -52,7 +57,7 @@ class TestSarvamLLMConfiguration:
 class TestSarvamLLMServiceFactory:
     def test_create_sarvam_llm_service(self):
         with patch(
-            "api.services.pipecat.service_factory.SarvamLLMService"
+            "api.services.pipecat.service_factory.DecibylSarvamLLMService"
         ) as mock_service:
             mock_service.Settings = RealSarvamLLMService.Settings
             create_llm_service_from_provider(
@@ -69,7 +74,7 @@ class TestSarvamLLMServiceFactory:
 
     def test_create_sarvam_llm_service_passes_user_temperature(self):
         with patch(
-            "api.services.pipecat.service_factory.SarvamLLMService"
+            "api.services.pipecat.service_factory.DecibylSarvamLLMService"
         ) as mock_service:
             mock_service.Settings = RealSarvamLLMService.Settings
             create_llm_service_from_provider(
@@ -93,7 +98,7 @@ class TestSarvamLLMServiceFactory:
         )
 
         with patch(
-            "api.services.pipecat.service_factory.SarvamLLMService"
+            "api.services.pipecat.service_factory.DecibylSarvamLLMService"
         ) as mock_service:
             mock_service.Settings = RealSarvamLLMService.Settings
             create_llm_service(user_config)
@@ -411,3 +416,205 @@ class TestTheBufferSettingsStayInsideSarvamsRange:
     def test_max_chunk_length_is_inside_the_range(self):
         low, high = self.MAX_CHUNK_LENGTH_RANGE
         assert low <= self._shipped_settings().max_chunk_length <= high
+
+
+class TestTheConversationalModelIsWhatVoiceGets:
+    """sarvam-105b is a reasoning model, and that is the whole latency story.
+
+    It emits reasoning_content -- chain-of-thought -- before a single word of
+    the answer, on every request. reasoning_effort cannot switch it off: Sarvam
+    accepts only low/medium/high, and against a 600-token cap the default and
+    "low" both spent the entire budget thinking and returned no content at all.
+    Measured on run 77 it was 6,045ms of a 7,554ms turn, with the caller waiting
+    in silence for all of it.
+    """
+
+    def test_the_wrapper_allows_the_conversational_model(self):
+        """Unknown names raise in _validate_model at construction, so widening
+        the allow-list is what makes the model selectable at all."""
+        from api.services.pipecat.sarvam_llm import (
+            SARVAM_CONVERSATIONS_MODEL,
+            DecibylSarvamLLMService,
+        )
+
+        assert SARVAM_CONVERSATIONS_MODEL in DecibylSarvamLLMService._SUPPORTED_MODELS
+
+    def test_the_wrapper_keeps_every_model_upstream_allowed(self):
+        from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+
+        assert RealSarvamLLMService._SUPPORTED_MODELS.issubset(
+            DecibylSarvamLLMService._SUPPORTED_MODELS
+        )
+
+    def test_constructing_the_conversational_model_does_not_raise(self):
+        from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+
+        service = DecibylSarvamLLMService(
+            api_key="test-key",
+            settings=DecibylSarvamLLMService.Settings(
+                model="sarvam-105b-conversations"
+            ),
+        )
+
+        assert service is not None
+
+    def test_the_upstream_class_still_refuses_it(self):
+        """Guards the reason this wrapper exists. If upstream ever ships the
+        model in its own allow-list, this fails and the wrapper can shrink."""
+        with pytest.raises(ValueError):
+            RealSarvamLLMService(
+                api_key="test-key",
+                settings=RealSarvamLLMService.Settings(
+                    model="sarvam-105b-conversations"
+                ),
+            )
+
+    def test_the_voice_tiers_resolve_to_the_conversational_model(self):
+        """The tier is what a managed account actually gets -- a default on the
+        configuration schema never reaches it."""
+        from api.services.configuration import managed_tiers
+
+        for tier in ("lite", "fast", "zen"):
+            upstream = managed_tiers.resolve("llm", tier)
+            assert upstream.provider == "sarvam"
+            assert upstream.model == "sarvam-105b-conversations", tier
+
+    def test_the_conversational_model_is_offered_first(self):
+        from api.services.configuration.options.sarvam import SARVAM_LLM_MODELS
+
+        assert SARVAM_LLM_MODELS[0] == "sarvam-105b-conversations"
+
+
+class TestToolCallsSurviveTheReply:
+    """The parent's one-shot completion is load-bearing, and its docstring
+    undersells why.
+
+    It reads as a guard against Sarvam's streaming deltas losing leading
+    whitespace -- cosmetic, and worth trading for the seconds a one-shot
+    completion costs. It is not: the same method stamps an `index` onto every
+    tool call, which OpenAI-style streaming aggregation needs to assemble a
+    call from its deltas and which Sarvam does not supply. The commit title
+    says both halves: "Preserve spaces *and tool calls*".
+
+    Every node transition is a tool call, so overriding it does not risk joined
+    words -- it stops transitions resolving and the agent falls silent on the
+    first turn that should move nodes. Runs 78-80 each recorded exactly one
+    turn where runs 75-76 recorded five.
+    """
+
+    def test_the_wrapper_does_not_override_the_completion_path(self):
+        from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+
+        assert (
+            DecibylSarvamLLMService.get_chat_completions
+            is RealSarvamLLMService.get_chat_completions
+        )
+
+    def test_the_wrapper_changes_nothing_but_the_allowed_models(self):
+        """Narrow on purpose. The model swap is the latency win and it is
+        independent of the completion path; anything else this class touched
+        would be reaching past what was measured."""
+        from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+
+        overridden = {
+            name
+            for name, attr in vars(DecibylSarvamLLMService).items()
+            if not name.startswith("__") and callable(attr)
+        }
+
+        assert overridden == set()
+
+    def test_sarvams_parameter_cleanup_is_still_applied(self):
+        from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+
+        assert (
+            DecibylSarvamLLMService.build_chat_completion_params
+            is RealSarvamLLMService.build_chat_completion_params
+        )
+
+
+class TestTheInstantTranscriberIsOptInOnly:
+    """Deepgram Flux emits its own turn boundaries, so the endpointing wait
+    disappears rather than shrinking -- worth ~1,172ms a turn, the largest
+    single stage once the LLM is not misconfigured.
+
+    It is not the default and must not become one. Flux multilingual covers
+    de/en/es/fr/hi/it/ja/nl/pt/ru: Hindi yes, Telugu and Tamil no. A caller
+    answering in Telugu is transcribed as nothing, which is a worse call than a
+    slow one -- and Telugu is what the QA transcript that started this actually
+    ended in.
+    """
+
+    def test_the_default_transcriber_still_understands_indian_languages(self):
+        from api.services.configuration import managed_tiers
+
+        upstream = managed_tiers.resolve("stt", "default")
+
+        assert upstream.provider == "sarvam"
+        assert upstream.model == "saaras:v3"
+
+    def test_the_instant_tier_resolves_to_a_turn_owning_model(self):
+        from api.services.configuration import managed_tiers
+        from api.services.configuration.options.deepgram import DEEPGRAM_FLUX_MODELS
+
+        upstream = managed_tiers.resolve("stt", "instant")
+
+        assert upstream.provider == "deepgram"
+        assert upstream.model in DEEPGRAM_FLUX_MODELS
+
+    def test_the_instant_tier_actually_skips_the_endpointing_budget(self):
+        """The point of the tier. If this model did not report external turns,
+        it would cost more and save nothing."""
+        from types import SimpleNamespace
+
+        from api.services.configuration import managed_tiers
+
+        upstream = managed_tiers.resolve("stt", "instant")
+        config = SimpleNamespace(
+            stt=SimpleNamespace(
+                provider=upstream.provider, model=upstream.model, language="multi"
+            )
+        )
+
+        assert service_factory.stt_uses_external_turns(config) is True
+
+    def test_the_default_tier_does_not_claim_external_turns(self):
+        """Guards the inverse: saaras holds the turn until its final transcript
+        lands, which is where the ~1,172ms goes."""
+        from types import SimpleNamespace
+
+        from api.services.configuration import managed_tiers
+
+        upstream = managed_tiers.resolve("stt", "default")
+        config = SimpleNamespace(
+            stt=SimpleNamespace(
+                provider=upstream.provider, model=upstream.model, language="multi"
+            )
+        )
+
+        assert service_factory.stt_uses_external_turns(config) is False
+
+    def test_the_instant_tier_is_priced(self):
+        """An unpriced tier does not fail -- it bills the platform fee alone and
+        reports margin nobody earned."""
+        from api.enums import CostComponent
+        from api.services.billing.default_rates import DEFAULT_RATES
+        from api.services.configuration import managed_tiers
+
+        upstream = managed_tiers.resolve("stt", "instant")
+        priced = {
+            (r.provider, r.model)
+            for r in DEFAULT_RATES
+            if r.component == CostComponent.STT
+        }
+
+        assert (upstream.provider, upstream.model) in priced
+
+    def test_both_tiers_carry_a_label_that_names_the_trade(self):
+        """The language limit is the whole reason this is a choice rather than
+        an upgrade, so it has to reach the screen."""
+        from api.services.configuration import managed_tiers
+
+        for tier in managed_tiers.STT_TIERS:
+            label, blurb = managed_tiers.STT_TIER_LABELS[tier]
+            assert label and blurb

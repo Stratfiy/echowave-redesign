@@ -44,6 +44,341 @@ deliberately.
 
 ## Fixed
 
+### 28. The first reply paid for the LLM's TLS handshake
+
+**FIXED.** Run 82, nine turns, one model throughout:
+
+| turn | llm | prompt_tokens |
+|---|---|---|
+| 0 | **2,220ms** | 333 |
+| 1 | 483ms | 373 |
+| 8 | 496ms | 602 |
+
+The slowest LLM stage of the call carried the **smallest** prompt, and the
+stage got *faster* as the prompt grew. Cost that falls as input grows is not
+generation cost. It is the first HTTPS request paying DNS, TCP and TLS to
+`api.sarvam.ai`, with the caller listening to silence.
+
+The speech legs do not have this problem, which is why it took a while to see:
+Sarvam's STT and TTS both open their websockets in `start()`, during pipeline
+setup, before anyone speaks. The LLM is plain HTTP over a pooled client, so it
+connects on first use -- and first use is the caller's first question.
+
+One token, out of band, fired as soon as the service is built so it overlaps
+the remaining setup and the greeting. It lands on the same pooled client the
+pipeline uses, so the handshake is already paid when the first real completion
+runs. Backgrounded rather than awaited, and it swallows every exception: a
+warm-up that fails must cost the latency it was trying to save and nothing
+else.
+
+Non-realtime only. A realtime service holds a websocket it opens in `start()`
+and does not implement `run_inference` at all -- which is why `inference_llm`
+exists beside it.
+
+Expected: turn 0's LLM stage falls from ~2,200ms to the ~500-800ms the rest of
+the call already runs at.
+
+### 27. The 1,172ms turn wait was one hardcoded constant
+
+**FIXED.** The question was "why can't we do anything about turn detection" and
+the answer is that there was never anything physical to fix.
+
+`turn_detect` measured **1171-1174ms across 40 turns of 15 calls, +/-1ms**. A
+stage that constant is not measuring work -- no network round trip is stable to
+a millisecond. It is `SpeechTimeoutUserTurnStopStrategy`'s second timer.
+
+The strategy runs two timers after VAD silence and releases the turn when both
+finish *and* a final transcript has arrived:
+
+* `user_speech_timeout` -- the policy floor, 0.4s here.
+* `stt_timeout` -- a safety net sized from the STT's **published P99
+  time-to-final-segment**, delivered in `STTMetadataFrame`. It is
+  short-circuited the moment the STT marks a transcript `finalized=True`.
+
+    turn_detect = stop_secs + max(user_speech_timeout, ttfs_p99 - stop_secs)
+
+`pipecat/services/stt_latency.py` publishes `SARVAM_TTFS_P99 = 1.17`. With the
+recommended 0.2s VAD that is `0.2 + max(0.4, 0.97) = 1.17s` -- the measurement,
+exactly. And **Sarvam's STT never sets `finalized`** (Deepgram does, via
+`confirm_finalize`), so the short-circuit never fires and every turn pays the
+published worst case whether or not the transcript arrived long before.
+
+**This is the regression from forking.** Upstream Dograh defaults transcription
+to Deepgram, published at 0.35: `0.2 + max(0.4, 0.15) = 0.6s`. Moving to Sarvam
+added 570ms to every turn, silently, in a constant nobody had reason to read.
+It is not model time and not network time.
+
+`ttfs_p99_latency` is a constructor parameter and the factory never passed one,
+so every call took the library default. It now passes
+`SARVAM_STT_TTFS_P99_DEFAULT = 0.5`, overridable with `SARVAM_STT_TTFS_P99`
+without a release.
+
+**Lowering it cannot cut a caller off.** The turn also requires a final
+transcript (`wait_for_transcript=True`), so the timer is a floor on the wait,
+not a cap: set too low, the turn waits for the transcript instead. What it does
+risk is the *tail* of a long utterance, where an STT emitting several final
+segments still has one in flight. Raise it if transcripts start losing their
+last few words.
+
+0.5 is a starting point, not a measurement -- 1.17 is a P99 taken against
+Sarvam from wherever the benchmark ran, and this deployment is in ap-south-1
+alongside Sarvam's own API. The useful part is that with it in place
+`turn_detect` stops being a constant and starts reporting how long Sarvam
+actually takes, which is the number that should replace it.
+
+**The proper fix is upstream of this**, and it is worth doing: teach
+`SarvamSTTService` to mark its final transcript `finalized=True`. Then the
+safety net short-circuits on every turn and the wait becomes however long
+Sarvam really took, with no constant to tune at all. That is a submodule
+change, which is why it is not in this one.
+
+### 26. The fast transcriber was sitting in the codebase, unreachable
+
+**FIXED (opt-in).** Found by reading upstream (`dograh-hq/dograh`) after the
+report that "initially it was so smooth". It was: upstream defaults to
+**OpenAI + ElevenLabs + Deepgram**. This fork moved all three legs to Sarvam
+for DPDP residency, Indian-language coverage and ~8x cheaper tokens. Those are
+good reasons and nothing here argues with them -- but the latency cost was
+never written down, and "it used to be smooth" is that cost being noticed.
+
+Worth recording that this fork is *ahead* of upstream in two places, so the
+comparison is not one-way: upstream has no TTS token-streaming at all
+(`TextAggregationMode.TOKEN` appears zero times there) and still runs pipecat's
+0.6s `user_speech_timeout` default where this uses 0.4. Upstream also carries
+the same `.get("turn_stop_strategy")` bug fixed in #23 -- inherited, not
+introduced.
+
+The portable idea is upstream's managed STT: it routes to **Deepgram Flux**
+whenever the language allows, and Flux emits its own turn boundaries. Nothing
+waits on silence at all, so the ~1,172ms endpointing stage of #24 does not
+shrink, it disappears.
+
+**That entire path already exists here** -- `decibyl_stt_uses_flux_language`,
+the Flux branch in `create_stt_service`, `stt_uses_external_turns`, and rate
+rows for both Flux models. It was simply unreachable, because `("stt",
+"default")` pins `sarvam/saaras:v3` and the branch that would pick Flux never
+runs.
+
+Added as a second tier rather than a new default, and the reason is a language
+limit, not caution. Flux multilingual covers de/en/es/fr/hi/it/ja/nl/pt/ru:
+Hindi yes; Telugu, Tamil, Kannada, Bengali and Marathi no. A caller answering
+in one of those transcribes as nothing, which is a worse call than a slow one
+-- and the QA transcript that started this whole investigation ends with the
+caller saying "థ్యాంక్ యూ", in Telugu. So:
+
+| tier | model | endpointing | languages |
+|---|---|---|---|
+| `default` | `sarvam/saaras:v3` | ~1,172ms | 22 Indian, code-mixed |
+| `instant` | `deepgram/flux-general-multi` | **none** | 10, Hindi the only Indic one |
+
+An agent that knows its callers speak English or Hindi can buy that second
+back. An agent serving the 22-language case cannot, and keeps the default.
+
+**It needs a Deepgram platform key.** Without one `managed_resolution` logs and
+leaves the section alone, so an agent choosing the tier keeps what it had
+rather than failing -- quiet, but not broken.
+
+**A loose end from #25, closed here.** `platform_models` is what the customer's
+picker sells, and `model_catalogue` offers a model only when it is in that
+table, has a platform key, and has a rate row. The tier change in #25 moved
+what calls resolve to without the catalogue following, so
+`sarvam-105b-conversations` ran on every managed call while not being on sale.
+Resolution never reads that table -- which is why the calls worked -- but the
+picker does. Migration `a3f7c21e9b04` seeds both it and the Flux STT entry,
+idempotently.
+
+### 25. The voice agent was running Sarvam's *reasoning* model
+
+**FIXED.** This is the long pause. Reported as "there is a long pause", and
+`call_turn_metrics` on run 77 put a number on it: `latency_ms` 7,554, of which
+`t_llm_first_token_ms - t_stt_final_ms` was **6,045**.
+
+`sarvam-105b` is a reasoning model. It emits `reasoning_content` --
+chain-of-thought -- before a single word of the answer, on every request, with
+the caller listening to silence throughout. It cannot be told not to: Sarvam
+accepts only `low`/`medium`/`high` for `reasoning_effort` (`none` is a 400), and
+measured against a 600-token cap both the default and `low` spent the *entire*
+budget thinking and returned no content at all.
+
+`sarvam-105b-conversations` is the same generation without the reasoning step.
+Measured on the same key, same prompt:
+
+| | reasoning tokens | first content | tool calls |
+|---|---|---|---|
+| `sarvam-105b` | 299 | never (capped) | yes |
+| `sarvam-105b-conversations` | 0 | **0.24s** | yes |
+
+Changed in four places, and the tier is the one that mattered: a managed
+account resolves through `managed_tiers`, so a default on the configuration
+schema would never have reached it. The run log says which path is live --
+`Managed llm resolved to sarvam/<model> on a platform key`.
+
+**Streaming was turned back on with it, and that was wrong — reverted.** `SarvamLLMService.get_chat_completions` forces
+`stream=False` and returns the whole reply as one chunk, added to stop Sarvam's
+streaming deltas losing leading whitespace. On the reasoning model that concern
+was real; on the conversational model it does not reproduce -- a three-sentence
+reply streamed as 60 deltas and 48 correctly separated words. It also made
+time-to-first-token equal time-to-*whole-response*, and silently cancelled two
+optimisations that are still configured: the TTS runs in
+`TextAggregationMode.TOKEN` so it can synthesise while the LLM is still talking,
+and issue #22's `min_buffer_size` tuning is for the same incremental text.
+Neither has anything to stream when the LLM speaks once, at the end. Usage
+survives the change -- Sarvam returns `CompletionUsage` inside the stream
+despite the parent stripping `stream_options`.
+
+**None of which mattered, because the override was not really about
+whitespace.** The same method stamps an `index` onto every tool call, which
+OpenAI-style streaming aggregation needs to assemble a call from its deltas and
+which Sarvam does not supply. Its commit title says both halves: "Preserve
+spaces *and tool calls*". Every node transition is a tool call, so restoring
+streaming did not risk joined words -- it stopped transitions resolving, and
+the agent fell silent on the first turn that should have moved it to another
+node. Runs 78, 79 and 80 each recorded exactly one turn where runs 75 and 76
+recorded five.
+
+It was missed because the two halves were verified separately: tool calls
+against a non-streaming call, streaming against a call with no tools. Neither
+test exercised the combination the pipeline actually runs. `stream=False` is
+restored, `DecibylSarvamLLMService` now overrides nothing but the model
+allow-list, and a test asserts it stays that way.
+
+The latency cost is real and now paid deliberately: time-to-first-token is
+time-to-whole-response, and the TTS's token aggregation and `min_buffer_size`
+tuning have nothing to stream. Reclaiming it means assembling the tool-call
+deltas with an index of our own, not removing the guard. The model change is
+the larger half of the win regardless -- 6,045ms to ~1,000ms -- and it is
+independent of this.
+
+Both live in `api/services/pipecat/sarvam_llm.py` as a local subclass rather
+than a submodule patch, the same pattern as `DecibylGoogleLLMService` and
+`minimax_tts.py`. Upstream's `_validate_model` raises on any name outside its
+allow-list, so the model is not merely unset -- it is unselectable until that
+set is widened.
+
+**The billing trap this walked into.** `provider_from_processor` derives the
+rate-card provider from the processor's class name. `DecibylSarvamLLMService#0`
+strips to `decibylsarvam`, which has no rate on file -- and an unpriced provider
+does not fail, it costs the call at zero and reports margin at 100%, exactly
+the silent miscosting that function's docstring was written about. Aliased to
+`sarvam` alongside the existing `googlevertex` and `elevenlabsrealtime`
+entries, with a regression case in `test_billing_costing.py`.
+
+**Not fixed, and worth knowing.** `sarvam-30b` is retired (Sarvam 400s it), but
+pipecat still defaults `SarvamLLMService` to it and lists it in
+`_SUPPORTED_MODELS`. Our factory always passes a model explicitly so nothing
+here hits it; a caller that did not would get a dead model.
+
+### 24. Turn-taking: the 600ms that turned out to be 1,172ms, and cost 139ms
+
+**FIXED, and the original estimate was wrong twice over.** Issue #23 fixed a real bug --
+`DEFAULT_TURN_STOP_STRATEGY` genuinely could not reach the pipeline -- but the
+600ms attached to it was derived from reading code rather than measuring.
+
+`call_turn_metrics` says the endpointing wait is **~1,172ms**, and it is
+strikingly constant: 1171-1174 across 40 turns and 15 calls, under both
+strategies. `t_user_stopped_ms` is hardcoded to 0, so that column is pipecat's
+`user_turn_secs` -- "from when the user actually stopped speaking to when the
+turn was released ... includes VAD silence detection, STT finalization, and any
+turn analyzer wait". It is dominated by **Sarvam STT finalization**, not by
+`user_speech_timeout`, which is why changing the stop strategy barely moves it
+(run 77, on `turn_analyzer`, measured 1,312ms).
+
+Re-measured once issue #25 took the LLM stage from 6,045ms to 1,079ms and the
+noise floor dropped. `turn_analyzer` is a consistent **+139ms**:
+
+    transcription    1171-1174ms, across 40 turns of 15 calls
+    turn_analyzer    1311-1312ms, runs 77 and 78
+
+Two samples, both within a millisecond of each other, against a baseline
+sampled forty times. Not noise. `DEFAULT_TURN_STOP_STRATEGY` is therefore
+`"transcription"` -- chosen on measurement, against the reasoning in its own
+comment, which is left in place because it is sound and may well hold on a
+different STT.
+
+The plumbing fix from #23 stays: reading the default through the constant is
+correct regardless of which value it holds, and it is what made this
+measurable at all. The tests now assert that the unconfigured path agrees with
+`DEFAULT_TURN_STOP_STRATEGY` rather than naming a strategy, so the default can
+move again on evidence without a test rewrite.
+
+The real gain on this stage is not in either strategy. ~1,172ms of it is
+Sarvam STT finalisation -- the turn is not released until the final transcript
+lands -- so an STT that emits its own turn boundaries (Deepgram Flux, Cartesia
+ink-2) removes the wait rather than tuning it. That is the next move on this
+stage, and it is now the largest single slice of a turn at 38%.
+
+### 23. The `turn_analyzer` default never reached the pipeline
+
+**FIXED.** Reported from a live QA call as "there is a long pause". The run's
+transcript shows a steady-state reply latency of ~1.8-2.0s once the call is
+warm, on an agent that was never configured for the slow path and never chose
+it.
+
+`DEFAULT_TURN_STOP_STRATEGY` was flipped to `turn_analyzer` in
+`schemas/workflow_configurations.py`, and `api/Dockerfile` was changed to
+install pipecat's `local-smart-turn-v3` extra so the setting could actually
+run. Neither reached production, because `run_pipeline.py` branched on
+
+```python
+if run_configs.get("turn_stop_strategy") == "turn_analyzer":
+```
+
+with **no default**, and never imported the constant. Two facts make that fall
+through for essentially every workflow:
+
+- `run_configs` is the stored JSON, not a validated
+  `WorkflowConfigurationDefaults`, so a Pydantic default cannot apply to it.
+- `create_workflow` persists `workflow_configurations or {}` and the create
+  route passes nothing, so **every workflow is born with `{}`**. The key only
+  appears once a human opens the settings dialog and saves.
+
+So every unconfigured agent took the silence-timeout path and paid the VAD's
+0.2s plus `user_speech_timeout`'s 0.4s — **600ms of dead air on every turn**,
+which is exactly the cost the default was flipped to remove. The smart-turn
+model sat in the image, installed and unused.
+
+Now resolved through `DEFAULT_TURN_STOP_STRATEGY`, using `or` rather than a
+`.get()` default so an explicit `null` from an older client is treated as
+unset rather than as a choice. `transcription` remains selectable for
+workflows whose callers pause mid-sentence.
+
+Two things worth recording, because both read like reasons not to ship this
+and neither is:
+
+- **The dependency is already proven present.** `LocalSmartTurnAnalyzerV3` is
+  imported at module scope in `run_pipeline.py`, so an image lacking the extra
+  could not import the module at all and would fail every call today. Calls
+  run, therefore the extra is installed.
+- **Inference does not land on the shared event loop.** `analyze_end_of_turn`
+  dispatches through `run_in_executor`, and the ONNX session is pinned to
+  `inter_op_num_threads=1` / `intra_op_num_threads=1`. This matters because
+  `FASTAPI_WORKERS` is 1 on the Hostinger deploy and the API workers are also
+  the media workers (see `INFRASTRUCTURE.md`).
+
+`test_user_turn_stop_timing.py` covered the configured cases but never
+`build_stop({})` — the one every production workflow actually hits. It does
+now, along with the explicit-null case and an assertion that the pipeline reads
+the same constant the schema declares.
+
+### 24. Tool rows were re-read from the database on every node transition
+
+**FIXED.** Found while tracing the same slow call. A node transition composes
+the node's function schemas (`compose_functions_for_node` →
+`CustomToolManager.get_tool_schemas`) and then registers its handlers
+(`register_handlers`), and both called `db_client.get_tools_by_uuids` for the
+same rows — two round trips per transition, inside the tool call the caller is
+sitting in silence waiting for.
+
+`CustomToolManager` now holds the rows for the life of the call and fetches
+only uuids it has not seen. Safe because a run is pinned to one published
+workflow definition version, so the tools a node may use cannot change
+underneath it. Uuids that return no row are remembered as misses, so a node
+pointing at a deleted tool does not reissue the same empty query on every
+transition for the rest of the call.
+
+Not a 600ms item — tens of milliseconds per transition — but it lands at the
+worst possible moment, and the fix has no behavioural surface.
+
 ### 22. Sarvam's TTS buffer was set below the value Sarvam accepts
 
 **FIXED.** Reported from a live test as "the call ends after I pick up", on

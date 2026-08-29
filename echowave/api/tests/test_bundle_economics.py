@@ -279,11 +279,12 @@ class TestABundlePricesItsOwnSpeechTiers:
     """The speech tiers used to be the literal ``"default"``.
 
     Correct only for as long as every pipeline bundle happens to run the
-    default pair — which today it does, because ``STT_TIERS`` has one entry.
-    That is exactly why this is worth pinning: the day an operator adds a
-    second one, the card would go on quoting a stack the call does not run,
-    and nothing would fail. So the test asserts what was asked for rather than
-    a price difference no current tier map can produce.
+    default pair. That day has now passed: ``STT_TIERS`` carries ``instant``
+    (Deepgram Flux) beside ``default`` (saaras:v3), and they differ in both
+    price and latency. This is the case the test was written for — a card that
+    went on quoting the default stack while the call ran the other one would
+    misprice it and nothing would fail. So the test asserts what was asked for
+    rather than a price difference.
     """
 
     async def test_the_bundles_tier_is_what_gets_resolved(
