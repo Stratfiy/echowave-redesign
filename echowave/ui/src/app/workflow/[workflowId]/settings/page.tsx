@@ -312,6 +312,9 @@ function GeneralSection({
     const [includeTranscriptEndTimestamps, setIncludeTranscriptEndTimestamps] = useState(
         workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false,
     );
+    const [interruptionBackoffSecs, setInterruptionBackoffSecs] = useState(
+        workflowConfigurations.interruption_backoff_secs,
+    );
     const [fallbackTts, setFallbackTts] = useState<FallbackService[]>(
         workflowConfigurations.fallback_tts ?? [],
     );
@@ -356,13 +359,14 @@ function GeneralSection({
             provisionalVadPauseSecs !== workflowConfigurations.provisional_vad_pause_secs ||
             turnStopStrategy !== workflowConfigurations.turn_stop_strategy ||
             userSpeechTimeout !== workflowConfigurations.user_speech_timeout ||
+            interruptionBackoffSecs !== workflowConfigurations.interruption_backoff_secs ||
             JSON.stringify(fallbackTts) !== JSON.stringify(workflowConfigurations.fallback_tts ?? []) ||
             JSON.stringify(fallbackStt) !== JSON.stringify(workflowConfigurations.fallback_stt ?? []) ||
             contextCompactionEnabled !== workflowConfigurations.context_compaction_enabled ||
             includeTranscriptEndTimestamps !==
             (workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false)
         );
-    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -439,6 +443,7 @@ function GeneralSection({
                     provisional_vad_pause_secs: provisionalVadPauseSecs,
                     turn_stop_strategy: turnStopStrategy,
                     user_speech_timeout: userSpeechTimeout,
+                    interruption_backoff_secs: interruptionBackoffSecs,
                     fallback_tts: fallbackTts,
                     fallback_stt: fallbackStt,
                     context_compaction_enabled: contextCompactionEnabled,
@@ -752,6 +757,17 @@ function GeneralSection({
                             hint={`Transcribed words needed to interrupt the agent. Raise it so a cough, a "mhm" or background speech no longer cuts the agent off mid-sentence. Default: ${DEFAULT_TURN_START_MIN_WORDS}`}
                         />
                     )}
+                    <Slider
+                        id="interruption_backoff_secs"
+                        label="Pause After Being Interrupted"
+                        unit="s"
+                        min={0}
+                        max={3}
+                        step={0.1}
+                        value={interruptionBackoffSecs}
+                        onValueChange={setInterruptionBackoffSecs}
+                        hint="How long to wait before the agent speaks again after the caller cuts in, so a short interruption is not answered before they have finished. Usually costs nothing: the caller finishing, the turn being detected and the reply being generated normally take longer than this. 0 turns it off entirely."
+                    />
                     {turnStartStrategy === "provisional_vad" && (
                         <Slider
                             id="provisional_vad_pause_secs"

@@ -82,6 +82,7 @@ export const ConfigurationsDialog = ({
                 // for it, and rebuilding the object without it would reset a
                 // value set on the settings screen.
                 user_speech_timeout: resolvedWorkflowConfigurations.user_speech_timeout,
+                interruption_backoff_secs: resolvedWorkflowConfigurations.interruption_backoff_secs,
                 transcript_configuration: resolvedWorkflowConfigurations.transcript_configuration,
                 context_compaction_enabled: contextCompactionEnabled,
             }, name);

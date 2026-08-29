@@ -13,6 +13,7 @@ from api.schemas.workflow_configurations import (
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     DEFAULT_SMART_TURN_STOP_SECS,
     DEFAULT_TURN_START_MIN_WORDS,
+    DEFAULT_INTERRUPTION_BACKOFF_SECS,
     DEFAULT_TURN_START_STRATEGY,
     DEFAULT_USER_SPEECH_TIMEOUT,
 )
@@ -57,6 +58,7 @@ from api.services.pipecat.recording_audio_cache import (
     warm_recording_cache,
 )
 from api.services.pipecat.recording_router_processor import RecordingRouterProcessor
+from api.services.pipecat.interruption_backoff import InterruptionBackoff
 from api.services.pipecat.service_factory import (
     create_stt_service_with_backups,
     create_tts_service_with_backups,
@@ -126,6 +128,24 @@ def _resolve_user_turn_stop_timeout(
     if uses_external_turns:
         return EXTERNAL_TURN_USER_STOP_TIMEOUT
     return DEFAULT_USER_TURN_STOP_TIMEOUT
+
+
+def _create_interruption_backoff(run_configs: dict):
+    """The pause after a cut-in, or nothing at all.
+
+    Returning None when unconfigured is the point: the pipeline is then built
+    without the processor, so an agent nobody set this on runs exactly the
+    frames it ran before.
+    """
+    seconds = float(
+        run_configs.get(
+            "interruption_backoff_secs", DEFAULT_INTERRUPTION_BACKOFF_SECS
+        )
+        or 0.0
+    )
+    if seconds <= 0:
+        return None
+    return InterruptionBackoff(seconds=seconds)
 
 
 def _resolve_turn_start_min_words(run_configs: dict) -> int:
@@ -1175,6 +1195,7 @@ async def _run_pipeline_impl(
             voicemail_detector=voicemail_detector,
             recording_router=recording_router,
             language_follower=language_follower,
+            interruption_backoff=_create_interruption_backoff(run_configs),
         )
 
     # Create pipeline task with audio configuration

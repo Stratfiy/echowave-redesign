@@ -9103,6 +9103,10 @@ export type WorkflowConfigurationDefaults = {
      */
     dictionary?: string;
     /**
+     * Interruption Backoff Secs
+     */
+    interruption_backoff_secs?: number;
+    /**
      * Context Compaction Enabled
      */
     context_compaction_enabled?: boolean;

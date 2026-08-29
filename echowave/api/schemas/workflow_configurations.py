@@ -46,6 +46,12 @@ DEFAULT_TURN_STOP_STRATEGY = "turn_analyzer"
 # for a workflow whose callers read out numbers or think mid-sentence; lower it
 # for short scripted confirmations.
 DEFAULT_USER_SPEECH_TIMEOUT = 0.4
+# Off by default, and off means the processor is never built into the pipeline
+# at all -- an agent nobody configured this on runs exactly the frames it ran
+# before. The pause only helps where an interruption was brief; everywhere else
+# the caller finishing, the turn being detected, the model answering and speech
+# being synthesised already take longer than any sensible value here.
+DEFAULT_INTERRUPTION_BACKOFF_SECS = 0.0
 DEFAULT_CONTEXT_COMPACTION_ENABLED = False
 
 
@@ -116,6 +122,9 @@ class WorkflowConfigurationDefaults(BaseModel):
         default=DEFAULT_USER_SPEECH_TIMEOUT, ge=0.15, le=3.0
     )
     dictionary: str = ""
+    interruption_backoff_secs: float = Field(
+        default=DEFAULT_INTERRUPTION_BACKOFF_SECS, ge=0.0, le=3.0
+    )
     context_compaction_enabled: bool = DEFAULT_CONTEXT_COMPACTION_ENABLED
     # Ordered backups, tried in turn when the service in front of them reports
     # a non-fatal error mid-call. Empty means what it always did: one provider,

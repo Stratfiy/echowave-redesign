@@ -26,6 +26,9 @@ export const DEFAULT_USER_SPEECH_TIMEOUT = 0.4;
 export const MIN_USER_SPEECH_TIMEOUT = 0.15;
 export const MAX_USER_SPEECH_TIMEOUT = 3.0;
 export const DEFAULT_PROVISIONAL_VAD_PAUSE_SECS = 1.5;
+// Off by default. Zero means the processor is never built into the pipeline,
+// so an agent nobody set this on runs exactly the frames it ran before.
+export const DEFAULT_INTERRUPTION_BACKOFF_SECS = 0;
 
 /**
  * Named response-rate settings, in the spirit of Bolna's Rapid/Normal/Patient.
@@ -186,6 +189,7 @@ type WorkflowConfigurationBase = Omit<
     | "provisional_vad_pause_secs"
     | "turn_stop_strategy"
     | "user_speech_timeout"
+    | "interruption_backoff_secs"
     | "dictionary"
     | "context_compaction_enabled"
 >;
@@ -200,6 +204,7 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
     provisional_vad_pause_secs: number;  // Seconds to pause bot output while awaiting transcript confirmation
     turn_stop_strategy: TurnStopStrategy;  // Strategy for detecting end of user turn
     user_speech_timeout: number;  // Silence after VAD stop before the turn ends; "transcription" strategy only
+    interruption_backoff_secs: number;  // Pause before the agent speaks again after being cut off
     dictionary?: string;  // Comma-separated words for voice agent to listen for
     fallback_tts?: FallbackService[];  // Ordered voice backups, tried when the one before fails
     fallback_stt?: FallbackService[];  // Ordered transcriber backups
@@ -224,6 +229,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     provisional_vad_pause_secs: DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     turn_stop_strategy: 'turn_analyzer',  // Local model ends the turn; see DEFAULT_TURN_STOP_STRATEGY
     user_speech_timeout: DEFAULT_USER_SPEECH_TIMEOUT,
+    interruption_backoff_secs: DEFAULT_INTERRUPTION_BACKOFF_SECS,
     dictionary: '',
     transcript_configuration: DEFAULT_TRANSCRIPT_CONFIGURATION,
     context_compaction_enabled: false,
@@ -274,6 +280,10 @@ export function resolveWorkflowConfigurations(
             configurations?.user_speech_timeout
             ?? defaults?.user_speech_timeout
             ?? FALLBACK_WORKFLOW_CONFIGURATIONS.user_speech_timeout,
+        interruption_backoff_secs:
+            configurations?.interruption_backoff_secs
+            ?? defaults?.interruption_backoff_secs
+            ?? FALLBACK_WORKFLOW_CONFIGURATIONS.interruption_backoff_secs,
         dictionary:
             configurations?.dictionary
             ?? defaults?.dictionary

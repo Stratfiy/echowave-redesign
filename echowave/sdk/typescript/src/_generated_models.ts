@@ -1436,6 +1436,11 @@ export interface components {
              */
             dictionary: string;
             /**
+             * Interruption Backoff Secs
+             * @default 0
+             */
+            interruption_backoff_secs: number;
+            /**
              * Context Compaction Enabled
              * @default false
              */
