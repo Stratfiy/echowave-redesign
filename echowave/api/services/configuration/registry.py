@@ -680,7 +680,13 @@ class AzureLLMService(PipelineLLMTuning, BaseLLMConfiguration):
 
 
 @register_llm
-class DecibylLLMService(PipelineLLMTuning, BaseLLMConfiguration):
+# No PipelineLLMTuning: a managed tier is a tier, not a vendor slot. The
+# customer chose "lite" and not a model to tune, managed_resolution already
+# resets a customer-set endpoint back to the default before lending our key,
+# and _carry relies on a managed section carrying no tuning field to omit one.
+# Declaring the controls here would put sliders on a slot whose whole promise
+# is that we pick the settings.
+class DecibylLLMService(BaseLLMConfiguration):
     model_config = DECIBYL_PROVIDER_MODEL_CONFIG
     # Managed slots carry no key from the customer — that is the entire point
     # of choosing one. ``managed_resolution`` substitutes our platform key at
