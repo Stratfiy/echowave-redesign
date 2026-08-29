@@ -322,12 +322,17 @@ class TestTheSimplePickersCards:
                 # came out sub-paise, rounded to zero, and all three tiers
                 # priced identically — which looked like a bug in the picker
                 # and was a bug in the fixture.
+                # Tracks the model the "lite" tier actually resolves to. Left
+                # on plain sarvam-105b this fixture stopped matching the tier,
+                # and the lite line priced at zero -- which still satisfies the
+                # ordering asserted below, so the test would have kept passing
+                # while measuring nothing.
                 rate(
                     "sarvam",
                     CostComponent.LLM,
                     RateUnit.THOUSAND_TOKENS,
                     760,
-                    model="sarvam-105b",
+                    model="sarvam-105b-conversations",
                 ),
                 rate(
                     "openai",

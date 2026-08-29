@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode, urlparse, urlunparse
@@ -19,6 +20,7 @@ from api.services.pipecat.gemini_json_schema_adapter import (
     DecibylGeminiJSONSchemaAdapter,
 )
 from api.services.pipecat.minimax_tts import MiniMaxOwnedSessionTTSService
+from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
 from api.utils.url_security import validate_user_configured_service_url
 from pipecat.pipeline.service_switcher import (
     ServiceSwitcher,
@@ -82,7 +84,7 @@ from pipecat.services.openai.stt import (
 from pipecat.services.openai.tts import OpenAITTSService, OpenAITTSSettings
 from pipecat.services.openrouter.llm import OpenRouterLLMService, OpenRouterLLMSettings
 from pipecat.services.rime.tts import RimeTTSService, RimeTTSSettings
-from pipecat.services.sarvam.llm import SarvamLLMService, SarvamLLMSettings
+from pipecat.services.sarvam.llm import SarvamLLMSettings
 from pipecat.services.sarvam.stt import SarvamSTTService, SarvamSTTSettings
 from pipecat.services.sarvam.tts import SarvamTTSService, SarvamTTSSettings
 from pipecat.services.smallest.stt import SmallestSTTService, SmallestSTTSettings
@@ -166,6 +168,52 @@ def _elevenlabs_realtime_stt_host(base_url: str) -> str:
         path = parsed.path
         return f"{parsed.netloc}{path}" if path else parsed.netloc
     return websocket_url
+
+
+#: How long the turn-stop strategy waits after VAD silence for Sarvam's final
+#: transcript, in seconds. This is the single largest stage of a turn on this
+#: stack, and it was invisible because it is a constant rather than a
+#: measurement.
+#:
+#: The strategy releases the turn at
+#: ``stop_secs + max(user_speech_timeout, ttfs_p99 - stop_secs)``. Pipecat ships
+#: ``SARVAM_TTFS_P99 = 1.17``, so with the recommended 0.2s VAD that is
+#: ``0.2 + max(0.4, 0.97) = 1.17s`` of dead air on every turn -- which is
+#: exactly what `call_turn_metrics` measured, to the millisecond, across 40
+#: turns of 15 calls. Deepgram's 0.35 gives ``0.2 + max(0.4, 0.15) = 0.6s``,
+#: and Deepgram is what this project's upstream defaults to. The 570ms
+#: difference is most of what was lost by moving transcription to Sarvam, and
+#: none of it is network or model time.
+#:
+#: Lowering it does not risk cutting a caller off. The turn also requires a
+#: final transcript to have arrived (``wait_for_transcript=True``), so this is
+#: a floor on the wait, not a cap on it -- set it too low and the turn simply
+#: waits for the transcript instead, which is the honest behaviour. What it
+#: does risk is the *tail* of a long utterance: an STT emitting several final
+#: segments may still have one in flight when the timer expires. Raise it if
+#: transcripts start losing their last few words.
+#:
+#: 0.5 rather than pipecat's 1.17 because the published value is a P99 measured
+#: against Sarvam from wherever the benchmark ran, and this deployment sits in
+#: ap-south-1, in the same region as Sarvam's own API. It is a starting point,
+#: not a measurement: with this in place ``turn_detect`` stops being a constant
+#: and starts reporting how long Sarvam actually takes, which is the number
+#: that should replace it.
+SARVAM_STT_TTFS_P99_DEFAULT = 0.5
+
+
+def sarvam_stt_ttfs_p99() -> float:
+    """Sarvam's assumed time-to-final-segment, overridable without a release."""
+    raw = os.getenv("SARVAM_STT_TTFS_P99")
+    if raw:
+        try:
+            return max(0.0, float(raw))
+        except ValueError:
+            logger.warning(
+                f"SARVAM_STT_TTFS_P99={raw!r} is not a number; "
+                f"using {SARVAM_STT_TTFS_P99_DEFAULT}s"
+            )
+    return SARVAM_STT_TTFS_P99_DEFAULT
 
 
 def stt_uses_external_turns(user_config) -> bool:
@@ -368,6 +416,7 @@ def create_stt_service(
                 language=pipecat_language,
             ),
             sample_rate=audio_config.transport_in_sample_rate,
+            ttfs_p99_latency=sarvam_stt_ttfs_p99(),
         )
     elif user_config.stt.provider == ServiceProviders.SPEACHES.value:
         language = getattr(user_config.stt, "language", None)
@@ -1398,7 +1447,10 @@ def create_llm_service_from_provider(
             ),
         )
     elif provider == ServiceProviders.SARVAM.value:
-        return SarvamLLMService(
+        # DecibylSarvamLLMService, not the upstream class: it allows the
+        # conversational model and restores streaming. See sarvam_llm.py — the
+        # difference between the two is about six seconds a turn.
+        return DecibylSarvamLLMService(
             api_key=api_key,
             settings=SarvamLLMSettings(
                 model=model,
