@@ -12,10 +12,13 @@ from __future__ import annotations
 from typing import Any
 
 from decibyl_sdk._generated_models import (
+    ContactListRequest,
+    ContactListResponse,
     CreateToolRequest,
     CreateWorkflowRequest,
     CredentialResponse,
     DocumentListResponseSchema,
+    ExtractionLibraryResponse,
     InitiateCallRequest,
     NodeSpec,
     NodeTypesResponse,
@@ -30,6 +33,11 @@ from decibyl_sdk._generated_models import (
 class _GeneratedClient:
     # `DecibylClient.__init__` installs `self._request` (see client.py).
 
+    def create_contact_list(self, *, body: ContactListRequest) -> ContactListResponse:
+        """Create a contact list."""
+        data = self._request("POST", "/contact-lists", json=body.model_dump(mode="json", exclude_none=True))
+        return ContactListResponse.model_validate(data)
+
     def create_tool(self, *, body: CreateToolRequest) -> ToolResponse:
         """Create a reusable tool for the authenticated organization."""
         data = self._request("POST", "/tools/", json=body.model_dump(mode="json", exclude_none=True))
@@ -40,6 +48,11 @@ class _GeneratedClient:
         data = self._request("POST", "/workflow/create/definition", json=body.model_dump(mode="json", exclude_none=True))
         return WorkflowResponse.model_validate(data)
 
+    def get_extraction_library(self, catalog: str) -> ExtractionLibraryResponse:
+        """Ready-made extractions for a catalog named by a node property's renderer_options.library.catalog."""
+        data = self._request("GET", f"/extraction-library/{catalog}")
+        return ExtractionLibraryResponse.model_validate(data)
+
     def get_node_type(self, name: str) -> NodeSpec:
         """Fetch a single node spec by name."""
         data = self._request("GET", f"/node-types/{name}")
@@ -49,6 +62,11 @@ class _GeneratedClient:
         """Get a single workflow by ID (returns draft if one exists, else published)."""
         data = self._request("GET", f"/workflow/fetch/{workflow_id}")
         return WorkflowResponse.model_validate(data)
+
+    def list_contact_lists(self) -> list[ContactListResponse]:
+        """List the organization's contact lists."""
+        data = self._request("GET", "/contact-lists")
+        return [ContactListResponse.model_validate(x) for x in data]
 
     def list_credentials(self) -> list[CredentialResponse]:
         """List webhook credentials available to the authenticated organization."""

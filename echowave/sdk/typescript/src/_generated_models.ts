@@ -268,6 +268,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/extraction-library/{catalog}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Extraction Library
+         * @description One catalog of ready-made extractions.
+         *
+         *     Authenticated but not org-scoped: the catalog is the same for everyone and
+         *     holds no tenant data. It is behind auth because it is a product surface,
+         *     not because any of it is a secret.
+         */
+        get: operations["get_extraction_library_api_v1_extraction_library__catalog__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contact-lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Contact Lists */
+        get: operations["list_contact_lists_api_v1_contact_lists_get"];
+        put?: never;
+        /** Create Contact List */
+        post: operations["create_contact_list_api_v1_contact_lists_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -311,6 +353,27 @@ export interface components {
              * @default []
              */
             disposition_codes: string[];
+        };
+        /** ContactListRequest */
+        ContactListRequest: {
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+        };
+        /** ContactListResponse */
+        ContactListResponse: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Contact Count
+             * @default 0
+             */
+            contact_count: number;
         };
         /**
          * CreateToolRequest
@@ -544,6 +607,18 @@ export interface components {
             config: components["schemas"]["EndCallConfig"];
         };
         /**
+         * ExtractionLibraryResponse
+         * @description The catalog, and the order its sections should be shown in.
+         */
+        ExtractionLibraryResponse: {
+            /** Catalog */
+            catalog: string;
+            /** Categories */
+            categories: string[];
+            /** Extractions */
+            extractions: components["schemas"]["LibraryExtraction"][];
+        };
+        /**
          * GoogleCalendarToolDefinition
          * @description Tool definition for creating an event on the organization's connected
          *     Google Calendar. No config: unlike an HTTP API tool there is no URL,
@@ -730,6 +805,79 @@ export interface components {
             telephony_configuration_id?: number | null;
             /** From Phone Number Id */
             from_phone_number_id?: number | null;
+        };
+        /**
+         * LibraryExtraction
+         * @description One catalog entry, and the ``ExtractionSpec`` it seeds.
+         */
+        LibraryExtraction: {
+            /**
+             * Key
+             * @description Stable id for this entry. Not stored on the node.
+             */
+            key: string;
+            /**
+             * Display Name
+             * @description What the picker lists it as.
+             */
+            display_name: string;
+            /**
+             * Category
+             * @description Section heading in the picker.
+             */
+            category: string;
+            /**
+             * Summary
+             * @description One line on what this pulls out of a call.
+             */
+            summary: string;
+            /**
+             * Name
+             * @description Seeds ExtractionSpec.name — the JSON key.
+             */
+            name: string;
+            /**
+             * Prompt
+             * @description Seeds ExtractionSpec.prompt.
+             */
+            prompt: string;
+            /**
+             * Answer Type
+             * @default free_text
+             */
+            answer_type: string;
+            /**
+             * Predefined Options
+             * @default
+             */
+            predefined_options: string;
+            /**
+             * Expected Format
+             * @default text
+             */
+            expected_format: string;
+        };
+        /**
+         * LibraryOptions
+         * @description Names a catalog of ready-made values the editor can offer for a field.
+         *
+         *     The renderer stays generic: it shows a "Browse library" control when this
+         *     is set, fetches the named catalog, and appends whatever the user picks to
+         *     the field's existing value. Which catalog, and what is in it, are decided
+         *     on the backend beside the code that consumes the values — the alternative
+         *     is a picker hard-coded against one field name, which is how the second
+         *     field with a library ends up copy-pasting the first one's dialog.
+         *
+         *     Picking from a library copies. Nothing is referenced by id afterwards, so
+         *     a value an operator has since tuned is never silently replaced by an edit
+         *     to the catalog.
+         */
+        LibraryOptions: {
+            /**
+             * Catalog
+             * @description Catalog id, served by GET /api/v1/extraction-library/{catalog}.
+             */
+            catalog: string;
         };
         /**
          * McpToolConfig
@@ -935,21 +1083,6 @@ export interface components {
             layout?: components["schemas"]["PropertyLayoutOptions"] | null;
             number_input?: components["schemas"]["NumberInputOptions"] | null;
             library?: components["schemas"]["LibraryOptions"] | null;
-        };
-        /**
-         * LibraryOptions
-         * @description Names a catalog of ready-made values the editor can offer for a field.
-         *
-         *     The renderer stays generic: it shows a "Browse library" control when this
-         *     is set, fetches the named catalog, and appends whatever the user picks to
-         *     the field's existing value.
-         */
-        LibraryOptions: {
-            /**
-             * Catalog
-             * @description Catalog id, served by GET /api/v1/extraction-library/{catalog}.
-             */
-            catalog: string;
         };
         /**
          * PropertySpec
@@ -1361,6 +1494,8 @@ export interface components {
 export type AmbientNoiseConfigurationDefaults = components['schemas']['AmbientNoiseConfigurationDefaults'];
 export type CalculatorToolDefinition = components['schemas']['CalculatorToolDefinition'];
 export type CallDispositionCodes = components['schemas']['CallDispositionCodes'];
+export type ContactListRequest = components['schemas']['ContactListRequest'];
+export type ContactListResponse = components['schemas']['ContactListResponse'];
 export type CreateToolRequest = components['schemas']['CreateToolRequest'];
 export type CreateWorkflowRequest = components['schemas']['CreateWorkflowRequest'];
 export type CreatedByResponse = components['schemas']['CreatedByResponse'];
@@ -1370,6 +1505,7 @@ export type DocumentListResponseSchema = components['schemas']['DocumentListResp
 export type DocumentResponseSchema = components['schemas']['DocumentResponseSchema'];
 export type EndCallConfig = components['schemas']['EndCallConfig'];
 export type EndCallToolDefinition = components['schemas']['EndCallToolDefinition'];
+export type ExtractionLibraryResponse = components['schemas']['ExtractionLibraryResponse'];
 export type GoogleCalendarToolDefinition = components['schemas']['GoogleCalendarToolDefinition'];
 export type GraphConstraints = components['schemas']['GraphConstraints'];
 export type HttpValidationError = components['schemas']['HTTPValidationError'];
@@ -1377,6 +1513,8 @@ export type HttpApiConfig = components['schemas']['HttpApiConfig'];
 export type HttpApiToolDefinition = components['schemas']['HttpApiToolDefinition'];
 export type HttpTransferResolverConfig = components['schemas']['HttpTransferResolverConfig'];
 export type InitiateCallRequest = components['schemas']['InitiateCallRequest'];
+export type LibraryExtraction = components['schemas']['LibraryExtraction'];
+export type LibraryOptions = components['schemas']['LibraryOptions'];
 export type McpToolConfig = components['schemas']['McpToolConfig'];
 export type McpToolDefinition = components['schemas']['McpToolDefinition'];
 export type NodeCategory = components['schemas']['NodeCategory'];
@@ -1893,6 +2031,129 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NodeSpec"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_extraction_library_api_v1_extraction_library__catalog__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                catalog: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtractionLibraryResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_contact_lists_api_v1_contact_lists_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactListResponse"][];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_contact_list_api_v1_contact_lists_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactListRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactListResponse"];
                 };
             };
             /** @description Not found */

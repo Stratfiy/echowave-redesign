@@ -163,6 +163,18 @@ export type AwsBedrockLlmConfiguration = {
      */
     model?: string;
     /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
+    /**
      * Aws Access Key
      *
      * AWS access key ID with bedrock:InvokeModel permission.
@@ -473,6 +485,18 @@ export type AzureLlmService = {
      */
     model?: string;
     /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
+    /**
      * Endpoint
      *
      * Azure OpenAI resource endpoint (e.g. https://<resource>.openai.azure.com).
@@ -699,7 +723,9 @@ export type ByokPipelineAiModelConfiguration = {
         provider: 'minimax';
     } & MiniMaxLlmConfiguration) | ({
         provider: 'sarvam';
-    } & SarvamLlmConfiguration);
+    } & SarvamLlmConfiguration) | ({
+        provider: 'custom_llm';
+    } & CustomLlmConfiguration);
     /**
      * Tts
      */
@@ -831,7 +857,9 @@ export type ByokRealtimeAiModelConfiguration = {
         provider: 'minimax';
     } & MiniMaxLlmConfiguration) | ({
         provider: 'sarvam';
-    } & SarvamLlmConfiguration);
+    } & SarvamLlmConfiguration) | ({
+        provider: 'custom_llm';
+    } & CustomLlmConfiguration);
     /**
      * Embeddings
      */
@@ -953,6 +981,16 @@ export type BillingProfileRequest = {
 };
 
 /**
+ * Body_import_contacts_api_v1_contact_lists__contact_list_id__import_post
+ */
+export type BodyImportContactsApiV1ContactListsContactListIdImportPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * Body_transcribe_audio_api_v1_workflow_recordings_transcribe_post
  */
 export type BodyTranscribeAudioApiV1WorkflowRecordingsTranscribePost = {
@@ -1040,6 +1078,30 @@ export type BundleRequest = {
      * Is Enabled
      */
     is_enabled?: boolean | null;
+};
+
+/**
+ * BundleSelection
+ *
+ * A Simple-tab choice, as the client is allowed to express it.
+ *
+ * Three fields and no tiers beyond the brain: everything else about the stack
+ * is looked up from the bundle server-side. See
+ * ``agent_options.save_bundle_selection`` for why that matters.
+ */
+export type BundleSelection = {
+    /**
+     * Bundle
+     */
+    bundle: string;
+    /**
+     * Tier
+     */
+    tier?: string;
+    /**
+     * Voice
+     */
+    voice?: string;
 };
 
 /**
@@ -1739,6 +1801,84 @@ export type ConfirmRequest = {
 };
 
 /**
+ * ContactListRequest
+ */
+export type ContactListRequest = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+};
+
+/**
+ * ContactListResponse
+ */
+export type ContactListResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Contact Count
+     */
+    contact_count?: number;
+};
+
+/**
+ * ContactResponse
+ */
+export type ContactResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Phone Raw
+     */
+    phone_raw: string;
+    /**
+     * Phone Normalized
+     */
+    phone_normalized: string;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Attributes
+     */
+    attributes?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * ContactsPage
+ */
+export type ContactsPage = {
+    /**
+     * Contacts
+     */
+    contacts: Array<ContactResponse>;
+    /**
+     * Total Count
+     */
+    total_count: number;
+};
+
+/**
  * CostByOutcomeItem
  */
 export type CostByOutcomeItem = {
@@ -2281,6 +2421,54 @@ export type CurrentUsageResponse = {
 };
 
 /**
+ * Custom LLM
+ *
+ * Any OpenAI-compatible chat-completions endpoint: a self-hosted model, a gateway, or a provider we do not list yet.
+ */
+export type CustomLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'custom_llm';
+    /**
+     * Api Key
+     *
+     * Bearer token your endpoint expects. Leave blank if it needs none.
+     */
+    api_key?: string | Array<string> | null;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
+     * Model
+     *
+     * Model name exactly as your endpoint expects it in the request body.
+     */
+    model: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
+    /**
+     * Base Url
+     *
+     * Base URL of the OpenAI-compatible endpoint, including the version segment (e.g. https://your-gateway.example.com/v1).
+     */
+    base_url: string;
+};
+
+/**
  * DailyReportResponse
  */
 export type DailyReportResponse = {
@@ -2422,6 +2610,18 @@ export type DecibylLlmService = {
      * Decibyl-hosted model tier.
      */
     model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
 };
 
 /**
@@ -2436,8 +2636,18 @@ export type DecibylLlmService = {
  * runtime. Requiring a key here made managed mode impossible to save — the
  * entire point of choosing it is not having one.
  *
- * It is kept rather than deleted so a stored configuration written by the old
- * UI still loads. Nothing reads it.
+ * It is kept rather than deleted because it is still the account's model
+ * gateway service key, minted once per organization at signup by
+ * ``auth/depends.create_user_configuration_with_mps_key``.
+ *
+ * **It is read, and this comment used to say it was not.** ``managed_model_
+ * services.get_decibyl_service_api_key`` reads it on every run start, and
+ * ``quota_service`` refuses the call with "You have invalid keys in your model
+ * configuration" when it comes back empty. Anything building a managed
+ * configuration for an existing account must carry the stored value forward:
+ * there is no second copy, so writing an empty one does not clear a field, it
+ * destroys the credential. The Simple picker's save did exactly that, and
+ * every call the account made afterwards was refused.
  */
 export type DecibylManagedAiModelConfiguration = {
     /**
@@ -2460,6 +2670,22 @@ export type DecibylManagedAiModelConfiguration = {
      * Llm Tier
      */
     llm_tier?: string;
+    /**
+     * Bundle
+     */
+    bundle?: string;
+    /**
+     * Stt Tier
+     */
+    stt_tier?: string;
+    /**
+     * Tts Tier
+     */
+    tts_tier?: string;
+    /**
+     * Realtime Tier
+     */
+    realtime_tier?: string;
 };
 
 /**
@@ -2987,6 +3213,24 @@ export type ElevenlabsTtsConfiguration = {
      */
     speed?: number;
     /**
+     * Stability
+     *
+     * How steady the delivery is. Higher is more consistent and more monotone; lower is more expressive and more variable between runs.
+     */
+    stability?: number;
+    /**
+     * Similarity Boost
+     *
+     * How closely the output tracks the original voice. Very high values can reproduce artefacts present in the source recording.
+     */
+    similarity_boost?: number;
+    /**
+     * Style
+     *
+     * Style exaggeration. Above 0 it costs latency, so it stays off unless a voice actually needs it.
+     */
+    style?: number;
+    /**
      * Model
      *
      * ElevenLabs TTS model.
@@ -3209,6 +3453,26 @@ export type ExchangeRateRequest = {
 };
 
 /**
+ * ExtractionLibraryResponse
+ *
+ * The catalog, and the order its sections should be shown in.
+ */
+export type ExtractionLibraryResponse = {
+    /**
+     * Catalog
+     */
+    catalog: string;
+    /**
+     * Categories
+     */
+    categories: Array<string>;
+    /**
+     * Extractions
+     */
+    extractions: Array<LibraryExtraction>;
+};
+
+/**
  * FileDescriptor
  *
  * Descriptor for a single file in a batch upload request.
@@ -3377,6 +3641,18 @@ export type GoogleLlmService = {
      * Gemini model on Google AI Studio (not Vertex).
      */
     model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
 };
 
 /**
@@ -3548,6 +3824,18 @@ export type GoogleVertexLlmConfiguration = {
      */
     model?: string;
     /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
+    /**
      * Project Id
      *
      * Google Cloud project ID for Vertex AI.
@@ -3713,6 +4001,18 @@ export type GroqLlmService = {
      * Groq-hosted model identifier.
      */
     model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
 };
 
 /**
@@ -3954,6 +4254,18 @@ export type HuggingFaceLlmConfiguration = {
      */
     model?: string;
     /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
+    /**
      * Base Url
      *
      * Hugging Face OpenAI-compatible chat-completions router base URL.
@@ -4049,6 +4361,34 @@ export type ImpersonateResponse = {
      * Access Token
      */
     access_token: string;
+};
+
+/**
+ * ImportResponse
+ *
+ * What the import did, in the terms the person who uploaded it asked in.
+ */
+export type ImportResponse = {
+    /**
+     * Imported
+     */
+    imported: number;
+    /**
+     * Skipped
+     */
+    skipped: number;
+    /**
+     * Problems
+     */
+    problems?: Array<string>;
+    /**
+     * Phone Column
+     */
+    phone_column?: string | null;
+    /**
+     * Truncated
+     */
+    truncated?: boolean;
 };
 
 /**
@@ -4210,6 +4550,10 @@ export type KnowledgeBaseUsageSchema = {
      */
     bytes_limit: number;
     /**
+     * Max File Bytes
+     */
+    max_file_bytes: number;
+    /**
      * Documents
      */
     documents: number;
@@ -4266,6 +4610,87 @@ export type LastCampaignSettingsResponse = {
     max_concurrency?: number | null;
     schedule_config?: ScheduleConfigResponse | null;
     circuit_breaker?: CircuitBreakerConfigResponse | null;
+};
+
+/**
+ * LibraryExtraction
+ *
+ * One catalog entry, and the ``ExtractionSpec`` it seeds.
+ */
+export type LibraryExtraction = {
+    /**
+     * Key
+     *
+     * Stable id for this entry. Not stored on the node.
+     */
+    key: string;
+    /**
+     * Display Name
+     *
+     * What the picker lists it as.
+     */
+    display_name: string;
+    /**
+     * Category
+     *
+     * Section heading in the picker.
+     */
+    category: string;
+    /**
+     * Summary
+     *
+     * One line on what this pulls out of a call.
+     */
+    summary: string;
+    /**
+     * Name
+     *
+     * Seeds ExtractionSpec.name — the JSON key.
+     */
+    name: string;
+    /**
+     * Prompt
+     *
+     * Seeds ExtractionSpec.prompt.
+     */
+    prompt: string;
+    /**
+     * Answer Type
+     */
+    answer_type?: string;
+    /**
+     * Predefined Options
+     */
+    predefined_options?: string;
+    /**
+     * Expected Format
+     */
+    expected_format?: string;
+};
+
+/**
+ * LibraryOptions
+ *
+ * Names a catalog of ready-made values the editor can offer for a field.
+ *
+ * The renderer stays generic: it shows a "Browse library" control when this
+ * is set, fetches the named catalog, and appends whatever the user picks to
+ * the field's existing value. Which catalog, and what is in it, are decided
+ * on the backend beside the code that consumes the values — the alternative
+ * is a picker hard-coded against one field name, which is how the second
+ * field with a library ends up copy-pasting the first one's dialog.
+ *
+ * Picking from a library copies. Nothing is referenced by id afterwards, so
+ * a value an operator has since tuned is never silently replaced by an edit
+ * to the catalog.
+ */
+export type LibraryOptions = {
+    /**
+     * Catalog
+     *
+     * Catalog id, served by GET /api/v1/extraction-library/{catalog}.
+     */
+    catalog: string;
 };
 
 /**
@@ -4340,6 +4765,42 @@ export type MarkupConfirmRequest = {
      * Code
      */
     code: string;
+};
+
+/**
+ * MarkupOverrideRequest
+ *
+ * A markup for one ``(component, provider, model)`` line, replacing the
+ * global multiple for that line only. No currency split like a rate — a
+ * markup is a multiplier, not a price, so there is only one field for it.
+ */
+export type MarkupOverrideRequest = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Component
+     *
+     * stt | llm | tts | telephony
+     */
+    component: string;
+    /**
+     * Model
+     *
+     * Empty = provider-wide fallback
+     */
+    model?: string;
+    /**
+     * Markup Bps
+     *
+     * 10000 = 1.0x (at cost), 17000 = 1.7x
+     */
+    markup_bps: number;
+    /**
+     * Note
+     */
+    note?: string | null;
 };
 
 /**
@@ -4512,17 +4973,23 @@ export type MiniMaxLlmConfiguration = {
      */
     model?: string;
     /**
-     * Base Url
-     *
-     * MiniMax OpenAI-compatible API endpoint.
-     */
-    base_url?: string;
-    /**
      * Temperature
      *
      * Sampling temperature. MiniMax requires > 0.
      */
     temperature?: number;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
+    /**
+     * Base Url
+     *
+     * MiniMax OpenAI-compatible API endpoint.
+     */
+    base_url?: string;
 };
 
 /**
@@ -4837,6 +5304,12 @@ export type OpenAiEmbeddingsConfiguration = {
      * OpenAI embedding model.
      */
     model?: string;
+    /**
+     * Base Url
+     *
+     * OpenAI-compatible endpoint. Leave blank for OpenAI itself; set it to your own server (e.g. a Text Embeddings Inference container) to keep document text on your infrastructure.
+     */
+    base_url?: string;
 };
 
 /**
@@ -4863,6 +5336,18 @@ export type OpenAillmService = {
      * OpenAI chat model to use.
      */
     model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
     /**
      * Base Url
      *
@@ -5029,6 +5514,18 @@ export type OpenRouterLlmConfiguration = {
      * OpenRouter model slug in 'vendor/model' form.
      */
     model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
     /**
      * Base Url
      *
@@ -5335,9 +5832,6 @@ export type PhoneNumberResponse = {
      */
     inbound_workflow_name?: string | null;
     /**
-     * Is Active
-     */
-    /**
      * Inbound Contact List Id
      */
     inbound_contact_list_id?: number | null;
@@ -5357,6 +5851,9 @@ export type PhoneNumberResponse = {
      * Inbound Allow List
      */
     inbound_allow_list?: Array<string>;
+    /**
+     * Is Active
+     */
     is_active: boolean;
     /**
      * Is Default Caller Id
@@ -5493,6 +5990,18 @@ export type PlanRequest = {
      * Extra Number Price Paise
      */
     extra_number_price_paise?: number | null;
+    /**
+     * Knowledge Base Bytes
+     */
+    knowledge_base_bytes?: number;
+    /**
+     * Knowledge Base Max File Bytes
+     */
+    knowledge_base_max_file_bytes?: number;
+    /**
+     * Platform Rate Mpaise
+     */
+    platform_rate_mpaise?: number | null;
     /**
      * Razorpay Plan Id
      */
@@ -5756,82 +6265,6 @@ export type PropertyOption = {
 };
 
 /**
- * LibraryOptions
- *
- * Names a catalog of ready-made values the editor can offer for a field.
- */
-export type LibraryOptions = {
-    /**
-     * Catalog
-     */
-    catalog: string;
-};
-
-/**
- * LibraryExtraction
- *
- * One catalog entry, and the ExtractionSpec it seeds.
- */
-export type LibraryExtraction = {
-    /**
-     * Key
-     */
-    key: string;
-    /**
-     * Display Name
-     */
-    display_name: string;
-    /**
-     * Category
-     */
-    category: string;
-    /**
-     * Summary
-     */
-    summary: string;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Prompt
-     */
-    prompt: string;
-    /**
-     * Answer Type
-     */
-    answer_type?: string;
-    /**
-     * Predefined Options
-     */
-    predefined_options?: string;
-    /**
-     * Expected Format
-     */
-    expected_format?: string;
-};
-
-/**
- * ExtractionLibraryResponse
- *
- * The catalog, and the order its sections should be shown in.
- */
-export type ExtractionLibraryResponse = {
-    /**
-     * Catalog
-     */
-    catalog: string;
-    /**
-     * Categories
-     */
-    categories: Array<string>;
-    /**
-     * Extractions
-     */
-    extractions: Array<LibraryExtraction>;
-};
-
-/**
  * PropertyRendererOptions
  *
  * Typed renderer metadata for node properties.
@@ -5941,40 +6374,6 @@ export type PropertyType = 'string' | 'number' | 'boolean' | 'options' | 'multi_
 /**
  * ProviderRateRequest
  */
-/**
- * MarkupOverrideRequest
- *
- * A markup for one (component, provider, model) line, replacing the global multiple for that line only. No currency split like a rate — a markup is a multiplier, not a price, so there is only one field for it.
- */
-export type MarkupOverrideRequest = {
-    /**
-     * Provider
-     */
-    provider: string;
-    /**
-     * Component
-     *
-     * stt | llm | tts | telephony
-     */
-    component: string;
-    /**
-     * Model
-     *
-     * Empty = provider-wide fallback
-     */
-    model?: string;
-    /**
-     * Markup Bps
-     *
-     * 10000 = 1.0x (at cost), 17000 = 1.7x
-     */
-    markup_bps: number;
-    /**
-     * Note
-     */
-    note?: string | null;
-};
-
 export type ProviderRateRequest = {
     /**
      * Provider
@@ -5998,8 +6397,6 @@ export type ProviderRateRequest = {
     rate_mpaise?: number | null;
     /**
      * Rate Micros Usd
-     *
-     * Dollars instead of rupees. Exactly one of the two, same rule as the platform rate — a dollar row is converted at read time so its cost follows the rupee, a rupee row never is.
      */
     rate_micros_usd?: number | null;
     /**
@@ -6038,28 +6435,20 @@ export type ProviderRatesRequest = {
     unit: string;
     /**
      * Flat Rate Mpaise
-     *
-     * Applies to every model without a row of its own.
      */
     flat_rate_mpaise?: number | null;
     /**
      * Flat Rate Micros Usd
-     *
-     * The same flat rate, quoted in dollars instead. One or the other.
      */
     flat_rate_micros_usd?: number | null;
     /**
      * Model Rates
-     *
-     * Model name to millipaise. Outranks the flat rate for those models.
      */
     model_rates?: {
         [key: string]: number;
     };
     /**
      * Model Rates Micros Usd
-     *
-     * Model name to micro-dollars, for a vendor who invoices in dollars. A separate map rather than a currency field per entry, so a rupee value can never be read as a dollar one.
      */
     model_rates_micros_usd?: {
         [key: string]: number;
@@ -6583,6 +6972,12 @@ export type SarvamLlmConfiguration = {
      * Sampling temperature. Sarvam recommends 0.5 for balanced conversational responses.
      */
     temperature?: number;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
 };
 
 /**
@@ -6606,7 +7001,7 @@ export type SarvamSttConfiguration = {
     /**
      * Model
      *
-     * Sarvam STT model. saarika:v2.5 transcribes in the spoken language; saaras:v3 is the recommended model with flexible output modes.
+     * Sarvam STT model. saaras:v3 covers 22 Indian languages plus English in one model with automatic detection, and is trained on code-mixed speech — pick it unless every caller stays in one language. saarika:v2.5 transcribes a single spoken language.
      */
     model?: string;
     /**
@@ -6941,6 +7336,18 @@ export type SpeachesLlmConfiguration = {
      * Model name as exposed by your OpenAI-compatible server.
      */
     model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
     /**
      * Base Url
      *
@@ -12118,6 +12525,62 @@ export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPost
 
 export type RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponse = RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponses[keyof RequestManagedMarkupChangeApiV1AdminBillingRateCardMarkupRequestPostResponses];
 
+export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Provider
+         */
+        provider: string;
+        /**
+         * Component
+         */
+        component: string;
+        /**
+         * Model
+         */
+        model?: string;
+    };
+    url: '/api/v1/admin/billing/rate-card/markup-overrides';
+};
+
+export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteError = ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteErrors[keyof ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteErrors];
+
+export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteResponses = {
+    /**
+     * Response Clear Managed Markup Override Api V1 Admin Billing Rate Card Markup Overrides Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteResponse = ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteResponses[keyof ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteResponses];
+
 export type ListManagedMarkupOverridesApiV1AdminBillingRateCardMarkupOverridesGetData = {
     body?: never;
     headers?: {
@@ -12203,62 +12666,6 @@ export type SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutR
 };
 
 export type SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutResponse = SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutResponses[keyof SetManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesPutResponses];
-
-export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path?: never;
-    query: {
-        /**
-         * Provider
-         */
-        provider: string;
-        /**
-         * Component
-         */
-        component: string;
-        /**
-         * Model
-         */
-        model?: string;
-    };
-    url: '/api/v1/admin/billing/rate-card/markup-overrides';
-};
-
-export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteError = ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteErrors[keyof ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteErrors];
-
-export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteResponses = {
-    /**
-     * Response Clear Managed Markup Override Api V1 Admin Billing Rate Card Markup Overrides Delete
-     *
-     * Successful Response
-     */
-    200: {
-        [key: string]: unknown;
-    };
-};
-
-export type ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteResponse = ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteResponses[keyof ClearManagedMarkupOverrideApiV1AdminBillingRateCardMarkupOverridesDeleteResponses];
 
 export type ListPlansApiV1AdminBillingPlansGetData = {
     body?: never;
@@ -12608,6 +13015,49 @@ export type GetAgentOptionsApiV1AgentOptionsGetResponses = {
 };
 
 export type GetAgentOptionsApiV1AgentOptionsGetResponse = GetAgentOptionsApiV1AgentOptionsGetResponses[keyof GetAgentOptionsApiV1AgentOptionsGetResponses];
+
+export type SaveSelectionApiV1AgentOptionsSelectionPutData = {
+    body: BundleSelection;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/agent-options/selection';
+};
+
+export type SaveSelectionApiV1AgentOptionsSelectionPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveSelectionApiV1AgentOptionsSelectionPutError = SaveSelectionApiV1AgentOptionsSelectionPutErrors[keyof SaveSelectionApiV1AgentOptionsSelectionPutErrors];
+
+export type SaveSelectionApiV1AgentOptionsSelectionPutResponses = {
+    /**
+     * Response Save Selection Api V1 Agent Options Selection Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SaveSelectionApiV1AgentOptionsSelectionPutResponse = SaveSelectionApiV1AgentOptionsSelectionPutResponses[keyof SaveSelectionApiV1AgentOptionsSelectionPutResponses];
 
 export type GetApproximateMinutesApiV1AgentOptionsMinutesGetData = {
     body?: never;
@@ -23211,6 +23661,10 @@ export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetData = {
 
 export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetErrors = {
     /**
+     * Not found
+     */
+    404: unknown;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -23226,110 +23680,6 @@ export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponses = {
 };
 
 export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponse = GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponses[keyof GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponses];
-
-/**
- * ContactListResponse
- */
-export type ContactListResponse = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Description
-     */
-    description?: string | null;
-    /**
-     * Contact Count
-     */
-    contact_count?: number;
-};
-
-/**
- * ContactListRequest
- */
-export type ContactListRequest = {
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Description
-     */
-    description?: string | null;
-};
-
-/**
- * ContactResponse
- */
-export type ContactResponse = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Phone Raw
-     */
-    phone_raw: string;
-    /**
-     * Phone Normalized
-     */
-    phone_normalized: string;
-    /**
-     * Name
-     */
-    name?: string | null;
-    /**
-     * Attributes
-     */
-    attributes?: {
-        [key: string]: unknown;
-    };
-};
-
-/**
- * ContactsPage
- */
-export type ContactsPage = {
-    /**
-     * Contacts
-     */
-    contacts: Array<ContactResponse>;
-    /**
-     * Total Count
-     */
-    total_count: number;
-};
-
-/**
- * ImportResponse
- */
-export type ImportResponse = {
-    /**
-     * Imported
-     */
-    imported: number;
-    /**
-     * Skipped
-     */
-    skipped: number;
-    /**
-     * Problems
-     */
-    problems?: Array<string>;
-    /**
-     * Phone Column
-     */
-    phone_column?: string | null;
-    /**
-     * Truncated
-     */
-    truncated?: boolean;
-};
 
 export type ListContactListsApiV1ContactListsGetData = {
     body?: never;
@@ -23350,6 +23700,10 @@ export type ListContactListsApiV1ContactListsGetData = {
 
 export type ListContactListsApiV1ContactListsGetErrors = {
     /**
+     * Not found
+     */
+    404: unknown;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -23359,6 +23713,8 @@ export type ListContactListsApiV1ContactListsGetError = ListContactListsApiV1Con
 
 export type ListContactListsApiV1ContactListsGetResponses = {
     /**
+     * Response List Contact Lists Api V1 Contact Lists Get
+     *
      * Successful Response
      */
     200: Array<ContactListResponse>;
@@ -23384,6 +23740,10 @@ export type CreateContactListApiV1ContactListsPostData = {
 };
 
 export type CreateContactListApiV1ContactListsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
     /**
      * Validation Error
      */
@@ -23425,6 +23785,10 @@ export type DeleteContactListApiV1ContactListsContactListIdDeleteData = {
 
 export type DeleteContactListApiV1ContactListsContactListIdDeleteErrors = {
     /**
+     * Not found
+     */
+    404: unknown;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -23434,10 +23798,60 @@ export type DeleteContactListApiV1ContactListsContactListIdDeleteError = DeleteC
 
 export type DeleteContactListApiV1ContactListsContactListIdDeleteResponses = {
     /**
+     * Response Delete Contact List Api V1 Contact Lists  Contact List Id  Delete
+     *
      * Successful Response
      */
-    200: unknown;
+    200: {
+        [key: string]: unknown;
+    };
 };
+
+export type DeleteContactListApiV1ContactListsContactListIdDeleteResponse = DeleteContactListApiV1ContactListsContactListIdDeleteResponses[keyof DeleteContactListApiV1ContactListsContactListIdDeleteResponses];
+
+export type UpdateContactListApiV1ContactListsContactListIdPatchData = {
+    body: ContactListRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Contact List Id
+         */
+        contact_list_id: number;
+    };
+    query?: never;
+    url: '/api/v1/contact-lists/{contact_list_id}';
+};
+
+export type UpdateContactListApiV1ContactListsContactListIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateContactListApiV1ContactListsContactListIdPatchError = UpdateContactListApiV1ContactListsContactListIdPatchErrors[keyof UpdateContactListApiV1ContactListsContactListIdPatchErrors];
+
+export type UpdateContactListApiV1ContactListsContactListIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: ContactListResponse;
+};
+
+export type UpdateContactListApiV1ContactListsContactListIdPatchResponse = UpdateContactListApiV1ContactListsContactListIdPatchResponses[keyof UpdateContactListApiV1ContactListsContactListIdPatchResponses];
 
 export type ListContactsApiV1ContactListsContactListIdContactsGetData = {
     body?: never;
@@ -23476,6 +23890,10 @@ export type ListContactsApiV1ContactListsContactListIdContactsGetData = {
 
 export type ListContactsApiV1ContactListsContactListIdContactsGetErrors = {
     /**
+     * Not found
+     */
+    404: unknown;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -23493,12 +23911,7 @@ export type ListContactsApiV1ContactListsContactListIdContactsGetResponses = {
 export type ListContactsApiV1ContactListsContactListIdContactsGetResponse = ListContactsApiV1ContactListsContactListIdContactsGetResponses[keyof ListContactsApiV1ContactListsContactListIdContactsGetResponses];
 
 export type ImportContactsApiV1ContactListsContactListIdImportPostData = {
-    body: {
-        /**
-         * File
-         */
-        file: Blob | File;
-    };
+    body: BodyImportContactsApiV1ContactListsContactListIdImportPost;
     headers?: {
         /**
          * Authorization
@@ -23518,10 +23931,14 @@ export type ImportContactsApiV1ContactListsContactListIdImportPostData = {
     query?: {
         /**
          * Phone Column
+         *
+         * Header to read numbers from. Guessed when omitted.
          */
         phone_column?: string | null;
         /**
          * Country
+         *
+         * ISO-2 country for resolving local numbers — '09876543210' becomes '+919876543210' with 'IN' and is unusable without it. Pass the country of the number this list will answer on.
          */
         country?: string | null;
     };
@@ -23529,6 +23946,10 @@ export type ImportContactsApiV1ContactListsContactListIdImportPostData = {
 };
 
 export type ImportContactsApiV1ContactListsContactListIdImportPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
     /**
      * Validation Error
      */
@@ -23545,6 +23966,58 @@ export type ImportContactsApiV1ContactListsContactListIdImportPostResponses = {
 };
 
 export type ImportContactsApiV1ContactListsContactListIdImportPostResponse = ImportContactsApiV1ContactListsContactListIdImportPostResponses[keyof ImportContactsApiV1ContactListsContactListIdImportPostResponses];
+
+export type DeleteContactApiV1ContactListsContactListIdContactsContactIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Contact List Id
+         */
+        contact_list_id: number;
+        /**
+         * Contact Id
+         */
+        contact_id: number;
+    };
+    query?: never;
+    url: '/api/v1/contact-lists/{contact_list_id}/contacts/{contact_id}';
+};
+
+export type DeleteContactApiV1ContactListsContactListIdContactsContactIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteContactApiV1ContactListsContactListIdContactsContactIdDeleteError = DeleteContactApiV1ContactListsContactListIdContactsContactIdDeleteErrors[keyof DeleteContactApiV1ContactListsContactListIdContactsContactIdDeleteErrors];
+
+export type DeleteContactApiV1ContactListsContactListIdContactsContactIdDeleteResponses = {
+    /**
+     * Response Delete Contact Api V1 Contact Lists  Contact List Id  Contacts  Contact Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DeleteContactApiV1ContactListsContactListIdContactsContactIdDeleteResponse = DeleteContactApiV1ContactListsContactListIdContactsContactIdDeleteResponses[keyof DeleteContactApiV1ContactListsContactListIdContactsContactIdDeleteResponses];
 
 export type AuthorizeUrlApiV1IntegrationsGoogleCalendarAuthorizeUrlGetData = {
     body?: never;
