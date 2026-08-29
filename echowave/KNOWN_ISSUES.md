@@ -31,6 +31,40 @@ deliberately.
 
 ## Fixed
 
+### 28. The first reply paid for the LLM's TLS handshake
+
+**FIXED.** Run 82, nine turns, one model throughout:
+
+| turn | llm | prompt_tokens |
+|---|---|---|
+| 0 | **2,220ms** | 333 |
+| 1 | 483ms | 373 |
+| 8 | 496ms | 602 |
+
+The slowest LLM stage of the call carried the **smallest** prompt, and the
+stage got *faster* as the prompt grew. Cost that falls as input grows is not
+generation cost. It is the first HTTPS request paying DNS, TCP and TLS to
+`api.sarvam.ai`, with the caller listening to silence.
+
+The speech legs do not have this problem, which is why it took a while to see:
+Sarvam's STT and TTS both open their websockets in `start()`, during pipeline
+setup, before anyone speaks. The LLM is plain HTTP over a pooled client, so it
+connects on first use -- and first use is the caller's first question.
+
+One token, out of band, fired as soon as the service is built so it overlaps
+the remaining setup and the greeting. It lands on the same pooled client the
+pipeline uses, so the handshake is already paid when the first real completion
+runs. Backgrounded rather than awaited, and it swallows every exception: a
+warm-up that fails must cost the latency it was trying to save and nothing
+else.
+
+Non-realtime only. A realtime service holds a websocket it opens in `start()`
+and does not implement `run_inference` at all -- which is why `inference_llm`
+exists beside it.
+
+Expected: turn 0's LLM stage falls from ~2,200ms to the ~500-800ms the rest of
+the call already runs at.
+
 ### 27. The 1,172ms turn wait was one hardcoded constant
 
 **FIXED.** The question was "why can't we do anything about turn detection" and

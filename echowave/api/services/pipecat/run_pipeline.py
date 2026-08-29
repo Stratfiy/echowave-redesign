@@ -82,6 +82,7 @@ from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnal
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.extensions.voicemail.voicemail_detector import VoicemailDetector
+from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMAssistantAggregatorParams,
     LLMContextAggregatorPair,
@@ -302,6 +303,37 @@ def _create_realtime_user_turn_config(provider: str):
         return local_vad_turn_config(enable_interruptions=True)
 
     return local_vad_turn_config(enable_interruptions=True)
+
+
+async def _warm_llm_connection(llm) -> None:
+    """Open the LLM's HTTPS connection before the caller needs it.
+
+    The first reply of a call was consistently the slowest, and not because of
+    the model. On run 82 turn 0 spent 2,220ms in the LLM against a median of
+    ~800ms across the other eight turns -- while carrying the *smallest* prompt
+    of the call (333 tokens against 602 by turn 8). Cost that falls as the
+    prompt grows is not generation cost. It is the first HTTPS request paying
+    DNS, TCP and TLS to the provider, with the caller listening to silence.
+
+    The speech services do not have this problem: Sarvam's STT and TTS both
+    open their websockets in ``start()``, during pipeline setup. The LLM is
+    plain HTTP over a pooled client, so it connects on first use -- which is
+    the caller's first question.
+
+    One token, out of band, fired while the remaining setup and the greeting
+    happen. It lands on the same pooled client the pipeline will use, so the
+    handshake is already paid by the time the first real completion runs.
+
+    Deliberately swallows everything. A warm-up that fails must cost nothing
+    but the latency it was trying to save -- never the call.
+    """
+    try:
+        await llm.run_inference(
+            LLMContext(messages=[{"role": "user", "content": "hi"}]),
+            max_tokens=1,
+        )
+    except Exception as e:
+        logger.debug(f"LLM connection warm-up skipped: {e}")
 
 
 async def run_pipeline_telephony(
@@ -734,6 +766,19 @@ async def _run_pipeline_impl(
         )
         llm = create_llm_service(user_config, correlation_id=mps_correlation_id)
         inference_llm = None
+
+    # Fire the LLM handshake now, so the caller's first question does not pay
+    # for it. Backgrounded rather than awaited: the point is to overlap it with
+    # the setup and greeting that follow, and a slow warm-up must never delay
+    # the call it is meant to speed up.
+    #
+    # Non-realtime only, and not for want of generality. A realtime service
+    # holds a websocket it opens in `start()`, during setup, so its connection
+    # is already warm by the time anyone speaks -- and it does not implement
+    # `run_inference` at all, which is why `inference_llm` exists above.
+    warm_llm_task = (
+        None if is_realtime else asyncio.create_task(_warm_llm_connection(llm))
+    )
 
     # Stamp the providers/models actually resolved for this run onto
     # initial_context so they're available for post-call analytics

@@ -227,3 +227,62 @@ class TestTheSTTSafetyNetIsTheLargestStage:
 
         monkeypatch.setenv("SARVAM_STT_TTFS_P99", "-3")
         assert service_factory.sarvam_stt_ttfs_p99() == 0.0
+
+
+class TestTheFirstReplyDoesNotPayForTheHandshake:
+    """Turn 0 was the slowest turn of every call, and not because of the model.
+
+    Run 82, nine turns, same model throughout:
+
+        turn 0   llm 2220ms   prompt_tokens 333
+        turn 1   llm  483ms   prompt_tokens 373
+        turn 8   llm  496ms   prompt_tokens 602
+
+    The slowest LLM stage carried the *smallest* prompt, and the stage got
+    faster as the prompt grew. Cost that falls as input grows is not generation
+    cost -- it is the first HTTPS request paying DNS, TCP and TLS, with the
+    caller listening to silence.
+
+    The speech services do not have this problem: Sarvam's STT and TTS open
+    their websockets in `start()` during setup. The LLM is plain HTTP over a
+    pooled client, so it connects on first use -- the caller's first question.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_warm_up_asks_for_a_single_token(self):
+        """One token out of band. Enough to complete the handshake, small
+        enough that its cost is not worth reasoning about."""
+        from unittest.mock import AsyncMock
+
+        from api.services.pipecat.run_pipeline import _warm_llm_connection
+
+        llm = AsyncMock()
+        await _warm_llm_connection(llm)
+
+        llm.run_inference.assert_awaited_once()
+        assert llm.run_inference.await_args.kwargs["max_tokens"] == 1
+
+    @pytest.mark.asyncio
+    async def test_a_failed_warm_up_costs_nothing_but_itself(self):
+        """It runs while the line is connecting. A provider hiccup there must
+        cost the latency it was trying to save and nothing else -- never the
+        call."""
+        from unittest.mock import AsyncMock
+
+        from api.services.pipecat.run_pipeline import _warm_llm_connection
+
+        llm = AsyncMock()
+        llm.run_inference.side_effect = RuntimeError("provider down")
+
+        await _warm_llm_connection(llm)
+
+    @pytest.mark.asyncio
+    async def test_a_service_without_run_inference_is_tolerated(self):
+        """Realtime services do not implement it. The caller guards on
+        is_realtime, but the helper must not depend on that being right."""
+        from api.services.pipecat.run_pipeline import _warm_llm_connection
+
+        class NoInference:
+            pass
+
+        await _warm_llm_connection(NoInference())
