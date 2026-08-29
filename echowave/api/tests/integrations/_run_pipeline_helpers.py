@@ -121,15 +121,28 @@ def patch_run_pipeline_externals(
                 _llm_factory,
             )
         )
+
+        # The *_with_backups names are what run_pipeline calls. Patching the
+        # plain create_stt_service/create_tts_service here left the real
+        # factories in place, so these tests built live vendor services and
+        # opened real websockets -- passing while testing something other than
+        # what they claim.
+        def _stt_factory(*_args, **_kwargs):
+            # Returns the pair run_pipeline unpacks: the processor the pipeline
+            # runs, and the primary the metrics aggregator registers. One
+            # instance for both, which is what a chain with no backups gives.
+            stt = PassthroughProcessor()
+            return stt, stt
+
         stack.enter_context(
             patch(
-                "api.services.pipecat.run_pipeline.create_stt_service",
-                lambda *_args, **_kwargs: PassthroughProcessor(),
+                "api.services.pipecat.run_pipeline.create_stt_service_with_backups",
+                _stt_factory,
             )
         )
         stack.enter_context(
             patch(
-                "api.services.pipecat.run_pipeline.create_tts_service",
+                "api.services.pipecat.run_pipeline.create_tts_service_with_backups",
                 _tts_factory,
             )
         )
