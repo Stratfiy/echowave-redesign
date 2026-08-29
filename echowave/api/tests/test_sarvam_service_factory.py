@@ -479,27 +479,46 @@ class TestTheConversationalModelIsWhatVoiceGets:
         assert SARVAM_LLM_MODELS[0] == "sarvam-105b-conversations"
 
 
-class TestTheReplyIsStreamed:
-    """stream=False made time-to-first-token equal time-to-whole-response.
+class TestToolCallsSurviveTheReply:
+    """The parent's one-shot completion is load-bearing, and its docstring
+    undersells why.
 
-    It also cancelled two optimisations that are still configured and now do
-    nothing: the TTS runs in TextAggregationMode.TOKEN so it can synthesise
-    while the LLM is still talking, and Sarvam's min_buffer_size is tuned for
-    the same incremental text. Neither has anything to stream when the LLM
-    speaks once, at the end.
+    It reads as a guard against Sarvam's streaming deltas losing leading
+    whitespace -- cosmetic, and worth trading for the seconds a one-shot
+    completion costs. It is not: the same method stamps an `index` onto every
+    tool call, which OpenAI-style streaming aggregation needs to assemble a
+    call from its deltas and which Sarvam does not supply. The commit title
+    says both halves: "Preserve spaces *and tool calls*".
+
+    Every node transition is a tool call, so overriding it does not risk joined
+    words -- it stops transitions resolving and the agent falls silent on the
+    first turn that should move nodes. Runs 78-80 each recorded exactly one
+    turn where runs 75-76 recorded five.
     """
 
-    def test_the_wrapper_does_not_use_the_one_shot_override(self):
+    def test_the_wrapper_does_not_override_the_completion_path(self):
         from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
 
         assert (
             DecibylSarvamLLMService.get_chat_completions
-            is not RealSarvamLLMService.get_chat_completions
+            is RealSarvamLLMService.get_chat_completions
         )
 
+    def test_the_wrapper_changes_nothing_but_the_allowed_models(self):
+        """Narrow on purpose. The model swap is the latency win and it is
+        independent of the completion path; anything else this class touched
+        would be reaching past what was measured."""
+        from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+
+        overridden = {
+            name
+            for name, attr in vars(DecibylSarvamLLMService).items()
+            if not name.startswith("__") and callable(attr)
+        }
+
+        assert overridden == set()
+
     def test_sarvams_parameter_cleanup_is_still_applied(self):
-        """Streaming is restored by skipping one method, not by bypassing the
-        Sarvam class: it still drops the request fields Sarvam rejects."""
         from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
 
         assert (

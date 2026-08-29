@@ -112,7 +112,7 @@ account resolves through `managed_tiers`, so a default on the configuration
 schema would never have reached it. The run log says which path is live --
 `Managed llm resolved to sarvam/<model> on a platform key`.
 
-**Streaming is back on with it.** `SarvamLLMService.get_chat_completions` forces
+**Streaming was turned back on with it, and that was wrong — reverted.** `SarvamLLMService.get_chat_completions` forces
 `stream=False` and returns the whole reply as one chunk, added to stop Sarvam's
 streaming deltas losing leading whitespace. On the reasoning model that concern
 was real; on the conversational model it does not reproduce -- a three-sentence
@@ -123,8 +123,30 @@ optimisations that are still configured: the TTS runs in
 and issue #22's `min_buffer_size` tuning is for the same incremental text.
 Neither has anything to stream when the LLM speaks once, at the end. Usage
 survives the change -- Sarvam returns `CompletionUsage` inside the stream
-despite the parent stripping `stream_options` -- so per-call cost attribution
-still works.
+despite the parent stripping `stream_options`.
+
+**None of which mattered, because the override was not really about
+whitespace.** The same method stamps an `index` onto every tool call, which
+OpenAI-style streaming aggregation needs to assemble a call from its deltas and
+which Sarvam does not supply. Its commit title says both halves: "Preserve
+spaces *and tool calls*". Every node transition is a tool call, so restoring
+streaming did not risk joined words -- it stopped transitions resolving, and
+the agent fell silent on the first turn that should have moved it to another
+node. Runs 78, 79 and 80 each recorded exactly one turn where runs 75 and 76
+recorded five.
+
+It was missed because the two halves were verified separately: tool calls
+against a non-streaming call, streaming against a call with no tools. Neither
+test exercised the combination the pipeline actually runs. `stream=False` is
+restored, `DecibylSarvamLLMService` now overrides nothing but the model
+allow-list, and a test asserts it stays that way.
+
+The latency cost is real and now paid deliberately: time-to-first-token is
+time-to-whole-response, and the TTS's token aggregation and `min_buffer_size`
+tuning have nothing to stream. Reclaiming it means assembling the tool-call
+deltas with an index of our own, not removing the guard. The model change is
+the larger half of the win regardless -- 6,045ms to ~1,000ms -- and it is
+independent of this.
 
 Both live in `api/services/pipecat/sarvam_llm.py` as a local subclass rather
 than a submodule patch, the same pattern as `DecibylGoogleLLMService` and
