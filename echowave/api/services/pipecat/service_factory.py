@@ -20,6 +20,10 @@ from api.services.pipecat.gemini_json_schema_adapter import (
 )
 from api.services.pipecat.minimax_tts import MiniMaxOwnedSessionTTSService
 from api.utils.url_security import validate_user_configured_service_url
+from pipecat.pipeline.service_switcher import (
+    ServiceSwitcher,
+    ServiceSwitcherStrategyFailover,
+)
 from pipecat.services.assemblyai.stt import AssemblyAISTTService, AssemblyAISTTSettings
 from pipecat.services.aws.llm import AWSBedrockLLMService, AWSBedrockLLMSettings
 from pipecat.services.azure.llm import AzureLLMService, AzureLLMSettings
@@ -89,10 +93,6 @@ from pipecat.services.speaches.tts import SpeachesTTSService, SpeachesTTSSetting
 from pipecat.services.speechmatics.stt import (
     SpeechmaticsSTTService,
     SpeechmaticsSTTSettings,
-)
-from pipecat.pipeline.service_switcher import (
-    ServiceSwitcher,
-    ServiceSwitcherStrategyFailover,
 )
 from pipecat.services.tts_service import TextAggregationMode
 from pipecat.services.xai.tts import XAITTSService, XAIWebsocketTTSSettings
@@ -575,7 +575,8 @@ TTS_POLICY: dict[str, TTSPolicy] = {
         streams=True, reason="SarvamTTSService — persistent websocket, sends text on it"
     ),
     ServiceProviders.SMALLEST.value: TTSPolicy(
-        streams=True, reason="SmallestTTSService — persistent websocket, sends text on it"
+        streams=True,
+        reason="SmallestTTSService — persistent websocket, sends text on it",
     ),
     ServiceProviders.XAI.value: TTSPolicy(
         streams=True,
@@ -782,9 +783,7 @@ def create_tts_service(
                 # tier slot still sounds exactly as it did.
                 stability=getattr(user_config.tts, "stability", 0.8),
                 speed=user_config.tts.speed,
-                similarity_boost=getattr(
-                    user_config.tts, "similarity_boost", 0.75
-                ),
+                similarity_boost=getattr(user_config.tts, "similarity_boost", 0.75),
                 style=getattr(user_config.tts, "style", 0.0),
             ),
         )
@@ -1109,7 +1108,6 @@ def create_tts_service(
         )
 
 
-
 def _with_backups(primary, backups: list, component: str):
     """Return the primary, or a switcher that fails over to the backups.
 
@@ -1157,7 +1155,9 @@ def create_tts_service_with_backups(
     primary = create_tts_service(user_config, audio_config, correlation_id)
     backups = [
         create_tts_service(
-            user_config.model_copy(update={"tts": section}), audio_config, correlation_id
+            user_config.model_copy(update={"tts": section}),
+            audio_config,
+            correlation_id,
         )
         for section in getattr(user_config, "fallback_tts", None) or []
     ]

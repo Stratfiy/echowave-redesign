@@ -37,7 +37,8 @@ def _branches() -> dict[str, str]:
     source = _FACTORY.read_text()
     tree = ast.parse(source)
     fn = next(
-        n for n in tree.body
+        n
+        for n in tree.body
         if isinstance(n, ast.FunctionDef) and n.name == "create_tts_service"
     )
     body = ast.get_source_segment(source, fn) or ""

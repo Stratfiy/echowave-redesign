@@ -18,7 +18,9 @@ _FACTORY = (
     Path(__file__).resolve().parents[1] / "services" / "pipecat" / "service_factory.py"
 )
 _SOURCE = _FACTORY.read_text()
-_PIPECAT_SERVICES = Path(__file__).resolve().parents[2] / "pipecat" / "src" / "pipecat" / "services"
+_PIPECAT_SERVICES = (
+    Path(__file__).resolve().parents[2] / "pipecat" / "src" / "pipecat" / "services"
+)
 
 
 def _stt_branches() -> dict[str, str]:
