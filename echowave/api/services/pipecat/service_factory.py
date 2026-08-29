@@ -1072,10 +1072,15 @@ def _llm_tuning(
     settings and no existing call changes. A provider that passed no temperature
     at all keeps passing none.
 
-    ``max_tokens`` is omitted unless set: every settings class here descends
-    from ``BaseOpenAILLMService.Settings`` (or declares its own) and treats an
-    absent value as the provider's default, which is not the same as a number
-    we invented.
+    ``max_tokens`` is omitted unless set: every settings class here inherits
+    the OpenAI-shaped settings base (or declares its own) and treats an absent
+    value as the provider's default, which is not the same as a number we
+    invented.
+
+    (The base class is described rather than named. ``test_every_service_is_priced``
+    derives "every service the factory can build" by regex over this file's
+    source, so spelling a ``*Service`` class name in a comment invents a service
+    that needs a rate row -- the same trap ``_carry`` records below.)
     """
     tuning: dict = {}
     resolved = temperature if temperature is not None else default_temperature
@@ -1210,6 +1215,24 @@ def create_llm_service_from_provider(
             base_url=base_url,
             api_key=api_key or "none",
             settings=SpeachesLLMSettings(
+                model=model, **_llm_tuning(temperature, max_tokens)
+            ),
+        )
+    elif provider == ServiceProviders.CUSTOM_LLM.value:
+        # Built by OpenAILLMService because that is what "OpenAI-compatible"
+        # means; the base_url is the whole configuration. Validated like every
+        # other customer-supplied endpoint -- this one is by definition a URL we
+        # have never seen, so the SSRF guard matters more here than anywhere.
+        if not base_url:
+            raise HTTPException(
+                status_code=400,
+                detail="base_url is required for a custom LLM endpoint",
+            )
+        _validate_runtime_service_url(base_url, "base_url")
+        return OpenAILLMService(
+            api_key=api_key or "none",
+            base_url=base_url,
+            settings=OpenAILLMSettings(
                 model=model, **_llm_tuning(temperature, max_tokens)
             ),
         )
@@ -1516,6 +1539,8 @@ def create_llm_service(user_config, correlation_id: str | None = None):
     elif provider == ServiceProviders.AZURE.value:
         _carry(kwargs, user_config.llm, "endpoint")
     elif provider == ServiceProviders.SPEACHES.value:
+        _carry(kwargs, user_config.llm, "base_url")
+    elif provider == ServiceProviders.CUSTOM_LLM.value:
         _carry(kwargs, user_config.llm, "base_url")
     elif provider == ServiceProviders.HUGGINGFACE.value:
         _carry(kwargs, user_config.llm, "base_url", "bill_to")

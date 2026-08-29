@@ -9,6 +9,7 @@ from pydantic import (
     PrivateAttr,
     computed_field,
     field_validator,
+    model_validator,
 )
 
 from api.services.configuration.options import (
@@ -107,6 +108,7 @@ class ServiceProviders(str, Enum):
     AZURE_REALTIME = "azure_realtime"
     SMALLEST = "smallest"
     XAI = "xai"
+    CUSTOM_LLM = "custom_llm"
 
 
 class BaseServiceConfiguration(BaseModel):
@@ -138,6 +140,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.SARVAM,
         ServiceProviders.SMALLEST,
         ServiceProviders.XAI,
+        ServiceProviders.CUSTOM_LLM,
     ]
     # Stays required. A vault-backed slot sends an explicit empty string, which
     # satisfies this and is a different statement from omitting the field: it
@@ -424,6 +427,13 @@ def provider_model_config(
 
 # Suggested models for each provider (used for UI dropdown)
 OPENAI_PROVIDER_MODEL_CONFIG = provider_model_config("OpenAI")
+CUSTOM_LLM_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Custom LLM",
+    description=(
+        "Any OpenAI-compatible chat-completions endpoint: a self-hosted "
+        "model, a gateway, or a provider we do not list yet."
+    ),
+)
 GOOGLE_PROVIDER_MODEL_CONFIG = provider_model_config("Google")
 GROQ_PROVIDER_MODEL_CONFIG = provider_model_config("Groq")
 OPENROUTER_PROVIDER_MODEL_CONFIG = provider_model_config("Open Router")
@@ -740,6 +750,57 @@ class SpeachesLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
         default=None,
         description="Usually not required for self-hosted endpoints. Leave blank unless your server enforces one.",
     )
+
+
+@register_llm
+class CustomLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
+    """Any OpenAI-compatible chat-completions endpoint.
+
+    Distinct from Speaches, which is a specific self-hosted product with its
+    own default endpoint and model list. This is the escape hatch: a gateway, a
+    fine-tune, or a vendor we have not added yet. Both are built by the same
+    OpenAI-shaped service class, so the only thing this really adds is a name
+    that tells a customer the option exists -- which was the whole gap, since
+    pointing `openai` at your own base_url already worked and nobody could tell.
+    """
+
+    model_config = CUSTOM_LLM_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.CUSTOM_LLM] = ServiceProviders.CUSTOM_LLM
+    model: str = Field(
+        description=(
+            "Model name exactly as your endpoint expects it in the request body."
+        ),
+        json_schema_extra={"allow_custom_input": True},
+    )
+    base_url: str = Field(
+        description=(
+            "Base URL of the OpenAI-compatible endpoint, including the version "
+            "segment (e.g. https://your-gateway.example.com/v1)."
+        ),
+    )
+    api_key: str | list[str] | None = Field(
+        default=None,
+        description=(
+            "Bearer token your endpoint expects. Leave blank if it needs none."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def reject_platform_key(self):
+        """There is no platform key for somebody else's endpoint.
+
+        Left allowed this is a silent billing error rather than a failed call:
+        the factory builds this with the OpenAI service class, so usage would
+        be attributed to OpenAI and metered at OpenAI's rate for an endpoint we
+        neither run nor pay for. Refusing it at save time is the difference
+        between an error someone reads and a margin figure nobody checks.
+        """
+        if self.use_platform_key:
+            raise ValueError(
+                "A custom LLM endpoint runs on your own key. Leave the "
+                "platform-key option off and supply the endpoint's own token."
+            )
+        return self
 
 
 HUGGINGFACE_LLM_MODELS = [
