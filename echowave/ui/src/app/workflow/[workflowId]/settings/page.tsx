@@ -48,8 +48,11 @@ import {
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     DEFAULT_TURN_START_MIN_WORDS,
     DEFAULT_USER_SPEECH_TIMEOUT,
+    LATENCY_PRESETS,
+    type LatencyPreset,
     DEFAULT_VOICEMAIL_DETECTION_CONFIGURATION,
     MAX_USER_SPEECH_TIMEOUT,
+    matchLatencyPreset,
     MIN_USER_SPEECH_TIMEOUT,
     resolveWorkflowConfigurations,
     TURN_START_STRATEGY_OPTIONS,
@@ -305,6 +308,22 @@ function GeneralSection({
     );
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+
+    // Derived, never stored: the preset is a reading of the three numbers, so
+    // a workflow tuned by hand keeps its values and simply reads as Custom.
+    const activePreset = matchLatencyPreset({
+        user_speech_timeout: userSpeechTimeout,
+        smart_turn_stop_secs: smartTurnStopSecs,
+        turn_start_min_words: turnStartMinWords,
+    });
+
+    const applyLatencyPreset = (preset: LatencyPreset) => {
+        const { user_speech_timeout, smart_turn_stop_secs, turn_start_min_words } =
+            LATENCY_PRESETS[preset].values;
+        setUserSpeechTimeout(user_speech_timeout);
+        setSmartTurnStopSecs(smart_turn_stop_secs);
+        setTurnStartMinWords(turn_start_min_words);
+    };
     const [audioUploadError, setAudioUploadError] = useState<string | null>(null);
     const ambientFileInputRef = useRef<HTMLInputElement>(null);
     const { playingId, toggle: togglePlayback } = useAudioPlayback();
@@ -569,6 +588,48 @@ function GeneralSection({
                             </div>
                         </div>
                     )}
+                </div>
+
+                <Separator />
+
+                {/* Response Rate */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Response Rate</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            How quickly the agent takes its turn. Sets the three timings below together.
+                        </p>
+                    </div>
+                    <div className="space-y-2">
+                        <Select
+                            value={activePreset}
+                            onValueChange={(value) => {
+                                if (value !== "custom") applyLatencyPreset(value as LatencyPreset);
+                            }}
+                        >
+                            <SelectTrigger id="latency_preset">
+                                <SelectValue placeholder="Select a response rate" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {(Object.keys(LATENCY_PRESETS) as LatencyPreset[]).map((key) => (
+                                    <SelectItem key={key} value={key}>
+                                        {LATENCY_PRESETS[key].label}
+                                        {key === "balanced" ? " (Recommended)" : ""}
+                                    </SelectItem>
+                                ))}
+                                {/* Only reachable by moving a slider, so it is
+                                    shown rather than offered. */}
+                                {activePreset === "custom" && (
+                                    <SelectItem value="custom">Custom</SelectItem>
+                                )}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                            {activePreset === "custom"
+                                ? "Your own combination of the timings below. Pick a preset to reset them."
+                                : LATENCY_PRESETS[activePreset].blurb}
+                        </p>
+                    </div>
                 </div>
 
                 <Separator />

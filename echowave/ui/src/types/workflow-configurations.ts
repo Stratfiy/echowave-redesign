@@ -27,6 +27,65 @@ export const MIN_USER_SPEECH_TIMEOUT = 0.15;
 export const MAX_USER_SPEECH_TIMEOUT = 3.0;
 export const DEFAULT_PROVISIONAL_VAD_PAUSE_SECS = 1.5;
 
+/**
+ * Named response-rate settings, in the spirit of Bolna's Rapid/Normal/Patient.
+ *
+ * The three numbers below interact, so exposing them as independent sliders
+ * means every caller who touches one is running a combination nobody has
+ * tested. A preset is a tested tuple with a name, and it collapses that space
+ * to three points plus an escape hatch.
+ *
+ * Deliberately NOT a stored field. The selected preset is derived from the
+ * numbers themselves (see `matchLatencyPreset`), so:
+ *   - no migration, and no new column to keep in sync with the values;
+ *   - a workflow already tuned by hand keeps its numbers and simply reads as
+ *     "Custom" — picking a preset is the only thing that overwrites them;
+ *   - the pipeline keeps reading the same three fields it always did.
+ *
+ * `balanced` is exactly the committed defaults, so every existing workflow
+ * lands on it unchanged.
+ */
+export const LATENCY_PRESETS = {
+    rapid: {
+        label: 'Rapid',
+        blurb: 'Short confirmations and IVR-style flows. Cuts in quickly; will occasionally clip someone who pauses mid-sentence.',
+        values: { user_speech_timeout: 0.2, smart_turn_stop_secs: 1.0, turn_start_min_words: 2 },
+    },
+    balanced: {
+        label: 'Balanced',
+        blurb: 'The default, and what every workflow runs today. Start here and only move if calls tell you to.',
+        values: { user_speech_timeout: DEFAULT_USER_SPEECH_TIMEOUT, smart_turn_stop_secs: 2.0, turn_start_min_words: DEFAULT_TURN_START_MIN_WORDS },
+    },
+    patient: {
+        label: 'Patient',
+        blurb: 'Callers reading out numbers, thinking mid-sentence, or on a noisy line. Waits longer and interrupts less.',
+        values: { user_speech_timeout: 0.8, smart_turn_stop_secs: 3.0, turn_start_min_words: 5 },
+    },
+} as const;
+
+export type LatencyPreset = keyof typeof LATENCY_PRESETS;
+export type LatencyPresetOrCustom = LatencyPreset | 'custom';
+
+/** Which preset these settings correspond to, or 'custom' if none. */
+export function matchLatencyPreset(
+    config: Pick<
+        WorkflowConfigurations,
+        'user_speech_timeout' | 'smart_turn_stop_secs' | 'turn_start_min_words'
+    >,
+): LatencyPresetOrCustom {
+    for (const [name, preset] of Object.entries(LATENCY_PRESETS)) {
+        const v = preset.values;
+        if (
+            config.user_speech_timeout === v.user_speech_timeout
+            && config.smart_turn_stop_secs === v.smart_turn_stop_secs
+            && config.turn_start_min_words === v.turn_start_min_words
+        ) {
+            return name as LatencyPreset;
+        }
+    }
+    return 'custom';
+}
+
 export const TURN_START_STRATEGY_OPTIONS: Array<{
     value: TurnStartStrategy;
     label: string;
