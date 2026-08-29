@@ -666,8 +666,18 @@ def create_tts_service(
         # ElevenLabs TTS consumes the full normalized WebSocket URL. Realtime
         # STT uses the same normalization before adapting it to Pipecat's
         # scheme-less base_url contract.
-        _validate_runtime_service_url(user_config.tts.base_url, "base_url")
-        elevenlabs_url = _elevenlabs_websocket_url(user_config.tts.base_url)
+        # getattr with the class default, not a direct read. After
+        # managed_resolution a section can answer provider == "elevenlabs"
+        # while being a Decibyl tier class, which carries voice and speed but
+        # no endpoint -- reading it directly is an AttributeError at pipeline
+        # build, i.e. a call that connects and dies before its first frame.
+        # Latent while the managed TTS tier points at Sarvam, but MANAGED_TTS_*
+        # repoints tiers from the environment, so it is one ops change away.
+        elevenlabs_base_url = (
+            getattr(user_config.tts, "base_url", None) or "https://api.elevenlabs.io"
+        )
+        _validate_runtime_service_url(elevenlabs_base_url, "base_url")
+        elevenlabs_url = _elevenlabs_websocket_url(elevenlabs_base_url)
         return _create_tts_service_instance(
             user_config.tts.provider,
             ElevenLabsTTSService,
@@ -781,11 +791,14 @@ def create_tts_service(
         tts._settings.language = language
         return tts
     elif user_config.tts.provider == ServiceProviders.SPEACHES.value:
-        _validate_runtime_service_url(user_config.tts.base_url, "base_url")
+        speaches_base_url = (
+            getattr(user_config.tts, "base_url", None) or "http://localhost:8000/v1"
+        )
+        _validate_runtime_service_url(speaches_base_url, "base_url")
         return _create_tts_service_instance(
             user_config.tts.provider,
             SpeachesTTSService,
-            base_url=user_config.tts.base_url,
+            base_url=speaches_base_url,
             api_key=user_config.tts.api_key or "none",
             settings=SpeachesTTSSettings(
                 model=user_config.tts.model,
