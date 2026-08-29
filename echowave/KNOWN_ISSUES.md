@@ -8,20 +8,23 @@ call, not a code change)
 
 Last updated after the compliance and deployment pass.
 
-> **Current test status: `api/tests` is 4,436 passed, 5 failed, 11 skipped,
-> 0 collection errors** (real Postgres 16 + pgvector, real Redis; measured on
-> Python 3.11 — see the caveat below). The five are pre-existing and reproduce
-> identically on the merge base `1a54d22`: three in
-> `test_pipecat_engine_tool_calls.py`, one in `test_user_idle_handler.py`, one
-> in `integrations/test_run_pipeline_text_greeting.py`. All five assert a
-> `MockLLMService` generation count.
+> **Current test status: `api/tests` is fully green -- 4,442 passed, 10
+> skipped, 0 failed, 0 collection errors** on **Python 3.13**, the version
+> `api/pyproject.toml` pins and CI runs, with real Postgres + pgvector and real
+> Redis.
 >
-> The earlier "1,911 passed" figure in this line was stale: collection now
-> finds 4,452 tests, so it was reporting well under half the suite.
+> Two earlier figures in this line were wrong, and both were wrong in the
+> direction of looking finished:
 >
-> **Caveat:** the project requires Python 3.13 and this was run on 3.11.15.
-> Collection was clean and nothing failed in a version-specific way, but a
-> green result here is not a substitute for CI on the pinned interpreter.
+> * "1,911 passed" predated most of the suite -- collection now finds 4,452.
+> * A later "4,436 passed, 5 failed" was measured on Python **3.11**, and all
+>   five of those failures were artifacts of the wrong interpreter. They were
+>   recorded here as pre-existing. They were not.
+>
+> **Run the suite on 3.13.** An older interpreter does not merely emit pydantic
+> noise -- it fails and passes a different set of tests, so a result from one
+> says little about the other. `scripts/setup_requirements.sh --dev` into a
+> 3.13 venv is what CI does.
 
 ---
 
