@@ -1204,7 +1204,10 @@ class DeepgramTTSConfiguration(BaseServiceConfiguration):
             return "aura-2"
 
 
-ELEVENLABS_TTS_MODELS = ["eleven_flash_v2_5"]
+#: eleven_v3_conversational is the low-latency v3 tuned for realtime speech
+#: (~280ms, 70+ languages). Same $0.05/1k characters as Flash, so it is a
+#: quality choice rather than a cost one.
+ELEVENLABS_TTS_MODELS = ["eleven_flash_v2_5", "eleven_v3_conversational"]
 
 
 @register_tts

@@ -414,6 +414,19 @@ TTS_RATES = (
     # provider-wide one above — so an account on multilingual was billed at
     # half what it cost us. The only case in this file where the card was
     # knowingly under the vendor.
+    # Priced explicitly even though it matches the provider-wide row today.
+    # Without it the catalogue marks the model priced_by_fallback, which is the
+    # flag meaning "check this one" -- and it would silently follow the Flash
+    # rate if that ever moved.
+    DefaultRate(
+        "elevenlabs",
+        "eleven_v3_conversational",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        0.0500,
+        "v3 Conversational $0.05/1k chars, same as Flash. Low-latency v3 for "
+        "realtime speech.",
+    ),
     DefaultRate(
         "elevenlabs",
         "eleven_multilingual_v2",
