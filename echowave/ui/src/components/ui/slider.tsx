@@ -14,6 +14,11 @@ import { cn } from "@/lib/utils"
  * timeout needs to know they are at 0.4s, not somewhere left of centre — so
  * `unit` is rendered next to the number and `hint` carries the sentence that
  * says what moving it does.
+ *
+ * `presetOf` marks a slider some preset above it also writes. Without it the
+ * preset appears to do nothing: the controls it sets are conditionally
+ * rendered and sit under other headings, so choosing one can visibly change
+ * a slider two sections away, or none that are currently on screen.
  */
 function Slider({
   id,
@@ -24,6 +29,7 @@ function Slider({
   step,
   unit,
   hint,
+  presetOf,
   onValueChange,
   className,
   disabled,
@@ -37,6 +43,8 @@ function Slider({
   step: number
   unit?: string
   hint?: React.ReactNode
+  /** Name of the preset control that also writes this value, e.g. "Response Rate". */
+  presetOf?: string
   onValueChange: (value: number) => void
   className?: string
   disabled?: boolean
@@ -59,9 +67,16 @@ function Slider({
         )}
       >
         {label ? (
-          <label htmlFor={id} className="text-xs font-medium">
-            {label}
-          </label>
+          <span className="flex min-w-0 items-baseline gap-2">
+            <label htmlFor={id} className="text-xs font-medium">
+              {label}
+            </label>
+            {presetOf ? (
+              <span className="shrink-0 rounded border px-1.5 py-px text-[10px] leading-4 text-muted-foreground">
+                {presetOf}
+              </span>
+            ) : null}
+          </span>
         ) : null}
         <span className="text-xs tabular-nums text-muted-foreground">
           {value.toFixed(decimals)}

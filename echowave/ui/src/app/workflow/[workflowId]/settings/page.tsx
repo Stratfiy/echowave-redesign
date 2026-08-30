@@ -618,7 +618,9 @@ function GeneralSection({
                     <div>
                         <h3 className="text-sm font-medium">Response Rate</h3>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                            How quickly the agent takes its turn. Sets the three timings below together.
+                            How quickly the agent takes its turn. Writes the three
+                            timings marked <span className="rounded border px-1 py-px text-[10px] leading-4">Response Rate</span> below;
+                            which of them are shown depends on the strategies you pick.
                         </p>
                     </div>
                     <div className="space-y-2">
@@ -688,6 +690,7 @@ function GeneralSection({
                     {turnStopStrategy === "turn_analyzer" && (
                         <Slider
                             id="smart_turn_stop_secs"
+                            presetOf="Response Rate"
                             label="Incomplete Turn Timeout"
                             unit="s"
                             min={0.5}
@@ -701,6 +704,7 @@ function GeneralSection({
                     {turnStopStrategy === "transcription" && (
                         <Slider
                             id="user_speech_timeout"
+                            presetOf="Response Rate"
                             label="Endpointing Delay"
                             unit="s"
                             min={MIN_USER_SPEECH_TIMEOUT}
@@ -747,6 +751,7 @@ function GeneralSection({
                     {turnStartStrategy === "min_words" && (
                         <Slider
                             id="turn_start_min_words"
+                            presetOf="Response Rate"
                             label="Minimum Words Before Interruption"
                             unit=" words"
                             min={1}
