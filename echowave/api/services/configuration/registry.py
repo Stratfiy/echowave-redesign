@@ -1204,10 +1204,25 @@ class DeepgramTTSConfiguration(BaseServiceConfiguration):
             return "aura-2"
 
 
-#: eleven_v3_conversational is the low-latency v3 tuned for realtime speech
-#: (~280ms, 70+ languages). Same $0.05/1k characters as Flash, so it is a
-#: quality choice rather than a cost one.
-ELEVENLABS_TTS_MODELS = ["eleven_flash_v2_5", "eleven_v3_conversational"]
+#: What a voice agent can use, which is narrower than what ElevenLabs sells.
+#:
+#:   eleven_flash_v2_5        ~75ms, 32 languages, $0.05/1k. The workhorse.
+#:   eleven_v3_conversational ~280ms, 70+ languages, $0.05/1k. The realtime v3;
+#:                            a quality choice rather than a cost one.
+#:   eleven_multilingual_v2   29 languages, $0.10/1k. The vendor calls it their
+#:                            most stable on long-form. Priced at twice Flash,
+#:                            which is why its own rate row matters.
+#:
+#: Left out on purpose: eleven_v3 is dramatic rather than realtime and caps at
+#: 5,000 characters; eleven_flash_v2 is English-only where v2_5 covers 32
+#: languages at the same latency; the turbo models are deprecated by the vendor
+#: in favour of Flash; scribe_v2 is batch, not live. The voice-design, voice
+#: changer, music and sound-effect models are not pipeline components.
+ELEVENLABS_TTS_MODELS = [
+    "eleven_flash_v2_5",
+    "eleven_v3_conversational",
+    "eleven_multilingual_v2",
+]
 
 
 @register_tts

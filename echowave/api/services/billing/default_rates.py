@@ -414,6 +414,21 @@ TTS_RATES = (
     # provider-wide one above — so an account on multilingual was billed at
     # half what it cost us. The only case in this file where the card was
     # knowingly under the vendor.
+    # Named even though the provider-wide row above is already its price. That
+    # row exists to catch a model we have not listed; leaving Flash to inherit
+    # it means the catalogue flags our most-used voice model priced_by_fallback
+    # -- the flag that means "check this" -- and that Flash would follow the
+    # default anywhere it moved. Every model in ELEVENLABS_TTS_MODELS carries
+    # its own row, and a test holds that.
+    DefaultRate(
+        "elevenlabs",
+        "eleven_flash_v2_5",
+        CostComponent.TTS,
+        RateUnit.THOUSAND_CHARS,
+        0.0500,
+        "Flash v2.5 $0.05/1k chars, ~75ms. The provider-wide row is the same "
+        "price and stays as the catch-all for anything unlisted.",
+    ),
     # Priced explicitly even though it matches the provider-wide row today.
     # Without it the catalogue marks the model priced_by_fallback, which is the
     # flag meaning "check this one" -- and it would silently follow the Flash
