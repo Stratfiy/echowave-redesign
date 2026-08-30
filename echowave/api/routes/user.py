@@ -16,7 +16,7 @@ from api.schemas.workflow_configurations import (
     get_default_workflow_configurations,
 )
 from api.services.auth.depends import get_user
-from api.services.configuration import voice_catalogue
+from api.services.configuration import vendor_voices, voice_catalogue
 from api.services.configuration.ai_model_configuration import (
     convert_legacy_ai_model_configuration_to_v2,
     get_resolved_ai_model_configuration,
@@ -466,6 +466,50 @@ class VoicesResponse(BaseModel):
     facets: VoiceFacets | None = None
 
 
+def _vendor_voices_response(
+    provider: str,
+    voices: list[vendor_voices.VendorVoice],
+    q: str | None,
+    gender: str | None,
+) -> VoicesResponse:
+    """Filter and shape a vendor's own list the way the local catalogue is.
+
+    The same search and gender narrowing the picker already sends, applied here
+    so a fetched list behaves like a built-in one rather than ignoring the
+    controls above it.
+    """
+    needle = (q or "").strip().lower()
+    wanted = (gender or "").strip().lower()
+
+    matched = [
+        v
+        for v in voices
+        if (not needle or needle in v.name.lower())
+        and (not wanted or (v.gender or "").lower() == wanted)
+    ]
+
+    return VoicesResponse(
+        provider=provider,
+        voices=[
+            VoiceInfo(
+                voice_id=v.voice_id,
+                name=v.name,
+                description=v.description,
+                accent=v.accent,
+                gender=v.gender,
+                language=v.language,
+                preview_url=v.preview_url,
+            )
+            for v in matched
+        ],
+        facets=VoiceFacets(
+            genders=sorted({v.gender for v in voices if v.gender}),
+            accents=sorted({v.accent for v in voices if v.accent}),
+            languages=sorted({v.language for v in voices if v.language}),
+        ),
+    )
+
+
 @router.get("/configurations/voices/{provider}")
 async def get_voices(
     provider: TTSProvider,
@@ -483,6 +527,16 @@ async def get_voices(
     unconfigurable — and an agent with no voice cannot place a call.
     """
     try:
+        # Providers whose voices live in an account rather than in our code are
+        # asked directly, on the platform key. A managed customer holds no key
+        # of their own -- that is what managed means -- so the alternative is
+        # telling them to fetch one from the vendor, which is the errand they
+        # are paying us not to run.
+        if vendor_voices.can_fetch(provider):
+            fetched = await vendor_voices.fetch(provider)
+            if fetched:
+                return _vendor_voices_response(provider, fetched, q, gender)
+
         catalogue = voice_catalogue.filtered(provider, model=model, q=q, gender=gender)
         return VoicesResponse(
             provider=catalogue.provider,
