@@ -323,13 +323,9 @@ function GeneralSection({
         workflowConfigurations.fallback_stt ?? [],
     );
     // Advanced starts open only when it already holds something non-default,
-    // so nothing a person set is hidden behind a closed group. All three of
-    // these default to false server-side: ambient noise enabled, context
-    // compaction enabled, and transcript end timestamps.
-    const advancedTouched =
-        Boolean(ambientNoiseConfig?.enabled) ||
-        contextCompactionEnabled ||
-        includeTranscriptEndTimestamps;
+    // so nothing a person set is hidden behind a closed group. Both default to
+    // false server-side: context compaction enabled, transcript end timestamps.
+    const advancedTouched = contextCompactionEnabled || includeTranscriptEndTimestamps;
 
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingAudio, setIsUploadingAudio] = useState(false);
@@ -756,9 +752,9 @@ function GeneralSection({
                 </SettingsGroup>
                 <Separator />
                 <SettingsGroup
-                    title="Advanced"
-                    blurb="Background audio, transcript detail, and context handling."
-                    defaultOpen={advancedTouched}
+                    title="Audio"
+                    blurb="What the caller hears behind the agent."
+                    defaultOpen={true}
                 >
                 {/* Ambient Noise */}
                 <div className="space-y-4">
@@ -884,8 +880,13 @@ function GeneralSection({
                         </div>
                     )}
                 </div>
-
-                        <Separator />
+                </SettingsGroup>
+                <Separator />
+                <SettingsGroup
+                    title="Advanced"
+                    blurb="Transcript detail and how a long conversation is kept in context."
+                    defaultOpen={advancedTouched}
+                >
                 {/* Transcript */}
                 <div className="space-y-4">
                     <div>
