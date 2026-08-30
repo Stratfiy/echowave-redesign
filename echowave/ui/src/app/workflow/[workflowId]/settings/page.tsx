@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowLeft, BookA, Brain, CalendarIcon, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, Mic, Pause, PhoneOff, Play, Rocket, Settings, Trash2Icon, Upload, Variable, X } from "lucide-react";
+import { ArrowLeft, BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, Mic, Pause, PhoneOff, Play, Rocket, Settings, Trash2Icon, Upload, Variable, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -31,6 +31,7 @@ import SpinLoader from "@/components/SpinLoader";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -321,6 +322,11 @@ function GeneralSection({
     const [fallbackStt, setFallbackStt] = useState<FallbackService[]>(
         workflowConfigurations.fallback_stt ?? [],
     );
+    // Advanced starts open only when it already holds something non-default,
+    // so nothing a person set is hidden behind a closed group. Both default to
+    // false server-side: context compaction enabled, transcript end timestamps.
+    const advancedTouched = contextCompactionEnabled || includeTranscriptEndTimestamps;
+
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingAudio, setIsUploadingAudio] = useState(false);
 
@@ -485,7 +491,271 @@ function GeneralSection({
                 </div>
 
                 <Separator />
+                <SettingsGroup
+                    title="Conversation"
+                    blurb="How the agent takes turns, and when a caller can cut in."
+                    defaultOpen={true}
+                >
+                {/* Response Rate */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Response Rate</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            How quickly the agent takes its turn. Writes the three
+                            timings marked <span className="rounded border px-1 py-px text-[10px] leading-4">Response Rate</span> below;
+                            which of them are shown depends on the strategies you pick.
+                        </p>
+                    </div>
+                    <div className="space-y-2">
+                        <Select
+                            value={activePreset}
+                            onValueChange={(value) => {
+                                if (value !== "custom") applyLatencyPreset(value as LatencyPreset);
+                            }}
+                        >
+                            <SelectTrigger id="latency_preset">
+                                <SelectValue placeholder="Select a response rate" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {(Object.keys(LATENCY_PRESETS) as LatencyPreset[]).map((key) => (
+                                    <SelectItem key={key} value={key}>
+                                        {LATENCY_PRESETS[key].label}
+                                        {key === "balanced" ? " (Recommended)" : ""}
+                                    </SelectItem>
+                                ))}
+                                {/* Only reachable by moving a slider, so it is
+                                    shown rather than offered. */}
+                                {activePreset === "custom" && (
+                                    <SelectItem value="custom">Custom</SelectItem>
+                                )}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                            {activePreset === "custom"
+                                ? "Your own combination of the timings below. Pick a preset to reset them."
+                                : LATENCY_PRESETS[activePreset].blurb}
+                        </p>
+                    </div>
+                </div>
 
+                        <Separator />
+                {/* Turn Detection */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Turn Detection</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Configure how the agent detects when the user has finished speaking.
+                        </p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="turn_stop_strategy" className="text-xs">Detection Strategy</Label>
+                        <Select
+                            value={turnStopStrategy}
+                            onValueChange={(value: TurnStopStrategy) => setTurnStopStrategy(value)}
+                        >
+                            <SelectTrigger id="turn_stop_strategy">
+                                <SelectValue placeholder="Select strategy" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="turn_analyzer">
+                                    Smart Turn Analyzer (Recommended)
+                                </SelectItem>
+                                <SelectItem value="transcription">Silence timeout</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                            {turnStopStrategy === "transcription"
+                                ? "Waits a fixed silence after every turn, whether or not the caller had obviously finished. Predictable, but that wait is paid even on a one-word answer."
+                                : "A local model judges whether the sentence sounds finished, and only waits out the silence below when it is unsure. Quick on a finished sentence, patient on an ambiguous one — about 12ms to decide."}
+                        </p>
+                    </div>
+                    {turnStopStrategy === "turn_analyzer" && (
+                        <Slider
+                            id="smart_turn_stop_secs"
+                            presetOf="Response Rate"
+                            label="Incomplete Turn Timeout"
+                            unit="s"
+                            min={0.5}
+                            max={10}
+                            step={0.5}
+                            value={smartTurnStopSecs}
+                            onValueChange={setSmartTurnStopSecs}
+                            hint="How long to wait when the analyzer is unsure the caller has finished. Only reached on an ambiguous turn. Default: 2s"
+                        />
+                    )}
+                    {turnStopStrategy === "transcription" && (
+                        <Slider
+                            id="user_speech_timeout"
+                            presetOf="Response Rate"
+                            label="Endpointing Delay"
+                            unit="s"
+                            min={MIN_USER_SPEECH_TIMEOUT}
+                            max={MAX_USER_SPEECH_TIMEOUT}
+                            step={0.05}
+                            value={userSpeechTimeout}
+                            onValueChange={setUserSpeechTimeout}
+                            hint={`Silence to wait after the caller stops, on top of the VAD's own 0.2s, before the turn ends. Paid on every turn, so it sets a floor under response time that no faster model can recover. Below ${MIN_USER_SPEECH_TIMEOUT}s it starts cutting people off mid-sentence. Ignored when the transcriber reports its own turn boundaries. Default: ${DEFAULT_USER_SPEECH_TIMEOUT}s`}
+                        />
+                    )}
+                </div>
+
+                        <Separator />
+                {/* Interruption */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Interruption</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Configure when user speech should interrupt the agent while it is speaking.
+                        </p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="turn_start_strategy" className="text-xs">Interruption Strategy</Label>
+                        <Select
+                            value={turnStartStrategy}
+                            onValueChange={(value: TurnStartStrategy) => setTurnStartStrategy(value)}
+                        >
+                            <SelectTrigger id="turn_start_strategy">
+                                <SelectValue placeholder="Select strategy" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {TURN_START_STRATEGY_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                            {selectedTurnStartStrategy?.description}
+                        </p>
+                    </div>
+                    {turnStartStrategy === "min_words" && (
+                        <Slider
+                            id="turn_start_min_words"
+                            presetOf="Response Rate"
+                            label="Minimum Words Before Interruption"
+                            unit=" words"
+                            min={1}
+                            max={10}
+                            step={1}
+                            value={turnStartMinWords}
+                            onValueChange={setTurnStartMinWords}
+                            hint={`Transcribed words needed to interrupt the agent. Raise it so a cough, a "mhm" or background speech no longer cuts the agent off mid-sentence. Default: ${DEFAULT_TURN_START_MIN_WORDS}`}
+                        />
+                    )}
+                    <Slider
+                        id="interruption_backoff_secs"
+                        label="Pause After Being Interrupted"
+                        unit="s"
+                        min={0}
+                        max={3}
+                        step={0.1}
+                        value={interruptionBackoffSecs}
+                        onValueChange={setInterruptionBackoffSecs}
+                        hint="How long to wait before the agent speaks again after the caller cuts in, so a short interruption is not answered before they have finished. Usually costs nothing: the caller finishing, the turn being detected and the reply being generated normally take longer than this. 0 turns it off entirely."
+                    />
+                    {turnStartStrategy === "provisional_vad" && (
+                        <Slider
+                            id="provisional_vad_pause_secs"
+                            label="Provisional Pause"
+                            unit="s"
+                            min={0.1}
+                            max={5}
+                            step={0.1}
+                            value={provisionalVadPauseSecs}
+                            onValueChange={setProvisionalVadPauseSecs}
+                            hint={`How long to pause the agent's audio while waiting for the transcript to confirm the caller really spoke. Default: ${DEFAULT_PROVISIONAL_VAD_PAUSE_SECS}s`}
+                        />
+                    )}
+                </div>
+
+                </SettingsGroup>
+                <Separator />
+                <SettingsGroup
+                    title="Reliability and limits"
+                    blurb="What happens when a provider fails, and when a call should end."
+                    defaultOpen={true}
+                >
+                {/* Fallbacks */}
+                <div className="space-y-5">
+                    <div>
+                        <h3 className="text-sm font-medium">Fallbacks</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Where the call goes if a provider fails while someone is on the
+                            line. Tried in order, and only for a provider reporting a problem
+                            it expects to survive — a provider saying the call cannot
+                            continue still ends it.
+                        </p>
+                    </div>
+
+                    <FallbackChain
+                        label="Voice"
+                        kind="tts"
+                        description="A voice that stops mid-sentence is dead air, which is the worst thing a caller can be handed."
+                        schemas={modelConfigurationDefaults?.byok?.pipeline?.tts}
+                        value={fallbackTts}
+                        onChange={setFallbackTts}
+                    />
+
+                    <FallbackChain
+                        label="Transcriber"
+                        kind="stt"
+                        description="A transcriber that fails leaves the agent unable to hear, so it waits through a caller who is already talking."
+                        schemas={modelConfigurationDefaults?.byok?.pipeline?.stt}
+                        value={fallbackStt}
+                        onChange={setFallbackStt}
+                    />
+                </div>
+
+                        <Separator />
+                {/* Call Management */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Call Management</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Configure call duration limits and idle timeout settings.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="max_call_duration" className="text-xs">Max Call Duration (seconds)</Label>
+                            <Input
+                                id="max_call_duration"
+                                type="number"
+                                min="1"
+                                value={maxCallDuration}
+                                onChange={(e) => {
+                                    const value = parseInt(e.target.value);
+                                    if (!isNaN(value) && value > 0) setMaxCallDuration(value);
+                                }}
+                            />
+                            <p className="text-xs text-muted-foreground">Default: 600 (10 minutes)</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="max_user_idle_timeout" className="text-xs">
+                                Max User Idle Timeout (seconds)
+                            </Label>
+                            <Input
+                                id="max_user_idle_timeout"
+                                type="number"
+                                min="1"
+                                value={maxUserIdleTimeout}
+                                onChange={(e) => {
+                                    const value = parseInt(e.target.value);
+                                    if (!isNaN(value) && value > 0) setMaxUserIdleTimeout(value);
+                                }}
+                            />
+                            <p className="text-xs text-muted-foreground">Default: 10 seconds</p>
+                        </div>
+                    </div>
+                </div>
+                </SettingsGroup>
+                <Separator />
+                <SettingsGroup
+                    title="Audio"
+                    blurb="What the caller hears behind the agent."
+                    defaultOpen={true}
+                >
                 {/* Ambient Noise */}
                 <div className="space-y-4">
                     <div>
@@ -610,181 +880,13 @@ function GeneralSection({
                         </div>
                     )}
                 </div>
-
+                </SettingsGroup>
                 <Separator />
-
-                {/* Response Rate */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Response Rate</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            How quickly the agent takes its turn. Sets the three timings below together.
-                        </p>
-                    </div>
-                    <div className="space-y-2">
-                        <Select
-                            value={activePreset}
-                            onValueChange={(value) => {
-                                if (value !== "custom") applyLatencyPreset(value as LatencyPreset);
-                            }}
-                        >
-                            <SelectTrigger id="latency_preset">
-                                <SelectValue placeholder="Select a response rate" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {(Object.keys(LATENCY_PRESETS) as LatencyPreset[]).map((key) => (
-                                    <SelectItem key={key} value={key}>
-                                        {LATENCY_PRESETS[key].label}
-                                        {key === "balanced" ? " (Recommended)" : ""}
-                                    </SelectItem>
-                                ))}
-                                {/* Only reachable by moving a slider, so it is
-                                    shown rather than offered. */}
-                                {activePreset === "custom" && (
-                                    <SelectItem value="custom">Custom</SelectItem>
-                                )}
-                            </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                            {activePreset === "custom"
-                                ? "Your own combination of the timings below. Pick a preset to reset them."
-                                : LATENCY_PRESETS[activePreset].blurb}
-                        </p>
-                    </div>
-                </div>
-
-                <Separator />
-
-                {/* Turn Detection */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Turn Detection</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Configure how the agent detects when the user has finished speaking.
-                        </p>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="turn_stop_strategy" className="text-xs">Detection Strategy</Label>
-                        <Select
-                            value={turnStopStrategy}
-                            onValueChange={(value: TurnStopStrategy) => setTurnStopStrategy(value)}
-                        >
-                            <SelectTrigger id="turn_stop_strategy">
-                                <SelectValue placeholder="Select strategy" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="turn_analyzer">
-                                    Smart Turn Analyzer (Recommended)
-                                </SelectItem>
-                                <SelectItem value="transcription">Silence timeout</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                            {turnStopStrategy === "transcription"
-                                ? "Waits a fixed silence after every turn, whether or not the caller had obviously finished. Predictable, but that wait is paid even on a one-word answer."
-                                : "A local model judges whether the sentence sounds finished, and only waits out the silence below when it is unsure. Quick on a finished sentence, patient on an ambiguous one — about 12ms to decide."}
-                        </p>
-                    </div>
-                    {turnStopStrategy === "turn_analyzer" && (
-                        <Slider
-                            id="smart_turn_stop_secs"
-                            label="Incomplete Turn Timeout"
-                            unit="s"
-                            min={0.5}
-                            max={10}
-                            step={0.5}
-                            value={smartTurnStopSecs}
-                            onValueChange={setSmartTurnStopSecs}
-                            hint="How long to wait when the analyzer is unsure the caller has finished. Only reached on an ambiguous turn. Default: 2s"
-                        />
-                    )}
-                    {turnStopStrategy === "transcription" && (
-                        <Slider
-                            id="user_speech_timeout"
-                            label="Endpointing Delay"
-                            unit="s"
-                            min={MIN_USER_SPEECH_TIMEOUT}
-                            max={MAX_USER_SPEECH_TIMEOUT}
-                            step={0.05}
-                            value={userSpeechTimeout}
-                            onValueChange={setUserSpeechTimeout}
-                            hint={`Silence to wait after the caller stops, on top of the VAD's own 0.2s, before the turn ends. Paid on every turn, so it sets a floor under response time that no faster model can recover. Below ${MIN_USER_SPEECH_TIMEOUT}s it starts cutting people off mid-sentence. Ignored when the transcriber reports its own turn boundaries. Default: ${DEFAULT_USER_SPEECH_TIMEOUT}s`}
-                        />
-                    )}
-                </div>
-
-                <Separator />
-
-                {/* Interruption */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Interruption</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Configure when user speech should interrupt the agent while it is speaking.
-                        </p>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="turn_start_strategy" className="text-xs">Interruption Strategy</Label>
-                        <Select
-                            value={turnStartStrategy}
-                            onValueChange={(value: TurnStartStrategy) => setTurnStartStrategy(value)}
-                        >
-                            <SelectTrigger id="turn_start_strategy">
-                                <SelectValue placeholder="Select strategy" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {TURN_START_STRATEGY_OPTIONS.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                        {option.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                            {selectedTurnStartStrategy?.description}
-                        </p>
-                    </div>
-                    {turnStartStrategy === "min_words" && (
-                        <Slider
-                            id="turn_start_min_words"
-                            label="Minimum Words Before Interruption"
-                            unit=" words"
-                            min={1}
-                            max={10}
-                            step={1}
-                            value={turnStartMinWords}
-                            onValueChange={setTurnStartMinWords}
-                            hint={`Transcribed words needed to interrupt the agent. Raise it so a cough, a "mhm" or background speech no longer cuts the agent off mid-sentence. Default: ${DEFAULT_TURN_START_MIN_WORDS}`}
-                        />
-                    )}
-                    <Slider
-                        id="interruption_backoff_secs"
-                        label="Pause After Being Interrupted"
-                        unit="s"
-                        min={0}
-                        max={3}
-                        step={0.1}
-                        value={interruptionBackoffSecs}
-                        onValueChange={setInterruptionBackoffSecs}
-                        hint="How long to wait before the agent speaks again after the caller cuts in, so a short interruption is not answered before they have finished. Usually costs nothing: the caller finishing, the turn being detected and the reply being generated normally take longer than this. 0 turns it off entirely."
-                    />
-                    {turnStartStrategy === "provisional_vad" && (
-                        <Slider
-                            id="provisional_vad_pause_secs"
-                            label="Provisional Pause"
-                            unit="s"
-                            min={0.1}
-                            max={5}
-                            step={0.1}
-                            value={provisionalVadPauseSecs}
-                            onValueChange={setProvisionalVadPauseSecs}
-                            hint={`How long to pause the agent's audio while waiting for the transcript to confirm the caller really spoke. Default: ${DEFAULT_PROVISIONAL_VAD_PAUSE_SECS}s`}
-                        />
-                    )}
-                </div>
-
-                <Separator />
-
+                <SettingsGroup
+                    title="Advanced"
+                    blurb="Transcript detail and how a long conversation is kept in context."
+                    defaultOpen={advancedTouched}
+                >
                 {/* Transcript */}
                 <div className="space-y-4">
                     <div>
@@ -811,8 +913,7 @@ function GeneralSection({
                     </div>
                 </div>
 
-                <Separator />
-
+                        <Separator />
                 {/* Context Compaction */}
                 <div className="space-y-4">
                     <div>
@@ -833,82 +934,7 @@ function GeneralSection({
                     </div>
                 </div>
 
-                <Separator />
-
-                {/* Fallbacks */}
-                <div className="space-y-5">
-                    <div>
-                        <h3 className="text-sm font-medium">Fallbacks</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Where the call goes if a provider fails while someone is on the
-                            line. Tried in order, and only for a provider reporting a problem
-                            it expects to survive — a provider saying the call cannot
-                            continue still ends it.
-                        </p>
-                    </div>
-
-                    <FallbackChain
-                        label="Voice"
-                        kind="tts"
-                        description="A voice that stops mid-sentence is dead air, which is the worst thing a caller can be handed."
-                        schemas={modelConfigurationDefaults?.byok?.pipeline?.tts}
-                        value={fallbackTts}
-                        onChange={setFallbackTts}
-                    />
-
-                    <FallbackChain
-                        label="Transcriber"
-                        kind="stt"
-                        description="A transcriber that fails leaves the agent unable to hear, so it waits through a caller who is already talking."
-                        schemas={modelConfigurationDefaults?.byok?.pipeline?.stt}
-                        value={fallbackStt}
-                        onChange={setFallbackStt}
-                    />
-                </div>
-
-                <Separator />
-
-                {/* Call Management */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Call Management</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Configure call duration limits and idle timeout settings.
-                        </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="max_call_duration" className="text-xs">Max Call Duration (seconds)</Label>
-                            <Input
-                                id="max_call_duration"
-                                type="number"
-                                min="1"
-                                value={maxCallDuration}
-                                onChange={(e) => {
-                                    const value = parseInt(e.target.value);
-                                    if (!isNaN(value) && value > 0) setMaxCallDuration(value);
-                                }}
-                            />
-                            <p className="text-xs text-muted-foreground">Default: 600 (10 minutes)</p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="max_user_idle_timeout" className="text-xs">
-                                Max User Idle Timeout (seconds)
-                            </Label>
-                            <Input
-                                id="max_user_idle_timeout"
-                                type="number"
-                                min="1"
-                                value={maxUserIdleTimeout}
-                                onChange={(e) => {
-                                    const value = parseInt(e.target.value);
-                                    if (!isNaN(value) && value > 0) setMaxUserIdleTimeout(value);
-                                }}
-                            />
-                            <p className="text-xs text-muted-foreground">Default: 10 seconds</p>
-                        </div>
-                    </div>
-                </div>
+                </SettingsGroup>
             </CardContent>
             <CardFooter className="justify-end gap-3 border-t pt-6">
                 {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
@@ -917,6 +943,45 @@ function GeneralSection({
                 </Button>
             </CardFooter>
         </Card>
+    );
+}
+
+/**
+ * One collapsible group of related settings.
+ *
+ * The General card carried nine sections, all expanded, so finding one meant
+ * scrolling past the other eight -- and Fallbacks, which is the difference
+ * between a failed provider and dead air on a call, sat eighth.
+ *
+ * ``defaultOpen`` is a starting state rather than a fixed one, and a group
+ * holding a value somebody has already changed passes true: a setting that is
+ * not on its default must never be hidden behind a click nobody knew to make.
+ * ServiceConfigurationForm's advanced block reaches the same conclusion.
+ */
+function SettingsGroup({
+    title,
+    blurb,
+    defaultOpen,
+    children,
+}: {
+    title: string;
+    blurb: string;
+    defaultOpen: boolean;
+    children: React.ReactNode;
+}) {
+    const [open, setOpen] = useState(defaultOpen);
+
+    return (
+        <Collapsible open={open} onOpenChange={setOpen}>
+            <CollapsibleTrigger className="flex w-full items-start gap-2 text-left">
+                <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform data-[state=open]:rotate-90" />
+                <span className="min-w-0">
+                    <span className="block text-sm font-medium">{title}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{blurb}</span>
+                </span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-6 pt-6">{children}</CollapsibleContent>
+        </Collapsible>
     );
 }
 
