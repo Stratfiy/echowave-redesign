@@ -959,7 +959,7 @@ const data = await response.json();`;
 
             {/* Code View Dialog (only for HTTP API tools) */}
             <Dialog open={showCodeDialog} onOpenChange={setShowCodeDialog}>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="sm:max-w-2xl">
                     <DialogHeader>
                         <DialogTitle>Code Preview</DialogTitle>
                         <DialogDescription>

@@ -136,7 +136,7 @@ export function LibraryPickerDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="flex h-[min(38rem,85vh)] max-w-4xl flex-col gap-0 overflow-hidden p-0">
+            <DialogContent className="flex h-[min(38rem,85vh)] sm:max-w-4xl flex-col gap-0 overflow-hidden p-0">
                 <DialogHeader className="border-b px-6 py-4">
                     <DialogTitle>Extraction library</DialogTitle>
                     <DialogDescription>
