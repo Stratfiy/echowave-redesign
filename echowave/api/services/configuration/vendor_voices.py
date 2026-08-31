@@ -158,6 +158,12 @@ async def fetch(provider: str) -> list[VendorVoice] | None:
         return None
 
     if not api_key:
+        # Silence here cost three rounds of diagnosis once: every other exit
+        # from this function says something, so an empty picker with no log
+        # read as "the fetch is not running" when it had run and found no key.
+        logger.info(
+            "No platform {} key stored, so its voices cannot be listed.", provider
+        )
         return None
 
     try:
@@ -165,6 +171,11 @@ async def fetch(provider: str) -> list[VendorVoice] | None:
     except Exception as exc:
         logger.warning("Could not list {} voices: {}", provider, exc)
         return None
+
+    # Logged on the way out, not just on failure. An empty list is a real
+    # answer -- the account holds no voices -- and it renders identically to a
+    # failure, so the log is the only thing that tells them apart.
+    logger.info("Listed {} {} voices on the platform key.", len(voices), provider)
 
     _CACHE[provider] = (time.monotonic() + _TTL_SECONDS, voices)
     return voices
