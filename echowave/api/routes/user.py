@@ -39,6 +39,7 @@ from api.services.user_onboarding import (
     get_onboarding_state,
     update_onboarding_state,
 )
+from api.utils.validation_detail import detail_for
 
 router = APIRouter(prefix="/user")
 
@@ -219,7 +220,7 @@ async def update_user_configurations(
                 created_by=user.provider_id,
             )
         except ValueError as e:
-            raise HTTPException(status_code=422, detail=e.args[0])
+            raise HTTPException(status_code=422, detail=detail_for(e))
 
         try:
             organization_configuration = convert_legacy_ai_model_configuration_to_v2(
@@ -313,7 +314,7 @@ async def validate_user_configurations(
                 )
             return status
         except ValueError as e:
-            raise HTTPException(status_code=422, detail=e.args[0])
+            raise HTTPException(status_code=422, detail=detail_for(e))
     else:
         return {"status": []}
 

@@ -130,6 +130,33 @@ def _trigger_path_validation_http_exception(
     )
 
 
+def graph_failure_errors(exc: ValueError) -> list[WorkflowError]:
+    """The errors a ``WorkflowGraph`` rejection should show the editor.
+
+    It rejects two ways, and only one was handled. ``ValueError(errors)``
+    carries a list, which the caller extended straight in. But
+    ``_assert_acyclic`` raises ``ValueError("workflow contains a cycle")``,
+    and extending a list with a string appends its characters: a cyclic
+    workflow came back as twenty-four one-letter errors, each marked against
+    no node, which told the reader nothing except that something was wrong.
+
+    Guarded against an empty ``args`` too, because pydantic's ValidationError
+    is a ValueError that has none, and an IndexError raised here would throw
+    away the errors already collected before this point.
+    """
+    detail = exc.args[0] if exc.args else str(exc)
+    if isinstance(detail, list):
+        return detail
+    return [
+        WorkflowError(
+            kind=ItemKind.workflow,
+            id=None,
+            field=None,
+            message=str(detail) or "The workflow could not be validated.",
+        )
+    ]
+
+
 async def _validate_workflow_definition(
     workflow_definition: Optional[dict],
     exclude_workflow_id: Optional[int] = None,
@@ -156,7 +183,7 @@ async def _validate_workflow_definition(
         if dto:
             WorkflowGraph(dto)
     except ValueError as e:
-        errors.extend(e.args[0])
+        errors.extend(graph_failure_errors(e))
 
     # ----------- Trigger Path Format Check ------------
     for issue in validate_trigger_paths(workflow_definition):

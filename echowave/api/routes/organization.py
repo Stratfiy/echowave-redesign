@@ -87,6 +87,7 @@ from api.services.telephony.factory import get_telephony_provider_by_id
 from api.services.worker_sync.manager import get_worker_sync_manager
 from api.services.worker_sync.protocol import WorkerSyncEventType
 from api.utils.common import get_backend_endpoints
+from api.utils.validation_detail import detail_for
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
 
@@ -426,7 +427,7 @@ async def save_model_configuration_v2(
             created_by=user.provider_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=exc.args[0])
+        raise HTTPException(status_code=422, detail=detail_for(exc))
 
     await upsert_organization_ai_model_configuration_v2(
         organization_id,
@@ -481,7 +482,7 @@ async def migrate_model_configuration_v2(
             created_by=user.provider_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=exc.args[0])
+        raise HTTPException(status_code=422, detail=detail_for(exc))
 
     await upsert_organization_ai_model_configuration_v2(
         organization_id,
