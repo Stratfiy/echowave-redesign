@@ -105,6 +105,36 @@ def _elevenlabs_voices(payload: dict) -> list[VendorVoice]:
     return voices
 
 
+#: Enough of a vendor's error body to identify the failure, and no more. Their
+#: bodies are small, but a misconfigured gateway can answer an API call with an
+#: HTML page, and a log line is not the place for one.
+_ERROR_BODY_CHARS = 400
+
+
+def _describe(exc: Exception) -> str:
+    """The exception, plus the vendor's own account of what was wrong.
+
+    ``HTTPStatusError`` stringifies to the status and the URL and nothing else,
+    so a 401 raised here reads identically whether the key is unrecognised,
+    revoked, or merely lacks a permission. Those have different fixes, and the
+    vendor already tells them apart in the response body: ElevenLabs answers a
+    key without ``voices_read`` with ``missing_permissions`` and an
+    unrecognised one with ``invalid_api_key``. Discarding that body left the
+    status code as the only evidence, which is the same evidence in every case.
+
+    The key itself is never in the body -- it travels in a header, and what
+    comes back is the complaint, not the credential.
+    """
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return str(exc)
+    body = (exc.response.text or "").strip()
+    if not body:
+        return str(exc)
+    if len(body) > _ERROR_BODY_CHARS:
+        body = body[:_ERROR_BODY_CHARS] + "..."
+    return f"{exc} -- the provider said: {body}"
+
+
 async def _fetch_elevenlabs(api_key: str) -> list[VendorVoice]:
     async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
         response = await client.get(
@@ -169,7 +199,7 @@ async def fetch(provider: str) -> list[VendorVoice] | None:
     try:
         voices = await fetcher(api_key)
     except Exception as exc:
-        logger.warning("Could not list {} voices: {}", provider, exc)
+        logger.warning("Could not list {} voices: {}", provider, _describe(exc))
         return None
 
     # Logged on the way out, not just on failure. An empty list is a real

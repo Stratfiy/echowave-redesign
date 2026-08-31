@@ -9,6 +9,7 @@ to an empty picker.
 
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from api.services.configuration import vendor_voices
@@ -200,3 +201,51 @@ class TestCaching:
         await vendor_voices.fetch("elevenlabs")
 
         assert len(calls) == 2
+
+
+class TestSayingWhatTheVendorSaid:
+    """A 401 is not one failure, and the log has to say which one it was.
+
+    ``HTTPStatusError`` stringifies to the status and the URL, so an
+    unrecognised key, a revoked key and a key merely missing ``voices_read``
+    all produce the same line. The vendor distinguishes them in the body, and
+    each has a different fix.
+    """
+
+    def _status_error(self, status: int, body: str) -> httpx.HTTPStatusError:
+        request = httpx.Request("GET", "https://api.elevenlabs.io/v1/voices")
+        response = httpx.Response(status, text=body, request=request)
+        return httpx.HTTPStatusError("boom", request=request, response=response)
+
+    def test_the_body_is_carried_into_the_message(self):
+        described = vendor_voices._describe(
+            self._status_error(401, '{"detail":{"status":"missing_permissions"}}')
+        )
+
+        assert "missing_permissions" in described
+
+    def test_two_flavours_of_401_do_not_read_alike(self):
+        missing = vendor_voices._describe(
+            self._status_error(401, '{"detail":{"status":"missing_permissions"}}')
+        )
+        invalid = vendor_voices._describe(
+            self._status_error(401, '{"detail":{"status":"invalid_api_key"}}')
+        )
+
+        assert missing != invalid
+
+    def test_an_ordinary_exception_is_left_alone(self):
+        assert vendor_voices._describe(RuntimeError("timed out")) == "timed out"
+
+    def test_an_empty_body_falls_back_to_the_exception(self):
+        described = vendor_voices._describe(self._status_error(503, "   "))
+
+        assert described == "boom"
+
+    def test_a_gateway_serving_html_does_not_fill_the_log(self):
+        described = vendor_voices._describe(
+            self._status_error(502, "<html>" + "x" * 5000)
+        )
+
+        assert len(described) < 600
+        assert described.endswith("...")
