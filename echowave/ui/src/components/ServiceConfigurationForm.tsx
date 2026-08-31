@@ -478,39 +478,6 @@ export function ServiceConfigurationForm({
         };
     }, [keysFromVault]);
 
-    /* Make the saved flag agree with what the screen is showing.
-     *
-     * A slot pointed at a vendor we sell, on an account holding no key of its
-     * own for it, runs on our key: that is what the picker offers and what the
-     * price beside it means. Left as BYOK it would save cleanly and resolve no
-     * credential at dial time — the exact failure the catalogue exists to stop.
-     *
-     * Only ever off to on, and never for a vendor the account has its own key
-     * for: moving somebody's live agent onto our bill is a decision, and it
-     * stays theirs to make with the provider dropdown. */
-    useEffect(() => {
-        if (!keysFromVault || !catalogue) return;
-        setUsePlatformKey((prev) => {
-            const next = { ...prev };
-            let changed = false;
-            for (const slot of CATALOGUE_SLOTS) {
-                const provider = serviceProviders[slot];
-                if (prev[slot] || !provider || provider === MANAGED) continue;
-                const weSell = (catalogue[slot] ?? []).some(
-                    (option) => option.provider === provider,
-                );
-                const theyHold = (keysHeld?.[credentialComponentFor(slot)] ?? []).includes(
-                    provider,
-                );
-                if (runsOnPlatformKey({ sells: weSell, holdsOwnKey: theyHold, saved: false })) {
-                    next[slot] = true;
-                    changed = true;
-                }
-            }
-            return changed ? next : prev;
-        });
-    }, [catalogue, keysFromVault, keysHeld, serviceProviders]);
-
     useEffect(() => {
         const fetchConfigurations = async () => {
             let defaultsData = configurationDefaults;
@@ -754,10 +721,25 @@ export function ServiceConfigurationForm({
         });
     };
 
+    // One answer for both the card and the payload. Synchronising this derived
+    // value through an effect let Save observe the old flag while the card was
+    // already showing Decibyl as the payer.
+    const slotUsesPlatformKey = (service: ServiceSegment) => {
+        if (!keysFromVault || !catalogue || !CATALOGUE_SLOTS.includes(service)) {
+            return usePlatformKey[service];
+        }
+        const provider = serviceProviders[service];
+        return runsOnPlatformKey({
+            sells: (catalogue[service] ?? []).some((option) => option.provider === provider),
+            holdsOwnKey: (keysHeld?.[credentialComponentFor(service)] ?? []).includes(provider),
+            saved: usePlatformKey[service] === true,
+        });
+    };
+
     const buildServiceConfig = (service: ServiceSegment, data: FormValues) => {
         const config: Record<string, string | number | string[] | boolean> = {
             provider: serviceProviders[service],
-            use_platform_key: usePlatformKey[service],
+            use_platform_key: slotUsesPlatformKey(service),
         };
         // In vault mode the key is deliberately absent from the saved
         // configuration: byok_resolution looks it up at dial time, and an
@@ -953,11 +935,7 @@ export function ServiceConfigurationForm({
         // that stays their choice until they change it here. Flipping it to
         // our key because the vendor happens to be in our catalogue would
         // move a live agent onto our bill without anyone deciding to.
-        const runsOnOurKey = runsOnPlatformKey({
-            sells: sellableProviders.includes(currentProvider),
-            holdsOwnKey: heldProviders.includes(currentProvider),
-            saved: usePlatformKey[service] === true,
-        });
+        const runsOnOurKey = slotUsesPlatformKey(service);
 
         const chooseModel = (provider: string, model: string, onOurKey: boolean) => {
             if (serviceProviders[service] !== provider) {
