@@ -11,13 +11,14 @@
  * "the basic four" and "the rest" would have kept that vocabulary problem and
  * only changed how much of it appeared at once.
  *
- * Both write the same thing: a managed slot naming a tier, resolved to a
- * vendor at call time.
+ * Simple saves a managed bundle. Advanced saves the exact stack shown in its
+ * editor. Remember the view the customer chose: reopening on Simple after an
+ * Advanced save makes the saved stack look as though it was replaced.
  */
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SimpleModelPicker } from "@/components/agent/SimpleModelPicker";
 import ModelConfigurationV2 from "@/components/ModelConfigurationV2";
@@ -31,11 +32,21 @@ const TABS = [
 
 type Tab = (typeof TABS)[number][0];
 
+const TAB_STORAGE_KEY = "decibyl:model-configuration-view";
+
 export default function ServiceConfigurationPage() {
-    // Simple first, deliberately. The person who needs Advanced knows to look
-    // for it; the person who needs Simple does not know that Advanced is the
-    // thing confusing them.
     const [tab, setTab] = useState<Tab>("simple");
+
+    useEffect(() => {
+        if (localStorage.getItem(TAB_STORAGE_KEY) === "advanced") {
+            setTab("advanced");
+        }
+    }, []);
+
+    const selectTab = (next: Tab) => {
+        setTab(next);
+        localStorage.setItem(TAB_STORAGE_KEY, next);
+    };
 
     return (
         <div className="min-h-screen">
@@ -52,7 +63,7 @@ export default function ServiceConfigurationPage() {
                                 role="tab"
                                 type="button"
                                 aria-selected={tab === key}
-                                onClick={() => setTab(key)}
+                                onClick={() => selectTab(key)}
                                 className={cn(
                                     "rounded-md px-4 py-1.5 text-sm transition-colors",
                                     tab === key
