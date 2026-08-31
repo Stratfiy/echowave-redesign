@@ -576,7 +576,7 @@ export function ServiceConfigurationForm({
                                     loadedApiKeys[service] = value ? [value as string] : [""];
                                 }
                             }
-                        } else if (field !== "provider") {
+                        } else if (field !== "provider" && field !== "use_platform_key") {
                             defaultValues[`${service}_${field}`] = value as string | number | boolean;
                         }
                     });
@@ -586,7 +586,7 @@ export function ServiceConfigurationForm({
                     if (properties) {
                         Object.entries(properties).forEach(([field, schema]) => {
                             const key = `${service}_${field}`;
-                            if (field !== "provider" && field !== "api_key" && schema.default !== undefined && !(key in defaultValues)) {
+                            if (field !== "provider" && field !== "api_key" && field !== "use_platform_key" && schema.default !== undefined && !(key in defaultValues)) {
                                 defaultValues[key] = schema.default;
                             }
                         });
@@ -595,7 +595,7 @@ export function ServiceConfigurationForm({
                     const properties = schemaSource?.[selectedProviders[service]]?.properties as Record<string, SchemaProperty>;
                     if (properties) {
                         Object.entries(properties).forEach(([field, schema]) => {
-                            if (field !== "provider" && schema.default !== undefined) {
+                            if (field !== "provider" && field !== "use_platform_key" && schema.default !== undefined) {
                                 defaultValues[`${service}_${field}`] = schema.default;
                             }
                         });
@@ -701,7 +701,7 @@ export function ServiceConfigurationForm({
         if (schemas?.[service]?.[providerName]) {
             const providerSchema = schemas[service][providerName];
             Object.entries(providerSchema.properties).forEach(([field, schema]: [string, SchemaProperty]) => {
-                if (field !== "provider" && schema.default !== undefined) {
+                if (field !== "provider" && field !== "use_platform_key" && schema.default !== undefined) {
                     preservedValues[`${service}_${field}`] = schema.default;
                 }
             });
@@ -762,7 +762,7 @@ export function ServiceConfigurationForm({
         Object.entries(data).forEach(([property, value]) => {
             if (!property.startsWith(`${service}_`)) return;
             const field = property.slice(service.length + 1);
-            if (field === "api_key" || field === "provider") return;
+            if (field === "api_key" || field === "provider" || field === "use_platform_key") return;
             config[field] = value as string | number;
         });
         return config;
