@@ -13,6 +13,7 @@ import {
     reactivateApiKeyApiV1UserApiKeysApiKeyIdReactivatePut
 } from '@/client/sdk.gen';
 import type { ApiKeyResponse, CreateApiKeyResponse, CreateServiceKeyResponse,ServiceKeyResponse } from '@/client/types.gen';
+import { useConfirm } from '@/components/ConfirmDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,11 +22,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAppConfig } from '@/context/AppConfigContext';
+import { detailFromError } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import logger from '@/lib/logger';
 
 export default function APIKeysPage() {
     const { user, getAccessToken, redirectToLogin, loading } = useAuth();
+    const { confirm, dialog } = useConfirm();
     const { config } = useAppConfig();
     const isOSS = config?.deploymentMode === 'oss';
 
@@ -217,11 +220,26 @@ export default function APIKeysPage() {
     };
 
     const handleArchiveKey = async (keyId: number) => {
+        // Revoking a key is instant and cannot be undone — the secret was only
+        // ever shown once, so "put it back" is not an option. Anything
+        // authenticating with it starts failing on the next request.
+        const ok = await confirm({
+            title: 'Revoke this API key?',
+            description:
+                'Any integration still using this key stops working immediately. The key cannot be restored — you would have to create a new one and update whatever was using it.',
+            confirmLabel: 'Revoke key',
+            destructive: true,
+        });
+        if (!ok) return;
+
         try {
             setError(null);
             const accessToken = await getAccessToken();
 
-            await archiveApiKeyApiV1UserApiKeysApiKeyIdDelete({
+            // The generated client resolves rather than throws on 4xx/5xx, so
+            // this used to refetch and look successful when the revoke had in
+            // fact been refused — the key stayed live and nobody was told.
+            const response = await archiveApiKeyApiV1UserApiKeysApiKeyIdDelete({
                 path: {
                     api_key_id: keyId
                 },
@@ -229,6 +247,11 @@ export default function APIKeysPage() {
                     'Authorization': `Bearer ${accessToken}`,
                 }
             });
+
+            if (response.error) {
+                setError(detailFromError(response.error, 'Failed to revoke API key'));
+                return;
+            }
 
             fetchApiKeys();
         } catch (err) {
@@ -238,11 +261,20 @@ export default function APIKeysPage() {
     };
 
     const handleArchiveServiceKey = async (keyId: string) => {
+        const ok = await confirm({
+            title: 'Revoke this service key?',
+            description:
+                'Any service still authenticating with this key stops working immediately. The key cannot be restored — you would have to create a new one and update whatever was using it.',
+            confirmLabel: 'Revoke key',
+            destructive: true,
+        });
+        if (!ok) return;
+
         try {
             setError(null);
             const accessToken = await getAccessToken();
 
-            await archiveServiceKeyApiV1UserServiceKeysServiceKeyIdDelete({
+            const response = await archiveServiceKeyApiV1UserServiceKeysServiceKeyIdDelete({
                 path: {
                     service_key_id: keyId
                 },
@@ -250,6 +282,11 @@ export default function APIKeysPage() {
                     'Authorization': `Bearer ${accessToken}`,
                 }
             });
+
+            if (response.error) {
+                setError(detailFromError(response.error, 'Failed to revoke service key'));
+                return;
+            }
 
             fetchServiceKeys();
         } catch (err) {
@@ -320,6 +357,7 @@ export default function APIKeysPage() {
 
     return (
         <div className="min-h-screen">
+            {dialog}
             <div className="container mx-auto px-4 py-8">
                 <div className="max-w-6xl mx-auto">
                     <div className="mb-8">

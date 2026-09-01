@@ -20,6 +20,7 @@ import {
     setProviderKeyActiveApiV1ProviderKeysActivePost,
     setProviderKeyApiV1ProviderKeysPut,
 } from "@/client/sdk.gen";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { IntegrationsTabs } from "@/components/integrations/IntegrationsTabs";
 import {
     COMPONENTS,
@@ -138,6 +139,7 @@ function IntegrationsScreen() {
     const [realtimeProviders, setRealtimeProviders] = useState<Record<string, string>>({});
     const [encryptionConfigured, setEncryptionConfigured] = useState(true);
     const [loading, setLoading] = useState(true);
+    const { confirm, dialog } = useConfirm();
     const [error, setError] = useState<string | null>(null);
     const [filter, setFilter] = useState<"all" | ComponentValue>("all");
 
@@ -411,6 +413,19 @@ function IntegrationsScreen() {
 
     /** Disconnecting a vendor removes every slot it was covering. */
     const removeProvider = async (row: ProviderRow) => {
+        // This is a loop of deletes across every stored credential for the
+        // vendor, and it ran on a single click. Any agent whose model, voice
+        // or transcription slot was covered by this provider stops working on
+        // its next call — and that failure surfaces on a live call, not here.
+        const ok = await confirm({
+            title: `Disconnect ${row.provider}?`,
+            description:
+                "Every stored key for this provider is deleted, and any agent slot it was covering stops working on the next call. You will need the original keys to reconnect.",
+            confirmLabel: "Disconnect provider",
+            destructive: true,
+        });
+        if (!ok) return;
+
         for (const credential of row.stored) {
             const result = await deleteProviderKeyApiV1ProviderKeysDelete({
                 query: { component: credential.component, provider: credential.provider },
@@ -457,6 +472,7 @@ function IntegrationsScreen() {
 
     return (
         <>
+        {dialog}
         <IntegrationsTabs />
         <div className="container mx-auto max-w-4xl px-4 py-8 space-y-6">
             <div>
