@@ -80,6 +80,8 @@ export interface ModelConfigurationDefaultsV2 {
 interface AIModelConfigurationV2EditorProps {
     defaults: ModelConfigurationDefaultsV2;
     configuration?: OrganizationAiModelConfigurationV2 | Record<string, unknown> | null;
+    /** Forwarded to ServiceConfigurationForm — see its prop docs. */
+    guardUnsavedChanges?: boolean;
     effectiveConfiguration?: Record<string, unknown> | null;
     onSave: (configuration: OrganizationAiModelConfigurationV2) => Promise<void>;
     submitLabel?: string;
@@ -225,6 +227,7 @@ export function AIModelConfigurationV2Editor({
     effectiveConfiguration,
     onSave,
     submitLabel = "Save Configuration",
+    guardUnsavedChanges = false,
 }: AIModelConfigurationV2EditorProps) {
     const defaultsForSlots = useMemo(() => byokDefaults(defaults), [defaults]);
 
@@ -413,6 +416,7 @@ export function AIModelConfigurationV2Editor({
                 </p>
                 <ServiceConfigurationForm
                     key={`${architecture}-${JSON.stringify(initialConfig)}`}
+                    guardUnsavedChanges={guardUnsavedChanges}
                     mode="global"
                     forceRealtime={architecture === "realtime"}
                     configurationDefaults={defaultsForSlots}

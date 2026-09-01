@@ -16,6 +16,7 @@ import type {
 } from "@/client/types.gen";
 
 type TelephonyConfigPayload = TelephonyConfigurationCreateRequest["config"];
+import { useConfirm } from "@/components/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -57,12 +58,18 @@ export function ConfigFormDialog({
   onSaved,
 }: ConfigFormDialogProps) {
   const { user, getAccessToken } = useAuth();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [providers, setProviders] = useState<TelephonyProviderMetadata[]>([]);
   const [providerName, setProviderName] = useState<string>("");
   const [name, setName] = useState<string>("");
   const [isDefault, setIsDefault] = useState<boolean>(false);
   const [values, setValues] = useState<FieldValues>({});
   const [submitting, setSubmitting] = useState<boolean>(false);
+  // What the form looked like once the dialog had populated itself. A Radix
+  // dialog closes on a click outside and on Escape, and this one holds carrier
+  // credentials typed by hand, so a stray click discarded them with no prompt
+  // and no way back.
+  const [baseline, setBaseline] = useState<string | null>(null);
 
   const isEdit = !!existing;
   const lockedProvider = isEdit;
@@ -89,9 +96,18 @@ export function ConfigFormDialog({
         setName(existing.name);
         setIsDefault(existing.is_default_outbound);
         setValues((existing.credentials ?? {}) as FieldValues);
+        setBaseline(
+          JSON.stringify([
+            existing.provider,
+            existing.name,
+            existing.is_default_outbound,
+            (existing.credentials ?? {}) as FieldValues,
+          ]),
+        );
       } else if (list.length > 0 && !providerName) {
         setProviderName(list[0].provider);
         setValues({});
+        setBaseline(JSON.stringify([list[0].provider, "", false, {}]));
       }
     })();
     return () => {
@@ -104,6 +120,29 @@ export function ConfigFormDialog({
   useEffect(() => {
     if (!isEdit) setValues({});
   }, [providerName, isEdit]);
+
+  const snapshot = JSON.stringify([providerName, name, isDefault, values]);
+  const isDirty = baseline !== null && snapshot !== baseline;
+
+  /**
+   * Radix asks to close for a click outside, Escape, and the X. All three land
+   * here, so the guard covers all three without the call sites knowing.
+   */
+  const handleOpenChange = async (next: boolean) => {
+    if (next || !isDirty) {
+      onOpenChange(next);
+      return;
+    }
+    const ok = await confirm({
+      title: "Discard these changes?",
+      description:
+        "The configuration has unsaved edits, including any credentials typed in. Closing loses them.",
+      confirmLabel: "Discard changes",
+      cancelLabel: "Keep editing",
+      destructive: true,
+    });
+    if (ok) onOpenChange(false);
+  };
 
   const updateField = (fieldName: string, value: FieldValue) => {
     setValues((prev) => ({ ...prev, [fieldName]: value }));
@@ -150,6 +189,7 @@ export function ConfigFormDialog({
         if (res.error) throw new Error(detailFromError(res.error, "Failed to save configuration"));
         toast.success("Configuration created");
       }
+      setBaseline(snapshot);
       onOpenChange(false);
       onSaved();
     } catch (err) {
@@ -160,7 +200,11 @@ export function ConfigFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    {/* Sibling of the dialog rather than a child: both portal to the body, and
+        nesting one Radix modal inside another fights over the focus trap. */}
+    {confirmDialog}
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -279,7 +323,7 @@ export function ConfigFormDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+          <Button variant="outline" onClick={() => void handleOpenChange(false)} disabled={submitting}>
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={submitting || !currentProvider}>
@@ -288,6 +332,7 @@ export function ConfigFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 

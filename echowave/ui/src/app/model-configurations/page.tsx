@@ -23,6 +23,7 @@ import { useEffect, useState } from "react";
 import { SimpleModelPicker } from "@/components/agent/SimpleModelPicker";
 import ModelConfigurationV2 from "@/components/ModelConfigurationV2";
 import { SETTINGS_DOCUMENTATION_URLS } from "@/constants/documentation";
+import { UnsavedChangesProvider } from "@/context/UnsavedChangesContext";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -48,7 +49,10 @@ export default function ServiceConfigurationPage() {
         localStorage.setItem(TAB_STORAGE_KEY, next);
     };
 
+    // The advanced tab holds an editable model stack. Switching tabs or
+    // navigating away with it half-changed used to discard it silently.
     return (
+        <UnsavedChangesProvider>
         <div className="min-h-screen">
             <div className="container mx-auto px-4 py-8">
                 <div className="mx-auto max-w-6xl space-y-6">
@@ -81,10 +85,12 @@ export default function ServiceConfigurationPage() {
                     ) : (
                         <ModelConfigurationV2
                             docsUrl={SETTINGS_DOCUMENTATION_URLS.modelOverrides}
+                            guardUnsavedChanges
                         />
                     )}
                 </div>
             </div>
         </div>
+        </UnsavedChangesProvider>
     );
 }

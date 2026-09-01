@@ -17,7 +17,7 @@
  */
 
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -114,6 +114,78 @@ describe("useUnsavedChanges outside a provider", () => {
         expect(screen.getByText("section")).toBeDefined();
         // No provider means no guard — asserted so this reads as the
         // deliberate trade-off it is, not an accident.
+        expect(fireBeforeUnload()).toBe(false);
+    });
+});
+
+/**
+ * The shape every guarded form on this app now uses: a serialized snapshot of
+ * the fields, compared against a baseline taken when the server's values
+ * landed and moved again on each successful save.
+ *
+ * Asserted here rather than per-screen because the rule is the same on all of
+ * them and the failure is identical — a baseline that is never moved leaves a
+ * saved form warning forever, and a baseline captured before the load lands
+ * makes the form dirty the moment it populates itself. Both train people to
+ * click through the dialog, which costs more than having no dialog.
+ */
+describe("the baseline/snapshot rule", () => {
+    function Form({ loaded }: { loaded: string }) {
+        const [value, setValue] = useState(loaded);
+        const [baseline, setBaseline] = useState<string | null>(null);
+
+        const snapshot = JSON.stringify([value]);
+
+        // Stands in for "the fetch resolved and the setters flushed".
+        useEffect(() => {
+            if (baseline === null) setBaseline(snapshot);
+        }, [baseline, snapshot]);
+
+        const dirty = baseline !== null && snapshot !== baseline;
+        useUnsavedChanges("form", dirty);
+
+        return (
+            <>
+                <button onClick={() => setValue("edited")}>edit</button>
+                <button onClick={() => setValue(loaded)}>undo</button>
+                <button onClick={() => setBaseline(snapshot)}>save</button>
+            </>
+        );
+    }
+
+    function renderForm() {
+        render(
+            <UnsavedChangesProvider>
+                <Form loaded="from-server" />
+            </UnsavedChangesProvider>,
+        );
+    }
+
+    it("is clean once populated from the server", () => {
+        renderForm();
+        expect(fireBeforeUnload()).toBe(false);
+    });
+
+    it("is dirty after an edit", () => {
+        renderForm();
+        fireEvent.click(screen.getByText("edit"));
+        expect(fireBeforeUnload()).toBe(true);
+    });
+
+    it("is clean again when the edit is undone by hand", () => {
+        // The reason dirty compares against stored values rather than
+        // tracking whether a control was touched.
+        renderForm();
+        fireEvent.click(screen.getByText("edit"));
+        fireEvent.click(screen.getByText("undo"));
+        expect(fireBeforeUnload()).toBe(false);
+    });
+
+    it("is clean after a save moves the baseline", () => {
+        renderForm();
+        fireEvent.click(screen.getByText("edit"));
+        expect(fireBeforeUnload()).toBe(true);
+        fireEvent.click(screen.getByText("save"));
         expect(fireBeforeUnload()).toBe(false);
     });
 });
