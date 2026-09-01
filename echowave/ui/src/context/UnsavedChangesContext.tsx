@@ -36,8 +36,9 @@ const UnsavedChangesContext = createContext<UnsavedChangesContextValue | null>(n
  * Wraps a page to guard against accidental navigation when sections have
  * unsaved changes. Intercepts:
  *
- *  - Browser back / forward       (`popstate` with history-state tracking)
  *  - In-app link clicks           (document-level click capture on `<a>` tags)
+ *  - Tab close / reload / typed URL (`beforeunload`, browser-native prompt)
+ *  - Browser back / forward       (`popstate` with history-state tracking)
  *
  * Sections register via the `useUnsavedChanges` hook.
  */
@@ -126,6 +127,32 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
         document.addEventListener("click", handleClick, true);
         return () => document.removeEventListener("click", handleClick, true);
     }, [askOrProceed]);
+
+    // -- 2. Tab close / reload / typed URL (`beforeunload`) -------------------
+    //
+    // The other two guards only cover navigation this app can see. Closing the
+    // tab, hitting reload, or typing a different address fires neither a click
+    // nor a popstate, so without this the edits are simply gone with no prompt
+    // at all — the one case where the loss is unrecoverable.
+    //
+    // The browser shows its own wording and ignores anything we pass, so there
+    // is no message to keep in sync with the dialog below. Setting
+    // `returnValue` is the whole API. Modern browsers additionally require the
+    // page to have been interacted with before they will show the prompt,
+    // which is exactly the condition under which anything is dirty.
+
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (!hasDirtyRef.current) return;
+            e.preventDefault();
+            // Legacy browsers key off a non-empty assignment rather than
+            // `preventDefault`. Harmless where it is ignored.
+            e.returnValue = "";
+        };
+
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }, []);
 
     // -- 3. Browser back / forward (`popstate`) ------------------------------
     //
@@ -241,21 +268,31 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
  * Register a section's dirty state with the nearest UnsavedChangesProvider.
  * Automatically unregisters on unmount.
  *
+ * Outside a provider this is a no-op rather than a throw, and that is
+ * deliberate. The sections that hold edits — credentials, telemetry,
+ * preferences — are mounted on more than one screen, and a hook that throws
+ * would mean adding the guard to a section could white-screen an unrelated
+ * page that had simply not been wrapped yet. Failing that way makes the safe
+ * change the risky one, so the guard degrades to "unprotected", which is
+ * exactly what the screen was before.
+ *
+ * `useUnsavedChangesContext` still throws: a caller reading `dirtySections`
+ * wants the data, and silently handing back an empty set would be a lie.
+ *
  * @example
  * useUnsavedChanges("general", isDirty);
  */
 export function useUnsavedChanges(sectionId: string, isDirty: boolean) {
     const ctx = useContext(UnsavedChangesContext);
-    if (!ctx) throw new Error("useUnsavedChanges must be used within UnsavedChangesProvider");
-
-    const { register, unregister } = ctx;
+    const register = ctx?.register;
+    const unregister = ctx?.unregister;
 
     useEffect(() => {
-        register(sectionId, isDirty);
+        register?.(sectionId, isDirty);
     }, [sectionId, isDirty, register]);
 
     useEffect(() => {
-        return () => unregister(sectionId);
+        return () => unregister?.(sectionId);
     }, [sectionId, unregister]);
 }
 

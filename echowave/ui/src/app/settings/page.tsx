@@ -16,10 +16,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { UnsavedChangesProvider } from "@/context/UnsavedChangesContext";
 
 export default function SettingsPage() {
+  // Several cards on this page hold editable state — preferences, telemetry
+  // credentials — and until this wrapper existed, clicking away from a
+  // half-filled form discarded it without a word. The provider is the same one
+  // the agent settings screen uses; the sections register themselves.
   return (
-    <>
+    <UnsavedChangesProvider>
       <PageHeader
         title="Platform Settings"
         description="Manage your platform configuration and integrations."
@@ -120,6 +125,6 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </PageBody>
-    </>
+    </UnsavedChangesProvider>
   );
 }
