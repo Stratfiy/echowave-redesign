@@ -55,9 +55,13 @@ things are configured wrong in ways that lose money silently.
 
 ### Stubbed / absent
 
-- **Call transfer** raises `NotImplementedError` on Plivo, Vonage and Vobiz
-  (`providers/plivo/provider.py:547` and equivalents). Twilio and Telnyx only.
-  The "transfer to human" node will fail on your actual carrier.
+- **Call transfer** — ~~raises `NotImplementedError` on Plivo, Vonage and
+  Vobiz. Twilio and Telnyx only. The "transfer to human" node will fail on your
+  actual carrier.~~ **Plivo implemented 2 Sep**: conference-based warm transfer,
+  briefing played to the destination before the caller is bridged in. Works on
+  Twilio, Telnyx, Cloudonix, ARI and **Plivo**. Still absent on Vonage and
+  Vobiz. Unit-tested against mocked carrier responses; not yet proven on a real
+  call.
 - **Managed telephony** gated off by `MANAGED_TELEPHONY_ENABLED` (default
   false). Deliberate — the reseller account does not exist yet.
 - **Auto-recharge / UPI mandate.** ~~No code at all.~~ Built since:
