@@ -8,7 +8,7 @@ selection and inbound call routing.
 from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
-from sqlalchemy import update
+from sqlalchemy import or_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
 
@@ -113,6 +113,33 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                 )
             )
             return result.scalars().first()
+
+    async def list_normalized_addresses_for_organization(
+        self, organization_id: int
+    ) -> list[str]:
+        """Every number this account holds, plus our shared outbound pool.
+
+        The loop guard for missed-call callback. Both halves are needed and for
+        different reasons: an account's own agent dialling its own callback
+        number is the likely accident (it is the obvious way to try the feature
+        out), and the shared pool is the number a trial account dials *from*,
+        so it would otherwise be the one number guaranteed to reach a callback
+        line and start a conversation between two of our own agents.
+
+        Returns the normalised form, because that is what the inbound lookup
+        matches on — a set built from the display column would miss a number
+        stored as "+91 98765 43210" and compared as "919876543210".
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(TelephonyPhoneNumberModel.address_normalized).where(
+                    or_(
+                        TelephonyPhoneNumberModel.organization_id == organization_id,
+                        TelephonyPhoneNumberModel.is_shared_outbound.is_(True),
+                    )
+                )
+            )
+            return [row for row in result.scalars().all() if row]
 
     async def find_active_phone_number_for_inbound(
         self,
