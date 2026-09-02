@@ -6,12 +6,15 @@ provider registry — see ProviderSpec.router.
 
 import json
 
+from xml.sax.saxutils import escape
+
 from fastapi import APIRouter, Request
 from loguru import logger
 from pipecat.utils.run_context import set_current_run_id
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, Response
 
 from api.db import db_client
+from api.services.telephony.escalation import DEFAULT_BRIEFING
 from api.services.telephony.factory import get_telephony_provider_for_run
 from api.services.telephony.status_processor import (
     StatusCallbackRequest,
@@ -130,3 +133,77 @@ async def handle_plivo_ring_callback(
 ):
     """Handle Plivo ring callbacks."""
     return await _handle_plivo_status_callback(workflow_run_id, request)
+
+
+# ---------------------------------------------------------------------------
+# Call transfer
+#
+# Plivo has no equivalent of Twilio's inline ``Twiml`` parameter — every leg is
+# driven by XML fetched from a URL. So the two legs of a warm transfer are two
+# endpoints here rather than two strings in the provider, and the conference
+# name travels in the path.
+# ---------------------------------------------------------------------------
+
+
+@router.api_route(
+    "/plivo/transfer-bridge/{conference_name}",
+    methods=["GET", "POST"],
+    include_in_schema=False,
+)
+async def handle_plivo_transfer_bridge(conference_name: str, request: Request):
+    """XML for the **destination** leg: brief the human, then join the bridge.
+
+    ``<Speak>`` runs to completion before ``<Conference>`` is entered, and the
+    caller is not in the conference while it plays, so the briefing is heard by
+    the person picking up and by nobody else. That ordering is the entire warm-
+    transfer mechanism — reverse the two elements and the caller hears you
+    describing them.
+
+    ``endConferenceOnExit`` is on this leg because the destination leaving is
+    what ends the transfer; the caller's leg then falls out of a conference
+    that no longer exists rather than sitting in an empty room.
+
+    Plivo fetches this with the method configured on the call, and retries on a
+    non-2xx, so it is a plain read of the path and cannot fail on bad input:
+    an unknown conference name yields a valid, empty conference rather than a
+    500 that would drop the leg.
+    """
+    briefing = request.query_params.get("briefing") or DEFAULT_BRIEFING
+
+    plivo_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Speak>{escape(briefing)}</Speak>
+    <Conference
+        endConferenceOnExit="true"
+        startConferenceOnEnter="true"
+        waitSound=""
+    >{escape(conference_name)}</Conference>
+</Response>"""
+    return Response(content=plivo_xml, media_type="application/xml")
+
+
+@router.api_route(
+    "/plivo/transfer-caller/{conference_name}",
+    methods=["GET", "POST"],
+    include_in_schema=False,
+)
+async def handle_plivo_transfer_caller(conference_name: str):
+    """XML for the **caller** leg, fetched when its live call is redirected.
+
+    No ``<Speak>``: the caller has already been told they are being put
+    through, and a second announcement here plays over the hold music of a
+    bridge they are about to enter.
+
+    ``startConferenceOnEnter`` is false so that a caller who arrives before the
+    destination answers waits rather than opening an empty conference —
+    Plivo would otherwise treat the first entrant as the start and the
+    destination would join a room the caller had already been sitting alone in.
+    """
+    plivo_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Conference
+        endConferenceOnExit="false"
+        startConferenceOnEnter="false"
+    >{escape(conference_name)}</Conference>
+</Response>"""
+    return Response(content=plivo_xml, media_type="application/xml")

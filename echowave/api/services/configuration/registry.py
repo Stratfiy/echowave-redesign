@@ -77,6 +77,7 @@ class ServiceType(Enum):
 
 class ServiceProviders(str, Enum):
     OPENAI = "openai"
+    ANTHROPIC = "anthropic"
     DEEPGRAM = "deepgram"
     GROQ = "groq"
     OPENROUTER = "openrouter"
@@ -114,6 +115,7 @@ class ServiceProviders(str, Enum):
 class BaseServiceConfiguration(BaseModel):
     provider: Literal[
         ServiceProviders.OPENAI,
+        ServiceProviders.ANTHROPIC,
         ServiceProviders.DEEPGRAM,
         ServiceProviders.GROQ,
         ServiceProviders.OPENROUTER,
@@ -435,6 +437,16 @@ CUSTOM_LLM_PROVIDER_MODEL_CONFIG = provider_model_config(
     ),
 )
 GOOGLE_PROVIDER_MODEL_CONFIG = provider_model_config("Google")
+ANTHROPIC_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Anthropic",
+    description=(
+        "Claude models, on your own Anthropic key. Haiku is the default here "
+        "because this is a voice product: on a phone call the caller hears "
+        "every millisecond of the model's first token, and the cheapest way to "
+        "sound unnatural is to think for too long before speaking."
+    ),
+    provider_docs_url="https://docs.claude.com/en/docs/about-claude/models",
+)
 GROQ_PROVIDER_MODEL_CONFIG = provider_model_config("Groq")
 OPENROUTER_PROVIDER_MODEL_CONFIG = provider_model_config("Open Router")
 AZURE_OPENAI_PROVIDER_MODEL_CONFIG = provider_model_config("Azure OpenAI")
@@ -507,6 +519,17 @@ OPENAI_MODELS = [
     "gpt-5-mini",
     "gpt-5-nano",
     "gpt-3.5-turbo",
+]
+
+#: Offered newest-first. These are complete identifiers — Anthropic's current
+#: IDs carry no date suffix, and appending one produces a model that does not
+#: exist rather than an older snapshot.
+ANTHROPIC_MODELS = [
+    "claude-haiku-4-5",
+    "claude-sonnet-5",
+    "claude-opus-5",
+    "claude-sonnet-4-6",
+    "claude-opus-4-8",
 ]
 
 GROQ_MODELS = [
@@ -634,6 +657,17 @@ class GoogleVertexLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
             "Not used for Vertex AI — authentication is via the service account "
             "in `credentials` (or ADC). Leave blank."
         ),
+    )
+
+
+@register_llm
+class AnthropicLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
+    model_config = ANTHROPIC_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.ANTHROPIC] = ServiceProviders.ANTHROPIC
+    model: str = Field(
+        default="claude-haiku-4-5",
+        description="Anthropic model identifier.",
+        json_schema_extra={"examples": ANTHROPIC_MODELS, "allow_custom_input": True},
     )
 
 
@@ -1149,6 +1183,7 @@ REALTIME_PROVIDERS = {
 LLMConfig = Annotated[
     Union[
         OpenAILLMService,
+        AnthropicLLMConfiguration,
         GoogleVertexLLMConfiguration,
         GroqLLMService,
         OpenRouterLLMConfiguration,

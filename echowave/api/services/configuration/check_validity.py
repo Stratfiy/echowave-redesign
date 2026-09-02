@@ -35,6 +35,7 @@ class UserConfigurationValidator:
         self._validator_map = {
             ServiceProviders.OPENAI.value: self._check_openai_api_key,
             ServiceProviders.DEEPGRAM.value: self._check_deepgram_api_key,
+            ServiceProviders.ANTHROPIC.value: self._check_anthropic_api_key,
             ServiceProviders.GROQ.value: self._check_groq_api_key,
             ServiceProviders.OPENROUTER.value: self._check_openrouter_api_key,
             ServiceProviders.INWORLD.value: self._check_inworld_api_key,
@@ -312,6 +313,29 @@ class UserConfigurationValidator:
                 "Invalid Deepgram API key. The key was rejected by the Deepgram API. "
                 "Please check that your API key is correct and active. "
                 "You can verify your keys at https://console.deepgram.com/."
+            )
+
+    def _check_anthropic_api_key(self, model: str, api_key: str) -> bool:
+        """Cheapest call that proves the key: list the models.
+
+        Imported here rather than at module scope. The Anthropic SDK arrives
+        through pipecat's optional ``anthropic`` extra, and a deployment built
+        without it should fail when somebody actually saves an Anthropic key —
+        with the message below — rather than at import time, taking every other
+        provider's validation down with it.
+        """
+        from anthropic import Anthropic
+
+        client = Anthropic(api_key=api_key)
+        try:
+            client.models.list()
+            return True
+        except Exception:
+            raise ValueError(
+                "Invalid Anthropic API key. The key was rejected by the "
+                "Anthropic API. Please check that your API key is correct and "
+                "active. You can verify your keys at "
+                "https://console.anthropic.com/settings/keys."
             )
 
     def _check_groq_api_key(self, model: str, api_key: str) -> bool:
