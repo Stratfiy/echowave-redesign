@@ -10,6 +10,15 @@ ap-south-1 alongside Sarvam's own API. The turn strategy waits on that budget
 on every single turn, so the difference between the assumed value and the real
 one is dead air we are adding for no reason. This prints the real one.
 
+**Which ElevenLabs region actually serves us?**
+`api.elevenlabs.io` routes each request to the nearest of US, Netherlands or
+Singapore by itself — there is no region to "switch to", and `api.us.elevenlabs.io`
+is the opt-out that forces US. So the only question worth asking is which one
+we are *actually* getting, and ElevenLabs answers it in an `x-region` response
+header. Worth checking rather than assuming: the answer depends on where the
+process egresses from, not where it is deployed, so a proxy or a NAT in another
+region will quietly send Indian calls to Virginia.
+
 **Are we losing turns to the turn-stop timeout?**
 Pipecat issues #3643 and #3988: a turn can start without VAD but cannot stop
 without it, so a short utterance the VAD misses hangs until
@@ -32,9 +41,15 @@ import argparse
 import asyncio
 from dataclasses import dataclass
 
+import httpx
 from sqlalchemy import text
 
 from api.db import db_client
+
+#: Where the ElevenLabs global router should land a request from ap-south-1.
+#: Not a hard rule — the router picks by network distance, not geography — but
+#: a US region here from an India deployment is worth someone looking at.
+_EXPECTED_NEARBY_REGIONS = ("asia", "singapore", "sg", "ap-")
 
 
 @dataclass(frozen=True)
@@ -169,6 +184,41 @@ async def report(days: int, timeout_secs: float) -> None:
             print("  Below 1% — consistent with ordinary long turns, not the bug.")
 
 
+async def probe_elevenlabs_region() -> None:
+    """Ask ElevenLabs which backend serves this process.
+
+    Unauthenticated: the header comes back on any response, including the 404
+    this deliberately provokes, so no key is needed and nothing is spent. The
+    request is the measurement — where it is made from is the whole point, so
+    run it on the machine that runs the pipeline, not from a laptop.
+    """
+    print("\nElevenLabs routing\n" + "-" * 52)
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.get("https://api.elevenlabs.io/v1/models")
+    except Exception as exc:  # noqa: BLE001 -- a diagnostic, not a dependency
+        print(f"  Could not reach ElevenLabs: {exc}")
+        return
+
+    region = response.headers.get("x-region")
+    if not region:
+        print("  No x-region header — ElevenLabs may have changed the contract.")
+        return
+
+    print(f"  Serving region: {region}")
+    if any(marker in region.lower() for marker in _EXPECTED_NEARBY_REGIONS):
+        print("  Close to India. Nothing to do.")
+    else:
+        print(
+            "  This is not a nearby region. Every TTS turn is paying a "
+            "trans-continental round trip.\n"
+            "  The base URL is already the globally-routed one, so the cause is "
+            "where this process\n"
+            "  egresses from — a proxy, a NAT gateway, or workers running "
+            "outside ap-south-1."
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--days", type=int, default=7)
@@ -178,8 +228,19 @@ def main() -> None:
         default=5.0,
         help="user_turn_stop_timeout in effect (pipecat default 5.0)",
     )
+    parser.add_argument(
+        "--skip-probe",
+        action="store_true",
+        help="skip the outbound ElevenLabs region check",
+    )
     args = parser.parse_args()
-    asyncio.run(report(args.days, args.timeout_secs))
+
+    async def run() -> None:
+        await report(args.days, args.timeout_secs)
+        if not args.skip_probe:
+            await probe_elevenlabs_region()
+
+    asyncio.run(run())
 
 
 if __name__ == "__main__":
