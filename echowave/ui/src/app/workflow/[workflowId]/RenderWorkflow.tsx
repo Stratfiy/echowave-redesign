@@ -6,7 +6,7 @@ import {
     Panel,
     ReactFlow,
 } from "@xyflow/react";
-import { BrushCleaning, Maximize2, Minus, Plus, Settings } from 'lucide-react';
+import { BrushCleaning, ClipboardList, Maximize2, Minus, Plus, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -558,6 +558,22 @@ function RenderWorkflow({
                                                     </TooltipTrigger>
                                                     <TooltipContent side="left">
                                                         <p>Add node</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="icon"
+                                                            onClick={() => router.push(`/workflow/${workflowId}/setup`)}
+                                                            className="bg-white shadow-sm hover:shadow-md"
+                                                        >
+                                                            <ClipboardList className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="left">
+                                                        <p>Fill in the business details</p>
                                                     </TooltipContent>
                                                 </Tooltip>
 

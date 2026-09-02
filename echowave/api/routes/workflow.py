@@ -841,6 +841,73 @@ async def get_workflow(
     }
 
 
+class SetupFieldResponse(BaseModel):
+    name: str
+    label: str
+    hint: str
+    required: bool
+    value: str = ""
+
+
+class AgentSetupResponse(BaseModel):
+    """What still has to be answered before this agent can take a call."""
+
+    workflow_id: int
+    workflow_name: str
+    fields: list[SetupFieldResponse]
+    #: Names of required fields still blank. The agent should not go live while
+    #: this is non-empty — an unfilled placeholder reaches the caller as a
+    #: sentence with a hole in it.
+    missing: list[str]
+
+
+@router.get("/{workflow_id}/setup", response_model=AgentSetupResponse)
+async def get_agent_setup(
+    workflow_id: int,
+    user: UserModel = Depends(get_user),
+):
+    """The setup questions for this agent, with whatever has been answered.
+
+    Derived from the agent's own prompts rather than stored, so a template
+    nobody has classified still produces a form. See
+    services/workflow/setup_fields.py for why the per-call variables are
+    excluded.
+    """
+    from api.services.workflow.setup_fields import missing_required, setup_fields_for
+
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # The draft is what the editor and this form both act on; falling back to
+    # the published version covers an agent that has never been edited.
+    draft = await db_client.get_draft_version(workflow_id)
+    source = draft or workflow.released_definition
+    if source is None:
+        raise HTTPException(status_code=404, detail="Workflow has no definition")
+
+    definition = source.workflow_json or {}
+    values = source.template_context_variables or {}
+
+    return AgentSetupResponse(
+        workflow_id=workflow.id,
+        workflow_name=workflow.name,
+        fields=[
+            SetupFieldResponse(
+                name=f.name,
+                label=f.label,
+                hint=f.hint,
+                required=f.required,
+                value=str(values.get(f.name, "") or ""),
+            )
+            for f in setup_fields_for(definition)
+        ],
+        missing=missing_required(definition, values),
+    )
+
+
 @router.get("/{workflow_id}/versions")
 async def get_workflow_versions(
     workflow_id: int,

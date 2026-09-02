@@ -279,6 +279,30 @@ export type AddNumbersResponse = {
 };
 
 /**
+ * AgentSetupResponse
+ *
+ * What still has to be answered before this agent can take a call.
+ */
+export type AgentSetupResponse = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Workflow Name
+     */
+    workflow_name: string;
+    /**
+     * Fields
+     */
+    fields: Array<SetupFieldResponse>;
+    /**
+     * Missing
+     */
+    missing: Array<string>;
+};
+
+/**
  * AmbientNoiseConfigurationDefaults
  */
 export type AmbientNoiseConfigurationDefaults = {
@@ -7512,6 +7536,32 @@ export type SetCredentialRequest = {
      * Check the key against the vendor before storing it. A rejected key is refused; a vendor we cannot reach is stored and reported as unverified.
      */
     verify?: boolean;
+};
+
+/**
+ * SetupFieldResponse
+ */
+export type SetupFieldResponse = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Hint
+     */
+    hint: string;
+    /**
+     * Required
+     */
+    required: boolean;
+    /**
+     * Value
+     */
+    value?: string;
 };
 
 /**
@@ -17659,6 +17709,50 @@ export type GetWorkflowApiV1WorkflowFetchWorkflowIdGetResponses = {
 };
 
 export type GetWorkflowApiV1WorkflowFetchWorkflowIdGetResponse = GetWorkflowApiV1WorkflowFetchWorkflowIdGetResponses[keyof GetWorkflowApiV1WorkflowFetchWorkflowIdGetResponses];
+
+export type GetAgentSetupApiV1WorkflowWorkflowIdSetupGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/setup';
+};
+
+export type GetAgentSetupApiV1WorkflowWorkflowIdSetupGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAgentSetupApiV1WorkflowWorkflowIdSetupGetError = GetAgentSetupApiV1WorkflowWorkflowIdSetupGetErrors[keyof GetAgentSetupApiV1WorkflowWorkflowIdSetupGetErrors];
+
+export type GetAgentSetupApiV1WorkflowWorkflowIdSetupGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentSetupResponse;
+};
+
+export type GetAgentSetupApiV1WorkflowWorkflowIdSetupGetResponse = GetAgentSetupApiV1WorkflowWorkflowIdSetupGetResponses[keyof GetAgentSetupApiV1WorkflowWorkflowIdSetupGetResponses];
 
 export type GetWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGetData = {
     body?: never;
