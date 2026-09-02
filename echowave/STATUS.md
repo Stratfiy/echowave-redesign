@@ -35,11 +35,13 @@ things are configured wrong in ways that lose money silently.
 ### Half-built
 
 - **Outbound calls.** The trigger route exists (`routes/public_agent.py:368`)
-  and the dispatch path works, but it has never completed a real outbound call
-  in this deployment. Untested ≠ broken, but it is untested.
+  and the dispatch path works. ~~It has never completed a real outbound call in
+  this deployment.~~ **Founder-tested, 2 Sep.** No operational runbook yet, so
+  it is proven to work rather than proven to be operable at volume.
 - **Campaigns.** Concurrency limiter, retries, circuit breaker, CSV upload all
-  present. Never run against real traffic. No DND scrubbing anywhere in the
-  path (see §4) — running one today is a regulatory incident, not a feature.
+  present. Never run against real traffic. ~~No DND scrubbing anywhere in the
+  path (see §4)~~ — **scrubbing now runs on this path** (2 Sep): per row and
+  immediately before dialling, in `campaign_call_dispatcher.dispatch_call`.
 - **Payments.** Full Razorpay integration: signature-verified webhook,
   idempotent by partial unique index, amount taken from our order not the
   payload. ~~Not configured.~~ **Configured and verified end-to-end (12 Aug):**
@@ -277,7 +279,7 @@ Ranked. Numbers are dev-days for one person.
 |---|---|---|---|---|
 | 1 | Configure Razorpay | Code is done; 503 on every top-up. Nobody can pay you | 0.5 | **Done** — top-up → credit → voucher → email verified 12 Aug |
 | 2 | Fix MinIO signed URLs | `SignatureDoesNotMatch` — recordings and transcripts unreachable. The product's whole value is hearing what the agent said | 0.5 | **Done** — cause was the host fallback in `constants.py`, not the signing |
-| 3 | DND list + calling hours | No DND scrubbing anywhere. TRAI/TCCCPR exposure the moment you dial someone who isn't you. 9am–9pm window also absent | 3 | Open — **the one P0 left** |
+| 3 | DND list + calling hours | ~~No DND scrubbing anywhere~~ | 3 | **Closed (2 Sep).** `services/compliance/dnd.py` scrubs and enforces the 09:00–21:00 TCCCPR window, on by default (`DND_ENFORCEMENT_ENABLED`), failing closed. Wired into the campaign dispatcher per row, the outbound trigger, and the test-call route. A refusal is terminal, is not retried, and does not trip the circuit breaker |
 | 4 | Rate for `stt:openai` | Undercosted calls today | 0.25 | Not re-checked |
 | 5 | Mid-call balance enforcement | Customer raises their own max duration and outruns their balance | 2 | Not re-checked |
 
@@ -307,7 +309,8 @@ Ranked. Numbers are dev-days for one person.
 Originally: P0 ~6.5 days, P0+P1 ~19, everything ~31.
 
 As of 12 Aug, items 1, 2 and 16 are done and 14 is blocked externally rather
-than unbuilt. **DND scrubbing and calling hours (item 3) is the only P0 left**,
+than unbuilt. ~~**DND scrubbing and calling hours (item 3) is the only P0 left**~~
+— item 3 is closed; see its row above. What follows was written before that,
 and it is the one that carries regulatory exposure rather than lost revenue —
 which makes it the gate on dialling anyone who has not asked to be called.
 
