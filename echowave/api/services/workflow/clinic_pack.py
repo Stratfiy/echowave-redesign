@@ -71,10 +71,16 @@ def appointment_booking() -> dict[str, Any]:
             "agent-1",
             "Take the booking",
             "Get their name, which doctor or treatment they want, and the day "
-            "and rough time that suits them. Offer the clinic's hours if they "
-            "are unsure. Do NOT confirm a specific slot — say the desk will "
-            "confirm by message shortly. If they ask anything medical, tell "
-            "them the doctor's team will call back and move on.",
+            "and rough time that suits them. Do NOT confirm a specific slot — "
+            "say the desk will confirm by message shortly. If they ask "
+            "anything medical, tell them the doctor's team will call back and "
+            "move on.\n\n"
+            "Our hours: {{opening_hours}}\n"
+            "What we offer: {{services}}\n"
+            "Fees: {{fees}}\n"
+            "Where we are: {{address}}\n"
+            "Only use the facts above. If you have not been given one, say "
+            "the desk will confirm rather than guessing.",
             220,
             extraction=[
                 {"name": "patient_name", "type": "string", "prompt": "Their name"},
@@ -204,7 +210,10 @@ def missed_call_clinic() -> dict[str, Any]:
             "get their name and a day and rough time that suits them. Do not "
             "confirm a slot — you cannot see the diary; say the desk will "
             "confirm by message. Keep it to two or three questions. Anything "
-            "clinical goes to the doctor's team, not to you.",
+            "clinical goes to the doctor's team, not to you.\n\n"
+            "Our hours: {{opening_hours}}\n"
+            "What we offer: {{services}}\n"
+            "Only use the facts above; do not guess.",
             220,
             extraction=[
                 {"name": "patient_name", "type": "string", "prompt": "Their name"},
