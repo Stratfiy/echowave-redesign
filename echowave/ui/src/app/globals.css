@@ -78,18 +78,29 @@
 
    TWO CORALS, AND THE SPLIT IS FORCED. The reference runs one saturated accent
    (electric blue) plus a darker committed-action fill (deep sapphire). The
-   same split is not a style choice here, it is a contrast requirement:
+   same split is not a style choice here, it is a contrast requirement.
 
-     white on #E15B53 ........ 3.61:1   fails AA
-     #E15B53 text on white ... 3.61:1   fails AA
-     white on #B4423C ........ 5.55:1   passes
-     #B4423C text on white ... 5.55:1   passes
+   The brand sheet gives one coral, #FF6666, and it cannot do both jobs:
 
-   So the bright coral can be a FILL or an ACCENT — active states, icon
-   accents, chart series, the focus ring — and it can never carry body-size
-   text or take white text on top of it. Anything that has to be read, or has
-   to be pressed with a label on it, uses the deep coral. This is the whole
-   reason there are two, and why neither can be swapped for the other.
+     white on #FF6666 ........ 2.86:1   fails AA
+     #FF6666 text on white ... 2.86:1   fails AA
+     white on #B24747 ........ 5.41:1   passes
+     #B24747 text on white ... 5.41:1   passes
+
+   #B24747 is not a second brand colour invented here — it is #FF6666 with its
+   value taken to 70%, same hue and saturation, so a button and the logo beside
+   it read as the same coral rather than as two reds that nearly match.
+
+   So the brand coral is a FILL or an ACCENT — active states, icon accents,
+   chart series, the focus ring — and it can never carry body-size text or take
+   white text on top of it. Anything that has to be read, or has to be pressed
+   with a label on it, uses the deep coral. This is the whole reason there are
+   two, and why neither can be swapped for the other.
+
+   The brand pink #ED2287 is a GRADIENT END ONLY. White on it is 4.05:1, which
+   fails AA for body text, so it never becomes a button or a label — it exists
+   for the logo badge and for marketing surfaces where nothing has to be read
+   on top of it.
 
    Light only. There is no .dark block, by request.
 --------------------------------------------------------------------------- */
@@ -130,15 +141,17 @@
   /* The committed action. Deep coral, white text, 5.55:1 — this is the button
      you press, and the colour that emphasised text on white is allowed to be.
      Used sparingly: one per surface, or it stops earning attention. */
-  --primary: #B4423C;
+  --primary: #B24747;
   --primary-foreground: #ffffff;
-  --primary-pressed: #93332E;
+  --primary-pressed: #963C3C;
 
   /* The brand accent. Bright coral, for fills, active states, icon accents and
      the focus ring. Never body text — see the ratios above. */
-  --accent-brand: #E15B53;
-  --accent-brand-soft: rgba(225, 91, 83, 0.10);
-  --accent-brand-tint: #FDEBEA;
+  --accent-brand: #FF6666;
+  --accent-brand-soft: rgba(255, 102, 102, 0.10);
+  --accent-brand-tint: #FFEDED;
+  /* Gradient end only — see the note above. Never a fill behind text. */
+  --brand-pink: #ED2287;
 
   --secondary: #f5f5f5;
   --secondary-foreground: #171717;
@@ -167,21 +180,21 @@
      signature: a field should look like something you are meant to fill in,
      not like a container that happens to be empty. */
   --input: #d4d4d4;
-  --ring: #E15B53;
+  --ring: #FF6666;
 
   /* --brand-* are consumed by call sites written when the brand was blue. They
      are aliases onto the correct tokens, NOT a second palette.
 
      --brand-blue is the DEEP coral, not the bright one, and that is deliberate.
      Every call site uses it in one of two ways: as a button fill carrying white
-     text, or as link text on white. Both need 4.5:1, and the bright coral gives
-     3.61:1 on both counts — it would have shipped three inaccessible buttons
+     text, or as link text on white. Both need 4.5:1, and the brand coral gives
+     2.86:1 on both counts — it would have shipped three inaccessible buttons
      and two unreadable links. The remaining uses are /10 and /25 tints, which
      only read very slightly deeper for the change. The bright coral is still
      available as --accent-brand, for the fills and active states where nothing
      has to be read off it. */
-  --brand-blue: #B4423C;
-  --brand-blue-hover: #93332E;
+  --brand-blue: #B24747;
+  --brand-blue-hover: #963C3C;
   --brand-blue-soft: rgba(225, 91, 83, 0.10);
   --brand-blue-glow: rgba(225, 91, 83, 0.14);
   --brand-panel: #ffffff;
@@ -202,12 +215,12 @@
 
   /* Tint washes. Small badge backgrounds and feature highlights only — never
      a large surface. */
-  --tint-flame: #FDEBEA;
+  --tint-flame: #FFEDED;
   --tint-amber: #FFF1DC;
   --tint-sand: #f5f5f5;
   --tint-slate: #f5f5f5;
 
-  --chart-1: #E15B53;
+  --chart-1: #FF6666;
   --chart-2: #ea580c;
   --chart-3: #16a34a;
   --chart-4: #2563eb;
@@ -217,16 +230,16 @@
      That is the border-first philosophy applied to the shell itself. */
   --sidebar: #ffffff;
   --sidebar-foreground: #171717;
-  --sidebar-primary: #B4423C;
+  --sidebar-primary: #B24747;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f5f5f5;
   --sidebar-accent-foreground: #171717;
   --sidebar-border: #e5e5e5;
-  --sidebar-ring: #E15B53;
+  --sidebar-ring: #FF6666;
 
   /* --cta predates --primary and is used on a handful of CTAs. Both point at
      the same deep coral, so the two vocabularies cannot drift apart onscreen. */
-  --cta: #B4423C;
+  --cta: #B24747;
   --cta-foreground: #ffffff;
 
   /* Elevation, reserved. Cards get NO shadow — the border defines them. These
@@ -279,7 +292,7 @@
   --glass-shadow: none;
   --glass-shadow-clay: none;
   --glass-shadow-clay-hover: var(--shadow-sm);
-  --glass-accent-fill: #B4423C;
+  --glass-accent-fill: #B24747;
   --glass-accent-fg: #ffffff;
   --glass-amber-fill: var(--tint-amber);
   --glass-amber-edge: #F2E3CB;
