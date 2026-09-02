@@ -27,6 +27,7 @@ const TABS = [
   { href: "/numbers", label: "Get a number" },
   { href: "/telephony-configurations", label: "Carriers & numbers" },
   { href: "/verified-numbers", label: "Test numbers" },
+  { href: "/missed-calls", label: "Missed calls" },
 ];
 
 export function TelephonyTabs() {

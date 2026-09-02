@@ -354,6 +354,46 @@ export type AnswerSeizureRatioResponse = {
 };
 
 /**
+ * Anthropic
+ *
+ * Claude models, on your own Anthropic key. Haiku is the default here because this is a voice product: on a phone call the caller hears every millisecond of the model's first token, and the cheapest way to sound unnatural is to think for too long before speaking.
+ */
+export type AnthropicLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'anthropic';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
+     * Model
+     *
+     * Anthropic model identifier.
+     */
+    model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
+};
+
+/**
  * AppendTextChatMessageRequest
  */
 export type AppendTextChatMessageRequest = {
@@ -702,6 +742,16 @@ export type ByokPipelineAiModelConfiguration = {
     llm: ({
         provider: 'openai';
     } & OpenAillmService) | ({
+        provider: 'anthropic';
+    } & AnthropicLlmConfiguration) | ({
+        provider: 'cerebras';
+    } & CerebrasLlmConfiguration) | ({
+        provider: 'deepseek';
+    } & DeepSeekLlmConfiguration) | ({
+        provider: 'mistral';
+    } & MistralLlmConfiguration) | ({
+        provider: 'fireworks';
+    } & FireworksLlmConfiguration) | ({
         provider: 'google_vertex';
     } & GoogleVertexLlmConfiguration) | ({
         provider: 'groq';
@@ -836,6 +886,16 @@ export type ByokRealtimeAiModelConfiguration = {
     llm: ({
         provider: 'openai';
     } & OpenAillmService) | ({
+        provider: 'anthropic';
+    } & AnthropicLlmConfiguration) | ({
+        provider: 'cerebras';
+    } & CerebrasLlmConfiguration) | ({
+        provider: 'deepseek';
+    } & DeepSeekLlmConfiguration) | ({
+        provider: 'mistral';
+    } & MistralLlmConfiguration) | ({
+        provider: 'fireworks';
+    } & FireworksLlmConfiguration) | ({
         provider: 'google_vertex';
     } & GoogleVertexLlmConfiguration) | ({
         provider: 'groq';
@@ -1562,6 +1622,46 @@ export type CartesiaTtsConfiguration = {
      * Cartesia language code for TTS synthesis (e.g. 'en', 'tr', 'fr', 'de').
      */
     language?: string;
+};
+
+/**
+ * Cerebras
+ *
+ * The fastest inference available, which on a phone call is worth more than a cleverer model: the caller hears every millisecond before the agent starts speaking.
+ */
+export type CerebrasLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'cerebras';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
+     * Model
+     *
+     * Cerebras-hosted model identifier.
+     */
+    model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
 };
 
 /**
@@ -2790,6 +2890,46 @@ export type DecibylTtsService = {
 };
 
 /**
+ * DeepSeek
+ *
+ * Very low cost per token, for high-volume scripted calls.
+ */
+export type DeepSeekLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'deepseek';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
+     * Model
+     *
+     * DeepSeek model identifier.
+     */
+    model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
+};
+
+/**
  * Deepgram
  */
 export type DeepgramSttConfiguration = {
@@ -3530,6 +3670,46 @@ export type FileMetadataResponse = {
     metadata: {
         [key: string]: unknown;
     } | null;
+};
+
+/**
+ * Fireworks
+ *
+ * Hosted open-weight models on a fast inference path.
+ */
+export type FireworksLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'fireworks';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
+     * Model
+     *
+     * Fireworks model path.
+     */
+    model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
 };
 
 /**
@@ -5058,6 +5238,80 @@ export type MiniMaxTtsConfiguration = {
      * MiniMax Group ID (found in your MiniMax dashboard under Account → Group).
      */
     group_id: string;
+};
+
+/**
+ * MissedCallOut
+ */
+export type MissedCallOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Caller
+     */
+    caller: string;
+    /**
+     * Received At
+     */
+    received_at: string;
+    /**
+     * Outcome
+     */
+    outcome: string;
+    /**
+     * Refusal Reason
+     */
+    refusal_reason: string | null;
+    /**
+     * Workflow Run Id
+     */
+    workflow_run_id: number | null;
+    /**
+     * Telephony Phone Number Id
+     */
+    telephony_phone_number_id: number;
+};
+
+/**
+ * Mistral
+ *
+ * European models, for customers who need EU data handling.
+ */
+export type MistralLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'mistral';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
+     * Model
+     *
+     * Mistral model identifier.
+     */
+    model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
 };
 
 /**
@@ -16850,6 +17104,56 @@ export type RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponses = {
 };
 
 export type RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponse = RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponses[keyof RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponses];
+
+export type ListMissedCallsApiV1MissedCallsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/api/v1/missed-calls';
+};
+
+export type ListMissedCallsApiV1MissedCallsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListMissedCallsApiV1MissedCallsGetError = ListMissedCallsApiV1MissedCallsGetErrors[keyof ListMissedCallsApiV1MissedCallsGetErrors];
+
+export type ListMissedCallsApiV1MissedCallsGetResponses = {
+    /**
+     * Response List Missed Calls Api V1 Missed Calls Get
+     *
+     * Successful Response
+     */
+    200: Array<MissedCallOut>;
+};
+
+export type ListMissedCallsApiV1MissedCallsGetResponse = ListMissedCallsApiV1MissedCallsGetResponses[keyof ListMissedCallsApiV1MissedCallsGetResponses];
 
 export type ListNumbersApiV1VerifiedNumbersGetData = {
     body?: never;
