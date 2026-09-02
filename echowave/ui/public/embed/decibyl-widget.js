@@ -17,6 +17,10 @@
     // visitor. Set `draggable: false` to pin it.
     draggable: true,
     autoStart: false,
+    // Text chat alongside voice. Off by default: every snippet already pasted
+    // into a customer's site sends no such setting, and a widget that silently
+    // grows a new control is a change to their page they did not ask for.
+    enableText: false,
     apiBaseUrl: window.location.hostname === 'localhost'
       ? 'http://localhost:8000'
       : 'https://api.decibyl.com'
@@ -37,6 +41,14 @@
     audioElement: null,
     turnCredentials: null, // TURN server credentials
     callStartedAt: null, // Timestamp when call connected (for duration tracking)
+    // Text mode. Its own session token: a typed conversation is a separate
+    // workflow run from a call, so one widget can hold both without either
+    // overwriting the other's session.
+    textSessionToken: null,
+    textMessages: [],
+    textSending: false,
+    textCompleted: false,
+    textOpen: false,
     gracefulDisconnect: false,
     callbacks: {
       onReady: null,
@@ -67,6 +79,10 @@
     const token = scriptUrl.searchParams.get('token');
     const apiEndpoint = scriptUrl.searchParams.get('apiEndpoint');
     const environment = scriptUrl.searchParams.get('environment');
+    // A query param, like token and apiEndpoint, because that is the shape of
+    // the snippet a customer pastes. A data attribute would be a second way to
+    // configure the same widget.
+    const enableText = scriptUrl.searchParams.get('text') === 'true';
 
     if (!token) {
       console.error('Decibyl Widget: No token found in script URL');
@@ -95,6 +111,7 @@
       ...DEFAULT_CONFIG,
       token: token,
       apiBaseUrl: apiBaseUrl,
+      enableText: enableText,
       environment: environment || 'production',
       // Allow data attributes to override fetched config
       contextVariables: parseContextVariables(script.getAttribute('data-decibyl-context'))
@@ -232,6 +249,96 @@
         bottom: auto;
         width: max-content;
         max-width: calc(100vw - 16px);
+      }
+
+      /* Text chat. Sits under the pill and shares its stacking context, so a
+         host page's own fixed header cannot land on top of the panel. */
+      .decibyl-text-toggle {
+        background: #ffffff;
+        color: #111827;
+        border: 1px solid #e5e7eb;
+        margin-top: 8px;
+      }
+
+      .decibyl-text-panel {
+        margin-top: 8px;
+        width: 320px;
+        max-width: calc(100vw - 32px);
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+
+      .decibyl-text-messages {
+        max-height: 320px;
+        overflow-y: auto;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .decibyl-text-msg {
+        padding: 8px 12px;
+        border-radius: 12px;
+        font-size: 14px;
+        line-height: 1.4;
+        max-width: 85%;
+        /* Server-relayed text of unknown shape — a long unbroken string must
+           wrap rather than widen the panel past the viewport. */
+        overflow-wrap: anywhere;
+      }
+
+      .decibyl-text-msg-user {
+        align-self: flex-end;
+        background: #111827;
+        color: #ffffff;
+      }
+
+      .decibyl-text-msg-assistant {
+        align-self: flex-start;
+        background: #f3f4f6;
+        color: #111827;
+      }
+
+      .decibyl-text-typing { opacity: 0.6; }
+
+      .decibyl-text-form {
+        display: flex;
+        gap: 8px;
+        padding: 10px;
+        border-top: 1px solid #e5e7eb;
+      }
+
+      .decibyl-text-input {
+        flex: 1;
+        min-width: 0;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 14px;
+        font-family: inherit;
+        color: #111827;
+        background: #ffffff;
+      }
+
+      .decibyl-text-input:focus {
+        outline: 2px solid #111827;
+        outline-offset: -1px;
+      }
+
+      .decibyl-text-send {
+        border: none;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #ffffff;
+        background: #111827;
+        cursor: pointer;
       }
 
       .decibyl-widget-cta {
@@ -500,6 +607,108 @@
     button.onclick = toggleCall;
 
     container.appendChild(button);
+
+    // A voice-only widget is a widget most visitors close. Someone in an
+    // office, on a train, or who simply does not want to talk out loud is most
+    // of the traffic a website sees. Off by default so no existing embed
+    // changes behaviour on its own.
+    if (state.config.enableText) {
+      container.appendChild(buildTextToggle());
+      if (state.textOpen) container.appendChild(buildTextPanel());
+    }
+  }
+
+  function buildTextToggle() {
+    const chatButton = document.createElement('button');
+    chatButton.type = 'button';
+    chatButton.className = 'decibyl-widget-cta decibyl-text-toggle';
+    chatButton.setAttribute('aria-expanded', state.textOpen ? 'true' : 'false');
+    chatButton.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+      </svg>
+      <span></span>
+    `;
+    chatButton.querySelector('span').textContent = state.textOpen ? 'Close chat' : 'Type instead';
+    chatButton.onclick = function () {
+      state.textOpen = !state.textOpen;
+      renderFloating();
+      if (state.textOpen) {
+        const input = document.getElementById('decibyl-text-input');
+        if (input) input.focus();
+      }
+    };
+    return chatButton;
+  }
+
+  function buildTextPanel() {
+    const panel = document.createElement('div');
+    panel.className = 'decibyl-text-panel';
+    panel.innerHTML = `
+      <div class="decibyl-text-messages" id="decibyl-text-messages"></div>
+      <form class="decibyl-text-form" id="decibyl-text-form">
+        <input
+          id="decibyl-text-input"
+          class="decibyl-text-input"
+          type="text"
+          maxlength="2000"
+          autocomplete="off"
+          placeholder="Type your message"
+          aria-label="Type your message"
+        />
+        <button type="submit" class="decibyl-text-send" aria-label="Send">Send</button>
+      </form>
+    `;
+    panel.querySelector('#decibyl-text-form').addEventListener('submit', function (event) {
+      event.preventDefault();
+      const input = document.getElementById('decibyl-text-input');
+      const text = input.value;
+      // Cleared before the request rather than after: a visitor who types the
+      // next sentence while the first is in flight should not have it wiped
+      // when the response lands.
+      input.value = '';
+      sendTextMessage(text);
+    });
+    // Appended before the messages are rendered into it, so the scroll
+    // position below is measured against a panel that is already in the DOM.
+    setTimeout(function () { renderTextMessages(); }, 0);
+    return panel;
+  }
+
+  /**
+   * Paint the transcript.
+   *
+   * `pendingUserText` shows the visitor's own message immediately, before the
+   * server has confirmed it. Waiting for the round trip makes the widget feel
+   * broken on a slow connection — the message they just typed vanishes.
+   */
+  function renderTextMessages(options) {
+    const list = document.getElementById('decibyl-text-messages');
+    if (!list) return;
+
+    const messages = state.textMessages.slice();
+    if (options && options.pendingUserText) {
+      messages.push({ role: 'user', content: options.pendingUserText });
+    }
+
+    list.innerHTML = '';
+    messages.forEach(function (message) {
+      const row = document.createElement('div');
+      row.className = 'decibyl-text-msg decibyl-text-msg-' + message.role;
+      // textContent, never innerHTML: this is server-relayed content and the
+      // widget runs on a customer's own page.
+      row.textContent = message.content;
+      list.appendChild(row);
+    });
+
+    if (state.textSending) {
+      const typing = document.createElement('div');
+      typing.className = 'decibyl-text-msg decibyl-text-msg-assistant decibyl-text-typing';
+      typing.textContent = '…';
+      list.appendChild(typing);
+    }
+
+    list.scrollTop = list.scrollHeight;
   }
 
   /**
@@ -921,6 +1130,83 @@
 
     // Fetch TURN credentials after session initialization
     await fetchTurnCredentials();
+  }
+
+  /**
+   * Start a typed session.
+   *
+   * Deliberately not a branch inside initializeEmbedSession: that one also
+   * fetches TURN credentials and stands up a peer connection, and a typed
+   * conversation needs neither. Sharing it would mean a visitor who only wants
+   * to type is asked for nothing but still pays for the WebRTC setup.
+   */
+  async function initializeTextSession() {
+    const response = await fetch(`${state.config.apiBaseUrl}/api/v1/public/embed/init`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: state.config.token,
+        context_variables: state.config.contextVariables,
+        mode: 'text'
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Could not start the chat');
+    }
+
+    const data = await response.json();
+    state.textSessionToken = data.session_token;
+    state.workflowRunId = data.workflow_run_id;
+  }
+
+  /**
+   * Send one typed message and render whatever comes back.
+   *
+   * The server returns the whole transcript rather than a delta, so this
+   * replaces the list instead of appending to it — a reload or a dropped
+   * response cannot leave the panel showing a conversation the server does not
+   * agree with.
+   */
+  async function sendTextMessage(text) {
+    if (!text.trim() || state.textSending) return;
+    state.textSending = true;
+    renderTextMessages({ pendingUserText: text });
+
+    try {
+      if (!state.textSessionToken) {
+        await initializeTextSession();
+      }
+
+      const response = await fetch(
+        `${state.config.apiBaseUrl}/api/v1/public/embed/text/${state.textSessionToken}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('send failed');
+      }
+
+      const data = await response.json();
+      state.textMessages = data.messages || [];
+      state.textCompleted = Boolean(data.is_completed);
+    } catch (error) {
+      // Shown in the thread rather than as a toast: the visitor's own message
+      // is already on screen, and a failure that appears somewhere else looks
+      // like the agent ignored them.
+      state.textMessages = state.textMessages.concat([{
+        role: 'assistant',
+        content: 'Sorry — that did not send. Please try again.'
+      }]);
+    } finally {
+      state.textSending = false;
+      renderTextMessages();
+    }
   }
 
   /**
