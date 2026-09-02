@@ -12,6 +12,7 @@ from api.services.pipecat.transport_params import transport_param_overrides
 from api.services.telephony.factory import load_credentials_for_transport
 
 from .serializers import PlivoFrameSerializer
+from .strategies import PlivoConferenceStrategy
 
 
 async def create_transport(
@@ -44,6 +45,10 @@ async def create_transport(
         call_id=call_id,
         auth_id=auth_id,
         auth_token=auth_token,
+        # Without this the pipeline's TRANSFER_CALL teardown falls through
+        # to the base class's hang-up and the caller is dropped instead of
+        # being put into the conference the destination is already in.
+        transfer_strategy=PlivoConferenceStrategy(),
         params=PlivoFrameSerializer.InputParams(
             plivo_sample_rate=8000,
             sample_rate=audio_config.pipeline_sample_rate,

@@ -21,7 +21,6 @@ from pydantic import BaseModel
 from starlette.websockets import WebSocketDisconnect
 
 from api.constants import (
-    REQUIRE_VERIFIED_TEST_NUMBER,
     SHARED_OUTBOUND_MAX_CONCURRENT,
     TELEPHONY_WS_REQUIRE_TOKEN,
 )
@@ -38,11 +37,14 @@ from api.services.call_concurrency import (
     call_concurrency,
 )
 from api.services.compliance import dnd
+from api.tasks.arq import enqueue_job
+from api.tasks.function_names import FunctionNames
 from api.services.configuration import key_readiness
 from api.services.kyc import service as kyc_service
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony import (
     inbound_guard,
+    missed_call,
     number_lifecycle,
     shared_outbound,
     stream_capability,
@@ -223,8 +225,11 @@ async def initiate_call(
         # engine on a second event loop.
         db=db_client,
     )
+    from api.services.telephony import verification_sender
+
     if (
-        REQUIRE_VERIFIED_TEST_NUMBER or using_shared_caller_id
+        verification_sender.test_calls_require_verified_number()
+        or using_shared_caller_id
     ) and not destination_is_verified:
         # Telling someone to verify a number on a deployment that cannot send a
         # code is a loop: they follow the instruction, the verify screen answers
@@ -234,8 +239,6 @@ async def initiate_call(
         # outage" — but `using_shared_caller_id` turns the same gate on for the
         # accounts most likely to meet it: the ones with no carrier of their
         # own, on their first call. So say which of the two situations this is.
-        from api.services.telephony import verification_sender
-
         if verification_sender.is_deliverable():
             detail = (
                 "Verify this number before calling it. Add it under Verified "
@@ -544,6 +547,47 @@ async def _verify_organization_phone_number(
             f"{organization_id} / config {telephony_configuration_id}: {e}"
         )
         return None
+
+
+async def _record_missed_call(
+    organization_id: int, phone_row, normalized_data
+) -> None:
+    """Log the ring and hand the callback to a worker.
+
+    Never raises. The carrier is holding the webhook open for a hangup, and a
+    500 here makes it retry a request whose only job was to decline — so a
+    failure to enqueue must cost us the callback, not the hangup.
+
+    The row is written before the job is enqueued so that a worker that never
+    picks it up leaves a `pending` row rather than no trace at all. That row is
+    the difference between "nobody rang the hoarding" and "we dropped every
+    caller", which look identical on an empty dashboard.
+    """
+    caller = dnd.normalise_number(normalized_data.from_number)
+    if not caller:
+        logger.warning(
+            f"/inbound/run: callback-mode number {normalized_data.to_number} "
+            f"rang by an unusable caller id {normalized_data.from_number!r}; "
+            "nothing to call back"
+        )
+        return
+
+    try:
+        event = await db_client.record_missed_call(
+            organization_id=organization_id,
+            telephony_phone_number_id=phone_row.id,
+            caller=caller,
+            provider=normalized_data.provider,
+        )
+        await enqueue_job(
+            FunctionNames.PLACE_MISSED_CALL_CALLBACK, event.id, organization_id
+        )
+        logger.info(
+            f"/inbound/run: missed call from {caller} on {normalized_data.to_number}; "
+            f"callback queued as event {event.id}"
+        )
+    except Exception as exc:  # noqa: BLE001 -- see docstring
+        logger.error(f"Could not queue missed-call callback for {caller}: {exc}")
 
 
 async def _detect_provider(webhook_data: dict, headers: dict):
@@ -1078,6 +1122,21 @@ async def handle_inbound_run(request: Request):
             return provider_class.generate_validation_error_response(
                 TelephonyError.PHONE_NUMBER_NOT_CONFIGURED
             )
+
+        # Callback mode: this number is never answered. The caller rings, hangs
+        # up, and an agent rings them back — which is the whole point, because
+        # in India an incoming call is free and an outgoing one is not, so
+        # answering would charge the prospect for the privilege of hearing us.
+        # Rejecting before any media is set up means neither side pays for the
+        # inbound leg.
+        #
+        # `inbound_workflow_id` wins when both are set: a number that can be
+        # answered is answered.
+        if not phone_row.inbound_workflow_id and missed_call.is_callback_number(
+            phone_row
+        ):
+            await _record_missed_call(config.organization_id, phone_row, normalized_data)
+            return generic_hangup_response()
 
         if not phone_row.inbound_workflow_id:
             logger.warning(

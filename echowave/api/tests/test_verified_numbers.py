@@ -350,17 +350,76 @@ class TestTheSender:
 
 
 class TestTheGateDefault:
-    def test_the_gate_is_off_until_a_code_can_actually_be_delivered(self):
-        """A permission nobody can obtain is an outage, not a permission.
+    """The gate is `auto` by default: on exactly when it can be satisfied.
 
-        VERIFICATION_CHANNEL is `log` on every real deployment today, and log
-        refuses to run outside dev — so enforcing this before delivery works
-        would refuse every test call with no way for the user to proceed.
+    A permission nobody can obtain is an outage, not a permission — enforcing a
+    verified destination on a deployment that cannot deliver a code refuses
+    every test call with no way forward. Tying the default to deliverability is
+    what lets the gate be on wherever it *can* be met, without a second env var
+    somebody has to remember to flip.
+    """
 
-        This assertion is here to be DELETED, in the same change that makes
-        delivery work and flips the default. It failing means somebody turned
-        the gate on; check that a code can actually reach a user first.
+    def test_auto_follows_whether_a_real_channel_is_configured(self, monkeypatch):
+        from api.services.telephony import verification_sender as sender
+
+        monkeypatch.setattr(sender, "REQUIRE_VERIFIED_TEST_NUMBER", "auto")
+
+        for channel in ["voice", "plivo_sms", "twilio_sms"]:
+            monkeypatch.setattr(sender, "VERIFICATION_CHANNEL", channel)
+            assert sender.test_calls_require_verified_number() is True
+
+        # `log` is the deployment that has configured nothing. It must not be
+        # locked out of its own test-call button — and that holds in a dev
+        # ENVIRONMENT too, even though `is_deliverable` counts log there. A
+        # developer reading a code off the console is not the harassment this
+        # gate exists to stop.
+        monkeypatch.setattr(sender, "VERIFICATION_CHANNEL", "log")
+        for environment in ["production", "dev", "local"]:
+            monkeypatch.setattr(sender, "ENVIRONMENT", environment)
+            assert sender.test_calls_require_verified_number() is False
+
+    def test_the_default_is_auto_not_a_hardcoded_boolean(self, monkeypatch):
+        """Guards the regression where `auto` is read as a bool.
+
+        `bool("auto")` is True and `"auto" == "true"` is False, so a careless
+        reader lands on either extreme — permanently on, or permanently off —
+        and both look like a working default until someone tries to place a
+        call. The resolver is the only correct reader; this pins that the
+        shipped default routes through it.
         """
-        from api.constants import REQUIRE_VERIFIED_TEST_NUMBER
+        monkeypatch.delenv("REQUIRE_VERIFIED_TEST_NUMBER", raising=False)
+        import importlib
 
-        assert REQUIRE_VERIFIED_TEST_NUMBER is False
+        from api import constants
+
+        importlib.reload(constants)
+        assert constants.REQUIRE_VERIFIED_TEST_NUMBER == "auto"
+
+    @pytest.mark.parametrize(
+        "setting,expected",
+        [("true", True), ("TRUE", True), ("on", True), ("false", False), ("no", False)],
+    )
+    def test_an_explicit_setting_wins_over_deliverability(
+        self, monkeypatch, setting, expected
+    ):
+        """An operator who has decided keeps their decision. `false` with voice
+        configured is the deliberate 'not yet'; `true` without a channel is the
+        deliberate lockout — both are theirs to make."""
+        from api.services.telephony import verification_sender as sender
+
+        monkeypatch.setattr(sender, "REQUIRE_VERIFIED_TEST_NUMBER", setting)
+        monkeypatch.setattr(sender, "VERIFICATION_CHANNEL", "voice")
+        assert sender.test_calls_require_verified_number() is expected
+
+    def test_an_unrecognised_setting_falls_back_to_auto_not_to_off(
+        self, monkeypatch
+    ):
+        """A typo must not silently disable the gate. `REQUIRE_VERIFIED=yes ` or
+        `Auto ` or an empty string all have to land somewhere safe, and the safe
+        landing is the behaviour of the default, not 'off'."""
+        from api.services.telephony import verification_sender as sender
+
+        monkeypatch.setattr(sender, "VERIFICATION_CHANNEL", "voice")
+        for setting in ["", "  ", "enabled", "Auto", "yes please"]:
+            monkeypatch.setattr(sender, "REQUIRE_VERIFIED_TEST_NUMBER", setting)
+            assert sender.test_calls_require_verified_number() is True

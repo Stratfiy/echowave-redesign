@@ -2,7 +2,7 @@
 
 import { ArrowLeft } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ITimezoneOption } from 'react-timezone-select';
 import { toast } from 'sonner';
 
@@ -17,12 +17,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { UnsavedChangesProvider, useUnsavedChanges, useUnsavedChangesContext } from '@/context/UnsavedChangesContext';
 import { useAuth } from '@/lib/auth';
 
 import CampaignAdvancedSettings, { getTimezoneValue, type TimeSlot } from '../../CampaignAdvancedSettings';
 
+/**
+ * The provider has to sit above the form rather than inside it: the hook that
+ * registers dirty state reads this context, so a component cannot both supply
+ * it and consume it.
+ */
 export default function EditCampaignPage() {
+    return (
+        <UnsavedChangesProvider>
+            <EditCampaignForm />
+        </UnsavedChangesProvider>
+    );
+}
+
+function EditCampaignForm() {
     const { user, getAccessToken, redirectToLogin, loading } = useAuth();
+    const { confirmNavigate } = useUnsavedChangesContext();
     const router = useRouter();
     const params = useParams();
     const campaignId = parseInt(params.campaignId as string);
@@ -30,6 +45,14 @@ export default function EditCampaignPage() {
     // Loading state
     const [isLoading, setIsLoading] = useState(true);
     const [campaign, setCampaign] = useState<CampaignResponse | null>(null);
+
+    // The form as it stood when the campaign finished loading. Every field on
+    // this screen is compared against it, so "dirty" means the form differs
+    // from what is stored rather than that somebody touched a control — a
+    // toggle flipped and flipped back is not an unsaved change. A single
+    // serialized string keeps the comparison to one line as fields are added,
+    // which matters on a form this wide.
+    const [baseline, setBaseline] = useState<string | null>(null);
 
     // Form state
     const [campaignName, setCampaignName] = useState('');
@@ -256,6 +279,11 @@ export default function EditCampaignPage() {
             }
 
             if (response.data) {
+                // Move the baseline before navigating. `router.push` is not
+                // intercepted by the guard today, but leaving the form marked
+                // dirty after a successful save is a trap for whoever changes
+                // that later.
+                setBaseline(snapshot);
                 toast.success('Campaign updated successfully');
                 router.push(`/campaigns/${campaignId}`);
             }
@@ -269,8 +297,70 @@ export default function EditCampaignPage() {
         }
     };
 
+    /**
+     * Every field that `handleSubmit` sends, in one comparable string. Kept
+     * next to nothing else so that adding a field to the form and forgetting
+     * it here is the only way to get this wrong, and it shows up as a field
+     * that never marks the form dirty.
+     */
+    const snapshot = useMemo(
+        () =>
+            JSON.stringify([
+                campaignName,
+                maxConcurrency,
+                retryEnabled,
+                maxRetries,
+                retryDelaySeconds,
+                retryOnBusy,
+                retryOnNoAnswer,
+                retryOnVoicemail,
+                scheduleEnabled,
+                getTimezoneValue(scheduleTimezone),
+                timeSlots,
+                circuitBreakerEnabled,
+                circuitBreakerFailureThreshold,
+                circuitBreakerWindowSeconds,
+                circuitBreakerMinCalls,
+            ]),
+        [
+            campaignName,
+            maxConcurrency,
+            retryEnabled,
+            maxRetries,
+            retryDelaySeconds,
+            retryOnBusy,
+            retryOnNoAnswer,
+            retryOnVoicemail,
+            scheduleEnabled,
+            scheduleTimezone,
+            timeSlots,
+            circuitBreakerEnabled,
+            circuitBreakerFailureThreshold,
+            circuitBreakerWindowSeconds,
+            circuitBreakerMinCalls,
+        ],
+    );
+
+    // Taken once, on the first render after the campaign has loaded and the
+    // setters above have flushed. Doing it inside `fetchCampaign` would mean
+    // building the same string a second way from the response, and the two
+    // would drift.
+    useEffect(() => {
+        if (!isLoading && campaign && baseline === null) {
+            setBaseline(snapshot);
+        }
+    }, [isLoading, campaign, baseline, snapshot]);
+
+    // Never dirty before the baseline exists, or the guard fires while the
+    // form is still filling itself in.
+    const isDirty = baseline !== null && snapshot !== baseline;
+
+    useUnsavedChanges("campaign", isDirty);
+
     const handleBack = () => {
-        router.push(`/campaigns/${campaignId}`);
+        // `router.push` is not a link click, so the provider's click capture
+        // never sees it — Back would silently discard the edits without this.
+        confirmNavigate(() => router.push(`/campaigns/${campaignId}`));
     };
 
     if (isLoading) {
@@ -374,9 +464,9 @@ export default function EditCampaignPage() {
                         <div className="flex gap-4 pt-4">
                             <Button
                                 type="submit"
-                                disabled={isSubmitting || !campaignName.trim()}
+                                disabled={isSubmitting || !campaignName.trim() || !isDirty}
                             >
-                                {isSubmitting ? 'Saving...' : 'Save Changes'}
+                                {isSubmitting ? 'Saving...' : isDirty ? 'Save Changes' : 'Saved'}
                             </Button>
                             <Button
                                 type="button"

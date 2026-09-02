@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Code, ExternalLink, Loader2, Save } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
     getToolApiV1ToolsToolUuidGet,
@@ -39,6 +39,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { TOOL_DOCUMENTATION_URLS } from "@/constants/documentation";
+import { UnsavedChangesProvider, useUnsavedChanges, useUnsavedChangesContext } from "@/context/UnsavedChangesContext";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
@@ -73,12 +74,27 @@ function headersToRows(headers: Record<string, string> | undefined | null): KeyV
     return Object.entries(headers).map(([key, value]) => ({ key, value }));
 }
 
+/** The provider sits above the form, since the registration hook consumes it. */
 export default function ToolDetailPage() {
+    return (
+        <UnsavedChangesProvider>
+            <ToolDetailForm />
+        </UnsavedChangesProvider>
+    );
+}
+
+function ToolDetailForm() {
     const { toolUuid } = useParams<{ toolUuid: string }>();
     const { user, getAccessToken, redirectToLogin, loading } = useAuth();
     const router = useRouter();
 
+    const { confirmNavigate } = useUnsavedChangesContext();
     const [tool, setTool] = useState<ToolResponse | null>(null);
+    // The form as it stood when the tool finished loading, and after each
+    // successful save. Compared as one serialized string because this screen
+    // has thirty-one editable fields across four tool categories, and a
+    // field-by-field comparison would be the thing that rots.
+    const [baseline, setBaseline] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -334,6 +350,95 @@ export default function ToolDetailPage() {
         fetchTool();
         fetchRecordings();
     }, [fetchTool, fetchRecordings]);
+
+    /**
+     * Every editable field on the screen, in one comparable string. A field
+     * added to the form but not added here simply never marks it dirty, which
+     * is the failure this shape is chosen to make obvious.
+     */
+    const snapshot = useMemo(
+        () =>
+            JSON.stringify([
+                name,
+                description,
+                customMessage,
+                httpMethod,
+                url,
+                credentialUuid,
+                headers,
+                parameters,
+                presetParameters,
+                timeoutMs,
+                endCallMessageType,
+                endCallReason,
+                endCallReasonDescription,
+                audioRecordingId,
+                transferDestinationSource,
+                transferDestination,
+                transferMessageType,
+                transferTimeout,
+                transferAudioRecordingId,
+                transferResolverUrl,
+                transferResolverCredentialUuid,
+                transferResolverHeaders,
+                transferResolverTimeoutMs,
+                transferResolverWaitMessage,
+                transferParameters,
+                transferPresetParameters,
+                customMessageType,
+                customMessageRecordingId,
+                mcpUrl,
+                mcpCredentialUuid,
+                mcpToolsFilter,
+            ]),
+        [
+            name,
+            description,
+            customMessage,
+            httpMethod,
+            url,
+            credentialUuid,
+            headers,
+            parameters,
+            presetParameters,
+            timeoutMs,
+            endCallMessageType,
+            endCallReason,
+            endCallReasonDescription,
+            audioRecordingId,
+            transferDestinationSource,
+            transferDestination,
+            transferMessageType,
+            transferTimeout,
+            transferAudioRecordingId,
+            transferResolverUrl,
+            transferResolverCredentialUuid,
+            transferResolverHeaders,
+            transferResolverTimeoutMs,
+            transferResolverWaitMessage,
+            transferParameters,
+            transferPresetParameters,
+            customMessageType,
+            customMessageRecordingId,
+            mcpUrl,
+            mcpCredentialUuid,
+            mcpToolsFilter,
+        ],
+    );
+
+    // Captured on the first render after the tool has loaded and the populate
+    // setters have flushed, rather than inside `populateFormFromTool` — which
+    // would mean deriving the same string a second way and letting the two
+    // drift.
+    useEffect(() => {
+        if (!isLoading && tool && baseline === null) {
+            setBaseline(snapshot);
+        }
+    }, [isLoading, tool, baseline, snapshot]);
+
+    const isDirty = baseline !== null && snapshot !== baseline;
+
+    useUnsavedChanges("tool", isDirty);
 
     const handleSave = async () => {
         if (!tool) return;
@@ -592,6 +697,9 @@ export default function ToolDetailPage() {
 
             if (response.data) {
                 setTool(response.data);
+                // The form now matches what is stored, so the guard stands
+                // down. Without this, saving and then leaving still warned.
+                setBaseline(snapshot);
                 setSaveSuccess(true);
                 setTimeout(() => setSaveSuccess(false), 3000);
             }
@@ -708,7 +816,7 @@ const data = await response.json();`;
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => router.push("/tools")}
+                                onClick={() => confirmNavigate(() => router.push("/tools"))}
                             >
                                 <ArrowLeft className="w-4 h-4 mr-2" />
                                 Back
@@ -940,7 +1048,7 @@ const data = await response.json();`;
                     )}
 
                     <div className="flex justify-end mt-6">
-                        <Button onClick={handleSave} disabled={isSaving}>
+                        <Button onClick={handleSave} disabled={isSaving || !isDirty}>
                             {isSaving ? (
                                 <>
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -949,7 +1057,7 @@ const data = await response.json();`;
                             ) : (
                                 <>
                                     <Save className="w-4 h-4 mr-2" />
-                                    Save
+                                    {isDirty ? "Save" : "Saved"}
                                 </>
                             )}
                         </Button>

@@ -279,6 +279,30 @@ export type AddNumbersResponse = {
 };
 
 /**
+ * AgentSetupResponse
+ *
+ * What still has to be answered before this agent can take a call.
+ */
+export type AgentSetupResponse = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Workflow Name
+     */
+    workflow_name: string;
+    /**
+     * Fields
+     */
+    fields: Array<SetupFieldResponse>;
+    /**
+     * Missing
+     */
+    missing: Array<string>;
+};
+
+/**
  * AmbientNoiseConfigurationDefaults
  */
 export type AmbientNoiseConfigurationDefaults = {
@@ -351,6 +375,46 @@ export type AnswerSeizureRatioResponse = {
      * Asr
      */
     asr?: number | null;
+};
+
+/**
+ * Anthropic
+ *
+ * Claude models, on your own Anthropic key. Haiku is the default here because this is a voice product: on a phone call the caller hears every millisecond of the model's first token, and the cheapest way to sound unnatural is to think for too long before speaking.
+ */
+export type AnthropicLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'anthropic';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
+     * Model
+     *
+     * Anthropic model identifier.
+     */
+    model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
 };
 
 /**
@@ -702,6 +766,16 @@ export type ByokPipelineAiModelConfiguration = {
     llm: ({
         provider: 'openai';
     } & OpenAillmService) | ({
+        provider: 'anthropic';
+    } & AnthropicLlmConfiguration) | ({
+        provider: 'cerebras';
+    } & CerebrasLlmConfiguration) | ({
+        provider: 'deepseek';
+    } & DeepSeekLlmConfiguration) | ({
+        provider: 'mistral';
+    } & MistralLlmConfiguration) | ({
+        provider: 'fireworks';
+    } & FireworksLlmConfiguration) | ({
         provider: 'google_vertex';
     } & GoogleVertexLlmConfiguration) | ({
         provider: 'groq';
@@ -836,6 +910,16 @@ export type ByokRealtimeAiModelConfiguration = {
     llm: ({
         provider: 'openai';
     } & OpenAillmService) | ({
+        provider: 'anthropic';
+    } & AnthropicLlmConfiguration) | ({
+        provider: 'cerebras';
+    } & CerebrasLlmConfiguration) | ({
+        provider: 'deepseek';
+    } & DeepSeekLlmConfiguration) | ({
+        provider: 'mistral';
+    } & MistralLlmConfiguration) | ({
+        provider: 'fireworks';
+    } & FireworksLlmConfiguration) | ({
         provider: 'google_vertex';
     } & GoogleVertexLlmConfiguration) | ({
         provider: 'groq';
@@ -1562,6 +1646,46 @@ export type CartesiaTtsConfiguration = {
      * Cartesia language code for TTS synthesis (e.g. 'en', 'tr', 'fr', 'de').
      */
     language?: string;
+};
+
+/**
+ * Cerebras
+ *
+ * The fastest inference available, which on a phone call is worth more than a cleverer model: the caller hears every millisecond before the agent starts speaking.
+ */
+export type CerebrasLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'cerebras';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
+     * Model
+     *
+     * Cerebras-hosted model identifier.
+     */
+    model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
 };
 
 /**
@@ -2790,6 +2914,46 @@ export type DecibylTtsService = {
 };
 
 /**
+ * DeepSeek
+ *
+ * Very low cost per token, for high-volume scripted calls.
+ */
+export type DeepSeekLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'deepseek';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
+     * Model
+     *
+     * DeepSeek model identifier.
+     */
+    model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
+};
+
+/**
  * Deepgram
  */
 export type DeepgramSttConfiguration = {
@@ -3275,6 +3439,32 @@ export type EmbedConfigResponse = {
 };
 
 /**
+ * EmbedTextMessageRequest
+ */
+export type EmbedTextMessageRequest = {
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * EmbedTextMessageResponse
+ */
+export type EmbedTextMessageResponse = {
+    /**
+     * Messages
+     */
+    messages: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Is Completed
+     */
+    is_completed: boolean;
+};
+
+/**
  * EmbedTokenRequest
  */
 export type EmbedTokenRequest = {
@@ -3530,6 +3720,46 @@ export type FileMetadataResponse = {
     metadata: {
         [key: string]: unknown;
     } | null;
+};
+
+/**
+ * Fireworks
+ *
+ * Hosted open-weight models on a fast inference path.
+ */
+export type FireworksLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'fireworks';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
+     * Model
+     *
+     * Fireworks model path.
+     */
+    model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
 };
 
 /**
@@ -4425,6 +4655,10 @@ export type InitEmbedRequest = {
     context_variables?: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Mode
+     */
+    mode?: string;
 };
 
 /**
@@ -5058,6 +5292,80 @@ export type MiniMaxTtsConfiguration = {
      * MiniMax Group ID (found in your MiniMax dashboard under Account → Group).
      */
     group_id: string;
+};
+
+/**
+ * MissedCallOut
+ */
+export type MissedCallOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Caller
+     */
+    caller: string;
+    /**
+     * Received At
+     */
+    received_at: string;
+    /**
+     * Outcome
+     */
+    outcome: string;
+    /**
+     * Refusal Reason
+     */
+    refusal_reason: string | null;
+    /**
+     * Workflow Run Id
+     */
+    workflow_run_id: number | null;
+    /**
+     * Telephony Phone Number Id
+     */
+    telephony_phone_number_id: number;
+};
+
+/**
+ * Mistral
+ *
+ * European models, for customers who need EU data handling.
+ */
+export type MistralLlmConfiguration = {
+    /**
+     * Provider
+     */
+    provider?: 'mistral';
+    /**
+     * Api Key
+     */
+    api_key: string | Array<string>;
+    /**
+     * Use Platform Key
+     *
+     * Run this section on Decibyl's own key for the chosen provider, rather than the account's.
+     */
+    use_platform_key?: boolean;
+    /**
+     * Model
+     *
+     * Mistral model identifier.
+     */
+    model?: string;
+    /**
+     * Temperature
+     *
+     * How much the wording varies between runs. Low is repeatable and sticks to the prompt; high is more creative and drifts from it more often.
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     *
+     * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
+     */
+    max_tokens?: number | null;
 };
 
 /**
@@ -5784,6 +6092,10 @@ export type PhoneNumberCreateRequest = {
      */
     inbound_workflow_id?: number | null;
     /**
+     * Callback Workflow Id
+     */
+    callback_workflow_id?: number | null;
+    /**
      * Is Active
      */
     is_active?: boolean;
@@ -5849,6 +6161,10 @@ export type PhoneNumberResponse = {
      * Inbound Workflow Name
      */
     inbound_workflow_name?: string | null;
+    /**
+     * Callback Workflow Id
+     */
+    callback_workflow_id?: number | null;
     /**
      * Inbound Contact List Id
      */
@@ -5929,6 +6245,14 @@ export type PhoneNumberUpdateRequest = {
      * Clear Inbound Workflow
      */
     clear_inbound_workflow?: boolean;
+    /**
+     * Callback Workflow Id
+     */
+    callback_workflow_id?: number | null;
+    /**
+     * Clear Callback Workflow
+     */
+    clear_callback_workflow?: boolean;
     /**
      * Is Active
      */
@@ -7212,6 +7536,32 @@ export type SetCredentialRequest = {
      * Check the key against the vendor before storing it. A rejected key is refused; a vendor we cannot reach is stored and reported as unverified.
      */
     verify?: boolean;
+};
+
+/**
+ * SetupFieldResponse
+ */
+export type SetupFieldResponse = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Hint
+     */
+    hint: string;
+    /**
+     * Required
+     */
+    required: boolean;
+    /**
+     * Value
+     */
+    value?: string;
 };
 
 /**
@@ -16851,6 +17201,56 @@ export type RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponses = {
 
 export type RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponse = RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponses[keyof RemoveNumberApiV1DoNotCallPhoneNumberDeleteResponses];
 
+export type ListMissedCallsApiV1MissedCallsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/api/v1/missed-calls';
+};
+
+export type ListMissedCallsApiV1MissedCallsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListMissedCallsApiV1MissedCallsGetError = ListMissedCallsApiV1MissedCallsGetErrors[keyof ListMissedCallsApiV1MissedCallsGetErrors];
+
+export type ListMissedCallsApiV1MissedCallsGetResponses = {
+    /**
+     * Response List Missed Calls Api V1 Missed Calls Get
+     *
+     * Successful Response
+     */
+    200: Array<MissedCallOut>;
+};
+
+export type ListMissedCallsApiV1MissedCallsGetResponse = ListMissedCallsApiV1MissedCallsGetResponses[keyof ListMissedCallsApiV1MissedCallsGetResponses];
+
 export type ListNumbersApiV1VerifiedNumbersGetData = {
     body?: never;
     headers?: {
@@ -17309,6 +17709,50 @@ export type GetWorkflowApiV1WorkflowFetchWorkflowIdGetResponses = {
 };
 
 export type GetWorkflowApiV1WorkflowFetchWorkflowIdGetResponse = GetWorkflowApiV1WorkflowFetchWorkflowIdGetResponses[keyof GetWorkflowApiV1WorkflowFetchWorkflowIdGetResponses];
+
+export type GetAgentSetupApiV1WorkflowWorkflowIdSetupGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/setup';
+};
+
+export type GetAgentSetupApiV1WorkflowWorkflowIdSetupGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAgentSetupApiV1WorkflowWorkflowIdSetupGetError = GetAgentSetupApiV1WorkflowWorkflowIdSetupGetErrors[keyof GetAgentSetupApiV1WorkflowWorkflowIdSetupGetErrors];
+
+export type GetAgentSetupApiV1WorkflowWorkflowIdSetupGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentSetupResponse;
+};
+
+export type GetAgentSetupApiV1WorkflowWorkflowIdSetupGetResponse = GetAgentSetupApiV1WorkflowWorkflowIdSetupGetResponses[keyof GetAgentSetupApiV1WorkflowWorkflowIdSetupGetResponses];
 
 export type GetWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGetData = {
     body?: never;
@@ -22119,6 +22563,40 @@ export type OptionsTurnCredentialsApiV1PublicEmbedTurnCredentialsSessionTokenOpt
      */
     200: unknown;
 };
+
+export type PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostData = {
+    body: EmbedTextMessageRequest;
+    path: {
+        /**
+         * Session Token
+         */
+        session_token: string;
+    };
+    query?: never;
+    url: '/api/v1/public/embed/text/{session_token}/messages';
+};
+
+export type PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostError = PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostErrors[keyof PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostErrors];
+
+export type PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmbedTextMessageResponse;
+};
+
+export type PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostResponse = PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostResponses[keyof PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostResponses];
 
 export type InitiateCallApiV1PublicAgentUuidPostData = {
     body: TriggerCallRequest;

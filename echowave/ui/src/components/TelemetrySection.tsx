@@ -9,19 +9,30 @@ import {
   saveLangfuseCredentialsApiV1OrganizationsLangfuseCredentialsPost,
 } from "@/client/sdk.gen";
 import type { LangfuseCredentialsResponse } from "@/client/types.gen";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useUnsavedChanges } from "@/context/UnsavedChangesContext";
 import { useAuth } from "@/lib/auth";
+
+const emptyCredentials: LangfuseCredentialsResponse = {
+  host: "",
+  public_key: "",
+  secret_key: "",
+  configured: false,
+};
 
 export function TelemetrySection() {
   const { user, loading: authLoading } = useAuth();
-  const [credentials, setCredentials] = useState<LangfuseCredentialsResponse>({
-    host: "",
-    public_key: "",
-    secret_key: "",
-    configured: false,
-  });
+  const { confirm, dialog } = useConfirm();
+  const [credentials, setCredentials] =
+    useState<LangfuseCredentialsResponse>(emptyCredentials);
+  // The stored values, as last read back from the server. See the same pattern
+  // in OrganizationPreferencesSection: "dirty" has to mean "differs from what
+  // is saved", not "was typed in".
+  const [baseline, setBaseline] =
+    useState<LangfuseCredentialsResponse>(emptyCredentials);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const hasFetched = useRef(false);
@@ -39,6 +50,7 @@ export function TelemetrySection() {
       const { data } = await getLangfuseCredentialsApiV1OrganizationsLangfuseCredentialsGet();
       if (data) {
         setCredentials(data);
+        setBaseline(data);
       }
     } catch {
       // No credentials configured yet — that's fine
@@ -62,6 +74,8 @@ export function TelemetrySection() {
         throw new Error("Failed to save");
       }
       toast.success("Telemetry credentials saved");
+      // Re-reads the stored row, which moves the baseline with it and clears
+      // the dirty flag.
       await fetchCredentials();
     } catch {
       toast.error("Failed to save telemetry credentials");
@@ -71,10 +85,23 @@ export function TelemetrySection() {
   }
 
   async function handleDelete() {
+    // This button used to remove the credentials on a single click, with no
+    // warning and no undo — the only destructive action on the settings page
+    // that did not ask. Tracing stops silently for every call after it.
+    const ok = await confirm({
+      title: "Remove telemetry credentials?",
+      description:
+        "Call tracing to Langfuse stops immediately and the stored keys are deleted. You will need to paste them again to turn it back on.",
+      confirmLabel: "Remove credentials",
+      destructive: true,
+    });
+    if (!ok) return;
+
     setSaving(true);
     try {
       await deleteLangfuseCredentialsApiV1OrganizationsLangfuseCredentialsDelete();
-      setCredentials({ host: "", public_key: "", secret_key: "", configured: false });
+      setCredentials(emptyCredentials);
+      setBaseline(emptyCredentials);
       toast.success("Telemetry credentials removed");
     } catch {
       toast.error("Failed to remove telemetry credentials");
@@ -83,12 +110,21 @@ export function TelemetrySection() {
     }
   }
 
+  // Above the early return: hook order has to be identical on every render.
+  const isDirty =
+    (credentials.host ?? "") !== (baseline.host ?? "") ||
+    (credentials.public_key ?? "") !== (baseline.public_key ?? "") ||
+    (credentials.secret_key ?? "") !== (baseline.secret_key ?? "");
+
+  useUnsavedChanges("telemetry", isDirty);
+
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading...</p>;
   }
 
   return (
     <form onSubmit={handleSave} className="space-y-4">
+      {dialog}
       <p className="text-sm text-muted-foreground">
         Connect your Langfuse project to receive call tracing data.
       </p>
@@ -124,8 +160,8 @@ export function TelemetrySection() {
         />
       </div>
       <div className="flex gap-2">
-        <Button type="submit" disabled={saving}>
-          {saving ? "Saving..." : "Save"}
+        <Button type="submit" disabled={saving || !isDirty}>
+          {saving ? "Saving..." : isDirty ? "Save" : "Saved"}
         </Button>
         {credentials.configured && (
           <Button type="button" variant="destructive" disabled={saving} onClick={handleDelete}>

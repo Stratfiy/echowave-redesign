@@ -8,7 +8,7 @@ import hmac
 import json
 import random
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
-from urllib.parse import parse_qs, urlparse, urlunparse
+from urllib.parse import parse_qs, quote, urlparse, urlunparse
 
 import aiohttp
 from fastapi import HTTPException
@@ -17,6 +17,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import TelephonyCallStatus, WorkflowRunMode
 from api.services.telephony import stream_capability
+from api.services.telephony.escalation import DEFAULT_BRIEFING
 from api.services.telephony.base import (
     AvailableNumber,
     CallInitiationResult,
@@ -804,9 +805,86 @@ class PlivoProvider(TelephonyProvider):
         transfer_id: str,
         conference_name: str,
         timeout: int = 30,
+        briefing: Optional[str] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        raise NotImplementedError("Plivo provider does not support call transfers")
+        """Dial the destination into the transfer conference.
+
+        This is only the destination half. The caller is moved in separately,
+        by ``PlivoConferenceStrategy`` when the pipeline tears down — the two
+        meet in a conference named by ``conference_name``.
+
+        Plivo has no inline-XML parameter, so the briefing and the conference
+        are served from ``/plivo/transfer-bridge/{conference_name}`` and reached
+        by URL. That is also why the briefing travels as a query parameter
+        rather than as part of a payload: the only channel to that endpoint is
+        the URL Plivo will fetch.
+        """
+        if not self.validate_config():
+            raise ValueError("Plivo provider not properly configured")
+
+        from_number = random.choice(self.from_numbers)
+        logger.info(f"Selected phone number {from_number} for transfer call")
+
+        backend_endpoint, _ = await get_backend_endpoints()
+
+        answer_url = (
+            f"{backend_endpoint}/api/v1/telephony/plivo/transfer-bridge/"
+            f"{quote(conference_name, safe='')}"
+            f"?briefing={quote(briefing or DEFAULT_BRIEFING, safe='')}"
+        )
+        status_callback_url = (
+            f"{backend_endpoint}/api/v1/telephony/transfer-result/{transfer_id}"
+        )
+
+        endpoint = f"{self.base_url}/Call/"
+        data = {
+            "from": from_number.lstrip("+"),
+            "to": destination.lstrip("+"),
+            "answer_url": answer_url,
+            "answer_method": "POST",
+            # Plivo reports the outcome of the destination leg here — the same
+            # endpoint the other providers post to, so the tool call that asked
+            # for the transfer is completed by one code path for all of them.
+            "hangup_url": status_callback_url,
+            "hangup_method": "POST",
+            # Stop ringing at the same point the caller is told it failed,
+            # rather than leaving them listening to a phone nobody answers.
+            "ring_timeout": timeout,
+        }
+        data.update(kwargs)
+
+        async with aiohttp.ClientSession() as session:
+            auth = aiohttp.BasicAuth(self.auth_id, self.auth_token)
+            async with session.post(endpoint, json=data, auth=auth) as response:
+                response_text = await response.text()
+                if response.status not in (200, 201, 202):
+                    logger.error(
+                        f"[Plivo Transfer] Dialling destination {destination} "
+                        f"failed: status={response.status} body={response_text}"
+                    )
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Failed to initiate Plivo transfer: {response_text}",
+                    )
+
+                response_data = json.loads(response_text)
+                call_id = response_data.get("request_uuid") or response_data.get(
+                    "call_uuid"
+                )
+
+                logger.info(
+                    f"[Plivo Transfer] Destination {destination} dialled into "
+                    f"conference {conference_name} (transfer={transfer_id}, "
+                    f"call={call_id})"
+                )
+
+                return {
+                    "call_sid": call_id,
+                    "status": response_data.get("message", "queued"),
+                    "provider": "plivo",
+                }
 
     def supports_transfers(self) -> bool:
-        return False
+        """Plivo supports conference-based call transfers."""
+        return True

@@ -11,6 +11,7 @@ import {
   startApiV1VerifiedNumbersStartPost,
 } from "@/client/sdk.gen";
 import type { VerificationOptions, VerifiedNumber } from "@/client/types.gen";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { TelephonyTabs } from "@/components/telephony/TelephonyTabs";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,7 @@ import { useAuth } from "@/lib/auth";
  * unlocks rather than presenting itself as a settings chore.
  */
 export default function VerifiedNumbersPage() {
+  const { confirm, dialog } = useConfirm();
   const { user, loading: authLoading } = useAuth();
 
   const [numbers, setNumbers] = useState<VerifiedNumber[]>([]);
@@ -161,6 +163,17 @@ export default function VerifiedNumbersPage() {
   };
 
   const handleRemove = async (number: string) => {
+    // Removing a verified number is cheap to undo but slow: the number has to
+    // go through the OTP verification round trip again before it can be
+    // called. Worth asking, not worth painting red.
+    const ok = await confirm({
+      title: `Remove +${number}?`,
+      description:
+        "Test calls to this number will be refused until it is verified again, which means another OTP round trip.",
+      confirmLabel: "Remove number",
+    });
+    if (!ok) return;
+
     const response = await removeApiV1VerifiedNumbersPhoneNumberDelete({
       path: { phone_number: number },
     });
@@ -180,6 +193,7 @@ export default function VerifiedNumbersPage() {
 
   return (
     <>
+      {dialog}
       <TelephonyTabs />
       <PageHeader
         title="Verified numbers"

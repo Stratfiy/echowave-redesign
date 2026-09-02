@@ -62,7 +62,15 @@ from pipecat.services.google.vertex.llm import (
     GoogleVertexLLMService,
     GoogleVertexLLMSettings,
 )
+from pipecat.services.anthropic.llm import (
+    AnthropicLLMService,
+    AnthropicLLMSettings,
+)
+from pipecat.services.cerebras.llm import CerebrasLLMService, CerebrasLLMSettings
+from pipecat.services.deepseek.llm import DeepSeekLLMService, DeepSeekLLMSettings
+from pipecat.services.fireworks.llm import FireworksLLMService, FireworksLLMSettings
 from pipecat.services.groq.llm import GroqLLMService, GroqLLMSettings
+from pipecat.services.mistral.llm import MistralLLMService, MistralLLMSettings
 from pipecat.services.huggingface.llm import (
     HuggingFaceLLMService,
     HuggingFaceLLMSettings,
@@ -1325,6 +1333,52 @@ def create_llm_service_from_provider(
                 **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
             ),
             **kwargs,
+        )
+    elif provider == ServiceProviders.ANTHROPIC.value:
+        return AnthropicLLMService(
+            api_key=api_key,
+            settings=AnthropicLLMSettings(
+                model=model,
+                # Anthropic bills cache writes above the normal input rate and
+                # cache reads well below it. A voice agent resends a system
+                # prompt and a growing transcript on every single turn, which
+                # is the shape caching is for — the prefix is stable and the
+                # turn count is high.
+                enable_prompt_caching=True,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
+        )
+    elif provider == ServiceProviders.CEREBRAS.value:
+        return CerebrasLLMService(
+            api_key=api_key,
+            settings=CerebrasLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
+        )
+    elif provider == ServiceProviders.DEEPSEEK.value:
+        return DeepSeekLLMService(
+            api_key=api_key,
+            settings=DeepSeekLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
+        )
+    elif provider == ServiceProviders.MISTRAL.value:
+        return MistralLLMService(
+            api_key=api_key,
+            settings=MistralLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
+        )
+    elif provider == ServiceProviders.FIREWORKS.value:
+        return FireworksLLMService(
+            api_key=api_key,
+            settings=FireworksLLMSettings(
+                model=model,
+                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+            ),
         )
     elif provider == ServiceProviders.GROQ.value:
         return GroqLLMService(

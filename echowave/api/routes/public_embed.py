@@ -16,7 +16,7 @@ from fastapi import (
     Response,
 )
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -39,6 +39,11 @@ class InitEmbedRequest(BaseModel):
 
     token: str
     context_variables: Optional[dict] = None
+    #: "voice" or "text". A visitor in an office, on a train, or who simply
+    #: does not want to talk out loud is most of the traffic a website widget
+    #: sees — a voice-only widget is a widget most visitors close. Same agent,
+    #: same setup, different transport.
+    mode: str = "voice"
 
 
 class InitEmbedResponse(BaseModel):
@@ -205,6 +210,25 @@ async def _turn_credentials_preflight_response(
     return _cors_response(origin, "GET, OPTIONS")
 
 
+async def _text_message_preflight_response(session_token: str, origin: str) -> Response:
+    """Same session and domain checks as the voice path, POST instead of GET."""
+    embed_session = await db_client.get_embed_session_by_token(session_token)
+    if not embed_session:
+        return Response(status_code=403)
+
+    if embed_session.expires_at and embed_session.expires_at < datetime.now(UTC):
+        return Response(status_code=403)
+
+    embed_token = await db_client.get_embed_token_by_id(embed_session.embed_token_id)
+    if not embed_token:
+        return Response(status_code=403)
+
+    if not validate_origin(origin, embed_token.allowed_domains or []):
+        return Response(status_code=403)
+
+    return _cors_response(origin, "POST, OPTIONS")
+
+
 async def build_public_embed_preflight_response(
     path: str, origin: str, requested_method: str, api_prefix: str = "/api/v1"
 ) -> Response | None:
@@ -222,6 +246,13 @@ async def build_public_embed_preflight_response(
             return Response(status_code=405)
         token = path[len(config_prefix) :].split("/", 1)[0]
         return await _config_preflight_response(token, origin)
+
+    text_prefix = f"{public_embed_prefix}/text/"
+    if path.startswith(text_prefix):
+        if requested_method.upper() != "POST":
+            return Response(status_code=405)
+        session_token = path[len(text_prefix) :].split("/", 1)[0]
+        return await _text_message_preflight_response(session_token, origin)
 
     turn_credentials_prefix = f"{public_embed_prefix}/turn-credentials/"
     if path.startswith(turn_credentials_prefix):
@@ -302,17 +333,22 @@ async def initialize_embed_session(
     if origin:
         _allow_embed_origin(response, origin)
 
+    is_text = (init_request.mode or "voice").strip().lower() == "text"
+    run_mode = (
+        WorkflowRunMode.TEXTCHAT.value if is_text else WorkflowRunMode.SMALLWEBRTC.value
+    )
+
     # Create workflow run
     try:
         workflow_run = await db_client.create_workflow_run(
             name=f"Embed Run - {datetime.now(UTC).isoformat()}",
             workflow_id=embed_token.workflow_id,
-            mode=WorkflowRunMode.SMALLWEBRTC.value,
+            mode=run_mode,
             user_id=embed_token.created_by,  # Use token creator as run owner
             organization_id=embed_token.organization_id,
             initial_context={
                 **(init_request.context_variables or {}),
-                "provider": WorkflowRunMode.SMALLWEBRTC.value,
+                "provider": run_mode,
             },
         )
     except Exception as e:
@@ -340,10 +376,24 @@ async def initialize_embed_session(
     # Increment usage count
     await db_client.increment_embed_token_usage(embed_token.id)
 
+    # A text session needs its transcript and checkpoint to exist before the
+    # first message arrives. Done here rather than lazily on first message so a
+    # widget that fails to start fails at init, where the failure is visible,
+    # rather than swallowing the visitor's opening sentence.
+    if is_text:
+        try:
+            await _start_text_session(workflow_run.id)
+        except Exception as e:
+            logger.error(f"Failed to start embed text session: {e}")
+            raise HTTPException(
+                status_code=500, detail="Failed to start chat session"
+            )
+
     # Prepare configuration
     config = {
         "workflow_id": embed_token.workflow_id,
         "workflow_run_id": workflow_run.id,
+        "mode": "text" if is_text else "voice",
         **(embed_token.settings or {}),
     }
 
@@ -483,4 +533,129 @@ async def options_turn_credentials(request: Request, session_token: str):
     # Browser preflights are handled by PublicEmbedCORSMiddleware before global CORS.
     return await _turn_credentials_preflight_response(
         session_token, request.headers.get("origin", "")
+    )
+
+
+# ---------------------------------------------------------------------------
+# Text chat
+# ---------------------------------------------------------------------------
+#
+# The authenticated text-chat routes under /workflow serve the editor's test
+# chat: they require a logged-in user and run against the draft. A visitor on a
+# customer's website is neither, so the public surface is these two endpoints —
+# same service underneath, embed-token authorisation instead of a session
+# cookie, and the published agent rather than the draft.
+
+
+class EmbedTextMessageRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=2000)
+
+
+class EmbedTextMessageResponse(BaseModel):
+    #: Everything the agent has said and heard, oldest first. Returned whole
+    #: rather than as a delta because the widget is stateless between messages
+    #: and a visitor who reloads the page should not lose the conversation.
+    messages: list[dict]
+    is_completed: bool
+
+
+async def _start_text_session(run_id: int) -> None:
+    from api.services.workflow.text_chat_runner import default_text_chat_checkpoint
+    from api.services.workflow.text_chat_session_service import (
+        default_text_chat_session_data,
+        initialize_text_chat_session,
+    )
+
+    text_session = await db_client.ensure_workflow_run_text_session(
+        run_id,
+        session_data=default_text_chat_session_data(),
+        checkpoint=default_text_chat_checkpoint(),
+    )
+    await initialize_text_chat_session(run_id=run_id, text_session=text_session)
+
+
+def _visible_messages(session_data: dict) -> list[dict]:
+    """The transcript, stripped to what a visitor may see.
+
+    Whitelisted rather than filtered: the session carries tool calls, node
+    names and internal reasoning, and a blacklist is one new key away from
+    leaking how the agent works to anyone who opens the network tab.
+    """
+    out = []
+    for message in (session_data or {}).get("messages", []) or []:
+        role = message.get("role")
+        content = message.get("content")
+        if role in ("user", "assistant") and isinstance(content, str) and content:
+            out.append({"role": role, "content": content})
+    return out
+
+
+async def _resolve_embed_session(session_token: str, request: Request, response):
+    """Session token to embed session, with the same checks the voice path makes."""
+    origin = get_request_origin(request)
+
+    embed_session = await db_client.get_embed_session_by_token(session_token)
+    if not embed_session:
+        raise HTTPException(status_code=404, detail="Invalid session token")
+    if embed_session.expires_at and embed_session.expires_at < datetime.now(UTC):
+        raise HTTPException(status_code=403, detail="Session expired")
+
+    embed_token = await db_client.get_embed_token_by_id(embed_session.embed_token_id)
+    if not embed_token:
+        raise HTTPException(status_code=404, detail="Invalid embed token")
+    if not validate_origin(origin, embed_token.allowed_domains or []):
+        logger.warning(
+            f"Domain validation failed for embed text: {origin} not in "
+            f"{embed_token.allowed_domains}"
+        )
+        raise HTTPException(status_code=403, detail=f"Domain not allowed: {origin}")
+
+    if origin:
+        _allow_embed_origin(response, origin)
+    return embed_session, embed_token
+
+
+@router.post("/text/{session_token}/messages", response_model=EmbedTextMessageResponse)
+async def post_embed_text_message(
+    session_token: str,
+    body: EmbedTextMessageRequest,
+    request: Request,
+    response: Response,
+):
+    """One turn of a website chat: the visitor's message in, the agent's out."""
+    from api.services.workflow.text_chat_session_service import (
+        append_text_chat_user_message,
+        execute_pending_text_chat_turn,
+        normalize_text_chat_session_data,
+    )
+
+    embed_session, embed_token = await _resolve_embed_session(
+        session_token, request, response
+    )
+    run_id = embed_session.workflow_run_id
+
+    text_session = await db_client.get_workflow_run_text_session(run_id)
+    if not text_session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+
+    try:
+        text_session = await append_text_chat_user_message(
+            run_id=run_id,
+            text_session=text_session,
+            user_text=body.text,
+            expected_revision=None,
+        )
+        text_session = await execute_pending_text_chat_turn(
+            workflow_id=embed_token.workflow_id,
+            run_id=run_id,
+            text_session=text_session,
+        )
+    except Exception as e:
+        logger.error(f"Embed text turn failed for run {run_id}: {e}")
+        raise HTTPException(status_code=500, detail="Could not send that message")
+
+    session_data = normalize_text_chat_session_data(text_session.session_data)
+    return EmbedTextMessageResponse(
+        messages=_visible_messages(session_data),
+        is_completed=bool(text_session.workflow_run.is_completed),
     )

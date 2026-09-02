@@ -6,3 +6,4 @@ class FunctionNames:
     PROCESS_KNOWLEDGE_BASE_DOCUMENT = "process_knowledge_base_document"
     DELIVER_WEBHOOK = "deliver_webhook"
     EMAIL_TAX_DOCUMENT = "email_tax_document"
+    PLACE_MISSED_CALL_CALLBACK = "place_missed_call_callback"

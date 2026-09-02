@@ -44,6 +44,7 @@ from api.routes.telephony_admin import router as telephony_admin_router
 from api.routes.tool import router as tool_router
 from api.routes.turn_credentials import router as turn_credentials_router
 from api.routes.user import router as user_router
+from api.routes.missed_calls import router as missed_calls_router
 from api.routes.verified_numbers import router as verified_numbers_router
 from api.routes.webrtc_signaling import router as webrtc_signaling_router
 from api.routes.workflow import router as workflow_router
@@ -76,6 +77,7 @@ router.include_router(provider_keys_router)
 router.include_router(payments_router)
 router.include_router(privacy_router)
 router.include_router(do_not_call_router)
+router.include_router(missed_calls_router)
 router.include_router(verified_numbers_router)
 router.include_router(workflow_router)
 router.include_router(workflow_text_chat_router)

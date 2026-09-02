@@ -22,7 +22,14 @@ import { useUserConfig } from "@/context/UserConfigContext";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
-export default function ModelConfigurationV2({ docsUrl }: { docsUrl?: string }) {
+export default function ModelConfigurationV2({
+    docsUrl,
+    guardUnsavedChanges = false,
+}: {
+    docsUrl?: string;
+    /** Forwarded to the model editor — see ServiceConfigurationForm's prop docs. */
+    guardUnsavedChanges?: boolean;
+}) {
     const auth = useAuth();
     const { refreshConfig } = useUserConfig();
     const hasFetched = useRef(false);
@@ -136,6 +143,7 @@ export default function ModelConfigurationV2({ docsUrl }: { docsUrl?: string }) 
                     configuration={response.configuration}
                     effectiveConfiguration={response.effective_configuration}
                     onSave={saveConfiguration}
+                    guardUnsavedChanges={guardUnsavedChanges}
                 />
             )}
 

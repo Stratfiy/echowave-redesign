@@ -10,6 +10,7 @@ import {
   uploadNumbersApiV1DoNotCallUploadPost,
 } from "@/client/sdk.gen";
 import type { DoNotCallEntry } from "@/client/types.gen";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +52,7 @@ export default function DoNotCallPage() {
   const roles = useAccessRoles();
   const { user, loading: authLoading } = useAuth();
 
+  const { confirm, dialog } = useConfirm();
   const [entries, setEntries] = useState<DoNotCallEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -148,6 +150,22 @@ export default function DoNotCallPage() {
   };
 
   const handleRemove = async (phoneNumber: string) => {
+    // The most consequential single click in the product, and until now it
+    // took effect immediately with no prompt. Taking a number off this list
+    // does not lose data — it makes it legal-facing: the next campaign will
+    // dial somebody who asked not to be dialled, and under the TRAI rules
+    // that is a regulatory incident rather than a support ticket. The person
+    // who opted out is not around to notice the mistake, so the confirmation
+    // is the only chance anyone gets to catch it.
+    const ok = await confirm({
+      title: `Allow calls to ${phoneNumber} again?`,
+      description:
+        "This number opted out of being contacted. Removing it from the Do Not Call list means campaigns and agents will dial it again. Only do this if you have a record of them asking to be contacted.",
+      confirmLabel: "Remove from list",
+      destructive: true,
+    });
+    if (!ok) return;
+
     const response = await removeNumberApiV1DoNotCallPhoneNumberDelete({
       path: { phone_number: phoneNumber },
     });
@@ -165,6 +183,7 @@ export default function DoNotCallPage() {
 
   return (
     <>
+      {dialog}
       <PageHeader
         title="Do not call"
         description="Numbers this account will never dial. Checked immediately before every call, including every row of a campaign."

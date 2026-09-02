@@ -8,7 +8,7 @@ selection and inbound call routing.
 from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
-from sqlalchemy import update
+from sqlalchemy import or_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
 
@@ -113,6 +113,33 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                 )
             )
             return result.scalars().first()
+
+    async def list_normalized_addresses_for_organization(
+        self, organization_id: int
+    ) -> list[str]:
+        """Every number this account holds, plus our shared outbound pool.
+
+        The loop guard for missed-call callback. Both halves are needed and for
+        different reasons: an account's own agent dialling its own callback
+        number is the likely accident (it is the obvious way to try the feature
+        out), and the shared pool is the number a trial account dials *from*,
+        so it would otherwise be the one number guaranteed to reach a callback
+        line and start a conversation between two of our own agents.
+
+        Returns the normalised form, because that is what the inbound lookup
+        matches on — a set built from the display column would miss a number
+        stored as "+91 98765 43210" and compared as "919876543210".
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(TelephonyPhoneNumberModel.address_normalized).where(
+                    or_(
+                        TelephonyPhoneNumberModel.organization_id == organization_id,
+                        TelephonyPhoneNumberModel.is_shared_outbound.is_(True),
+                    )
+                )
+            )
+            return [row for row in result.scalars().all() if row]
 
     async def find_active_phone_number_for_inbound(
         self,
@@ -356,6 +383,7 @@ class TelephonyPhoneNumberClient(BaseDBClient):
         country_code: Optional[str] = None,
         label: Optional[str] = None,
         inbound_workflow_id: Optional[int] = None,
+        callback_workflow_id: Optional[int] = None,
         is_active: bool = True,
         is_default_caller_id: bool = False,
         extra_metadata: Optional[Dict[str, Any]] = None,
@@ -377,6 +405,7 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                 country_code=country_code or normalized.country_code,
                 label=label,
                 inbound_workflow_id=inbound_workflow_id,
+                callback_workflow_id=callback_workflow_id,
                 is_active=is_active,
                 is_default_caller_id=is_default_caller_id,
                 extra_metadata=extra_metadata or {},
@@ -411,6 +440,8 @@ class TelephonyPhoneNumberClient(BaseDBClient):
         inbound_max_calls_per_caller: Optional[int] = None,
         inbound_call_window_hours: Optional[int] = None,
         inbound_allow_list: Optional[list] = None,
+        callback_workflow_id: Optional[int] = None,
+        clear_callback_workflow: bool = False,
     ) -> Optional[TelephonyPhoneNumberModel]:
         """Partial update. ``address`` is intentionally immutable — create a new
         row instead. Set ``clear_inbound_workflow=True`` to null out the FK."""
@@ -425,6 +456,10 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                 row.inbound_workflow_id = inbound_workflow_id
             elif clear_inbound_workflow:
                 row.inbound_workflow_id = None
+            if callback_workflow_id is not None:
+                row.callback_workflow_id = callback_workflow_id
+            elif clear_callback_workflow:
+                row.callback_workflow_id = None
             if is_active is not None:
                 row.is_active = is_active
             if country_code is not None:

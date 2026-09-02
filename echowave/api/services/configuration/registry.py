@@ -77,6 +77,11 @@ class ServiceType(Enum):
 
 class ServiceProviders(str, Enum):
     OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    CEREBRAS = "cerebras"
+    DEEPSEEK = "deepseek"
+    MISTRAL = "mistral"
+    FIREWORKS = "fireworks"
     DEEPGRAM = "deepgram"
     GROQ = "groq"
     OPENROUTER = "openrouter"
@@ -114,6 +119,11 @@ class ServiceProviders(str, Enum):
 class BaseServiceConfiguration(BaseModel):
     provider: Literal[
         ServiceProviders.OPENAI,
+        ServiceProviders.ANTHROPIC,
+        ServiceProviders.CEREBRAS,
+        ServiceProviders.DEEPSEEK,
+        ServiceProviders.MISTRAL,
+        ServiceProviders.FIREWORKS,
         ServiceProviders.DEEPGRAM,
         ServiceProviders.GROQ,
         ServiceProviders.OPENROUTER,
@@ -435,6 +445,40 @@ CUSTOM_LLM_PROVIDER_MODEL_CONFIG = provider_model_config(
     ),
 )
 GOOGLE_PROVIDER_MODEL_CONFIG = provider_model_config("Google")
+CEREBRAS_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Cerebras",
+    description=(
+        "The fastest inference available, which on a phone call is worth more "
+        "than a cleverer model: the caller hears every millisecond before the "
+        "agent starts speaking."
+    ),
+    provider_docs_url="https://inference-docs.cerebras.ai/models/overview",
+)
+DEEPSEEK_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "DeepSeek",
+    description="Very low cost per token, for high-volume scripted calls.",
+    provider_docs_url="https://api-docs.deepseek.com/quick_start/pricing",
+)
+MISTRAL_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Mistral",
+    description="European models, for customers who need EU data handling.",
+    provider_docs_url="https://docs.mistral.ai/getting-started/models/models_overview/",
+)
+FIREWORKS_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Fireworks",
+    description="Hosted open-weight models on a fast inference path.",
+    provider_docs_url="https://fireworks.ai/models",
+)
+ANTHROPIC_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Anthropic",
+    description=(
+        "Claude models, on your own Anthropic key. Haiku is the default here "
+        "because this is a voice product: on a phone call the caller hears "
+        "every millisecond of the model's first token, and the cheapest way to "
+        "sound unnatural is to think for too long before speaking."
+    ),
+    provider_docs_url="https://docs.claude.com/en/docs/about-claude/models",
+)
 GROQ_PROVIDER_MODEL_CONFIG = provider_model_config("Groq")
 OPENROUTER_PROVIDER_MODEL_CONFIG = provider_model_config("Open Router")
 AZURE_OPENAI_PROVIDER_MODEL_CONFIG = provider_model_config("Azure OpenAI")
@@ -507,6 +551,33 @@ OPENAI_MODELS = [
     "gpt-5-mini",
     "gpt-5-nano",
     "gpt-3.5-turbo",
+]
+
+#: Defaults track pipecat's own default for each service, so a model that
+#: disappears upstream fails the same way for us as it does there rather than
+#: differently. ``allow_custom_input`` is on for all four: these vendors ship
+#: models faster than we redeploy.
+CEREBRAS_MODELS = ["gpt-oss-120b", "llama-3.3-70b", "llama3.1-8b"]
+DEEPSEEK_MODELS = ["deepseek-chat", "deepseek-reasoner"]
+MISTRAL_MODELS = [
+    "mistral-small-latest",
+    "mistral-medium-latest",
+    "mistral-large-latest",
+]
+FIREWORKS_MODELS = [
+    "accounts/fireworks/models/firefunction-v2",
+    "accounts/fireworks/models/llama-v3p3-70b-instruct",
+]
+
+#: Offered newest-first. These are complete identifiers — Anthropic's current
+#: IDs carry no date suffix, and appending one produces a model that does not
+#: exist rather than an older snapshot.
+ANTHROPIC_MODELS = [
+    "claude-haiku-4-5",
+    "claude-sonnet-5",
+    "claude-opus-5",
+    "claude-sonnet-4-6",
+    "claude-opus-4-8",
 ]
 
 GROQ_MODELS = [
@@ -634,6 +705,61 @@ class GoogleVertexLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
             "Not used for Vertex AI — authentication is via the service account "
             "in `credentials` (or ADC). Leave blank."
         ),
+    )
+
+
+@register_llm
+class CerebrasLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
+    model_config = CEREBRAS_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.CEREBRAS] = ServiceProviders.CEREBRAS
+    model: str = Field(
+        default="gpt-oss-120b",
+        description="Cerebras-hosted model identifier.",
+        json_schema_extra={"examples": CEREBRAS_MODELS, "allow_custom_input": True},
+    )
+
+
+@register_llm
+class DeepSeekLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
+    model_config = DEEPSEEK_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.DEEPSEEK] = ServiceProviders.DEEPSEEK
+    model: str = Field(
+        default="deepseek-chat",
+        description="DeepSeek model identifier.",
+        json_schema_extra={"examples": DEEPSEEK_MODELS, "allow_custom_input": True},
+    )
+
+
+@register_llm
+class MistralLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
+    model_config = MISTRAL_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.MISTRAL] = ServiceProviders.MISTRAL
+    model: str = Field(
+        default="mistral-small-latest",
+        description="Mistral model identifier.",
+        json_schema_extra={"examples": MISTRAL_MODELS, "allow_custom_input": True},
+    )
+
+
+@register_llm
+class FireworksLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
+    model_config = FIREWORKS_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.FIREWORKS] = ServiceProviders.FIREWORKS
+    model: str = Field(
+        default="accounts/fireworks/models/firefunction-v2",
+        description="Fireworks model path.",
+        json_schema_extra={"examples": FIREWORKS_MODELS, "allow_custom_input": True},
+    )
+
+
+@register_llm
+class AnthropicLLMConfiguration(PipelineLLMTuning, BaseLLMConfiguration):
+    model_config = ANTHROPIC_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.ANTHROPIC] = ServiceProviders.ANTHROPIC
+    model: str = Field(
+        default="claude-haiku-4-5",
+        description="Anthropic model identifier.",
+        json_schema_extra={"examples": ANTHROPIC_MODELS, "allow_custom_input": True},
     )
 
 
@@ -1149,6 +1275,11 @@ REALTIME_PROVIDERS = {
 LLMConfig = Annotated[
     Union[
         OpenAILLMService,
+        AnthropicLLMConfiguration,
+        CerebrasLLMConfiguration,
+        DeepSeekLLMConfiguration,
+        MistralLLMConfiguration,
+        FireworksLLMConfiguration,
         GoogleVertexLLMConfiguration,
         GroqLLMService,
         OpenRouterLLMConfiguration,

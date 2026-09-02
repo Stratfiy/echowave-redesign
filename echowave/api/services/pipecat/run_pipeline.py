@@ -17,6 +17,7 @@ from api.schemas.workflow_configurations import (
     DEFAULT_TURN_START_STRATEGY,
     DEFAULT_TURN_STOP_STRATEGY,
     DEFAULT_USER_SPEECH_TIMEOUT,
+    MAX_CALL_DURATION_SECONDS,
 )
 from api.services.call_concurrency import call_concurrency
 from api.services.configuration.registry import ServiceProviders
@@ -665,6 +666,54 @@ async def _run_pipeline(
             unregister_worker_active_call(workflow_run_id)
 
 
+def _clamped_call_duration(raw: object) -> int:
+    """The stored per-call duration, held to the platform ceiling.
+
+    ``WorkflowConfigurations`` already validates this on write with
+    ``le=MAX_CALL_DURATION_SECONDS``. This clamps it again on **read**, and the
+    difference between those two moments is the whole point: the schema guards
+    the API that writes the row, while this function guards the JSON column
+    that is actually read at dial time. A row written before the constraint
+    existed, restored from a backup, edited directly, or arriving through any
+    future path that does not go through the schema is honoured verbatim
+    without it.
+
+    That matters here more than it would almost anywhere else, because this
+    number is denominated in money. Every second of a call bills telephony,
+    transcription, a model and speech synthesis simultaneously. An unclamped
+    value is not a long call, it is an unbounded one — and the reservation
+    holds ``min(estimate, balance)``, so a call that outruns its estimate
+    overdraws the account rather than stopping.
+
+    Junk falls back to the default rather than raising. A malformed
+    configuration should cost the customer a shorter call, not a failed one.
+    """
+    try:
+        seconds = int(raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            f"Ignoring non-numeric max_call_duration {raw!r}; "
+            f"using {DEFAULT_MAX_CALL_DURATION_SECONDS}s"
+        )
+        return DEFAULT_MAX_CALL_DURATION_SECONDS
+
+    if seconds <= 0:
+        logger.warning(
+            f"Ignoring non-positive max_call_duration {seconds}; "
+            f"using {DEFAULT_MAX_CALL_DURATION_SECONDS}s"
+        )
+        return DEFAULT_MAX_CALL_DURATION_SECONDS
+
+    if seconds > MAX_CALL_DURATION_SECONDS:
+        logger.warning(
+            f"max_call_duration {seconds}s exceeds the platform ceiling; "
+            f"clamping to {MAX_CALL_DURATION_SECONDS}s"
+        )
+        return MAX_CALL_DURATION_SECONDS
+
+    return seconds
+
+
 async def _run_pipeline_impl(
     transport,
     workflow_id: int,
@@ -738,7 +787,9 @@ async def _run_pipeline_impl(
 
     if run_configs:
         if "max_call_duration" in run_configs:
-            max_call_duration_seconds = run_configs["max_call_duration"]
+            max_call_duration_seconds = _clamped_call_duration(
+                run_configs["max_call_duration"]
+            )
 
         if "max_user_idle_timeout" in run_configs:
             max_user_idle_timeout = run_configs["max_user_idle_timeout"]

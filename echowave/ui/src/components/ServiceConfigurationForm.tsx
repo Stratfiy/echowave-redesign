@@ -41,6 +41,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceSelector } from "@/components/VoiceSelector";
 import { LANGUAGE_DISPLAY_NAMES } from "@/constants/languages";
+import { useUnsavedChanges } from "@/context/UnsavedChangesContext";
 import { useUserConfig } from "@/context/UserConfigContext";
 import { pricedStack } from "@/lib/billing/pricedStack";
 import type { ModelOverrides } from "@/types/workflow-configurations";
@@ -165,6 +166,21 @@ export interface ServiceConfigurationFormProps {
     onSave: (config: Record<string, unknown>) => Promise<void>;
     /** Text for the submit button. Defaults to "Save Configuration". */
     submitLabel?: string;
+    /**
+     * Register this form's dirty state with the surrounding
+     * `UnsavedChangesProvider`, so navigating away with unsaved model changes
+     * prompts first.
+     *
+     * Opt-in rather than automatic on purpose. This form is also mounted
+     * inside the agent settings editor, which already runs its own guard over
+     * its own sections; switching it on there would add a second source of
+     * "dirty" to a screen that works today, and react-hook-form's `isDirty` on
+     * a form this heavily reset and re-initialised is exactly the kind of
+     * signal that reads dirty when nothing was touched. A false prompt teaches
+     * people to click through the real one, so the default stays off until the
+     * behaviour has been watched on a screen where it is cheap to be wrong.
+     */
+    guardUnsavedChanges?: boolean;
     configurationDefaults?: ServiceConfigurationDefaults | null;
     initialConfig?: Record<string, unknown> | null;
     /**
@@ -327,6 +343,7 @@ export function ServiceConfigurationForm({
     currentOverrides,
     onSave,
     submitLabel,
+    guardUnsavedChanges = false,
     configurationDefaults,
     initialConfig,
     forceRealtime,
@@ -417,12 +434,18 @@ export function ServiceConfigurationForm({
     const {
         register,
         handleSubmit,
-        formState: { },
+        formState: { isDirty: formIsDirty },
         reset,
         getValues,
         setValue,
         watch
     } = useForm();
+
+    // Only reported when the caller asked for it — see `guardUnsavedChanges`.
+    // `reset()` on load clears react-hook-form's dirty flag, so this tracks
+    // edits made after the form was populated rather than the population
+    // itself.
+    useUnsavedChanges("model-configuration", guardUnsavedChanges && formIsDirty);
 
     // Build effective config source: overlay overrides onto global config
     const configSource = useMemo(() => {

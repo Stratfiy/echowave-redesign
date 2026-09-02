@@ -51,7 +51,7 @@ export function AuthShell({
           <div className="auth-waveform" aria-hidden>
             <span /><span /><span /><span /><span /><span /><span /><span />
           </div>
-          <h1 className="text-4xl font-semibold leading-[1.05] tracking-tight text-brand-heading xl:text-[44px]">
+          <h1 className="text-4xl font-medium leading-[1.05] tracking-tight text-brand-heading xl:text-[44px]">
             Build production
             <br />
             <span className="text-brand-blue">voice AI agents</span>
@@ -74,7 +74,7 @@ export function AuthShell({
         </div>
 
         {/* Enterprise CTA block */}
-        <div className="relative max-w-md space-y-3 rounded-2xl border border-brand-chip-border bg-brand-card/70 p-5 backdrop-blur-sm">
+        <div className="relative max-w-md space-y-3 rounded-[var(--radius-large)] border border-brand-chip-border bg-brand-card p-5">
           <h2 className="text-sm font-semibold text-brand-heading">
             Need on-prem, data residency &amp; a data perimeter?
           </h2>
@@ -97,7 +97,7 @@ export function AuthShell({
             <div className="mb-2 lg:hidden">
               <BrandLogo className="h-8" />
             </div>
-            <div className="space-y-6 rounded-2xl border border-border/60 bg-card p-6 shadow-[0_20px_60px_-30px_rgba(15,60,120,0.25)] sm:p-8">
+            <div className="space-y-6 rounded-[var(--radius-large)] border border-border bg-card p-6 sm:p-8">
               {children}
             </div>
           </div>

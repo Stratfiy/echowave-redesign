@@ -13,6 +13,7 @@ import type { OrganizationPreferences } from "@/client/types.gen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useUnsavedChanges } from "@/context/UnsavedChangesContext";
 import { useUserConfig } from "@/context/UserConfigContext";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
@@ -102,6 +103,15 @@ export function OrganizationPreferencesSection() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // What the server last told us these values are. Every successful fetch and
+  // every successful save moves it; nothing else does. Comparing the form
+  // against it is what makes "dirty" mean "differs from what is stored"
+  // rather than "has been typed in", so restoring a field by hand correctly
+  // stops counting as an unsaved change.
+  const [baseline, setBaseline] = useState<OrganizationPreferences>(
+    emptyPreferences,
+  );
+
   useEffect(() => {
     if (authLoading || !user || hasFetched.current) {
       return;
@@ -127,10 +137,12 @@ export function OrganizationPreferencesSection() {
       }
 
       const nextPreferences = result.data || emptyPreferences;
-      setPreferences({
+      const loaded: OrganizationPreferences = {
         test_phone_number: nextPreferences.test_phone_number || "",
         timezone: nextPreferences.timezone || emptyPreferences.timezone,
-      });
+      };
+      setPreferences(loaded);
+      setBaseline(loaded);
       setTimezone(
         nextPreferences.timezone || emptyPreferences.timezone || "UTC",
       );
@@ -164,10 +176,12 @@ export function OrganizationPreferencesSection() {
         return;
       }
 
-      setPreferences({
+      const stored: OrganizationPreferences = {
         test_phone_number: result.data.test_phone_number || "",
         timezone: result.data.timezone || emptyPreferences.timezone,
-      });
+      };
+      setPreferences(stored);
+      setBaseline(stored);
       setTimezone(result.data.timezone || emptyPreferences.timezone || "UTC");
       await refreshConfig();
       toast.success("Preferences saved");
@@ -177,6 +191,15 @@ export function OrganizationPreferencesSection() {
       setSaving(false);
     }
   }
+
+  // Declared above the loading early-return: hooks must run in the same order
+  // on every render, and `useUnsavedChanges` cannot sit after a `return`.
+  const isDirty =
+    (preferences.test_phone_number || "") !==
+      (baseline.test_phone_number || "") ||
+    getTimezoneValue(timezone) !== (baseline.timezone || "");
+
+  useUnsavedChanges("preferences", isDirty);
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading...</p>;
@@ -212,9 +235,14 @@ export function OrganizationPreferencesSection() {
           />
         </div>
       </div>
-      <Button type="submit" disabled={saving}>
+      {/* Disabled with nothing to save, so the button answers "did that go
+          through?" without the operator having to remember whether they
+          pressed it. A toast says a save happened; a greyed-out button says
+          there is nothing left to save, which is the question actually being
+          asked when somebody hesitates over a form. */}
+      <Button type="submit" disabled={saving || !isDirty}>
         <Save className="mr-2 h-4 w-4" />
-        {saving ? "Saving..." : "Save"}
+        {saving ? "Saving..." : isDirty ? "Save" : "Saved"}
       </Button>
     </form>
   );

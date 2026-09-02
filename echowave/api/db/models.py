@@ -471,6 +471,62 @@ class ContactModel(Base):
     )
 
 
+class MissedCallEventModel(Base):
+    """One ring on a callback-mode number, and what we did about it.
+
+    Exists because the interesting half of this feature is invisible without
+    it. A callback that connects becomes an ordinary workflow run and shows up
+    wherever calls show up. A callback we *refused* — cooldown, daily cap, loop
+    guard, closed calling window — leaves no run at all, so without this row
+    the operator sees a quiet dashboard and cannot tell whether the number on
+    their hoarding is working, whether nobody is ringing it, or whether we are
+    silently declining every caller.
+
+    Written for every ring, before the decision is known, so a crash between
+    the ring and the callback leaves evidence rather than nothing.
+    """
+
+    __tablename__ = "missed_call_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    telephony_phone_number_id = Column(
+        Integer,
+        ForeignKey("telephony_phone_numbers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: The caller, in the same normalised form the DND list and the loop guard
+    #: compare on. Storing the display form instead would mean the row that
+    #: records a refusal cannot be matched against the rule that caused it.
+    caller = Column(String(32), nullable=False)
+    provider = Column(String(32), nullable=True)
+    #: pending | called_back | refused | failed. Free-form rather than an enum
+    #: because the refusal reasons will grow and an ALTER TYPE migration for
+    #: each one buys nothing here.
+    outcome = Column(
+        String(24), nullable=False, default="pending", server_default="pending"
+    )
+    #: Why we did not call back, in words an operator can act on. NULL when we
+    #: did.
+    refusal_reason = Column(Text, nullable=True)
+    #: The callback, once it exists. SET NULL rather than CASCADE: retention
+    #: purges call data long before the operator stops caring how many people
+    #: rang their hoarding.
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    received_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        # The dashboard query: this org's events, newest first.
+        Index("ix_missed_call_events_org_received", "organization_id", "received_at"),
+    )
+
+
 class TelephonyPhoneNumberModel(Base):
     __tablename__ = "telephony_phone_numbers"
 
@@ -489,6 +545,25 @@ class TelephonyPhoneNumberModel(Base):
     country_code = Column(String(2), nullable=True)
     label = Column(String(64), nullable=True)
     inbound_workflow_id = Column(
+        Integer,
+        ForeignKey("workflows.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    #: The agent that rings the caller back, when this number answers by
+    #: calling back rather than by answering.
+    #:
+    #: A missed call is the cheapest thing an Indian customer can send: no
+    #: data, no app, no form, no literacy in the form's language. A number in
+    #: callback mode is never answered — the inbound leg is rejected before any
+    #: media is set up, so neither side pays for it — and this agent places an
+    #: outbound call to whoever rang.
+    #:
+    #: Distinct from `inbound_workflow_id` on purpose, and `inbound` wins when
+    #: both are set — a number that can be answered is answered. Callback mode
+    #: is a property of the number rather than of the agent because it is the
+    #: number printed on the hoarding that decides which behaviour a caller
+    #: gets, and the same agent may serve an answered line elsewhere.
+    callback_workflow_id = Column(
         Integer,
         ForeignKey("workflows.id", ondelete="SET NULL"),
         nullable=True,
@@ -591,7 +666,19 @@ class TelephonyPhoneNumberModel(Base):
     configuration = relationship(
         "TelephonyConfigurationModel", back_populates="phone_numbers"
     )
-    inbound_workflow = relationship("WorkflowModel")
+    # `foreign_keys` is required, not decorative: this table now has two
+    # foreign keys to `workflows` (inbound and callback), and SQLAlchemy cannot
+    # guess which one a relationship means. Without it, configuring the mapper
+    # raises AmbiguousForeignKeysError — and because mapper configuration is
+    # lazy and global, the failure surfaces on the first query of any model at
+    # all, not on this one. Adding a second FK to a table that already has a
+    # relationship to the same target is the whole trap.
+    inbound_workflow = relationship(
+        "WorkflowModel", foreign_keys=[inbound_workflow_id]
+    )
+    callback_workflow = relationship(
+        "WorkflowModel", foreign_keys=[callback_workflow_id]
+    )
 
     __table_args__ = (
         UniqueConstraint(

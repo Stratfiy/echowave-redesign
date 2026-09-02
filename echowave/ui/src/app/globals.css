@@ -52,143 +52,235 @@
   --color-brand-chip-border: var(--brand-chip-border);
   --color-brand-chip-fg: var(--brand-chip-fg);
   --color-brand-card: var(--brand-card);
+  --color-accent-brand: var(--accent-brand);
+  --color-accent-brand-tint: var(--accent-brand-tint);
+  --color-tint-flame: var(--tint-flame);
+  --color-tint-amber: var(--tint-amber);
+  --radius-button: var(--radius-button);
+  --radius-large: var(--radius-large);
+  --radius-pill: var(--radius-pill);
 }
 
 /* ---------------------------------------------------------------------------
-   Decibyl app palette — monday.com's structure, Decibyl's orange.
+   Decibyl app palette — Dub's structure, Decibyl's coral.
    ---------------------------------------------------------------------------
-   The rule that governs this whole file: ONE saturated accent, used sparingly,
-   on a near-white canvas. monday's violet covers perhaps 5% of their pixels.
-   A previous attempt applied the accent at full strength to primary, panel
-   gradients, chips and glass glows simultaneously; applied everywhere at once
-   it stops reading as a brand and starts reading as an alarm.
+   Adapted from the Dub reference system. Two things carry it, and both are
+   inversions of what stood here before:
 
-   So: --primary is the orange, and it belongs on primary CTAs and active
-   states. Surfaces are white on a #f5f6f8 floor. Tints are for surfaces only —
-   never text, borders or icons.
+   BORDERS, NOT SHADOWS. Containers are defined by a 1px #e5e5e5 hairline on a
+   white canvas, not by elevation. The previous palette used a grey floor and a
+   48px-blur shadow to make a white card read as a card; that works, but it
+   makes every surface soft and the screen reads as a stack of floating tiles.
+   A hairline gives the printed-document clarity that dense SaaS wants, and it
+   costs nothing at any zoom level. Shadows survive in exactly two places: a
+   barely-there 1px lift on filled buttons, and a hover lift on interactive
+   tiles.
+
+   TWO CORALS, AND THE SPLIT IS FORCED. The reference runs one saturated accent
+   (electric blue) plus a darker committed-action fill (deep sapphire). The
+   same split is not a style choice here, it is a contrast requirement:
+
+     white on #E15B53 ........ 3.61:1   fails AA
+     #E15B53 text on white ... 3.61:1   fails AA
+     white on #B4423C ........ 5.55:1   passes
+     #B4423C text on white ... 5.55:1   passes
+
+   So the bright coral can be a FILL or an ACCENT — active states, icon
+   accents, chart series, the focus ring — and it can never carry body-size
+   text or take white text on top of it. Anything that has to be read, or has
+   to be pressed with a label on it, uses the deep coral. This is the whole
+   reason there are two, and why neither can be swapped for the other.
 
    Light only. There is no .dark block, by request.
 --------------------------------------------------------------------------- */
 :root {
-  /* Cards 24px, inputs/badges 6px. --radius is the card value because that is
-     what shadcn's Card inherits; the small controls opt down explicitly. */
-  --radius: 1.5rem;
+  /* Radius vocabulary, straight from the reference: pills for tags and
+     badges, 8px buttons, 12px cards, 16px large surfaces, 6px inputs. Nothing
+     outside this set — ad-hoc rounding is what makes a system look accreted.
+     --radius is the card value because that is what shadcn's Card inherits. */
+  --radius: 0.75rem;
   --radius-control: 0.375rem;
-  --radius-pill: 10rem;
+  --radius-button: 0.5rem;
+  --radius-large: 1rem;
+  --radius-pill: 9999px;
 
-  /* Canvas: grey floor, white cards. The contrast between the two is what
-     makes a card read as a card without needing a heavy border. */
-  --background: #f5f6f8;
-  --foreground: #211814;
+  /* Neutrals. The reference's full ramp, kept by its own names so the intent
+     of a value is legible where it is used. */
+  --color-canvas-white: #ffffff;
+  --color-paper-mist: #f5f5f5;
+  --color-ash: #e5e5e5;
+  --color-smoke: #d4d4d4;
+  --color-pebble: #c8c8c8;
+  --color-midnight-ink: #0a0a0a;
+  --color-charcoal: #171717;
+  --color-graphite: #262626;
+  --color-slate: #404040;
+  --color-steel: #525252;
+  --color-fog: #737373;
+  --color-silver: #a3a3a3;
+
+  /* Canvas is white, not a grey floor. Cards separate from it by border. */
+  --background: #ffffff;
+  --foreground: #171717;
   --card: #ffffff;
-  --card-foreground: #211814;
+  --card-foreground: #171717;
   --popover: #ffffff;
-  --popover-foreground: #211814;
+  --popover-foreground: #171717;
 
-  /* The accent. #E15B53 — a coral red, replacing the #EE7823 orange.
+  /* The committed action. Deep coral, white text, 5.55:1 — this is the button
+     you press, and the colour that emphasised text on white is allowed to be.
+     Used sparingly: one per surface, or it stops earning attention. */
+  --primary: #B4423C;
+  --primary-foreground: #ffffff;
+  --primary-pressed: #93332E;
 
-     It carries DARK text, not white, and that is forced rather than chosen:
-     white on #E15B53 is 3.61:1, which fails WCAG AA at normal text sizes. The
-     ink below is 4.83:1 and passes. If white is ever wanted on primary CTAs,
-     the accent has to get darker; the two cannot both be had. */
-  --primary: oklch(0.642 0.169 26.3);
-  --primary-foreground: #211814;
-  --primary-pressed: oklch(0.572 0.169 26.3);
+  /* The brand accent. Bright coral, for fills, active states, icon accents and
+     the focus ring. Never body text — see the ratios above. */
+  --accent-brand: #E15B53;
+  --accent-brand-soft: rgba(225, 91, 83, 0.10);
+  --accent-brand-tint: #FDEBEA;
 
-  --secondary: #eef0f4;
-  --secondary-foreground: #33302e;
-  --muted: #f1f2f5;
-  --muted-foreground: #676879;
-  /* Hover/selected rows and nav items. Warm grey, not orange — an item you
-     merely hovered should not look like the one you selected. */
-  --accent: #f1f2f5;
-  --accent-foreground: #211814;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #171717;
+  --muted: #f5f5f5;
+  /* Fog is 4.74:1 on white but only 4.35:1 on the paper surface. Muted text
+     sitting on #f5f5f5 uses steel instead — see --muted-foreground-on-paper. */
+  --muted-foreground: #737373;
+  --muted-foreground-on-paper: #525252;
+  /* Hover and selected rows. Neutral, not coral: something you merely hovered
+     must not look like the thing you chose. */
+  --accent: #f5f5f5;
+  --accent-foreground: #171717;
 
-  /* Deep crimson. This used to sit a comfortable 32 degrees from the primary,
-     and the note here said to keep it that way — at the stock shadcn 27.3 a
-     delete button and a save button were four degrees apart against the old
-     33.6 primary, which is to say indistinguishable.
+  /* Destructive stays a true red, well clear of the coral in both lightness
+     and saturation. The two are neighbours on the wheel, so the separation has
+     to come from value — a delete button reads darker and hotter than a save
+     button rather than merely differently hued. */
+  --destructive: #B91C1C;
+  --destructive-foreground: #ffffff;
+  --warning: #ea580c;
+  --success: #16a34a;
 
-     The primary is now the coral at hue 26.3, so the separation is 8 degrees.
-     Destructive is darker (L 0.505 against 0.642) and more saturated, so the
-     two are not identical, but they are the same family — a delete button no
-     longer announces itself by hue alone. If that reads wrong in use, move
-     this toward 12–15 rather than moving the brand. */
-  --destructive: oklch(0.505 0.208 18);
-  --warning: oklch(0.75 0.155 70);
-  --success: oklch(0.63 0.145 152);
+  /* The structural line. Used more than any other value in the system. */
+  --border: #e5e5e5;
+  /* Inputs carry a stronger edge than cards do — the reference makes this a
+     signature: a field should look like something you are meant to fill in,
+     not like a container that happens to be empty. */
+  --input: #d4d4d4;
+  --ring: #E15B53;
 
-  --border: #e3e5ec;
-  --input: #d9dce4;
-  --ring: oklch(0.642 0.169 26.3);
+  /* --brand-* are consumed by call sites written when the brand was blue. They
+     are aliases onto the correct tokens, NOT a second palette.
 
-  /* --brand-* are consumed by ~68 call sites written when the brand was blue.
-     They are aliases onto the correct tokens, NOT a second palette. Renaming
-     them would be a 68-file diff whose only content is the rename, so the
-     names stay and the values move. */
-  --brand-blue: #E15B53;
-  --brand-blue-hover: #B4423C;
+     --brand-blue is the DEEP coral, not the bright one, and that is deliberate.
+     Every call site uses it in one of two ways: as a button fill carrying white
+     text, or as link text on white. Both need 4.5:1, and the bright coral gives
+     3.61:1 on both counts — it would have shipped three inaccessible buttons
+     and two unreadable links. The remaining uses are /10 and /25 tints, which
+     only read very slightly deeper for the change. The bright coral is still
+     available as --accent-brand, for the fills and active states where nothing
+     has to be read off it. */
+  --brand-blue: #B4423C;
+  --brand-blue-hover: #93332E;
   --brand-blue-soft: rgba(225, 91, 83, 0.10);
   --brand-blue-glow: rgba(225, 91, 83, 0.14);
   --brand-panel: #ffffff;
-  --brand-heading: #211814;
-  --brand-body: #676879;
-  --brand-chip: #f1f2f5;
-  --brand-chip-border: #e3e5ec;
-  --brand-chip-fg: #33302e;
+  --brand-heading: #171717;
+  --brand-body: #737373;
+  --brand-chip: #f5f5f5;
+  --brand-chip-border: #e5e5e5;
+  --brand-chip-fg: #171717;
   --brand-card: #ffffff;
-  --brand-amber: #FFB627;
+  --brand-amber: #ea580c;
 
-  /* Pastel surface tints for feature/stat cards, derived warm so they sit with
-     the orange rather than fighting it. Surfaces only. */
-  --tint-flame: #FFE4D6;
+  /* Supporting accents, for pill tags and small feature marks. One accent per
+     component — a pill gets a single colour, never two. */
+  --color-tangerine: #ea580c;
+  --color-lavender: #7c3aed;
+  --color-vivid-green: #16a34a;
+  --color-soft-mint: #dcfce7;
+
+  /* Tint washes. Small badge backgrounds and feature highlights only — never
+     a large surface. */
+  --tint-flame: #FDEBEA;
   --tint-amber: #FFF1DC;
-  --tint-sand: #F6F0E8;
-  --tint-slate: #EEF0F4;
+  --tint-sand: #f5f5f5;
+  --tint-slate: #f5f5f5;
 
-  --chart-1: oklch(0.642 0.169 26.3);
-  --chart-2: oklch(0.824 0.163 77.8);
-  --chart-3: oklch(0.63 0.145 152);
-  --chart-4: oklch(0.58 0.13 250);
-  --chart-5: oklch(0.62 0.16 305);
+  --chart-1: #E15B53;
+  --chart-2: #ea580c;
+  --chart-3: #16a34a;
+  --chart-4: #2563eb;
+  --chart-5: #7c3aed;
 
-  /* The sidebar is white against the grey floor, the inverse of the content
-     area. That is what gives the shell its structure without a single rule. */
+  /* Sidebar is white like the canvas; the hairline is what separates them.
+     That is the border-first philosophy applied to the shell itself. */
   --sidebar: #ffffff;
-  --sidebar-foreground: #33302e;
-  --sidebar-primary: oklch(0.642 0.169 26.3);
-  --sidebar-primary-foreground: #211814;
-  --sidebar-accent: #f1f2f5;
-  --sidebar-accent-foreground: #211814;
-  --sidebar-border: #e3e5ec;
-  --sidebar-ring: oklch(0.642 0.169 26.3);
+  --sidebar-foreground: #171717;
+  --sidebar-primary: #B4423C;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f5f5f5;
+  --sidebar-accent-foreground: #171717;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #E15B53;
 
-  /* --cta predates --primary and is used on a handful of CTAs. Both now point
-     at the same orange, so the two vocabularies cannot drift apart on screen. */
-  --cta: oklch(0.642 0.169 26.3);
-  --cta-foreground: #211814;
+  /* --cta predates --primary and is used on a handful of CTAs. Both point at
+     the same deep coral, so the two vocabularies cannot drift apart onscreen. */
+  --cta: #B4423C;
+  --cta-foreground: #ffffff;
 
-  /* One elevation, used everywhere. A design with a single shadow reads as
-     deliberate; one with four reads as accreted. */
-  --shadow-card: rgba(205, 208, 223, 0.4) 0 2px 48px;
-  --shadow-raised: rgba(159, 164, 189, 0.28) 0 4px 20px;
+  /* Elevation, reserved. Cards get NO shadow — the border defines them. These
+     exist for the two cases the reference allows: a 1px lift under a filled
+     button, and a lift on a tile that responds to hover. */
+  --shadow-subtle: rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
+  --shadow-sm: rgba(0, 0, 0, 0.1) 0px 4px 6px -1px, rgba(0, 0, 0, 0.1) 0px 2px 4px -2px;
+  --shadow-md: rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.1) 0px 4px 6px -4px;
+  --shadow-ring: rgba(0, 0, 0, 0.1) 0px 0px 0px 4px;
+  --shadow-card: none;
+  --shadow-raised: rgba(0, 0, 0, 0.1) 0px 4px 6px -1px, rgba(0, 0, 0, 0.1) 0px 2px 4px -2px;
 
-  /* The giant faded wordmark and the liquid-glass system are both retired: the
-     watermark filled two-thirds of every empty screen, and the glass wash left
-     the app looking unfinished rather than light. These aliases stay so the
-     call sites that reference them degrade to flat white instead of breaking. */
+  /* Type scale. 16px/1.5 is the canonical body step; 14px for dense data,
+     11–12px for micro-labels. Display sizes start at 36px and are the only
+     place the display weight is used. */
+  --text-caption: 11px;
+  --leading-caption: 1.5;
+  --text-body: 14px;
+  --leading-body: 1.43;
+  --text-body-lg: 16px;
+  --leading-body-lg: 1.5;
+  --text-body-xl: 18px;
+  --leading-body-xl: 1.56;
+  --text-subheading: 20px;
+  --leading-subheading: 1.4;
+  --text-heading-sm: 24px;
+  --leading-heading-sm: 1.33;
+  --text-heading: 30px;
+  --leading-heading: 1.38;
+  --text-heading-lg: 36px;
+  --leading-heading-lg: 1.11;
+  --text-display: 48px;
+  --leading-display: 1;
+
+  /* Layout constants from the reference. */
+  --page-max-width: 1200px;
+  --section-gap: 64px;
+  --card-padding: 16px;
+  --element-gap: 8px;
+
+  /* Retired treatments, kept as aliases so their call sites degrade to flat
+     white rather than breaking. */
   --brand-imprint: none;
   --glass-fill: #ffffff;
   --glass-fill-strong: #ffffff;
-  --glass-edge: #e3e5ec;
+  --glass-edge: #e5e5e5;
   --glass-glow-blue: transparent;
   --glass-glow-amber: transparent;
   --glass-glow-deep: transparent;
-  --glass-shadow: var(--shadow-card);
-  --glass-shadow-clay: var(--shadow-card);
-  --glass-shadow-clay-hover: var(--shadow-raised);
-  --glass-accent-fill: oklch(0.642 0.169 26.3);
-  --glass-accent-fg: #211814;
+  --glass-shadow: none;
+  --glass-shadow-clay: none;
+  --glass-shadow-clay-hover: var(--shadow-sm);
+  --glass-accent-fill: #B4423C;
+  --glass-accent-fg: #ffffff;
   --glass-amber-fill: var(--tint-amber);
   --glass-amber-edge: #F2E3CB;
   --glass-amber-fg: #7A4A05;
@@ -220,11 +312,14 @@
     font-family: inherit;
   }
 
-  /* Display type: light weight, tightened tracking. The weight is what keeps a
-     36px heading from shouting; the negative tracking is what stops a light
-     weight at that size from falling apart into separate letters. */
+  /* Display type. The reference's signature is medium weight with tightened
+     tracking — confident without shouting — rather than the light weight that
+     stood here. It also names the substitute to use when its display face is
+     unavailable: Inter at weight 500 with -0.02em, which is exactly this.
+     Display treatment applies from 36px up; everything smaller is body type
+     and takes the semibold step below. */
   h1, h2 {
-    font-weight: 300;
+    font-weight: 500;
     letter-spacing: -0.02em;
   }
 
@@ -254,8 +349,10 @@
 }
 
 /* Attention pulse applied by OnboardingTooltip to the element its arrow points
-   at; removed automatically when the tooltip is dismissed. Blue matches the
-   tooltip body so the ring and the callout read as one unit. Two shadow layers:
+   at; removed automatically when the tooltip is dismissed. Coral matches the
+   tooltip body so the ring and the callout read as one unit — it followed the
+   tooltip from blue rather than being left behind, which would have put two
+   unrelated accents on one interaction. Two shadow layers:
    a constant outline so the target stays highlighted between pulses, plus an
    expanding wave, with a slight breathing scale on top. */
 .onboarding-pulse {
@@ -265,8 +362,8 @@
 @keyframes onboarding-pulse {
   0% {
     box-shadow:
-      0 0 0 3px rgba(59, 130, 246, 0.75),
-      0 0 0 3px rgba(59, 130, 246, 0.6);
+      0 0 0 3px rgba(225, 91, 83, 0.75),
+      0 0 0 3px rgba(225, 91, 83, 0.6);
     transform: scale(1);
   }
   40% {
@@ -274,21 +371,21 @@
   }
   70% {
     box-shadow:
-      0 0 0 3px rgba(59, 130, 246, 0.75),
-      0 0 0 18px rgba(59, 130, 246, 0);
+      0 0 0 3px rgba(225, 91, 83, 0.75),
+      0 0 0 18px rgba(225, 91, 83, 0);
     transform: scale(1);
   }
   100% {
     box-shadow:
-      0 0 0 3px rgba(59, 130, 246, 0.75),
-      0 0 0 18px rgba(59, 130, 246, 0);
+      0 0 0 3px rgba(225, 91, 83, 0.75),
+      0 0 0 18px rgba(225, 91, 83, 0);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .onboarding-pulse {
     animation: none;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.6);
+    box-shadow: 0 0 0 3px rgba(225, 91, 83, 0.6);
   }
 }
 
@@ -494,11 +591,18 @@
   overflow: hidden;
 }
 
-/* Cards are flat white with one soft shadow. The 45° twill texture that used
-   to be laid over every panel is gone: it was legible only as noise at 1%
-   opacity, and against a grey floor the card already separates on value alone.
+/* Cards are flat white, defined by a hairline and nothing else.
+
+   This is the single biggest change from the previous palette, and the whole
+   point of the reference: a card on a white canvas separates by its 1px
+   #e5e5e5 edge, not by a 48px-blur shadow. Borders give information-dense
+   screens a printed-document clarity, hold up at every zoom level, and do not
+   accumulate into the soft grey haze that a page full of shadowed tiles
+   becomes. Shadows are kept for the two moments that genuinely need to lift
+   off the page — a filled button, and a tile that responds to hover.
+
    The class name survives because the Card primitive applies it and several
-   screens key off it; it now carries the elevation instead of the texture. */
+   screens key off it. */
 .card-weave {
   background-image: none;
   border: 1px solid var(--border);

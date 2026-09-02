@@ -53,6 +53,7 @@ from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.low_balance import notify_low_balances
+from api.tasks.missed_call_tasks import place_missed_call_callback
 from api.tasks.plan_expiry import expire_lapsed_plan_balance
 from api.tasks.rental_billing import (
     charge_recurring_rentals,
@@ -73,6 +74,7 @@ class WorkerSettings:
         process_knowledge_base_document,
         deliver_webhook,
         email_tax_document,
+        place_missed_call_callback,
         refresh_billing_rollups,
         sweep_credit_reservations,
         issue_monthly_tax_invoices,

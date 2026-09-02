@@ -1,7 +1,7 @@
 import "./globals.css";
 
 import type { Metadata } from "next";
-import { Figtree, Geist_Mono } from "next/font/google";
+import { Geist_Mono,Inter } from "next/font/google";
 import { Suspense } from "react";
 
 import ChatwootWidget from "@/components/ChatwootWidget";
@@ -18,19 +18,27 @@ import { TelephonyConfigWarningsProvider } from "@/context/TelephonyConfigWarnin
 import { AuthProvider } from "@/lib/auth";
 
 
-// Figtree, self-hosted by next/font at build time rather than fetched from a
-// CDN at runtime — a restricted deployment has no egress to fonts.gstatic.com,
-// and a missing webfont silently falls back to the system stack.
+// Inter, self-hosted by next/font at build time rather than fetched from a CDN
+// at runtime — a restricted deployment has no egress to fonts.gstatic.com, and
+// a missing webfont silently falls back to the system stack.
+//
+// Inter is the reference system's body face and does the work from 11px
+// micro-labels up to 30px headings. The reference pairs it with Satoshi for
+// 36px+ display type; Satoshi is not on Google Fonts and self-hosting it would
+// mean shipping a licensed binary, so we take the substitute the reference
+// itself names — Inter at weight 500 with -0.02em tracking, which is what the
+// h1/h2 rule in globals.css applies. Weight 300 is gone with it: the display
+// treatment is medium now, and nothing else used it.
 //
 // The variable must also be *consumed*: a previous attempt set the font here
 // and mapped it under `@theme inline`, which does not emit `--font-sans` as a
 // custom property, so `--default-font-family` fell through to its own fallback
 // and every element kept rendering in the system font. globals.css now sets
 // font-family on html explicitly. Verify with getComputedStyle, not by reading.
-const appSans = Figtree({
+const appSans = Inter({
   variable: "--font-app-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
