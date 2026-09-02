@@ -12,7 +12,7 @@
  */
 
 import { PhoneIncoming, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { listMissedCallsApiV1MissedCallsGet } from "@/client/sdk.gen";
 import type { MissedCallOut } from "@/client/types.gen";
@@ -29,6 +29,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { detailFromError } from "@/lib/apiError";
+import { useAuth } from "@/lib/auth";
 
 const OUTCOMES: Record<
   string,
@@ -49,22 +51,43 @@ function formatCaller(caller: string) {
 }
 
 export default function MissedCallsPage() {
+  const { user, loading: authLoading, getAccessToken } = useAuth();
+  const hasFetched = useRef(false);
   const [rows, setRows] = useState<MissedCallOut[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      const res = await listMissedCallsApiV1MissedCallsGet({ query: { limit: 100 } });
+      const token = await getAccessToken();
+      const res = await listMissedCallsApiV1MissedCallsGet({
+        headers: { Authorization: `Bearer ${token}` },
+        query: { limit: 100 },
+      });
+      // `res.data ?? []` here was the bug this page exists to prevent: the
+      // generated client resolves rather than throws, so a 401 became an
+      // empty array and the screen said "No missed calls yet" forever. An
+      // operator cannot tell a quiet hoarding from a broken page, which is
+      // the exact confusion the whole feature is meant to remove.
+      if (res.error) {
+        setError(detailFromError(res.error, "Could not load missed calls"));
+        return;
+      }
+      setError(null);
       setRows(res.data ?? []);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [getAccessToken]);
 
+  // The bearer-token interceptor only registers once auth has loaded.
+  // Fetching before that sends an unauthenticated request that fails quietly.
   useEffect(() => {
+    if (authLoading || !user || hasFetched.current) return;
+    hasFetched.current = true;
     void load();
-  }, [load]);
+  }, [authLoading, user, load]);
 
   return (
     <>
@@ -81,7 +104,15 @@ export default function MissedCallsPage() {
           </Button>
         </div>
 
-        {rows === null ? (
+        {error ? (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
+            <p className="font-medium text-destructive">{error}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This is not the same as having no missed calls — the list could not
+              be loaded.
+            </p>
+          </div>
+        ) : rows === null ? (
           <div className="space-y-2">
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />

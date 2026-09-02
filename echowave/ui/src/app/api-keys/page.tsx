@@ -93,9 +93,15 @@ export default function APIKeysPage() {
                 }
             });
 
-            if (response.data) {
-                setApiKeys(response.data);
+            // The generated client resolves rather than throws, so checking
+            // only `data` lets a 4xx/5xx fall through to an empty list with
+            // nothing said — the catch never fires, because nothing threw.
+            // See ui/AGENTS.md, API Error Handling.
+            if (response.error) {
+                setError(detailFromError(response.error, 'Failed to fetch API keys'));
+                return;
             }
+            setApiKeys(response.data ?? []);
         } catch (err) {
             setError('Failed to fetch API keys');
             console.error('Error fetching API keys:', err);
@@ -133,9 +139,11 @@ export default function APIKeysPage() {
                 }
             });
 
-            if (response.data) {
-                setServiceKeys(response.data);
+            if (response.error) {
+                setError(detailFromError(response.error, 'Failed to fetch service keys'));
+                return;
             }
+            setServiceKeys(response.data ?? []);
         } catch (err) {
             setError('Failed to fetch service keys');
             console.error('Error fetching service keys:', err);
@@ -173,13 +181,18 @@ export default function APIKeysPage() {
                 }
             });
 
-            if (response.data) {
-                setCreatedKey(response.data);
-                setIsCreateDialogOpen(false);
-                setShowCreatedKeyDialog(true);
-                setNewKeyName('');
-                fetchApiKeys();
+            // A failed create must say so. Silently leaving the dialog open
+            // reads as "nothing happened", and the next thing a person does is
+            // press the button again.
+            if (response.error || !response.data) {
+                setError(detailFromError(response.error, 'Failed to create API key'));
+                return;
             }
+            setCreatedKey(response.data);
+            setIsCreateDialogOpen(false);
+            setShowCreatedKeyDialog(true);
+            setNewKeyName('');
+            fetchApiKeys();
         } catch (err) {
             setError('Failed to create API key');
             console.error('Error creating API key:', err);
@@ -206,13 +219,15 @@ export default function APIKeysPage() {
                 }
             });
 
-            if (response.data) {
-                setCreatedServiceKey(response.data);
-                setIsCreateServiceDialogOpen(false);
-                setShowCreatedServiceKeyDialog(true);
-                setNewServiceKeyName('');
-                fetchServiceKeys();
+            if (response.error || !response.data) {
+                setError(detailFromError(response.error, 'Failed to create service key'));
+                return;
             }
+            setCreatedServiceKey(response.data);
+            setIsCreateServiceDialogOpen(false);
+            setShowCreatedServiceKeyDialog(true);
+            setNewServiceKeyName('');
+            fetchServiceKeys();
         } catch (err) {
             setError('Failed to create service key');
             console.error('Error creating service key:', err);
