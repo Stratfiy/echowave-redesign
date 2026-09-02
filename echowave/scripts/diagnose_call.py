@@ -42,7 +42,6 @@ async def diagnose(
     organization_id: int, to_number: str | None, workflow_id: int | None
 ) -> int:
     """Returns a process exit code: 0 when nothing would block the call."""
-    from api.constants import REQUIRE_VERIFIED_TEST_NUMBER
     from api.db import db_client
     from api.services.organization_preferences import get_organization_preferences
     from api.services.telephony import verification_sender
@@ -138,7 +137,9 @@ async def diagnose(
     # ---- 3. The verified-number gate ---------------------------------------
     from api.services.telephony import verified_numbers
 
-    gate_on = REQUIRE_VERIFIED_TEST_NUMBER or using_shared
+    gate_on = (
+        verification_sender.test_calls_require_verified_number() or using_shared
+    )
     if gate_on:
         verified = await verified_numbers.is_verified(organization_id, phone_number)
         if not verified:

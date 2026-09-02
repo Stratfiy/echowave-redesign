@@ -21,7 +21,6 @@ from pydantic import BaseModel
 from starlette.websockets import WebSocketDisconnect
 
 from api.constants import (
-    REQUIRE_VERIFIED_TEST_NUMBER,
     SHARED_OUTBOUND_MAX_CONCURRENT,
     TELEPHONY_WS_REQUIRE_TOKEN,
 )
@@ -223,8 +222,11 @@ async def initiate_call(
         # engine on a second event loop.
         db=db_client,
     )
+    from api.services.telephony import verification_sender
+
     if (
-        REQUIRE_VERIFIED_TEST_NUMBER or using_shared_caller_id
+        verification_sender.test_calls_require_verified_number()
+        or using_shared_caller_id
     ) and not destination_is_verified:
         # Telling someone to verify a number on a deployment that cannot send a
         # code is a loop: they follow the instruction, the verify screen answers
@@ -234,8 +236,6 @@ async def initiate_call(
         # outage" — but `using_shared_caller_id` turns the same gate on for the
         # accounts most likely to meet it: the ones with no carrier of their
         # own, on their first call. So say which of the two situations this is.
-        from api.services.telephony import verification_sender
-
         if verification_sender.is_deliverable():
             detail = (
                 "Verify this number before calling it. Add it under Verified "

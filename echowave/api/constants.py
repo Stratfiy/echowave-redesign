@@ -1097,42 +1097,27 @@ VERIFICATION_RESEND_COOLDOWN_SECONDS = int(
 
 # Whether a test call may only go to a number the account has verified.
 #
-# OFF by default, and that default is temporary. It should be true — dialling
-# whatever string a user types is the harassment vector this mechanism exists
-# to close — but a permission nobody can obtain is not a permission, it is an
-# outage. VERIFICATION_CHANNEL is `log` on every real deployment today, which
-# refuses to run outside dev, so with this on nobody could verify a number and
-# every test call would be refused with no way forward.
+# Dialling whatever string a user types is a harassment vector, so the gate
+# should be on — but a permission nobody can obtain is not a permission, it is
+# an outage. A deployment that cannot deliver a code would refuse every test
+# call with no way forward, which is why this was not simply defaulted to true.
 #
-# Flip it to true in the same change that makes delivery work (DLT registration
-# for SMS, or a proven outbound path for voice). There is a test asserting the
-# gate itself works, so the only thing this default controls is whether it is
-# enforced before anyone can satisfy it.
+# So the default is `auto`: the gate is on exactly when a code can actually
+# reach someone (see `verification_sender.is_deliverable`). A deployment that
+# configures VERIFICATION_CHANNEL gets the protection in the same breath, and
+# one that has configured nothing is not locked out of its own product. `true`
+# and `false` remain as explicit overrides for an operator who wants to decide
+# for themselves.
+#
+# Resolve it through `verification_sender.test_calls_require_verified_number()`
+# rather than reading this string — `auto` is not a boolean and treating it as
+# one silently turns the gate off.
 #
 # It does not affect campaigns or the trigger API either way: those dial numbers
 # the customer supplies as data, and are governed by the DND list and the
 # calling window instead.
-REQUIRE_VERIFIED_TEST_NUMBER = (
-    os.getenv("REQUIRE_VERIFIED_TEST_NUMBER", "false").lower() == "true"
-)
+REQUIRE_VERIFIED_TEST_NUMBER = os.getenv("REQUIRE_VERIFIED_TEST_NUMBER", "auto")
 
-# How a verification code reaches the person holding the phone.
-#
-#   log        development only; writes the code to the log and refuses to run
-#              outside a dev/test ENVIRONMENT
-#   voice      call the number and read the code out. Dials from the shared
-#              outbound pool, so it needs a number in that pool and nothing
-#              else — no DLT, which is why it is the channel that works first
-#              on an India deployment.
-#   plivo_sms  SMS on Decibyl's own Plivo account
-#
-# Defaults to log so a deployment that has configured nothing fails visibly and
-# safely rather than appearing to send codes it never sent.
-#
-# SMS to Indian numbers needs DLT registration first — a Principal Entity, a
-# registered header, and a registered content template. Unregistered traffic is
-# blocked by the operator, and the failure looks like success: Plivo accepts the
-# request and the message never arrives.
 VERIFICATION_CHANNEL = os.getenv("VERIFICATION_CHANNEL", "log")
 
 # The sender number for platform-originated SMS, on Decibyl's own Plivo account.

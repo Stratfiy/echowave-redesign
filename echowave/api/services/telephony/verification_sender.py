@@ -42,6 +42,7 @@ from loguru import logger
 
 from api.constants import (
     ENVIRONMENT,
+    REQUIRE_VERIFIED_TEST_NUMBER,
     PLATFORM_PLIVO_AUTH_ID,
     PLATFORM_PLIVO_AUTH_TOKEN,
     PLATFORM_SMS_FROM_NUMBER,
@@ -64,6 +65,10 @@ class DeliveryResult:
 #: ENVIRONMENTs in which the `log` channel is allowed to stand in for delivery.
 DEV_ENVIRONMENTS = frozenset({"test", "local", "development", "dev"})
 
+#: Channels that put a code on a real network, as opposed to `log`, which
+#: writes it to the console for a developer to read.
+REAL_CHANNELS = frozenset({"plivo_sms", "twilio_sms", "voice"})
+
 
 def is_deliverable() -> bool:
     """Whether a code can actually reach anyone on this deployment.
@@ -81,7 +86,48 @@ def is_deliverable() -> bool:
     channel = (VERIFICATION_CHANNEL or "log").strip().lower()
     if channel == "log":
         return (ENVIRONMENT or "").lower() in DEV_ENVIRONMENTS
-    return channel in {"plivo_sms", "twilio_sms", "voice"}
+    return channel in REAL_CHANNELS
+
+
+def test_calls_require_verified_number() -> bool:
+    """Whether a test call may only go to a number the account has proved it owns.
+
+    `REQUIRE_VERIFIED_TEST_NUMBER` is a tri-state and this is the only correct
+    way to read it. `auto` — the default — means "on when it can be satisfied",
+    which is the resolution to the deadlock the flag was stuck in: the gate
+    closes a real harassment vector, but turning it on before a code can be
+    delivered refuses every test call with no way for the user to proceed.
+
+    Tying it to the channel means configuring delivery turns the protection on
+    in the same change, rather than leaving it to a second env var somebody has
+    to remember. `true` and `false` still win outright, so an operator who wants
+    the gate on before delivery works — or off after — can say so.
+
+    Deliberately narrower than `is_deliverable()`, which counts the `log`
+    channel in a dev environment because a developer really can read the code
+    off the console. That is the right answer to "can a code reach anyone", and
+    the wrong trigger for this: turning a harassment gate on because a code was
+    written to a log file would put the gate on every local checkout and every
+    test run, where the thing it protects against — Decibyl ringing a stranger
+    — cannot happen. `auto` asks the narrower question: is a channel configured
+    that puts a call or a message on a real network.
+
+    Note this is only half the gate. `initiate_call` also forces it on for
+    accounts dialling from Decibyl's shared caller ID whatever this returns,
+    because there the unverified destination is a stranger being rung by *us*.
+    """
+    setting = (REQUIRE_VERIFIED_TEST_NUMBER or "auto").strip().lower()
+    if setting in {"true", "1", "yes", "on"}:
+        return True
+    if setting in {"false", "0", "no", "off"}:
+        return False
+    if setting != "auto":
+        logger.warning(
+            "Unknown REQUIRE_VERIFIED_TEST_NUMBER {!r}; treating it as 'auto'. "
+            "Valid values are true, false, auto.",
+            REQUIRE_VERIFIED_TEST_NUMBER,
+        )
+    return (VERIFICATION_CHANNEL or "log").strip().lower() in REAL_CHANNELS
 
 
 def _body(code: str) -> str:
