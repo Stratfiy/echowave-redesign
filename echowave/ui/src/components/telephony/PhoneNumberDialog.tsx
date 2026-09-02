@@ -83,6 +83,10 @@ export function PhoneNumberDialog({
   const [isActive, setIsActive] = useState(true);
   const [isDefaultCallerId, setIsDefaultCallerId] = useState(false);
   const [inboundWorkflowId, setInboundWorkflowId] = useState<string>(NO_WORKFLOW);
+  // Callback mode. The number is never answered — the caller hangs up and this
+  // agent rings them back. Free for the caller, because in India an incoming
+  // call costs nothing and an outgoing one does.
+  const [callbackWorkflowId, setCallbackWorkflowId] = useState<string>(NO_WORKFLOW);
   const [inbound, setInbound] = useState<InboundSettingsValue>(EMPTY_INBOUND_SETTINGS);
   const [workflows, setWorkflows] = useState<{ id: number; name: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -98,6 +102,11 @@ export function PhoneNumberDialog({
     setIsDefaultCallerId(existing?.is_default_caller_id ?? false);
     setInboundWorkflowId(
       existing?.inbound_workflow_id ? String(existing.inbound_workflow_id) : NO_WORKFLOW,
+    );
+    setCallbackWorkflowId(
+      existing?.callback_workflow_id
+        ? String(existing.callback_workflow_id)
+        : NO_WORKFLOW,
     );
     setInbound({
       contactListId: existing?.inbound_contact_list_id
@@ -149,6 +158,8 @@ export function PhoneNumberDialog({
       const token = await getAccessToken();
       const inboundId =
         inboundWorkflowId === NO_WORKFLOW ? null : Number(inboundWorkflowId);
+      const callbackId =
+        callbackWorkflowId === NO_WORKFLOW ? null : Number(callbackWorkflowId);
       const contactListId =
         inbound.contactListId === NO_CONTACT_LIST
           ? null
@@ -173,6 +184,8 @@ export function PhoneNumberDialog({
               country_code: countryCode || undefined,
               inbound_workflow_id: inboundId ?? undefined,
               clear_inbound_workflow: inboundId === null,
+              callback_workflow_id: callbackId ?? undefined,
+              clear_callback_workflow: callbackId === null,
               inbound_contact_list_id: contactListId ?? undefined,
               clear_inbound_contact_list: contactListId === null,
               inbound_require_known_caller: inbound.requireKnownCaller,
@@ -202,6 +215,7 @@ export function PhoneNumberDialog({
               is_active: isActive,
               is_default_caller_id: isDefaultCallerId,
               inbound_workflow_id: inboundId ?? undefined,
+              callback_workflow_id: callbackId ?? undefined,
             },
           },
         );
@@ -304,6 +318,35 @@ export function PhoneNumberDialog({
             <p className="text-xs text-muted-foreground">
               Used when per-number inbound routing is enabled. Today, inbound calls still
               route by the workflow_id in the webhook URL.
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="pn-callback">Missed-call callback</Label>
+            <Select value={callbackWorkflowId} onValueChange={setCallbackWorkflowId}>
+              <SelectTrigger id="pn-callback">
+                <SelectValue placeholder="(off)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_WORKFLOW}>(off)</SelectItem>
+                {workflows.map((w) => (
+                  <SelectItem key={w.id} value={String(w.id)}>
+                    #{w.id} - {w.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              This number is never answered. Someone rings and hangs up, and this
+              agent calls them back — free for them, because incoming calls cost
+              nothing. Put it on a poster or a visiting card.
+              {inboundWorkflowId !== NO_WORKFLOW &&
+              callbackWorkflowId !== NO_WORKFLOW ? (
+                <span className="block pt-1 text-amber-600">
+                  An inbound agent is also set, and it wins — a number that can be
+                  answered is answered. Clear the inbound agent to use callback mode.
+                </span>
+              ) : null}
             </p>
           </div>
 

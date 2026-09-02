@@ -854,6 +854,11 @@ async def create_phone_number(
         await _ensure_workflow_belongs_to_org(
             request.inbound_workflow_id, user.selected_organization_id
         )
+    # The FK proves the agent exists, not that this account may point at it.
+    if request.callback_workflow_id is not None:
+        await _ensure_workflow_belongs_to_org(
+            request.callback_workflow_id, user.selected_organization_id
+        )
 
     # Inbound dispatch (find_inbound_route_by_account) keys on (provider,
     # credentials[account_id_field], address_normalized) without the org, so
@@ -899,6 +904,7 @@ async def create_phone_number(
             country_code=request.country_code,
             label=request.label,
             inbound_workflow_id=request.inbound_workflow_id,
+            callback_workflow_id=request.callback_workflow_id,
             is_active=request.is_active,
             is_default_caller_id=request.is_default_caller_id,
             extra_metadata=request.extra_metadata,
@@ -960,6 +966,11 @@ async def update_phone_number(
         await _ensure_workflow_belongs_to_org(
             request.inbound_workflow_id, user.selected_organization_id
         )
+    # The FK proves the agent exists, not that this account may point at it.
+    if request.callback_workflow_id is not None:
+        await _ensure_workflow_belongs_to_org(
+            request.callback_workflow_id, user.selected_organization_id
+        )
 
     if request.inbound_contact_list_id is not None:
         # The FK proves the list exists, never that this account owns it — see
@@ -981,6 +992,8 @@ async def update_phone_number(
         country_code=request.country_code,
         extra_metadata=request.extra_metadata,
         clear_inbound_workflow=request.clear_inbound_workflow,
+        callback_workflow_id=request.callback_workflow_id,
+        clear_callback_workflow=request.clear_callback_workflow,
         inbound_contact_list_id=request.inbound_contact_list_id,
         clear_inbound_contact_list=request.clear_inbound_contact_list,
         inbound_require_known_caller=request.inbound_require_known_caller,

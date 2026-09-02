@@ -24,6 +24,9 @@ class PhoneNumberCreateRequest(BaseModel):
     country_code: Optional[str] = Field(default=None, min_length=2, max_length=2)
     label: Optional[str] = Field(default=None, max_length=64)
     inbound_workflow_id: Optional[int] = None
+    #: Callback mode: the number is never answered, and this agent rings the
+    #: caller back instead. `inbound_workflow_id` wins when both are set.
+    callback_workflow_id: Optional[int] = None
     is_active: bool = True
     is_default_caller_id: bool = False
     extra_metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -70,6 +73,10 @@ class PhoneNumberUpdateRequest(BaseModel):
     # Set to true to clear inbound_workflow_id (FK is otherwise non-nullable
     # via the partial-update pattern).
     clear_inbound_workflow: bool = False
+    callback_workflow_id: Optional[int] = None
+    #: Same reason as clear_inbound_workflow: ``None`` on a partial update
+    #: means unchanged, so turning callback mode off needs its own flag.
+    clear_callback_workflow: bool = False
     is_active: Optional[bool] = None
     country_code: Optional[str] = Field(default=None, min_length=2, max_length=2)
     extra_metadata: Optional[Dict[str, Any]] = None
@@ -113,6 +120,7 @@ class PhoneNumberResponse(BaseModel):
     label: Optional[str] = None
     inbound_workflow_id: Optional[int] = None
     inbound_workflow_name: Optional[str] = None
+    callback_workflow_id: Optional[int] = None
     inbound_contact_list_id: Optional[int] = None
     inbound_require_known_caller: bool = False
     inbound_max_calls_per_caller: Optional[int] = None

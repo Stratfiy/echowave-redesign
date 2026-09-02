@@ -3415,6 +3415,32 @@ export type EmbedConfigResponse = {
 };
 
 /**
+ * EmbedTextMessageRequest
+ */
+export type EmbedTextMessageRequest = {
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * EmbedTextMessageResponse
+ */
+export type EmbedTextMessageResponse = {
+    /**
+     * Messages
+     */
+    messages: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Is Completed
+     */
+    is_completed: boolean;
+};
+
+/**
  * EmbedTokenRequest
  */
 export type EmbedTokenRequest = {
@@ -4605,6 +4631,10 @@ export type InitEmbedRequest = {
     context_variables?: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Mode
+     */
+    mode?: string;
 };
 
 /**
@@ -6038,6 +6068,10 @@ export type PhoneNumberCreateRequest = {
      */
     inbound_workflow_id?: number | null;
     /**
+     * Callback Workflow Id
+     */
+    callback_workflow_id?: number | null;
+    /**
      * Is Active
      */
     is_active?: boolean;
@@ -6103,6 +6137,10 @@ export type PhoneNumberResponse = {
      * Inbound Workflow Name
      */
     inbound_workflow_name?: string | null;
+    /**
+     * Callback Workflow Id
+     */
+    callback_workflow_id?: number | null;
     /**
      * Inbound Contact List Id
      */
@@ -6183,6 +6221,14 @@ export type PhoneNumberUpdateRequest = {
      * Clear Inbound Workflow
      */
     clear_inbound_workflow?: boolean;
+    /**
+     * Callback Workflow Id
+     */
+    callback_workflow_id?: number | null;
+    /**
+     * Clear Callback Workflow
+     */
+    clear_callback_workflow?: boolean;
     /**
      * Is Active
      */
@@ -22423,6 +22469,40 @@ export type OptionsTurnCredentialsApiV1PublicEmbedTurnCredentialsSessionTokenOpt
      */
     200: unknown;
 };
+
+export type PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostData = {
+    body: EmbedTextMessageRequest;
+    path: {
+        /**
+         * Session Token
+         */
+        session_token: string;
+    };
+    query?: never;
+    url: '/api/v1/public/embed/text/{session_token}/messages';
+};
+
+export type PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostError = PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostErrors[keyof PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostErrors];
+
+export type PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmbedTextMessageResponse;
+};
+
+export type PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostResponse = PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostResponses[keyof PostEmbedTextMessageApiV1PublicEmbedTextSessionTokenMessagesPostResponses];
 
 export type InitiateCallApiV1PublicAgentUuidPostData = {
     body: TriggerCallRequest;

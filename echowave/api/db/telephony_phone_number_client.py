@@ -383,6 +383,7 @@ class TelephonyPhoneNumberClient(BaseDBClient):
         country_code: Optional[str] = None,
         label: Optional[str] = None,
         inbound_workflow_id: Optional[int] = None,
+        callback_workflow_id: Optional[int] = None,
         is_active: bool = True,
         is_default_caller_id: bool = False,
         extra_metadata: Optional[Dict[str, Any]] = None,
@@ -404,6 +405,7 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                 country_code=country_code or normalized.country_code,
                 label=label,
                 inbound_workflow_id=inbound_workflow_id,
+                callback_workflow_id=callback_workflow_id,
                 is_active=is_active,
                 is_default_caller_id=is_default_caller_id,
                 extra_metadata=extra_metadata or {},
@@ -438,6 +440,8 @@ class TelephonyPhoneNumberClient(BaseDBClient):
         inbound_max_calls_per_caller: Optional[int] = None,
         inbound_call_window_hours: Optional[int] = None,
         inbound_allow_list: Optional[list] = None,
+        callback_workflow_id: Optional[int] = None,
+        clear_callback_workflow: bool = False,
     ) -> Optional[TelephonyPhoneNumberModel]:
         """Partial update. ``address`` is intentionally immutable — create a new
         row instead. Set ``clear_inbound_workflow=True`` to null out the FK."""
@@ -452,6 +456,10 @@ class TelephonyPhoneNumberClient(BaseDBClient):
                 row.inbound_workflow_id = inbound_workflow_id
             elif clear_inbound_workflow:
                 row.inbound_workflow_id = None
+            if callback_workflow_id is not None:
+                row.callback_workflow_id = callback_workflow_id
+            elif clear_callback_workflow:
+                row.callback_workflow_id = None
             if is_active is not None:
                 row.is_active = is_active
             if country_code is not None:
