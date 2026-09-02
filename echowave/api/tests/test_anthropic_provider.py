@@ -175,3 +175,64 @@ class TestTheWiringIsComplete:
 
         assert "ServiceProviders.ANTHROPIC.value" in factory
         assert "AnthropicLLMService(" in factory
+
+
+class TestItIsPricedBeforeItIsSold:
+    """The platform-key path is only safe once these rows exist.
+
+    `REMAINING-WORK.md` records what an empty price book does: it reports 100%
+    margin rather than an error, on every call, silently. A provider offered on
+    Decibyl's own key with no rate is a call we pay for and do not bill.
+    """
+
+    def _rows(self):
+        from api.services.billing.default_rates import LLM_RATES
+
+        return [r for r in LLM_RATES if r.provider == "anthropic"]
+
+    def test_every_offered_model_carries_its_own_rate(self):
+        """A model in the picker with no row falls through to the provider-wide
+        fallback, which is Haiku. Opus is 5x Haiku, so that is not a thin
+        margin — it is selling the call at a fifth of cost."""
+        priced = {r.model for r in self._rows() if r.model}
+        offered = set(
+            AnthropicLLMConfiguration.model_fields["model"].json_schema_extra[
+                "examples"
+            ]
+        )
+
+        assert not (offered - priced), sorted(offered - priced)
+
+    def test_there_is_exactly_one_provider_wide_fallback(self):
+        """Two rows for the same (provider, model) key is an ambiguous price,
+        and which one wins depends on seed order rather than on a decision."""
+        wide = [r for r in self._rows() if not r.model]
+        assert len(wide) == 1, [r.basis for r in wide]
+
+    def test_the_fallback_is_the_cheapest_of_the_family(self):
+        """The file's stated rule: an unpriced model under-reports rather than
+        over-reports, so a surprise on the invoice is a pleasant one."""
+        rows = self._rows()
+        wide = next(r for r in rows if not r.model)
+        named = [r.usd_per_unit for r in rows if r.model]
+
+        assert wide.usd_per_unit == min(named)
+
+    def test_the_rates_are_not_provisional(self):
+        """`carrier_rates` refuses a managed path while a rate carries the
+        provisional marker. These are published list prices, so they must not
+        carry it — a provisional rate here would block the very tier this
+        exists to enable."""
+        assert not any(r.provisional for r in self._rows())
+
+    def test_price_ordering_matches_the_family(self):
+        """Cheapest to dearest, as Anthropic publishes them. An inverted pair
+        here means a tier that reads as an upgrade bills as a discount."""
+        by_model = {r.model: r.usd_per_unit for r in self._rows() if r.model}
+
+        assert (
+            by_model["claude-haiku-4-5"]
+            < by_model["claude-sonnet-5"]
+            < by_model["claude-sonnet-4-6"]
+            < by_model["claude-opus-5"]
+        )

@@ -131,6 +131,12 @@ LLM_RATES = (
         _blend(2.50, 10.00),
         "$2.50/$10.00 per 1M, blended",
     ),
+    # Provider-wide Anthropic is Haiku, the cheapest of the family, following
+    # the rule stated above: an unpriced model under-reports rather than over-
+    # reports. Note what that means now the family is priced below — Opus is 5x
+    # Haiku, so an unpriced *Opus* model falling through to here is sold at a
+    # fifth of cost, which is a loss rather than a thin margin. Price a new
+    # Claude model before offering it, not after the first invoice.
     DefaultRate(
         "anthropic",
         "",
@@ -160,6 +166,55 @@ LLM_RATES = (
         _blend(0.40, 1.60),
         "$0.40/$1.60 per 1M, blended",
     ),
+    # Anthropic. Priced because the platform-key path is only safe once these
+    # rows exist: without them `rate_card` has no figure for the provider, and
+    # `REMAINING-WORK.md` records what an empty price book does — it reports
+    # 100% margin rather than an error, on every call, silently.
+    #
+    # First-party API list prices. Anthropic also sells the same models through
+    # Bedrock and Vertex at partner rates; those are a different provider row
+    # if we ever serve them that way, not an edit to these.
+    DefaultRate(
+        "anthropic",
+        "claude-haiku-4-5",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(1.00, 5.00),
+        "$1.00/$5.00 per 1M, blended",
+    ),
+    DefaultRate(
+        "anthropic",
+        "claude-sonnet-5",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(2.00, 10.00),
+        "$2.00/$10.00 per 1M, blended",
+    ),
+    DefaultRate(
+        "anthropic",
+        "claude-sonnet-4-6",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(3.00, 15.00),
+        "$3.00/$15.00 per 1M, blended",
+    ),
+    DefaultRate(
+        "anthropic",
+        "claude-opus-5",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(5.00, 25.00),
+        "$5.00/$25.00 per 1M, blended",
+    ),
+    DefaultRate(
+        "anthropic",
+        "claude-opus-4-8",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(5.00, 25.00),
+        "$5.00/$25.00 per 1M, blended",
+    ),
+
     # Provider-wide Google is Flash rather than Flash-Lite: Flash is what the
     # default managed tier resolves to, and the fallback should not quote a
     # cheaper model than the one actually running.
