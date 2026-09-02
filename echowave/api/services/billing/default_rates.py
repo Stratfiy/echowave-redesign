@@ -214,6 +214,53 @@ LLM_RATES = (
         _blend(5.00, 25.00),
         "$5.00/$25.00 per 1M, blended",
     ),
+    # The OpenAI-compatible vendors, all marked provisional.
+    #
+    # These figures are the vendors' published list prices as read when the
+    # providers were added, and none has been confirmed against an invoice.
+    # `provisional` is what says so. Today it gates nothing outside telephony,
+    # so it is a marker rather than a guard — but a test asserts no managed
+    # tier resolves to a provisionally-priced model, which is the case where
+    # being wrong costs us money rather than costing a BYOK customer nothing.
+    #
+    # Verify against a real invoice before pointing a managed tier at any of
+    # them, and drop the flag in the same change.
+    DefaultRate(
+        "cerebras",
+        "",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(0.25, 0.69),
+        "Cerebras gpt-oss-120b list, blended — unconfirmed",
+        provisional=True,
+    ),
+    DefaultRate(
+        "deepseek",
+        "",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(0.28, 1.10),
+        "DeepSeek chat list, blended — unconfirmed",
+        provisional=True,
+    ),
+    DefaultRate(
+        "mistral",
+        "",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(0.20, 0.60),
+        "Mistral Small list, blended — unconfirmed",
+        provisional=True,
+    ),
+    DefaultRate(
+        "fireworks",
+        "",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(0.90, 0.90),
+        "Fireworks 70B-class list, blended — unconfirmed",
+        provisional=True,
+    ),
 
     # Provider-wide Google is Flash rather than Flash-Lite: Flash is what the
     # default managed tier resolves to, and the fallback should not quote a
