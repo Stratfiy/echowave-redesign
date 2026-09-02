@@ -445,7 +445,15 @@ LAUNCH_TEMPLATES: tuple[tuple[str, str, Any], ...] = (
 
 
 def build_all() -> list[tuple[str, str, dict[str, Any]]]:
-    """Every launch template as ``(name, description, definition)``."""
+    """Every launch template as ``(name, description, definition)``.
+
+    Includes the vertical packs. Imported here rather than at module scope
+    because a pack imports the node helpers from this module, and importing it
+    back at the top would be a cycle.
+    """
+    from api.services.workflow.clinic_pack import CLINIC_TEMPLATES
+
     return [
-        (name, description, build()) for name, description, build in LAUNCH_TEMPLATES
+        (name, description, build())
+        for name, description, build in (*LAUNCH_TEMPLATES, *CLINIC_TEMPLATES)
     ]
