@@ -24,13 +24,12 @@ import {
   updateWorkflowApiV1WorkflowWorkflowIdPut,
 } from "@/client/sdk.gen";
 import type { SetupFieldResponse } from "@/client/types.gen";
-import { detailFromError } from "@/lib/apiError";
-import { useAuth } from "@/lib/auth";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { detailFromError } from "@/lib/apiError";
+import { useAuth } from "@/lib/auth";
 
 export default function AgentSetupPage() {
   const params = useParams();
