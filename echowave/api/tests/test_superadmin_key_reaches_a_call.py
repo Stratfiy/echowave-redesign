@@ -26,6 +26,12 @@ from api.services.configuration import managed_resolution
 from api.services.configuration import platform_credentials as creds
 from api.services.configuration.registry import OpenAILLMService
 
+#: Nothing here patches ``db_client.async_session``. The ``db_session`` fixture
+#: already points it at this test's session and ``managed_resolution`` imports
+#: that same singleton, so a second patch only added another restore of a
+#: global — and its teardown order against the fixture left a *closed* session
+#: installed for every test that ran afterwards. The symptom was nine unrelated
+#: tests failing with "This Connection is closed", none of them in this file.
 TEST_SECRET = Fernet.generate_key().decode()
 PLATFORM_KEY = "sk-platform-key-the-staff-pasted-0042"
 
@@ -45,7 +51,7 @@ async def _staff(session) -> UserModel:
 @pytest.mark.asyncio
 class TestAStaffKeyReachesACustomersCall:
     async def test_a_managed_section_resolves_to_the_stored_platform_key(
-        self, db_session, async_session, monkeypatch
+        self, db_session, async_session
     ):
         """What `/superadmin/provider-keys` is for.
 
@@ -60,13 +66,6 @@ class TestAStaffKeyReachesACustomersCall:
             provider="openai",
             api_key=PLATFORM_KEY,
             label="platform openai",
-        )
-
-        # `managed_resolution` opens its own session; point it at the test one
-        # so it reads the row just written rather than a different database.
-        monkeypatch.setattr(
-            "api.services.configuration.managed_resolution.db_client.async_session",
-            lambda: _SessionHandle(async_session),
         )
 
         # The direct managed path: the customer picked a real vendor and model
@@ -84,7 +83,7 @@ class TestAStaffKeyReachesACustomersCall:
         assert effective.llm.api_key == PLATFORM_KEY
 
     async def test_a_deactivated_platform_key_is_not_handed_out(
-        self, db_session, async_session, monkeypatch
+        self, db_session, async_session
     ):
         """Taking a key out of service has to actually take it out of service,
         or rotating at the vendor hands every managed account a dead key."""
@@ -103,11 +102,6 @@ class TestAStaffKeyReachesACustomersCall:
             is_active=False,
         )
 
-        monkeypatch.setattr(
-            "api.services.configuration.managed_resolution.db_client.async_session",
-            lambda: _SessionHandle(async_session),
-        )
-
         effective = SimpleNamespace(
             llm=OpenAILLMService(api_key="", model="gpt-4o", use_platform_key=True),
             stt=None,
@@ -120,9 +114,7 @@ class TestAStaffKeyReachesACustomersCall:
 
         assert effective.llm.api_key != PLATFORM_KEY
 
-    async def test_the_customer_is_billed_for_it(
-        self, db_session, async_session, monkeypatch
-    ):
+    async def test_the_customer_is_billed_for_it(self, db_session, async_session):
         """The stamp that decides who pays.
 
         A section running on our key must read "managed" by the time billing
@@ -137,10 +129,6 @@ class TestAStaffKeyReachesACustomersCall:
             component=CostComponent.LLM,
             provider="openai",
             api_key=PLATFORM_KEY,
-        )
-        monkeypatch.setattr(
-            "api.services.configuration.managed_resolution.db_client.async_session",
-            lambda: _SessionHandle(async_session),
         )
 
         effective = SimpleNamespace(
@@ -157,22 +145,3 @@ class TestAStaffKeyReachesACustomersCall:
 
         assert effective.llm.key_source == "managed"
         assert effective.llm.api_key == PLATFORM_KEY
-
-
-class _SessionHandle:
-    """Lend the test's session to code that opens its own.
-
-    ``async with db_client.async_session()`` would otherwise start a second
-    session on a second engine, which cannot see rows the test has only
-    flushed. Exiting must not close the borrowed session -- the test still
-    needs it.
-    """
-
-    def __init__(self, session):
-        self._session = session
-
-    async def __aenter__(self):
-        return self._session
-
-    async def __aexit__(self, *_exc):
-        return False
