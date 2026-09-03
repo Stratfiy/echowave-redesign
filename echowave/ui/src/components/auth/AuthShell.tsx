@@ -1,20 +1,27 @@
-// Decibyl auth shell — rebranded from the legacy dark 2-col layout to a
-// premium light/blue nAutomation Labs aesthetic with an on-panel dark-mode
-// toggle. LEFT: brand + value panel with animated waveform, feature chips,
-// and enterprise CTA. RIGHT: the auth form card. Mobile collapses to a
-// single column. The palette leans on the app's new blue accent
-// (--brand-blue) with soft neutrals so both light and dark modes read as
-// coherent variants of the same brand.
+// Decibyl auth shell. LEFT: brand and value panel. RIGHT: the auth form card.
+// Mobile collapses to a single column.
+//
+// The copy here is the first thing anyone reads, so it has to agree with what
+// we actually sell. It used to say "open, self-hostable" and "BYOK · any
+// model", which is the developer-tool pitch — and it told every visitor the
+// opposite of the pricing: we hold the provider keys, the markup is where the
+// margin is, and BYOK is an enterprise arrangement rather than the headline.
+// A prospect who arrives expecting to bring their own OpenAI key and finds a
+// managed rate card has been mis-sold before they reach the form.
+//
+// It now says what the product does for the person buying it: answer the
+// phone. Self-hosting and BYOK are still true, still available, and belong in
+// the enterprise block below rather than in the first sentence.
 
 import type { ReactNode } from "react";
 
 import { BrandLogo } from "@/components/BrandLogo";
 
 const HIGHLIGHTS = [
-  "Speech-to-speech",
-  "MCP-native",
-  "BYOK · any model",
-  "Self-hostable",
+  "11 Indian languages",
+  "Answers in one ring",
+  "Live in 10 minutes",
+  "No setup fee",
 ];
 
 export function AuthShell({
@@ -48,18 +55,17 @@ export function AuthShell({
         </div>
 
         <div className="relative max-w-lg space-y-7">
-          <div className="auth-waveform" aria-hidden>
-            <span /><span /><span /><span /><span /><span /><span /><span />
-          </div>
           <h1 className="text-4xl font-medium leading-[1.05] tracking-tight text-brand-heading xl:text-[44px]">
-            Build production
+            Every missed call
             <br />
-            <span className="text-brand-blue">voice AI agents</span>
+            <span className="text-brand-blue">is a customer</span>
             <br />
-            without vendor lock-in.
+            who rang someone else.
           </h1>
           <p className="max-w-md text-[15px] leading-relaxed text-brand-body">
-            Decibyl is the open, self-hostable voice AI platform. Design workflows visually, connect any LLM / STT / TTS provider, and ship real conversations in minutes.
+            Decibyl answers your phone in Hindi, Tamil, Telugu and eight more —
+            books the appointment, qualifies the lead, and hands anything real
+            to a person. Set one up yourself in ten minutes.
           </p>
           <ul className="flex flex-wrap gap-2">
             {HIGHLIGHTS.map((point) => (
