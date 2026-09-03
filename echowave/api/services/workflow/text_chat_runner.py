@@ -465,14 +465,19 @@ async def execute_text_chat_pending_turn(
         raise ValueError("Text chat requires an LLM configuration")
     from api.services.managed_model_services import (
         MPS_CORRELATION_ID_CONTEXT_KEY,
+        TEXT_MANAGED_SECTIONS,
         ensure_mps_correlation_id,
     )
 
     base_initial_context = dict(workflow_run.initial_context or {})
+    # Scoped to what a text run actually spends: the language model, and
+    # embeddings when it looks something up. Asking about speech would refuse
+    # this conversation over an unconfigured microphone it does not have.
     mps_correlation_id = await ensure_mps_correlation_id(
         ai_model_config=user_config,
         workflow_run_id=workflow_run_id,
         initial_context=base_initial_context,
+        sections=TEXT_MANAGED_SECTIONS,
     )
 
     llm = create_llm_service(user_config, correlation_id=mps_correlation_id)

@@ -575,16 +575,28 @@ async def _start_text_session(run_id: int) -> None:
 def _visible_messages(session_data: dict) -> list[dict]:
     """The transcript, stripped to what a visitor may see.
 
-    Whitelisted rather than filtered: the session carries tool calls, node
-    names and internal reasoning, and a blacklist is one new key away from
-    leaking how the agent works to anyone who opens the network tab.
+    The stored shape is a list of *turns*, each carrying at most one user
+    message and one assistant message alongside node transitions, tool events,
+    per-turn token usage and cost, and a checkpoint of the whole graph state.
+    Two fields of that are the conversation; the rest is ours.
+
+    So this projects rather than filters. A blacklist over a structure that
+    rich is one new key away from publishing how the agent works to anyone who
+    opens the network tab — and the keys are added by code that has no reason
+    to think about this function.
     """
     out = []
-    for message in (session_data or {}).get("messages", []) or []:
-        role = message.get("role")
-        content = message.get("content")
-        if role in ("user", "assistant") and isinstance(content, str) and content:
-            out.append({"role": role, "content": content})
+    for turn in (session_data or {}).get("turns") or []:
+        if not isinstance(turn, dict):
+            continue
+        # User first: within a turn the visitor spoke before the agent
+        # answered, and a turn can carry either alone — a pending turn has no
+        # reply yet, and the opening greeting has no question.
+        for role, key in (("user", "user_message"), ("assistant", "assistant_message")):
+            message = turn.get(key)
+            text = (message or {}).get("text") if isinstance(message, dict) else None
+            if isinstance(text, str) and text:
+                out.append({"role": role, "content": text})
     return out
 
 

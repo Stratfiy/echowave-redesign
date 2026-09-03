@@ -342,6 +342,34 @@ def _parse_organization_ai_model_configuration_v2(
         return None
 
 
+def default_managed_configuration(
+    service_key: str = "",
+) -> OrganizationAIModelConfigurationV2:
+    """The stack a brand-new account runs on before it has chosen anything.
+
+    Managed tiers, which ``managed_resolution`` turns into real vendors on the
+    keys staff installed at ``/superadmin/provider-keys``. Nothing here names a
+    vendor: the tier map does that, so repointing a tier moves every account
+    that never chose for itself, which is the point of a default.
+
+    ``service_key`` is the account's model gateway credential and is genuinely
+    optional — it attributes managed usage to the account, and a section that
+    resolves to a platform key does not authenticate with it. Pass the stored
+    one when there is one; an empty string is a working configuration, not a
+    broken one.
+    """
+    return OrganizationAIModelConfigurationV2(
+        version=2,
+        mode="decibyl",
+        decibyl=DecibylManagedAIModelConfiguration(
+            api_key=service_key,
+            llm_tier="default",
+            stt_tier="default",
+            tts_tier="default",
+        ),
+    )
+
+
 async def upsert_organization_ai_model_configuration_v2(
     organization_id: int,
     configuration: OrganizationAIModelConfigurationV2,

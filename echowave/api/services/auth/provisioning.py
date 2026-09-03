@@ -25,6 +25,8 @@ from api.services.auth import welcome_email
 from api.services.auth.depends import create_user_configuration_with_mps_key
 from api.services.configuration.ai_model_configuration import (
     convert_legacy_ai_model_configuration_to_v2,
+    default_managed_configuration,
+    upsert_organization_ai_model_configuration_v2,
 )
 from api.services.messaging import announce
 from api.services.partners import referrals
@@ -85,9 +87,22 @@ async def provision_new_account(
                 exc_info=True,
             )
 
-    # Best-effort, exactly as it was in signup. A default model configuration
-    # is a convenience; failing to build one must not cost somebody the account
-    # they just created, and they can pick their own stack afterwards.
+    # A default model configuration, in two steps: ask the model gateway for a
+    # service key, and fall back to plain managed tiers if that does not
+    # happen.
+    #
+    # The fallback is not a nicety. Without it an account provisioned while MPS
+    # was unreachable got *no* configuration at all, and every AI surface it
+    # touched afterwards refused with "requires an LLM configuration" — the
+    # widget, the knowledge base, the first test call. Nothing retried, and
+    # nothing said why; the account simply did not work, and the only fix was
+    # for its owner to find the model screen and choose a stack.
+    #
+    # Managed tiers resolve to real vendors on the keys staff installed at
+    # /superadmin/provider-keys, so this default needs nothing from MPS to run.
+    # The service key it does without only attributes managed usage back to the
+    # account.
+    seeded = False
     try:
         mps_config = await create_user_configuration_with_mps_key(
             user.id, organization.id, user.provider_id
@@ -100,10 +115,26 @@ async def provision_new_account(
                 OrganizationConfigurationKey.MODEL_CONFIGURATION_V2.value,
                 model_config_v2.model_dump(mode="json", exclude_none=True),
             )
+            seeded = True
     except Exception:
         logger.warning(
-            "Failed to create default configuration for new account", exc_info=True
+            "Could not mint a model gateway key for new account; falling back "
+            "to managed tiers on the platform keys",
+            exc_info=True,
         )
+
+    if not seeded:
+        # Best-effort like everything around it: a new account is worth more
+        # than a default stack, and its owner can still pick one by hand.
+        try:
+            await upsert_organization_ai_model_configuration_v2(
+                organization.id, default_managed_configuration()
+            )
+        except Exception:
+            logger.warning(
+                "Failed to create default configuration for new account",
+                exc_info=True,
+            )
 
     # The welcome, last, and best-effort like everything above it.
     #
