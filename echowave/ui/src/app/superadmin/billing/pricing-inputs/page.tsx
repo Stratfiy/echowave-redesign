@@ -61,7 +61,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { formatNumber, formatPaise } from "@/lib/billing/format";
 
 type CharsRow = {
@@ -136,7 +136,7 @@ export default function PricingInputsPage() {
             url: "/api/v1/admin/billing/pricing-inputs",
         });
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to load pricing inputs"));
+            setError(detailFromResult(result, "Failed to load pricing inputs"));
         } else {
             setData((result.data as Report | undefined) ?? null);
             setError(null);

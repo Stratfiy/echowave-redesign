@@ -26,7 +26,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import {
     formatDateIST,
     formatMicrosUsd,
@@ -180,7 +180,7 @@ export default function AccountsPage() {
             });
             if (cancelled) return;
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load accounts"));
+                setError(detailFromResult(result, "Failed to load accounts"));
             } else {
                 setAccounts(((result.data?.accounts ?? []) as Account[]) ?? []);
                 setError(null);

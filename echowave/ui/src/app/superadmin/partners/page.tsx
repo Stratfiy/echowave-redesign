@@ -56,7 +56,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { formatDateIST, formatPaise } from "@/lib/billing/format";
 
 type Application = {
@@ -116,7 +116,7 @@ function Row({
             });
         setBusy(false);
         if (response.error) {
-            toast.error(detailFromError(response.error, "Could not approve"));
+            toast.error(detailFromResult(response, "Could not approve"));
             return;
         }
         toast.success(`Approved at ${percent}%`);
@@ -132,7 +132,7 @@ function Row({
             });
         setBusy(false);
         if (response.error) {
-            toast.error(detailFromError(response.error, "Could not reject"));
+            toast.error(detailFromResult(response, "Could not reject"));
             return;
         }
         toast.success("Rejected");
@@ -294,7 +294,7 @@ function Payouts() {
             });
         setBusy(false);
         if (response.error) {
-            toast.error(detailFromError(response.error, "Could not generate"));
+            toast.error(detailFromResult(response, "Could not generate"));
             return;
         }
         const body = response.data as unknown as {
@@ -319,7 +319,7 @@ function Payouts() {
             path: { statement_id: statement.id },
         });
         if (response.error) {
-            toast.error(detailFromError(response.error, "Could not issue it"));
+            toast.error(detailFromResult(response, "Could not issue it"));
             return;
         }
         toast.success("Marked sent — the number is frozen against regeneration");
@@ -337,7 +337,7 @@ function Payouts() {
                 body: { payment_reference: reference || null, note: null },
             });
         if (response.error) {
-            toast.error(detailFromError(response.error, "Could not mark it paid"));
+            toast.error(detailFromResult(response, "Could not mark it paid"));
             return;
         }
         toast.success("Marked paid");
@@ -479,7 +479,7 @@ export default function PartnerQueuePage() {
             const response = await getQueueApiV1AdminPartnersQueueGet({});
             if (cancelled) return;
             if (response.error) {
-                setError(detailFromError(response.error, "Could not load the queue"));
+                setError(detailFromResult(response, "Could not load the queue"));
             } else {
                 const body = response.data as {
                     applications: Application[];

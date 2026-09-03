@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 interface PhoneNumberDialogProps {
@@ -200,7 +200,7 @@ export function PhoneNumberDialog({
             },
           },
         );
-        if (res.error) throw new Error(detailFromError(res.error, "Failed to save phone number"));
+        if (res.error) throw new Error(detailFromResult(res, "Failed to save phone number"));
         providerSync = res.data?.provider_sync;
         toast.success("Phone number updated");
       } else {
@@ -219,7 +219,7 @@ export function PhoneNumberDialog({
             },
           },
         );
-        if (res.error) throw new Error(detailFromError(res.error, "Failed to save phone number"));
+        if (res.error) throw new Error(detailFromResult(res, "Failed to save phone number"));
         providerSync = res.data?.provider_sync;
         toast.success("Phone number added");
       }

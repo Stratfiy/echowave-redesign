@@ -26,7 +26,7 @@ import { useCallback, useEffect, useState } from "react";
 import { client } from "@/client/client.gen";
 import { Button } from "@/components/ui/button";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
@@ -96,7 +96,7 @@ export function PlanSection({
     const refresh = useCallback(async () => {
         const result = await client.get({ url: "/api/v1/billing/plan" });
         if (result.error) {
-            setError(detailFromError(result.error, "Could not load plans"));
+            setError(detailFromResult(result, "Could not load plans"));
             return;
         }
         setData((result.data as PlanResponse) ?? null);
@@ -118,7 +118,7 @@ export function PlanSection({
             });
             setStarting(null);
             if (result.error) {
-                setError(detailFromError(result.error, "Could not start the plan"));
+                setError(detailFromResult(result, "Could not start the plan"));
                 return;
             }
             const mandate = (result.data as { mandate: Mandate })?.mandate;
@@ -141,7 +141,7 @@ export function PlanSection({
         setCancelling(false);
         setConfirmingCancel(false);
         if (result.error) {
-            setError(detailFromError(result.error, "Could not cancel the plan"));
+            setError(detailFromResult(result, "Could not cancel the plan"));
             return;
         }
         await refresh();

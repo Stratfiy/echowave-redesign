@@ -60,7 +60,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 type Credential = {
@@ -127,7 +127,7 @@ function ProviderKeysScreen() {
     const load = useCallback(async () => {
         const result = await listProviderKeysApiV1AdminProviderKeysGet({});
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to load provider keys"));
+            setError(detailFromResult(result, "Failed to load provider keys"));
         } else {
             setPayload(result.data as unknown as Payload);
             setError(null);
@@ -247,7 +247,7 @@ function ProviderKeysScreen() {
         });
 
         if (result.error) {
-            setFormError(detailFromError(result.error, "Failed to save the key"));
+            setFormError(detailFromResult(result, "Failed to save the key"));
             setSaving(false);
             return;
         }
@@ -264,7 +264,7 @@ function ProviderKeysScreen() {
                     },
                 });
                 if (extra.error) {
-                    setFormError(detailFromError(extra.error, "Failed to save the key"));
+                    setFormError(detailFromResult(extra, "Failed to save the key"));
                     setSaving(false);
                     await load();
                     return;
@@ -305,7 +305,7 @@ function ProviderKeysScreen() {
                 query: { component: credential.component, provider: credential.provider },
             });
             if (result.error) {
-                setActionError(detailFromError(result.error, "Failed to remove the key"));
+                setActionError(detailFromResult(result, "Failed to remove the key"));
                 await load();
                 setActionBusy(null);
                 return;
@@ -327,7 +327,7 @@ function ProviderKeysScreen() {
                 },
             });
             if (result.error) {
-                setActionError(detailFromError(result.error, "Failed to update the key"));
+                setActionError(detailFromResult(result, "Failed to update the key"));
                 await load();
                 setActionBusy(null);
                 return;

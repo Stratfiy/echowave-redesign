@@ -58,7 +58,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import {
     formatNumber,
     formatPaise,
@@ -144,7 +144,7 @@ export default function ModelEconomicsPage() {
             query: filter ? { component: filter } : {},
         });
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to load model usage"));
+            setError(detailFromResult(result, "Failed to load model usage"));
         } else {
             setData((result.data as unknown as Report) ?? null);
             setError(null);

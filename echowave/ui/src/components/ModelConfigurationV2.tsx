@@ -19,7 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useUserConfig } from "@/context/UserConfigContext";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 export default function ModelConfigurationV2({
@@ -53,12 +53,12 @@ export default function ModelConfigurationV2({
             ]);
 
             if (defaultsResult.error) {
-                setError(detailFromError(defaultsResult.error, "Failed to load model configuration defaults"));
+                setError(detailFromResult(defaultsResult, "Failed to load model configuration defaults"));
                 setLoading(false);
                 return;
             }
             if (configResult.error) {
-                setError(detailFromError(configResult.error, "Failed to load model configuration"));
+                setError(detailFromResult(configResult, "Failed to load model configuration"));
                 setLoading(false);
                 return;
             }
@@ -88,7 +88,7 @@ export default function ModelConfigurationV2({
         });
 
         if (result.error) {
-            throw new Error(detailFromError(result.error, "Failed to save model configuration"));
+            throw new Error(detailFromResult(result, "Failed to save model configuration"));
         }
         if (!result.data) {
             throw new Error("Failed to save model configuration");
@@ -182,7 +182,7 @@ function KeyFallbackPreference() {
         const load = async () => {
             const result = await getPreferencesApiV1OrganizationsPreferencesGet();
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load preferences"));
+                setError(detailFromResult(result, "Failed to load preferences"));
                 setLoading(false);
                 return;
             }
@@ -202,7 +202,7 @@ function KeyFallbackPreference() {
         // number alongside it.
         const current = await getPreferencesApiV1OrganizationsPreferencesGet();
         if (current.error) {
-            setError(detailFromError(current.error, "Failed to save preference"));
+            setError(detailFromResult(current, "Failed to save preference"));
             setSaving(false);
             return;
         }
@@ -211,7 +211,7 @@ function KeyFallbackPreference() {
             body: { ...(current.data ?? {}), byok_fallback_to_managed: next },
         });
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to save preference"));
+            setError(detailFromResult(result, "Failed to save preference"));
             setSaving(false);
             return;
         }

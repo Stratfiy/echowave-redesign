@@ -50,7 +50,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { formatDateIST, formatPaise, formatPaiseCompact } from "@/lib/billing/format";
 
 type CompositionRow = {
@@ -92,7 +92,7 @@ export default function CustomerSpendPage() {
             });
             if (cancelled) return;
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load spend"));
+                setError(detailFromResult(result, "Failed to load spend"));
             } else {
                 setData((result.data as unknown as Spend) ?? null);
                 setError(null);

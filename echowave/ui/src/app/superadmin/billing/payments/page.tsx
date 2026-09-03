@@ -60,7 +60,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import {
     formatDateIST,
     formatDateTimeIST,
@@ -138,7 +138,7 @@ export default function PaymentsPage() {
             });
             if (cancelled) return;
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load payments"));
+                setError(detailFromResult(result, "Failed to load payments"));
             } else {
                 setData((result.data as unknown as Report) ?? null);
                 setError(null);

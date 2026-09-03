@@ -57,7 +57,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { CREDENTIAL_TYPES, credentialFields } from "@/lib/credentials/fields";
 
 const TYPE_LABEL: Record<string, string> = Object.fromEntries(
@@ -76,7 +76,7 @@ export function CredentialsSection() {
     const refresh = useCallback(async () => {
         const result = await listCredentialsApiV1CredentialsGet();
         if (result.error) {
-            setError(detailFromError(result.error, "Could not load credentials"));
+            setError(detailFromResult(result, "Could not load credentials"));
             setCredentials([]);
             return;
         }
@@ -96,7 +96,7 @@ export function CredentialsSection() {
         });
         setBusy(false);
         if (result.error) {
-            setError(detailFromError(result.error, "Could not delete the credential"));
+            setError(detailFromResult(result, "Could not delete the credential"));
             return;
         }
         setDeleting(null);
@@ -282,7 +282,7 @@ function RotateCredentialDialog({
         });
         setSaving(false);
         if (result.error) {
-            setError(detailFromError(result.error, "Could not rotate the credential"));
+            setError(detailFromResult(result, "Could not rotate the credential"));
             return;
         }
         onRotated();

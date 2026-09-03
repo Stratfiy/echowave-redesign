@@ -26,7 +26,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import {
     formatDateTimeIST,
     formatDuration,
@@ -78,7 +78,7 @@ export default function CallsPage() {
             });
             if (cancelled) return;
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load calls"));
+                setError(detailFromResult(result, "Failed to load calls"));
             } else {
                 setCalls((result.data?.calls ?? []) as Array<Record<string, never>>);
                 setTotal(Number(result.data?.total ?? 0));

@@ -41,7 +41,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 import {
@@ -158,7 +158,7 @@ export default function ToolsPage() {
             });
 
             if (response.error) {
-                setCreateError(detailFromError(response.error, "Failed to create tool"));
+                setCreateError(detailFromResult(response, "Failed to create tool"));
                 return;
             }
 

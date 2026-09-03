@@ -57,7 +57,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatPaise } from "@/lib/billing/format";
 
@@ -148,7 +148,7 @@ export default function PartnerPage() {
             const response = await getApplicationApiV1PartnersApplicationGet();
             if (cancelled) return;
             if (response.error) {
-                toast.error(detailFromError(response.error, "Could not load your application"));
+                toast.error(detailFromResult(response, "Could not load your application"));
             } else {
                 const body = response.data as {
                     application: Application | null;
@@ -200,7 +200,7 @@ export default function PartnerPage() {
         });
         setSubmitting(false);
         if (response.error) {
-            toast.error(detailFromError(response.error, "Could not submit your application"));
+            toast.error(detailFromResult(response, "Could not submit your application"));
             return;
         }
         setApplication((response.data as { application: Application }).application);

@@ -39,7 +39,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useUserConfig } from "@/context/UserConfigContext";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 
 interface PhoneCallDialogProps {
     open: boolean;
@@ -76,7 +76,7 @@ export const PhoneCallDialog = ({
         const result =
             await getPreferencesApiV1OrganizationsPreferencesGet();
         if (result.error) {
-            throw new Error(detailFromError(result.error, "Failed to load phone preferences"));
+            throw new Error(detailFromResult(result, "Failed to load phone preferences"));
         }
         return result.data || {};
     }, []);
@@ -225,7 +225,7 @@ export const PhoneCallDialog = ({
             });
 
         if (result.error) {
-            throw new Error(detailFromError(result.error, "Failed to save phone preferences"));
+            throw new Error(detailFromResult(result, "Failed to save phone preferences"));
         }
         if (!result.data) {
             throw new Error("Failed to save phone preferences");

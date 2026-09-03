@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 
 type Pending = {
     markup_bps: number;
@@ -69,7 +69,7 @@ export function ManagedMarkupCard() {
     const load = useCallback(async () => {
         const result = await getManagedMarkupApiV1AdminBillingRateCardMarkupGet();
         if (result.error) {
-            setError(detailFromError(result.error, "Could not load the markup"));
+            setError(detailFromResult(result, "Could not load the markup"));
         } else {
             const next = result.data as unknown as MarkupState;
             setState(next);
@@ -93,7 +93,7 @@ export function ManagedMarkupCard() {
                 body: { markup_bps: bps, note: note.trim() || null },
             });
         if (result.error) {
-            setError(detailFromError(result.error, "Could not start the change"));
+            setError(detailFromResult(result, "Could not start the change"));
         } else {
             const data = result.data as unknown as {
                 sent_to: string;
@@ -121,7 +121,7 @@ export function ManagedMarkupCard() {
                 body: { code: code.trim() },
             });
         if (result.error) {
-            setError(detailFromError(result.error, "Could not apply the change"));
+            setError(detailFromResult(result, "Could not apply the change"));
         } else {
             const data = result.data as unknown as { markup_bps: number };
             setNotice(`Markup is now ${asMultiple(data.markup_bps)}.`);

@@ -33,7 +33,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatPaise } from "@/lib/billing/format";
 
@@ -117,7 +117,7 @@ export default function PlansPage() {
     const refresh = useCallback(async () => {
         const result = await client.get({ url: "/api/v1/admin/billing/plans" });
         if (result.error) {
-            setError(detailFromError(result.error, "Could not load plans"));
+            setError(detailFromResult(result, "Could not load plans"));
             return;
         }
         const data = result.data as {
@@ -156,7 +156,7 @@ export default function PlansPage() {
         });
         setSaving(false);
         if (result.error) {
-            setError(detailFromError(result.error, "Could not save the plan"));
+            setError(detailFromResult(result, "Could not save the plan"));
             return;
         }
         setDraft(null);

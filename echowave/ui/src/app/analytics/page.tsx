@@ -51,7 +51,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { formatDateIST, formatNumber, formatPaise } from "@/lib/billing/format";
 
 type DailyRow = {
@@ -135,7 +135,7 @@ export default function CallAnalyticsPage() {
             });
             if (cancelled) return;
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load call analytics"));
+                setError(detailFromResult(result, "Failed to load call analytics"));
             } else {
                 setData((result.data as unknown as CallAnalytics) ?? null);
                 setError(null);

@@ -28,7 +28,7 @@ import { useCallback, useEffect, useState } from "react";
 import { client } from "@/client/client.gen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { cn } from "@/lib/utils";
 
 type DiscoveredModel = { id: string; suggested: boolean; offered: boolean };
@@ -82,7 +82,7 @@ export function ModelCatalogue({
         });
         setLoading(false);
         if (result.error) {
-            setError(detailFromError(result.error, "Could not list models"));
+            setError(detailFromResult(result, "Could not list models"));
             return;
         }
         const data = result.data as Discovery;
@@ -110,7 +110,7 @@ export function ModelCatalogue({
         });
         setSaving(false);
         if (result.error) {
-            setError(detailFromError(result.error, "Could not save the catalogue"));
+            setError(detailFromResult(result, "Could not save the catalogue"));
             return;
         }
         onSaved?.();

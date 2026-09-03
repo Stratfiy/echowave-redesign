@@ -30,7 +30,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { privacyReadinessApiV1PrivacyReadinessGet } from "@/client/sdk.gen";
 import { Button } from "@/components/ui/button";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -96,7 +96,7 @@ export default function PrivacyReadinessPage() {
         const result = await privacyReadinessApiV1PrivacyReadinessGet();
         setLoading(false);
         if (result.error) {
-            setError(detailFromError(result.error, "Could not read readiness"));
+            setError(detailFromResult(result, "Could not read readiness"));
             return;
         }
         setAssessment(result.data as unknown as Assessment);

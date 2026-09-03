@@ -38,7 +38,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 
 type Agreement = {
     key: string;
@@ -117,7 +117,7 @@ export function AgreementsDialog({
             });
             if (response.error) {
                 setError(
-                    detailFromError(response.error, "Could not record your acceptance."),
+                    detailFromResult(response, "Could not record your acceptance."),
                 );
                 setIsSubmitting(false);
                 return;

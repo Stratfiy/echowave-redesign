@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTelephonyConfigWarnings } from "@/context/TelephonyConfigWarningsContext";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 export default function TelephonyConfigurationsPage() {
@@ -75,7 +75,7 @@ export default function TelephonyConfigurationsPage() {
       const res = await listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet(
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      if (res.error) throw new Error(detailFromError(res.error));
+      if (res.error) throw new Error(detailFromResult(res));
       setItems(res.data?.configurations ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load configurations");
@@ -105,7 +105,7 @@ export default function TelephonyConfigurationsPage() {
           path: { config_id: item.id },
         },
       );
-      if (res.error) throw new Error(detailFromError(res.error));
+      if (res.error) throw new Error(detailFromResult(res));
       setEditTarget(res.data ?? null);
       setEditOpen(true);
     } catch (err) {
@@ -122,7 +122,7 @@ export default function TelephonyConfigurationsPage() {
           path: { config_id: item.id },
         },
       );
-      if (res.error) throw new Error(detailFromError(res.error));
+      if (res.error) throw new Error(detailFromResult(res));
       toast.success(`${item.name} is now the default outbound configuration`);
       fetchItems();
     } catch (err) {
@@ -140,7 +140,7 @@ export default function TelephonyConfigurationsPage() {
           path: { config_id: deleteTarget.id },
         },
       );
-      if (res.error) throw new Error(detailFromError(res.error));
+      if (res.error) throw new Error(detailFromResult(res));
       toast.success("Configuration deleted");
       setDeleteTarget(null);
       fetchItems();

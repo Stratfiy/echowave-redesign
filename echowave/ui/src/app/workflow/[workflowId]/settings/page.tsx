@@ -43,7 +43,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SETTINGS_DOCUMENTATION_URLS } from "@/constants/documentation";
 import { UnsavedChangesProvider, useUnsavedChanges, useUnsavedChangesContext } from "@/context/UnsavedChangesContext";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { priceableFromV2, pricedStack } from "@/lib/billing/pricedStack";
 import logger from "@/lib/logger";
@@ -1697,12 +1697,12 @@ function WorkflowSettingsInner({
             ]);
 
             if (defaultsResult.error) {
-                setModelConfigurationError(detailFromError(defaultsResult.error, "Failed to load model configuration defaults"));
+                setModelConfigurationError(detailFromResult(defaultsResult, "Failed to load model configuration defaults"));
                 setModelConfigurationLoading(false);
                 return;
             }
             if (configurationResult.error) {
-                setModelConfigurationError(detailFromError(configurationResult.error, "Failed to load model configuration"));
+                setModelConfigurationError(detailFromResult(configurationResult, "Failed to load model configuration"));
                 setModelConfigurationLoading(false);
                 return;
             }

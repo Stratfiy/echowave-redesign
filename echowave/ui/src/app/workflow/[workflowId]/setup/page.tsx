@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 export default function AgentSetupPage() {
@@ -50,7 +50,7 @@ export default function AgentSetupPage() {
       path: { workflow_id: workflowId },
     });
     if (res.error || !res.data) {
-      toast.error(detailFromError(res.error, "Could not load this agent's setup"));
+      toast.error(detailFromResult(res, "Could not load this agent's setup"));
       return;
     }
     setName(res.data.workflow_name);
@@ -87,7 +87,7 @@ export default function AgentSetupPage() {
         body: { template_context_variables: values },
       });
       if (res.error) {
-        toast.error(detailFromError(res.error, "Could not save. Try again."));
+        toast.error(detailFromResult(res, "Could not save. Try again."));
         return;
       }
       toast.success("Saved");

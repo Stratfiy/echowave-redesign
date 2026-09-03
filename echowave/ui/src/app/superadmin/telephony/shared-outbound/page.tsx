@@ -36,7 +36,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 type SharedOutboundNumber = {
@@ -64,7 +64,7 @@ export default function SharedOutboundPage() {
         setLoading(true);
         const result = await listSharedOutboundApiV1AdminTelephonySharedOutboundGet({});
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to load shared outbound numbers"));
+            setError(detailFromResult(result, "Failed to load shared outbound numbers"));
         } else {
             const data = result.data as {
                 numbers?: SharedOutboundNumber[];
@@ -90,7 +90,7 @@ export default function SharedOutboundPage() {
             body: { shared: false },
         });
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to remove from the shared pool"));
+            setError(detailFromResult(result, "Failed to remove from the shared pool"));
         } else {
             await load();
         }
@@ -110,7 +110,7 @@ export default function SharedOutboundPage() {
             body: { shared: true },
         });
         if (result.error) {
-            setAddError(detailFromError(result.error, "Failed to add to the shared pool"));
+            setAddError(detailFromResult(result, "Failed to add to the shared pool"));
         } else {
             setAddId("");
             await load();

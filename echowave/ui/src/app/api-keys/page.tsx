@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAppConfig } from '@/context/AppConfigContext';
-import { detailFromError } from '@/lib/apiError';
+import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import logger from '@/lib/logger';
 
@@ -98,7 +98,7 @@ export default function APIKeysPage() {
             // nothing said — the catch never fires, because nothing threw.
             // See ui/AGENTS.md, API Error Handling.
             if (response.error) {
-                setError(detailFromError(response.error, 'Failed to fetch API keys'));
+                setError(detailFromResult(response, 'Failed to fetch API keys'));
                 return;
             }
             setApiKeys(response.data ?? []);
@@ -140,7 +140,7 @@ export default function APIKeysPage() {
             });
 
             if (response.error) {
-                setError(detailFromError(response.error, 'Failed to fetch service keys'));
+                setError(detailFromResult(response, 'Failed to fetch service keys'));
                 return;
             }
             setServiceKeys(response.data ?? []);
@@ -185,7 +185,7 @@ export default function APIKeysPage() {
             // reads as "nothing happened", and the next thing a person does is
             // press the button again.
             if (response.error || !response.data) {
-                setError(detailFromError(response.error, 'Failed to create API key'));
+                setError(detailFromResult(response, 'Failed to create API key'));
                 return;
             }
             setCreatedKey(response.data);
@@ -220,7 +220,7 @@ export default function APIKeysPage() {
             });
 
             if (response.error || !response.data) {
-                setError(detailFromError(response.error, 'Failed to create service key'));
+                setError(detailFromResult(response, 'Failed to create service key'));
                 return;
             }
             setCreatedServiceKey(response.data);
@@ -264,7 +264,7 @@ export default function APIKeysPage() {
             });
 
             if (response.error) {
-                setError(detailFromError(response.error, 'Failed to revoke API key'));
+                setError(detailFromResult(response, 'Failed to revoke API key'));
                 return;
             }
 
@@ -299,7 +299,7 @@ export default function APIKeysPage() {
             });
 
             if (response.error) {
-                setError(detailFromError(response.error, 'Failed to revoke service key'));
+                setError(detailFromResult(response, 'Failed to revoke service key'));
                 return;
             }
 

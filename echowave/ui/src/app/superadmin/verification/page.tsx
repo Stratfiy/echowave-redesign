@@ -41,7 +41,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -197,7 +197,7 @@ export default function VerificationQueuePage() {
             query: { status: statuses },
         });
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to load the review queue"));
+            setError(detailFromResult(result, "Failed to load the review queue"));
             setItems([]);
         } else {
             const next = ((result.data?.items ?? []) as ReviewItem[]) ?? [];
@@ -237,7 +237,7 @@ export default function VerificationQueuePage() {
         setActionError(null);
         const result = await call();
         if (result.error) {
-            setActionError(detailFromError(result.error, fallback));
+            setActionError(detailFromResult(result, fallback));
         } else {
             await load();
         }
@@ -252,7 +252,7 @@ export default function VerificationQueuePage() {
             parseAs: "blob",
         });
         if (result.error || !result.data) {
-            setActionError(detailFromError(result.error, "Could not open the document"));
+            setActionError(detailFromResult(result, "Could not open the document"));
         } else {
             // The API streams these as attachments rather than handing out
             // storage URLs, so the download happens from an in-memory blob.

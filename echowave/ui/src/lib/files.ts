@@ -1,5 +1,5 @@
 import { getSignedUrlApiV1S3SignedUrlGet } from "@/client/sdk.gen";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 
 /**
  * Why a signed URL could not be issued, in the caller's terms.
@@ -36,7 +36,7 @@ async function requestSignedUrl(
         if (response.error) {
             return {
                 url: null,
-                error: detailFromError(response.error, 'Could not open this file'),
+                error: detailFromResult(response, 'Could not open this file'),
             };
         }
         if (response.data?.url) {

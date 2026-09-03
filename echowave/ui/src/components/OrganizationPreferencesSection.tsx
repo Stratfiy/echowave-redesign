@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUnsavedChanges } from "@/context/UnsavedChangesContext";
 import { useUserConfig } from "@/context/UserConfigContext";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromError, detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 const emptyPreferences: OrganizationPreferences = {
@@ -168,7 +168,7 @@ export function OrganizationPreferencesSection() {
         );
 
       if (result.error) {
-        toast.error(detailFromError(result.error, "Failed to save preferences"));
+        toast.error(detailFromResult(result, "Failed to save preferences"));
         return;
       }
       if (!result.data) {

@@ -38,7 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 export function MfaSection() {
@@ -85,7 +85,7 @@ export function MfaSection() {
         setEnrollError(null);
         const result = await enrollMfaApiV1AuthMfaEnrollPost();
         if (result.error || !result.data) {
-            setEnrollError(detailFromError(result.error, "Could not start enrolment"));
+            setEnrollError(detailFromResult(result, "Could not start enrolment"));
         } else {
             setSecret(result.data.secret);
             setUri(result.data.uri);
@@ -107,7 +107,7 @@ export function MfaSection() {
             body: { code: verifyCode.trim() },
         });
         if (result.error) {
-            setEnrollError(detailFromError(result.error, "Invalid authentication code"));
+            setEnrollError(detailFromResult(result, "Invalid authentication code"));
         } else {
             toast.success("Two-factor authentication is on");
             setEnrolling(false);
@@ -132,7 +132,7 @@ export function MfaSection() {
             body: { password: disablePassword, code: disableCode.trim() },
         });
         if (result.error) {
-            setDisableError(detailFromError(result.error, "Could not disable MFA"));
+            setDisableError(detailFromResult(result, "Could not disable MFA"));
         } else {
             toast.success("Two-factor authentication is off");
             setDisabling(false);
