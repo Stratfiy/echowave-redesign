@@ -11,7 +11,7 @@ import {
 } from "@/client/sdk.gen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromError, detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 /**
@@ -59,7 +59,7 @@ export function VerifyEmailBanner() {
     });
     setBusy(false);
     if (response.error) {
-      toast.error(detailFromError(response.error, "That code was not accepted."));
+      toast.error(detailFromResult(response, "That code was not accepted."));
       return;
     }
     toast.success("Email verified.");
