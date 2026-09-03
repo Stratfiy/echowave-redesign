@@ -1477,6 +1477,75 @@ async def update_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Declared above POST /{workflow_id}/duplicate on purpose. FastAPI matches
+# routes in declaration order, so the parameterised route below would
+# otherwise swallow this one and reject "templates" as a workflow id.
+@router.post("/templates/duplicate")
+async def duplicate_workflow_template(
+    request: DuplicateTemplateRequest, user: UserModel = Depends(get_user)
+) -> WorkflowResponse:
+    """
+    Duplicate a workflow template to create a new workflow for the user.
+
+    Args:
+        request: The duplicate template request
+        user: The authenticated user
+
+    Returns:
+        The newly created workflow
+    """
+    template_client = WorkflowTemplateClient()
+    template = await template_client.get_workflow_template(request.template_id)
+
+    if not template:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Workflow template with id {request.template_id} not found",
+        )
+
+    # Create a new workflow from the template
+    # Regenerate trigger UUIDs to avoid conflicts with existing triggers
+    workflow_def = regenerate_trigger_uuids(template.template_json)
+
+    trigger_paths = extract_trigger_paths(workflow_def) if workflow_def else []
+    if trigger_paths:
+        try:
+            await db_client.assert_trigger_paths_available(
+                trigger_paths=trigger_paths,
+            )
+        except TriggerPathConflictError as e:
+            raise HTTPException(status_code=409, detail=str(e))
+
+    workflow = await db_client.create_workflow(
+        request.workflow_name,
+        workflow_def,
+        user.id,
+        user.selected_organization_id,
+    )
+
+    if trigger_paths:
+        await db_client.sync_triggers_for_workflow(
+            workflow_id=workflow.id,
+            organization_id=user.selected_organization_id,
+            trigger_paths=trigger_paths,
+        )
+
+    return {
+        "id": workflow.id,
+        "name": workflow.name,
+        "status": workflow.status,
+        "is_live": workflow.is_live,
+        "created_at": workflow.created_at,
+        "workflow_definition": mask_workflow_definition(workflow_def),
+        "current_definition_id": workflow.current_definition_id,
+        "template_context_variables": workflow.template_context_variables,
+        "call_disposition_codes": workflow.call_disposition_codes,
+        "workflow_configurations": mask_workflow_configurations(
+            workflow.workflow_configurations
+        ),
+    }
+
+
 @router.post("/{workflow_id}/duplicate")
 async def duplicate_workflow_endpoint(
     workflow_id: int,
@@ -1745,72 +1814,6 @@ async def get_workflow_templates() -> List[WorkflowTemplateResponse]:
         }
         for template in templates
     ]
-
-
-@router.post("/templates/duplicate")
-async def duplicate_workflow_template(
-    request: DuplicateTemplateRequest, user: UserModel = Depends(get_user)
-) -> WorkflowResponse:
-    """
-    Duplicate a workflow template to create a new workflow for the user.
-
-    Args:
-        request: The duplicate template request
-        user: The authenticated user
-
-    Returns:
-        The newly created workflow
-    """
-    template_client = WorkflowTemplateClient()
-    template = await template_client.get_workflow_template(request.template_id)
-
-    if not template:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Workflow template with id {request.template_id} not found",
-        )
-
-    # Create a new workflow from the template
-    # Regenerate trigger UUIDs to avoid conflicts with existing triggers
-    workflow_def = regenerate_trigger_uuids(template.template_json)
-
-    trigger_paths = extract_trigger_paths(workflow_def) if workflow_def else []
-    if trigger_paths:
-        try:
-            await db_client.assert_trigger_paths_available(
-                trigger_paths=trigger_paths,
-            )
-        except TriggerPathConflictError as e:
-            raise HTTPException(status_code=409, detail=str(e))
-
-    workflow = await db_client.create_workflow(
-        request.workflow_name,
-        workflow_def,
-        user.id,
-        user.selected_organization_id,
-    )
-
-    if trigger_paths:
-        await db_client.sync_triggers_for_workflow(
-            workflow_id=workflow.id,
-            organization_id=user.selected_organization_id,
-            trigger_paths=trigger_paths,
-        )
-
-    return {
-        "id": workflow.id,
-        "name": workflow.name,
-        "status": workflow.status,
-        "is_live": workflow.is_live,
-        "created_at": workflow.created_at,
-        "workflow_definition": mask_workflow_definition(workflow_def),
-        "current_definition_id": workflow.current_definition_id,
-        "template_context_variables": workflow.template_context_variables,
-        "call_disposition_codes": workflow.call_disposition_codes,
-        "workflow_configurations": mask_workflow_configurations(
-            workflow.workflow_configurations
-        ),
-    }
 
 
 # ---------------------------------------------------------------------------

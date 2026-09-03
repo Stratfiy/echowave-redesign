@@ -385,9 +385,7 @@ async def initialize_embed_session(
             await _start_text_session(workflow_run.id)
         except Exception as e:
             logger.error(f"Failed to start embed text session: {e}")
-            raise HTTPException(
-                status_code=500, detail="Failed to start chat session"
-            )
+            raise HTTPException(status_code=500, detail="Failed to start chat session")
 
     # Prepare configuration
     config = {
@@ -634,7 +632,12 @@ async def post_embed_text_message(
     )
     run_id = embed_session.workflow_run_id
 
-    text_session = await db_client.get_workflow_run_text_session(run_id)
+    # Scoped to the token's organization. The session token already proves the
+    # visitor owns this run, but the lookup is org-scoped by contract and a
+    # positional-only call is what made this a 500 rather than a 404.
+    text_session = await db_client.get_workflow_run_text_session(
+        run_id, organization_id=embed_token.organization_id
+    )
     if not text_session:
         raise HTTPException(status_code=404, detail="Chat session not found")
 
