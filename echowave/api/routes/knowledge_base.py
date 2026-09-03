@@ -532,15 +532,21 @@ async def search_chunks(
         # Import here to avoid circular dependency
         from api.services.configuration.ai_model_configuration import (
             apply_managed_embeddings_base_url,
-            get_resolved_ai_model_configuration,
+            get_effective_ai_model_configuration_for_workflow,
         )
         from api.services.gen_ai import build_embedding_service
 
-        # Try to get the organization's embeddings configuration
-        resolved_config = await get_resolved_ai_model_configuration(
+        # The *resolved* configuration, not the stored one. A managed account's
+        # embeddings section reads ``provider=decibyl, api_key=""`` until
+        # managed resolution rewrites it to a real vendor on the platform key,
+        # and only ``..._for_workflow`` runs that step. Reading the stored shape
+        # here meant every managed organization searched with an empty key and
+        # got "Failed to search chunks" — the whole knowledge base, dark, for
+        # every account that had not brought a key of its own.
+        effective_config = await get_effective_ai_model_configuration_for_workflow(
             organization_id=user.selected_organization_id,
+            workflow_configurations={},
         )
-        effective_config = resolved_config.effective
         embeddings_api_key = None
         embeddings_model = None
         embeddings_provider = None
@@ -612,4 +618,29 @@ async def search_chunks(
 
     except Exception as exc:
         logger.error(f"Error searching chunks: {exc}")
+        # A 500 saying "Failed to search chunks" tells an operator nothing, and
+        # the two ways this actually fails are both theirs to fix. The agent
+        # builder already separates them; this now matches it.
+        message = str(exc).lower()
+        # Rejection before absence, and the order is not cosmetic: a vendor's
+        # 401 body says "Incorrect API key provided", which matches the
+        # no-key test too. Checked the other way round, every rejected key is
+        # reported as a missing one and the administrator goes looking for a
+        # setting that is already filled in.
+        if "invalid_api_key" in message or "401" in message or "403" in message:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "The embeddings provider rejected our key. An administrator "
+                    "needs to check it in the provider keys screen."
+                ),
+            ) from exc
+        if "api key" in message or "not configured" in message:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "The knowledge base has no embeddings key to search with. "
+                    "An administrator needs to check the provider keys screen."
+                ),
+            ) from exc
         raise HTTPException(status_code=500, detail="Failed to search chunks") from exc
