@@ -139,21 +139,19 @@ def ingestion(monkeypatch, tmp_path):
 
     async def resolved_configuration(**kwargs):
         return SimpleNamespace(
-            effective=SimpleNamespace(
-                embeddings=SimpleNamespace(
-                    provider="openai",
-                    api_key="sk-test",
-                    model="test-bag-of-words",
-                    base_url=None,
-                    endpoint=None,
-                    api_version=None,
-                )
+            embeddings=SimpleNamespace(
+                provider="openai",
+                api_key="sk-test",
+                model="test-bag-of-words",
+                base_url=None,
+                endpoint=None,
+                api_version=None,
             )
         )
 
     monkeypatch.setattr(
         "api.services.configuration.ai_model_configuration."
-        "get_resolved_ai_model_configuration",
+        "get_effective_ai_model_configuration_for_workflow",
         resolved_configuration,
     )
     monkeypatch.setattr(

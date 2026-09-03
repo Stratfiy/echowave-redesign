@@ -110,21 +110,19 @@ def stubbed_ingestion(monkeypatch, tmp_path):
 
     async def fake_resolved_configuration(**kwargs):
         return SimpleNamespace(
-            effective=SimpleNamespace(
-                embeddings=SimpleNamespace(
-                    provider="openai",
-                    api_key="sk-test",
-                    model="text-embedding-3-small",
-                    base_url=None,
-                    endpoint=None,
-                    api_version=None,
-                )
+            embeddings=SimpleNamespace(
+                provider="openai",
+                api_key="sk-test",
+                model="text-embedding-3-small",
+                base_url=None,
+                endpoint=None,
+                api_version=None,
             )
         )
 
     monkeypatch.setattr(
         "api.services.configuration.ai_model_configuration."
-        "get_resolved_ai_model_configuration",
+        "get_effective_ai_model_configuration_for_workflow",
         fake_resolved_configuration,
     )
     monkeypatch.setattr(
@@ -292,11 +290,11 @@ class TestWhatTheCustomerReads:
         self, stubbed_ingestion, monkeypatch
     ):
         async def no_embeddings_configured(**kwargs):
-            return SimpleNamespace(effective=SimpleNamespace(embeddings=None))
+            return SimpleNamespace(embeddings=None)
 
         monkeypatch.setattr(
             "api.services.configuration.ai_model_configuration."
-            "get_resolved_ai_model_configuration",
+            "get_effective_ai_model_configuration_for_workflow",
             no_embeddings_configured,
         )
         stubbed_ingestion.write_source(b"Refunds take fourteen days to process.")
