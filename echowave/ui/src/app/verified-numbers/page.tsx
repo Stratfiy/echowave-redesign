@@ -43,7 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 /**
@@ -73,6 +73,11 @@ export default function VerifiedNumbersPage() {
   const [code, setCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expiresIn, setExpiresIn] = useState<number | null>(null);
+  // What the server normalised the typed number to, and therefore what it is
+  // actually calling. The form accepts any format, so echoing the raw input
+  // showed a ten-digit Indian mobile back as "+7075701878" — a Russian number,
+  // and reason enough to think the wrong phone was being dialled.
+  const [dialing, setDialing] = useState("");
 
   // How this deployment actually delivers a code. Asked rather than assumed:
   // the language picker only means something when we are going to speak, and a
@@ -85,7 +90,7 @@ export default function VerifiedNumbersPage() {
     setIsLoading(true);
     const response = await listNumbersApiV1VerifiedNumbersGet();
     if (response.error) {
-      setError(detailFromError(response.error, "Could not load your numbers."));
+      setError(detailFromResult(response, "Could not load your numbers."));
       setIsLoading(false);
       return;
     }
@@ -135,10 +140,11 @@ export default function VerifiedNumbersPage() {
     setIsSubmitting(false);
 
     if (response.error) {
-      setError(detailFromError(response.error, "Could not send a code."));
+      setError(detailFromResult(response, "Could not send a code."));
       return;
     }
     setExpiresIn(response.data?.expires_in_seconds ?? null);
+    setDialing(response.data?.phone_number ?? phoneNumber.replace(/\D/g, ""));
     setStep("enter-code");
   };
 
@@ -151,7 +157,7 @@ export default function VerifiedNumbersPage() {
     setIsSubmitting(false);
 
     if (response.error) {
-      setError(detailFromError(response.error, "That code was not accepted."));
+      setError(detailFromResult(response, "That code was not accepted."));
       return;
     }
     setNotice(`+${response.data?.phone_number} is verified — you can call it now.`);
@@ -178,7 +184,7 @@ export default function VerifiedNumbersPage() {
       path: { phone_number: number },
     });
     if (response.error) {
-      setError(detailFromError(response.error, "Could not remove that number."));
+      setError(detailFromResult(response, "Could not remove that number."));
       return;
     }
     setNotice(`+${number} removed — test calls to it will be refused.`);
@@ -317,8 +323,8 @@ export default function VerifiedNumbersPage() {
                   ? "We will call this number and read out a six-digit code, twice. Any format works."
                   : "We will send a six-digit code to this number. Any format works."
                 : byVoice
-                  ? `We are calling +${phoneNumber.replace(/\D/g, "")}. Answer it and write the code down.`
-                  : `We sent a code to +${phoneNumber.replace(/\D/g, "")}.`}
+                  ? `We are calling +${dialing}. Answer it and write the code down.`
+                  : `We sent a code to +${dialing}.`}
             </DialogDescription>
           </DialogHeader>
 

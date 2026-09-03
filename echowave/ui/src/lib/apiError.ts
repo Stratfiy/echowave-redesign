@@ -93,3 +93,45 @@ export function detailFromError(err: unknown, fallback = "Request failed"): stri
     }
     return fallback;
 }
+
+/** The same, but for a whole `{ error, response }` result rather than the body.
+ *
+ * `detailFromError` can only speak when the body carries a `detail`, and it
+ * silently returns the caller's fallback when it does not. That is how a
+ * verification dialog came to answer "That code was not accepted." to a wrong
+ * code, an expired session and a server error alike — three different problems,
+ * one dead end, and no way for the person in front of it (or the person
+ * debugging it) to tell which had happened.
+ *
+ * A response with no readable body still carries a status, and the status is
+ * enough to say something true. Prefer this wherever a message is shown to
+ * somebody who has to decide what to do next.
+ */
+export function detailFromResult(
+    result: { error?: unknown; response?: { status?: number } | null },
+    fallback = "Request failed",
+): string {
+    const detail = detailFromError(result.error, "");
+    if (detail) return detail;
+
+    const status = result.response?.status;
+
+    // No status at all means the request never completed — DNS, offline, a
+    // blocked origin. Telling someone their code was rejected when the request
+    // never arrived sends them to re-read a code that was never checked.
+    if (!status) {
+        return "Could not reach the server. Check your connection and try again.";
+    }
+    if (status === 401 || status === 403) {
+        return "Your session has expired. Sign in again and retry.";
+    }
+    if (status === 429) {
+        return "Too many attempts. Wait a moment and try again.";
+    }
+    if (status >= 500) {
+        return `The server could not complete that request (HTTP ${status}). Try again shortly.`;
+    }
+    // Anything else keeps the caller's wording but says what came back, so a
+    // report of "it just says X" is still actionable.
+    return `${fallback} (HTTP ${status})`;
+}
