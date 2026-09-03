@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -83,7 +83,7 @@ export function LibraryPickerDialog({
             .then((response) => {
                 if (response.error) {
                     setError(
-                        detailFromError(response.error, "Could not load the library."),
+                        detailFromResult(response, "Could not load the library."),
                     );
                     return;
                 }

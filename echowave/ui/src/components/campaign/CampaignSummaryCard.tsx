@@ -44,7 +44,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 
 type Totals = {
     attempted: number;
@@ -148,7 +148,7 @@ export function CampaignSummaryCard({ campaignId }: { campaignId: number }) {
             if (cancelled) return;
             if (result.error) {
                 setError(
-                    detailFromError(result.error, "Failed to load campaign summary"),
+                    detailFromResult(result, "Failed to load campaign summary"),
                 );
             } else {
                 setSummary(result.data as unknown as Summary);

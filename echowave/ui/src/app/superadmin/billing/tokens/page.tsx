@@ -61,7 +61,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { formatDateIST, formatNumber, formatPaise } from "@/lib/billing/format";
 
 const GRANULARITIES = [
@@ -125,7 +125,7 @@ export default function TokensPage() {
             });
             if (cancelled) return;
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load token usage"));
+                setError(detailFromResult(result, "Failed to load token usage"));
             } else {
                 setData((result.data as Record<string, unknown>) ?? null);
                 setError(null);

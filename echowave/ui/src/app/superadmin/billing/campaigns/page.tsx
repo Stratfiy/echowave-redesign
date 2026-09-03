@@ -33,7 +33,7 @@ import {
 } from "@/components/charts/primitives";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import {
     formatNumber,
     formatPaise,
@@ -78,7 +78,7 @@ export default function CampaignsPage() {
             const result = await listCampaignsApiV1AdminBillingCampaignsGet();
             if (cancelled) return;
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load campaigns"));
+                setError(detailFromResult(result, "Failed to load campaigns"));
             } else {
                 const list = (result.data?.campaigns ?? []) as Campaign[];
                 setCampaigns(list);

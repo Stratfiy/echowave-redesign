@@ -11,7 +11,7 @@ import {
 } from "@/client/sdk.gen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { detailFromError, detailFromResult } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 /**
@@ -71,7 +71,7 @@ export function VerifyEmailBanner() {
     const response = await resendEmailVerificationApiV1AuthEmailResendPost({});
     setBusy(false);
     if (response.error) {
-      toast.error(detailFromError(response.error, "Could not send a code."));
+      toast.error(detailFromResult(response, "Could not send a code."));
       return;
     }
     // The endpoint reports whether it actually went out. Saying "sent" when it

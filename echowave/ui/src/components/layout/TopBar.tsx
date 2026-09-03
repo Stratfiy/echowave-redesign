@@ -21,6 +21,7 @@ import type { LocalUser } from "@/lib/auth";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
+import { CurrentOrganization } from "./CurrentOrganization";
 import { NAV_SECTIONS, type SidebarNavItem, STAFF_SECTION } from "./navigation";
 
 /**
@@ -214,6 +215,11 @@ export function TopBar() {
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {/* Before the account menu, not inside it: which organization you are
+            acting as is context for everything on the page, not a setting you
+            occasionally open a menu to check. */}
+        <CurrentOrganization />
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" asChild className="rounded-full">

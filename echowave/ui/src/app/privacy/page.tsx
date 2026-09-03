@@ -71,7 +71,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromError, detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatDateTimeIST } from "@/lib/billing/format";
 
@@ -266,7 +266,7 @@ export default function PrivacyPage() {
             });
             if (response.error) {
                 setBreachError(
-                    detailFromError(response.error, "Could not build the breach report"),
+                    detailFromResult(response, "Could not build the breach report"),
                 );
                 setBreachReport(null);
                 return;
@@ -325,7 +325,7 @@ export default function PrivacyPage() {
                 body: { phone_number: erasureNumber },
             });
             if (response.error) {
-                setError(detailFromError(response.error, "Could not erase that number"));
+                setError(detailFromResult(response, "Could not erase that number"));
                 return;
             }
             const result = response.data as unknown as {
@@ -359,7 +359,7 @@ export default function PrivacyPage() {
                 exportNumber ? { query: { phone_number: exportNumber } } : {},
             );
             if (response.error) {
-                setError(detailFromError(response.error, "Could not build the export"));
+                setError(detailFromResult(response, "Could not build the export"));
                 return;
             }
             const blob = new Blob([JSON.stringify(response.data, null, 2)], {

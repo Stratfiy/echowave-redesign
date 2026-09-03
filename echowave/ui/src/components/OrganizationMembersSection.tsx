@@ -44,7 +44,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 /** An offer of a seat that has not been taken up yet. */
@@ -101,7 +101,7 @@ export function OrganizationMembersSection() {
             ]);
 
             if (authResponse.error) {
-                toast.error(detailFromError(authResponse.error, "Failed to load your role"));
+                toast.error(detailFromResult(authResponse, "Failed to load your role"));
             } else if (authResponse.data) {
                 setMyUserId(authResponse.data.id);
                 setIsOwner(authResponse.data.organization_role === "owner");
@@ -117,7 +117,7 @@ export function OrganizationMembersSection() {
 
             if (membersResponse.error) {
                 toast.error(
-                    detailFromError(membersResponse.error, "Failed to load team members"),
+                    detailFromResult(membersResponse, "Failed to load team members"),
                 );
                 return;
             }
@@ -140,7 +140,7 @@ export function OrganizationMembersSection() {
                 body: { role },
             });
             if (response.error) {
-                toast.error(detailFromError(response.error, "Could not change the role"));
+                toast.error(detailFromResult(response, "Could not change the role"));
                 return;
             }
             setMembers((prev) =>
@@ -162,7 +162,7 @@ export function OrganizationMembersSection() {
                 body: { email, role: inviteRole },
             });
             if (response.error) {
-                toast.error(detailFromError(response.error, "Could not send the invitation"));
+                toast.error(detailFromResult(response, "Could not send the invitation"));
                 return;
             }
             const body = response.data as {
@@ -195,7 +195,7 @@ export function OrganizationMembersSection() {
                 path: { invitation_id: invite.id },
             });
         if (response.error) {
-            toast.error(detailFromError(response.error, "Could not revoke the invitation"));
+            toast.error(detailFromResult(response, "Could not revoke the invitation"));
             return;
         }
         setInvites((prev) => prev.filter((i) => i.id !== invite.id));
@@ -210,7 +210,7 @@ export function OrganizationMembersSection() {
                 path: { user_id: removeTarget.user_id },
             });
             if (response.error) {
-                toast.error(detailFromError(response.error, "Could not remove the member"));
+                toast.error(detailFromResult(response, "Could not remove the member"));
                 return;
             }
             setMembers((prev) => prev.filter((m) => m.user_id !== removeTarget.user_id));

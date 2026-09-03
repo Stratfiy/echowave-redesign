@@ -52,7 +52,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -335,7 +335,7 @@ export default function CreateWorkflowPage() {
         });
 
         if (response.error) {
-            setError(detailFromError(response.error, "Could not create the agent."));
+            setError(detailFromResult(response, "Could not create the agent."));
             setIsLoading(false);
             return;
         }

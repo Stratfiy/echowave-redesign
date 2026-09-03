@@ -24,7 +24,7 @@ import { useCallback,useEffect, useMemo, useRef,useState } from "react";
 
 import { client } from "@/client/client.gen";
 import { Button } from "@/components/ui/button";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -385,7 +385,7 @@ export function SimpleModelPicker({
         });
         setSaving(false);
         if (result.error) {
-            setSaveError(detailFromError(result.error, "Could not save this choice"));
+            setSaveError(detailFromResult(result, "Could not save this choice"));
             return;
         }
         // The server's answer, not the request: it resolves the voice a

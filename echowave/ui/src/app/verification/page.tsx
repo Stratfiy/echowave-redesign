@@ -42,7 +42,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -169,7 +169,7 @@ export default function VerificationPage() {
     const load = useCallback(async () => {
         const result = await getKycApiV1KycGet();
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to load your verification"));
+            setError(detailFromResult(result, "Failed to load your verification"));
         } else {
             const next = result.data as unknown as KycView;
             setView(next);
@@ -207,7 +207,7 @@ export default function VerificationPage() {
             },
         });
         if (result.error) {
-            setError(detailFromError(result.error, "Could not save your business details"));
+            setError(detailFromResult(result, "Could not save your business details"));
         } else {
             setView(result.data as unknown as KycView);
         }
@@ -229,7 +229,7 @@ export default function VerificationPage() {
             body: { kind, file },
         });
         if (result.error) {
-            setError(detailFromError(result.error, "Could not upload that file"));
+            setError(detailFromResult(result, "Could not upload that file"));
         } else {
             setView(result.data as unknown as KycView);
         }
@@ -242,7 +242,7 @@ export default function VerificationPage() {
             path: { document_id },
         });
         if (result.error) {
-            setError(detailFromError(result.error, "Could not remove that document"));
+            setError(detailFromResult(result, "Could not remove that document"));
         } else {
             setView(result.data as unknown as KycView);
         }
@@ -253,7 +253,7 @@ export default function VerificationPage() {
         setError(null);
         const result = await submitKycApiV1KycSubmitPost();
         if (result.error) {
-            setError(detailFromError(result.error, "Could not submit for review"));
+            setError(detailFromResult(result, "Could not submit for review"));
         } else {
             setView(result.data as unknown as KycView);
         }

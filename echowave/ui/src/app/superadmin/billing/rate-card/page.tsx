@@ -52,7 +52,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import {
     formatDateIST,
     formatMicrosUsd,
@@ -116,7 +116,7 @@ export default function RateCardPage() {
     const load = useCallback(async () => {
         const result = await getRateCardApiV1AdminBillingRateCardGet({});
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to load the rate card"));
+            setError(detailFromResult(result, "Failed to load the rate card"));
         } else {
             setCard(result.data as unknown as Card);
             setError(null);
@@ -185,7 +185,7 @@ function useSaver(onSaved: () => Promise<void>) {
         setSaved(null);
         const result = await call();
         if (result.error) {
-            setSaveError(detailFromError(result.error, fallback));
+            setSaveError(detailFromResult(result, fallback));
         } else {
             await onSaved();
             setSaved(key);

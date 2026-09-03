@@ -56,7 +56,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromError, detailFromResult } from "@/lib/apiError";
 import { cn } from "@/lib/utils";
 
 type Slot = {
@@ -217,7 +217,7 @@ function BundleCard({
             body: { slug: bundle.slug, is_enabled: enabled },
         });
         if (result.error) {
-            setSaveError(detailFromError(result.error, "Could not save the bundle"));
+            setSaveError(detailFromResult(result, "Could not save the bundle"));
         } else {
             await onSaved();
         }
@@ -393,7 +393,7 @@ function SlotRow({ slot, onSaved }: { slot: Slot; onSaved: () => Promise<void> }
             },
         });
         if (result.error) {
-            setSaveError(detailFromError(result.error, "Could not repoint the tier"));
+            setSaveError(detailFromResult(result, "Could not repoint the tier"));
         } else {
             setEditing(false);
             await onSaved();

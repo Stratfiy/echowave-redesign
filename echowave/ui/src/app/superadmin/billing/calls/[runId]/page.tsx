@@ -39,7 +39,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import {
     formatDateTimeIST,
     formatDuration,
@@ -111,7 +111,7 @@ export default function CallDetailPage() {
             });
             if (cancelled) return;
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load call"));
+                setError(detailFromResult(result, "Failed to load call"));
             } else {
                 setCall((result.data as Record<string, never>) ?? null);
                 setError(null);

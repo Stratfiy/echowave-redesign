@@ -53,7 +53,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatDateTimeIST, formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
@@ -249,13 +249,13 @@ export default function BillingPage() {
 
         if (balanceResponse.error) {
             setError(
-                detailFromError(balanceResponse.error, "Could not load your balance"),
+                detailFromResult(balanceResponse, "Could not load your balance"),
             );
             return null;
         }
         if (paymentsResponse.error) {
             setError(
-                detailFromError(paymentsResponse.error, "Could not load your payments"),
+                detailFromResult(paymentsResponse, "Could not load your payments"),
             );
             return null;
         }
@@ -314,7 +314,7 @@ export default function BillingPage() {
             });
             if (response.error) {
                 setError(
-                    detailFromError(response.error, "Could not save your billing details"),
+                    detailFromResult(response, "Could not save your billing details"),
                 );
                 return;
             }
@@ -340,7 +340,7 @@ export default function BillingPage() {
                     path: { document_id: doc.id },
                 });
             if (response.error) {
-                setError(detailFromError(response.error, "Could not send the document"));
+                setError(detailFromResult(response, "Could not send the document"));
                 return;
             }
             const sentTo = (response.data as { to?: string } | undefined)?.to;
@@ -361,7 +361,7 @@ export default function BillingPage() {
                 parseAs: "blob",
             });
             if (response.error || !response.data) {
-                setError(detailFromError(response.error, "Could not download the PDF"));
+                setError(detailFromResult(response, "Could not download the PDF"));
                 return;
             }
             const blob = response.data as Blob;
@@ -455,7 +455,7 @@ export default function BillingPage() {
                 body: { amount_paise: amountPaise },
             });
             if (response.error) {
-                setError(detailFromError(response.error, "Could not start the payment"));
+                setError(detailFromResult(response, "Could not start the payment"));
                 return;
             }
 

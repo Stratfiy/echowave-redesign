@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -59,7 +59,7 @@ export default function ContactsPage() {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (res.error) {
-                toast.error(detailFromError(res.error, "Could not load contact lists"));
+                toast.error(detailFromResult(res, "Could not load contact lists"));
                 return;
             }
             const rows = res.data ?? [];
@@ -90,7 +90,7 @@ export default function ContactsPage() {
         });
         setLoadingContacts(false);
         if (res.error) {
-            toast.error(detailFromError(res.error, "Could not load contacts"));
+            toast.error(detailFromResult(res, "Could not load contacts"));
             return;
         }
         setContacts(res.data?.contacts ?? []);
@@ -111,7 +111,7 @@ export default function ContactsPage() {
             body: { name },
         });
         if (res.error) {
-            toast.error(detailFromError(res.error, "Could not create the list"));
+            toast.error(detailFromResult(res, "Could not create the list"));
             return;
         }
         setCreating(false);
@@ -127,7 +127,7 @@ export default function ContactsPage() {
             path: { contact_list_id: list.id },
         });
         if (res.error) {
-            toast.error(detailFromError(res.error, "Could not delete the list"));
+            toast.error(detailFromResult(res, "Could not delete the list"));
             return;
         }
         toast.success(`Deleted “${list.name}”`);
@@ -146,7 +146,7 @@ export default function ContactsPage() {
         });
         setImporting(false);
         if (res.error) {
-            toast.error(detailFromError(res.error, "Import failed"));
+            toast.error(detailFromResult(res, "Import failed"));
             return;
         }
         const result = res.data;

@@ -35,7 +35,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import {
     formatDateIST,
     formatMicrosUsd,
@@ -157,7 +157,7 @@ export default function UnitEconomicsPage() {
             const result = await getUnitEconomicsApiV1AdminBillingUnitEconomicsGet({});
             if (cancelled) return;
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load unit economics"));
+                setError(detailFromResult(result, "Failed to load unit economics"));
             } else {
                 setReport(result.data as unknown as Report);
                 setError(null);

@@ -60,7 +60,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromError, detailFromResult } from "@/lib/apiError";
 import {
     formatDateIST,
     formatDateTimeIST,
@@ -109,7 +109,7 @@ export default function AccountDetailPage() {
             path: { organization_id: organizationId },
         });
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to load account"));
+            setError(detailFromResult(result, "Failed to load account"));
         } else {
             setData((result.data as Record<string, unknown>) ?? null);
             setError(null);
@@ -453,7 +453,7 @@ function RateSettingsPanel({
             },
         });
         if (result.error) {
-            setFailure(detailFromError(result.error, "Failed to set rate"));
+            setFailure(detailFromResult(result, "Failed to set rate"));
         } else {
             setMessage("Rate updated");
             setNote("");
@@ -651,7 +651,7 @@ function CreditAdjustPanel({
             body: { delta_paise: Math.round(Number(amount) * 100), note },
         });
         if (result.error) {
-            setFailure(detailFromError(result.error, "Failed to adjust credit"));
+            setFailure(detailFromResult(result, "Failed to adjust credit"));
         } else {
             setMessage("Credit adjusted");
             setAmount("");
@@ -751,7 +751,7 @@ function TelephonyPanel({ organizationId }: { organizationId: number }) {
             query: { organization_id: organizationId },
         });
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to load telephony configurations"));
+            setError(detailFromResult(result, "Failed to load telephony configurations"));
         } else {
             const data = result.data as { configurations?: TelephonyConfigSummary[] };
             setConfigs(data.configurations ?? []);
@@ -897,7 +897,7 @@ function CommissionPanel({ organizationId }: { organizationId: number }) {
             path: { organization_id: organizationId },
         });
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to load commission history"));
+            setError(detailFromResult(result, "Failed to load commission history"));
         } else {
             const data = result.data as { commissions?: CommissionRecord[] };
             setHistory(data.commissions ?? []);
@@ -933,7 +933,7 @@ function CommissionPanel({ organizationId }: { organizationId: number }) {
             body: { commission_bps: value, basis, note: note.trim() || null },
         });
         if (result.error) {
-            setSaveError(detailFromError(result.error, "Failed to set commission"));
+            setSaveError(detailFromResult(result, "Failed to set commission"));
         } else {
             setEditing(false);
             await load();

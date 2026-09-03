@@ -25,7 +25,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useUserConfig } from '@/context/UserConfigContext';
-import { detailFromError } from '@/lib/apiError';
+import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import { usageFilterAttributes } from '@/lib/filterAttributes';
 import { decodeFiltersFromURL, encodeFiltersToURL } from '@/lib/filters';
@@ -197,7 +197,7 @@ export default function UsagePage() {
                 },
             });
             if (response.error) {
-                throw new Error(detailFromError(response.error, 'Failed to load agents'));
+                throw new Error(detailFromResult(response, 'Failed to load agents'));
             }
 
             const options = [...(response.data ?? [])]

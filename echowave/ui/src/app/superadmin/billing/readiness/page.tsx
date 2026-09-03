@@ -36,7 +36,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { client } from "@/client/client.gen";
 import { Button } from "@/components/ui/button";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -108,7 +108,7 @@ export default function ReadinessPage() {
         setLoading(false);
         setProbing(false);
         if (result.error) {
-            setError(detailFromError(result.error, "Could not read readiness"));
+            setError(detailFromResult(result, "Could not read readiness"));
             return;
         }
         setAssessment(result.data as Assessment);

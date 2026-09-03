@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 interface ConfigFormDialogProps {
@@ -173,7 +173,7 @@ export function ConfigFormDialog({
             body: { name: name || undefined, config: configPayload },
           },
         );
-        if (res.error) throw new Error(detailFromError(res.error, "Failed to save configuration"));
+        if (res.error) throw new Error(detailFromResult(res, "Failed to save configuration"));
         toast.success("Configuration updated");
       } else {
         const res = await createTelephonyConfigurationApiV1OrganizationsTelephonyConfigsPost(
@@ -186,7 +186,7 @@ export function ConfigFormDialog({
             },
           },
         );
-        if (res.error) throw new Error(detailFromError(res.error, "Failed to save configuration"));
+        if (res.error) throw new Error(detailFromResult(res, "Failed to save configuration"));
         toast.success("Configuration created");
       }
       setBaseline(snapshot);

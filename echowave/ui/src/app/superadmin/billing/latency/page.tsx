@@ -48,7 +48,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { formatDateIST, formatDateTimeIST, formatMs, formatNumber } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
@@ -122,7 +122,7 @@ export default function LatencyPage() {
             });
             if (cancelled) return;
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load latency"));
+                setError(detailFromResult(result, "Failed to load latency"));
             } else {
                 setData((result.data as Record<string, unknown>) ?? null);
                 setError(null);

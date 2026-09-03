@@ -4,7 +4,7 @@ import { twMerge } from "tailwind-merge"
 import { getAuthUserApiV1UserAuthUserGet } from "@/client/sdk.gen";
 import { getWorkflowCountApiV1WorkflowCountGet } from "@/client/sdk.gen";
 import { impersonateApiV1SuperuserImpersonatePost } from "@/client/sdk.gen";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -173,7 +173,7 @@ export async function impersonateAsSuperadmin(params: {
 
   if (resp.error) {
     targetWindow?.close();
-    throw new Error(detailFromError(resp.error, 'Failed to impersonate user'));
+    throw new Error(detailFromResult(resp, 'Failed to impersonate user'));
   }
 
   const refreshToken = resp.data?.refresh_token;

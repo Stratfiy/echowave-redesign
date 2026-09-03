@@ -10,7 +10,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatMicrosUsd } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
@@ -151,7 +151,7 @@ export function CostPerMinuteBar({
             // so the error has to be checked explicitly.
             if (result.error) {
                 setError(
-                    detailFromError(result.error, "Could not price this configuration"),
+                    detailFromResult(result, "Could not price this configuration"),
                 );
                 return;
             }

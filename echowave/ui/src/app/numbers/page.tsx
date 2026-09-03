@@ -54,7 +54,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
@@ -302,7 +302,7 @@ export default function BuyNumberPage() {
             });
             setSearching(false);
             if (result.error) {
-                setError(detailFromError(result.error, "Could not search for numbers"));
+                setError(detailFromResult(result, "Could not search for numbers"));
                 return;
             }
             const data = result.data as unknown as {
@@ -332,7 +332,7 @@ export default function BuyNumberPage() {
         const result = await createMandateApiV1BillingMandatePost();
         setStartingMandate(false);
         if (result.error) {
-            setError(detailFromError(result.error, "Could not start autopay"));
+            setError(detailFromResult(result, "Could not start autopay"));
             return;
         }
         const created = (result.data as unknown as { mandate: Mandate }).mandate;
@@ -367,7 +367,7 @@ export default function BuyNumberPage() {
         });
         setBuying(false);
         if (result.error) {
-            setError(detailFromError(result.error, "Could not buy that number"));
+            setError(detailFromResult(result, "Could not buy that number"));
             return;
         }
         const issued = result.data as unknown as { address: string };

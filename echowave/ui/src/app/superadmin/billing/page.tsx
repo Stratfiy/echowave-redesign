@@ -30,7 +30,7 @@ import {
     useAuthReady,
     useChartMode,
 } from "@/components/charts/primitives";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import {
     changeRatio,
     formatDateIST,
@@ -61,7 +61,7 @@ export default function BillingOverviewPage() {
             const result = await getOverviewApiV1AdminBillingOverviewGet();
             if (cancelled) return;
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load overview"));
+                setError(detailFromResult(result, "Failed to load overview"));
             } else {
                 setData(result.data ?? null);
                 setError(null);

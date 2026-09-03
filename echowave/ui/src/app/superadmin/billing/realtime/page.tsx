@@ -64,7 +64,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { formatMicrosUsd } from "@/lib/billing/format";
 
 /** Call lengths worth comparing. The spread is the point of the control. */
@@ -141,7 +141,7 @@ export default function RealtimePricingPage() {
       if (cancelled) return;
       if (response.error) {
         setError(
-          detailFromError(response.error, "Could not price realtime models"),
+          detailFromResult(response, "Could not price realtime models"),
         );
         setLoading(false);
         return;

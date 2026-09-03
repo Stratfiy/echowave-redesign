@@ -24,7 +24,7 @@ import {
   useChartMode,
 } from "@/components/charts/primitives";
 import { Button } from "@/components/ui/button";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 
 type Step = {
   key: string;
@@ -83,7 +83,7 @@ export default function ActivationPage() {
       query: { start: isoDaysAgo(days), end: isoDaysAgo(0) },
     });
     if (response.error) {
-      setError(detailFromError(response.error, "Could not load activation."));
+      setError(detailFromResult(response, "Could not load activation."));
       setIsLoading(false);
       return;
     }

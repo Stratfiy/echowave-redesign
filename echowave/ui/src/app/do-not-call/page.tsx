@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 const PAGE_SIZE = 100;
@@ -76,7 +76,7 @@ export default function DoNotCallPage() {
         query: { limit: PAGE_SIZE, offset: nextOffset },
       });
       if (response.error) {
-        setError(detailFromError(response.error, "Could not load the list."));
+        setError(detailFromResult(response, "Could not load the list."));
         setIsLoading(false);
         return;
       }
@@ -123,7 +123,7 @@ export default function DoNotCallPage() {
     setIsSubmitting(false);
 
     if (response.error) {
-      setError(detailFromError(response.error, "Could not add those numbers."));
+      setError(detailFromResult(response, "Could not add those numbers."));
       return;
     }
     setNotice(describeResult(response.data!));
@@ -142,7 +142,7 @@ export default function DoNotCallPage() {
     setIsSubmitting(false);
 
     if (response.error) {
-      setError(detailFromError(response.error, "Could not read that file."));
+      setError(detailFromResult(response, "Could not read that file."));
       return;
     }
     setNotice(describeResult(response.data!));
@@ -170,7 +170,7 @@ export default function DoNotCallPage() {
       path: { phone_number: phoneNumber },
     });
     if (response.error) {
-      setError(detailFromError(response.error, "Could not remove that number."));
+      setError(detailFromResult(response, "Could not remove that number."));
       return;
     }
     setNotice(`${phoneNumber} removed — calls to it are allowed again.`);

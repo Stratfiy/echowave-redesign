@@ -29,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 const OUTCOMES: Record<
@@ -71,7 +71,7 @@ export default function MissedCallsPage() {
       // operator cannot tell a quiet hoarding from a broken page, which is
       // the exact confusion the whole feature is meant to remove.
       if (res.error) {
-        setError(detailFromError(res.error, "Could not load missed calls"));
+        setError(detailFromResult(res, "Could not load missed calls"));
         return;
       }
       setError(null);

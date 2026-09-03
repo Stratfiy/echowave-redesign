@@ -40,7 +40,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { formatDateIST } from "@/lib/billing/format";
 
 const COMPONENTS = ["stt", "llm", "tts", "telephony", "embedding"] as const;
@@ -84,7 +84,7 @@ export function MarkupOverridesCard() {
         const result =
             await listManagedMarkupOverridesApiV1AdminBillingRateCardMarkupOverridesGet();
         if (result.error) {
-            setError(detailFromError(result.error, "Could not load markup overrides"));
+            setError(detailFromResult(result, "Could not load markup overrides"));
         } else {
             setState(result.data as unknown as State);
             setError(null);
@@ -120,7 +120,7 @@ export function MarkupOverridesCard() {
             },
         );
         if (result.error) {
-            setError(detailFromError(result.error, "Could not save the override"));
+            setError(detailFromResult(result, "Could not save the override"));
         } else {
             setNotice(`Saved — ${provider.trim()}/${component} now at ${asMultiple(draftBps)}.`);
             setProvider("");
@@ -142,7 +142,7 @@ export function MarkupOverridesCard() {
                 query: { provider: row.provider, component: row.component, model: row.model },
             });
         if (result.error) {
-            setError(detailFromError(result.error, "Could not clear the override"));
+            setError(detailFromResult(result, "Could not clear the override"));
         } else {
             setNotice(`Cleared — ${row.provider}/${row.component} is back on the blanket markup.`);
             await load();

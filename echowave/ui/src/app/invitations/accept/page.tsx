@@ -25,7 +25,7 @@ import {
 } from "@/client/sdk.gen";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 type Preview = {
@@ -68,7 +68,7 @@ function AcceptInvitation() {
                 });
             if (cancelled) return;
             if (response.error) {
-                setError(detailFromError(response.error, "This invitation is not valid."));
+                setError(detailFromResult(response, "This invitation is not valid."));
             } else {
                 setPreview(response.data as Preview);
             }
@@ -86,7 +86,7 @@ function AcceptInvitation() {
         });
         setAccepting(false);
         if (response.error) {
-            setError(detailFromError(response.error, "Could not accept the invitation."));
+            setError(detailFromResult(response, "Could not accept the invitation."));
             return;
         }
         setAccepted(true);

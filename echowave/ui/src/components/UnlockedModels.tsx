@@ -21,7 +21,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { client } from "@/client/client.gen";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 
 type Unlocked = {
     provider: string;
@@ -59,7 +59,7 @@ export function UnlockedModels({
         });
         setLoading(false);
         if (result.error) {
-            setError(detailFromError(result.error, "Could not list models"));
+            setError(detailFromResult(result, "Could not list models"));
             return;
         }
         setData(result.data as Unlocked);

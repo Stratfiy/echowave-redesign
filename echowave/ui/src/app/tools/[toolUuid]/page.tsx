@@ -40,7 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { TOOL_DOCUMENTATION_URLS } from "@/constants/documentation";
 import { UnsavedChangesProvider, useUnsavedChanges, useUnsavedChangesContext } from "@/context/UnsavedChangesContext";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 import {
@@ -691,7 +691,7 @@ function ToolDetailForm() {
             });
 
             if (response.error) {
-                setError(detailFromError(response.error, "Failed to save tool"));
+                setError(detailFromResult(response, "Failed to save tool"));
                 return;
             }
 

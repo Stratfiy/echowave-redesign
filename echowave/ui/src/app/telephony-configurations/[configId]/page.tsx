@@ -59,7 +59,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppConfig } from "@/context/AppConfigContext";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { resolveWebhookBaseUrl } from "@/lib/webhookUrl";
 
@@ -107,8 +107,8 @@ export default function TelephonyConfigurationDetailPage() {
         }),
       ]);
 
-      if (cfgRes.error) throw new Error(detailFromError(cfgRes.error));
-      if (numbersRes.error) throw new Error(detailFromError(numbersRes.error));
+      if (cfgRes.error) throw new Error(detailFromResult(cfgRes));
+      if (numbersRes.error) throw new Error(detailFromResult(numbersRes));
 
       setConfig(cfgRes.data ?? null);
       setPhoneNumbers(numbersRes.data?.phone_numbers ?? []);
@@ -133,7 +133,7 @@ export default function TelephonyConfigurationDetailPage() {
           path: { config_id: config.id },
         },
       );
-      if (res.error) throw new Error(detailFromError(res.error));
+      if (res.error) throw new Error(detailFromResult(res));
       toast.success("Set as default outbound");
       fetchAll();
     } catch (err) {
@@ -150,7 +150,7 @@ export default function TelephonyConfigurationDetailPage() {
           path: { config_id: configId, phone_number_id: n.id },
         },
       );
-      if (res.error) throw new Error(detailFromError(res.error));
+      if (res.error) throw new Error(detailFromResult(res));
       toast.success(`${n.address} is now the default caller ID`);
       fetchAll();
     } catch (err) {
@@ -171,7 +171,7 @@ export default function TelephonyConfigurationDetailPage() {
           },
         },
       );
-      if (res.error) throw new Error(detailFromError(res.error));
+      if (res.error) throw new Error(detailFromResult(res));
       toast.success("Phone number deleted");
       setPhoneDeleteTarget(null);
       fetchAll();
@@ -194,7 +194,7 @@ export default function TelephonyConfigurationDetailPage() {
         path: { phone_number_id: phoneReleaseTarget.id },
         body: { reason: releaseReason.trim() },
       });
-      if (res.error) throw new Error(detailFromError(res.error));
+      if (res.error) throw new Error(detailFromResult(res));
       toast.success(`${phoneReleaseTarget.address} released back to the carrier`);
       setPhoneReleaseTarget(null);
       setReleaseReason("");

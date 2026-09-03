@@ -21,7 +21,7 @@ import { useEffect, useState } from "react";
 import { getRetentionApiV1AdminBillingRetentionGet } from "@/client/sdk.gen";
 import { seriesColor } from "@/components/charts/chartTheme";
 import { ChartCard, useAuthReady, useChartMode } from "@/components/charts/primitives";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { formatNumber, formatPercent } from "@/lib/billing/format";
 
 type Cohort = {
@@ -73,7 +73,7 @@ export default function RetentionPage() {
             });
             if (cancelled) return;
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to load retention"));
+                setError(detailFromResult(result, "Failed to load retention"));
             } else {
                 setData((result.data as unknown as Retention) ?? null);
                 setError(null);

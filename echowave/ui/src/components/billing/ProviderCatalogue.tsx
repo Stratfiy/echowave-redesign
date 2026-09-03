@@ -54,7 +54,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { cn } from "@/lib/utils";
 
 type ModelEntry = {
@@ -155,7 +155,7 @@ export function ProviderCatalogue() {
     const load = useCallback(async () => {
         const result = await listProvidersApiV1AdminBillingProvidersGet({});
         if (result.error) {
-            setError(detailFromError(result.error, "Failed to load providers"));
+            setError(detailFromResult(result, "Failed to load providers"));
         } else {
             setProviders(
                 (result.data as unknown as { providers: ProviderEntry[] }).providers,
@@ -401,7 +401,7 @@ function ComponentEditor({
             },
         });
         if (result.error) {
-            setSaveError(detailFromError(result.error, "Could not save the rate"));
+            setSaveError(detailFromResult(result, "Could not save the rate"));
         } else {
             setModels({});
             await onSaved();

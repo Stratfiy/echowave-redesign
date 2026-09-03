@@ -40,7 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { UnlockedModels } from "@/components/UnlockedModels";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
-import { detailFromError } from "@/lib/apiError";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 interface GoogleCalendarStatus {
@@ -180,7 +180,7 @@ function IntegrationsScreen() {
         ]);
 
         if (keysResult.error) {
-            setError(detailFromError(keysResult.error, "Failed to load provider keys"));
+            setError(detailFromResult(keysResult, "Failed to load provider keys"));
             setLoading(false);
             return;
         }
@@ -364,7 +364,7 @@ function IntegrationsScreen() {
         });
 
         if (result.error) {
-            setFormError(detailFromError(result.error, "Failed to save the key"));
+            setFormError(detailFromResult(result, "Failed to save the key"));
             setSaving(false);
             return;
         }
@@ -381,7 +381,7 @@ function IntegrationsScreen() {
                     },
                 });
                 if (extra.error) {
-                    setFormError(detailFromError(extra.error, "Failed to save the key"));
+                    setFormError(detailFromResult(extra, "Failed to save the key"));
                     setSaving(false);
                     await load();
                     return;
@@ -431,7 +431,7 @@ function IntegrationsScreen() {
                 query: { component: credential.component, provider: credential.provider },
             });
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to remove the key"));
+                setError(detailFromResult(result, "Failed to remove the key"));
                 await load();
                 return;
             }
@@ -449,7 +449,7 @@ function IntegrationsScreen() {
                 },
             });
             if (result.error) {
-                setError(detailFromError(result.error, "Failed to update the key"));
+                setError(detailFromResult(result, "Failed to update the key"));
                 await load();
                 return;
             }
