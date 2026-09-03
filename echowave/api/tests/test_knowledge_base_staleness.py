@@ -99,22 +99,76 @@ def configured_model(monkeypatch):
     """Set what the organization's *next* ingestion would embed with."""
 
     def use(model: str | None):
+        # The *resolved* configuration, which is what ingestion embeds with and
+        # therefore the only thing staleness can honestly compare against. A
+        # managed account's stored section names the tier
+        # ("decibyl_embedding_v1"); this is the vendor model the chunks are
+        # actually stamped with.
         async def resolved(**kwargs):
             return SimpleNamespace(
-                effective=SimpleNamespace(
-                    embeddings=(
-                        SimpleNamespace(model=model) if model is not None else None
-                    )
-                )
+                embeddings=SimpleNamespace(model=model) if model is not None else None
             )
 
         monkeypatch.setattr(
             "api.services.configuration.ai_model_configuration."
-            "get_resolved_ai_model_configuration",
+            "get_effective_ai_model_configuration_for_workflow",
             resolved,
         )
 
     return use
+
+
+class TestItReadsTheSameConfigurationIngestionDoes:
+    """The agreement staleness rests on, stated outright.
+
+    Three places have to name the same model: the ingestion task stamps every
+    chunk with it, search filters on it, and this decides whether a document is
+    stranded. They agree only while all three read the *resolved* configuration.
+
+    They stopped agreeing once ingestion was fixed to resolve and this was not:
+    a managed account's stored section says "decibyl_embedding_v1" while its
+    chunks are stamped "text-embedding-3-small", so every document in the
+    account would have been reported stranded from a model it was ingested
+    under minutes earlier.
+    """
+
+    @pytest.mark.asyncio
+    async def test_it_calls_the_resolver_ingestion_calls(self, monkeypatch):
+        called = {}
+
+        async def resolver(*, organization_id, workflow_configurations):
+            called["organization_id"] = organization_id
+            return SimpleNamespace(
+                embeddings=SimpleNamespace(model="text-embedding-3-small")
+            )
+
+        monkeypatch.setattr(
+            "api.services.configuration.ai_model_configuration."
+            "get_effective_ai_model_configuration_for_workflow",
+            resolver,
+        )
+
+        assert await staleness.current_embedding_model(9) == "text-embedding-3-small"
+        assert called["organization_id"] == 9
+
+    @pytest.mark.asyncio
+    async def test_a_managed_tier_name_never_reaches_the_comparison(self, monkeypatch):
+        """If the tier name leaks through, every document looks stranded."""
+
+        async def resolver(**kwargs):
+            return SimpleNamespace(
+                embeddings=SimpleNamespace(model="text-embedding-3-small")
+            )
+
+        monkeypatch.setattr(
+            "api.services.configuration.ai_model_configuration."
+            "get_effective_ai_model_configuration_for_workflow",
+            resolver,
+        )
+
+        current = await staleness.current_embedding_model(9)
+        assert current != "decibyl_embedding_v1"
+        assert not staleness.is_stranded(current, "text-embedding-3-small")
 
 
 class TestIsStranded:
@@ -231,7 +285,7 @@ class TestFindingTheStrandedDocuments:
 
         monkeypatch.setattr(
             "api.services.configuration.ai_model_configuration."
-            "get_resolved_ai_model_configuration",
+            "get_effective_ai_model_configuration_for_workflow",
             exploding,
         )
 

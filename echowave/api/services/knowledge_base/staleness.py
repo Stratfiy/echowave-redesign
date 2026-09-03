@@ -42,13 +42,21 @@ async def current_embedding_model(organization_id: int) -> str | None:
     than guessing.
     """
     from api.services.configuration.ai_model_configuration import (
-        get_resolved_ai_model_configuration,
+        get_effective_ai_model_configuration_for_workflow,
     )
     from api.services.gen_ai.embedding.factory import DEFAULT_EMBEDDING_MODEL
 
     try:
-        resolved = await get_resolved_ai_model_configuration(
-            organization_id=organization_id
+        # The same resolver the ingestion task uses, and it has to stay that
+        # way. A managed account's stored section names the tier
+        # ("decibyl_embedding_v1"); resolution turns it into the vendor model
+        # the chunks are actually stamped with ("text-embedding-3-small").
+        # Reading the stored name here while ingestion writes the resolved one
+        # would report every document in the account as stranded from a model
+        # it was ingested under five minutes ago.
+        effective = await get_effective_ai_model_configuration_for_workflow(
+            organization_id=organization_id,
+            workflow_configurations={},
         )
     except Exception as exc:  # noqa: BLE001 — this decorates a list, never gates it
         logger.warning(
@@ -58,7 +66,7 @@ async def current_embedding_model(organization_id: int) -> str | None:
         )
         return None
 
-    embeddings = getattr(getattr(resolved, "effective", None), "embeddings", None)
+    embeddings = getattr(effective, "embeddings", None)
     configured = getattr(embeddings, "model", None) if embeddings else None
     return configured or DEFAULT_EMBEDDING_MODEL
 
