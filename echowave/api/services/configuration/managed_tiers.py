@@ -149,6 +149,30 @@ class ManagedUpstream:
     model: str
 
 
+#: Every tier a component offers, in one place. Callers that need to ask a
+#: question of *all* of them -- "can we serve each of these right now?" -- were
+#: otherwise reaching into four module-level tuples and reproducing this
+#: mapping, which is how one of them came to be missed.
+_TIERS_BY_COMPONENT: dict[str, tuple[str, ...]] = {
+    "stt": STT_TIERS,
+    "llm": LLM_TIERS,
+    "tts": TTS_TIERS,
+    REALTIME_COMPONENT: REALTIME_TIERS,
+    EMBEDDINGS_COMPONENT: EMBEDDINGS_TIERS,
+}
+
+
+def tiers_for(component: CostComponent | str) -> tuple[str, ...]:
+    """The tiers this component offers, or ``()`` if it offers none.
+
+    Retired names are deliberately absent: they still ``resolve`` so a stored
+    configuration keeps the model it was built on, but they are not on sale and
+    nothing should ask whether they are available.
+    """
+    key = component.value if hasattr(component, "value") else str(component)
+    return _TIERS_BY_COMPONENT.get(key.strip().lower(), ())
+
+
 def _tier(component: str, tier: str, provider: str, model: str) -> ManagedUpstream:
     """A mapping, overridable without a release.
 

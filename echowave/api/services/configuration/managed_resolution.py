@@ -226,6 +226,43 @@ async def managed_availability(session) -> dict[str, bool]:
     return available
 
 
+async def tier_availability(session) -> dict[str, dict[str, bool]]:
+    """Per **tier**, not just per section: can we actually serve this one?
+
+    ``managed_availability`` above asks the same question of each section's
+    ``default`` tier only, which is the right answer for "may this slot be set
+    to managed at all" and the wrong one for "may this customer buy this
+    bundle". A bundle names a specific tier, and a tier that resolves to a
+    vendor we hold no key for is a phone call that fails after it connects --
+    see this module's own opening note.
+
+    That gap was live: the Natural bundle resolves realtime to
+    ``google_realtime``, no Google key was stored, and the wizard offered it
+    anyway because the ``default`` realtime tier (OpenAI) was keyed and that is
+    all anyone asked about.
+
+    Keyed section -> tier -> whether a key exists for what it resolves to.
+    """
+    out: dict[str, dict[str, bool]] = {}
+    # One resolve+lookup per tier. Small and bounded: three sections with a
+    # handful of tiers each, on a screen that already opens a session.
+    for name, component in MANAGED_SECTIONS:
+        tiers = managed_tiers.tiers_for(component)
+        if not tiers:
+            continue
+        answers: dict[str, bool] = {}
+        for tier in tiers:
+            upstream = managed_tiers.resolve(component, tier)
+            key = await platform_credentials.resolve_api_key(
+                session,
+                component=_credential_component(component),
+                provider=upstream.provider,
+            )
+            answers[tier] = bool(key)
+        out[name] = answers
+    return out
+
+
 async def platform_provider_catalog(session) -> dict[str, list[str]]:
     """Which real providers each section can run on ``use_platform_key`` right
     now — the direct-path counterpart to ``managed_availability``'s per-tier

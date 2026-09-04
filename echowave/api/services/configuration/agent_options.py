@@ -319,9 +319,14 @@ async def bundle_options(
     sum drifting from the first one.
     """
     from api.services.configuration import bundles as bundle_service
+    from api.services.configuration import managed_resolution
     from api.services.configuration.residency import assess
 
     rows = await bundle_service.list_bundles(session, enabled_only=True)
+    # Per tier, not per section. A bundle names one specific tier, and a tier
+    # resolving to a vendor we hold no key for is a call that fails after it
+    # connects -- so the card has to say so before it is bought, not after.
+    keyed = await managed_resolution.tier_availability(session)
     out: list[dict] = []
 
     for row in rows:
@@ -346,6 +351,9 @@ async def bundle_options(
                     "india_only": assess(
                         architecture="realtime", realtime_tier=row.realtime_tier
                     ).india_only,
+                    "available": keyed.get("realtime", {}).get(
+                        row.realtime_tier or "default", False
+                    ),
                 }
             )
         else:
@@ -381,6 +389,18 @@ async def bundle_options(
                             stt_tier=row.stt_tier,
                             tts_tier=row.tts_tier,
                         ).india_only,
+                        # All three, because a pipeline call needs ears, a
+                        # brain and a voice. One missing key is one silent
+                        # failure.
+                        "available": (
+                            keyed.get("llm", {}).get(tier, False)
+                            and keyed.get("stt", {}).get(
+                                row.stt_tier or "default", False
+                            )
+                            and keyed.get("tts", {}).get(
+                                row.tts_tier or "default", False
+                            )
+                        ),
                     }
                 )
 
@@ -395,6 +415,11 @@ async def bundle_options(
                 # pick. The screen reads this rather than re-deriving it from
                 # the architecture string.
                 "picks_voice": row.architecture == bundle_service.PIPELINE,
+                # The bundle is buyable if any of its variants is. A bundle
+                # whose every variant is unservable is shown disabled rather
+                # than hidden -- see managed_availability on why unavailable
+                # beats absent.
+                "available": any(v.get("available") for v in variants),
                 "variants": variants,
             }
         )

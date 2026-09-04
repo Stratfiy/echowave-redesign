@@ -139,6 +139,8 @@ type BundleVariant = {
     label: string;
     blurb: string;
     paise_per_minute: number | null;
+    /** Do we hold a key for every provider this variant resolves to? */
+    available?: boolean;
 };
 
 type BundleOption = {
@@ -147,6 +149,8 @@ type BundleOption = {
     blurb: string;
     architecture: string;
     picks_voice: boolean;
+    /** False when no variant of this bundle can currently be served. */
+    available?: boolean;
     variants: BundleVariant[];
 };
 
@@ -294,8 +298,14 @@ export default function CreateWorkflowPage() {
     }, [user]);
 
     const bundleList = options?.bundles ?? [];
+    // "everyday" is the intended default, but never a bundle we cannot serve:
+    // the form would then submit a stack that fails at dial time.
+    const usableBundles = bundleList.filter((b) => b.available !== false);
     const chosenBundle =
-        bundleList.find((b) => b.slug === bundleSlug) ?? bundleList[0] ?? null;
+        usableBundles.find((b) => b.slug === bundleSlug) ??
+        usableBundles[0] ??
+        bundleList[0] ??
+        null;
     // The cascade leaves the language model to the customer; one model that
     // hears and speaks has no separate brain slot to set, so the question is
     // not asked rather than asked and ignored.
@@ -354,7 +364,11 @@ export default function CreateWorkflowPage() {
             gender,
             tone,
             voice,
-            bundle_slug: bundleSlug,
+            // The bundle actually on screen, not the one in state: when the
+            // remembered slug is unservable the card grid falls back to
+            // another, and submitting the state would build the agent the
+            // customer was not shown.
+            bundle_slug: chosenBundle?.slug ?? bundleSlug,
             // Only meaningful on the cascade. Sending a brain alongside a
             // speech-to-speech bundle would describe an agent that cannot
             // exist, so the field goes empty instead.
@@ -597,31 +611,40 @@ export default function CreateWorkflowPage() {
                                             option.picks_voice
                                                 ? null
                                                 : (option.variants[0]?.paise_per_minute ?? null);
+                                        // Undefined from an older server means
+                                        // "no opinion" and must read as usable,
+                                        // or a deploy skew empties this grid.
+                                        const usable = option.available !== false;
                                         return (
                                             <button
                                                 key={option.slug}
                                                 type="button"
+                                                disabled={!usable}
                                                 onClick={() => setBundleSlug(option.slug)}
                                                 aria-pressed={bundleSlug === option.slug}
                                                 className={cn(
                                                     "rounded-lg border p-3 text-left transition-colors",
-                                                    bundleSlug === option.slug
-                                                        ? "border-primary bg-primary/5"
-                                                        : "border-border hover:bg-muted/40",
+                                                    !usable
+                                                        ? "cursor-not-allowed border-dashed border-border opacity-60"
+                                                        : bundleSlug === option.slug
+                                                          ? "border-primary bg-primary/5"
+                                                          : "border-border hover:bg-muted/40",
                                                 )}
                                             >
                                                 <span className="flex items-baseline justify-between gap-2">
                                                     <span className="font-medium">
                                                         {option.label}
                                                     </span>
-                                                    {price !== null && (
+                                                    {usable && price !== null && (
                                                         <span className="text-sm tabular-nums text-muted-foreground">
                                                             {rupees(price)}/min
                                                         </span>
                                                     )}
                                                 </span>
                                                 <span className="mt-1 block text-xs text-muted-foreground">
-                                                    {option.blurb}
+                                                    {usable
+                                                        ? option.blurb
+                                                        : "Not available right now."}
                                                 </span>
                                             </button>
                                         );

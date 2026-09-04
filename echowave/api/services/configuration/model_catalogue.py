@@ -30,6 +30,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import PlatformModelModel, ProviderRateModel
+from api.enums import CostComponent
 
 #: Slots a model can fill. ``realtime`` and ``embeddings`` are here because they
 #: need a key and a catalogue entry like anything else, even though only the
@@ -88,6 +89,34 @@ async def _priced_keys(session: AsyncSession) -> tuple[set, set]:
     return exact, provider_wide
 
 
+def _rate_card_slot(component: str, provider: str) -> tuple[str, str]:
+    """The ``(component, provider)`` the rate card files this catalogue row under.
+
+    Two slots do not price under the name they are catalogued under, and both
+    read as "we never priced this" until translated:
+
+    * **Realtime.** A speech-to-speech session is metered as LLM usage, and the
+      rate is keyed by the name derived from the running pipecat service class
+      -- ``decibylopenairealtime``, not ``openai_realtime``. ``estimator``
+      already owns that seam, and its docstring records what the same gap cost
+      on the estimate path: a quote of Rs2.76 against an invoice of Rs25.79.
+      This is the catalogue's copy of that bug -- every realtime model read as
+      unpriced, so ``sellable`` returned nothing and the picker's realtime slot
+      was empty however many models an operator had ticked.
+    * **Embeddings.** The catalogue says ``embeddings``; ``CostComponent`` says
+      ``embedding``. One letter, same outcome.
+
+    Everything else is already in rate-card form and passes through unchanged.
+    """
+    if component == "realtime":
+        from api.services.billing.estimator import rate_card_provider
+
+        return CostComponent.LLM.value, rate_card_provider(provider)
+    if component == "embeddings":
+        return CostComponent.EMBEDDING.value, provider
+    return component, provider
+
+
 async def _providers_with_keys(session: AsyncSession) -> set[tuple[str, str]]:
     """``(component, provider)`` we hold an active platform key for.
 
@@ -137,8 +166,9 @@ async def list_catalogue(
 
     out: list[CatalogueEntry] = []
     for row in rows:
-        has_exact = (row.component, row.provider, row.model) in exact
-        has_wide = (row.component, row.provider) in provider_wide
+        rate_component, rate_provider = _rate_card_slot(row.component, row.provider)
+        has_exact = (rate_component, rate_provider, row.model) in exact
+        has_wide = (rate_component, rate_provider) in provider_wide
         out.append(
             CatalogueEntry(
                 component=row.component,
