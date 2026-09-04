@@ -936,6 +936,34 @@ async def get_agent_setup(
     )
 
 
+@router.get("/{workflow_id}/model-row")
+async def get_model_row(
+    workflow_id: int,
+    user: UserModel = Depends(get_user),
+) -> dict:
+    """What this agent runs on, per slot: vendor, model, cost and latency.
+
+    The three cards at the top of the agent screen. Assembled in
+    ``agent_options.model_row`` -- the route's job is to prove the agent
+    belongs to this organization and hand the id over.
+    """
+    from api.services.configuration.agent_options import model_row
+
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    async with db_client.async_session() as session:
+        return await model_row(
+            session,
+            organization_id=user.selected_organization_id,
+            workflow_id=workflow_id,
+            workflow_configurations=workflow.workflow_configurations,
+        )
+
+
 @router.get("/{workflow_id}/versions")
 async def get_workflow_versions(
     workflow_id: int,

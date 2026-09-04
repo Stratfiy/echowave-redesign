@@ -762,7 +762,10 @@ async def catalogue_options(
     line functions a full estimate is, so a model priced on this screen and the
     same model inside a stack estimate cannot disagree.
     """
-    from api.services.billing.estimator import price_components
+    from api.services.billing.estimator import (
+        estimate_cost_per_minute,
+        price_components,
+    )
     from api.services.configuration import model_catalogue
 
     out: dict[str, list[dict]] = {}
@@ -802,3 +805,162 @@ async def catalogue_options(
         )
         out[component] = options
     return out
+
+
+async def model_row(
+    session: AsyncSession,
+    *,
+    organization_id: int | None,
+    workflow_id: int,
+    workflow_configurations: dict | None,
+) -> dict:
+    """What this agent runs on, what each part costs, and how long each takes.
+
+    The three cards at the top of the agent screen. Every competitor shows some
+    version of this; the difference is where the latency comes from. Theirs is
+    the vendor's datasheet. Ours is ``call_turn_metrics`` -- the median of this
+    agent's own turns, on real calls, over Indian telephony -- which is a claim
+    a datasheet cannot make and a competitor cannot copy.
+
+    A managed slot is resolved to the vendor actually behind it before pricing,
+    because "decibyl" is not a provider the rate card knows and a card that
+    named it would be telling the customer nothing. Naming the real vendor here
+    is the same decision the model-configuration defaults already took: a buyer
+    comparing us against a platform that shows its stack will not accept
+    "trust us".
+
+    Latency is per stage and cost is per slot, so the two never have to be
+    reconciled against a single blended number that means neither.
+    """
+    from api.db.workflow_latency_client import stage_latency
+    from api.services.billing.estimator import (
+        estimate_cost_per_minute,
+        price_components,
+    )
+    from api.services.configuration.ai_model_configuration import (
+        get_effective_ai_model_configuration_for_workflow,
+    )
+    from api.services.configuration import managed_tiers
+    from api.services.telephony import carriage
+
+    effective = await get_effective_ai_model_configuration_for_workflow(
+        organization_id=organization_id,
+        workflow_configurations=workflow_configurations,
+    )
+
+    def resolve(component: str, section) -> tuple[str, str] | None:
+        """The real vendor and model behind a section, managed or not."""
+        if section is None:
+            return None
+        provider = getattr(section, "provider", None)
+        provider = provider.value if hasattr(provider, "value") else str(provider or "")
+        model = str(getattr(section, "model", "") or "")
+        if not provider:
+            return None
+        if provider == "decibyl":
+            # On a managed section ``model`` is the tier name, not a model.
+            upstream = managed_tiers.resolve(component, model or None)
+            return upstream.provider, upstream.model
+        return provider, model
+
+    # Realtime replaces the transcriber/voice pair rather than joining it, so
+    # the row is two cards on that path and three on the cascade. The screen
+    # renders whatever it is given rather than branching on architecture.
+    if effective.is_realtime:
+        wanted = [
+            ("realtime", "Speech", effective.realtime),
+            ("llm", "Model", effective.llm),
+        ]
+    else:
+        wanted = [
+            ("stt", "Transcriber", effective.stt),
+            ("llm", "Model", effective.llm),
+            ("tts", "Voice", effective.tts),
+        ]
+
+    resolved: list[tuple[str, str, str, str]] = []
+    for component, title, section in wanted:
+        pair = resolve(component, section)
+        if pair is None:
+            continue
+        resolved.append((component, title, pair[0], pair[1]))
+
+    priced = await price_components(
+        session,
+        organization_id=organization_id,
+        slots=[(c, p, m) for c, _title, p, m in resolved],
+    )
+
+    # The whole minute, not the sum of the cards. Telephony and the platform
+    # fee are in a connected minute and in neither of the three slots, so a
+    # total added up from the cards would be quietly low -- which is the one
+    # direction a price shown to a customer must never be wrong in.
+    by_component = {c: (p, m) for c, _title, p, m in resolved}
+    # The carrier a call would actually leave through. Without it
+    # estimate_cost_per_minute adds no telephony line at all, which runs about
+    # ten per cent light on an account whose numbers are ours -- the same
+    # omission the agent-options route already documents having shipped once.
+    basis = await carriage.billable_carrier(
+        session, organization_id=organization_id or 0
+    )
+    estimate = await estimate_cost_per_minute(
+        session,
+        organization_id=organization_id,
+        stt_provider=by_component.get("stt", (None, ""))[0],
+        stt_model=by_component.get("stt", (None, ""))[1],
+        llm_provider=by_component.get("llm", (None, ""))[0],
+        llm_model=by_component.get("llm", (None, ""))[1],
+        tts_provider=by_component.get("tts", (None, ""))[0],
+        tts_model=by_component.get("tts", (None, ""))[1],
+        telephony_provider=basis.provider,
+    )
+
+    latency = await stage_latency(
+        session, workflow_id=workflow_id, organization_id=organization_id or 0
+    )
+    # One stage per card. Realtime hears and speaks in one model, so its stage
+    # is the whole turn rather than a slice of it.
+    stage_key = {
+        "stt": "transcribe_ms",
+        "llm": "think_ms",
+        "tts": "speak_ms",
+        "realtime": "total_ms",
+    }
+
+    slots = []
+    for component, title, provider, model in resolved:
+        line = priced.get((component, provider, model))
+        slots.append(
+            {
+                "component": component,
+                "title": title,
+                "provider": provider,
+                "model": model,
+                # Null rather than zero when nothing is on file: zero reads as
+                # free, which is the one thing it never means.
+                "paise_per_minute": line.paise_per_minute if line else None,
+                "approximate": bool(line and line.rate_is_provider_fallback),
+                "latency_ms": (latency or {}).get(stage_key[component]),
+            }
+        )
+
+    return {
+        "is_realtime": effective.is_realtime,
+        "slots": slots,
+        # The same three segments the wizard's bar and the receipt use, so a
+        # figure here and a figure on an invoice cannot tell different stories.
+        "cost": {
+            "total_paise_per_minute": estimate.total_paise_per_minute,
+            "agent_paise_per_minute": estimate.agent_paise_per_minute,
+            "telephony_paise_per_minute": estimate.telephony_paise_per_minute,
+            "platform_paise_per_minute": estimate.platform_paise_per_minute,
+            "unpriced": list(estimate.unpriced),
+            # False when this account's numbers are not ours, so the bar can
+            # say the telephony segment is missing rather than imply it is nil.
+            "includes_telephony": basis.provider is not None,
+        },
+        # Present but null-filled when the agent has not run enough turns to
+        # say. The screen says "not enough calls yet" rather than printing a
+        # median of six turns as though it were a measurement.
+        "latency": latency,
+    }
