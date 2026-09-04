@@ -13,6 +13,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPost, getWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGet, listDocumentsApiV1KnowledgeBaseDocumentsGet, listRecordingsApiV1WorkflowRecordingsGet, listToolsApiV1ToolsGet } from '@/client';
 import type { DocumentResponseSchema, RecordingResponseSchema, ToolResponse } from '@/client/types.gen';
 import { useNodeSpecs } from "@/components/flow/renderer";
+import { isSimpleAgent } from "@/components/flow/simpleAgent";
 import { FlowEdge, FlowNode, NodeType } from "@/components/flow/types";
 import { HireExpertNudge } from "@/components/lead-forms/HireExpertNudge";
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ import { WorkflowEditorHeader } from "./components/WorkflowEditorHeader";
 import { WorkflowTesterPanel } from './components/WorkflowTesterPanel';
 import { WorkflowProvider } from "./contexts/WorkflowContext";
 import { useWorkflowState } from "./hooks/useWorkflowState";
+import { SimpleAgentEditor } from './SimpleAgentEditor';
 import { layoutNodes } from './utils/layoutNodes';
 
 const edgeTypes = {
@@ -125,6 +127,29 @@ function RenderWorkflow({
         initialWorkflowConfigurations,
         user,
     });
+
+    /* One prompt or a flow.
+     *
+     * Derived from the graph rather than stored beside it: a stored flag can
+     * disagree with the thing it describes, and an agent marked simple that has
+     * grown a branch would be a screen unable to show what the agent does.
+     * `showCanvas` is the author's override for this session only — the moment
+     * the graph stops being simple the form is not offered at all. */
+    const graphIsSimple = useMemo(
+        () => isSimpleAgent(nodes as FlowNode[], edges as FlowEdge[]),
+        [nodes, edges],
+    );
+    const [showCanvas, setShowCanvas] = useState(false);
+    const useSimpleView = graphIsSimple && !showCanvas;
+
+    const handleSimpleNodesChange = useCallback(
+        (next: FlowNode[]) => {
+            setNodes(next as typeof nodes);
+            setIsDirty(true);
+        },
+        [setNodes, setIsDirty],
+    );
+
 
     // Single generic component for every node type. Seed with core node types
     // so the initial render is stable before specs load, then merge in any
@@ -507,7 +532,16 @@ function RenderWorkflow({
                 {/* Workflow Canvas */}
                 <div className="flex-1 min-h-0">
                     <div className="flex h-full min-w-0">
-                        <div className="relative min-w-0 flex-1">
+                        <div className="relative min-w-0 flex-1 overflow-auto">
+                        {useSimpleView ? (
+                            <SimpleAgentEditor
+                                nodes={nodes as FlowNode[]}
+                                onNodesChange={handleSimpleNodesChange}
+                                onOpenCanvas={() => setShowCanvas(true)}
+                                readOnly={isViewingHistoricalVersion}
+                            />
+                        ) : (
+                        <>
                             <ReactFlow
                                 key={activeVersionId ?? 'current'}
                                 nodes={displayNodes}
@@ -671,6 +705,8 @@ function RenderWorkflow({
                                     )}
                                 </TooltipProvider>
                             </div>
+                        </>
+                        )}
                         </div>
 
                         {isTesterRailOpen && (
