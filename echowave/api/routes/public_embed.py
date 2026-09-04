@@ -68,7 +68,21 @@ class EmbedConfigResponse(BaseModel):
 
 
 def validate_origin(origin: str, allowed_domains: list) -> bool:
-    """Validate if the origin is in the allowed domains list.
+    """Is this origin allowed to use the token it presented?
+
+    **An empty list denies everything.** It used to allow everything, which
+    made "I have not filled this in yet" and "anybody may embed this" the same
+    state — and the first is the state every token starts in. An embed token is
+    a bearer credential that runs on a public page: the script tag is readable
+    by anyone who views source, so a token that accepts any origin can be
+    lifted onto someone else's site and dial on the issuing account's balance.
+    Unrestricted has to be typed, not defaulted into, so ``*`` remains
+    available below and empty means no.
+
+    This is deliberately a breaking change for tokens that never set a domain.
+    Failing closed shows up as a widget that stops loading, which someone
+    reports in a day; failing open shows up as a bill, which nobody reports at
+    all.
 
     Args:
         origin: The origin header from the request
@@ -78,8 +92,7 @@ def validate_origin(origin: str, allowed_domains: list) -> bool:
         True if origin is allowed, False otherwise
     """
     if not allowed_domains:
-        # If no domains specified, allow all origins
-        return True
+        return False
 
     domain, origin_port = _parse_origin_host_port(origin)
     if not domain:

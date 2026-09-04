@@ -26,6 +26,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { WIDGET_MODE_DOCUMENTATION_URLS } from "@/constants/documentation";
+import { detailFromResult } from "@/lib/apiError";
 
 interface EmbedDialogProps {
     open: boolean;
@@ -62,6 +63,7 @@ export function EmbedDialog({
     const [isEnabled, setIsEnabled] = useState(false);
     const [domains, setDomains] = useState<string[]>([]);
     const [newDomain, setNewDomain] = useState("");
+    const [saveError, setSaveError] = useState<string | null>(null);
     const [embedMode, setEmbedMode] = useState<"floating" | "inline" | "headless">("floating");
     const [position, setPosition] = useState("bottom-right");
     const [buttonText, setButtonText] = useState("Talk to Agent");
@@ -109,6 +111,7 @@ export function EmbedDialog({
 
     const handleSave = async () => {
         setSaving(true);
+        setSaveError(null);
         try {
             if (!isEnabled && embedToken) {
                 // Deactivate token
@@ -121,7 +124,7 @@ export function EmbedDialog({
                 const response = await createOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPost({
                     path: { workflow_id: workflowId },
                     body: {
-                        allowed_domains: domains.length > 0 ? domains : null,
+                        allowed_domains: domains,
                         settings: {
                             embedMode,
                             position,
@@ -137,6 +140,10 @@ export function EmbedDialog({
                     },
                 });
 
+                if (response.error) {
+                    setSaveError(detailFromResult(response, "Could not save the widget"));
+                    return;
+                }
                 if (response.data) {
                     setEmbedToken(response.data as EmbedToken);
                 }
@@ -145,6 +152,7 @@ export function EmbedDialog({
             // Don't close modal after saving - let user copy the embed code
         } catch (error) {
             console.error("Failed to save embed token:", error);
+            setSaveError("Could not reach the server. Check your connection and try again.");
         } finally {
             setSaving(false);
         }
@@ -226,11 +234,17 @@ export function EmbedDialog({
                                 {/* Allowed Domains */}
                                 <div className="space-y-3">
                                     <Label>
-                                        Allowed Domains
-                                        <span className="text-xs text-muted-foreground ml-2">
-                                            (leave empty to allow all domains)
+                                        Allowed domains
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            (required)
                                         </span>
                                     </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        The sites this widget may run on. Anyone viewing
+                                        your page can read the embed code, so a widget
+                                        with no domain could be copied onto another site
+                                        and placed calls at your cost.
+                                    </p>
 
                                     {/* Domain Input */}
                                     <div className="flex gap-2">
@@ -540,9 +554,25 @@ document.getElementById('talk-btn').addEventListener('click', () => {
 
                                 <Separator />
 
-                                {/* Save Button */}
-                                <div className="flex justify-end">
-                                    <Button onClick={handleSave} disabled={saving}>
+                                {saveError && (
+                                    <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                                        {saveError}
+                                    </div>
+                                )}
+
+                                {/* Save Button. Disabled with no domain rather than
+                                    failing on the server: the widget cannot run
+                                    anywhere without one, so there is nothing to save. */}
+                                <div className="flex items-center justify-end gap-3">
+                                    {isEnabled && domains.length === 0 && (
+                                        <span className="text-xs text-muted-foreground">
+                                            Add a domain before saving.
+                                        </span>
+                                    )}
+                                    <Button
+                                        onClick={handleSave}
+                                        disabled={saving || (isEnabled && domains.length === 0)}
+                                    >
                                         {saving ? (
                                             <>
                                                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

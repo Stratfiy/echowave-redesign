@@ -23,8 +23,24 @@ _ACTIVE_TOKEN = SimpleNamespace(
     id=10,
     is_active=True,
     expires_at=None,
-    allowed_domains=[],
+    allowed_domains=["mysite.vercel.app"],
     workflow_id=1,
+    organization_id=11,
+    created_by=7,
+    usage_limit=None,
+    usage_count=0,
+    settings={},
+)
+
+#: A token with no domains at all -- what every token used to be until someone
+#: filled the field in. It must now be refused everywhere rather than accepted
+#: everywhere.
+_UNRESTRICTED_TOKEN = SimpleNamespace(
+    id=40,
+    is_active=True,
+    expires_at=None,
+    allowed_domains=[],
+    workflow_id=4,
     organization_id=11,
     created_by=7,
     usage_limit=None,
@@ -68,6 +84,8 @@ def _patch_db(monkeypatch):
             return _RESTRICTED_TOKEN
         if token == "localhost":
             return _LOCALHOST_TOKEN
+        if token == "unrestricted":
+            return _UNRESTRICTED_TOKEN
         return None
 
     async def _get_token_by_id(token_id):
@@ -77,6 +95,8 @@ def _patch_db(monkeypatch):
             return _RESTRICTED_TOKEN
         if token_id == _LOCALHOST_TOKEN.id:
             return _LOCALHOST_TOKEN
+        if token_id == _UNRESTRICTED_TOKEN.id:
+            return _UNRESTRICTED_TOKEN
         return None
 
     async def _get_session(session_token):
@@ -84,6 +104,10 @@ def _patch_db(monkeypatch):
             return SimpleNamespace(embed_token_id=_ACTIVE_TOKEN.id, expires_at=None)
         if session_token == "session-restricted":
             return SimpleNamespace(embed_token_id=_RESTRICTED_TOKEN.id, expires_at=None)
+        if session_token == "session-unrestricted":
+            return SimpleNamespace(
+                embed_token_id=_UNRESTRICTED_TOKEN.id, expires_at=None
+            )
         return None
 
     async def _create_workflow_run(**_kwargs):
@@ -273,5 +297,51 @@ def test_options_turn_credentials_rejects_disallowed_origin():
             "Origin": "https://notallowed.example.com",
             "Access-Control-Request-Method": "GET",
         },
+    )
+    assert resp.status_code == 403
+
+
+# --- A token with no domains -------------------------------------------------
+#
+# The whole point of the change: these five used to pass by allowing the origin,
+# which is what made an embed script copied off a public page usable on any
+# other site at the issuing account's cost.
+
+
+def test_validate_origin_denies_when_no_domains_set():
+    from api.routes.public_embed import validate_origin
+
+    assert validate_origin("https://anything.example", []) is False
+    assert validate_origin("https://anything.example", None or []) is False
+
+
+def test_validate_origin_still_allows_explicit_wildcard():
+    """``*`` stays available -- it just has to be typed rather than defaulted."""
+    from api.routes.public_embed import validate_origin
+
+    assert validate_origin("https://anything.example", ["*"]) is True
+
+
+def test_options_config_rejects_token_with_no_domains():
+    resp = client.options(
+        "/api/v1/public/embed/config/unrestricted",
+        headers={"Origin": "https://anything.example"},
+    )
+    assert resp.headers.get("access-control-allow-origin") is None
+
+
+def test_get_config_rejects_token_with_no_domains():
+    resp = client.get(
+        "/api/v1/public/embed/config/unrestricted",
+        headers={"Origin": "https://anything.example"},
+    )
+    assert resp.status_code == 403
+
+
+def test_turn_credentials_reject_token_with_no_domains():
+    """TURN is keyed on a session, so this is the live-call path, not config."""
+    resp = client.get(
+        "/api/v1/public/embed/turn-credentials/session-unrestricted",
+        headers={"Origin": "https://anything.example"},
     )
     assert resp.status_code == 403

@@ -40,6 +40,35 @@ class EmbedTokenRequest(BaseModel):
     expires_in_days: Optional[int] = 30
 
 
+def _clean_domains(raw: Optional[list[str]]) -> list[str]:
+    """The domains to store, or raise saying why none is not an option.
+
+    Required rather than optional, and checked here rather than left to the
+    screen: the token this issues is a bearer credential printed into a public
+    page, so a token with nothing to check the origin against can be lifted
+    onto any site and dial on this organization's balance. ``validate_origin``
+    now refuses an empty list, so accepting one would only mint a token that
+    never works.
+
+    ``*`` is still storable for someone who genuinely wants that — it just has
+    to be typed.
+    """
+    cleaned = [d.strip().lower() for d in (raw or []) if d and d.strip()]
+    if not cleaned:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Add at least one domain the widget may run on, for example "
+                "example.com. The embed script is visible to anyone who views "
+                "your page, so a token with no domain could be copied and used "
+                "on another site at your cost."
+            ),
+        )
+    # Order-preserving de-duplication: two spellings of one domain in the list
+    # read as a mistake on the screen that shows them back.
+    return list(dict.fromkeys(cleaned))
+
+
 class EmbedTokenResponse(BaseModel):
     id: int
     token: str
@@ -78,6 +107,8 @@ async def create_or_update_embed_token(
         workflow_id, user.selected_organization_id, active_only=False
     )
 
+    allowed_domains = _clean_domains(embed_request.allowed_domains)
+
     expires_at = None
     if embed_request.expires_in_days:
         expires_at = datetime.now(UTC) + timedelta(days=embed_request.expires_in_days)
@@ -87,7 +118,7 @@ async def create_or_update_embed_token(
         token = await db_client.update_embed_token(
             existing_tokens[0].id,
             user.selected_organization_id,
-            allowed_domains=embed_request.allowed_domains,
+            allowed_domains=allowed_domains,
             settings=embed_request.settings,
             usage_limit=embed_request.usage_limit,
             expires_at=expires_at,
@@ -99,7 +130,7 @@ async def create_or_update_embed_token(
             workflow_id=workflow_id,
             organization_id=user.selected_organization_id,
             created_by=user.id,
-            allowed_domains=embed_request.allowed_domains,
+            allowed_domains=allowed_domains,
             settings=embed_request.settings,
             usage_limit=embed_request.usage_limit,
             expires_at=expires_at,
@@ -111,7 +142,7 @@ async def create_or_update_embed_token(
         properties={
             "workflow_id": workflow_id,
             "is_new_token": len(existing_tokens) == 0,
-            "has_domain_restriction": bool(embed_request.allowed_domains),
+            "has_domain_restriction": True,
             "organization_id": user.selected_organization_id,
         },
     )
