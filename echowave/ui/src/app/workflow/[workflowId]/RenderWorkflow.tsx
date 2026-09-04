@@ -6,7 +6,7 @@ import {
     Panel,
     ReactFlow,
 } from "@xyflow/react";
-import { BrushCleaning, ClipboardList, Maximize2, Minus, Plus, Settings } from 'lucide-react';
+import { BrushCleaning, ClipboardList, Maximize2, Minus, PanelsTopLeft, Plus, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -633,6 +633,25 @@ function RenderWorkflow({
                             </ReactFlow>
 
                             {/* Bottom-left controls - horizontal layout with custom buttons */}
+                            {/* Back to the form, offered only while the graph
+                                is still one agent doing one job. Add a branch
+                                or a second agent and this disappears, because
+                                there would be nothing honest for the form to
+                                show. */}
+                            {graphIsSimple && (
+                                <div className="absolute right-6 top-4 z-10">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setShowCanvas(false)}
+                                        className="bg-white shadow-sm hover:shadow-md"
+                                    >
+                                        <PanelsTopLeft className="mr-2 h-4 w-4" />
+                                        Simple view
+                                    </Button>
+                                </div>
+                            )}
+
                             <div className="absolute bottom-12 left-8 z-10 flex gap-2">
                                 <TooltipProvider>
                                     <Tooltip>
