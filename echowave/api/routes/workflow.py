@@ -20,6 +20,7 @@ from api.schemas.workflow import WorkflowRunResponseSchema
 from api.schemas.workflow_configurations import WorkflowConfigurationDefaults
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
+from api.services.configuration import bundles
 from api.services.configuration.agent_options import managed_stack_override
 from api.services.configuration.ai_model_configuration import (
     WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
@@ -371,6 +372,13 @@ class CreateWorkflowTemplateRequest(BaseModel):
     #: alternative is a wizard that asks and then quietly uses the org default.
     voice: str = Field("", max_length=64)
     llm_tier: str = Field("", max_length=32)
+    #: Which managed bundle the wizard chose — "everyday", "natural",
+    #: "premium". Everyday is the cascade and leaves the brain to the customer,
+    #: so it carries ``llm_tier`` above; the realtime bundles replace the
+    #: transcriber and the voice with one model that hears and speaks, so they
+    #: carry a realtime tier instead and the brain does not apply. Empty means
+    #: the caller did not choose, and the organization default stands.
+    bundle_slug: str = Field("", max_length=32)
 
     # Step 2 — conversation
     welcome_message: str = Field("", max_length=2000)
@@ -608,8 +616,28 @@ async def create_workflow_from_template(
         # override. Both slots stay managed — they name a tier, and
         # managed_resolution turns that into a vendor at call time — so this
         # records a product choice rather than pinning a vendor model.
+        # The bundle decides the shape. A realtime bundle names a realtime tier
+        # and drops the brain, because one model that hears and speaks has no
+        # separate language-model slot to set; the cascade keeps both.
+        realtime_tier = ""
+        llm_tier = request.llm_tier
+        if request.bundle_slug:
+            async with db_client.async_session() as session:
+                rows = await bundles.list_bundles(session, enabled_only=True)
+            chosen = next(
+                (r for r in rows if r.slug == request.bundle_slug), None
+            )
+            if chosen is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{request.bundle_slug!r} is not a bundle you can choose.",
+                )
+            realtime_tier = chosen.realtime_tier or ""
+            if realtime_tier:
+                llm_tier = ""
+
         workflow_configurations = managed_stack_override(
-            voice=request.voice, llm_tier=request.llm_tier
+            voice=request.voice, llm_tier=llm_tier, realtime_tier=realtime_tier
         )
 
         trigger_paths = extract_trigger_paths(workflow_def) if workflow_def else []
