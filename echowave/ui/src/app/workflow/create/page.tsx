@@ -26,6 +26,7 @@
  */
 
 import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -130,7 +131,30 @@ type Brain = {
     paise_per_minute: number;
 };
 
-type AgentOptions = { brains: Brain[]; voices: VoiceOption[] };
+/** One managed bundle as the picker draws it. `variants` is uniform across
+ *  architectures: the cascade has three (the brain is the customer's choice),
+ *  a speech-to-speech bundle has exactly one. */
+type BundleVariant = {
+    tier: string;
+    label: string;
+    blurb: string;
+    paise_per_minute: number | null;
+};
+
+type BundleOption = {
+    slug: string;
+    label: string;
+    blurb: string;
+    architecture: string;
+    picks_voice: boolean;
+    variants: BundleVariant[];
+};
+
+type AgentOptions = {
+    brains: Brain[];
+    voices: VoiceOption[];
+    bundles?: BundleOption[];
+};
 
 /** "₹5.20" from 520 paise. */
 function rupees(paise: number): string {
@@ -224,6 +248,11 @@ export default function CreateWorkflowPage() {
     const [balancePaise, setBalancePaise] = useState<number | null>(null);
     const [voice, setVoice] = useState<string>("");
     const [brain, setBrain] = useState<string>("default");
+    // Everyday unless the wizard is told otherwise. It is the cheapest to run
+    // and the best of the three on Indian languages, so it is the right thing
+    // for somebody who has not yet formed an opinion — and the finance case
+    // for defaulting elsewhere does not exist.
+    const [bundleSlug, setBundleSlug] = useState<string>("everyday");
     // Step 2 — conversation
     const [welcome, setWelcome] = useState("");
     const [guardrails, setGuardrails] = useState(DEFAULT_GUARDRAILS.join("\n"));
@@ -264,7 +293,19 @@ export default function CreateWorkflowPage() {
         };
     }, [user]);
 
-    const chosenBrain = options?.brains.find((b) => b.tier === brain) ?? null;
+    const bundleList = options?.bundles ?? [];
+    const chosenBundle =
+        bundleList.find((b) => b.slug === bundleSlug) ?? bundleList[0] ?? null;
+    // The cascade leaves the language model to the customer; one model that
+    // hears and speaks has no separate brain slot to set, so the question is
+    // not asked rather than asked and ignored.
+    const picksBrain = chosenBundle ? chosenBundle.picks_voice : true;
+    const chosenBrain = picksBrain
+        ? (options?.brains.find((b) => b.tier === brain) ?? null)
+        : null;
+    const bundlePrice = picksBrain
+        ? (chosenBrain?.paise_per_minute ?? null)
+        : (chosenBundle?.variants[0]?.paise_per_minute ?? null);
     // Shown with a "roughly" in front of it. It moves with the rate card and
     // with how much the agent actually says, so it is an estimate in the
     // honest sense rather than an entitlement.
@@ -273,8 +314,8 @@ export default function CreateWorkflowPage() {
     // reads as "we are not telling you", which is true. A figure computed from
     // a balance we could not fetch would read as a promise.
     const approxMinutes =
-        chosenBrain && chosenBrain.paise_per_minute > 0 && balancePaise !== null
-            ? Math.floor(balancePaise / chosenBrain.paise_per_minute)
+        bundlePrice !== null && bundlePrice > 0 && balancePaise !== null
+            ? Math.floor(balancePaise / bundlePrice)
             : null;
 
     const guardrailCount = useMemo(
@@ -313,7 +354,11 @@ export default function CreateWorkflowPage() {
             gender,
             tone,
             voice,
-            llm_tier: brain,
+            bundle_slug: bundleSlug,
+            // Only meaningful on the cascade. Sending a brain alongside a
+            // speech-to-speech bundle would describe an agent that cannot
+            // exist, so the field goes empty instead.
+            llm_tier: picksBrain ? brain : "",
             welcome_message: welcome.trim(),
             conversation_flow: flow.trim(),
             // Empty means "apply the server's own", so an untouched list is
@@ -541,6 +586,63 @@ export default function CreateWorkflowPage() {
                             )}
                         </Field>
 
+                        {bundleList.length > 0 && (
+                            <Field
+                                label="How should it sound?"
+                                hint="Everyday is the cheapest and the best of the three on Indian languages. The other two reply faster, and cost more a minute."
+                            >
+                                <div className="grid gap-2 sm:grid-cols-3">
+                                    {bundleList.map((option) => {
+                                        const price =
+                                            option.picks_voice
+                                                ? null
+                                                : (option.variants[0]?.paise_per_minute ?? null);
+                                        return (
+                                            <button
+                                                key={option.slug}
+                                                type="button"
+                                                onClick={() => setBundleSlug(option.slug)}
+                                                aria-pressed={bundleSlug === option.slug}
+                                                className={cn(
+                                                    "rounded-lg border p-3 text-left transition-colors",
+                                                    bundleSlug === option.slug
+                                                        ? "border-primary bg-primary/5"
+                                                        : "border-border hover:bg-muted/40",
+                                                )}
+                                            >
+                                                <span className="flex items-baseline justify-between gap-2">
+                                                    <span className="font-medium">
+                                                        {option.label}
+                                                    </span>
+                                                    {price !== null && (
+                                                        <span className="text-sm tabular-nums text-muted-foreground">
+                                                            {rupees(price)}/min
+                                                        </span>
+                                                    )}
+                                                </span>
+                                                <span className="mt-1 block text-xs text-muted-foreground">
+                                                    {option.blurb}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                {/* The way out for somebody who does have an
+                                    opinion, without putting provider names in
+                                    front of somebody who does not. */}
+                                <p className="mt-2 text-xs text-muted-foreground">
+                                    Want to name the models yourself?{" "}
+                                    <Link
+                                        href="/model-configurations"
+                                        className="underline underline-offset-2 hover:text-foreground"
+                                    >
+                                        Advanced setup
+                                    </Link>
+                                </p>
+                            </Field>
+                        )}
+
+                        {picksBrain && (
                         <Field
                             label="How clever should it be?"
                             hint="A bigger brain handles a caller who goes off script better, and costs more a minute."
@@ -573,12 +675,11 @@ export default function CreateWorkflowPage() {
                                 ))}
                             </div>
                         </Field>
+                        )}
 
-                        {chosenBrain && (
+                        {bundlePrice !== null && (
                             <p className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
-                                <strong>
-                                    {rupees(chosenBrain.paise_per_minute)} a minute
-                                </strong>
+                                <strong>{rupees(bundlePrice)} a minute</strong>
                                 {approxMinutes !== null && balancePaise !== null && (
                                     <>
                                         {` — your ${rupees(balancePaise)} balance is roughly `}

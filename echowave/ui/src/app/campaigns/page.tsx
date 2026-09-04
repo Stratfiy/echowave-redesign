@@ -95,16 +95,19 @@ export default function CampaignsPage() {
 
     return (
         <div className="container mx-auto p-6 space-y-6">
-            <div className="flex justify-between items-center">
+            {/* Wraps rather than overflowing: the button is 172px and the
+                narrowest phone we support is 320px, so on one line the two
+                together pushed the whole page sideways. */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 className="text-3xl font-bold mb-2">Campaigns</h1>
                     <p>Manage your bulk workflow execution campaigns</p>
                 </div>
-                    <Button onClick={handleCreateCampaign}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create Campaign
-                    </Button>
-                </div>
+                <Button onClick={handleCreateCampaign}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Campaign
+                </Button>
+            </div>
 
                 <Card>
                     <CardHeader>
