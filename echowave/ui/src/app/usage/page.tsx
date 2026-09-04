@@ -427,7 +427,7 @@ export default function UsagePage() {
                     </div>
                         <div className="flex items-center gap-2">
                             <Globe className="h-4 w-4 text-muted-foreground" />
-                            <div className="w-[300px]">
+                            <div className="w-full max-w-[300px]">
                                 <TimezoneSelect
                                     instanceId={timezoneSelectId}
                                     value={selectedTimezone}

@@ -18,6 +18,10 @@ from api.services.agent_templates import (
     get_template,
     list_templates,
 )
+from api.services.agent_templates.materialise import (
+    TemplateShapeError,
+    to_workflow_definition,
+)
 
 ALL = list_templates()
 
@@ -244,3 +248,85 @@ def test_catalogue_covers_both_call_directions():
     so a catalogue that only covered one would only sell one shape of account."""
     directions = {t.direction for t in ALL}
     assert directions == {CallDirection.inbound, CallDirection.outbound}
+
+
+class TestMaterialising:
+    """Turning a template into a workflow the editor and the engine can read.
+
+    A template is only useful if it can become an agent, and the two bugs this
+    class exists to catch were both invisible to every other test here: a node
+    type the converter did not recognise, and a persona node no template
+    carries. Neither would have failed a structural check on the catalogue —
+    both would have failed on a customer's first call.
+    """
+
+    def test_every_template_becomes_a_workflow(self):
+        for template in ALL:
+            definition = to_workflow_definition(template)
+            assert definition["nodes"], template.id
+            assert "edges" in definition, template.id
+
+    @pytest.mark.parametrize("template", ALL, ids=lambda t: t.id)
+    def test_node_ids_are_unique(self, template):
+        """Edges are matched by id. Two nodes sharing one silently reroutes a
+        call."""
+        nodes = to_workflow_definition(template)["nodes"]
+        ids = [node["id"] for node in nodes]
+        assert len(ids) == len(set(ids))
+
+    @pytest.mark.parametrize("template", ALL, ids=lambda t: t.id)
+    def test_no_edge_dangles(self, template):
+        """An edge into a node that does not exist is an agent that cannot
+        finish the call it starts."""
+        definition = to_workflow_definition(template)
+        ids = {node["id"] for node in definition["nodes"]}
+        for edge in definition["edges"]:
+            assert edge["source"] in ids, (template.id, edge)
+            assert edge["target"] in ids, (template.id, edge)
+
+    @pytest.mark.parametrize("template", ALL, ids=lambda t: t.id)
+    def test_exactly_one_start_node(self, template):
+        nodes = to_workflow_definition(template)["nodes"]
+        starts = [n for n in nodes if n["type"] == "startCall"]
+        assert len(starts) == 1
+
+    @pytest.mark.parametrize("template", ALL, ids=lambda t: t.id)
+    def test_carries_a_persona(self, template):
+        """No template in the catalogue ships a globalNode, and every
+        hand-authored launch template opens with one. Without it the agent runs
+        with no shared voice and no shared guardrail — which shows up on a call
+        and nowhere else."""
+        nodes = to_workflow_definition(template)["nodes"]
+        personas = [n for n in nodes if n["type"] == "globalNode"]
+        assert len(personas) == 1
+        assert personas[0]["data"]["prompt"].strip()
+
+    @pytest.mark.parametrize("template", ALL, ids=lambda t: t.id)
+    def test_every_agent_node_keeps_its_prompt(self, template):
+        """The prompts are the template. A conversion that dropped them would
+        still produce a runnable agent, and a useless one."""
+        definition = to_workflow_definition(template)
+        prompts = {
+            node["data"].get("prompt", "").strip()
+            for node in definition["nodes"]
+            if node["type"] == "agentNode"
+        }
+        for node in template.nodes:
+            if node.type in ("agentNode", "agent"):
+                assert node.prompt.strip() in prompts, (template.id, node.name)
+
+    def test_an_unknown_node_type_is_refused(self):
+        """Loudly, rather than by quietly dropping the node — a template that
+        half-converts is worse than one that does not convert at all."""
+        broken = ALL[0].model_copy(deep=True)
+        broken.nodes[-1].type = "carrierPigeon"
+        with pytest.raises(TemplateShapeError):
+            to_workflow_definition(broken)
+
+    def test_duplicate_node_names_are_refused(self):
+        """Edges reference nodes by name, so a duplicate makes one of them
+        unreachable."""
+        broken = ALL[0].model_copy(deep=True)
+        broken.nodes[-1].name = broken.nodes[-2].name
+        with pytest.raises(TemplateShapeError):
+            to_workflow_definition(broken)

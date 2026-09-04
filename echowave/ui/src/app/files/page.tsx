@@ -40,7 +40,7 @@ export default function FilesPage() {
         return (
             <div className="container mx-auto px-4 py-8">
                 <div className="space-y-4">
-                    <Skeleton className="h-12 w-64" />
+                    <Skeleton className="h-12 w-full max-w-64" />
                     <Skeleton className="h-64 w-full" />
                 </div>
             </div>
@@ -74,7 +74,7 @@ export default function FilesPage() {
 
             <Card>
                 <CardHeader>
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <CardTitle>Your Documents</CardTitle>
                             <CardDescription>

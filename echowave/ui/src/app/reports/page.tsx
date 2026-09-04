@@ -206,7 +206,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Date Navigation & Workflow Selector */}
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <div className="flex flex-col flex-wrap gap-4 sm:flex-row sm:items-center items-start">
           {/* Workflow Selector */}
           <Select value={selectedWorkflow} onValueChange={setSelectedWorkflow}>
             <SelectTrigger className="w-[200px]">
