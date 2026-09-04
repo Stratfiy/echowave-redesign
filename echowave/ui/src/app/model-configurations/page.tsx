@@ -14,10 +14,18 @@
  * Simple saves a managed bundle. Advanced saves the exact stack shown in its
  * editor. Remember the view the customer chose: reopening on Simple after an
  * Advanced save makes the saved stack look as though it was replaced.
+ *
+ * The title sits on the page rather than inside a tab, because both tabs set
+ * the same thing and the Simple tab — the one most people land on — used to
+ * open on a bare pair of buttons with nothing saying what the screen was for.
+ * It also says out loud that this is the organization's default, since an
+ * agent now picks its own bundle while being created and the two answers can
+ * differ.
  */
 
 "use client";
 
+import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { SimpleModelPicker } from "@/components/agent/SimpleModelPicker";
@@ -56,6 +64,23 @@ export default function ServiceConfigurationPage() {
         <div className="min-h-screen">
             <div className="container mx-auto px-4 py-8">
                 <div className="mx-auto max-w-6xl space-y-6">
+                    <div>
+                        <h1 className="text-3xl font-bold">Models</h1>
+                        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                            The default for every agent in this organization. An agent can
+                            choose a different bundle while you create it, and that choice
+                            wins for that agent.{" "}
+                            <a
+                                href={SETTINGS_DOCUMENTATION_URLS.modelOverrides}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-0.5 underline"
+                            >
+                                Learn more <ExternalLink className="h-3 w-3" />
+                            </a>
+                        </p>
+                    </div>
+
                     <div
                         role="tablist"
                         aria-label="How much detail to show"
@@ -80,13 +105,16 @@ export default function ServiceConfigurationPage() {
                         ))}
                     </div>
 
+                    <p className="-mt-3 text-sm text-muted-foreground">
+                        {tab === "simple"
+                            ? "Pick how the agent should sound and think, and see what a minute costs."
+                            : "Name the exact provider and model for each part of the call."}
+                    </p>
+
                     {tab === "simple" ? (
                         <SimpleModelPicker />
                     ) : (
-                        <ModelConfigurationV2
-                            docsUrl={SETTINGS_DOCUMENTATION_URLS.modelOverrides}
-                            guardUnsavedChanges
-                        />
+                        <ModelConfigurationV2 guardUnsavedChanges />
                     )}
                 </div>
             </div>

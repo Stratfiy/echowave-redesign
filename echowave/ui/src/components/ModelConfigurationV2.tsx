@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, ExternalLink, PhoneOff } from "lucide-react";
+import { CreditCard, PhoneOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -23,10 +23,8 @@ import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
 export default function ModelConfigurationV2({
-    docsUrl,
     guardUnsavedChanges = false,
 }: {
-    docsUrl?: string;
     /** Forwarded to the model editor — see ServiceConfigurationForm's prop docs. */
     guardUnsavedChanges?: boolean;
 }) {
@@ -109,23 +107,14 @@ export default function ModelConfigurationV2({
         );
     }
 
+    // Does this account hold a vendor key of its own? Only then can a slot run
+    // on one, and only then is the fallback question below answerable.
+    const holdsOwnKeys = Object.values(defaults?.byok_keys_held ?? {}).some(
+        (vendors) => vendors.length > 0,
+    );
+
     return (
         <div className="w-full max-w-4xl mx-auto space-y-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold">Models</h1>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                        The default stack for every agent in this organization. An agent can
-                        override it.{" "}
-                        {docsUrl && (
-                            <a href={docsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
-                                Learn more <ExternalLink className="h-3 w-3" />
-                            </a>
-                        )}
-                    </p>
-                </div>
-            </div>
-
             {error && (
                 <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                     {error}
@@ -147,7 +136,7 @@ export default function ModelConfigurationV2({
                 />
             )}
 
-            <KeyFallbackPreference />
+            {holdsOwnKeys && <KeyFallbackPreference />}
         </div>
     );
 }
