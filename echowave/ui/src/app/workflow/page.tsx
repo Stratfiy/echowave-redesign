@@ -8,6 +8,7 @@ import { CreateWorkflowButton } from "@/components/workflow/CreateWorkflowButton
 import { AgentFolderView } from '@/components/workflow/folders/AgentFolderView';
 import { CreateFolderButton } from '@/components/workflow/folders/CreateFolderButton';
 import { FolderSection } from '@/components/workflow/folders/FolderSection';
+import { StartFromTemplate } from '@/components/workflow/StartFromTemplate';
 import { UploadWorkflowButton } from '@/components/workflow/UploadWorkflowButton';
 import { getServerAccessToken, getServerAuthProvider } from '@/lib/auth/server';
 import logger from '@/lib/logger';
@@ -81,8 +82,14 @@ async function WorkflowList() {
                         <AgentFolderView workflows={activeWorkflows} folders={folders} />
                     ) : (
                         <Card>
-                            <CardContent className="p-8 text-center text-muted-foreground">
-                                No active workflows found. Create your first workflow to get started.
+                            <CardContent className="p-8">
+                                <p className="text-center text-muted-foreground">
+                                    No agents yet.
+                                </p>
+                                {/* The six ready-made agents, which existed in
+                                    the API before this screen did and were
+                                    never offered anywhere. */}
+                                <StartFromTemplate />
                             </CardContent>
                         </Card>
                     )}
