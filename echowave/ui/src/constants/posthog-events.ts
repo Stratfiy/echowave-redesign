@@ -9,7 +9,6 @@ export const PostHogEvent = {
   TRANSCRIPT_VIEWED: "transcript_viewed",
   WEB_CALL_INITIATED: "web_call_initiated",
   SIGNED_IN: "signed_in",
-  GITHUB_STAR_CLICKED: "github_star_clicked",
   SLACK_COMMUNITY_CLICKED: "slack_community_clicked",
   HIRE_EXPERT_OPENED: "hire_expert_opened",
   HIRE_EXPERT_SUBMITTED: "hire_expert_submitted",
