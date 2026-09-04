@@ -764,7 +764,7 @@ const data = await response.json();`;
             <div className="min-h-screen flex items-center justify-center">
                 <div className="space-y-4">
                     <Skeleton className="h-12 w-64" />
-                    <Skeleton className="h-64 w-96" />
+                    <Skeleton className="h-64 w-full max-w-96" />
                 </div>
             </div>
         );

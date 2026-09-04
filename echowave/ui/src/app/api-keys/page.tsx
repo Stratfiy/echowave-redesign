@@ -359,7 +359,7 @@ export default function APIKeysPage() {
             <div className="min-h-screen flex items-center justify-center">
                 <div className="space-y-4">
                     <Skeleton className="h-12 w-64" />
-                    <Skeleton className="h-64 w-96" />
+                    <Skeleton className="h-64 w-full max-w-96" />
                 </div>
             </div>
         );
@@ -395,7 +395,7 @@ export default function APIKeysPage() {
                                         Create and manage API keys for your organization
                                     </CardDescription>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -466,7 +466,7 @@ export default function APIKeysPage() {
                                                     Last used: {formatDate(key.last_used_at ?? null)}
                                                 </div>
                                             </div>
-                                            <div className="flex gap-2">
+                                            <div className="flex flex-wrap gap-2">
                                                 {key.archived_at ? (
                                                     <Button
                                                         variant="outline"
@@ -504,7 +504,7 @@ export default function APIKeysPage() {
                                         Manage service keys for accessing Decibyl AI services (LLM, TTS, STT)
                                     </CardDescription>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     {showServiceKeyArchiveControls && (
                                         <Button
                                             variant="outline"
@@ -590,7 +590,7 @@ export default function APIKeysPage() {
                                                     Last used: {formatDate(key.last_used_at ?? null)}
                                                 </div>
                                             </div>
-                                            <div className="flex gap-2">
+                                            <div className="flex flex-wrap gap-2">
                                                 {!key.archived_at && showServiceKeyArchiveControls && (
                                                     <Button
                                                         variant="ghost"
