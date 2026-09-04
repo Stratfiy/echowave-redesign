@@ -78,7 +78,12 @@ export function PageHeader({
             )}
           </div>
           {actions && (
-            <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+            // `flex-wrap` without `shrink-0`: the container has to be allowed
+            // to narrow before its own wrapping can do anything. With
+            // `shrink-0` it kept the width of every action on one line, so on a
+            // 320px phone three buttons pushed the page 232px sideways and the
+            // wrap never fired.
+            <div className="flex flex-wrap items-center gap-2">{actions}</div>
           )}
         </div>
       </div>

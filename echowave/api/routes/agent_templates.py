@@ -14,9 +14,15 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from api.db import db_client
 from api.db.models import UserModel
 from api.services.agent_templates import AgentTemplate, get_template, list_templates
+from api.services.agent_templates.materialise import (
+    TemplateShapeError,
+    to_workflow_definition,
+)
 from api.services.auth.depends import get_user
+from api.services.workflow.trigger_paths import regenerate_trigger_uuids
 
 router = APIRouter(prefix="/agent-templates", tags=["agent-templates"])
 
@@ -68,3 +74,46 @@ async def get_agent_template(
         "compliance_notes": template.compliance_notes,
         "template_variables": template.template_variables,
     }
+
+
+@router.post("/{template_id}/create")
+async def create_from_template(
+    template_id: str,
+    user: UserModel = Depends(get_user),
+) -> dict[str, Any]:
+    """Make this template into an agent the account owns, and return it.
+
+    The other door into the product. The wizard asks eleven questions and then
+    runs a language model to write a flow, which is the right thing for a
+    business we have no template for and the wrong thing for a dental clinic
+    when a dental clinic template already exists.
+
+    No model override is written. The recommended stack on a template names
+    vendors, and the agent-level override speaks in managed tiers; translating
+    one into the other here would pin a vendor that the tier is meant to be
+    free to move. Inheriting the organization default gets the same Indic-first
+    stack the template's rationale is describing, and keeps moving when we move
+    it.
+    """
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    template = get_template(template_id)
+    if template is None:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    try:
+        definition = to_workflow_definition(template)
+    except TemplateShapeError as exc:
+        # A broken catalogue entry is our bug, not the caller's. 500 rather
+        # than 400 so it shows up as one.
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    workflow = await db_client.create_workflow(
+        name=template.name,
+        workflow_definition=regenerate_trigger_uuids(definition),
+        user_id=user.id,
+        organization_id=user.selected_organization_id,
+    )
+
+    return {"id": workflow.id, "name": workflow.name, "template_id": template.id}
