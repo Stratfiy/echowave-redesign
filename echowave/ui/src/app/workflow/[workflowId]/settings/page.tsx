@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { ArrowLeft, BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, Mic, Pause, PhoneOff, Play, Rocket, Settings, Trash2Icon, Upload, Variable, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -47,6 +47,7 @@ import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { priceableFromV2, pricedStack } from "@/lib/billing/pricedStack";
 import logger from "@/lib/logger";
+import { cn } from "@/lib/utils";
 import {
     type AmbientNoiseConfiguration,
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
@@ -69,6 +70,7 @@ import {
 
 import { EmbedDialog } from "../components/EmbedDialog";
 import { useWorkflowState } from "../hooks/useWorkflowState";
+import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -97,17 +99,7 @@ VOICEMAIL SYSTEM (respond "VOICEMAIL"):
 Respond with ONLY "CONVERSATION" if a person answered, or "VOICEMAIL" if it's voicemail/recording.`;
 
 // Sidebar navigation items
-const NAV_ITEMS = [
-    { id: "general", label: "General", icon: Settings },
-    { id: "models", label: "Models", icon: Brain },
-    { id: "variables", label: "Template Variables", icon: Variable },
-    { id: "dictionary", label: "Dictionary", icon: BookA },
-    { id: "voicemail", label: "Voicemail Detection", icon: PhoneOff },
-    { id: "recordings", label: "Recordings", icon: Mic },
-    { id: "deployment", label: "Add to Website", icon: Rocket },
-    { id: "report", label: "Report", icon: FileDown },
-    { id: "identity", label: "Agent UUID", icon: Fingerprint },
-];
+
 
 // ---------------------------------------------------------------------------
 // Section: Report
@@ -1632,7 +1624,23 @@ function WorkflowSettingsInner({
     const { dirtySections, confirmNavigate } = useUnsavedChangesContext();
 
     const [isEmbedDialogOpen, setIsEmbedDialogOpen] = useState(false);
-    const [activeSection, setActiveSection] = useState("general");
+    // Read once from the URL so a link can land on a tab -- the wizard's
+    // "Advanced setup" and the docs both want to point at one -- and written
+    // back with replaceState rather than the router so switching tabs does not
+    // stack history entries a Back press has to walk out of.
+    const [activeTab, setActiveTab] = useState<TabId>(DEFAULT_TAB);
+
+    useEffect(() => {
+        const requested = new URLSearchParams(window.location.search).get("tab");
+        if (isTabId(requested)) setActiveTab(requested);
+    }, []);
+
+    const selectTab = useCallback((next: TabId) => {
+        setActiveTab(next);
+        const url = new URL(window.location.href);
+        url.searchParams.set("tab", next);
+        window.history.replaceState(null, "", url);
+    }, []);
     const [modelConfigurationDefaults, setModelConfigurationDefaults] = useState<ModelConfigurationDefaultsV2 | null>(null);
     const [organizationModelConfiguration, setOrganizationModelConfiguration] = useState<OrganizationAiModelConfigurationResponse | null>(null);
     const [modelConfigurationLoading, setModelConfigurationLoading] = useState(true);
@@ -1715,27 +1723,6 @@ function WorkflowSettingsInner({
         loadModelConfiguration();
     }, []);
 
-    // Intersection observer for active sidebar link
-    useEffect(() => {
-        const ids = NAV_ITEMS.map((n) => n.id);
-        const observer = new IntersectionObserver(
-            (entries) => {
-                for (const entry of entries) {
-                    if (entry.isIntersecting) {
-                        setActiveSection(entry.target.id);
-                        break;
-                    }
-                }
-            },
-            { rootMargin: "-20% 0px -60% 0px" },
-        );
-        ids.forEach((id) => {
-            const el = document.getElementById(id);
-            if (el) observer.observe(el);
-        });
-        return () => observer.disconnect();
-    }, []);
-
     return (
         <div className="min-h-screen">
             {/* Sticky header */}
@@ -1747,18 +1734,61 @@ function WorkflowSettingsInner({
                 >
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <div>
+                <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Workflow Settings</p>
-                    <h1 className="text-sm font-semibold">{workflowName || workflow.name}</h1>
+                    <h1 className="truncate text-sm font-semibold">{workflowName || workflow.name}</h1>
+                </div>
+
+                {/* The strip lives in the sticky header so it stays reachable
+                    from the bottom of a long tab -- Conversation alone is
+                    several screens. Scrolls on a phone rather than wrapping
+                    into a second row that would double the header's height. */}
+                <div
+                    role="tablist"
+                    aria-label="Settings sections"
+                    className="-mb-3 ml-auto flex min-w-0 gap-1 overflow-x-auto pb-1"
+                >
+                    {TABS.map((tab) => {
+                        const Icon = tab.icon;
+                        const unsaved = tab.sections.some((id) => dirtySections.has(id));
+                        return (
+                            <button
+                                key={tab.id}
+                                role="tab"
+                                type="button"
+                                aria-selected={activeTab === tab.id}
+                                onClick={() => selectTab(tab.id)}
+                                className={cn(
+                                    "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+                                    activeTab === tab.id
+                                        ? "bg-muted font-medium text-foreground"
+                                        : "text-muted-foreground hover:text-foreground",
+                                )}
+                            >
+                                <Icon className="h-3.5 w-3.5" />
+                                {tab.label}
+                                {/* A tab hiding an unsaved edit has to say so,
+                                    or switching away looks like discarding. */}
+                                {unsaved && (
+                                    <span
+                                        className="h-1.5 w-1.5 rounded-full bg-orange-500"
+                                        aria-label="Unsaved changes"
+                                    />
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
             </header>
 
             {/* Main + right nav */}
-            <div className="mx-auto flex max-w-5xl gap-8 px-6 py-8">
-                {/* Sections */}
-                <div className="min-w-0 flex-1 space-y-8">
+            <div className="mx-auto max-w-4xl px-6 py-8">
+                <div className="min-w-0 space-y-8">
                     {resolvedWorkflowConfigurationsForRender && (
                         <>
+                            <div
+                                className={cn("space-y-8", activeTab !== "calling" && "hidden")}
+                            >
                             {/* General */}
                             <GeneralSection
                                 workflowConfigurations={resolvedWorkflowConfigurationsForRender}
@@ -1768,6 +1798,17 @@ function WorkflowSettingsInner({
                                 modelConfigurationDefaults={modelConfigurationDefaults}
                             />
 
+                            {/* Voicemail Detection */}
+                            <VoicemailSection
+                                workflowConfigurations={resolvedWorkflowConfigurationsForRender}
+                                workflowName={workflowName}
+                                onSave={saveWorkflowConfigurations}
+                            />
+                            </div>
+
+                            <div
+                                className={cn("space-y-8", activeTab !== "models" && "hidden")}
+                            >
                             <WorkflowModelOverridesSection
                                 workflowConfigurations={resolvedWorkflowConfigurationsForRender}
                                 workflowName={workflowName}
@@ -1778,22 +1819,15 @@ function WorkflowSettingsInner({
                                 modelConfigurationError={modelConfigurationError}
                             />
 
-                            {/* Template Variables */}
-                            <TemplateVariablesSection
-                                templateContextVariables={templateContextVariables}
-                                onSave={saveTemplateContextVariables}
-                            />
-
-                            {/* Dictionary */}
+                            {/* Dictionary sits with Models rather than alone:
+                                it is words the transcriber should listen for,
+                                which is a property of the ears, not a topic. */}
                             <DictionarySection dictionary={dictionary} onSave={saveDictionary} />
+                            </div>
 
-                            {/* Voicemail Detection */}
-                            <VoicemailSection
-                                workflowConfigurations={resolvedWorkflowConfigurationsForRender}
-                                workflowName={workflowName}
-                                onSave={saveWorkflowConfigurations}
-                            />
-
+                            <div
+                                className={cn("space-y-8", activeTab !== "analysis" && "hidden")}
+                            >
                             {/* Recordings – moved to org-level page */}
                             <Card id="recordings">
                                 <CardHeader>
@@ -1817,6 +1851,13 @@ function WorkflowSettingsInner({
                                 </CardFooter>
                             </Card>
 
+                            {/* Report */}
+                            <ReportSection workflowId={workflowId} />
+                            </div>
+
+                            <div
+                                className={cn("space-y-8", activeTab !== "deploy" && "hidden")}
+                            >
                             {/* Deployment (dialog trigger) */}
                             <Card id="deployment">
                                 <CardHeader>
@@ -1835,42 +1876,26 @@ function WorkflowSettingsInner({
                                     </Button>
                                 </CardFooter>
                             </Card>
+                            </div>
 
-                            {/* Report */}
-                            <ReportSection workflowId={workflowId} />
+                            <div
+                                className={cn("space-y-8", activeTab !== "advanced" && "hidden")}
+                            >
+                            {/* Template Variables */}
+                            <TemplateVariablesSection
+                                templateContextVariables={templateContextVariables}
+                                onSave={saveTemplateContextVariables}
+                            />
 
                             {/* Agent UUID */}
                             {workflow.workflow_uuid && (
                                 <AgentUuidSection workflowUuid={workflow.workflow_uuid} />
                             )}
+                            </div>
                         </>
                     )}
                 </div>
 
-                {/* ---- Right-side sticky nav ---- */}
-                <nav className="hidden w-44 shrink-0 lg:block">
-                    <div className="sticky top-20 space-y-1">
-                        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                            On this page
-                        </p>
-                        {NAV_ITEMS.map((item) => (
-                            <a
-                                key={item.id}
-                                href={`#${item.id}`}
-                                className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors hover:text-foreground ${
-                                    activeSection === item.id
-                                        ? "font-medium text-foreground"
-                                        : "text-muted-foreground"
-                                }`}
-                            >
-                                {item.label}
-                                {dirtySections.has(item.id) && (
-                                    <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
-                                )}
-                            </a>
-                        ))}
-                    </div>
-                </nav>
             </div>
 
             {/* Dialogs for complex sections */}
