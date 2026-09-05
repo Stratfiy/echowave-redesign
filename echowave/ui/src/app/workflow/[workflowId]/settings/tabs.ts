@@ -36,7 +36,7 @@ export const TABS = [
         id: "analysis",
         label: "Analysis",
         icon: FileDown,
-        sections: ["recordings", "report"],
+        sections: ["qa", "recordings", "report"],
     },
     {
         id: "deploy",

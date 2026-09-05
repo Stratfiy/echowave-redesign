@@ -70,6 +70,7 @@ import {
 
 import { AgentTabs } from "../components/AgentTabs";
 import { EmbedDialog } from "../components/EmbedDialog";
+import { QaCard } from "../components/QaCard";
 import { useWorkflowState } from "../hooks/useWorkflowState";
 import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
 
@@ -1836,6 +1837,13 @@ function WorkflowSettingsInner({
                             <div
                                 className={cn("space-y-8", activeTab !== "analysis" && "hidden")}
                             >
+                            {/* Whether calls get reviewed at all. First on the
+                                tab because it is the reason the tab looks
+                                empty: QA has been built for months and running
+                                on almost nothing, since no creation path adds
+                                the node the runtime looks for. */}
+                            <QaCard workflowId={workflowId} />
+
                             {/* Recordings – moved to org-level page */}
                             <Card id="recordings">
                                 <CardHeader>
