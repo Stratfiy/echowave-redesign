@@ -68,6 +68,7 @@ import {
 } from "@/types/workflow-configurations";
 
 import { EmbedDialog } from "../components/EmbedDialog";
+import { ModelRow } from "../components/ModelRow";
 import { useWorkflowState } from "../hooks/useWorkflowState";
 
 // ---------------------------------------------------------------------------
@@ -1757,6 +1758,11 @@ function WorkflowSettingsInner({
             <div className="mx-auto flex max-w-5xl gap-8 px-6 py-8">
                 {/* Sections */}
                 <div className="min-w-0 flex-1 space-y-8">
+                    {/* What this agent runs on, before what you can change about
+                        it. Vapi and Bolna both open here; we used to open on a
+                        name field with the models six cards down. */}
+                    <ModelRow workflowId={workflowId} />
+
                     {resolvedWorkflowConfigurationsForRender && (
                         <>
                             {/* General */}
