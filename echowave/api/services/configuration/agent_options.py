@@ -762,10 +762,7 @@ async def catalogue_options(
     line functions a full estimate is, so a model priced on this screen and the
     same model inside a stack estimate cannot disagree.
     """
-    from api.services.billing.estimator import (
-        estimate_cost_per_minute,
-        price_components,
-    )
+    from api.services.billing.estimator import price_components
     from api.services.configuration import model_catalogue
 
     out: dict[str, list[dict]] = {}
@@ -833,10 +830,7 @@ async def model_row(
     reconciled against a single blended number that means neither.
     """
     from api.db.workflow_latency_client import stage_latency
-    from api.services.billing.estimator import (
-        estimate_cost_per_minute,
-        price_components,
-    )
+    from api.services.billing.estimator import price_components
     from api.services.configuration.ai_model_configuration import (
         get_effective_ai_model_configuration_for_workflow,
     )
@@ -864,12 +858,18 @@ async def model_row(
         return provider, model
 
     # Realtime replaces the transcriber/voice pair rather than joining it, so
-    # the row is two cards on that path and three on the cascade. The screen
+    # the row is one card on that path and three on the cascade. The screen
     # renders whatever it is given rather than branching on architecture.
+    #
+    # No separate brain card on the realtime path. A speech-to-speech model
+    # *is* the language model -- build_realtime_pipeline runs no second LLM --
+    # and the ``llm`` section a realtime stack still carries names the realtime
+    # tier, which ``managed_tiers.resolve`` then reads as an unknown *LLM* tier
+    # and falls back to the default text model. Showing that card named an
+    # OpenAI model the agent never runs.
     if effective.is_realtime:
         wanted = [
             ("realtime", "Speech", effective.realtime),
-            ("llm", "Model", effective.llm),
         ]
     else:
         wanted = [
@@ -885,10 +885,17 @@ async def model_row(
             continue
         resolved.append((component, title, pair[0], pair[1]))
 
+    # A realtime session has no per-minute line of its own: the vendor meters
+    # it as language-model usage and the rate card prices it there, which is
+    # the seam ``realtime_price_per_minute`` already goes through. Priced under
+    # its own name it comes back unpriced, and the card reads "--".
+    def _rate_component(component: str) -> str:
+        return "llm" if component == "realtime" else component
+
     priced = await price_components(
         session,
         organization_id=organization_id,
-        slots=[(c, p, m) for c, _title, p, m in resolved],
+        slots=[(_rate_component(c), p, m) for c, _title, p, m in resolved],
     )
 
     # The whole minute, not the sum of the cards. Telephony and the platform
@@ -896,6 +903,7 @@ async def model_row(
     # total added up from the cards would be quietly low -- which is the one
     # direction a price shown to a customer must never be wrong in.
     by_component = {c: (p, m) for c, _title, p, m in resolved}
+    llm_pair = by_component.get("realtime") or by_component.get("llm", (None, ""))
     # The carrier a call would actually leave through. Without it
     # estimate_cost_per_minute adds no telephony line at all, which runs about
     # ten per cent light on an account whose numbers are ours -- the same
@@ -908,8 +916,13 @@ async def model_row(
         organization_id=organization_id,
         stt_provider=by_component.get("stt", (None, ""))[0],
         stt_model=by_component.get("stt", (None, ""))[1],
-        llm_provider=by_component.get("llm", (None, ""))[0],
-        llm_model=by_component.get("llm", (None, ""))[1],
+        # The realtime model goes in the llm slot for the same reason it is
+        # priced as one -- see realtime_estimate, which this must agree with.
+        # Passing the stack's vestigial text-LLM section instead quoted a
+        # speech-to-speech agent at a text model's price, several times under
+        # what the call actually bills.
+        llm_provider=llm_pair[0],
+        llm_model=llm_pair[1],
         tts_provider=by_component.get("tts", (None, ""))[0],
         tts_model=by_component.get("tts", (None, ""))[1],
         telephony_provider=basis.provider,
@@ -929,7 +942,7 @@ async def model_row(
 
     slots = []
     for component, title, provider, model in resolved:
-        line = priced.get((component, provider, model))
+        line = priced.get((_rate_component(component), provider, model))
         slots.append(
             {
                 "component": component,

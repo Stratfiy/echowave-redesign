@@ -511,7 +511,7 @@ async def get_public_turn_credentials(
     if not embed_token:
         raise HTTPException(status_code=404, detail="Invalid embed token")
 
-    # Validate domain (empty allowed_domains means allow all)
+    # Validate domain (a token with no domains is allowed nowhere)
     if not validate_origin(origin, embed_token.allowed_domains or []):
         logger.warning(
             f"Domain validation failed for TURN credentials: {origin} not in {embed_token.allowed_domains}"
