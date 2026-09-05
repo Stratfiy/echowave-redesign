@@ -29,12 +29,26 @@ from __future__ import annotations
 
 from typing import Any
 
+from api.services.workflow.qa_node import has_qa_node, qa_node
 from api.services.workflow.template_generation import GLOBAL_PROMPT
 
 #: Every template carries the same persona. It names no language: the platform
 #: supports eleven Indian languages plus auto-detect, and a template that
 #: hardcoded one would quietly undo that for the majority of new agents.
 _PERSONA = GLOBAL_PROMPT
+
+
+def _with_review(nodes: list[dict[str, Any]], edges: list[dict[str, Any]]) -> dict:
+    """Every launch template ships with call review on.
+
+    Appended here rather than written into each of the four templates, because
+    a default repeated four times is a default that goes stale in three of
+    them. ``has_qa_node`` keeps a template that grows its own review node from
+    getting a second one, which would run the analysis twice and bill for both.
+    """
+    if not has_qa_node(nodes):
+        nodes = [*nodes, qa_node()]
+    return {"nodes": nodes, "edges": edges}
 
 
 def _global_node() -> dict[str, Any]:
@@ -177,7 +191,7 @@ def missed_call() -> dict[str, Any]:
             "want to end the call.",
         ),
     ]
-    return {"nodes": nodes, "edges": edges}
+    return _with_review(nodes, edges)
 
 
 def missed_follow_up() -> dict[str, Any]:
@@ -296,7 +310,7 @@ def missed_follow_up() -> dict[str, Any]:
         _edge("agent-seen", "end-1", "finished", "Their position is understood."),
         _edge("agent-unseen", "end-1", "finished", "A resend has been agreed."),
     ]
-    return {"nodes": nodes, "edges": edges}
+    return _with_review(nodes, edges)
 
 
 def declined_payment() -> dict[str, Any]:
@@ -354,7 +368,7 @@ def declined_payment() -> dict[str, Any]:
             "The payment is resolved or they have said how they will handle it.",
         ),
     ]
-    return {"nodes": nodes, "edges": edges}
+    return _with_review(nodes, edges)
 
 
 def website_enquiry() -> dict[str, Any]:
@@ -412,7 +426,7 @@ def website_enquiry() -> dict[str, Any]:
             "Their enquiry and contact details are captured, or they want to go.",
         ),
     ]
-    return {"nodes": nodes, "edges": edges}
+    return _with_review(nodes, edges)
 
 
 #: name, description, builder. The description is what an owner reads on the

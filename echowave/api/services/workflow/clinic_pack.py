@@ -33,6 +33,7 @@ from api.services.workflow.launch_templates import (
     _end,
     _global_node,
     _start,
+    _with_review,
 )
 
 #: Said at the start of every clinic agent. Clinics are the one vertical where
@@ -124,7 +125,7 @@ def appointment_booking() -> dict[str, Any]:
             "Their request is captured, or they want to end the call.",
         ),
     ]
-    return {"nodes": nodes, "edges": edges}
+    return _with_review(nodes, edges)
 
 
 def appointment_reminder() -> dict[str, Any]:
@@ -184,7 +185,7 @@ def appointment_reminder() -> dict[str, Any]:
             "They have confirmed, rescheduled or cancelled.",
         ),
     ]
-    return {"nodes": nodes, "edges": edges}
+    return _with_review(nodes, edges)
 
 
 def missed_call_clinic() -> dict[str, Any]:
@@ -255,7 +256,7 @@ def missed_call_clinic() -> dict[str, Any]:
             "Their enquiry is understood, or they want to end the call.",
         ),
     ]
-    return {"nodes": nodes, "edges": edges}
+    return _with_review(nodes, edges)
 
 
 #: Named "Clinic — ..." so the four generic templates and these sit together in

@@ -23,6 +23,7 @@ from loguru import logger
 
 from api.constants import DECIBYL_MPS_SECRET_KEY, DEPLOYMENT_MODE
 from api.services.mps_service_key_client import mps_service_key_client
+from api.services.workflow.qa_node import qa_node
 
 # MPS statuses that mean "this service is not really there", as opposed to
 # "you called it wrong". A 404 is a host answering that has never heard of the
@@ -136,6 +137,11 @@ def build_starter_workflow(
                 "add_global_prompt": True,
             },
         },
+        # Review is on from the start, like every other creation path. Sitting
+        # in the same list rather than appended afterwards because there is
+        # nothing conditional about it: this builder writes the whole graph,
+        # so there is no earlier node set that could already carry one.
+        qa_node(),
     ]
 
     edges: list[dict[str, Any]] = [

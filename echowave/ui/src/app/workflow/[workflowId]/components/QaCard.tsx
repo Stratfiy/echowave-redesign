@@ -5,17 +5,16 @@
  * scores a call against a prompt, splits it per node, and writes the result to
  * `workflow_runs.annotations`, which the call detail page already renders.
  *
- * It has also, for that whole time, run on almost nothing. `run_integrations`
- * looks for `nodes` of type `"qa"` and **no creation path adds one** — not the
- * wizard, not the launch templates, not the agent templates. So an account
- * builds an agent, takes calls, opens Analysis and finds nothing, because
- * nothing was ever asked to look.
+ * It also, for that whole time, ran on almost nothing: `run_integrations` looks
+ * for `nodes` of type `"qa"` and no creation path made one. Every creation path
+ * now does (`services/workflow/qa_node.py`), so a new agent arrives with review
+ * already on and this switch reads as on rather than introducing it.
  *
- * That is what this switch fixes, and it is deliberately per agent rather than
- * a platform default. Whether every new agent should be reviewed is a pricing
- * question — a review is an extra LLM call per call — and it is not one a
- * screen should answer on somebody's behalf. Per agent, the person turning it
- * on is the person who wanted it.
+ * The switch stays per agent, because that is the level the cost sits at — a
+ * review is an extra LLM call per call — and an account with one high-volume
+ * agent and five low-volume ones has a real reason to want it off on exactly
+ * one of them. It also remains the only control for agents created before
+ * review was made a default.
  *
  * Off keeps the node and clears `qa_enabled` rather than deleting it, so any
  * extractions or prompt configured on it survive being switched off and on.
@@ -143,8 +142,10 @@ export function QaCard({ workflowId }: { workflowId: number }) {
                     </CardTitle>
                     <CardDescription>
                         Scores each finished call against what you asked for, and
-                        tags what happened. Adds one language-model call per call,
-                        billed like any other.
+                        tags what happened. The review runs once per step the
+                        conversation actually reached, on the same model the
+                        agent uses, and those tokens appear on your bill like the
+                        call&apos;s own. Calls under 15 seconds are skipped.
                     </CardDescription>
                 </div>
                 <Switch

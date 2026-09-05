@@ -1838,10 +1838,12 @@ function WorkflowSettingsInner({
                                 className={cn("space-y-8", activeTab !== "analysis" && "hidden")}
                             >
                             {/* Whether calls get reviewed at all. First on the
-                                tab because it is the reason the tab looks
-                                empty: QA has been built for months and running
-                                on almost nothing, since no creation path adds
-                                the node the runtime looks for. */}
+                                tab because it is the reason the tab used to
+                                look empty: QA has been built for months and
+                                ran on almost nothing, since no creation path
+                                added the node the runtime looks for. Every
+                                path does now, so for a new agent this reads as
+                                on; it stays the control for older ones. */}
                             <QaCard workflowId={workflowId} />
 
                             {/* Recordings – moved to org-level page */}
