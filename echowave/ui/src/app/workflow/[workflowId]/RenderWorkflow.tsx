@@ -25,6 +25,7 @@ import { WorkflowConfigurations } from '@/types/workflow-configurations';
 import AddNodePanel from "../../../components/flow/AddNodePanel";
 import CustomEdge from "../../../components/flow/edges/CustomEdge";
 import { GenericNode } from "../../../components/flow/nodes/GenericNode";
+import { AgentTabs } from './components/AgentTabs';
 import { ModelRow } from './components/ModelRow';
 import { PhoneCallDialog } from './components/PhoneCallDialog';
 import { VersionHistoryPanel, WorkflowVersion } from './components/VersionHistoryPanel';
@@ -529,6 +530,11 @@ function RenderWorkflow({
                     onPublished={handlePublished}
                     renameWorkflow={renameWorkflow}
                 />
+
+                {/* One agent, five tabs -- the shape Vapi uses. These were four
+                    unrelated URLs reached from a back arrow and a menu, so an
+                    agent was never one thing you were looking at. */}
+                <AgentTabs workflowId={workflowId} />
 
                 {/* Workflow Canvas */}
                 <div className="flex-1 min-h-0">
