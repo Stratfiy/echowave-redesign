@@ -111,7 +111,7 @@ export function detailFromResult(
     result: { error?: unknown; response?: { status?: number } | null },
     fallback = "Request failed",
 ): string {
-    const detail = detailFromResult(result, "");
+    const detail = detailFromError(result.error, "");
     if (detail) return detail;
 
     const status = result.response?.status;

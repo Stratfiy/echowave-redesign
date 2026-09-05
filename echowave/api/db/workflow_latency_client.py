@@ -89,6 +89,13 @@ async def stage_latency(
                 median(think).label("think_ms"),
                 median(speak).label("speak_ms"),
                 median(CallTurnMetricModel.latency_ms).label("total_ms"),
+                # Counted per stage, because each stage's marks go missing
+                # independently. `count(*)` says how many turns we have;
+                # `count(<expr>)` says how many of them could answer for *this*
+                # stage, and only the second one guards the median below it.
+                func.count(transcribe).label("transcribe_n"),
+                func.count(think).label("think_n"),
+                func.count(speak).label("speak_n"),
             )
             .select_from(CallTurnMetricModel)
             .join(
@@ -110,14 +117,29 @@ async def stage_latency(
     if not row.turns or row.turns < min_turns:
         return None
 
-    def ms(value) -> int | None:
-        return None if value is None else int(round(value))
+    def ms(value, sample: int | None = None) -> int | None:
+        """The median, or None when too little of it was measured.
+
+        A stage is withheld on its own sample rather than on the turn count.
+        The two are not the same number: a mark is written only when the
+        pipeline had the timings to write it (see pipeline_metrics_aggregator),
+        so an agent with five hundred turns can have three usable transcribe
+        marks -- and the version of this that checked only `turns` would have
+        printed a median of three as confidently as a median of five hundred.
+        """
+        if value is None:
+            return None
+        if sample is not None and sample < min_turns:
+            return None
+        return int(round(value))
 
     return {
         "turns": int(row.turns),
         "window_days": window_days,
-        "transcribe_ms": ms(row.transcribe_ms),
-        "think_ms": ms(row.think_ms),
-        "speak_ms": ms(row.speak_ms),
+        "transcribe_ms": ms(row.transcribe_ms, int(row.transcribe_n or 0)),
+        "think_ms": ms(row.think_ms, int(row.think_n or 0)),
+        "speak_ms": ms(row.speak_ms, int(row.speak_n or 0)),
+        # No sample guard: latency_ms is non-null by the WHERE clause above, so
+        # its count is `turns`, which the gate above already cleared.
         "total_ms": ms(row.total_ms),
     }

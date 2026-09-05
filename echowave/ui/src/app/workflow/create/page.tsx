@@ -621,12 +621,20 @@ export default function CreateWorkflowPage() {
                                                 type="button"
                                                 disabled={!usable}
                                                 onClick={() => setBundleSlug(option.slug)}
-                                                aria-pressed={bundleSlug === option.slug}
+                                                // The bundle actually in
+                                                // effect, not the remembered
+                                                // slug: when that one cannot be
+                                                // served the form falls back to
+                                                // another, and highlighting the
+                                                // state would leave every card
+                                                // unselected while a different
+                                                // bundle is what gets created.
+                                                aria-pressed={chosenBundle?.slug === option.slug}
                                                 className={cn(
                                                     "rounded-lg border p-3 text-left transition-colors",
                                                     !usable
                                                         ? "cursor-not-allowed border-dashed border-border opacity-60"
-                                                        : bundleSlug === option.slug
+                                                        : chosenBundle?.slug === option.slug
                                                           ? "border-primary bg-primary/5"
                                                           : "border-border hover:bg-muted/40",
                                                 )}

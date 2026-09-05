@@ -109,16 +109,26 @@ export function ModelRow({ workflowId }: { workflowId: number }) {
     const load = useCallback(async () => {
         // Not in the generated SDK yet; the route is newer than the last
         // client generation.
-        const result = await client.get({
-            url: `/api/v1/workflow/${workflowId}/model-row`,
-        });
-        if (result.error) {
-            setError(detailFromResult(result, "Could not load what this agent runs on"));
+        //
+        // Wrapped because a throw here would leave `loading` true forever: the
+        // row would sit as a skeleton above a form that works, which reads as a
+        // broken page rather than as a summary that could not be drawn.
+        try {
+            const result = await client.get({
+                url: `/api/v1/workflow/${workflowId}/model-row`,
+            });
+            if (result.error) {
+                setError(
+                    detailFromResult(result, "Could not load what this agent runs on"),
+                );
+                return;
+            }
+            setData((result.data as ModelRowData | undefined) ?? null);
+        } catch {
+            setError("Could not load what this agent runs on");
+        } finally {
             setLoading(false);
-            return;
         }
-        setData((result.data as ModelRowData | undefined) ?? null);
-        setLoading(false);
     }, [workflowId]);
 
     useEffect(() => {
@@ -210,7 +220,13 @@ export function ModelRow({ workflowId }: { workflowId: number }) {
             <div
                 className={cn(
                     "grid gap-3",
-                    slots.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3",
+                    // One card on the speech-to-speech path, where a single
+                    // model does the whole turn.
+                    slots.length === 1
+                        ? "sm:grid-cols-1"
+                        : slots.length === 2
+                          ? "sm:grid-cols-2"
+                          : "sm:grid-cols-3",
                 )}
             >
                 {slots.map((slot) => {
