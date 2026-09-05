@@ -110,18 +110,24 @@ class TestAgainstTheRealTemplates:
 
     @pytest.mark.parametrize(
         "name,build",
-        [(n, b) for n, _, b in __import__(
-            "api.services.workflow.clinic_pack", fromlist=["CLINIC_TEMPLATES"]
-        ).CLINIC_TEMPLATES],
+        [
+            (n, b)
+            for n, _, b in __import__(
+                "api.services.workflow.clinic_pack", fromlist=["CLINIC_TEMPLATES"]
+            ).CLINIC_TEMPLATES
+        ],
     )
     def test_every_clinic_template_asks_for_its_business_name(self, name, build):
         assert "business_name" in [f.name for f in setup_fields_for(build())]
 
     @pytest.mark.parametrize(
         "name,build",
-        [(n, b) for n, _, b in __import__(
-            "api.services.workflow.clinic_pack", fromlist=["CLINIC_TEMPLATES"]
-        ).CLINIC_TEMPLATES],
+        [
+            (n, b)
+            for n, _, b in __import__(
+                "api.services.workflow.clinic_pack", fromlist=["CLINIC_TEMPLATES"]
+            ).CLINIC_TEMPLATES
+        ],
     )
     def test_no_clinic_template_asks_for_a_per_call_variable(self, name, build):
         asked = {f.name for f in setup_fields_for(build())}

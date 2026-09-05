@@ -673,9 +673,7 @@ class TelephonyPhoneNumberModel(Base):
     # lazy and global, the failure surfaces on the first query of any model at
     # all, not on this one. Adding a second FK to a table that already has a
     # relationship to the same target is the whole trap.
-    inbound_workflow = relationship(
-        "WorkflowModel", foreign_keys=[inbound_workflow_id]
-    )
+    inbound_workflow = relationship("WorkflowModel", foreign_keys=[inbound_workflow_id])
     callback_workflow = relationship(
         "WorkflowModel", foreign_keys=[callback_workflow_id]
     )

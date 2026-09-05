@@ -22,6 +22,7 @@ from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.kyc import router as kyc_router
 from api.routes.kyc_admin import router as kyc_admin_router
 from api.routes.managed_numbers import router as managed_numbers_router
+from api.routes.missed_calls import router as missed_calls_router
 from api.routes.node_types import router as node_types_router
 from api.routes.organization import router as organization_router
 from api.routes.organization_members import router as organization_members_router
@@ -44,7 +45,6 @@ from api.routes.telephony_admin import router as telephony_admin_router
 from api.routes.tool import router as tool_router
 from api.routes.turn_credentials import router as turn_credentials_router
 from api.routes.user import router as user_router
-from api.routes.missed_calls import router as missed_calls_router
 from api.routes.verified_numbers import router as verified_numbers_router
 from api.routes.webrtc_signaling import router as webrtc_signaling_router
 from api.routes.workflow import router as workflow_router

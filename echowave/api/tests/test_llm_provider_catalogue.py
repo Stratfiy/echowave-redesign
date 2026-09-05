@@ -29,7 +29,6 @@ from api.services.configuration import managed_tiers
 from api.services.configuration.registry import (
     REGISTRY,
     LLMConfig,
-    ServiceProviders,
     ServiceType,
     known_providers,
 )

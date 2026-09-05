@@ -88,7 +88,9 @@ def to_workflow_definition(template: AgentTemplate) -> dict[str, Any]:
                 else None
             )
             nodes.append(
-                _agent(node_id, node.name, node.prompt, row * _ROW, extraction=extraction)
+                _agent(
+                    node_id, node.name, node.prompt, row * _ROW, extraction=extraction
+                )
             )
             row += 1
         elif node.type == "endCall":

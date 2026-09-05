@@ -154,8 +154,7 @@ class _Guard:
         )
         if not won:
             raise CallbackTooSoon(
-                f"{caller} was called back less than "
-                f"{CALLBACK_COOLDOWN_SECONDS}s ago."
+                f"{caller} was called back less than {CALLBACK_COOLDOWN_SECONDS}s ago."
             )
 
         daily_key = self._daily_key(organization_id, caller)
@@ -168,8 +167,7 @@ class _Guard:
             await client.expire(daily_key, CALLBACK_DAY_SECONDS)
         if used > CALLBACK_DAILY_CAP:
             raise CallbackCapReached(
-                f"{caller} has had {CALLBACK_DAILY_CAP} callbacks in the last "
-                "24 hours."
+                f"{caller} has had {CALLBACK_DAILY_CAP} callbacks in the last 24 hours."
             )
 
 
@@ -226,6 +224,7 @@ def log_refusal(caller: str, exc: CallbackRefused) -> None:
         logger.warning("Missed-call callback refused for {}: {}", caller, exc)
     else:
         logger.info("Missed-call callback refused for {}: {}", caller, exc)
+
 
 # ---------------------------------------------------------------------------
 # Placing the call

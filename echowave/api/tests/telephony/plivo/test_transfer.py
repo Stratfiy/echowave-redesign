@@ -245,12 +245,8 @@ async def test_transfer_teardown_runs_the_strategy_and_does_not_hang_up():
     strategy.execute_transfer = AsyncMock(return_value=True)
     serializer = _serializer(strategy)
 
-    with patch.object(
-        PlivoFrameSerializer, "_hang_up_call", AsyncMock()
-    ) as hang_up:
-        await serializer.serialize(
-            EndFrame(reason=EndTaskReason.TRANSFER_CALL.value)
-        )
+    with patch.object(PlivoFrameSerializer, "_hang_up_call", AsyncMock()) as hang_up:
+        await serializer.serialize(EndFrame(reason=EndTaskReason.TRANSFER_CALL.value))
 
     strategy.execute_transfer.assert_awaited_once()
     # The whole point: the caller is going to a conference, not to silence.
@@ -275,9 +271,7 @@ async def test_an_ordinary_teardown_still_hangs_up():
     # Everything that is not a transfer must keep the old behaviour.
     serializer = _serializer(AsyncMock())
 
-    with patch.object(
-        PlivoFrameSerializer, "_hang_up_call", AsyncMock()
-    ) as hang_up:
+    with patch.object(PlivoFrameSerializer, "_hang_up_call", AsyncMock()) as hang_up:
         await serializer.serialize(EndFrame())
 
     hang_up.assert_awaited_once()

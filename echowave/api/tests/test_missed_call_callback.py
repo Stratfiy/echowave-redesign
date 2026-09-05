@@ -265,9 +265,7 @@ class TestDailyCap:
             )
 
     @pytest.mark.asyncio
-    async def test_the_day_window_slides_from_the_first_call_not_the_last(
-        self, guard
-    ):
+    async def test_the_day_window_slides_from_the_first_call_not_the_last(self, guard):
         """The expiry is set only on the first increment.
 
         Refreshing the TTL on every call would mean a caller who rings steadily
