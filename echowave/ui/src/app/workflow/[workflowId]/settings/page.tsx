@@ -68,6 +68,7 @@ import {
     type WorkflowConfigurations,
 } from "@/types/workflow-configurations";
 
+import { AgentTabs } from "../components/AgentTabs";
 import { EmbedDialog } from "../components/EmbedDialog";
 import { useWorkflowState } from "../hooks/useWorkflowState";
 import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
@@ -1781,7 +1782,14 @@ function WorkflowSettingsInner({
                 </div>
             </header>
 
-            {/* Main + right nav */}
+            {/* The agent-level strip above the settings-level one: which agent
+                you are in, then which part of it. Analysis and Advanced both
+                land here, so the page says which of the two is showing. */}
+            <AgentTabs
+                workflowId={workflowId}
+                settingsGroup={activeTab === "analysis" ? "analysis" : "advanced"}
+            />
+
             <div className="mx-auto max-w-4xl px-6 py-8">
                 <div className="min-w-0 space-y-8">
                     {resolvedWorkflowConfigurationsForRender && (
