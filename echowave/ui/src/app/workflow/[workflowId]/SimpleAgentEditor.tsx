@@ -34,11 +34,15 @@ export function SimpleAgentEditor({
     onNodesChange,
     onOpenCanvas,
     readOnly = false,
+    header,
 }: {
     nodes: FlowNode[];
     onNodesChange: (next: FlowNode[]) => void;
     onOpenCanvas: () => void;
     readOnly?: boolean;
+    /** Rendered above the form, inside its column so the two align. What goes
+     *  there is the page's decision, not the form's. */
+    header?: React.ReactNode;
 }) {
     const fields = useMemo(() => readSimpleAgent(nodes), [nodes]);
 
@@ -54,6 +58,8 @@ export function SimpleAgentEditor({
 
     return (
         <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
+            {header && <div className="mb-8">{header}</div>}
+
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 className="text-lg font-semibold">This agent</h2>

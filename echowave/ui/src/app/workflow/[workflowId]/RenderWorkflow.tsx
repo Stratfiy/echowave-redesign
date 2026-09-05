@@ -25,6 +25,7 @@ import { WorkflowConfigurations } from '@/types/workflow-configurations';
 import AddNodePanel from "../../../components/flow/AddNodePanel";
 import CustomEdge from "../../../components/flow/edges/CustomEdge";
 import { GenericNode } from "../../../components/flow/nodes/GenericNode";
+import { ModelRow } from './components/ModelRow';
 import { PhoneCallDialog } from './components/PhoneCallDialog';
 import { VersionHistoryPanel, WorkflowVersion } from './components/VersionHistoryPanel';
 import type { WorkflowRuntimeNodeTransition } from './components/workflow-tester/types';
@@ -539,6 +540,15 @@ function RenderWorkflow({
                                 onNodesChange={handleSimpleNodesChange}
                                 onOpenCanvas={() => setShowCanvas(true)}
                                 readOnly={isViewingHistoricalVersion}
+                                // What the agent runs on belongs on the screen
+                                // someone opens to work on the agent, which is
+                                // this one. It spent one release behind the
+                                // settings page, where a summary of the agent
+                                // helps nobody who has not already gone
+                                // looking for it. Not on the canvas: that view
+                                // is dense already and the row would compete
+                                // with the graph for the same attention.
+                                header={<ModelRow workflowId={workflowId} />}
                             />
                         ) : (
                         <>
