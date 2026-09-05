@@ -222,7 +222,15 @@ export function ModelRow({ workflowId }: { workflowId: number }) {
                                     <Icon className="h-3.5 w-3.5" />
                                     {slot.title}
                                 </p>
-                                <p className="mt-2 truncate font-medium" title={slot.model}>
+                                {/* Wraps rather than truncates: the model id is
+                                    what the card is *for*, and vendor ids here
+                                    are long enough that clipping loses the part
+                                    that distinguishes two of them
+                                    (sarvam-105b vs sarvam-105b-conversations). */}
+                                <p
+                                    className="mt-2 break-words text-[15px] font-medium leading-tight"
+                                    title={slot.model}
+                                >
                                     {slot.model || "—"}
                                 </p>
                                 <p className="text-sm text-muted-foreground">
