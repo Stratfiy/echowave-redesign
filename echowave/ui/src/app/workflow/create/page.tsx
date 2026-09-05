@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { StartFromTemplate } from "@/components/workflow/StartFromTemplate";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -473,6 +474,23 @@ export default function CreateWorkflowPage() {
                                 Its name, its voice, and who it speaks for.
                             </p>
                         </header>
+
+                        {/* The six ready-made agents, offered here rather than
+                            only on an empty account.
+
+                            They were already built and already mounted -- on
+                            the agents list, behind "no agents yet". So they
+                            were shown to somebody who had never made one and
+                            hidden from everybody who had, which is backwards:
+                            the person who has built an agent knows what a
+                            template saves them. Vapi and Gnani both open
+                            creation with From Scratch / From Template, and
+                            this is the screen where that choice belongs.
+
+                            Renders nothing when the catalogue is empty, so the
+                            wizard is unchanged for an account with no
+                            templates available. */}
+                        <StartFromTemplate framed />
 
                         <Field label="Call type" required>
                             <Select

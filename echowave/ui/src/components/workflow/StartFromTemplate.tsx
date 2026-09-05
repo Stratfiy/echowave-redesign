@@ -33,7 +33,20 @@ type TemplateCard = {
     languages: string[];
 };
 
-export function StartFromTemplate() {
+export function StartFromTemplate({
+    /**
+     * Set on the create wizard, where this is an alternative to filling in the
+     * form rather than a suggestion attached to one. Adds the surround and the
+     * "or describe your own" rule.
+     *
+     * Both live in here rather than in the caller because the decision not to
+     * render at all is made in here: a divider drawn by the parent would
+     * survive an empty catalogue and separate nothing from the form.
+     */
+    framed = false,
+}: {
+    framed?: boolean;
+} = {}) {
     const router = useRouter();
     const [templates, setTemplates] = useState<TemplateCard[] | null>(null);
     const [creating, setCreating] = useState<string | null>(null);
@@ -82,7 +95,8 @@ export function StartFromTemplate() {
     if (templates === null || templates.length === 0) return null;
 
     return (
-        <div className="mt-4">
+        <div className={framed ? "space-y-6" : "mt-4"}>
+            <div className={framed ? "rounded-lg border bg-muted/20 p-4" : undefined}>
             <h3 className="mb-1 text-sm font-medium">Start from a ready-made agent</h3>
             <p className="mb-3 text-sm text-muted-foreground">
                 Each one is a working agent for that business. Open it, change what you
@@ -121,6 +135,20 @@ export function StartFromTemplate() {
                     </button>
                 ))}
             </div>
+            </div>
+
+            {/* Only reached when there are templates to be an alternative to.
+                A rule drawn by the caller would survive an empty catalogue and
+                separate nothing from the form below it. */}
+            {framed && (
+                <div className="flex items-center gap-3">
+                    <span className="h-px flex-1 bg-border" />
+                    <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                        or describe your own
+                    </span>
+                    <span className="h-px flex-1 bg-border" />
+                </div>
+            )}
         </div>
     );
 }
