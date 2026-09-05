@@ -962,6 +962,80 @@ async def get_model_row(
         )
 
 
+class ModelPresetRequest(BaseModel):
+    preset: str
+
+
+@router.post("/{workflow_id}/model-preset")
+async def apply_model_preset(
+    workflow_id: int,
+    request: ModelPresetRequest,
+    user: UserModel = Depends(get_user),
+) -> dict:
+    """Set this agent's stack to a named preset.
+
+    Written as a tier-shaped override -- every slot still says ``decibyl`` --
+    so this records the product choice rather than pinning the vendor the tier
+    happens to resolve to today. That is what lets us move what ``accurate``
+    means without migrating a single agent.
+
+    Refused when we hold no key for what the preset resolves to. The picker
+    already shows such a preset disabled; this is the same rule enforced where
+    it cannot be bypassed, because a stack saved here fails at dial time rather
+    than on save.
+    """
+    from api.services.configuration import managed_resolution, model_presets
+    from api.services.configuration.agent_options import managed_stack_override
+
+    preset = model_presets.PRESETS_BY_SLUG.get(request.preset)
+    if preset is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{request.preset!r} is not a preset you can choose.",
+        )
+
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    async with db_client.async_session() as session:
+        keyed = await managed_resolution.tier_availability(session)
+    if not model_presets.is_available(preset, keyed):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{preset.label} cannot run yet — we hold no key for one of the "
+                "providers it needs. Pick another preset or contact support."
+            ),
+        )
+
+    # The voice the agent already uses, not a default: a preset chooses the
+    # brain (or replaces the whole cascade), and silently resetting somebody's
+    # voice because they clicked "Balanced" is not what the button says.
+    draft = await db_client.get_draft_version(workflow_id)
+    source = draft or workflow.released_definition
+    existing = dict((source.workflow_configurations if source else None) or {})
+    current_override = existing.get(WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY) or {}
+    voice = ""
+    if isinstance(current_override, dict):
+        tts = current_override.get("tts")
+        if isinstance(tts, dict):
+            voice = str(tts.get("voice") or "")
+
+    existing.update(
+        managed_stack_override(
+            voice=voice,
+            llm_tier=preset.llm_tier,
+            realtime_tier=preset.realtime_tier,
+        )
+    )
+    await db_client.save_workflow_draft(workflow_id, workflow_configurations=existing)
+
+    return {"preset": preset.slug, "label": preset.label}
+
+
 @router.get("/{workflow_id}/versions")
 async def get_workflow_versions(
     workflow_id: int,

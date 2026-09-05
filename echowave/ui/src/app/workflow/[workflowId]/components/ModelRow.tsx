@@ -60,11 +60,22 @@ type Cost = {
     includes_telephony?: boolean;
 };
 
+type Preset = {
+    slug: string;
+    label: string;
+    blurb: string;
+    /** False when we hold no key for what this preset resolves to. */
+    available: boolean;
+};
+
 type ModelRowData = {
     is_realtime: boolean;
     slots: Slot[];
     cost: Cost;
     latency: Latency | null;
+    presets?: Preset[];
+    /** The preset this stack matches, or "custom". Derived, never stored. */
+    active_preset?: string;
 };
 
 const ICONS = {
@@ -105,6 +116,8 @@ export function ModelRow({ workflowId }: { workflowId: number }) {
     const [data, setData] = useState<ModelRowData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [applying, setApplying] = useState<string | null>(null);
+    const [presetError, setPresetError] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         // Not in the generated SDK yet; the route is newer than the last
@@ -137,6 +150,32 @@ export function ModelRow({ workflowId }: { workflowId: number }) {
         load();
     }, [authLoading, user, load]);
 
+    // Applying a preset rewrites the stack, so the cards, the price and the
+    // active chip all change together -- re-reading is simpler than patching
+    // four pieces of state and cannot disagree with the server.
+    const applyPreset = useCallback(
+        async (slug: string) => {
+            setApplying(slug);
+            setPresetError(null);
+            try {
+                const result = await client.post({
+                    url: `/api/v1/workflow/${workflowId}/model-preset`,
+                    body: { preset: slug },
+                });
+                if (result.error) {
+                    setPresetError(detailFromResult(result, "Could not change the models"));
+                    return;
+                }
+                await load();
+            } catch {
+                setPresetError("Could not reach the server. Try again.");
+            } finally {
+                setApplying(null);
+            }
+        },
+        [workflowId, load],
+    );
+
     if (loading) {
         return (
             <div className="space-y-3">
@@ -156,6 +195,7 @@ export function ModelRow({ workflowId }: { workflowId: number }) {
     if (error || !data || data.slots.length === 0) return null;
 
     const { cost, latency, slots } = data;
+    const presets = data.presets ?? [];
     const segments = [
         { label: "Agent", paise: cost.agent_paise_per_minute, className: "bg-emerald-600" },
         { label: "Telephony", paise: cost.telephony_paise_per_minute, className: "bg-orange-500" },
@@ -216,6 +256,53 @@ export function ModelRow({ workflowId }: { workflowId: number }) {
                     </p>
                 </div>
             </div>
+
+            {presets.length > 0 && (
+                <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Preset
+                        </span>
+                        {presets.map((preset) => {
+                            const active = data.active_preset === preset.slug;
+                            return (
+                                <button
+                                    key={preset.slug}
+                                    type="button"
+                                    title={
+                                        preset.available
+                                            ? preset.blurb
+                                            : "Not available on this account yet."
+                                    }
+                                    disabled={!preset.available || applying !== null}
+                                    onClick={() => applyPreset(preset.slug)}
+                                    className={cn(
+                                        "rounded-full border px-3 py-1 text-xs transition-colors",
+                                        !preset.available
+                                            ? "cursor-not-allowed border-dashed text-muted-foreground opacity-60"
+                                            : active
+                                              ? "border-primary bg-primary/10 font-medium text-foreground"
+                                              : "border-border text-muted-foreground hover:text-foreground",
+                                    )}
+                                >
+                                    {applying === preset.slug ? "Saving…" : preset.label}
+                                </button>
+                            );
+                        })}
+                        {/* Shown, not hidden: a stack matching no preset is a
+                            legitimate state, and a chip row with nothing lit
+                            looks broken rather than deliberate. */}
+                        {data.active_preset === "custom" && (
+                            <span className="rounded-full border border-dashed px-3 py-1 text-xs italic text-muted-foreground">
+                                Customized
+                            </span>
+                        )}
+                    </div>
+                    {presetError && (
+                        <p className="text-xs text-destructive">{presetError}</p>
+                    )}
+                </div>
+            )}
 
             <div
                 className={cn(

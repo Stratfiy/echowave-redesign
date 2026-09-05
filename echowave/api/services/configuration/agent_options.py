@@ -831,7 +831,7 @@ async def model_row(
     """
     from api.db.workflow_latency_client import stage_latency
     from api.services.billing.estimator import price_components
-    from api.services.configuration import managed_tiers
+    from api.services.configuration import managed_resolution, managed_tiers
     from api.services.configuration.ai_model_configuration import (
         get_effective_ai_model_configuration_for_workflow,
     )
@@ -957,9 +957,26 @@ async def model_row(
             }
         )
 
+    # Which named stack this is, and which of them we can serve. Derived from
+    # the tiers the stack names rather than stored, so an agent tuned by hand
+    # reads as custom instead of mislabelling itself -- the same rule
+    # LATENCY_PRESETS follows for turn timings.
+    keyed = await managed_resolution.tier_availability(session)
+    presets = [
+        {
+            "slug": preset.slug,
+            "label": preset.label,
+            "blurb": preset.blurb,
+            "available": model_presets.is_available(preset, keyed),
+        }
+        for preset in model_presets.MODEL_PRESETS
+    ]
+
     return {
         "is_realtime": effective.is_realtime,
         "slots": slots,
+        "presets": presets,
+        "active_preset": model_presets.match(effective),
         # The same three segments the wizard's bar and the receipt use, so a
         # figure here and a figure on an invoice cannot tell different stories.
         "cost": {
