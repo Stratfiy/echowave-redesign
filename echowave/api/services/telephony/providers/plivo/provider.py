@@ -17,7 +17,6 @@ from loguru import logger
 from api.db import db_client
 from api.enums import TelephonyCallStatus, WorkflowRunMode
 from api.services.telephony import stream_capability
-from api.services.telephony.escalation import DEFAULT_BRIEFING
 from api.services.telephony.base import (
     AvailableNumber,
     CallInitiationResult,
@@ -26,6 +25,7 @@ from api.services.telephony.base import (
     ProviderSyncResult,
     TelephonyProvider,
 )
+from api.services.telephony.escalation import DEFAULT_BRIEFING
 from api.utils.common import get_backend_endpoints
 from api.utils.telephony_address import normalize_telephony_address
 

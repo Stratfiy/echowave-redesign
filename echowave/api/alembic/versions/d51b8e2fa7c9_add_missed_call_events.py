@@ -71,8 +71,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_missed_call_events_org_received", table_name="missed_call_events"
-    )
+    op.drop_index("ix_missed_call_events_org_received", table_name="missed_call_events")
     op.drop_index(op.f("ix_missed_call_events_id"), table_name="missed_call_events")
     op.drop_table("missed_call_events")

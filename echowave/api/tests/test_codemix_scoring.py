@@ -14,7 +14,7 @@ trustworthy enough to put in front of a customer.
 
 import pytest
 
-from evals.codemix.corpus import CORPUS, Utterance
+from evals.codemix.corpus import CORPUS
 from evals.codemix.scoring import aggregate, is_indic, normalise, score
 
 
@@ -97,7 +97,10 @@ class TestCodeSwitchRecall:
         """None, not 0.0. An English control has nothing to recall, and
         averaging a zero in would punish a provider for a line that never
         tested code-switching."""
-        assert score("check my order status", "check my order status").code_switch_recall is None
+        assert (
+            score("check my order status", "check my order status").code_switch_recall
+            is None
+        )
 
     def test_romanised_tamil_needs_explicit_tokens(self):
         """Script detection finds nothing in `enna panra`. Without

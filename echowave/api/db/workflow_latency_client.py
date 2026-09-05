@@ -75,7 +75,8 @@ async def stage_latency(
         CallTurnMetricModel.t_llm_first_token_ms, CallTurnMetricModel.t_stt_final_ms
     )
     speak = _stage(
-        CallTurnMetricModel.t_tts_first_byte_ms, CallTurnMetricModel.t_llm_first_token_ms
+        CallTurnMetricModel.t_tts_first_byte_ms,
+        CallTurnMetricModel.t_llm_first_token_ms,
     )
 
     def median(expr):

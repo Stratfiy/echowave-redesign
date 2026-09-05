@@ -26,6 +26,10 @@ from pipecat.pipeline.service_switcher import (
     ServiceSwitcher,
     ServiceSwitcherStrategyFailover,
 )
+from pipecat.services.anthropic.llm import (
+    AnthropicLLMService,
+    AnthropicLLMSettings,
+)
 from pipecat.services.assemblyai.stt import AssemblyAISTTService, AssemblyAISTTSettings
 from pipecat.services.aws.llm import AWSBedrockLLMService, AWSBedrockLLMSettings
 from pipecat.services.azure.llm import AzureLLMService, AzureLLMSettings
@@ -38,12 +42,14 @@ from pipecat.services.cartesia.tts import (
     GenerationConfig,
 )
 from pipecat.services.cartesia.turns.stt import CartesiaTurnsSTTService
+from pipecat.services.cerebras.llm import CerebrasLLMService, CerebrasLLMSettings
 from pipecat.services.deepgram.flux.stt import (
     DeepgramFluxSTTService,
     DeepgramFluxSTTSettings,
 )
 from pipecat.services.deepgram.stt import DeepgramSTTService, DeepgramSTTSettings
 from pipecat.services.deepgram.tts import DeepgramTTSService, DeepgramTTSSettings
+from pipecat.services.deepseek.llm import DeepSeekLLMService, DeepSeekLLMSettings
 from pipecat.services.dograh.flux.stt import DograhFluxSTTService
 from pipecat.services.dograh.llm import DograhLLMService
 from pipecat.services.dograh.stt import DograhSTTService, DograhSTTSettings
@@ -54,6 +60,7 @@ from pipecat.services.elevenlabs.stt import (
     ElevenLabsRealtimeSTTSettings,
 )
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService, ElevenLabsTTSSettings
+from pipecat.services.fireworks.llm import FireworksLLMService, FireworksLLMSettings
 from pipecat.services.gladia.stt import GladiaSTTService, GladiaSTTSettings
 from pipecat.services.google.llm import GoogleLLMService, GoogleLLMSettings
 from pipecat.services.google.stt import GoogleSTTService, GoogleSTTSettings
@@ -62,15 +69,7 @@ from pipecat.services.google.vertex.llm import (
     GoogleVertexLLMService,
     GoogleVertexLLMSettings,
 )
-from pipecat.services.anthropic.llm import (
-    AnthropicLLMService,
-    AnthropicLLMSettings,
-)
-from pipecat.services.cerebras.llm import CerebrasLLMService, CerebrasLLMSettings
-from pipecat.services.deepseek.llm import DeepSeekLLMService, DeepSeekLLMSettings
-from pipecat.services.fireworks.llm import FireworksLLMService, FireworksLLMSettings
 from pipecat.services.groq.llm import GroqLLMService, GroqLLMSettings
-from pipecat.services.mistral.llm import MistralLLMService, MistralLLMSettings
 from pipecat.services.huggingface.llm import (
     HuggingFaceLLMService,
     HuggingFaceLLMSettings,
@@ -82,6 +81,7 @@ from pipecat.services.huggingface.stt import (
 from pipecat.services.inworld.tts import InworldTTSService, InworldTTSSettings
 from pipecat.services.minimax.llm import MiniMaxLLMService
 from pipecat.services.minimax.tts import MiniMaxTTSSettings
+from pipecat.services.mistral.llm import MistralLLMService, MistralLLMSettings
 from pipecat.services.openai._constants import OPENAI_SAMPLE_RATE
 from pipecat.services.openai.base_llm import OpenAILLMSettings
 from pipecat.services.openai.llm import OpenAILLMService

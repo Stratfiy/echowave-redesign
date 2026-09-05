@@ -80,9 +80,7 @@ class PlivoConferenceStrategy(TransferStrategy):
         try:
             async with aiohttp.ClientSession() as session:
                 auth = aiohttp.BasicAuth(auth_id, auth_token)
-                async with session.post(
-                    endpoint, json=payload, auth=auth
-                ) as response:
+                async with session.post(endpoint, json=payload, auth=auth) as response:
                     body = await response.text()
                     # Plivo answers 202 Accepted for a redirect it has queued.
                     if response.status not in (200, 202):

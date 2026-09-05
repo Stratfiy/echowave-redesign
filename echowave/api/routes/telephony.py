@@ -37,8 +37,6 @@ from api.services.call_concurrency import (
     call_concurrency,
 )
 from api.services.compliance import dnd
-from api.tasks.arq import enqueue_job
-from api.tasks.function_names import FunctionNames
 from api.services.configuration import key_readiness
 from api.services.kyc import service as kyc_service
 from api.services.quota_service import authorize_workflow_run_start
@@ -65,6 +63,8 @@ from api.services.telephony.transfer_event_protocol import (
     TransferEventType,
 )
 from api.services.workflow import liveness
+from api.tasks.arq import enqueue_job
+from api.tasks.function_names import FunctionNames
 from api.utils.common import get_backend_endpoints
 from api.utils.telephony_helper import (
     generic_hangup_response,
@@ -549,9 +549,7 @@ async def _verify_organization_phone_number(
         return None
 
 
-async def _record_missed_call(
-    organization_id: int, phone_row, normalized_data
-) -> None:
+async def _record_missed_call(organization_id: int, phone_row, normalized_data) -> None:
     """Log the ring and hand the callback to a worker.
 
     Never raises. The carrier is holding the webhook open for a hangup, and a
@@ -1135,7 +1133,9 @@ async def handle_inbound_run(request: Request):
         if not phone_row.inbound_workflow_id and missed_call.is_callback_number(
             phone_row
         ):
-            await _record_missed_call(config.organization_id, phone_row, normalized_data)
+            await _record_missed_call(
+                config.organization_id, phone_row, normalized_data
+            )
             return generic_hangup_response()
 
         if not phone_row.inbound_workflow_id:

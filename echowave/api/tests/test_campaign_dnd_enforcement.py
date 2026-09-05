@@ -93,9 +93,7 @@ async def _run_dispatch(refusal: Exception | None):
 @pytest.mark.asyncio
 async def test_the_gate_is_called_before_the_carrier_is():
     """The seam itself. If this fails, nothing else in this file matters."""
-    _, assert_may_call = await _run_dispatch(
-        dnd.DoNotDisturbListed("on the list")
-    )
+    _, assert_may_call = await _run_dispatch(dnd.DoNotDisturbListed("on the list"))
 
     assert_may_call.assert_awaited_once()
     org_id, number = assert_may_call.await_args.args

@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleHelp, LogOut, Menu, Search, Settings } from "lucide-react";
+import { CircleHelp, ExternalLink, LogOut, Menu, Search, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { HELP_LINKS } from "@/constants/community";
 import { type AccessRoles, useAccessRoles } from "@/hooks/useAccessRoles";
 import type { LocalUser } from "@/lib/auth";
 import { useAuth } from "@/lib/auth";
@@ -220,23 +221,52 @@ export function TopBar() {
             occasionally open a menu to check. */}
         <CurrentOrganization />
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" asChild className="rounded-full">
-              <a
-                href="https://docs.decibyl.ai"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Documentation"
-              >
-                <CircleHelp className="h-[18px] w-[18px]" />
-              </a>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <p>Documentation</p>
-          </TooltipContent>
-        </Tooltip>
+        {/* A menu rather than a link straight to the docs. Docs answer "how
+            does this work"; most people who reach for the question mark have
+            already read them and want a person. Both audiences get a row, and
+            neither channel is presented as the main one -- see
+            constants/community.ts for why there are two. */}
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full"
+                  aria-label="Help"
+                >
+                  <CircleHelp className="h-[18px] w-[18px]" />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Help</p>
+            </TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuLabel>Help</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {HELP_LINKS.map((link) => (
+              <DropdownMenuItem key={link.key} asChild>
+                <a
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex cursor-pointer items-start justify-between gap-2"
+                >
+                  <span className="flex flex-col">
+                    <span>{link.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {link.hint}
+                    </span>
+                  </span>
+                  <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                </a>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -624,9 +624,7 @@ async def create_workflow_from_template(
         if request.bundle_slug:
             async with db_client.async_session() as session:
                 rows = await bundles.list_bundles(session, enabled_only=True)
-            chosen = next(
-                (r for r in rows if r.slug == request.bundle_slug), None
-            )
+            chosen = next((r for r in rows if r.slug == request.bundle_slug), None)
             if chosen is None:
                 raise HTTPException(
                     status_code=400,

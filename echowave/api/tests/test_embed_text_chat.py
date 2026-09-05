@@ -132,7 +132,9 @@ class TestPreflight:
 
         monkeypatch.setattr(public_embed, "_text_message_preflight_response", fake)
         res = await public_embed.build_public_embed_preflight_response(
-            "/api/v1/public/embed/text/abc123/messages", "https://clinic.example", "POST"
+            "/api/v1/public/embed/text/abc123/messages",
+            "https://clinic.example",
+            "POST",
         )
         assert res is not None
         assert called["token"] == "abc123"

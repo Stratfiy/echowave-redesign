@@ -5,7 +5,6 @@ provider registry — see ProviderSpec.router.
 """
 
 import json
-
 from xml.sax.saxutils import escape
 
 from fastapi import APIRouter, Request

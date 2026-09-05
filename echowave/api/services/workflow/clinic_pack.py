@@ -166,8 +166,7 @@ def appointment_reminder() -> dict[str, Any]:
         _end(
             "end-1",
             "End Call",
-            "Confirm in one sentence what will happen, thank them, and say "
-            "goodbye.",
+            "Confirm in one sentence what will happen, thank them, and say goodbye.",
             440,
         ),
     ]
@@ -238,8 +237,7 @@ def missed_call_clinic() -> dict[str, Any]:
         _end(
             "end-1",
             "End Call",
-            "Confirm in one sentence what happens next, thank them, and say "
-            "goodbye.",
+            "Confirm in one sentence what happens next, thank them, and say goodbye.",
             440,
         ),
     ]

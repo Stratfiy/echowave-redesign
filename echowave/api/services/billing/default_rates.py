@@ -261,7 +261,6 @@ LLM_RATES = (
         "Fireworks 70B-class list, blended — unconfirmed",
         provisional=True,
     ),
-
     # Provider-wide Google is Flash rather than Flash-Lite: Flash is what the
     # default managed tier resolves to, and the fallback should not quote a
     # cheaper model than the one actually running.

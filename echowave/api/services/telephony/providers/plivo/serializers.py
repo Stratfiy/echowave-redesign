@@ -65,8 +65,7 @@ class PlivoFrameSerializer(_BasePlivoSerializer):
                     )
                     if not success:
                         logger.error(
-                            f"Transfer strategy failed for Plivo call "
-                            f"{self._call_id}"
+                            f"Transfer strategy failed for Plivo call {self._call_id}"
                         )
                 else:
                     logger.warning(

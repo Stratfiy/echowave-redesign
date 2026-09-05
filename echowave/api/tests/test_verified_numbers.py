@@ -411,9 +411,7 @@ class TestTheGateDefault:
         monkeypatch.setattr(sender, "VERIFICATION_CHANNEL", "voice")
         assert sender.test_calls_require_verified_number() is expected
 
-    def test_an_unrecognised_setting_falls_back_to_auto_not_to_off(
-        self, monkeypatch
-    ):
+    def test_an_unrecognised_setting_falls_back_to_auto_not_to_off(self, monkeypatch):
         """A typo must not silently disable the gate. `REQUIRE_VERIFIED=yes ` or
         `Auto ` or an empty string all have to land somewhere safe, and the safe
         landing is the behaviour of the default, not 'off'."""

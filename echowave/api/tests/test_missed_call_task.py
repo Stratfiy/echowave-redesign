@@ -174,7 +174,9 @@ class TestPlaceCallback:
             await missed_call.place_callback(event())
 
     @pytest.mark.asyncio
-    async def test_dnd_and_the_calling_window_become_a_refusal(self, wiring, monkeypatch):
+    async def test_dnd_and_the_calling_window_become_a_refusal(
+        self, wiring, monkeypatch
+    ):
         """A CallRefused from the DND gate is an outcome, not a crash — the
         task records it on the row rather than retrying."""
         from api.services.compliance import dnd

@@ -1198,7 +1198,10 @@
     } catch (error) {
       // Shown in the thread rather than as a toast: the visitor's own message
       // is already on screen, and a failure that appears somewhere else looks
-      // like the agent ignored them.
+      // like the agent ignored them. The cause still goes to the console the
+      // way every other failure in this file does -- the visitor gets one
+      // sentence, whoever is debugging the customer's page gets the reason.
+      console.error('Decibyl Widget: Failed to send text message', error);
       state.textMessages = state.textMessages.concat([{
         role: 'assistant',
         content: 'Sorry — that did not send. Please try again.'
