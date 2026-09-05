@@ -54,7 +54,16 @@ class TestMatching:
         assert model_presets.match(hand_built) == model_presets.CUSTOM
 
     def test_an_unknown_tier_is_custom(self):
-        assert model_presets.match(_cascade("zen")) == model_presets.CUSTOM
+        assert model_presets.match(_cascade("nonesuch")) == model_presets.CUSTOM
+
+    def test_a_retired_tier_matches_the_preset_it_still_runs(self):
+        """``zen`` and ``fast`` resolve to ``lite`` at dial time.
+
+        An agent stored on one runs exactly the Cost Saver stack, so reading it
+        as custom would be the chip disagreeing with the call.
+        """
+        assert model_presets.match(_cascade("zen")) == "cost_saver"
+        assert model_presets.match(_cascade("fast")) == "cost_saver"
 
     def test_a_missing_section_is_custom_rather_than_a_crash(self):
         assert model_presets.match(SimpleNamespace(is_realtime=False)) == (
@@ -112,3 +121,63 @@ class TestTheSetItself:
                 assert preset.realtime_tier in managed_tiers.REALTIME_TIERS, preset.slug
             else:
                 assert preset.llm_tier in managed_tiers.LLM_TIERS, preset.slug
+
+
+class TestWhatAPresetIsAllowedToChange:
+    """The matcher and the writer have to agree on scope.
+
+    The matcher reads only the brain for a cascade preset, so the writer must
+    only write the brain. When they disagreed, an agent on ElevenLabs read as
+    "Balanced" -- true by the matcher's rule -- and clicking Balanced then
+    replaced its voice with managed speech. The label had been describing a
+    stack the agent did not have, and the click made it true by force.
+    """
+
+    def _pipeline_stack(self, *, llm_tier: str) -> dict:
+        return {
+            "architecture": "pipeline",
+            "llm": {"provider": "decibyl", "model": llm_tier, "api_key": ""},
+            "stt": {"provider": "decibyl", "model": "default", "api_key": ""},
+            # A deliberately chosen, non-managed voice -- the case that broke.
+            "tts": {
+                "provider": "elevenlabs",
+                "model": "eleven_flash_v2_5",
+                "voice": "some-elevenlabs-voice-id",
+            },
+        }
+
+    def test_the_matcher_reads_only_the_brain(self):
+        """So an ElevenLabs voice does not stop a preset matching..."""
+        stack = self._pipeline_stack(llm_tier="default")
+        effective = SimpleNamespace(
+            is_realtime=False,
+            llm=SimpleNamespace(**{k: v for k, v in stack["llm"].items()}),
+        )
+        assert model_presets.match(effective) == "balanced"
+
+    def test_a_cascade_preset_touches_no_slot_but_the_brain(self):
+        """...and so switching preset must leave that voice alone.
+
+        Mirrors the route's merge: everything but ``llm`` is carried through
+        byte for byte.
+        """
+        before = self._pipeline_stack(llm_tier="default")
+        target = model_presets.PRESETS_BY_SLUG["high_intelligence"]
+
+        after = dict(before)
+        after["llm"] = {
+            **dict(before["llm"]),
+            "provider": "decibyl",
+            "model": target.llm_tier,
+            "api_key": "",
+        }
+
+        assert after["llm"]["model"] == "accurate"
+        assert after["tts"] == before["tts"], "the chosen voice must survive"
+        assert after["stt"] == before["stt"]
+        assert after["architecture"] == "pipeline"
+
+    def test_the_realtime_preset_is_the_one_that_may_replace_everything(self):
+        """One model hears and speaks, so there is no voice left to keep."""
+        preset = model_presets.PRESETS_BY_SLUG["ultra_fast"]
+        assert preset.realtime_tier and not preset.llm_tier

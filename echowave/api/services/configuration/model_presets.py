@@ -80,20 +80,31 @@ PRESETS_BY_SLUG = {preset.slug: preset for preset in MODEL_PRESETS}
 CUSTOM = "custom"
 
 
-def _tier_of(section) -> str:
+def _tier_of(component: str, section) -> str:
     """The tier a managed section names, or "" when it is not managed.
 
     A managed slot carries ``provider="decibyl"`` and a *tier* in ``model`` --
     see ``managed_stack_override``. A slot naming a real vendor is a hand-built
     stack, which no preset describes.
+
+    Folded through ``managed_tiers.canonical_tier`` so a retired name matches
+    the preset it still runs: ``zen`` resolves to the ``lite`` stack at dial
+    time, so an agent stored on it *is* Cost Saver and reading it as custom
+    would be the screen disagreeing with the call.
     """
+    from api.services.configuration import managed_tiers
+    from api.services.configuration.registry import ServiceProviders
+
     if section is None:
         return ""
     provider = getattr(section, "provider", None)
     provider = provider.value if hasattr(provider, "value") else str(provider or "")
-    if provider != "decibyl":
+    if provider.strip().lower() != ServiceProviders.DECIBYL.value:
         return ""
-    return str(getattr(section, "model", "") or "")
+    tier = str(getattr(section, "model", "") or "").strip()
+    if not tier:
+        return ""
+    return managed_tiers.canonical_tier(component, tier)
 
 
 def match(effective) -> str:
@@ -105,13 +116,13 @@ def match(effective) -> str:
     exact coupling tiers exist to prevent.
     """
     if getattr(effective, "is_realtime", False):
-        tier = _tier_of(getattr(effective, "realtime", None))
+        tier = _tier_of("realtime", getattr(effective, "realtime", None))
         for preset in MODEL_PRESETS:
             if preset.realtime_tier and preset.realtime_tier == tier:
                 return preset.slug
         return CUSTOM
 
-    llm_tier = _tier_of(getattr(effective, "llm", None))
+    llm_tier = _tier_of("llm", getattr(effective, "llm", None))
     if not llm_tier:
         return CUSTOM
     # A cascade preset only claims the brain. Speech is one tier each today, so

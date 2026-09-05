@@ -127,6 +127,10 @@ export function ModelRow({ workflowId }: { workflowId: number }) {
         // row would sit as a skeleton above a form that works, which reads as a
         // broken page rather than as a summary that could not be drawn.
         try {
+            // Cleared first: a reload after a preset change must be able to
+            // undo an earlier failure, or one flaky request leaves the row
+            // hidden for the life of the page.
+            setError(null);
             const result = await client.get({
                 url: `/api/v1/workflow/${workflowId}/model-row`,
             });
