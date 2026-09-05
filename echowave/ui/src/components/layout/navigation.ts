@@ -5,6 +5,7 @@ import {
   ContactRound,
   Database,
   FileText,
+  Globe,
   Handshake,
   Home,
   Key,
@@ -113,12 +114,6 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         keywords: ["workflow", "agent", "builder", "canvas", "flow"],
       },
       {
-        title: "Campaigns",
-        url: "/campaigns",
-        icon: Megaphone,
-        keywords: ["outbound", "dial", "csv", "bulk"],
-      },
-      {
         title: "Models",
         url: "/model-configurations",
         icon: Brain,
@@ -166,41 +161,6 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "google calendar",
         ],
       },
-      // One entry, four screens. Verification, buying a number, carriers and
-      // test numbers are one job done in sequence — get verified, buy a
-      // number, point it at an agent — and as four peers in this list they
-      // read as four unrelated features and took a quarter of the navigation.
-      // The sequence now lives in a tab strip on the screens themselves
-      // (components/telephony/TelephonyTabs); every route is unchanged, so
-      // deep links and the keywords below still land where they did.
-      {
-        title: "Telephony",
-        url: "/telephony-configurations",
-        icon: Phone,
-        showsTelephonyWarning: true,
-        keywords: [
-          "plivo",
-          "twilio",
-          "telnyx",
-          "vonage",
-          "sip",
-          "carrier",
-          "kyc",
-          "gst",
-          "compliance",
-          "documents",
-          "verification",
-          "phone number",
-          "did",
-          "rent",
-          "buy",
-          "otp",
-          "test number",
-          "my number",
-          "trial",
-          "verify phone",
-        ],
-      },
       {
         title: "Files",
         url: "/files",
@@ -237,6 +197,81 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         url: "/api-keys",
         icon: Key,
         keywords: ["api", "sdk", "mcp", "token"],
+      },
+    ],
+  },
+  // Shipping an agent is a different job from building one, and until now it
+  // had nowhere to live: numbers and campaigns sat under BUILD next to the
+  // canvas and the model picker, and the web widget was a modal behind a
+  // button on the last tab of one agent's settings screen. Bolna gives
+  // deployment its own group; Vapi puts phone numbers at the top level. Both
+  // are right, for the same reason — the person putting an agent live is often
+  // not the person who built it, and is never in the mood to look for it.
+  //
+  // Three entries, not the five sketched from Bolna's sidebar. Batches do not
+  // exist here, and SIP trunks are a tab inside Phone numbers rather than a
+  // destination of their own — listing either would be navigation pointing at
+  // nothing, which is the failure this group exists to fix.
+  {
+    label: "DEPLOY",
+    items: [
+      // One entry, four screens. Verification, buying a number, carriers and
+      // test numbers are one job done in sequence — get verified, buy a
+      // number, point it at an agent — and as four peers in this list they
+      // read as four unrelated features and took a quarter of the navigation.
+      // The sequence now lives in a tab strip on the screens themselves
+      // (components/telephony/TelephonyTabs); every route is unchanged, so
+      // deep links and the keywords below still land where they did.
+      {
+        title: "Phone numbers",
+        url: "/telephony-configurations",
+        icon: Phone,
+        showsTelephonyWarning: true,
+        keywords: [
+          "plivo",
+          "twilio",
+          "telnyx",
+          "vonage",
+          "sip",
+          "carrier",
+          "kyc",
+          "gst",
+          "compliance",
+          "documents",
+          "verification",
+          "phone number",
+          "did",
+          "rent",
+          "buy",
+          "otp",
+          "test number",
+          "my number",
+          "trial",
+          "verify phone",
+        ],
+      },
+      {
+        title: "Campaigns",
+        url: "/campaigns",
+        icon: Megaphone,
+        keywords: ["outbound", "dial", "csv", "bulk"],
+      },
+      {
+        title: "Web widget",
+        url: "/deploy/web-widget",
+        icon: Globe,
+        keywords: [
+          "embed",
+          "website",
+          "script",
+          "widget",
+          "web call",
+          "snippet",
+          "install",
+          "wordpress",
+          "shopify",
+          "wix",
+        ],
       },
     ],
   },

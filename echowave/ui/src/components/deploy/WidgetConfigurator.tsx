@@ -1,4 +1,4 @@
-import { Check, Copy, ExternalLink, Loader2, Mic, Plus, Rocket, Trash2 } from "lucide-react";
+import { Check, Copy, ExternalLink, Loader2, Mic, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -6,14 +6,9 @@ import {
     deactivateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenDelete,
     getEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenGet,
 } from "@/client/sdk.gen";
+import { InstallGuides } from "@/components/deploy/InstallGuides";
 import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -28,9 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { WIDGET_MODE_DOCUMENTATION_URLS } from "@/constants/documentation";
 import { detailFromResult } from "@/lib/apiError";
 
-interface EmbedDialogProps {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
+interface WidgetConfiguratorProps {
     workflowId: number;
     workflowName: string;
 }
@@ -48,12 +41,22 @@ interface EmbedToken {
     embed_script: string;
 }
 
-export function EmbedDialog({
-    open,
-    onOpenChange,
+/**
+ * The widget configurator: allowed domains, mode, appearance, and the script
+ * tag to paste.
+ *
+ * This was a modal reached from a button on the last tab of an agent's
+ * settings screen, which meant the whole web-deployment story was invisible
+ * unless you already knew it was there. Bolna gives deployment its own group
+ * in the sidebar; we now do too, and this is what that screen renders.
+ *
+ * Lifted rather than copied. Two configurators would drift, and the one that
+ * drifted would be the one nobody opened.
+ */
+export function WidgetConfigurator({
     workflowId,
     workflowName,
-}: EmbedDialogProps) {
+}: WidgetConfiguratorProps) {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [embedToken, setEmbedToken] = useState<EmbedToken | null>(null);
@@ -104,10 +107,8 @@ export function EmbedDialog({
     }, [workflowId]);
 
     useEffect(() => {
-        if (open) {
-            loadEmbedToken();
-        }
-    }, [open, loadEmbedToken]);
+        loadEmbedToken();
+    }, [loadEmbedToken]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -183,28 +184,24 @@ export function EmbedDialog({
     };
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <div className="flex items-center justify-between">
-                        <DialogTitle className="flex items-center gap-2">
-                            <Rocket className="h-5 w-5" />
-                            Configure Widget
-                        </DialogTitle>
+        <div className="space-y-6">
+            <Card>
+                <CardContent className="space-y-6 pt-6">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <p className="text-sm text-muted-foreground">
+                            Add &quot;{workflowName}&quot; to any website with a
+                            single script tag.
+                        </p>
                         <a
                             href={WIDGET_MODE_DOCUMENTATION_URLS[embedMode]}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors pr-6"
+                            className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
                         >
                             Docs
                             <ExternalLink className="h-3.5 w-3.5" />
                         </a>
                     </div>
-                    <DialogDescription>
-                        Add &quot;{workflowName}&quot; to any website with a simple script tag.
-                    </DialogDescription>
-                </DialogHeader>
 
                 {loading ? (
                     <div className="flex items-center justify-center py-8">
@@ -615,10 +612,19 @@ document.getElementById('talk-btn').addEventListener('click', () => {
                                                 </pre>
                                             </div>
                                             <p className="text-xs text-muted-foreground">
-                                                Add this script to your website&apos;s HTML to enable the voice widget.
-                                                Configuration changes will apply automatically without re-embedding.
+                                                Changes you save here apply on their own — the
+                                                script never needs pasting again.
                                             </p>
                                         </div>
+                                        {/* Rendered here rather than by the page:
+                                            the script and the domain list are
+                                            this component's state, and the two
+                                            things a guide has to be able to
+                                            quote are exactly those. */}
+                                        <InstallGuides
+                                            embedScript={embedToken.embed_script}
+                                            domains={domains}
+                                        />
                                     </>
                                 ) : (
                                     <>
@@ -635,7 +641,8 @@ document.getElementById('talk-btn').addEventListener('click', () => {
                         )}
                     </div>
                 )}
-            </DialogContent>
-        </Dialog>
+                </CardContent>
+            </Card>
+        </div>
     );
 }

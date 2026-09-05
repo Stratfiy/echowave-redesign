@@ -69,7 +69,6 @@ import {
 } from "@/types/workflow-configurations";
 
 import { AgentTabs } from "../components/AgentTabs";
-import { EmbedDialog } from "../components/EmbedDialog";
 import { QaCard } from "../components/QaCard";
 import { useWorkflowState } from "../hooks/useWorkflowState";
 import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
@@ -1625,7 +1624,6 @@ function WorkflowSettingsInner({
     const router = useRouter();
     const { dirtySections, confirmNavigate } = useUnsavedChangesContext();
 
-    const [isEmbedDialogOpen, setIsEmbedDialogOpen] = useState(false);
     // Read once from the URL so a link can land on a tab -- the wizard's
     // "Advanced setup" and the docs both want to point at one -- and written
     // back with replaceState rather than the router so switching tabs does not
@@ -1889,8 +1887,16 @@ function WorkflowSettingsInner({
                                     </CardDescription>
                                 </CardHeader>
                                 <CardFooter className="border-t pt-6">
-                                    <Button variant="outline" onClick={() => setIsEmbedDialogOpen(true)}>
-                                        Configure Widget
+                                    {/* A link, not a modal. The configurator now
+                                        has its own screen under DEPLOY, where
+                                        somebody who did not build this agent can
+                                        find it. ?agent= carries the choice across
+                                        so arriving from here skips the picker. */}
+                                    <Button variant="outline" asChild>
+                                        <Link href={`/deploy/web-widget?agent=${workflowId}`}>
+                                            Configure Widget
+                                            <ExternalLink className="ml-2 h-4 w-4" />
+                                        </Link>
                                     </Button>
                                 </CardFooter>
                             </Card>
@@ -1916,13 +1922,6 @@ function WorkflowSettingsInner({
 
             </div>
 
-            {/* Dialogs for complex sections */}
-            <EmbedDialog
-                open={isEmbedDialogOpen}
-                onOpenChange={setIsEmbedDialogOpen}
-                workflowId={workflowId}
-                workflowName={workflowName || workflow.name}
-            />
         </div>
     );
 }
