@@ -372,6 +372,23 @@ def env_override(component: str, tier: str) -> str | None:
     return os.getenv(f"MANAGED_{component.upper()}_{tier.upper()}") or None
 
 
+def canonical_tier(component: CostComponent | str, tier: str | None) -> str:
+    """The tier name a stored one *means*, with retired aliases folded in.
+
+    ``resolve`` already does this on its way to a vendor. Anything comparing
+    stored tier names to each other -- the model presets, for one -- has to do
+    it too, or an agent stored on ``zen`` reads as unrecognised while running
+    exactly the ``lite`` stack the picker would have written.
+    """
+    component_value = (
+        component.value if isinstance(component, CostComponent) else str(component)
+    ).lower()
+    requested = (tier or "default").strip().lower()
+    if component_value == "llm":
+        return _RETIRED_LLM_TIERS.get(requested, requested)
+    return requested
+
+
 def resolve(component: CostComponent | str, tier: str | None) -> ManagedUpstream:
     """The provider and model serving a managed tier.
 
@@ -384,9 +401,7 @@ def resolve(component: CostComponent | str, tier: str | None) -> ManagedUpstream
     ).lower()
 
     mappings = _defaults()
-    requested = (tier or "default").lower()
-    if component_value == "llm":
-        requested = _RETIRED_LLM_TIERS.get(requested, requested)
+    requested = canonical_tier(component_value, tier)
     key = (component_value, requested)
 
     # The operator's choice first. See ``_OVERRIDES``.

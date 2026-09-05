@@ -953,12 +953,23 @@ async def get_model_row(
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
+    # The draft, falling back to the published version -- the same source the
+    # editor reads and the same one ``apply_model_preset`` writes. The column
+    # on ``WorkflowModel`` is the pre-versioning copy, so reading it would show
+    # a stack nobody has edited since versioning landed, and would leave the
+    # preset chip unmoved by the click that just changed it.
+    draft = await db_client.get_draft_version(workflow_id)
+    source = draft or workflow.released_definition
+    workflow_configurations = (
+        source.workflow_configurations if source else None
+    ) or workflow.workflow_configurations
+
     async with db_client.async_session() as session:
         return await model_row(
             session,
             organization_id=user.selected_organization_id,
             workflow_id=workflow_id,
-            workflow_configurations=workflow.workflow_configurations,
+            workflow_configurations=workflow_configurations,
         )
 
 
@@ -986,6 +997,7 @@ async def apply_model_preset(
     """
     from api.services.configuration import managed_resolution, model_presets
     from api.services.configuration.agent_options import managed_stack_override
+    from api.services.configuration.registry import ServiceProviders
 
     preset = model_presets.PRESETS_BY_SLUG.get(request.preset)
     if preset is None:
@@ -1011,26 +1023,55 @@ async def apply_model_preset(
             ),
         )
 
-    # The voice the agent already uses, not a default: a preset chooses the
-    # brain (or replaces the whole cascade), and silently resetting somebody's
-    # voice because they clicked "Balanced" is not what the button says.
     draft = await db_client.get_draft_version(workflow_id)
     source = draft or workflow.released_definition
     existing = dict((source.workflow_configurations if source else None) or {})
     current_override = existing.get(WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY) or {}
-    voice = ""
-    if isinstance(current_override, dict):
-        tts = current_override.get("tts")
-        if isinstance(tts, dict):
-            voice = str(tts.get("voice") or "")
-
-    existing.update(
-        managed_stack_override(
-            voice=voice,
-            llm_tier=preset.llm_tier,
-            realtime_tier=preset.realtime_tier,
-        )
+    current_stack = (
+        current_override.get("stack") if isinstance(current_override, dict) else None
     )
+
+    # A cascade preset changes the brain and nothing else, which is what the
+    # matcher already assumes and what the labels say -- "High Intelligence"
+    # is a claim about thinking, not about which voice reads the reply.
+    #
+    # Writing a whole managed stack instead would quietly take a chosen voice
+    # away: an agent on ElevenLabs at Rs3.30 a minute would be moved to managed
+    # speech by somebody clicking "Balanced", and the ElevenLabs voice id
+    # carried across would not name anything the new vendor knows. Worse, the
+    # matcher would go on reading that agent as Balanced either way, so the
+    # label would have been describing a stack the agent did not have.
+    #
+    # Speech-to-speech is the exception, and unavoidably so: one model hears
+    # and speaks, so there is no transcriber or voice left to preserve.
+    if (
+        preset.llm_tier
+        and isinstance(current_stack, dict)
+        and current_stack.get("architecture") == "pipeline"
+        and isinstance(current_stack.get("llm"), dict)
+    ):
+        stack = dict(current_stack)
+        stack["llm"] = {
+            **dict(current_stack["llm"]),
+            "provider": ServiceProviders.DECIBYL.value,
+            "model": preset.llm_tier,
+            "api_key": "",
+        }
+        existing[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY] = {
+            **current_override,
+            "version": 3,
+            "stack": stack,
+        }
+    else:
+        # No override of its own yet, or a realtime preset that replaces the
+        # cascade outright. Either way there is no chosen speech to preserve.
+        existing.update(
+            managed_stack_override(
+                voice="",
+                llm_tier=preset.llm_tier,
+                realtime_tier=preset.realtime_tier,
+            )
+        )
     await db_client.save_workflow_draft(workflow_id, workflow_configurations=existing)
 
     return {"preset": preset.slug, "label": preset.label}

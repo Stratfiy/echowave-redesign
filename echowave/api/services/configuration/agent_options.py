@@ -831,7 +831,11 @@ async def model_row(
     """
     from api.db.workflow_latency_client import stage_latency
     from api.services.billing.estimator import price_components
-    from api.services.configuration import managed_resolution, managed_tiers
+    from api.services.configuration import (
+        managed_resolution,
+        managed_tiers,
+        model_presets,
+    )
     from api.services.configuration.ai_model_configuration import (
         get_effective_ai_model_configuration_for_workflow,
     )
