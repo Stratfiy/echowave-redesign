@@ -7,8 +7,13 @@ A QA node runs a language model over the transcript after the call ends and
 writes structured results onto the run. Nobody listens to anything; the review
 happens whether or not you look at it.
 
+Every agent is created with one, so for a new agent there is nothing to set up
+— review is already running, and the switch under **Analysis** is how you turn
+it off. Agents created before this became the default have no node; add one on
+the canvas, or use that same switch, which adds it for you.
+
 It sits off to the side of the conversation — no incoming edges, no outgoing
-edges, nothing to connect. Adding one to the canvas is the whole setup.
+edges, nothing to connect.
 
 <Screenshot
   src="qa-node-panel.png"
@@ -94,8 +99,11 @@ Required for the Azure provider only.
 
 ## What it costs, and how to control it
 
-A QA pass is a language model call over a full transcript, so it is not free and
-it scales with your call volume rather than with your team.
+A QA pass is a language model call over a transcript, so it is not free and it
+scales with your call volume rather than with your team. It runs once per step
+the conversation actually reached, plus a short summary between steps, so a
+three-step call is roughly five completions on top of the call itself. Those
+tokens land on your bill the same way the call's own do.
 
 Three levers, in the order worth reaching for them:
 

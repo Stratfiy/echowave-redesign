@@ -30,6 +30,7 @@ from api.services.workflow.launch_templates import (
     _global_node,
     _start,
 )
+from api.services.workflow.qa_node import qa_node
 
 #: Vertical gap between stacked nodes, matching the launch templates so a
 #: materialised agent opens looking like a hand-authored one rather than a
@@ -59,11 +60,17 @@ def to_workflow_definition(template: AgentTemplate) -> dict[str, Any]:
     than producing a workflow with an edge into nothing.
     """
     ids: dict[str, str] = {}
-    # The persona, which templates do not carry and every agent needs. Each
-    # launch template opens with one; a materialised agent without it would run
-    # with no shared voice or guardrail at all, and the difference would only
-    # show up on a call.
-    nodes: list[dict[str, Any]] = [_global_node()]
+    # Two nodes no template carries and every agent needs.
+    #
+    # The persona: each launch template opens with one, and a materialised agent
+    # without it would run with no shared voice or guardrail at all — a
+    # difference that only shows up on a call. It stays at index 0 because the
+    # loop below writes a template's own persona over it in place.
+    #
+    # Call review: on from the moment the agent exists. Nothing can collide with
+    # it, because the loop below rejects any node type it cannot draw and "qa"
+    # is not one of them, so no template can ship a second.
+    nodes: list[dict[str, Any]] = [_global_node(), qa_node()]
     agent_seen = 0
     end_seen = 0
     row = 0

@@ -12,6 +12,7 @@ from api.services.gen_ai.json_parser import parse_llm_json
 from api.services.managed_model_services import get_mps_correlation_id
 from api.services.pipecat.service_factory import create_llm_service_from_provider
 from api.services.workflow.dto import QANodeData
+from api.services.workflow.node_specs.constants import DEFAULT_QA_SYSTEM_PROMPT
 from api.services.workflow.qa.conversation import (
     build_conversation_structure,
     format_transcript,
@@ -79,6 +80,24 @@ def _extracted_data(parsed: dict[str, Any]) -> dict[str, Any]:
     same guarantee every other usage_info-shaped dict in this codebase gives.
     """
     return {k: v for k, v in parsed.items() if k not in _RESERVED_QA_KEYS}
+
+
+def _system_prompt(qa_data: QANodeData) -> str:
+    """The reviewer's instructions, falling back to the platform default.
+
+    A review node created anywhere but the canvas editor carries no prompt: the
+    default lives in the node *spec*, which is what pre-fills the textarea, and
+    a node built in code never passes through a textarea. Both analysis paths
+    used to answer that with ``no_system_prompt`` and return nothing, so the
+    switch read as on, the call was reviewed by nobody, and the Analysis tab
+    was empty for exactly the reason it looked like it should not be.
+
+    Falling back here rather than writing the prompt into every new node keeps
+    one copy of it: an operator who never touches it gets improvements to the
+    default, and one who does still overrides it, because their own text is
+    what this returns.
+    """
+    return qa_data.qa_system_prompt or DEFAULT_QA_SYSTEM_PROMPT
 
 
 def _extraction_key(name: str) -> str:
@@ -232,10 +251,7 @@ async def run_per_node_qa_analysis(
         )
         return await _run_whole_call_qa_analysis(qa_data, workflow_run, workflow_run_id)
 
-    system_prompt = qa_data.qa_system_prompt or ""
-    if not system_prompt:
-        logger.warning("No system prompt defined for QA Node")
-        return {"error": "no_system_prompt", "node_results": {}}
+    system_prompt = _system_prompt(qa_data)
     # Appended once, outside the per-node loop below: the instructions are the
     # same for every node's pass, and computing them per-iteration would just
     # rebuild the identical string once per node in the call.
@@ -427,10 +443,7 @@ async def _run_whole_call_qa_analysis(
     metrics = compute_call_metrics(rtf_events, call_duration)
 
     # Resolve LLM config
-    system_prompt = qa_data.qa_system_prompt or ""
-    if not system_prompt:
-        logger.warning("No system prompt defined for QA Node")
-        return {"error": "no_system_prompt", "node_results": {}}
+    system_prompt = _system_prompt(qa_data)
     system_prompt += render_extraction_instructions(
         getattr(qa_data, "qa_extractions", None) or []
     )
