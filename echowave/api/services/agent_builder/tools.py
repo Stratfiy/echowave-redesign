@@ -37,6 +37,7 @@ from api.services.agent_builder.assemble import (
     required_variables,
 )
 from api.services.agent_templates import find_templates, get_template, list_templates
+from api.services.billing.addons import DEFAULT_AGENT_ADDONS
 from api.services.billing.estimator import estimate_cost_per_minute
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.workflow_graph import WorkflowGraph
@@ -267,6 +268,9 @@ async def _estimate(
     estimate = await estimate_cost_per_minute(
         session,
         organization_id=organization_id,
+        # Every agent this quotes for is created with a QA node, so leaving it
+        # out quoted below what the first invoice would say.
+        addons=DEFAULT_AGENT_ADDONS,
         stt_provider=stack.stt_provider,
         stt_model=stack.stt_model,
         llm_provider=stack.llm_provider,

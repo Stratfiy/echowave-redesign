@@ -41,11 +41,27 @@ USAGE_INFO_KEY = "addons"
 #: Knowledge-base retrieval fired at least once on the call.
 KNOWLEDGE_BASE = "knowledge_base"
 #: Post-call QA analysis ran for the call. Unlike the other entries this has a
-#: direct marginal cost to us: an LLM inference per call, whose tokens
-#: ``run_integrations`` already folds into ``usage_info["llm"]`` under a
-#: ``QAAnalysis`` processor. No rate resolves for that processor, so the cost
-#: engine reports it as ``uncosted`` — measured, but paid for by us.
+#: direct marginal cost to us: an LLM inference per step the call reached,
+#: whose tokens ``run_integrations`` folds into ``usage_info["llm"]`` keyed by
+#: the vendor that served them — so they are costed like any other tokens.
+#: They were not always: the key used to name the feature rather than the
+#: provider, no rate resolved for it, and every QA token was reported
+#: ``uncosted`` — measured, and paid for by us.
 CALL_QA = "call_qa"
+
+
+#: The add-ons a new agent runs without anyone choosing them, and therefore the
+#: ones a forward-looking quote has to include.
+#:
+#: Only QA, and only because every creation path now builds a QA node into the
+#: agent (see ``workflow/qa_node.py``). It is not an upsell an operator opts
+#: into later; it is what an agent made today does on every call, so a quote
+#: that leaves it out is short by the whole of it on the first invoice — which
+#: is the surprise ``estimator`` exists to prevent.
+#:
+#: Knowledge base is deliberately absent: retrieval only bills on a call where
+#: it actually fired, and an agent with no documents never fires it.
+DEFAULT_AGENT_ADDONS: frozenset[str] = frozenset({CALL_QA})
 
 
 @dataclass(frozen=True)

@@ -62,6 +62,33 @@ class WorkflowRunMode(Enum):
     CHAT = "CHAT"
 
 
+#: The modes that are not a phone call.
+#:
+#: An exception list rather than an allow-list of voice modes, so that adding a
+#: telephony provider does not silently drop its calls out of every "did this
+#: account ever call anybody" question. The cost of that choice — a new *text*
+#: mode quietly counting as a call — is paid by
+#: ``test_activation_counts_calls``, which fails if any member of the enum is
+#: unclassified.
+NON_VOICE_RUN_MODES: frozenset[str] = frozenset(
+    {
+        WorkflowRunMode.TEXTCHAT.value,
+        WorkflowRunMode.CHAT.value,
+    }
+)
+
+
+def is_voice_run_mode(mode: str | None) -> bool:
+    """Was this run a call, rather than somebody typing in a chat window?
+
+    The distinction matters wherever the answer is read as activation. A text
+    chat is a real thing an account can do and is not the thing this product
+    is for — counting one as a first call says a customer got to the moment
+    that proves the product works when they have not made a call at all.
+    """
+    return bool(mode) and mode not in NON_VOICE_RUN_MODES
+
+
 class StorageBackend(Enum):
     """Storage backend enumeration.
 
