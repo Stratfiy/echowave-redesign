@@ -52,6 +52,7 @@ from api.services.workflow.agent_brief import (
     compose_activity_description,
     workflow_name,
 )
+from api.services.workflow.disposition import merge_taxonomies
 from api.services.workflow.dto import ReactFlowDTO, sanitize_workflow_definition
 from api.services.workflow.duplicate import duplicate_workflow
 from api.services.workflow.errors import ItemKind, WorkflowError
@@ -1229,6 +1230,37 @@ async def get_workflows_summary(
         WorkflowSummaryResponse(id=workflow.id, name=workflow.name)
         for workflow in workflows
     ]
+
+
+class CallOutcomeResponse(BaseModel):
+    code: str
+    label: str
+    when: str
+
+
+@router.get("/call-outcomes")
+async def get_call_outcomes(
+    user: UserModel = Depends(get_user),
+) -> List[CallOutcomeResponse]:
+    """Every outcome label the organization's calls can carry.
+
+    The calls list is org-wide while the taxonomy is per agent, so the filter
+    needs the union rather than one agent's list — otherwise ticking "paid" on
+    a page showing every call would be offering a box that only some of the
+    rows could ever match, and the codes belonging to the other agents would
+    simply be missing from the menu.
+
+    """
+    workflows = await db_client.get_all_workflows(
+        organization_id=user.selected_organization_id, status=None
+    )
+
+    configured = [
+        (workflow.workflow_configurations or {}).get("call_outcomes")
+        for workflow in workflows
+        if isinstance(workflow.workflow_configurations, dict)
+    ]
+    return [CallOutcomeResponse(**entry) for entry in merge_taxonomies(configured)]
 
 
 @router.put("/{workflow_id}/status")

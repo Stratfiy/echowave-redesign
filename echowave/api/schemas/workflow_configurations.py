@@ -87,6 +87,33 @@ class AmbientNoiseConfigurationDefaults(BaseModel):
     volume: float = 0.3
 
 
+class CallOutcome(BaseModel):
+    """One label this agent's calls can be classified as afterwards.
+
+    Distinct from ``call_disposition_codes`` on the workflow, which is not
+    configuration at all: that column is a registry the pipeline appends to
+    with every ``mapped_call_disposition`` it has actually seen, so the calls
+    list can offer a dropdown of codes that occurred. This is the taxonomy a
+    business *decides on* — the outcomes it wants sorted by, whether or not a
+    call has produced one yet.
+
+    Per workflow, because the outcomes are. A clinic books appointments, a
+    lending agent gets a payment promise, an NDR agent confirms an address.
+    Both Vapi and Bolna let you define the shape here rather than shipping a
+    fixed set, and for the same reason: there isn't one.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    #: Narrower than the label, because it ends up a CRM field name, a URL
+    #: parameter and a CSV column heading.
+    code: str = Field(default="", max_length=40)
+    label: str = Field(default="", max_length=60)
+    #: What the model is told this code means. A classifier shown only a list
+    #: of names invents its own definitions for them.
+    when: str = Field(default="", max_length=200)
+
+
 class WorkflowConfigurationDefaults(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -146,6 +173,14 @@ class WorkflowConfigurationDefaults(BaseModel):
     fallback_stt: list[FallbackServiceConfiguration] = Field(
         default_factory=list, max_length=2
     )
+    # What a finished call is classified as. Empty means the default list in
+    # `services/workflow/disposition.py` applies, so an agent nobody configured
+    # still produces outcomes rather than an empty column somebody has to
+    # discover is empty.
+    #
+    # Capped because every entry is sent with every transcript, and past thirty
+    # this is not a taxonomy anybody sorts by.
+    call_outcomes: list[CallOutcome] = Field(default_factory=list, max_length=30)
 
 
 def get_default_workflow_configurations() -> WorkflowConfigurationDefaults:

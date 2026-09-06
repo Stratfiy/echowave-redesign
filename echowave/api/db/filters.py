@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import Float, Integer, Text, and_, cast, func
+from sqlalchemy import Float, Integer, Text, and_, cast, func, or_
 from sqlalchemy.dialects.postgresql import JSONB
 
 from api.db.models import WorkflowRunModel
@@ -43,6 +43,7 @@ def get_workflow_run_order_clause(
 ATTRIBUTE_FIELD_MAPPING = {
     "dateRange": "created_at",
     "dispositionCode": "gathered_context.mapped_call_disposition",
+    "callOutcome": "annotations.disposition.dispositions",
     "duration": "usage_info.call_duration_seconds",
     "status": "is_completed",
     "tokenUsage": "cost_info.total_cost_usd",
@@ -65,6 +66,9 @@ def apply_workflow_run_filters(
     Supports filtering by:
     - dateRange: Filter by created_at date range
     - dispositionCode: Filter by gathered_context.mapped_call_disposition
+    - callOutcome: Filter by the post-call classification in
+      annotations.disposition.dispositions (several labels per call, so the
+      value carries a "match" of "any" or "all")
     - duration: Filter by usage_info.call_duration_seconds range
     - status: Filter by is_completed status
     - tokenUsage: Filter by cost_info.total_cost_usd range
@@ -154,6 +158,37 @@ def apply_workflow_run_filters(
                         .op("->>")("mapped_call_disposition")
                         .in_(codes)
                     )
+
+            elif (
+                filter_type == "multiSelect"
+                and field == "annotations.disposition.dispositions"
+            ):
+                # What the call achieved, as opposed to how it ended — several
+                # labels per call, so "matches" needs saying which way.
+                #
+                #   any  booked OR callback     — the wide net, and the default,
+                #                                 because it is what somebody
+                #                                 ticking two boxes expects
+                #   all  booked AND callback    — narrowing, e.g. the calls that
+                #                                 booked *and* asked for a
+                #                                 follow-up
+                #
+                # Expressed as `@>` per code rather than the `?|` operator: the
+                # containment operator is already proven against this JSON
+                # column below, and `?` is a bind-parameter character that not
+                # every driver in this stack leaves alone.
+                codes = value.get("codes", [])
+                if codes:
+                    labels = (
+                        cast(WorkflowRunModel.annotations, JSONB)
+                        .op("->")("disposition")
+                        .op("->")("dispositions")
+                    )
+                    clauses = [
+                        labels.op("@>")(func.cast([code], JSONB)) for code in codes
+                    ]
+                    combine = and_ if value.get("match") == "all" else or_
+                    filter_conditions.append(combine(*clauses))
 
             elif filter_type == "radio" and field == "is_completed":
                 status = value.get("status")
