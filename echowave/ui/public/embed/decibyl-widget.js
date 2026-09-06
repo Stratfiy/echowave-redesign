@@ -164,7 +164,10 @@
         buttonText: configData.settings?.buttonText || 'Talk to Agent',
         callToActionText: configData.settings?.callToActionText || 'Click to start voice conversation',
         autoStart: configData.auto_start || false,
-        postCall: normalisePostCall(configData.settings?.postCall)
+        postCall: normalisePostCall(configData.settings?.postCall),
+        // A URL the server built, pointing at its own public logo route. The
+        // storage key never reaches a visitor's browser.
+        logoUrl: typeof configData.logo_url === 'string' ? configData.logo_url : ''
       };
     } catch (error) {
       console.error('Decibyl Widget: Failed to fetch configuration', error);
@@ -518,6 +521,14 @@
          inherits the dragged position and never covers the button that
          dismisses it. Colours are stated rather than inherited: this renders
          inside somebody else's stylesheet. */
+      .decibyl-widget-logo {
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        object-fit: contain;
+        flex: 0 0 auto;
+      }
+
       .decibyl-post-call {
         position: relative;
         width: 280px;
@@ -799,6 +810,29 @@
       <span></span>
     `;
     button.querySelector('span').textContent = ctaLabelForStatus(status);
+
+    // The customer's mark in place of our microphone, and only while idle:
+    // once the call is connecting or live the icon is carrying status, which
+    // is information the visitor needs more than branding.
+    if (state.config.logoUrl && status === 'idle') {
+      const logo = document.createElement('img');
+      logo.className = 'decibyl-widget-logo';
+      logo.alt = '';
+      logo.setAttribute('aria-hidden', 'true');
+      logo.src = state.config.logoUrl;
+      // A logo that 404s must not leave a broken-image glyph on somebody's
+      // site. Fall back to the microphone we just replaced.
+      logo.onerror = function () {
+        const svg = button.querySelector('svg');
+        if (svg) svg.style.display = '';
+        logo.remove();
+      };
+      const svg = button.querySelector('svg');
+      if (svg) {
+        svg.style.display = 'none';
+        button.insertBefore(logo, svg);
+      }
+    }
     button.onclick = toggleCall;
 
     container.appendChild(button);

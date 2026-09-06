@@ -1,6 +1,8 @@
-import { Check, Copy, ExternalLink, Loader2, Mic, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Check, Copy, ExternalLink, ImageIcon, Loader2, Mic, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { formDataBodySerializer } from "@/client/client";
+import { client } from "@/client/client.gen";
 import {
     createOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPost,
     deactivateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenDelete,
@@ -81,6 +83,14 @@ export function WidgetConfigurator({
     const [postCallCtaText, setPostCallCtaText] = useState("");
     const [postCallCtaUrl, setPostCallCtaUrl] = useState("");
     const [postCallMinSeconds, setPostCallMinSeconds] = useState("10");
+    // The logo is uploaded on its own endpoint rather than carried in the
+    // settings save: it is a file, and the server has to see the bytes to
+    // decide whether it will serve them. `logoUrl` is what the widget renders,
+    // built by the server — the storage key never comes down here.
+    const [logoUrl, setLogoUrl] = useState<string | null>(null);
+    const [logoBusy, setLogoBusy] = useState(false);
+    const [logoError, setLogoError] = useState<string | null>(null);
+    const logoInputRef = useRef<HTMLInputElement>(null);
 
     const loadEmbedToken = useCallback(async () => {
         setLoading(true);
@@ -112,6 +122,14 @@ export function WidgetConfigurator({
                         setPostCallCtaUrl(String(postCall.ctaUrl ?? ""));
                         setPostCallMinSeconds(String(postCall.minSeconds ?? 10));
                     }
+
+                    const logo = (response.data.settings as Record<string, unknown>)
+                        .logo as Record<string, unknown> | undefined;
+                    setLogoUrl(
+                        logo && typeof logo.key === "string" && logo.key
+                            ? `/api/v1/public/embed/logo/${response.data.token}`
+                            : null
+                    );
                 }
 
                 // Load domains
@@ -190,6 +208,56 @@ export function WidgetConfigurator({
         } finally {
             setSaving(false);
         }
+    };
+
+    /** Upload a logo, and let the server decide whether it will serve it.
+
+        No client-side type check beyond the file picker's `accept`: the server
+        sniffs the bytes and is the only opinion that counts, so validating
+        here would only produce a second, quieter set of rules to keep in step
+        with it. What the screen does owe the user is the server's reason,
+        verbatim. */
+    const uploadLogo = async (file: File) => {
+        setLogoBusy(true);
+        setLogoError(null);
+        // A plain object, not a FormData — `formDataBodySerializer` builds the
+        // FormData itself from `Object.entries(body)`, and a FormData's entries
+        // are not own properties, so handing it one sends an empty body. Same
+        // trap the KYC upload documents.
+        const result = await client.post({
+            ...formDataBodySerializer,
+            url: `/api/v1/workflow/${workflowId}/embed-token/logo`,
+            body: { file },
+            headers: { "Content-Type": null },
+        });
+        if (result.error) {
+            setLogoError(detailFromResult(result, "Could not upload that logo"));
+        } else {
+            const data = result.data as { token?: string } | undefined;
+            if (data?.token) {
+                // Cache-bust: the public URL is keyed by token, not by object,
+                // so a replaced logo has the same address as the old one.
+                setLogoUrl(
+                    `/api/v1/public/embed/logo/${data.token}?v=${Date.now()}`
+                );
+            }
+        }
+        setLogoBusy(false);
+        if (logoInputRef.current) logoInputRef.current.value = "";
+    };
+
+    const removeLogo = async () => {
+        setLogoBusy(true);
+        setLogoError(null);
+        const result = await client.delete({
+            url: `/api/v1/workflow/${workflowId}/embed-token/logo`,
+        });
+        if (result.error) {
+            setLogoError(detailFromResult(result, "Could not remove the logo"));
+        } else {
+            setLogoUrl(null);
+        }
+        setLogoBusy(false);
     };
 
     const copyToClipboard = (text: string) => {
@@ -451,7 +519,23 @@ export function WidgetConfigurator({
                                                 className="inline-flex items-center gap-2 rounded-full px-5 py-3 font-medium text-white shadow-lg whitespace-nowrap"
                                                 style={{ backgroundColor: buttonColor }}
                                             >
-                                                <Mic className="h-4 w-4" />
+                                                {/* The widget swaps the
+                                                    microphone for the logo
+                                                    while idle, so a preview
+                                                    still showing the mic would
+                                                    be showing something that
+                                                    does not ship. */}
+                                                {logoUrl ? (
+                                                    // eslint-disable-next-line @next/next/no-img-element
+                                                    <img
+                                                        src={logoUrl}
+                                                        alt=""
+                                                        aria-hidden="true"
+                                                        className="h-[18px] w-[18px] rounded object-contain"
+                                                    />
+                                                ) : (
+                                                    <Mic className="h-4 w-4" />
+                                                )}
                                                 {buttonText || "Talk to Agent"}
                                             </button>
                                         </div>
@@ -579,6 +663,92 @@ document.getElementById('talk-btn').addEventListener('click', () => {
                                                 </pre>
                                             </div>
                                         </div>
+                                    )}
+                                </div>
+
+                                <Separator />
+
+                                {/* The customer's logo, not ours.
+                                    Gnani ships an icon upload beside its
+                                    widget config; we had colour and button
+                                    text, so every widget on every customer's
+                                    site wore our microphone. */}
+                                <div className="space-y-3">
+                                    <Label>Logo</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Shown on the button in place of the
+                                        microphone. PNG, JPEG, WebP or GIF, up
+                                        to 512 KB — it loads on every visit to
+                                        your site.
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border bg-muted/30">
+                                            {logoUrl ? (
+                                                // eslint-disable-next-line @next/next/no-img-element
+                                                <img
+                                                    src={logoUrl}
+                                                    alt="Your widget logo"
+                                                    className="h-full w-full object-contain"
+                                                />
+                                            ) : (
+                                                <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                                            )}
+                                        </div>
+                                        {/* Hidden input behind a real button:
+                                            the repo's own convention, because
+                                            a visible file input styles
+                                            differently in every browser. */}
+                                        <input
+                                            ref={logoInputRef}
+                                            type="file"
+                                            accept="image/png,image/jpeg,image/webp,image/gif"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) uploadLogo(file);
+                                            }}
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            disabled={logoBusy}
+                                            onClick={() => logoInputRef.current?.click()}
+                                        >
+                                            {logoBusy ? (
+                                                <>
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    Working...
+                                                </>
+                                            ) : logoUrl ? (
+                                                "Replace logo"
+                                            ) : (
+                                                "Upload logo"
+                                            )}
+                                        </Button>
+                                        {logoUrl && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                disabled={logoBusy}
+                                                onClick={removeLogo}
+                                            >
+                                                Remove
+                                            </Button>
+                                        )}
+                                    </div>
+                                    {/* Uploading acts immediately rather than
+                                        waiting for Save, so its failure has to
+                                        be reported here rather than by the
+                                        save button below. */}
+                                    {logoError && (
+                                        <p className="text-xs text-destructive">{logoError}</p>
+                                    )}
+                                    {!embedToken && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Save the widget once before adding a
+                                            logo — it attaches to the widget,
+                                            which does not exist yet.
+                                        </p>
                                     )}
                                 </div>
 

@@ -15,17 +15,24 @@ from fastapi import (
     Request,
     Response,
 )
+from fastapi.responses import RedirectResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from api.constants import BACKEND_API_ENDPOINT
 from api.db import db_client
 from api.enums import WorkflowRunMode
 from api.routes.turn_credentials import (
     TURN_SECRET,
     TurnCredentialsResponse,
     generate_turn_credentials,
+)
+from api.services.embed_logo import logo_from_settings
+from api.services.storage import (
+    get_current_storage_backend,
+    get_storage_for_backend,
 )
 
 router = APIRouter(prefix="/public/embed")
@@ -54,6 +61,17 @@ class InitEmbedResponse(BaseModel):
     config: dict
 
 
+# The signed URL the logo redirect points at. Short, because the redirect is
+# public and a leaked one should stop working quickly.
+LOGO_URL_TTL_SECONDS = 3600
+
+# How long a browser may cache the redirect itself. Must stay comfortably below
+# LOGO_URL_TTL_SECONDS: cache the 302 for longer than its target lives and some
+# visitors follow a link that has already expired, which shows as a broken
+# image on the customer's site and nowhere in our logs.
+LOGO_CACHE_SECONDS = 600
+
+
 class EmbedConfigResponse(BaseModel):
     """Response model for embed configuration"""
 
@@ -65,6 +83,8 @@ class EmbedConfigResponse(BaseModel):
     button_color: str
     size: str
     auto_start: bool
+    # Absent when the account has not uploaded one, which is most of them.
+    logo_url: str | None = None
 
 
 def validate_origin(origin: str, allowed_domains: list) -> bool:
@@ -454,6 +474,16 @@ async def get_embed_config(token: str, request: Request, response: Response):
     # Extract settings with defaults
     settings = embed_token.settings or {}
 
+    # The widget needs something it can put in an <img src>. What is stored is
+    # a storage key, which is not that, and must not be handed to a visitor's
+    # browser either — it names the object's real location. The public route
+    # below is the only address the widget ever sees.
+    logo_url = None
+    if logo_from_settings(settings):
+        logo_url = (
+            f"{str(BACKEND_API_ENDPOINT).rstrip('/')}/api/v1/public/embed/logo/{token}"
+        )
+
     return EmbedConfigResponse(
         workflow_id=embed_token.workflow_id,
         settings=settings,
@@ -463,6 +493,49 @@ async def get_embed_config(token: str, request: Request, response: Response):
         button_color=settings.get("buttonColor", "#3B82F6"),
         size=settings.get("size", "medium"),
         auto_start=settings.get("autoStart", False),
+        logo_url=logo_url,
+    )
+
+
+@router.get("/logo/{token}")
+async def get_embed_logo(token: str):
+    """Serve the widget's logo to whoever the widget is showing itself to.
+
+    Deliberately *not* origin-checked, unlike every other route in this file.
+    An <img> does not send an Origin header, so a check here would fail for
+    every legitimate visitor while stopping nobody: anyone who can read the
+    page can read the token, and the thing behind this URL is a logo the
+    customer is already displaying publicly on their own website.
+
+    What it does keep is that the storage key never leaves the server, and
+    that an inactive or expired token stops serving.
+    """
+    embed_token = await db_client.get_embed_token_by_token(token)
+    if not embed_token or not embed_token.is_active:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    logo = logo_from_settings(embed_token.settings)
+    if not logo:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    backend = logo.get("backend") or get_current_storage_backend().value
+    try:
+        signed_url = await get_storage_for_backend(backend).aget_signed_url(
+            logo["key"], expires_in=LOGO_URL_TTL_SECONDS
+        )
+    except Exception as error:  # noqa: BLE001 - a missing object is a 404, not a 500
+        logger.warning(f"Could not sign embed logo {logo['key']}: {error}")
+        raise HTTPException(status_code=404, detail="Not found") from error
+
+    if not signed_url:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # Cached for less than the signed URL lives, so a browser never holds a
+    # redirect to a URL that has already expired.
+    return RedirectResponse(
+        url=signed_url,
+        status_code=302,
+        headers={"Cache-Control": f"public, max-age={LOGO_CACHE_SECONDS}"},
     )
 
 
