@@ -256,6 +256,31 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         icon: Megaphone,
         keywords: ["outbound", "dial", "csv", "bulk"],
       },
+      // Everything behind this entry already worked and none of it was
+      // mentioned anywhere a customer looks, so "can it talk to my CRM" was
+      // answered as no, by silence.
+      {
+        title: "Connect",
+        url: "/deploy/connect",
+        icon: Workflow,
+        keywords: [
+          "api",
+          "webhook",
+          "trigger",
+          "n8n",
+          "zapier",
+          "make",
+          "integration",
+          "crm",
+          "zoho",
+          "hubspot",
+          "meta",
+          "facebook",
+          "lead ads",
+          "google sheet",
+          "automation",
+        ],
+      },
       {
         title: "Web widget",
         url: "/deploy/web-widget",

@@ -1,49 +1,44 @@
 "use client";
 
 /**
- * The web widget, as a screen you can find.
+ * Connecting an agent to everything else the business already runs.
  *
- * Everything on this page already existed: the token, the allowed domains, the
- * theme, the position, the button text and colour, and a generated script tag.
- * It lived in a modal behind a button on the last tab of one agent's settings,
- * so a customer had to already know it was there to find it. Bolna gives
- * deployment its own group in the sidebar and Vapi puts phone numbers at the
- * top level; shipping an agent is a different job from building one, and it
- * had no home here.
+ * Nothing on this screen is a new capability. The trigger endpoint, the
+ * retrying outbound webhook, custom tools and the MCP server all shipped
+ * months ago, and none of them were mentioned anywhere a customer looks — so
+ * "can it talk to my CRM, my ads, my forms" was being answered as no, by
+ * silence. This is the screen that answers it.
  *
- * The agent picker sits at the top because the widget belongs to an agent, and
- * arriving at "web widget" without having chosen one is the normal way in. The
- * settings screen still links here, with ?agent= set, so the old route through
- * the product lands in the same place.
+ * Its own route rather than a card on the widget screen: putting an agent on
+ * your website and wiring it into your CRM are different jobs, and a page
+ * titled "Web widget" that also explains Meta lead ads is a page nobody finds
+ * either thing on.
  */
 
-import { ExternalLink, Rocket } from "lucide-react";
+import { ExternalLink, Workflow } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 
+import { ConnectRecipes } from "@/components/deploy/ConnectRecipes";
 import { DeployAgentPicker } from "@/components/deploy/DeployAgentPicker";
 import { useDeployAgents } from "@/components/deploy/useDeployAgents";
-import { WidgetConfigurator } from "@/components/deploy/WidgetConfigurator";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 
-function WebWidgetScreen() {
+function ConnectScreen() {
     const { user, redirectToLogin, loading: authLoading } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
-
     const { agents, selected, setSelectedId, loadError, load } = useDeployAgents(
         searchParams.get("agent"),
     );
 
     useEffect(() => {
-        if (!authLoading && !user) {
-            redirectToLogin();
-        }
+        if (!authLoading && !user) redirectToLogin();
     }, [authLoading, user, redirectToLogin]);
 
     useEffect(() => {
@@ -53,10 +48,7 @@ function WebWidgetScreen() {
     if (authLoading || !user) {
         return (
             <PageBody>
-                <div className="space-y-4">
-                    <Skeleton className="h-12 w-64" />
-                    <Skeleton className="h-64 w-full" />
-                </div>
+                <Skeleton className="h-64 w-full" />
             </PageBody>
         );
     }
@@ -64,18 +56,14 @@ function WebWidgetScreen() {
     return (
         <div>
             <PageHeader
-                title="Web widget"
-                description="Put a voice agent on your website. Visitors click and talk to it — no phone number involved."
+                title="Connect"
+                description="Make something else start a call — a lead form, a CRM, a spreadsheet — and get the result back when it ends."
                 actions={
                     <Button variant="outline" asChild>
-                        <a
-                            href="https://docs.decibyl.ai/voice-agent/web-widget"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            Docs
+                        <Link href="/api-keys">
+                            API keys
                             <ExternalLink className="ml-2 h-4 w-4" />
-                        </a>
+                        </Link>
                     </Button>
                 }
             />
@@ -85,12 +73,12 @@ function WebWidgetScreen() {
                 ) : agents.length === 0 ? (
                     <Card>
                         <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
-                            <Rocket className="h-8 w-8 text-muted-foreground" />
+                            <Workflow className="h-8 w-8 text-muted-foreground" />
                             <div>
                                 <p className="font-medium">No agents yet</p>
                                 <p className="mt-1 text-sm text-muted-foreground">
                                     {loadError ??
-                                        "A widget puts one of your agents on your website, so there needs to be one first. It takes a couple of minutes."}
+                                        "There needs to be an agent before anything can trigger one."}
                                 </p>
                             </div>
                             {!loadError && (
@@ -105,29 +93,15 @@ function WebWidgetScreen() {
                         <DeployAgentPicker
                             agents={agents}
                             selected={selected}
-                            label="Which agent answers"
+                            label="Which agent should the trigger call"
                             onSelect={(id) => {
                                 setSelectedId(id);
-                                // Keep the URL honest, so a reload and a shared
-                                // link both land on the agent on screen.
-                                router.replace(`/deploy/web-widget?agent=${id}`, {
+                                router.replace(`/deploy/connect?agent=${id}`, {
                                     scroll: false,
                                 });
                             }}
                         />
-
-                        {selected && (
-                            <WidgetConfigurator
-                                // Remount on change: the configurator holds the
-                                // saved settings in local state, and without a
-                                // key switching agents would show the previous
-                                // agent's colour and domains until the fetch
-                                // returned.
-                                key={selected.id}
-                                workflowId={selected.id}
-                                workflowName={selected.name}
-                            />
-                        )}
+                        {selected && <ConnectRecipes agentUuid={selected.uuid} />}
                     </>
                 )}
             </PageBody>
@@ -135,8 +109,8 @@ function WebWidgetScreen() {
     );
 }
 
-export default function WebWidgetPage() {
-    // useSearchParams needs a Suspense boundary, or the whole route opts out of
+export default function ConnectPage() {
+    // useSearchParams needs a Suspense boundary or the route opts out of
     // static rendering and the build says so.
     return (
         <Suspense
@@ -146,7 +120,7 @@ export default function WebWidgetPage() {
                 </PageBody>
             }
         >
-            <WebWidgetScreen />
+            <ConnectScreen />
         </Suspense>
     );
 }
