@@ -25,6 +25,7 @@ import { useAppConfig } from '@/context/AppConfigContext';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import logger from '@/lib/logger';
+import { cn } from '@/lib/utils';
 
 export default function APIKeysPage() {
     const { user, getAccessToken, redirectToLogin, loading } = useAuth();
@@ -48,6 +49,10 @@ export default function APIKeysPage() {
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isCreateServiceDialogOpen, setIsCreateServiceDialogOpen] = useState(false);
     const [newKeyName, setNewKeyName] = useState('');
+    // Production unless somebody chooses otherwise. A key defaulting to
+    // sandbox would be a key that mysteriously refuses to call anybody, which
+    // reads as the product being broken rather than as a safety feature.
+    const [newKeyEnvironment, setNewKeyEnvironment] = useState<'production' | 'sandbox'>('production');
     const [newServiceKeyName, setNewServiceKeyName] = useState('');
     const [createdKey, setCreatedKey] = useState<CreateApiKeyResponse | null>(null);
     const [createdServiceKey, setCreatedServiceKey] = useState<CreateServiceKeyResponse | null>(null);
@@ -174,8 +179,9 @@ export default function APIKeysPage() {
 
             const response = await createApiKeyApiV1UserApiKeysPost({
                 body: {
-                    name: newKeyName
-                },
+                    name: newKeyName,
+                    environment: newKeyEnvironment,
+                } as { name: string; environment: string },
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                 }
@@ -192,6 +198,7 @@ export default function APIKeysPage() {
             setIsCreateDialogOpen(false);
             setShowCreatedKeyDialog(true);
             setNewKeyName('');
+            setNewKeyEnvironment('production');
             fetchApiKeys();
         } catch (err) {
             setError('Failed to create API key');
@@ -457,6 +464,15 @@ export default function APIKeysPage() {
                                                 </div>
                                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                                     <span className="font-mono bg-muted px-2 py-1 rounded">{key.key_prefix}...</span>
+                                                    {/* The prefix already says
+                                                        which it is; the badge
+                                                        is for the person
+                                                        scanning the list
+                                                        rather than reading
+                                                        it. */}
+                                                    {(key as { environment?: string }).environment === 'sandbox' && (
+                                                        <Badge variant="outline">Sandbox</Badge>
+                                                    )}
                                                     <span className="text-xs text-muted-foreground/70">
                                                         (Full key hidden for security)
                                                     </span>
@@ -634,8 +650,52 @@ export default function APIKeysPage() {
                                 id="name"
                                 value={newKeyName}
                                 onChange={(e) => setNewKeyName(e.target.value)}
-                                placeholder="e.g., Production Server, Development Environment"
+                                placeholder="e.g., Production Server, Billing integration"
                             />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>What this key can do</Label>
+                            {(
+                                [
+                                    {
+                                        value: 'production' as const,
+                                        title: 'Production',
+                                        blurb: 'Can call any number, subject to your do-not-call list. This is what a live integration needs.',
+                                    },
+                                    {
+                                        value: 'sandbox' as const,
+                                        title: 'Sandbox',
+                                        blurb: 'Can only call numbers you have verified. Give this one to a developer or an agency — it cannot ring your customers.',
+                                    },
+                                ]
+                            ).map((option) => (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    onClick={() => setNewKeyEnvironment(option.value)}
+                                    aria-pressed={newKeyEnvironment === option.value}
+                                    className={cn(
+                                        'rounded-lg border p-3 text-left transition-colors',
+                                        newKeyEnvironment === option.value
+                                            ? 'border-primary bg-muted'
+                                            : 'hover:bg-muted/50',
+                                    )}
+                                >
+                                    <span className="text-sm font-medium">{option.title}</span>
+                                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                                        {option.blurb}
+                                    </span>
+                                </button>
+                            ))}
+                            {/* Said here rather than discovered on the first
+                                invoice: sandbox is about who can be dialled,
+                                not about what a call costs. */}
+                            <p className="text-xs text-muted-foreground">
+                                A sandbox call still uses real speech, a real model and a
+                                real carrier, so it costs the same. Runs are tagged with
+                                the key that started them, so you can tell testing apart
+                                from live traffic.
+                            </p>
                         </div>
                     </div>
                     <DialogFooter>

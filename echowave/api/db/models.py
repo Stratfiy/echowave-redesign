@@ -287,6 +287,15 @@ class APIKeyModel(Base):
     name = Column(String, nullable=False)
     key_hash = Column(String, nullable=False, unique=True, index=True)
     key_prefix = Column(String, nullable=False)  # Store first 8 chars for display
+    # "production" or "sandbox". A sandbox key may only place calls to numbers
+    # the organization has verified, so an account can give somebody API access
+    # without giving them the ability to ring its customers.
+    #
+    # Defaulted to production in both places on purpose: every key that existed
+    # before this was issued to do real work.
+    environment = Column(
+        String(32), nullable=False, server_default="production", default="production"
+    )
     is_active = Column(Boolean, default=True, nullable=False)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     last_used_at = Column(DateTime(timezone=True), nullable=True)

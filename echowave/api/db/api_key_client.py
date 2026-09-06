@@ -5,20 +5,30 @@ from sqlalchemy.future import select
 
 from api.db.base_client import BaseDBClient
 from api.db.models import APIKeyModel
+from api.services.auth.key_environment import PRODUCTION, normalise
 from api.utils.api_key import generate_api_key, hash_api_key
 
 
 class APIKeyClient(BaseDBClient):
     async def create_api_key(
-        self, organization_id: int, name: str, created_by: Optional[int] = None
+        self,
+        organization_id: int,
+        name: str,
+        created_by: Optional[int] = None,
+        environment: str = PRODUCTION,
     ) -> tuple[APIKeyModel, str]:
         """Create a new API key for an organization.
+
+        ``environment`` decides both the visible prefix and what the key may
+        do. Normalised here rather than trusted: it arrives from a request
+        body, and an unrecognised value must not produce a key that is neither
+        thing.
 
         Returns:
             Tuple of (APIKeyModel, raw_api_key)
         """
-        # Generate a secure random API key
-        raw_api_key, key_hash, key_prefix = generate_api_key()
+        environment = normalise(environment)
+        raw_api_key, key_hash, key_prefix = generate_api_key(environment)
 
         async with self.async_session() as session:
             api_key = APIKeyModel(
@@ -26,6 +36,7 @@ class APIKeyClient(BaseDBClient):
                 name=name,
                 key_hash=key_hash,
                 key_prefix=key_prefix,
+                environment=environment,
                 created_by=created_by,
                 is_active=True,
             )

@@ -14,13 +14,19 @@ from pydantic import BaseModel
 
 from api.db import db_client
 from api.enums import TriggerState, WorkflowStatus
+from api.services.auth.key_environment import (
+    PRODUCTION,
+    is_sandbox,
+    normalise,
+    refusal_message,
+)
 from api.services.call_concurrency import (
     CallConcurrencyLimitError,
     call_concurrency,
 )
 from api.services.compliance import dnd
 from api.services.quota_service import authorize_workflow_run_start
-from api.services.telephony import number_lifecycle
+from api.services.telephony import number_lifecycle, verified_numbers
 from api.services.telephony.factory import (
     get_default_telephony_provider,
     get_telephony_provider_by_id,
@@ -181,6 +187,7 @@ async def _execute_resolved_target(
     use_draft: bool,
     api_key_id: int | None,
     api_key_created_by: int | None,
+    key_environment: str = PRODUCTION,
 ) -> TriggerCallResponse:
     """Shared execution path once the target workflow has been resolved."""
     execution_user_id = _get_execution_user_id(target.workflow)
@@ -266,6 +273,30 @@ async def _execute_resolved_target(
     except dnd.CallRefused as exc:
         raise HTTPException(status_code=451, detail=str(exc)) from exc
 
+    # A sandbox key may only ring a number this account has proved it can
+    # answer. That is the whole of what "sandbox" means here: an account can
+    # give a developer or an agency API access without giving them the ability
+    # to dial its customers.
+    #
+    # Deliberately not "the sandbox key may only use the draft endpoint" —
+    # which would have been easier and would have meant nothing, since the
+    # draft endpoint dials a real phone just as hard. It is the same
+    # `verified_numbers` gate the test-call button uses, for the same reason.
+    #
+    # After the do-not-call check, so a number on the DND list is refused as a
+    # DND violation whichever key aimed at it.
+    if is_sandbox(key_environment):
+        destination_is_verified = await verified_numbers.is_verified(
+            target.organization_id,
+            request.phone_number,
+            db=db_client,
+        )
+        if not destination_is_verified:
+            raise HTTPException(
+                status_code=403,
+                detail=refusal_message(request.phone_number),
+            )
+
     # NOTE: the provider-key readiness gate deliberately does NOT run here — it
     # refuses on BYOK sections a voice call never uses (`realtime`,
     # `embeddings`) and reads the workflow's configuration rather than the
@@ -292,6 +323,11 @@ async def _execute_resolved_target(
         initial_context["api_key_id"] = api_key_id
     if api_key_created_by is not None:
         initial_context["api_key_created_by"] = api_key_created_by
+    # Recorded on every run, production included. A sandbox call is not free —
+    # it runs real speech recognition, a real model and a real carrier — so
+    # what the environment buys is that the cost is attributable rather than
+    # absent.
+    initial_context["api_key_environment"] = normalise(key_environment)
     initial_context.update(request.initial_context or {})
 
     try:
@@ -409,6 +445,9 @@ async def _initiate_call(
         use_draft=use_draft,
         api_key_id=api_key.id,
         api_key_created_by=api_key.created_by,
+        # The stored column, never the key string. The prefix is for humans
+        # reading a config file; what a key may do is decided by the row.
+        key_environment=getattr(api_key, "environment", PRODUCTION),
     )
 
 
