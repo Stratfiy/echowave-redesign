@@ -143,9 +143,15 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // for it. Keys are masked to their last four characters, so the screen
       // shows what exists rather than what it is. Adding, pausing and removing
       // are gated inside the screen.
+      // Points at the catalogue rather than the keys screen. "Integrations"
+      // in a sidebar is read as "what does this connect to", and answering
+      // that with a form for pasting an OpenAI key answers a different
+      // question. `/integrations` itself is untouched, so the deep links from
+      // the model editor and the Google OAuth callback still land where they
+      // did — the tab strip carries somebody between the two.
       {
         title: "Integrations",
-        url: "/integrations",
+        url: "/integrations/apps",
         icon: KeyRound,
         keywords: [
           "byok",
@@ -155,6 +161,17 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "vault",
           "provider keys",
           "tools",
+          "apps",
+          "crm",
+          "zoho",
+          "hubspot",
+          "salesforce",
+          "zapier",
+          "n8n",
+          "make",
+          "sheets",
+          "slack",
+          "whatsapp",
           "function",
           "webhook",
           "calendar",
