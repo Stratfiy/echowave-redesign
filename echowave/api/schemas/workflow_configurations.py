@@ -192,6 +192,15 @@ class WorkflowConfigurationDefaults(BaseModel):
     # the behaviour of every live call in one deploy on a judgement nobody made
     # per agent.
     follow_caller_language: bool = False
+    # Does the agent read the caller's keypad?
+    #
+    # Off by default for the same reason as above — this adds a turn the agent
+    # did not previously get, and an agent whose prompt has no idea what to do
+    # with "[the caller pressed 1]" answers it badly. Turned on where the
+    # prompt asks for a number, which is where it is worth having: speech
+    # recognition is at its worst on a ten-digit mobile number and the keypad
+    # is at its best.
+    accept_keypad_input: bool = False
 
 
 def get_default_workflow_configurations() -> WorkflowConfigurationDefaults:

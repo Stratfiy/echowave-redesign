@@ -258,6 +258,12 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
      * live call at once.
      */
     follow_caller_language?: boolean;
+    /**
+     * Whether keypresses reach the agent as a turn. Off unless turned on: it
+     * adds input the agent did not previously get, and a prompt that does not
+     * expect it answers it badly.
+     */
+    accept_keypad_input?: boolean;
     dynamic_greeting_configuration?: DynamicGreetingConfiguration;
     max_call_duration: number;  // Maximum call duration in seconds
     max_user_idle_timeout: number;  // Maximum user idle time in seconds
@@ -291,6 +297,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     pronunciation_lexicon: [],
     call_outcomes: [],
     follow_caller_language: false,
+    accept_keypad_input: false,
     dynamic_greeting_configuration: { enabled: false, url: "" },
     max_call_duration: 300,
     max_user_idle_timeout: 10,  // 10 seconds

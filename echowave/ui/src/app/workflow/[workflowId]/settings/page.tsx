@@ -298,6 +298,9 @@ function GeneralSection({
     const [ambientNoiseConfig, setAmbientNoiseConfig] = useState<AmbientNoiseConfiguration>(
         workflowConfigurations.ambient_noise_configuration,
     );
+    const [acceptKeypadInput, setAcceptKeypadInput] = useState(
+        workflowConfigurations.accept_keypad_input ?? false,
+    );
     const [maxCallDuration, setMaxCallDuration] = useState(workflowConfigurations.max_call_duration);
     const [maxUserIdleTimeout, setMaxUserIdleTimeout] = useState(workflowConfigurations.max_user_idle_timeout);
     const [smartTurnStopSecs, setSmartTurnStopSecs] = useState(workflowConfigurations.smart_turn_stop_secs);
@@ -370,6 +373,7 @@ function GeneralSection({
             name !== workflowName ||
             JSON.stringify(ambientNoiseConfig) !== JSON.stringify(initAmbient) ||
             JSON.stringify(noiseSuppressionConfig) !== JSON.stringify(initSuppression) ||
+            acceptKeypadInput !== (workflowConfigurations.accept_keypad_input ?? false) ||
             maxCallDuration !== workflowConfigurations.max_call_duration ||
             maxUserIdleTimeout !== workflowConfigurations.max_user_idle_timeout ||
             smartTurnStopSecs !== workflowConfigurations.smart_turn_stop_secs ||
@@ -385,7 +389,7 @@ function GeneralSection({
             includeTranscriptEndTimestamps !==
             (workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false)
         );
-    }, [name, workflowName, ambientNoiseConfig, noiseSuppressionConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, noiseSuppressionConfig, acceptKeypadInput, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -455,6 +459,7 @@ function GeneralSection({
                     ...workflowConfigurations,
                     ambient_noise_configuration: ambientNoiseConfig,
                     noise_suppression_configuration: noiseSuppressionConfig,
+                    accept_keypad_input: acceptKeypadInput,
                     max_call_duration: maxCallDuration,
                     max_user_idle_timeout: maxUserIdleTimeout,
                     smart_turn_stop_secs: smartTurnStopSecs,
@@ -803,6 +808,37 @@ function GeneralSection({
                         {noiseSuppressionConfig.enabled
                             ? "Adds about 20ms to each turn. On a quiet line it buys nothing, so leave it off unless callers are somewhere noisy."
                             : "Off. Calls are passed through as the carrier sends them."}
+                    </p>
+                </div>
+
+                <Separator />
+
+                {/* Keypad. Beside noise suppression rather than with the
+                    models: both are about what reaches the agent from the
+                    caller's end of the line. */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Keypad</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Let the caller type a number instead of saying it &mdash;
+                            a mobile number, an order id, an OTP, or a menu choice.
+                            Worth turning on wherever the agent asks for digits.
+                        </p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="accept-keypad-input" className="text-sm">
+                            Accept keypad input
+                        </Label>
+                        <Switch
+                            id="accept-keypad-input"
+                            checked={acceptKeypadInput}
+                            onCheckedChange={setAcceptKeypadInput}
+                        />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        {acceptKeypadInput
+                            ? "Digits arrive as one entry when the caller presses # or stops typing, so the agent answers the whole number rather than each key. Tell it in the prompt that callers may type — an agent that does not expect it answers badly."
+                            : "Off. Keypresses are ignored, and a caller who types gets no response to it."}
                     </p>
                 </div>
 

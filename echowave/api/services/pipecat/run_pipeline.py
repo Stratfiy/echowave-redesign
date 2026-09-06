@@ -1332,6 +1332,15 @@ async def _run_pipeline_impl(
     # wants it on a clinic line and off on a compliance line reading out a
     # disclosure that was approved in one language, and one switch for the
     # whole install could give it both or neither.
+    # The keypad, for the agents whose prompt asks for a number. A realtime
+    # speech-to-speech model runs a different pipeline that has no slot for
+    # this, so it is excluded here rather than half-built there.
+    dtmf_collector = None
+    if run_configs.get("accept_keypad_input") and not is_realtime:
+        from api.services.pipecat.dtmf_collector import DtmfCollector
+
+        dtmf_collector = DtmfCollector()
+
     language_follower = None
     if should_follow_caller_language(run_configs, is_realtime=is_realtime):
         from api.services.pipecat.language_follower import (
@@ -1371,6 +1380,7 @@ async def _run_pipeline_impl(
             voicemail_detector=voicemail_detector,
             recording_router=recording_router,
             digit_normaliser=digit_normaliser,
+            dtmf_collector=dtmf_collector,
             language_follower=language_follower,
             interruption_backoff=_create_interruption_backoff(run_configs),
         )
