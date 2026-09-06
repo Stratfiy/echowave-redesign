@@ -264,6 +264,12 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
      * expect it answers it badly.
      */
     accept_keypad_input?: boolean;
+    /**
+     * Speak the way callers here actually do, mixing English into the local
+     * language, rather than the formal register a model reaches for. Appended
+     * to the operator's own prompt, so off unless asked for.
+     */
+    speak_like_callers?: boolean;
     dynamic_greeting_configuration?: DynamicGreetingConfiguration;
     max_call_duration: number;  // Maximum call duration in seconds
     max_user_idle_timeout: number;  // Maximum user idle time in seconds
@@ -298,6 +304,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     call_outcomes: [],
     follow_caller_language: false,
     accept_keypad_input: false,
+    speak_like_callers: false,
     dynamic_greeting_configuration: { enabled: false, url: "" },
     max_call_duration: 300,
     max_user_idle_timeout: 10,  // 10 seconds

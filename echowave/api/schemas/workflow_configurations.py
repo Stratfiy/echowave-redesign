@@ -201,6 +201,13 @@ class WorkflowConfigurationDefaults(BaseModel):
     # recognition is at its worst on a ten-digit mobile number and the keypad
     # is at its best.
     accept_keypad_input: bool = False
+    # Speak the way callers here actually do, mixing English into the local
+    # language, rather than in the formal register a model reaches for when
+    # told to speak Hindi.
+    #
+    # Off by default because the instruction is appended to the operator's own
+    # prompt, and somebody who wrote "reply only in formal Hindi" meant it.
+    speak_like_callers: bool = False
 
 
 def get_default_workflow_configurations() -> WorkflowConfigurationDefaults:

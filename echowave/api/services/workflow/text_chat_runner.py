@@ -48,6 +48,7 @@ from api.services.pipecat.worker_runner import (
 )
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.pipecat_engine import PipecatEngine
+from api.services.workflow.speaking_style import wants_code_mixed_speech
 from api.services.workflow.workflow_graph import WorkflowGraph
 
 TEXT_CHAT_CHECKPOINT_VERSION = 1
@@ -550,7 +551,8 @@ async def execute_text_chat_pending_turn(
         embeddings_api_version = getattr(user_config.embeddings, "api_version", None)
 
     has_recordings = await db_client.has_active_recordings(workflow.organization_id)
-    context_compaction_enabled = (workflow.workflow_configurations or {}).get(
+    workflow_configurations = workflow.workflow_configurations or {}
+    context_compaction_enabled = workflow_configurations.get(
         "context_compaction_enabled", False
     )
     engine = PipecatEngine(
@@ -569,6 +571,10 @@ async def execute_text_chat_pending_turn(
         embeddings_endpoint=embeddings_endpoint,
         embeddings_api_version=embeddings_api_version,
         has_recordings=has_recordings,
+        # A chat is typed rather than spoken, and people type the same mix they
+        # speak — so the same instruction applies, minus the reason about how a
+        # voice reads the script.
+        code_mixed_speech=wants_code_mixed_speech(workflow_configurations),
         context_compaction_enabled=context_compaction_enabled,
     )
     engine._gathered_context = dict(base_checkpoint["gathered_context"])

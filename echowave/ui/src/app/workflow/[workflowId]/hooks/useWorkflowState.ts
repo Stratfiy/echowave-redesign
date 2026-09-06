@@ -646,19 +646,20 @@ export const useWorkflowState = ({
         [workflowId, workflowName, user, setWorkflowConfigurations, workflowConfigurationDefaults],
     );
 
-    // Whether the agent moves when the caller switches language. Per agent,
-    // replacing a single environment variable for the whole install — the same
-    // account wants it on a clinic line and off on a compliance line reading a
-    // disclosure approved in one language.
-    const saveFollowCallerLanguage = useCallback(
-        async (enabled: boolean) => {
+    // The two halves of the same complaint, saved together because they are
+    // edited together: whether the agent moves when the caller switches
+    // language, and whether what comes back is the register people speak or
+    // the formal one a model defaults to.
+    const saveLanguageSettings = useCallback(
+        async ({ follow, codeMixed }: { follow: boolean; codeMixed: boolean }) => {
             if (!user) return;
             const currentConfigurations =
                 useWorkflowStore.getState().workflowConfigurations
                 ?? resolveWorkflowConfigurations(null, workflowConfigurationDefaults);
             const updatedConfigurations: WorkflowConfigurations = {
                 ...currentConfigurations,
-                follow_caller_language: enabled,
+                follow_caller_language: follow,
+                speak_like_callers: codeMixed,
             };
             try {
                 await updateWorkflowApiV1WorkflowWorkflowIdPut({
@@ -743,7 +744,7 @@ export const useWorkflowState = ({
         saveDictionary,
         savePronunciationLexicon,
         saveCallOutcomes,
-        saveFollowCallerLanguage,
+        saveLanguageSettings,
         // Export undo/redo state
         undo,
         redo,

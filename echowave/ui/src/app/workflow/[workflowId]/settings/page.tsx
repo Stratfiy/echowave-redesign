@@ -1377,24 +1377,27 @@ function PronunciationSection({
  * disclosure that was approved in one language.
  */
 function CallerLanguageSection({
-    enabled,
+    follow,
+    codeMixed,
     onSave,
 }: {
-    enabled: boolean;
-    onSave: (enabled: boolean) => Promise<void>;
+    follow: boolean;
+    codeMixed: boolean;
+    onSave: (settings: { follow: boolean; codeMixed: boolean }) => Promise<void>;
 }) {
-    const [value, setValue] = useState(enabled);
+    const [value, setValue] = useState(follow);
+    const [mixed, setMixed] = useState(codeMixed);
     const [isSaving, setIsSaving] = useState(false);
 
-    const isDirty = value !== enabled;
+    const isDirty = value !== follow || mixed !== codeMixed;
     useUnsavedChanges("language", isDirty);
 
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await onSave(value);
+            await onSave({ follow: value, codeMixed: mixed });
         } catch (error) {
-            console.error("Failed to save language following:", error);
+            console.error("Failed to save language settings:", error);
         } finally {
             setIsSaving(false);
         }
@@ -1408,9 +1411,8 @@ function CallerLanguageSection({
                     Caller&apos;s language
                 </CardTitle>
                 <CardDescription>
-                    Let the agent switch language when the caller does &mdash; someone
-                    who opens in English and moves to Hindi keeps being answered in
-                    the language they are speaking.
+                    How the agent handles the language a caller actually speaks
+                    &mdash; which is rarely one language, spoken formally.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -1430,6 +1432,27 @@ function CallerLanguageSection({
                     {value
                         ? "Switches after two turns in the new language, so one mis-heard word cannot flip the voice. Needs a transcriber in multilingual mode; speech-to-speech models already do this themselves and ignore the setting."
                         : "Off. The agent answers in its configured language for the whole call, whatever the caller does."}
+                </p>
+
+                <Separator />
+
+                {/* The other half of the same complaint. Following the caller
+                    into Hindi is no use if what comes back is news-bulletin
+                    Hindi nobody speaks. */}
+                <div className="flex items-center justify-between">
+                    <Label htmlFor="speak-like-callers" className="text-sm">
+                        Speak the way callers do
+                    </Label>
+                    <Switch
+                        id="speak-like-callers"
+                        checked={mixed}
+                        onCheckedChange={setMixed}
+                    />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                    {mixed
+                        ? "Mixes English into the local language the way people actually do — “aapka appointment book ho gaya hai”, not a formal translation nobody says. Added after your own prompt, so an instruction of yours about language still wins."
+                        : "Off. Told to speak Hindi, the model uses the formal register it defaults to — which is understood less, not more."}
                 </p>
             </CardContent>
             <CardFooter className="justify-end gap-3 border-t pt-6">
@@ -2124,7 +2147,7 @@ function WorkflowSettingsInner({
         saveDictionary,
         savePronunciationLexicon,
         saveCallOutcomes,
-        saveFollowCallerLanguage,
+        saveLanguageSettings,
     } = useWorkflowState({
         initialWorkflowName: workflow.name,
         workflowId,
@@ -2288,8 +2311,9 @@ function WorkflowSettingsInner({
                                 same sitting as the dictionary and the
                                 pronunciations. */}
                             <CallerLanguageSection
-                                enabled={workflowConfigurations?.follow_caller_language ?? false}
-                                onSave={saveFollowCallerLanguage}
+                                follow={workflowConfigurations?.follow_caller_language ?? false}
+                                codeMixed={workflowConfigurations?.speak_like_callers ?? false}
+                                onSave={saveLanguageSettings}
                             />
                             </div>
 

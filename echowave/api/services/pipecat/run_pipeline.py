@@ -86,6 +86,7 @@ from api.services.pipecat.ws_sender_registry import get_ws_sender
 from api.services.telephony import registry as telephony_registry
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.pipecat_engine import PipecatEngine
+from api.services.workflow.speaking_style import wants_code_mixed_speech
 from api.services.workflow.workflow_graph import WorkflowGraph
 from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
 from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
@@ -1052,6 +1053,7 @@ async def _run_pipeline_impl(
         embeddings_endpoint=embeddings_endpoint,
         embeddings_api_version=embeddings_api_version,
         has_recordings=has_recordings,
+        code_mixed_speech=wants_code_mixed_speech(run_configs),
         context_compaction_enabled=context_compaction_enabled,
     )
 
