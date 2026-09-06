@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Download, Globe } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Globe, PhoneCall, SearchX } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import TimezoneSelect, { type ITimezoneOption } from 'react-timezone-select';
@@ -10,6 +11,7 @@ import { downloadUsageRunsReportApiV1OrganizationsUsageRunsReportGet, getDailyUs
 import type { DailyUsageBreakdownResponse, OrganizationPreferences, UsageHistoryResponse, WorkflowRunUsageResponse, WorkflowSummaryResponse } from '@/client/types.gen';
 import { CallTypeCell } from '@/components/CallTypeCell';
 import { DailyUsageTable } from '@/components/DailyUsageTable';
+import { EmptyState } from '@/components/EmptyState';
 import { FilterBuilder } from '@/components/filters/FilterBuilder';
 import { MediaPreviewButton, MediaPreviewDialog } from '@/components/MediaPreviewDialog';
 import { OutcomesSummary } from '@/components/OutcomesSummary';
@@ -29,6 +31,7 @@ import { useUserConfig } from '@/context/UserConfigContext';
 import { useCallOutcomes } from '@/hooks/useCallOutcomes';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
+import { emptyReason } from '@/lib/emptyState';
 import { usageFilterAttributes } from '@/lib/filterAttributes';
 import { decodeFiltersFromURL, encodeFiltersToURL } from '@/lib/filters';
 import type { ActiveFilter, DateRangeValue, FilterAttribute, NumberFilterOption } from '@/types/filters';
@@ -737,7 +740,29 @@ export default function UsagePage() {
                                 )}
                             </>
                         ) : (
-                            <p className="text-center py-8 text-muted-foreground">No runs found</p>
+                            emptyReason({ hasFilters: appliedFilters.length > 0 }) === "filtered-out" ? (
+                                <EmptyState
+                                    icon={SearchX}
+                                    title="No calls match these filters"
+                                    description="Widen the date range, or clear a filter to see everything again."
+                                    action={
+                                        <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                                            Clear filters
+                                        </Button>
+                                    }
+                                />
+                            ) : (
+                                <EmptyState
+                                    icon={PhoneCall}
+                                    title="No calls yet"
+                                    description="Every call an agent takes or makes lands here, with its recording, transcript and outcome. Make one to see it."
+                                    action={
+                                        <Button asChild size="sm">
+                                            <Link href="/workflow">Go to your agents</Link>
+                                        </Button>
+                                    }
+                                />
+                            )
                         )}
                     </CardContent>
                 </Card>

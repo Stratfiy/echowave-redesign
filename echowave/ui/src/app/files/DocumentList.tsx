@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, FileText, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, FileText, RefreshCw, Search, SearchX, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -11,6 +11,7 @@ import {
 import { getUsageApiV1KnowledgeBaseUsageGet } from "@/client/sdk.gen";
 import type { DocumentResponseSchema } from '@/client/types.gen';
 import { useConfirm } from "@/components/ConfirmDialog";
+import { EmptyState } from '@/components/EmptyState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -265,14 +266,19 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
 
       {/* Document List */}
       {filteredDocuments.length === 0 ? (
-        <div className="text-center py-12">
-          <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">
-            {searchQuery
-              ? 'No documents match your search'
-              : 'No documents uploaded yet'}
-          </p>
-        </div>
+        searchQuery ? (
+          <EmptyState
+            icon={SearchX}
+            title="No documents match your search"
+            description="Try a shorter search, or clear it to see everything."
+          />
+        ) : (
+          <EmptyState
+            icon={FileText}
+            title="No documents yet"
+            description="Upload your price list, policy or FAQ and the agent can answer from it during a call, in its own words."
+          />
+        )
       ) : (
         <div className="space-y-3">
           {filteredDocuments.map((doc) => (
