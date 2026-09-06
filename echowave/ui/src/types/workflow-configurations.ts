@@ -3,6 +3,7 @@ import type {
     OrganizationAiModelConfigurationV2,
     WorkflowConfigurationDefaults as GeneratedWorkflowConfigurationDefaults,
 } from "@/client/types.gen";
+import type { CallOutcome } from "@/constants/callOutcomes";
 
 export type WorkflowConfigurationDefaults = GeneratedWorkflowConfigurationDefaults;
 
@@ -22,6 +23,8 @@ export type WorkflowConfigurationDefaults = GeneratedWorkflowConfigurationDefaul
  * happily type "Chinna-swaamy", which is how they would write it for a new
  * receptionist.
  */
+export type { CallOutcome };
+
 export type PronunciationEntry = {
     /** What appears in the text. */
     find: string;
@@ -243,6 +246,12 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
     ambient_noise_configuration: AmbientNoiseConfiguration;
     noise_suppression_configuration?: NoiseSuppressionConfiguration;
     pronunciation_lexicon?: PronunciationEntry[];
+    /**
+     * What a finished call is classified as. Empty means the platform default
+     * list applies, so an agent nobody has configured still produces outcomes
+     * rather than an empty column somebody has to discover is empty.
+     */
+    call_outcomes?: CallOutcome[];
     dynamic_greeting_configuration?: DynamicGreetingConfiguration;
     max_call_duration: number;  // Maximum call duration in seconds
     max_user_idle_timeout: number;  // Maximum user idle time in seconds
@@ -274,6 +283,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
         enabled: false
     },
     pronunciation_lexicon: [],
+    call_outcomes: [],
     dynamic_greeting_configuration: { enabled: false, url: "" },
     max_call_duration: 300,
     max_user_idle_timeout: 10,  // 10 seconds

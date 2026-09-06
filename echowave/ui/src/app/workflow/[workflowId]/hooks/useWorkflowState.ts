@@ -26,6 +26,7 @@ import { PostHogEvent } from "@/constants/posthog-events";
 import logger from '@/lib/logger';
 import { getNextNodeId, getRandomId } from "@/lib/utils";
 import {
+    type CallOutcome,
     type PronunciationEntry,
     resolveWorkflowConfigurations,
     type WorkflowConfigurationDefaults,
@@ -613,6 +614,38 @@ export const useWorkflowState = ({
         [workflowId, workflowName, user, setWorkflowConfigurations, workflowConfigurationDefaults],
     );
 
+    // The list of outcomes this agent's calls are classified against, after
+    // the call. Saved through the same configuration blob as everything else
+    // on that screen rather than its own endpoint: it is a per-agent setting,
+    // and one save path is one place for the version pinning to be right.
+    const saveCallOutcomes = useCallback(
+        async (outcomes: CallOutcome[]) => {
+            if (!user) return;
+            const currentConfigurations =
+                useWorkflowStore.getState().workflowConfigurations
+                ?? resolveWorkflowConfigurations(null, workflowConfigurationDefaults);
+            const updatedConfigurations: WorkflowConfigurations = {
+                ...currentConfigurations,
+                call_outcomes: outcomes,
+            };
+            try {
+                await updateWorkflowApiV1WorkflowWorkflowIdPut({
+                    path: { workflow_id: workflowId },
+                    body: {
+                        name: workflowName,
+                        workflow_definition: null,
+                        workflow_configurations: updatedConfigurations as Record<string, unknown>,
+                    },
+                });
+                setWorkflowConfigurations(updatedConfigurations);
+            } catch (error) {
+                logger.error(`Error saving call outcomes: ${error}`);
+                throw error;
+            }
+        },
+        [workflowId, workflowName, user, setWorkflowConfigurations, workflowConfigurationDefaults],
+    );
+
     // Save dictionary
     const saveDictionary = useCallback(async (newDictionary: string) => {
         if (!user) return;
@@ -677,6 +710,7 @@ export const useWorkflowState = ({
         saveWorkflowConfigurations,
         saveDictionary,
         savePronunciationLexicon,
+        saveCallOutcomes,
         // Export undo/redo state
         undo,
         redo,

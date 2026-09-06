@@ -239,6 +239,8 @@ export const FilterBuilder: React.FC<FilterBuilderProps> = ({
             error={error}
             showSelectAll={filter.attribute.config.showSelectAll}
             searchable={filter.attribute.config.searchable}
+            matchModes={filter.attribute.config.matchModes}
+            optionsLoading={filter.attribute.config.optionsLoading}
           />
         );
       case "number":

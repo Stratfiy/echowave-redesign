@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowLeft, BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, Trash2, Trash2Icon, Upload, Variable, Volume2, X } from "lucide-react";
+import { ArrowLeft, BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, Tags, Trash2, Trash2Icon, Upload, Variable, Volume2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -40,6 +40,14 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+    type CallOutcome,
+    DEFAULT_CALL_OUTCOMES,
+    MAX_CALL_OUTCOMES,
+    normaliseOutcomeCode,
+    outcomesToSave,
+    UNCLEAR_OUTCOME,
+} from "@/constants/callOutcomes";
 import { SETTINGS_DOCUMENTATION_URLS } from "@/constants/documentation";
 import { UnsavedChangesProvider, useUnsavedChanges, useUnsavedChangesContext } from "@/context/UnsavedChangesContext";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
@@ -1317,6 +1325,167 @@ function PronunciationSection({
 }
 
 // ---------------------------------------------------------------------------
+// Section: Call outcomes
+// ---------------------------------------------------------------------------
+
+/**
+ * The list this agent's finished calls are classified against.
+ *
+ * On the Analysis tab beside QA, and not the same thing. QA scores how the
+ * call was handled; this records what it achieved, and the two come apart
+ * constantly — a polite, well-run call to somebody who was never going to buy
+ * scores well and books nothing.
+ *
+ * Editable because the outcomes are a property of the business, not of us. A
+ * clinic books appointments, a lending agent gets a payment promise, an NDR
+ * agent confirms an address. The defaults are a starting point somebody
+ * changes, which is where Vapi and Bolna both land and for the same reason:
+ * there is no list that fits everyone.
+ */
+function CallOutcomesSection({
+    outcomes,
+    onSave,
+}: {
+    outcomes: CallOutcome[];
+    onSave: (outcomes: CallOutcome[]) => Promise<void>;
+}) {
+    // An agent that has never been configured is already classifying against
+    // the defaults, so that is what the editor shows — not an empty list
+    // implying nothing happens.
+    const stored = outcomes.length > 0 ? outcomes : [...DEFAULT_CALL_OUTCOMES];
+    const [rows, setRows] = useState<CallOutcome[]>(stored);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const isDirty = JSON.stringify(rows) !== JSON.stringify(stored);
+    useUnsavedChanges("outcomes", isDirty);
+
+    const update = (index: number, field: keyof CallOutcome, value: string) =>
+        setRows((prev) =>
+            prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
+        );
+
+    // Shown under the row as it is typed rather than rewritten on save: a
+    // code is what lands in a CRM field and a CSV heading, and finding out
+    // afterwards that "Call Back" became `call_back` is a surprise.
+    const codeHint = (raw: string) => {
+        const normalised = normaliseOutcomeCode(raw);
+        if (!raw.trim()) return null;
+        if (!normalised) return "Needs to start with a letter";
+        return normalised === raw ? null : `Saved as ${normalised}`;
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await onSave(outcomesToSave(rows));
+        } catch (error) {
+            console.error("Failed to save call outcomes:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card id="outcomes">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                    <Tags className="h-4 w-4" />
+                    Call outcomes
+                </CardTitle>
+                <CardDescription>
+                    What you want to sort finished calls by. Every call gets one or
+                    more of these after it ends &mdash; a call that books and also
+                    asks for a follow-up is both. Separate from how the call ended,
+                    which is recorded either way.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <div className="grid grid-cols-[1fr_1.6fr_auto] gap-2 text-xs text-muted-foreground">
+                    <span>Name</span>
+                    <span>Use it when</span>
+                    <span className="w-8" />
+                </div>
+                {rows.map((row, index) => {
+                    const locked = row.code === UNCLEAR_OUTCOME.code;
+                    const hint = codeHint(row.label || row.code);
+                    return (
+                        <div key={index} className="space-y-1">
+                            <div className="grid grid-cols-[1fr_1.6fr_auto] gap-2">
+                                <Input
+                                    value={row.label || row.code}
+                                    disabled={locked}
+                                    onChange={(e) => {
+                                        update(index, "label", e.target.value);
+                                        update(index, "code", e.target.value);
+                                    }}
+                                    placeholder="Booked"
+                                />
+                                <Input
+                                    value={row.when}
+                                    disabled={locked}
+                                    onChange={(e) => update(index, "when", e.target.value)}
+                                    placeholder="An appointment is confirmed"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={locked}
+                                    aria-label={`Remove ${row.label || row.code || "outcome"}`}
+                                    onClick={() =>
+                                        setRows((prev) => prev.filter((_, i) => i !== index))
+                                    }
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            {locked ? (
+                                <p className="text-xs text-muted-foreground">
+                                    Always available. Without somewhere to put a call it
+                                    genuinely cannot read, the classifier picks the nearest
+                                    real outcome instead.
+                                </p>
+                            ) : (
+                                hint && <p className="text-xs text-muted-foreground">{hint}</p>
+                            )}
+                        </div>
+                    );
+                })}
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={rows.length >= MAX_CALL_OUTCOMES}
+                    onClick={() =>
+                        setRows((prev) => [
+                            // Before `unclear`, which stays at the bottom.
+                            ...prev.filter((r) => r.code !== UNCLEAR_OUTCOME.code),
+                            { code: "", label: "", when: "" },
+                            ...prev.filter((r) => r.code === UNCLEAR_OUTCOME.code),
+                        ])
+                    }
+                >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add an outcome
+                </Button>
+                {rows.length >= MAX_CALL_OUTCOMES && (
+                    <p className="text-xs text-muted-foreground">
+                        {MAX_CALL_OUTCOMES} is the limit. Past that this is not a list
+                        anyone sorts by, and each one is sent with every transcript.
+                    </p>
+                )}
+            </CardContent>
+            <CardFooter className="justify-end gap-3 border-t pt-6">
+                {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
+                <Button onClick={handleSave} disabled={isSaving || !isDirty}>
+                    {isSaving ? "Saving..." : "Save Outcomes"}
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Section: Voicemail Detection
 // ---------------------------------------------------------------------------
 
@@ -1836,6 +2005,7 @@ function WorkflowSettingsInner({
         saveTemplateContextVariables,
         saveDictionary,
         savePronunciationLexicon,
+        saveCallOutcomes,
     } = useWorkflowState({
         initialWorkflowName: workflow.name,
         workflowId,
@@ -2007,6 +2177,16 @@ function WorkflowSettingsInner({
                                 path does now, so for a new agent this reads as
                                 on; it stays the control for older ones. */}
                             <QaCard workflowId={workflowId} />
+
+                            {/* Under QA because it is the other half of the
+                                same screen: QA says how the call was handled,
+                                this says what it achieved, and a well-handled
+                                call that books nothing scores well on one and
+                                badly on the other. */}
+                            <CallOutcomesSection
+                                outcomes={workflowConfigurations?.call_outcomes ?? []}
+                                onSave={saveCallOutcomes}
+                            />
 
                             {/* Recordings – moved to org-level page */}
                             <Card id="recordings">

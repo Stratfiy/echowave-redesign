@@ -58,6 +58,11 @@ class WorkflowRunUsageResponse(BaseModel):
     call_type: Optional[str] = None
     mode: Optional[str] = None
     disposition: Optional[str] = None
+    # What the call achieved, as opposed to how it ended. Several per call, and
+    # a separate field from `disposition` because a call is legitimately both
+    # `user_hangup` and `booked`. `None` on calls that finished before this
+    # existed, which reads as "not classified" rather than "no outcome".
+    call_outcomes: Optional[List[str]] = None
     initial_context: Optional[Dict[str, Any]] = None
     gathered_context: Optional[Dict[str, Any]] = None
     # New USD field

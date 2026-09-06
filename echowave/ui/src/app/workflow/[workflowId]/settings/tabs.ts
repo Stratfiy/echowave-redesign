@@ -39,7 +39,9 @@ export const TABS = [
         id: "analysis",
         label: "Analysis",
         icon: FileDown,
-        sections: ["qa", "recordings", "report"],
+        // "outcomes" beside "qa": one says how the call was handled,
+        // the other what it achieved, and they come apart constantly.
+        sections: ["qa", "outcomes", "recordings", "report"],
     },
     {
         id: "deploy",

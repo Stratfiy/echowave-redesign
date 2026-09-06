@@ -17,6 +17,7 @@ import { isTabId, TABS } from "../tabs";
 /** Every `id` rendered on the settings page, from its Card anchors. */
 const SECTION_IDS = [
     "qa",
+    "outcomes",
     "general",
     "models",
     "variables",
