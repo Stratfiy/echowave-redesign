@@ -32,6 +32,12 @@ from api.services.pipecat.active_calls import (
     unregister_active_call as unregister_worker_active_call,
 )
 from api.services.pipecat.audio_config import AudioConfig, create_audio_config
+from api.services.pipecat.dynamic_greeting import (
+    fetch_greeting as fetch_dynamic_greeting,
+)
+from api.services.pipecat.dynamic_greeting import (
+    is_enabled as is_dynamic_greeting_enabled,
+)
 from api.services.pipecat.event_handlers import (
     register_audio_data_handler,
     register_event_handlers,
@@ -1220,6 +1226,33 @@ async def _run_pipeline_impl(
         pipeline_sample_rate=audio_config.pipeline_sample_rate,
     )
     engine.set_fetch_recording_audio(fetch_audio)
+
+    # The opening line, asked for at the moment the phone is answered.
+    #
+    # A pre-call variable can carry a name; it cannot carry a fact that is only
+    # true now — "your order shipped this morning", "two slots left today".
+    # Installed only when the agent configured it, so an agent that did not
+    # makes no request and pays no latency.
+    greeting_config = run_configs.get("dynamic_greeting_configuration")
+    if is_dynamic_greeting_enabled(greeting_config):
+
+        async def _dynamic_greeting(static_greeting: str) -> str:
+            return await fetch_dynamic_greeting(
+                greeting_config,
+                context={
+                    "workflow_id": workflow_id,
+                    "workflow_run_id": workflow_run_id,
+                    "phone_number": (workflow_run.initial_context or {}).get(
+                        "phone_number"
+                    )
+                    if workflow_run
+                    else None,
+                    "call_context_vars": call_context_vars or {},
+                },
+                fallback=static_greeting,
+            )
+
+        engine.set_fetch_dynamic_greeting(_dynamic_greeting)
 
     voicemail_config = (workflow.workflow_configurations or {}).get(
         "voicemail_detection", {}

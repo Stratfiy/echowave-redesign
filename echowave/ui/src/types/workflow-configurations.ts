@@ -29,6 +29,24 @@ export type PronunciationEntry = {
     say: string;
 };
 
+/**
+ * Ask the customer's own system what to open with, at the moment the phone is
+ * answered.
+ *
+ * A template variable resolves before the call is placed, so it can carry a
+ * name but not a fact that is only true now — "your order shipped this
+ * morning", "two slots left today". Everything about this is shaped by the
+ * caller already being on the line: the timeout is short and capped by us, and
+ * every failure falls back to the agent's own greeting.
+ */
+export type DynamicGreetingConfiguration = {
+    enabled: boolean;
+    /** POSTed the call context; should answer { greeting: "..." }. */
+    url: string;
+    /** Capped server-side. Dead air on answer is the worst thing we can do. */
+    timeout_ms?: number;
+};
+
 export type NoiseSuppressionConfiguration = {
     enabled: boolean;
 };
@@ -225,6 +243,7 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
     ambient_noise_configuration: AmbientNoiseConfiguration;
     noise_suppression_configuration?: NoiseSuppressionConfiguration;
     pronunciation_lexicon?: PronunciationEntry[];
+    dynamic_greeting_configuration?: DynamicGreetingConfiguration;
     max_call_duration: number;  // Maximum call duration in seconds
     max_user_idle_timeout: number;  // Maximum user idle time in seconds
     smart_turn_stop_secs: number;  // Timeout in seconds for incomplete turn detection
@@ -255,6 +274,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
         enabled: false
     },
     pronunciation_lexicon: [],
+    dynamic_greeting_configuration: { enabled: false, url: "" },
     max_call_duration: 300,
     max_user_idle_timeout: 10,  // 10 seconds
     smart_turn_stop_secs: 2,  // 2 seconds
