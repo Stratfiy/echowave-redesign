@@ -11,9 +11,12 @@ import pytest
 from api.services.embed_logo import (
     MAX_LOGO_BYTES,
     LogoRejected,
+    is_own_logo_key,
     logo_from_settings,
     logo_storage_key,
     merge_logo_into_settings,
+    public_settings,
+    sanitize_client_settings,
     sniff_image,
     validate_logo,
 )
@@ -204,3 +207,101 @@ class TestReadingItBack:
         an exception on somebody's website.
         """
         assert logo_from_settings(settings) is None
+
+
+class TestTheKeyMustBeOurs:
+    """Regression cover for a cross-tenant read introduced with this feature.
+
+    ``settings`` is a free-form dict supplied by the client and stored
+    verbatim, so ``settings.logo.key`` was attacker-controlled — and the public
+    logo route signs whatever key it is handed, with no authentication. Any
+    tenant could point their own token at ``recordings/12345.wav`` and read
+    another organization's call. Run ids are sequential, so that is bulk
+    exfiltration, and the delete paths had the mirror of it.
+    """
+
+    def test_accepts_a_key_we_minted(self):
+        key = logo_storage_key(7, 42, "png")
+        assert is_own_logo_key(key, 7, 42) is True
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "recordings/12345.wav",
+            "transcripts/12345.txt",
+            "campaigns/9/export.csv",
+            "embed-logos/8/42/" + "a" * 32 + ".png",  # another organization
+            "embed-logos/7/43/" + "a" * 32 + ".png",  # another workflow
+            "embed-logos/7/42/../../recordings/1.wav",
+            "embed-logos/7/42/" + "a" * 32 + ".svg",
+            "embed-logos/7/42/" + "a" * 32 + ".png.wav",
+            "embed-logos/7/42/notahex.png",
+            "",
+            None,
+            7,
+        ],
+    )
+    def test_refuses_everything_else(self, key):
+        assert is_own_logo_key(key, 7, 42) is False
+
+    def test_the_organization_id_cannot_be_smuggled_through_the_pattern(self):
+        """The ids are interpolated into a regex, so they are cast to int.
+
+        A string organization id carrying regex metacharacters would otherwise
+        widen the pattern rather than fail to match it.
+        """
+        key = logo_storage_key(7, 42, "png")
+        with pytest.raises((ValueError, TypeError)):
+            is_own_logo_key(key, "7|.*", 42)
+
+
+class TestLogoIsServerManaged:
+    """A client may neither set the logo nor drop it by omission."""
+
+    def test_a_client_supplied_logo_is_discarded(self):
+        hostile = {"buttonColor": "#fff", "logo": {"key": "recordings/12345.wav"}}
+        cleaned = sanitize_client_settings(hostile, None)
+        assert "logo" not in cleaned
+        assert cleaned["buttonColor"] == "#fff"
+
+    def test_a_client_cannot_overwrite_the_stored_logo(self):
+        stored = {"logo": {"key": "embed-logos/7/42/" + "a" * 32 + ".png"}}
+        hostile = {"logo": {"key": "recordings/12345.wav"}}
+        cleaned = sanitize_client_settings(hostile, stored)
+        assert cleaned["logo"] == stored["logo"]
+
+    def test_omitting_the_logo_does_not_remove_it(self):
+        """The widget editor saves settings without `logo` on every save.
+
+        `update_embed_token` replaces settings wholesale, so before this the
+        sequence upload-then-save dropped the logo from the record and left the
+        object in storage with nothing referencing it.
+        """
+        stored = {"logo": {"key": "embed-logos/7/42/" + "a" * 32 + ".png"}}
+        cleaned = sanitize_client_settings({"buttonColor": "#fff"}, stored)
+        assert cleaned["logo"] == stored["logo"]
+        assert cleaned["buttonColor"] == "#fff"
+
+
+class TestThePublicConfigHidesTheKey:
+    def test_logo_is_stripped(self):
+        """The widget is given a URL to our own route, never a storage key.
+
+        The logo route's docstring claimed this; the config response returned
+        the whole settings blob and did not.
+        """
+        settings = {
+            "buttonColor": "#e8590c",
+            "logo": {"key": "embed-logos/7/42/" + "a" * 32 + ".png"},
+        }
+        public = public_settings(settings)
+        assert "logo" not in public
+        assert public["buttonColor"] == "#e8590c"
+
+    def test_does_not_mutate_the_original(self):
+        settings = {"logo": {"key": "k"}}
+        public_settings(settings)
+        assert "logo" in settings
+
+    def test_handles_no_settings(self):
+        assert public_settings(None) == {}

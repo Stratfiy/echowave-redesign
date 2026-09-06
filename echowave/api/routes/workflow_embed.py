@@ -129,7 +129,12 @@ async def create_or_update_embed_token(
             existing_tokens[0].id,
             user.selected_organization_id,
             allowed_domains=allowed_domains,
-            settings=embed_request.settings,
+            # `logo` is server-managed. The client may neither set it — which
+            # would let it name any object in the bucket — nor drop it by
+            # omission, which is what the widget editor was doing on every save.
+            settings=sanitize_client_settings(
+                embed_request.settings, existing_tokens[0].settings
+            ),
             usage_limit=embed_request.usage_limit,
             expires_at=expires_at,
             is_active=True,
@@ -141,7 +146,7 @@ async def create_or_update_embed_token(
             organization_id=user.selected_organization_id,
             created_by=user.id,
             allowed_domains=allowed_domains,
-            settings=embed_request.settings,
+            settings=sanitize_client_settings(embed_request.settings, None),
             usage_limit=embed_request.usage_limit,
             expires_at=expires_at,
         )
@@ -336,7 +341,13 @@ async def upload_embed_logo(
 
     # Only after the new one is recorded. Deleting first would leave the widget
     # pointing at a missing object if the update failed.
-    if previous and previous.get("key") != key:
+    if (
+        previous
+        and previous.get("key") != key
+        and is_own_logo_key(
+            previous.get("key", ""), user.selected_organization_id, workflow_id
+        )
+    ):
         try:
             await get_storage().adelete_file(previous["key"])
         except Exception as error:  # noqa: BLE001 - a leftover object is not a failure
@@ -375,7 +386,11 @@ async def delete_embed_logo(
     if not updated:
         raise HTTPException(status_code=404, detail="Embed token not found")
 
-    if existing:
+    # Only a key of ours, for this tenant. A row predating the guard could name
+    # anything, and a delete is not reversible.
+    if existing and is_own_logo_key(
+        existing.get("key", ""), user.selected_organization_id, workflow_id
+    ):
         try:
             await get_storage().adelete_file(existing["key"])
         except Exception as error:  # noqa: BLE001 - the record is already gone

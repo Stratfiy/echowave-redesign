@@ -22,6 +22,7 @@ anybody makes by accident.
 
 from __future__ import annotations
 
+import re
 import uuid
 from typing import Any
 
@@ -144,3 +145,67 @@ def logo_from_settings(settings: dict[str, Any] | None) -> dict[str, Any] | None
     if not isinstance(key, str) or not key:
         return None
     return logo
+
+
+def is_own_logo_key(key: str, organization_id: int, workflow_id: int) -> bool:
+    """Is this key one we minted for this token, in this organization?
+
+    The reason this exists is worth writing down, because the route that skips
+    it looks harmless.
+
+    ``settings`` on an embed token is a free-form dict supplied by the client
+    and stored verbatim. So ``settings.logo.key`` is attacker-controlled: any
+    authenticated tenant could set it to another organization's storage key —
+    ``recordings/12345.wav`` — and then read that object through the
+    *unauthenticated* public logo route, which signs whatever key it is given.
+    Recordings, transcripts and campaign exports share one bucket and run ids
+    are sequential, so that is bulk exfiltration of other customers' calls with
+    no authentication and no access-log entry. The delete paths had the mirror
+    of it: point ``logo.key`` at somebody else's recording and remove it.
+
+    ``sanitize_client_settings`` now stops the injection at the door. This is
+    the second lock: every path that signs or deletes a logo checks the key it
+    was handed actually looks like one of ours, for this tenant. One of the two
+    would probably do. Both is correct, because the cost of being wrong here is
+    a cross-tenant recording leak.
+    """
+    if not isinstance(key, str):
+        return False
+    pattern = rf"embed-logos/{int(organization_id)}/{int(workflow_id)}/[0-9a-f]{{32}}\.(png|jpg|gif|webp)"
+    return re.fullmatch(pattern, key) is not None
+
+
+def sanitize_client_settings(
+    incoming: dict[str, Any] | None,
+    existing: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Client settings with ``logo`` replaced by whatever the server already had.
+
+    ``logo`` is server-managed: it is written only by the upload route, which
+    has seen the bytes and minted the key. A client cannot set it, and — just
+    as importantly — a client cannot *unset* it by omission.
+
+    That second half was a live bug rather than a hypothetical: the widget
+    editor saves the whole settings object without ``logo``, and
+    ``update_embed_token`` replaces settings wholesale, so uploading a logo and
+    then pressing Save removed it from the record while leaving the object in
+    storage forever.
+    """
+    merged = dict(incoming or {})
+    merged.pop("logo", None)
+    preserved = logo_from_settings(existing)
+    if preserved is not None:
+        merged["logo"] = preserved
+    return merged
+
+
+def public_settings(settings: dict[str, Any] | None) -> dict[str, Any]:
+    """The settings blob as a visitor's browser may see it.
+
+    The widget is given a URL to our own logo route, never the storage key —
+    that is stated in the route's docstring and was not true of the config
+    response, which returned the whole blob including ``logo.key``.
+    """
+    public = dict(settings or {})
+    public.pop("logo", None)
+    return public

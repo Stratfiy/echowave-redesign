@@ -29,7 +29,11 @@ from api.routes.turn_credentials import (
     TurnCredentialsResponse,
     generate_turn_credentials,
 )
-from api.services.embed_logo import logo_from_settings
+from api.services.embed_logo import (
+    is_own_logo_key,
+    logo_from_settings,
+    public_settings,
+)
 from api.services.storage import (
     get_current_storage_backend,
     get_storage_for_backend,
@@ -462,6 +466,11 @@ async def get_embed_config(token: str, request: Request, response: Response):
     if not embed_token.is_active:
         raise HTTPException(status_code=403, detail="Embed token is inactive")
 
+    # Expiry is enforced on /init already; a config route that ignores it keeps
+    # answering for a token that can no longer start a call.
+    if embed_token.expires_at and embed_token.expires_at < datetime.now(UTC):
+        raise HTTPException(status_code=403, detail="Embed token has expired")
+
     # Validate domain
     if not validate_origin(origin, embed_token.allowed_domains or []):
         raise HTTPException(status_code=403, detail=f"Domain not allowed: {origin}")
@@ -486,7 +495,7 @@ async def get_embed_config(token: str, request: Request, response: Response):
 
     return EmbedConfigResponse(
         workflow_id=embed_token.workflow_id,
-        settings=settings,
+        settings=public_settings(settings),
         theme=settings.get("theme", "light"),
         position=settings.get("position", "bottom-right"),
         button_text=settings.get("buttonText", "Start Voice Call"),
@@ -514,8 +523,26 @@ async def get_embed_logo(token: str):
     if not embed_token or not embed_token.is_active:
         raise HTTPException(status_code=404, detail="Not found")
 
+    if embed_token.expires_at and embed_token.expires_at < datetime.now(UTC):
+        raise HTTPException(status_code=404, detail="Not found")
+
     logo = logo_from_settings(embed_token.settings)
     if not logo:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # The key must be one we minted for this tenant and this workflow. Without
+    # this, an authenticated tenant could point their own token's settings at
+    # another organization's recording and read it through this route, which
+    # has no authentication by design. `sanitize_client_settings` stops that
+    # being writable at all; this is the second lock, and it also covers any
+    # row written before that guard existed.
+    if not is_own_logo_key(
+        logo.get("key", ""), embed_token.organization_id, embed_token.workflow_id
+    ):
+        logger.error(
+            "Refusing to sign an embed logo key outside its own tenant prefix "
+            f"(token organization {embed_token.organization_id})"
+        )
         raise HTTPException(status_code=404, detail="Not found")
 
     backend = logo.get("backend") or get_current_storage_backend().value
