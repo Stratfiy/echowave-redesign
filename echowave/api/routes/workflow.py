@@ -60,6 +60,8 @@ from api.services.workflow.run_usage_response import (
     format_public_cost_info,
     format_public_usage_info,
 )
+from api.services.workflow.squad import SquadError, has_handoffs
+from api.services.workflow.squad_loader import assemble_for_run
 from api.services.workflow.template_generation import generate_workflow_definition
 from api.services.workflow.trigger_paths import (
     TriggerPathIssue,
@@ -135,6 +137,7 @@ def _trigger_path_validation_http_exception(
 async def _validate_workflow_definition(
     workflow_definition: Optional[dict],
     exclude_workflow_id: Optional[int] = None,
+    organization_id: Optional[int] = None,
 ) -> list[WorkflowError]:
     """Run DTO + graph + trigger-conflict checks on a workflow definition.
 
@@ -159,6 +162,45 @@ async def _validate_workflow_definition(
             WorkflowGraph(dto)
     except ValueError as e:
         errors.extend(e.args[0])
+
+    # ----------- Squad Assembly Check ------------
+    # A handoff is replaced by the agent it names when the call starts, so the
+    # graph that actually runs is not the one validated above. Assembling it
+    # here turns "the squad is a circle" and "that agent was deleted" into
+    # errors at save, rather than a call that fails while somebody is on the
+    # line — which is the only time anyone would otherwise find out.
+    if dto and organization_id is not None and has_handoffs(workflow_definition):
+        try:
+            assembled = await assemble_for_run(
+                workflow_definition, organization_id=organization_id
+            )
+            WorkflowGraph(ReactFlowDTO.model_validate(assembled))
+        except SquadError as exc:
+            errors.append(
+                WorkflowError(
+                    kind=ItemKind.workflow,
+                    id=None,
+                    field=None,
+                    message=str(exc),
+                )
+            )
+        except ValidationError as exc:
+            errors.extend(_transform_schema_errors(exc, workflow_definition))
+        except ValueError as exc:
+            # The assembled graph broke a rule the parts kept on their own —
+            # two agents that are each fine and do not fit together.
+            errors.extend(
+                exc.args[0]
+                if exc.args and isinstance(exc.args[0], list)
+                else [
+                    WorkflowError(
+                        kind=ItemKind.workflow,
+                        id=None,
+                        field=None,
+                        message=str(exc),
+                    )
+                ]
+            )
 
     # ----------- Trigger Path Format Check ------------
     for issue in validate_trigger_paths(workflow_definition):
@@ -442,7 +484,9 @@ async def validate_workflow(
     )
 
     errors = await _validate_workflow_definition(
-        workflow_definition, exclude_workflow_id=workflow_id
+        workflow_definition,
+        exclude_workflow_id=workflow_id,
+        organization_id=user.selected_organization_id,
     )
 
     if errors:
@@ -1143,7 +1187,9 @@ async def publish_workflow(
         raise HTTPException(status_code=400, detail="No draft to publish")
 
     errors = await _validate_workflow_definition(
-        draft.workflow_json, exclude_workflow_id=workflow_id
+        draft.workflow_json,
+        exclude_workflow_id=workflow_id,
+        organization_id=user.selected_organization_id,
     )
     if errors:
         raise _validation_errors_http_exception(errors)

@@ -87,6 +87,7 @@ from api.services.telephony import registry as telephony_registry
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.pipecat_engine import PipecatEngine
 from api.services.workflow.speaking_style import wants_code_mixed_speech
+from api.services.workflow.squad_loader import assemble_for_run
 from api.services.workflow.workflow_graph import WorkflowGraph
 from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
 from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
@@ -936,6 +937,15 @@ async def _run_pipeline_impl(
         workflow_run_id,
         initial_context=merged_call_context_vars,
         language=resolved_language if isinstance(resolved_language, str) else None,
+    )
+
+    # Handoffs resolved before the graph is built, so the runtime below never
+    # learns what one is: by the time it walks this, a squad is one graph.
+    # Org-scoped inside `assemble_for_run` — a handoff naming another account's
+    # agent resolves to nothing and the call fails here rather than splicing in
+    # somebody else's prompts and tools.
+    run_workflow_json = await assemble_for_run(
+        run_workflow_json, organization_id=workflow.organization_id
     )
 
     workflow_graph = WorkflowGraph(

@@ -49,6 +49,7 @@ from api.services.pipecat.worker_runner import (
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.pipecat_engine import PipecatEngine
 from api.services.workflow.speaking_style import wants_code_mixed_speech
+from api.services.workflow.squad_loader import assemble_for_run
 from api.services.workflow.workflow_graph import WorkflowGraph
 
 TEXT_CHAT_CHECKPOINT_VERSION = 1
@@ -494,8 +495,15 @@ async def execute_text_chat_pending_turn(
         initial_context=initial_context,
     )
 
+    # Same assembly the voice path does, and for the same reason: a squad is
+    # one graph by the time anything walks it. Org-scoped inside
+    # `assemble_for_run`.
+    workflow_json = await assemble_for_run(
+        run_definition.workflow_json, organization_id=workflow.organization_id
+    )
+
     workflow_graph = WorkflowGraph(
-        ReactFlowDTO.model_validate(run_definition.workflow_json),
+        ReactFlowDTO.model_validate(workflow_json),
         skip_instance_constraints_for={"trigger"},
     )
     base_checkpoint = _resolve_checkpoint_for_pending_turn(session_data, checkpoint)
