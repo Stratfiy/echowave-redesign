@@ -72,6 +72,15 @@ export function WidgetConfigurator({
     const [buttonText, setButtonText] = useState("Talk to Agent");
     const [buttonColor, setButtonColor] = useState("#10b981");
     const [callToActionText, setCallToActionText] = useState("Click to start voice conversation");
+    // What the visitor sees once the call ends. Off by default, because a card
+    // appearing on a customer's page that they did not configure is a change
+    // to their site rather than a feature.
+    const [postCallEnabled, setPostCallEnabled] = useState(false);
+    const [postCallHeadline, setPostCallHeadline] = useState("");
+    const [postCallBody, setPostCallBody] = useState("");
+    const [postCallCtaText, setPostCallCtaText] = useState("");
+    const [postCallCtaUrl, setPostCallCtaUrl] = useState("");
+    const [postCallMinSeconds, setPostCallMinSeconds] = useState("10");
 
     const loadEmbedToken = useCallback(async () => {
         setLoading(true);
@@ -92,6 +101,17 @@ export function WidgetConfigurator({
                     setButtonText(settings.buttonText || "Talk to Agent");
                     setButtonColor(settings.buttonColor || "#10b981");
                     setCallToActionText(settings.callToActionText || "Click to start voice conversation");
+
+                    const postCall = (response.data.settings as Record<string, unknown>)
+                        .postCall as Record<string, unknown> | undefined;
+                    if (postCall) {
+                        setPostCallEnabled(postCall.enabled === true);
+                        setPostCallHeadline(String(postCall.headline ?? ""));
+                        setPostCallBody(String(postCall.body ?? ""));
+                        setPostCallCtaText(String(postCall.ctaText ?? ""));
+                        setPostCallCtaUrl(String(postCall.ctaUrl ?? ""));
+                        setPostCallMinSeconds(String(postCall.minSeconds ?? 10));
+                    }
                 }
 
                 // Load domains
@@ -135,6 +155,19 @@ export function WidgetConfigurator({
                             size: "medium",
                             autoStart: false,
                             containerId: embedMode === "inline" ? "decibyl-inline-container" : undefined,
+                            postCall: {
+                                enabled: postCallEnabled,
+                                headline: postCallHeadline,
+                                body: postCallBody,
+                                ctaText: postCallCtaText,
+                                ctaUrl: postCallCtaUrl,
+                                // Sent as a number. The widget refuses a value
+                                // it cannot read and falls back to its own
+                                // default rather than to zero, but sending a
+                                // string from here would make that guard the
+                                // thing keeping the feature working.
+                                minSeconds: Number(postCallMinSeconds) || 0,
+                            },
                         },
                         usage_limit: null,
                         expires_in_days: null,
@@ -544,6 +577,152 @@ document.getElementById('talk-btn').addEventListener('click', () => {
   );
 }`}</code>
                                                 </pre>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <Separator />
+
+                                {/* After the call.
+                                    A voice widget that ends a call and simply
+                                    closes throws away the one moment the
+                                    visitor is most interested: they have just
+                                    had the product demonstrate itself. This is
+                                    the offer that goes in that moment.
+
+                                    Held back until the call was real. Someone
+                                    who clicked, heard a word and closed did not
+                                    have a conversation, and showing them a
+                                    pitch is how a widget becomes a popup. */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="space-y-0.5">
+                                            <Label htmlFor="post-call-enabled">
+                                                Show something after the call
+                                            </Label>
+                                            <p className="text-sm text-muted-foreground">
+                                                A card the visitor sees when the
+                                                call ends — a next step, an
+                                                offer, a link to book.
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            id="post-call-enabled"
+                                            checked={postCallEnabled}
+                                            onCheckedChange={setPostCallEnabled}
+                                        />
+                                    </div>
+
+                                    {postCallEnabled && (
+                                        <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="post-call-headline" className="text-sm">
+                                                    Headline
+                                                </Label>
+                                                <Input
+                                                    id="post-call-headline"
+                                                    value={postCallHeadline}
+                                                    onChange={(e) => setPostCallHeadline(e.target.value)}
+                                                    placeholder="Want one of these on your site?"
+                                                    maxLength={80}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="post-call-body" className="text-sm">
+                                                    Message
+                                                </Label>
+                                                <Input
+                                                    id="post-call-body"
+                                                    value={postCallBody}
+                                                    onChange={(e) => setPostCallBody(e.target.value)}
+                                                    placeholder="That was a Decibyl agent. Build your own in a couple of minutes."
+                                                    maxLength={200}
+                                                />
+                                            </div>
+                                            <div className="grid gap-4 sm:grid-cols-2">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="post-call-cta-text" className="text-sm">
+                                                        Button text
+                                                    </Label>
+                                                    <Input
+                                                        id="post-call-cta-text"
+                                                        value={postCallCtaText}
+                                                        onChange={(e) => setPostCallCtaText(e.target.value)}
+                                                        placeholder="Start free"
+                                                        maxLength={40}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="post-call-cta-url" className="text-sm">
+                                                        Button link
+                                                    </Label>
+                                                    <Input
+                                                        id="post-call-cta-url"
+                                                        value={postCallCtaUrl}
+                                                        onChange={(e) => setPostCallCtaUrl(e.target.value)}
+                                                        placeholder="https://example.com/signup"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="post-call-min-seconds" className="text-sm">
+                                                    Only after a call lasting at least
+                                                </Label>
+                                                <div className="flex items-center gap-2">
+                                                    <Input
+                                                        id="post-call-min-seconds"
+                                                        type="number"
+                                                        min={0}
+                                                        max={600}
+                                                        value={postCallMinSeconds}
+                                                        onChange={(e) => setPostCallMinSeconds(e.target.value)}
+                                                        className="w-28"
+                                                    />
+                                                    <span className="text-sm text-muted-foreground">
+                                                        seconds
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Below this, nothing is shown. Somebody who
+                                                    opened the widget and closed it did not have
+                                                    a conversation, and an offer at that moment
+                                                    reads as a popup.
+                                                </p>
+                                            </div>
+
+                                            {/* Preview. Deliberately the same
+                                                shape and copy the widget will
+                                                render, so what is approved here
+                                                is what a visitor sees. */}
+                                            <div className="space-y-2">
+                                                <Label className="text-sm">Preview</Label>
+                                                <div className="flex justify-center rounded-lg border bg-background p-6">
+                                                    <div className="w-[280px] rounded-[14px] bg-white p-4 text-left shadow-lg">
+                                                        <p className="text-[15px] font-semibold leading-snug text-gray-900">
+                                                            {postCallHeadline || "Want one of these on your site?"}
+                                                        </p>
+                                                        <p className="mt-1.5 text-[13px] leading-relaxed text-gray-600">
+                                                            {postCallBody ||
+                                                                "That was a Decibyl agent. Build your own in a couple of minutes."}
+                                                        </p>
+                                                        <span
+                                                            className="mt-3 inline-block rounded-full px-4 py-2 text-[13px] font-semibold text-white"
+                                                            style={{ backgroundColor: buttonColor }}
+                                                        >
+                                                            {postCallCtaText || "Start free"}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {postCallEnabled &&
+                                                    postCallCtaText.trim() !== "" &&
+                                                    !/^https?:\/\//i.test(postCallCtaUrl.trim()) && (
+                                                        <p className="text-xs text-amber-700 dark:text-amber-500">
+                                                            The button needs an http:// or https://
+                                                            link. Without one the widget shows the
+                                                            message and drops the button.
+                                                        </p>
+                                                    )}
                                             </div>
                                         </div>
                                     )}

@@ -23,7 +23,20 @@
     enableText: false,
     apiBaseUrl: window.location.hostname === 'localhost'
       ? 'http://localhost:8000'
-      : 'https://api.decibyl.com'
+      : 'https://api.decibyl.com',
+    // What the visitor sees once the call is over. Off unless the account
+    // configures it: a card nobody asked for appearing on a customer's page
+    // is a change to their site, not a feature. `minSeconds` is what stops it
+    // being a nag -- somebody who opened the widget, heard a word and closed
+    // it did not have a conversation and is not a lead.
+    postCall: {
+      enabled: false,
+      headline: '',
+      body: '',
+      ctaText: '',
+      ctaUrl: '',
+      minSeconds: 10
+    }
   };
 
   // Widget state
@@ -50,6 +63,9 @@
     textCompleted: false,
     textOpen: false,
     gracefulDisconnect: false,
+    // Once per page load, not once per call. Somebody who rings back to ask a
+    // second question has already seen the offer and declined it.
+    postCallShown: false,
     callbacks: {
       onReady: null,
       onCallStart: null,
@@ -57,7 +73,10 @@
       onCallDisconnected: null,
       onCallEnd: null,
       onError: null,
-      onStatusChange: null
+      onStatusChange: null,
+      // Headless renders no UI by contract, so the card is a callback there
+      // rather than markup we inject into somebody's own design.
+      onPostCall: null
     }
   };
 
@@ -144,7 +163,8 @@
         buttonColor: configData.settings?.buttonColor || '#10b981',
         buttonText: configData.settings?.buttonText || 'Talk to Agent',
         callToActionText: configData.settings?.callToActionText || 'Click to start voice conversation',
-        autoStart: configData.auto_start || false
+        autoStart: configData.auto_start || false,
+        postCall: normalisePostCall(configData.settings?.postCall)
       };
     } catch (error) {
       console.error('Decibyl Widget: Failed to fetch configuration', error);
@@ -173,6 +193,121 @@
     if (state.config.autoStart) {
       setTimeout(() => startCall(), 1000);
     }
+  }
+
+  /**
+   * Read the account's post-call settings, and refuse anything unusable.
+   *
+   * The CTA is the part that needs a gate. It ends up as an href, so a
+   * `javascript:` URL here would run on the customer's own page — set from
+   * their dashboard, on their own site, but an account is exactly the thing
+   * that gets phished, and "they did it to themselves" is not a defence worth
+   * relying on. Only http and https survive; anything else drops the button
+   * and keeps the message, because a card that says something useful is still
+   * better than no card.
+   */
+  function normalisePostCall(raw) {
+    const fallback = { ...DEFAULT_CONFIG.postCall };
+    if (!raw || typeof raw !== 'object') return fallback;
+
+    const text = (value, limit) =>
+      typeof value === 'string' ? value.trim().slice(0, limit) : '';
+
+    let ctaUrl = '';
+    if (typeof raw.ctaUrl === 'string' && raw.ctaUrl.trim()) {
+      try {
+        const parsed = new URL(raw.ctaUrl.trim(), window.location.href);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          ctaUrl = parsed.href;
+        }
+      } catch (error) {
+        // An unparseable URL is the same as none.
+      }
+    }
+
+    // A number that is not a number must not become 0 — that would turn the
+    // "did they actually talk to it" gate off, which is the one thing it is
+    // there to do.
+    const seconds = Number(raw.minSeconds);
+    const minSeconds = Number.isFinite(seconds) && seconds >= 0
+      ? Math.min(seconds, 600)
+      : fallback.minSeconds;
+
+    return {
+      enabled: raw.enabled === true,
+      headline: text(raw.headline, 80),
+      body: text(raw.body, 200),
+      ctaText: text(raw.ctaText, 40),
+      ctaUrl,
+      minSeconds
+    };
+  }
+
+  /**
+   * Show the post-call card, if this call earned one.
+   *
+   * Called from stopCall while callStartedAt is still set, because a call that
+   * never connected has no duration and is not a conversation somebody had.
+   */
+  function maybeShowPostCall(durationSeconds) {
+    const postCall = state.config.postCall;
+    if (!postCall || !postCall.enabled) return;
+    if (state.postCallShown) return;
+    if (typeof durationSeconds !== 'number') return;
+    if (durationSeconds < postCall.minSeconds) return;
+    if (!postCall.headline && !postCall.body && !postCall.ctaText) return;
+
+    state.postCallShown = true;
+
+    if (state.callbacks.onPostCall) {
+      state.callbacks.onPostCall({ ...postCall, durationSeconds });
+    }
+
+    // Headless has no UI of ours to attach to, and inline already owns its
+    // container's contents. The card is a floating-mode surface.
+    if (state.config.embedMode !== 'floating') return;
+
+    const container = document.getElementById('decibyl-widget-container');
+    if (!container) return;
+
+    const existing = document.getElementById('decibyl-post-call');
+    if (existing) existing.remove();
+
+    const card = document.createElement('div');
+    card.id = 'decibyl-post-call';
+    card.className = 'decibyl-post-call';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', 'After your call');
+
+    // Structure as static markup, every configured string through
+    // textContent. Same rule the button follows: nothing an account typed
+    // reaches innerHTML.
+    card.innerHTML = `
+      <button type="button" class="decibyl-post-call-close" aria-label="Close">&times;</button>
+      <p class="decibyl-post-call-headline"></p>
+      <p class="decibyl-post-call-body"></p>
+      <a class="decibyl-post-call-cta" target="_blank" rel="noopener noreferrer"></a>
+    `;
+
+    const headline = card.querySelector('.decibyl-post-call-headline');
+    const body = card.querySelector('.decibyl-post-call-body');
+    const cta = card.querySelector('.decibyl-post-call-cta');
+
+    headline.textContent = postCall.headline;
+    headline.hidden = !postCall.headline;
+    body.textContent = postCall.body;
+    body.hidden = !postCall.body;
+
+    if (postCall.ctaUrl && postCall.ctaText) {
+      cta.textContent = postCall.ctaText;
+      cta.href = postCall.ctaUrl;
+      cta.style.backgroundColor = state.config.buttonColor;
+    } else {
+      cta.remove();
+    }
+
+    card.querySelector('.decibyl-post-call-close').onclick = () => card.remove();
+    container.appendChild(card);
   }
 
   /**
@@ -378,6 +513,66 @@
         from { opacity: 0; transform: translateY(8px); }
         to { opacity: 1; transform: translateY(0); }
       }
+
+      /* The card sits in the same container as the pill and above it, so it
+         inherits the dragged position and never covers the button that
+         dismisses it. Colours are stated rather than inherited: this renders
+         inside somebody else's stylesheet. */
+      .decibyl-post-call {
+        position: relative;
+        width: 280px;
+        max-width: calc(100vw - 40px);
+        margin-bottom: 10px;
+        padding: 16px 18px;
+        border-radius: 14px;
+        background: #ffffff;
+        color: #111827;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        text-align: left;
+        animation: decibyl-cta-in 220ms ease-out;
+      }
+
+      .decibyl-post-call-close {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: #9ca3af;
+        font-size: 18px;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .decibyl-post-call-close:hover { color: #4b5563; }
+
+      .decibyl-post-call-headline {
+        margin: 0 18px 6px 0;
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.35;
+      }
+
+      .decibyl-post-call-body {
+        margin: 0 0 12px;
+        font-size: 13px;
+        line-height: 1.45;
+        color: #4b5563;
+      }
+
+      .decibyl-post-call-cta {
+        display: inline-block;
+        padding: 9px 16px;
+        border-radius: 999px;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .decibyl-post-call-cta:hover { filter: brightness(1.08); }
     `;
 
     const styleSheet = document.createElement('style');
@@ -1485,6 +1680,11 @@
         durationSeconds
       });
     }
+    // Same window as onCallDisconnected, and for the same reason: the duration
+    // only exists while callStartedAt does.
+    if (state.callStartedAt) {
+      maybeShowPostCall(Math.round((Date.now() - state.callStartedAt) / 1000));
+    }
     state.callStartedAt = null;
 
     updateStatus(status, text, subtext);
@@ -1566,6 +1766,9 @@
     onCallEnd: (callback) => { state.callbacks.onCallEnd = callback; },
     onError: (callback) => { state.callbacks.onError = callback; },
     onStatusChange: (callback) => { state.callbacks.onStatusChange = callback; },
+    // Fires when a call ends having earned the post-call card. In headless
+    // mode it is the whole feature: the offer is yours to render.
+    onPostCall: (callback) => { state.callbacks.onPostCall = callback; },
 
     // Check if inline mode
     isInlineMode: () => state.config.embedMode === 'inline',
