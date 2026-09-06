@@ -38,12 +38,16 @@ def build_pipeline(
     voicemail_detector=None,
     recording_router=None,
     language_follower=None,
+    digit_normaliser=None,
     interruption_backoff=None,
 ):
     """Build the main pipeline with all components.
 
     Args:
         audio_buffer: AudioBufferProcessor that handles both input and output audio recording.
+        digit_normaliser: Optional SpokenDigitNormaliser. When provided,
+            inserted directly after STT, ahead of everything that reads a
+            transcription.
         language_follower: Optional LanguageFollower. When provided, inserted
             immediately after STT so it sees the detected language on every
             transcription and can push TTS settings downstream before the
@@ -65,6 +69,14 @@ def build_pipeline(
     # reads the detected language off each TranscriptionFrame and pushes TTS
     # settings downstream, so the switch lands before the next synthesis rather
     # than a turn late.
+    # Before the language follower, and before the context aggregator: a
+    # number has to be got right once, at the earliest point it can be, rather
+    # than by each consumer separately. Extraction, QA and the LLM then all see
+    # the same corrected text.
+    if digit_normaliser:
+        logger.info("Adding spoken-digit normaliser to pipeline")
+        processors.append(digit_normaliser)
+
     if language_follower:
         logger.info("Adding language follower to pipeline")
         processors.append(language_follower)

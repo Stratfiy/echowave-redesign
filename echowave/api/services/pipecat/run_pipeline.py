@@ -1278,6 +1278,17 @@ async def _run_pipeline_impl(
     # answers in the language it hears, so it gets no follower — pushing TTS
     # settings at a model that generates its own speech would do nothing, and
     # pinning a language on one would make it worse at what it is good at.
+    # Always on, and not configurable. Every correction it makes is one a
+    # human would make reading the transcript, and there is no call on this
+    # platform that is better off with a phone number written as words.
+    # A realtime speech-to-speech model produces no TranscriptionFrames for it
+    # to edit, so it is pointless rather than harmful there.
+    digit_normaliser = None
+    if not is_realtime:
+        from api.services.pipecat.digit_normaliser import SpokenDigitNormaliser
+
+        digit_normaliser = SpokenDigitNormaliser()
+
     language_follower = None
     if FOLLOW_CALLER_LANGUAGE and not is_realtime:
         from api.services.pipecat.language_follower import (
@@ -1316,6 +1327,7 @@ async def _run_pipeline_impl(
             pipeline_metrics_aggregator,
             voicemail_detector=voicemail_detector,
             recording_router=recording_router,
+            digit_normaliser=digit_normaliser,
             language_follower=language_follower,
             interruption_backoff=_create_interruption_backoff(run_configs),
         )

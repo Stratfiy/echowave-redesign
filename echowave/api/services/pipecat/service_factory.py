@@ -303,6 +303,16 @@ def create_stt_service(
                 endpointing=100,
                 model=user_config.stt.model,
                 keyterm=keyterms or [],
+                # Deepgram has always been able to return "987" instead of
+                # "nine eight seven" and we had never asked it to. Phone
+                # numbers, order numbers, amounts and OTPs are the payload of
+                # most of the calls this platform runs, and a number written as
+                # words is one an extraction, a webhook or a CRM cannot use.
+                #
+                # `numerals` only; not `smart_format`, which also rewrites
+                # dates, currency and punctuation to US conventions and would
+                # turn an Indian date into an American one.
+                numerals=True,
             ),
             should_interrupt=False,  # Let UserAggregator take care of sending InterruptionFrame
             sample_rate=audio_config.transport_in_sample_rate,
