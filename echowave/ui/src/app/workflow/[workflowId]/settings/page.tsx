@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowLeft, BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, Mic, Pause, PhoneOff, Play, Rocket, Settings, Trash2Icon, Upload, Variable, X } from "lucide-react";
+import { ArrowLeft, BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, Trash2, Trash2Icon, Upload, Variable, Volume2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -61,6 +61,7 @@ import {
     MAX_USER_SPEECH_TIMEOUT,
     MIN_USER_SPEECH_TIMEOUT,
     type NoiseSuppressionConfiguration,
+    type PronunciationEntry,
     resolveWorkflowConfigurations,
     TURN_START_STRATEGY_OPTIONS,
     type TurnStartStrategy,
@@ -1212,6 +1213,110 @@ function DictionarySection({
 }
 
 // ---------------------------------------------------------------------------
+// Section: Pronunciation
+// ---------------------------------------------------------------------------
+
+function PronunciationSection({
+    entries,
+    onSave,
+}: {
+    entries: PronunciationEntry[];
+    onSave: (entries: PronunciationEntry[]) => Promise<void>;
+}) {
+    const [rows, setRows] = useState<PronunciationEntry[]>(entries);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const isDirty = JSON.stringify(rows) !== JSON.stringify(entries);
+    useUnsavedChanges("pronunciation", isDirty);
+
+    const update = (index: number, field: keyof PronunciationEntry, value: string) =>
+        setRows((prev) =>
+            prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
+        );
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            // Blank rows are how somebody leaves the editor, not something to
+            // store and later apply as an empty find-and-replace.
+            await onSave(rows.filter((row) => row.find.trim() && row.say.trim()));
+        } catch (error) {
+            console.error("Failed to save pronunciation:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card id="pronunciation">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                    <Volume2 className="h-4 w-4" />
+                    Pronunciation
+                </CardTitle>
+                <CardDescription>
+                    Fix any word the voice says wrong &mdash; your business name, a
+                    doctor&apos;s name, a locality. Write it how it should sound, the
+                    way you would for a new receptionist.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                {rows.length > 0 && (
+                    <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-xs text-muted-foreground">
+                        <span>Word</span>
+                        <span>Say it like</span>
+                        <span className="w-8" />
+                    </div>
+                )}
+                {rows.map((row, index) => (
+                    <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                        <Input
+                            value={row.find}
+                            onChange={(e) => update(index, "find", e.target.value)}
+                            placeholder="Chinnaswamy"
+                        />
+                        <Input
+                            value={row.say}
+                            onChange={(e) => update(index, "say", e.target.value)}
+                            placeholder="Chinna-swaamy"
+                        />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Remove ${row.find || "entry"}`}
+                            onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))}
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </div>
+                ))}
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRows((prev) => [...prev, { find: "", say: "" }])}
+                >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add a word
+                </Button>
+                {rows.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                        Nothing set. The voice says every word its own way.
+                    </p>
+                )}
+            </CardContent>
+            <CardFooter className="justify-end gap-3 border-t pt-6">
+                {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
+                <Button onClick={handleSave} disabled={isSaving || !isDirty}>
+                    {isSaving ? "Saving..." : "Save Pronunciation"}
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Section: Voicemail Detection
 // ---------------------------------------------------------------------------
 
@@ -1730,6 +1835,7 @@ function WorkflowSettingsInner({
         saveWorkflowConfigurations,
         saveTemplateContextVariables,
         saveDictionary,
+        savePronunciationLexicon,
     } = useWorkflowState({
         initialWorkflowName: workflow.name,
         workflowId,
@@ -1880,6 +1986,14 @@ function WorkflowSettingsInner({
                                 it is words the transcriber should listen for,
                                 which is a property of the ears, not a topic. */}
                             <DictionarySection dictionary={dictionary} onSave={saveDictionary} />
+                            {/* Directly under Dictionary: the two halves of
+                                the same complaint. Dictionary tells the
+                                transcriber what to listen for; this tells the
+                                voice how to say it back. */}
+                            <PronunciationSection
+                                entries={workflowConfigurations?.pronunciation_lexicon ?? []}
+                                onSave={savePronunciationLexicon}
+                            />
                             </div>
 
                             <div

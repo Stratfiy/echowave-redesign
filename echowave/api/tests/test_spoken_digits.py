@@ -111,23 +111,63 @@ class TestProseIsLeftAlone:
 
 
 class TestReadingNumbersBack:
-    def test_a_phone_number_is_spaced_for_tts(self):
-        """Otherwise TTS reads it as a cardinal.
+    """Spacing digits for TTS, and the much worse bug that rule can cause.
 
-        "9876543210" spoken as "nine billion, eight hundred seventy six
-        million…" is useless to somebody writing it down, and is the most
-        common complaint about an agent reading a number back.
-        """
-        assert spell_out_long_numbers("call 9876543210 now") == (
-            "call 9 8 7 6 5 4 3 2 1 0 now"
+    Reading "9876543210" as a cardinal is useless to somebody writing it down.
+    Reading "1200 rupees" as "one two zero zero rupees" is worse. Length alone
+    cannot tell an OTP from a price, so this is narrow on purpose.
+    """
+
+    def test_a_ten_digit_number_is_always_spaced(self):
+        assert spell_out_long_numbers("call me on 9876543210") == (
+            "call me on 9 8 7 6 5 4 3 2 1 0"
         )
 
-    def test_an_otp_is_spaced(self):
-        assert spell_out_long_numbers("your code is 4821") == "your code is 4 8 2 1"
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            ("your OTP is 4821", "your OTP is 4 8 2 1"),
+            ("order 88213 is ready", "order 8 8 2 1 3 is ready"),
+            ("booking 55129 confirmed", "booking 5 5 1 2 9 confirmed"),
+        ],
+    )
+    def test_a_short_number_is_spaced_when_named_as_a_code(self, text, expected):
+        assert spell_out_long_numbers(text) == expected
 
-    @pytest.mark.parametrize("text", ["2 people", "at 3 pm", "room 12", "for 999"])
-    def test_short_numbers_are_quantities_and_stay_whole(self, text):
-        """Spacing these out would be worse than the problem being fixed."""
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "that will be 1200 rupees",
+            "the total is Rs 4500",
+            "it costs ₹2999",
+            "about 5 lakh",
+        ],
+    )
+    def test_money_is_never_spelled_out(self, text):
+        """The bug this rule exists to avoid.
+
+        An agent saying "one two zero zero rupees" instead of "twelve hundred
+        rupees" is a new problem traded for an old one.
+        """
+        assert spell_out_long_numbers(text) == text
+
+    def test_money_anywhere_in_the_sentence_vetoes_the_whole_line(self):
+        """Deliberately conservative.
+
+        A sentence carrying both a code and a price is rare; getting the price
+        wrong is not worth spacing the code.
+        """
+        text = "your code is 4821 and the fee is 500 rupees"
+        assert spell_out_long_numbers(text) == text
+
+    @pytest.mark.parametrize(
+        "text", ["we opened in 1998", "since 2015", "room 12", "at 3 pm", "for 999"]
+    )
+    def test_ordinary_numbers_are_left_alone(self, text):
+        """A year is four digits and is not a code.
+
+        Nothing here names a reference, so nothing is spaced.
+        """
         assert spell_out_long_numbers(text) == text
 
     def test_empty_input(self):

@@ -195,33 +195,73 @@ def normalise_spoken_digits(text: str, min_run_tokens: int = MIN_RUN_TOKENS) -> 
     return " ".join(result)
 
 
-# A number the agent must read back one digit at a time rather than as a
-# cardinal. Ten or more digits is a phone number; four to eight is an OTP, an
-# order number or a PIN. "one thousand two hundred rupees" is a quantity and
-# must keep being said that way, which is why this is length-based and not
-# applied to every number.
-_DIGIT_STRING = re.compile(r"\b\d{4,}\b")
+# ---------------------------------------------------------------------------
+# The other direction: how the agent reads a number back.
+# ---------------------------------------------------------------------------
+#
+# TTS reads "9876543210" as a cardinal — "nine billion, eight hundred and
+# seventy six million…" — which is useless to somebody writing it down, and is
+# the most common complaint about an agent repeating a number.
+#
+# Spacing the digits fixes that, and doing it by length alone breaks something
+# worse. "1200" is four digits whether it is an OTP or a price, and an agent
+# that says "one two zero zero rupees" instead of "twelve hundred rupees" is a
+# new bug traded for an old one. So this is deliberately narrow: a ten-digit
+# number, which in India is a mobile number and nothing else, or a shorter one
+# the sentence has already labelled as a code.
+
+# Exactly ten digits. Not 4+, for the reason above.
+_PHONE_DIGITS = re.compile(r"(?<!\d)\d{10}(?!\d)")
+
+# 4-8 digits, spelled out only when the surrounding words say it is a
+# reference rather than a quantity.
+_SHORT_DIGITS = re.compile(r"(?<!\d)\d{4,8}(?!\d)")
+
+# Words that, appearing anywhere in the sentence, mean a short number is
+# something the listener has to write down.
+_CODE_WORDS = (
+    "otp",
+    "code",
+    "pin",
+    "password",
+    "reference",
+    "ref",
+    "order",
+    "booking",
+    "ticket",
+    "invoice",
+    "account",
+    "policy",
+    "complaint",
+    "docket",
+)
+
+# Money, anywhere in the sentence, vetoes the whole thing. Reading a price out
+# digit by digit is worse than reading a code as a cardinal.
+_MONEY_WORDS = ("rupee", "rupees", "rs", "inr", "₹", "paise", "lakh", "crore")
 
 
 def as_spoken_digits(value: str) -> str:
-    """Space out a digit string so TTS reads it digit by digit.
-
-    Without this a phone number is read as a cardinal — "nine billion, eight
-    hundred and seventy six million…" — which is useless to somebody writing it
-    down and is the single most common complaint about a voice agent reading a
-    number back.
-    """
+    """Space a digit string so TTS reads it digit by digit."""
     return " ".join(value)
 
 
-def spell_out_long_numbers(text: str, min_digits: int = 4) -> str:
-    """Prepare text for TTS by spacing out long digit strings.
+def spell_out_long_numbers(text: str) -> str:
+    """Space out numbers the listener is expected to write down.
 
-    Deliberately leaves short numbers alone: "2 people" and "3 pm" are
-    quantities and reading them as separate digits would be worse than the
-    problem being fixed.
+    Ten-digit numbers always. Four to eight digits only when the sentence
+    names them as a code, and never when it mentions money.
     """
     if not text:
         return text
-    pattern = re.compile(rf"\b\d{{{min_digits},}}\b")
-    return pattern.sub(lambda match: as_spoken_digits(match.group(0)), text)
+
+    lowered = text.lower()
+    if any(word in lowered for word in _MONEY_WORDS):
+        return text
+
+    result = _PHONE_DIGITS.sub(lambda m: as_spoken_digits(m.group(0)), text)
+
+    if any(word in lowered for word in _CODE_WORDS):
+        result = _SHORT_DIGITS.sub(lambda m: as_spoken_digits(m.group(0)), result)
+
+    return result

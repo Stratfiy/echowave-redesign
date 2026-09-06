@@ -26,6 +26,7 @@ import { PostHogEvent } from "@/constants/posthog-events";
 import logger from '@/lib/logger';
 import { getNextNodeId, getRandomId } from "@/lib/utils";
 import {
+    type PronunciationEntry,
     resolveWorkflowConfigurations,
     type WorkflowConfigurationDefaults,
     type WorkflowConfigurations,
@@ -579,6 +580,39 @@ export const useWorkflowState = ({
         }
     }, [workflowId, user, setWorkflowConfigurations, workflowConfigurationDefaults]);
 
+    // Save the pronunciation lexicon.
+    //
+    // Beside the dictionary deliberately: they are the two halves of the same
+    // complaint. The dictionary tells the transcriber what to listen for; this
+    // tells the voice how to say it back.
+    const savePronunciationLexicon = useCallback(
+        async (entries: PronunciationEntry[]) => {
+            if (!user) return;
+            const currentConfigurations =
+                useWorkflowStore.getState().workflowConfigurations
+                ?? resolveWorkflowConfigurations(null, workflowConfigurationDefaults);
+            const updatedConfigurations: WorkflowConfigurations = {
+                ...currentConfigurations,
+                pronunciation_lexicon: entries,
+            };
+            try {
+                await updateWorkflowApiV1WorkflowWorkflowIdPut({
+                    path: { workflow_id: workflowId },
+                    body: {
+                        name: workflowName,
+                        workflow_definition: null,
+                        workflow_configurations: updatedConfigurations as Record<string, unknown>,
+                    },
+                });
+                setWorkflowConfigurations(updatedConfigurations);
+            } catch (error) {
+                logger.error(`Error saving pronunciation lexicon: ${error}`);
+                throw error;
+            }
+        },
+        [workflowId, workflowName, user, setWorkflowConfigurations, workflowConfigurationDefaults],
+    );
+
     // Save dictionary
     const saveDictionary = useCallback(async (newDictionary: string) => {
         if (!user) return;
@@ -642,6 +676,7 @@ export const useWorkflowState = ({
         saveTemplateContextVariables,
         saveWorkflowConfigurations,
         saveDictionary,
+        savePronunciationLexicon,
         // Export undo/redo state
         undo,
         redo,

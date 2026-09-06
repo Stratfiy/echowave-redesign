@@ -69,6 +69,7 @@ from api.services.pipecat.service_factory import (
     create_tts_service_with_backups,
     stt_uses_external_turns,
 )
+from api.services.pipecat.speech_text import build_speech_text_transforms
 from api.services.pipecat.tracing_config import (
     ensure_tracing,
 )
@@ -871,6 +872,10 @@ async def _run_pipeline_impl(
             user_config,
             audio_config,
             correlation_id=mps_correlation_id,
+            # Respell the names this business cares about, and space out a
+            # number the caller has to write down. Both run on the aggregated
+            # sentence, just before it reaches the voice.
+            speech_text_transforms=build_speech_text_transforms(run_configs),
         )
         llm = create_llm_service(user_config, correlation_id=mps_correlation_id)
         inference_llm = None

@@ -13,6 +13,22 @@ export type WorkflowConfigurationDefaults = GeneratedWorkflowConfigurationDefaul
  * No level. Gnani exposes `suppressionLevel` 20–100; RNNoise is a trained
  * network with no such parameter, so a slider here would move nothing.
  */
+/**
+ * How the agent should say a word, when the voice gets it wrong.
+ *
+ * A respelling, not a phoneme alphabet: half our TTS providers do not support
+ * SSML/IPA, the Indic voices that do support it least are the ones that need
+ * it most, and nobody running a clinic will type /t\u0283\u026an\u0259swa\u02d0mi/. They will
+ * happily type "Chinna-swaamy", which is how they would write it for a new
+ * receptionist.
+ */
+export type PronunciationEntry = {
+    /** What appears in the text. */
+    find: string;
+    /** What the voice should be handed instead. */
+    say: string;
+};
+
 export type NoiseSuppressionConfiguration = {
     enabled: boolean;
 };
@@ -208,6 +224,7 @@ type WorkflowConfigurationBase = Omit<
 export type WorkflowConfigurations = WorkflowConfigurationBase & {
     ambient_noise_configuration: AmbientNoiseConfiguration;
     noise_suppression_configuration?: NoiseSuppressionConfiguration;
+    pronunciation_lexicon?: PronunciationEntry[];
     max_call_duration: number;  // Maximum call duration in seconds
     max_user_idle_timeout: number;  // Maximum user idle time in seconds
     smart_turn_stop_secs: number;  // Timeout in seconds for incomplete turn detection
@@ -237,6 +254,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     noise_suppression_configuration: {
         enabled: false
     },
+    pronunciation_lexicon: [],
     max_call_duration: 300,
     max_user_idle_timeout: 10,  // 10 seconds
     smart_turn_stop_secs: 2,  // 2 seconds

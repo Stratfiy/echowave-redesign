@@ -21,6 +21,7 @@ const SECTION_IDS = [
     "models",
     "variables",
     "dictionary",
+    "pronunciation",
     "voicemail",
     "recordings",
     "deployment",
