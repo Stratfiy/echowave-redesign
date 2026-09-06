@@ -4,7 +4,6 @@ from typing import Optional
 from fastapi import HTTPException
 from loguru import logger
 
-from api.constants import FOLLOW_CALLER_LANGUAGE
 from api.db import db_client
 from api.enums import WorkflowRunMode
 from api.schemas.workflow_configurations import (
@@ -44,6 +43,7 @@ from api.services.pipecat.event_handlers import (
 )
 from api.services.pipecat.in_memory_buffers import InMemoryLogsBuffer
 from api.services.pipecat.interruption_backoff import InterruptionBackoff
+from api.services.pipecat.language_following import should_follow_caller_language
 from api.services.pipecat.pipeline_builder import (
     build_pipeline,
     build_realtime_pipeline,
@@ -1327,8 +1327,13 @@ async def _run_pipeline_impl(
 
         digit_normaliser = SpokenDigitNormaliser()
 
+    # Per agent, replacing FOLLOW_CALLER_LANGUAGE. Following is a property of
+    # the conversation, not of the server the call landed on: the same account
+    # wants it on a clinic line and off on a compliance line reading out a
+    # disclosure that was approved in one language, and one switch for the
+    # whole install could give it both or neither.
     language_follower = None
-    if FOLLOW_CALLER_LANGUAGE and not is_realtime:
+    if should_follow_caller_language(run_configs, is_realtime=is_realtime):
         from api.services.pipecat.language_follower import (
             LanguageFollower,
             configured_language,

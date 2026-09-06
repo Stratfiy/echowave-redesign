@@ -27,7 +27,7 @@ export const TABS = [
         // "pronunciation" sits here with "dictionary": one tells the
         // transcriber what to listen for, the other tells the voice how to say
         // it back, and both are edited in the same sitting.
-        sections: ["models", "dictionary", "pronunciation"],
+        sections: ["models", "dictionary", "pronunciation", "language"],
     },
     {
         id: "calling",

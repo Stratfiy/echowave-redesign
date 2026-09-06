@@ -252,6 +252,12 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
      * rather than an empty column somebody has to discover is empty.
      */
     call_outcomes?: CallOutcome[];
+    /**
+     * Whether the agent switches language when the caller does. Off unless
+     * turned on: nothing follows today, so a default of on would change every
+     * live call at once.
+     */
+    follow_caller_language?: boolean;
     dynamic_greeting_configuration?: DynamicGreetingConfiguration;
     max_call_duration: number;  // Maximum call duration in seconds
     max_user_idle_timeout: number;  // Maximum user idle time in seconds
@@ -284,6 +290,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     },
     pronunciation_lexicon: [],
     call_outcomes: [],
+    follow_caller_language: false,
     dynamic_greeting_configuration: { enabled: false, url: "" },
     max_call_duration: 300,
     max_user_idle_timeout: 10,  // 10 seconds

@@ -646,6 +646,38 @@ export const useWorkflowState = ({
         [workflowId, workflowName, user, setWorkflowConfigurations, workflowConfigurationDefaults],
     );
 
+    // Whether the agent moves when the caller switches language. Per agent,
+    // replacing a single environment variable for the whole install — the same
+    // account wants it on a clinic line and off on a compliance line reading a
+    // disclosure approved in one language.
+    const saveFollowCallerLanguage = useCallback(
+        async (enabled: boolean) => {
+            if (!user) return;
+            const currentConfigurations =
+                useWorkflowStore.getState().workflowConfigurations
+                ?? resolveWorkflowConfigurations(null, workflowConfigurationDefaults);
+            const updatedConfigurations: WorkflowConfigurations = {
+                ...currentConfigurations,
+                follow_caller_language: enabled,
+            };
+            try {
+                await updateWorkflowApiV1WorkflowWorkflowIdPut({
+                    path: { workflow_id: workflowId },
+                    body: {
+                        name: workflowName,
+                        workflow_definition: null,
+                        workflow_configurations: updatedConfigurations as Record<string, unknown>,
+                    },
+                });
+                setWorkflowConfigurations(updatedConfigurations);
+            } catch (error) {
+                logger.error(`Error saving language following: ${error}`);
+                throw error;
+            }
+        },
+        [workflowId, workflowName, user, setWorkflowConfigurations, workflowConfigurationDefaults],
+    );
+
     // Save dictionary
     const saveDictionary = useCallback(async (newDictionary: string) => {
         if (!user) return;
@@ -711,6 +743,7 @@ export const useWorkflowState = ({
         saveDictionary,
         savePronunciationLexicon,
         saveCallOutcomes,
+        saveFollowCallerLanguage,
         // Export undo/redo state
         undo,
         redo,

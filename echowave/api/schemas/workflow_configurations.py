@@ -181,6 +181,17 @@ class WorkflowConfigurationDefaults(BaseModel):
     # Capped because every entry is sent with every transcript, and past thirty
     # this is not a taxonomy anybody sorts by.
     call_outcomes: list[CallOutcome] = Field(default_factory=list, max_length=30)
+    # Does the agent move with a caller who switches language mid-call?
+    #
+    # This replaced an environment variable, which made following a property of
+    # the deployment rather than of the agent: a clinic line wants it and the
+    # same account's compliance line, reading a disclosure approved in one
+    # language, does not.
+    #
+    # Off by default. Nothing follows today, so defaulting it on would change
+    # the behaviour of every live call in one deploy on a judgement nobody made
+    # per agent.
+    follow_caller_language: bool = False
 
 
 def get_default_workflow_configurations() -> WorkflowConfigurationDefaults:

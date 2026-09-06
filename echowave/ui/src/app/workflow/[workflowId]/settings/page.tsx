@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowLeft, BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, Tags, Trash2, Trash2Icon, Upload, Variable, Volume2, X } from "lucide-react";
+import { ArrowLeft, BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Languages, Loader2, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, Tags, Trash2, Trash2Icon, Upload, Variable, Volume2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1325,6 +1325,88 @@ function PronunciationSection({
 }
 
 // ---------------------------------------------------------------------------
+// Section: Caller's language
+// ---------------------------------------------------------------------------
+
+/**
+ * Does the agent move when the caller does?
+ *
+ * A caller in India frequently opens in English, switches to Hindi when the
+ * conversation gets substantive, and mixes both in a sentence. An agent fixed
+ * to one language answers the whole call in it, which is the most common
+ * reason a voice agent here gets hung up on.
+ *
+ * Per agent rather than per install, which is what this replaced. The same
+ * account wants it on a clinic line and off on a compliance line reading a
+ * disclosure that was approved in one language.
+ */
+function CallerLanguageSection({
+    enabled,
+    onSave,
+}: {
+    enabled: boolean;
+    onSave: (enabled: boolean) => Promise<void>;
+}) {
+    const [value, setValue] = useState(enabled);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const isDirty = value !== enabled;
+    useUnsavedChanges("language", isDirty);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await onSave(value);
+        } catch (error) {
+            console.error("Failed to save language following:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card id="language">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                    <Languages className="h-4 w-4" />
+                    Caller&apos;s language
+                </CardTitle>
+                <CardDescription>
+                    Let the agent switch language when the caller does &mdash; someone
+                    who opens in English and moves to Hindi keeps being answered in
+                    the language they are speaking.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <Label htmlFor="follow-caller-language" className="text-sm">
+                        Follow the caller
+                    </Label>
+                    <Switch
+                        id="follow-caller-language"
+                        checked={value}
+                        onCheckedChange={setValue}
+                    />
+                </div>
+                {/* What it costs is the only reason not to, so it is stated
+                    rather than discovered on a live call. */}
+                <p className="text-xs text-muted-foreground">
+                    {value
+                        ? "Switches after two turns in the new language, so one mis-heard word cannot flip the voice. Needs a transcriber in multilingual mode; speech-to-speech models already do this themselves and ignore the setting."
+                        : "Off. The agent answers in its configured language for the whole call, whatever the caller does."}
+                </p>
+            </CardContent>
+            <CardFooter className="justify-end gap-3 border-t pt-6">
+                {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
+                <Button onClick={handleSave} disabled={isSaving || !isDirty}>
+                    {isSaving ? "Saving..." : "Save Language"}
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Section: Call outcomes
 // ---------------------------------------------------------------------------
 
@@ -2006,6 +2088,7 @@ function WorkflowSettingsInner({
         saveDictionary,
         savePronunciationLexicon,
         saveCallOutcomes,
+        saveFollowCallerLanguage,
     } = useWorkflowState({
         initialWorkflowName: workflow.name,
         workflowId,
@@ -2163,6 +2246,14 @@ function WorkflowSettingsInner({
                             <PronunciationSection
                                 entries={workflowConfigurations?.pronunciation_lexicon ?? []}
                                 onSave={savePronunciationLexicon}
+                            />
+                            {/* With the voice, not on Calling: this decides
+                                which voice speaks, and it is edited in the
+                                same sitting as the dictionary and the
+                                pronunciations. */}
+                            <CallerLanguageSection
+                                enabled={workflowConfigurations?.follow_caller_language ?? false}
+                                onSave={saveFollowCallerLanguage}
                             />
                             </div>
 
