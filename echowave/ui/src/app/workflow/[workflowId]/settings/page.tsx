@@ -1,10 +1,10 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowLeft, BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Languages, Loader2, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, Tags, Trash2, Trash2Icon, Upload, Variable, Volume2, X } from "lucide-react";
+import { BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Languages, Loader2, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, Tags, Trash2, Trash2Icon, Upload, Variable, Volume2, X } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -78,6 +78,7 @@ import {
     type WorkflowConfigurations,
 } from "@/types/workflow-configurations";
 
+import { AgentHeader } from "../components/AgentHeader";
 import { AgentTabs } from "../components/AgentTabs";
 import { QaCard } from "../components/QaCard";
 import { useWorkflowState } from "../hooks/useWorkflowState";
@@ -2086,26 +2087,29 @@ function WorkflowSettingsInner({
     workflow: WorkflowResponse;
     user: { id: string; email?: string };
 }) {
-    const router = useRouter();
     const { dirtySections, confirmNavigate } = useUnsavedChangesContext();
 
-    // Read once from the URL so a link can land on a tab -- the wizard's
-    // "Advanced setup" and the docs both want to point at one -- and written
-    // back with replaceState rather than the router so switching tabs does not
-    // stack history entries a Back press has to walk out of.
-    const [activeTab, setActiveTab] = useState<TabId>(DEFAULT_TAB);
+    // Which tabs are hiding an edit nobody has saved. Derived from the section
+    // map rather than tracked separately: `tabs.ts` already decides what lives
+    // where, and a second list of that would be the one that goes stale.
+    const dirtyTabIds = useMemo(
+        () =>
+            new Set(
+                TABS.filter((tab) =>
+                    tab.sections.some((id) => dirtySections.has(id)),
+                ).map((tab) => tab.id),
+            ),
+        [dirtySections],
+    );
 
-    useEffect(() => {
-        const requested = new URLSearchParams(window.location.search).get("tab");
-        if (isTabId(requested)) setActiveTab(requested);
-    }, []);
-
-    const selectTab = useCallback((next: TabId) => {
-        setActiveTab(next);
-        const url = new URL(window.location.href);
-        url.searchParams.set("tab", next);
-        window.history.replaceState(null, "", url);
-    }, []);
+    // Read from the URL on every render, not once on mount. The tabs are links
+    // now, and a link to this same route with a different `?tab=` does not
+    // remount the page — so a value captured in an effect would leave the URL
+    // saying "calling" and the screen still showing Models. That is also what
+    // makes a link land on a tab at all, which the wizard's "Advanced setup"
+    // and the docs both rely on.
+    const requestedTab = useSearchParams().get("tab");
+    const activeTab: TabId = isTabId(requestedTab) ? requestedTab : DEFAULT_TAB;
     const [modelConfigurationDefaults, setModelConfigurationDefaults] = useState<ModelConfigurationDefaultsV2 | null>(null);
     const [organizationModelConfiguration, setOrganizationModelConfiguration] = useState<OrganizationAiModelConfigurationResponse | null>(null);
     const [modelConfigurationLoading, setModelConfigurationLoading] = useState(true);
@@ -2193,68 +2197,22 @@ function WorkflowSettingsInner({
 
     return (
         <div className="min-h-screen">
-            {/* Sticky header */}
-            <header className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => confirmNavigate(() => router.push(`/workflow/${workflowId}`))}
-                >
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Workflow Settings</p>
-                    <h1 className="truncate text-sm font-semibold">{workflowName || workflow.name}</h1>
-                </div>
+            <AgentHeader
+                workflowId={workflowId}
+                name={workflowName || workflow.name}
+                onBack={confirmNavigate}
+            />
 
-                {/* The strip lives in the sticky header so it stays reachable
-                    from the bottom of a long tab -- Conversation alone is
-                    several screens. Scrolls on a phone rather than wrapping
-                    into a second row that would double the header's height. */}
-                <div
-                    role="tablist"
-                    aria-label="Settings sections"
-                    className="-mb-3 ml-auto flex min-w-0 gap-1 overflow-x-auto pb-1"
-                >
-                    {TABS.map((tab) => {
-                        const Icon = tab.icon;
-                        const unsaved = tab.sections.some((id) => dirtySections.has(id));
-                        return (
-                            <button
-                                key={tab.id}
-                                role="tab"
-                                type="button"
-                                aria-selected={activeTab === tab.id}
-                                onClick={() => selectTab(tab.id)}
-                                className={cn(
-                                    "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
-                                    activeTab === tab.id
-                                        ? "bg-muted font-medium text-foreground"
-                                        : "text-muted-foreground hover:text-foreground",
-                                )}
-                            >
-                                <Icon className="h-3.5 w-3.5" />
-                                {tab.label}
-                                {/* A tab hiding an unsaved edit has to say so,
-                                    or switching away looks like discarding. */}
-                                {unsaved && (
-                                    <span
-                                        className="h-1.5 w-1.5 rounded-full bg-orange-500"
-                                        aria-label="Unsaved changes"
-                                    />
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
-            </header>
-
-            {/* The agent-level strip above the settings-level one: which agent
-                you are in, then which part of it. Analysis and Advanced both
-                land here, so the page says which of the two is showing. */}
+            {/* The only strip. It used to be the outer of two, with Analysis
+                and Advanced appearing in both a centimetre apart and going to
+                different places. Four of its tabs are this page, so the page
+                says which one is showing and which are hiding an unsaved
+                edit — a tab that hides one without saying so is how somebody
+                loses work. */}
             <AgentTabs
                 workflowId={workflowId}
-                settingsGroup={activeTab === "analysis" ? "analysis" : "advanced"}
+                settingsTab={activeTab}
+                dirtyTabs={dirtyTabIds}
             />
 
             <div className="mx-auto max-w-4xl px-6 py-8">
