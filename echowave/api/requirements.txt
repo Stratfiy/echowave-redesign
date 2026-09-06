@@ -27,6 +27,23 @@ reportlab==4.4.4
 # Python and add about 2MB to the image; the alternative was a network call to
 # a service with no fallback, which is what made ingestion a ship blocker.
 pypdf==6.16.1
+# Noise suppression on the inbound leg (RNNoise), off unless an agent asks for
+# it. Measured at -11.9 dB of noise for -1.9 dB of speech and 20 ms of added
+# latency, and 8 kHz performs as well as 48 kHz — see
+# services/pipecat/noise_suppression.py for the numbers and the method.
+#
+# All three pins are load-bearing, and the third is the one that bites.
+# pipecat's own `rnnoise` extra pins pyrnnoise and av but NOT audiolab, and
+# pyrnnoise 0.4.3 calls `Graph(rate=...)` while audiolab 0.5 renamed that
+# argument to `sample_rate`. An unpinned install therefore resolves to a
+# combination that raises TypeError the first time a frame is filtered — not at
+# import, not at startup, but mid-call on the first agent that has this turned
+# on. The filter builder catches it and drops the filter rather than the call,
+# so the symptom would have been "noise suppression silently does nothing on
+# every call", which nobody reports and nobody notices.
+pyrnnoise==0.4.3
+audiolab<0.5
+av<17.1.0
 python-docx==1.2.0
 # Thin bindings over the tesseract and poppler binaries installed in the
 # Dockerfile, for PDFs that are scans. Both are small; neither is imported

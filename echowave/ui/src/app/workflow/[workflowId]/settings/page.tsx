@@ -60,6 +60,7 @@ import {
     matchLatencyPreset,
     MAX_USER_SPEECH_TIMEOUT,
     MIN_USER_SPEECH_TIMEOUT,
+    type NoiseSuppressionConfiguration,
     resolveWorkflowConfigurations,
     TURN_START_STRATEGY_OPTIONS,
     type TurnStartStrategy,
@@ -279,6 +280,12 @@ function GeneralSection({
     modelConfigurationDefaults: ModelConfigurationDefaultsV2 | null;
 }) {
     const [name, setName] = useState(workflowName);
+    const [noiseSuppressionConfig, setNoiseSuppressionConfig] =
+        useState<NoiseSuppressionConfiguration>(
+            workflowConfigurations.noise_suppression_configuration ?? {
+                enabled: false,
+            },
+        );
     const [ambientNoiseConfig, setAmbientNoiseConfig] = useState<AmbientNoiseConfiguration>(
         workflowConfigurations.ambient_noise_configuration,
     );
@@ -347,9 +354,13 @@ function GeneralSection({
 
     const isDirty = useMemo(() => {
         const initAmbient = workflowConfigurations.ambient_noise_configuration;
+        const initSuppression = workflowConfigurations.noise_suppression_configuration ?? {
+            enabled: false,
+        };
         return (
             name !== workflowName ||
             JSON.stringify(ambientNoiseConfig) !== JSON.stringify(initAmbient) ||
+            JSON.stringify(noiseSuppressionConfig) !== JSON.stringify(initSuppression) ||
             maxCallDuration !== workflowConfigurations.max_call_duration ||
             maxUserIdleTimeout !== workflowConfigurations.max_user_idle_timeout ||
             smartTurnStopSecs !== workflowConfigurations.smart_turn_stop_secs ||
@@ -365,7 +376,7 @@ function GeneralSection({
             includeTranscriptEndTimestamps !==
             (workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false)
         );
-    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, noiseSuppressionConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -434,6 +445,7 @@ function GeneralSection({
                 {
                     ...workflowConfigurations,
                     ambient_noise_configuration: ambientNoiseConfig,
+                    noise_suppression_configuration: noiseSuppressionConfig,
                     max_call_duration: maxCallDuration,
                     max_user_idle_timeout: maxUserIdleTimeout,
                     smart_turn_stop_secs: smartTurnStopSecs,
@@ -749,6 +761,44 @@ function GeneralSection({
                     blurb="What the caller hears behind the agent."
                     defaultOpen={true}
                 >
+                {/* Noise suppression.
+                    Immediately above Ambient Noise deliberately: they are
+                    opposite operations on opposite legs — this takes hiss off
+                    what the agent hears, that adds room tone to what the
+                    caller hears — and side by side is the only arrangement
+                    where nobody mistakes one for the other. */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Noise suppression</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Strip background noise out of what the caller sends,
+                            before the agent hears it. Worth it on a mobile call
+                            from a shop floor or a roadside.
+                        </p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="noise-suppression-enabled" className="text-sm">
+                            Suppress background noise
+                        </Label>
+                        <Switch
+                            id="noise-suppression-enabled"
+                            checked={noiseSuppressionConfig.enabled}
+                            onCheckedChange={(checked) =>
+                                setNoiseSuppressionConfig({ enabled: checked })
+                            }
+                        />
+                    </div>
+                    {/* The cost is stated because it is the only reason not to
+                        turn this on, and latency is what we compete on. */}
+                    <p className="text-xs text-muted-foreground">
+                        {noiseSuppressionConfig.enabled
+                            ? "Adds about 20ms to each turn. On a quiet line it buys nothing, so leave it off unless callers are somewhere noisy."
+                            : "Off. Calls are passed through as the carrier sends them."}
+                    </p>
+                </div>
+
+                <Separator />
+
                 {/* Ambient Noise */}
                 <div className="space-y-4">
                     <div>

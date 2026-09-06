@@ -6,6 +6,17 @@ import type {
 
 export type WorkflowConfigurationDefaults = GeneratedWorkflowConfigurationDefaults;
 
+/**
+ * Noise suppression on the inbound leg — the opposite operation to ambient
+ * noise, which adds room tone to the outbound one.
+ *
+ * No level. Gnani exposes `suppressionLevel` 20–100; RNNoise is a trained
+ * network with no such parameter, so a slider here would move nothing.
+ */
+export type NoiseSuppressionConfiguration = {
+    enabled: boolean;
+};
+
 export type AmbientNoiseConfiguration = Omit<
     AmbientNoiseConfigurationDefaults,
     "enabled" | "volume"
@@ -196,6 +207,7 @@ type WorkflowConfigurationBase = Omit<
 
 export type WorkflowConfigurations = WorkflowConfigurationBase & {
     ambient_noise_configuration: AmbientNoiseConfiguration;
+    noise_suppression_configuration?: NoiseSuppressionConfiguration;
     max_call_duration: number;  // Maximum call duration in seconds
     max_user_idle_timeout: number;  // Maximum user idle time in seconds
     smart_turn_stop_secs: number;  // Timeout in seconds for incomplete turn detection
@@ -220,6 +232,10 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     ambient_noise_configuration: {
         enabled: false,
         volume: 0.3
+    },
+    // Off: it costs 20 ms on every call and buys nothing on a quiet line.
+    noise_suppression_configuration: {
+        enabled: false
     },
     max_call_duration: 300,
     max_user_idle_timeout: 10,  // 10 seconds
