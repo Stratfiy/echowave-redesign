@@ -1435,7 +1435,7 @@ class WaitNodeData(BaseNodeData):
     },
 )
 class HandoffNodeData(BaseNodeData):
-    agent_uuid: str = spec_field(default="", ui_type=PropertyType.string)
+    agent_uuid: str = spec_field(default="", ui_type=PropertyType.agent_ref)
 
     @model_validator(mode="after")
     def _an_agent_is_chosen(self):

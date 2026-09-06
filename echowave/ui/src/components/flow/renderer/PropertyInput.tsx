@@ -9,6 +9,7 @@ import type {
 } from "@/client/types.gen";
 import { DocumentSelector } from "@/components/flow/DocumentSelector";
 import { MentionTextarea } from "@/components/flow/MentionTextarea";
+import { AgentRefSelect } from "@/components/flow/renderer/AgentRefSelect";
 import { RecordingSelect } from "@/components/flow/TextOrAudioInput";
 import { ToolSelector } from "@/components/flow/ToolSelector";
 import { CredentialSelector, UrlInput } from "@/components/http";
@@ -33,6 +34,8 @@ export interface RendererContext {
     mcpToolFilters?: Record<string, string[]>;
     /** Persist a new mcp_tool_filters object onto the node form values. */
     onMcpToolFiltersChange?: (next: Record<string, string[]>) => void;
+    /** This agent, so a handoff cannot offer to hand the call to itself. */
+    workflowUuid?: string;
 }
 
 export interface PropertyInputProps {
@@ -53,6 +56,23 @@ export interface PropertyInputProps {
  * mounting them.
  */
 export function PropertyInput({ spec, value, onChange, context }: PropertyInputProps) {
+    // Ahead of the switch rather than inside it. `agent_ref` is not in the
+    // generated `PropertyType` union yet — the client is regenerated against a
+    // running backend, and this node type is not deployed — and adding a case
+    // for a member the union does not have would mean widening the
+    // discriminant, which is what makes the `never` check below load-bearing.
+    // Delete this once the generated union carries it.
+    if ((spec.type as string) === "agent_ref") {
+        return (
+            <AgentRefWidget
+                spec={spec}
+                value={value}
+                onChange={onChange}
+                selfUuid={context.workflowUuid}
+            />
+        );
+    }
+
     switch (spec.type) {
         case "string":
             return <StringWidget spec={spec} value={value} onChange={onChange} />;
@@ -515,6 +535,24 @@ function RecordingRefWidget({
                 value={(value as string | undefined) ?? ""}
                 onChange={onChange}
                 recordings={recordings}
+            />
+        </div>
+    );
+}
+
+function AgentRefWidget({
+    spec,
+    value,
+    onChange,
+    selfUuid,
+}: WidgetProps & { selfUuid?: string }) {
+    return (
+        <div className="grid gap-2">
+            <StackedLabel spec={spec} />
+            <AgentRefSelect
+                value={(value as string | undefined) ?? ""}
+                onChange={onChange}
+                excludeUuid={selfUuid}
             />
         </div>
     );

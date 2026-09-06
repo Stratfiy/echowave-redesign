@@ -496,6 +496,7 @@ function RenderWorkflow({
         tools,
         updateTool,
         recordings,
+        workflowUuid,
         readOnly: isViewingHistoricalVersion,
     }), [
         guardedSaveWorkflow,
@@ -503,6 +504,7 @@ function RenderWorkflow({
         tools,
         updateTool,
         recordings,
+        workflowUuid,
         isViewingHistoricalVersion,
     ]);
 

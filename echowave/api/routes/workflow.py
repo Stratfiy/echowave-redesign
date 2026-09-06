@@ -754,6 +754,11 @@ async def create_workflow_from_template(
 class WorkflowSummaryResponse(BaseModel):
     id: int
     name: str
+    # The stable reference. A handoff node names an agent by uuid rather than
+    # by row id, so the agent picker needs it here — and this endpoint is
+    # already the org-scoped list of "your agents", which is exactly the set a
+    # handoff may choose from.
+    workflow_uuid: str | None = None
 
 
 @router.get("/count")
@@ -1273,7 +1278,11 @@ async def get_workflows_summary(
             organization_id=user.selected_organization_id, status=None
         )
     return [
-        WorkflowSummaryResponse(id=workflow.id, name=workflow.name)
+        WorkflowSummaryResponse(
+            id=workflow.id,
+            name=workflow.name,
+            workflow_uuid=workflow.workflow_uuid,
+        )
         for workflow in workflows
     ]
 
