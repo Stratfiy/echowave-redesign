@@ -174,10 +174,35 @@ def normalise_spoken_digits(text: str, min_run_tokens: int = MIN_RUN_TOKENS) -> 
             index += 1
         run = tokens[start:index]
 
-        # Trailing glue belongs to the sentence, not the number.
-        while run and run[-1].lower().strip(".,") in _RUN_GLUE:
+        # Trailing glue belongs to the sentence, not the number: "nine one two
+        # and then..." ends at "two". Rewinding hands those tokens back to the
+        # outer loop.
+        #
+        # `len(run) > 1` is load-bearing rather than defensive. Rewinding to
+        # `start` leaves the outer loop looking at the same glue token that
+        # began this run, which is still a run token, which starts the same run
+        # again — a hang, on a live call, inside a processor whose try/except
+        # cannot catch one. It took a stray "and" in ordinary speech to reach
+        # it: "call me and let you know" never returned.
+        while len(run) > 1 and run[-1].lower().strip(".,") in _RUN_GLUE:
             index -= 1
             run = run[:-1]
+
+        # A run made only of glue is prose. "and", "dash" and "-" are run
+        # tokens so they can sit *inside* a number; on their own they are
+        # words, and emitting them here is also what guarantees the loop moves
+        # forward.
+        if all(token.lower().strip(".,") in _RUN_GLUE for token in run):
+            result.extend(run)
+            continue
+
+        # Leading glue is the sentence too, and was being eaten: "call me on
+        # and nine one two" came back as the number alone, a word short of what
+        # was said. Trailing glue has always been handed back; there is no
+        # reason the other end should behave differently.
+        while run and run[0].lower().strip(".,") in _RUN_GLUE:
+            result.append(run[0])
+            run = run[1:]
 
         # Preserve whatever punctuation ended the final token.
         trailing = ""
@@ -238,7 +263,23 @@ _CODE_WORDS = (
 
 # Money, anywhere in the sentence, vetoes the whole thing. Reading a price out
 # digit by digit is worse than reading a code as a cardinal.
-_MONEY_WORDS = ("rupee", "rupees", "rs", "inr", "₹", "paise", "lakh", "crore")
+_MONEY_WORDS = ("rupee", "rupees", "rs", "inr", "paise", "lakh", "crore")
+
+# Not a word, so it is matched as a substring — it is punctuation that can sit
+# flush against the amount.
+_MONEY_SYMBOLS = ("₹",)
+
+# Words are matched as words. As substrings, "rs" hit inside "first", "hours"
+# and "yours", so any sentence containing one of those silently switched the
+# read-back off — and a ten-digit mobile number went back to being read as
+# "nine billion, eight hundred and seventy six million", which is the original
+# complaint this module exists to answer. "pin" did the same inside "shipping",
+# and "ref" inside "prefer".
+_WORDS = re.compile(r"[a-z]+")
+
+
+def _mentions(text: str, words: tuple[str, ...]) -> bool:
+    return bool(set(_WORDS.findall(text.lower())) & set(words))
 
 
 def as_spoken_digits(value: str) -> str:
@@ -256,12 +297,12 @@ def spell_out_long_numbers(text: str) -> str:
         return text
 
     lowered = text.lower()
-    if any(word in lowered for word in _MONEY_WORDS):
+    if _mentions(lowered, _MONEY_WORDS) or any(s in text for s in _MONEY_SYMBOLS):
         return text
 
     result = _PHONE_DIGITS.sub(lambda m: as_spoken_digits(m.group(0)), text)
 
-    if any(word in lowered for word in _CODE_WORDS):
+    if _mentions(lowered, _CODE_WORDS):
         result = _SHORT_DIGITS.sub(lambda m: as_spoken_digits(m.group(0)), result)
 
     return result

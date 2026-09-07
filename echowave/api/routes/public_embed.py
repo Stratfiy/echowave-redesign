@@ -547,9 +547,18 @@ async def get_embed_logo(token: str):
 
     backend = logo.get("backend") or get_current_storage_backend().value
     try:
+        # `expiration`, not `expires_in`. The wrong keyword raised TypeError,
+        # which the except below swallowed as "a missing object", so this route
+        # returned 404 for every logo that existed — the feature never worked
+        # once, and looked like a storage problem when it was a typo.
         signed_url = await get_storage_for_backend(backend).aget_signed_url(
-            logo["key"], expires_in=LOGO_URL_TTL_SECONDS
+            logo["key"], expiration=LOGO_URL_TTL_SECONDS
         )
+    except TypeError:
+        # Not caught. A wrong keyword or arity is a bug in this file, and
+        # swallowing it as "missing object" is exactly how the line above
+        # returned 404 for every logo that existed. Let it 500 and be seen.
+        raise
     except Exception as error:  # noqa: BLE001 - a missing object is a 404, not a 500
         logger.warning(f"Could not sign embed logo {logo['key']}: {error}")
         raise HTTPException(status_code=404, detail="Not found") from error

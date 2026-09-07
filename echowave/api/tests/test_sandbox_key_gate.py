@@ -103,6 +103,49 @@ class TestTheRunSaysWhichEnvironmentMadeIt:
         assert source[line_start:stamp].strip() == ""
 
 
+class TestTheKeyCannotWalkAroundTheGate:
+    """The hole the first version had.
+
+    `X-API-Key` authenticates as the user who created the key, on every
+    `Depends(get_user)` route — so the verified-number rule on the agent API
+    was bypassable by creating a campaign and starting it, which dials a
+    contact list from a background job that never sees a key at all.
+
+    Restricted at authentication rather than at "the routes that dial",
+    because reasoning about which routes belong on that list is exactly what
+    produced the hole.
+    """
+
+    @pytest.fixture
+    def auth_source(self):
+        path = pathlib.Path(__file__).resolve().parents[1] / "services" / "auth"
+        return (path / "depends.py").read_text()
+
+    def test_a_sandbox_key_is_refused_on_anything_that_changes_state(self, auth_source):
+        assert "is_sandbox(getattr(api_key_model" in auth_source
+        assert "status_code=403" in auth_source
+
+    def test_reads_are_still_allowed(self, auth_source):
+        """The point of a sandbox key is building against the product."""
+        for method in ('"GET"', '"HEAD"', '"OPTIONS"'):
+            assert method in auth_source
+
+    def test_the_check_is_in_the_one_place_every_route_goes_through(self, auth_source):
+        # One definition, so there is no second authentication path to
+        # remember this on.
+        assert auth_source.count("async def _handle_api_key_auth") == 1
+
+    def test_websocket_auth_passes_by_keyword(self, auth_source):
+        """`get_user` takes the request first now.
+
+        The two websocket calls were positional, so the key would have been
+        handed to the `authorization` parameter — breaking websocket auth
+        outright rather than gating anything.
+        """
+        assert "get_user(x_api_key=api_key)" in auth_source
+        assert "get_user(None, api_key)" not in auth_source
+
+
 class TestTheDefaultIsProduction:
     def test_the_shared_path_defaults_to_production(self, source):
         """A caller that forgets to pass one gets the ungated behaviour it had

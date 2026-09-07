@@ -61,6 +61,41 @@ class TestRunsOfSpokenDigits:
         assert normalise_spoken_digits("nine eight and seven six") == "9876"
 
 
+class TestItAlwaysReturns:
+    """The one failure mode that is worse than a wrong transcript.
+
+    This processor runs on every non-realtime call, inside a try/except that
+    cannot catch a hang: the caller hears silence until the call times out.
+    It happened on ordinary speech — "call me and let you know" — because
+    glue words are run tokens so they can sit inside a number, and a run of
+    nothing but glue rewound the cursor to exactly where it started.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "call me and let you know",
+            "and",
+            "and and and",
+            "dash",
+            "- - -",
+            "nine one two and",
+            "and nine one two",
+            "call and dash and dash",
+        ],
+    )
+    def test_glue_on_its_own_does_not_hang(self, text):
+        assert normalise_spoken_digits(text) == text
+
+    def test_a_number_followed_by_glue_still_converts(self):
+        assert (
+            normalise_spoken_digits(
+                "nine eight seven six five four three two one zero and thanks"
+            )
+            == "9876543210 and thanks"
+        )
+
+
 class TestProseIsLeftAlone:
     @pytest.mark.parametrize(
         "text",
@@ -172,3 +207,50 @@ class TestReadingNumbersBack:
 
     def test_empty_input(self):
         assert spell_out_long_numbers("") == ""
+
+
+class TestWordsAreMatchedAsWords:
+    """Substring matching turned the read-back off on ordinary sentences.
+
+    "rs" is inside "first", "hours" and "yours", so any of those vetoed the
+    whole thing as if the sentence were about money — and a ten-digit mobile
+    number went back to being read as "nine billion, eight hundred and seventy
+    six million", which is the complaint this module exists to answer.
+    """
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Your delivery arrives in two hours, call 9876543210",
+            "I will call you first on 9876543210",
+            "Yours is 9876543210",
+        ],
+    )
+    def test_a_word_containing_rs_is_not_money(self, text):
+        assert "9 8 7 6 5 4 3 2 1 0" in spell_out_long_numbers(text)
+
+    @pytest.mark.parametrize(
+        "text,digits",
+        [("That is 4500 rupees", "4500"), ("Fifty rupees, ref 4500", "4500")],
+    )
+    def test_real_money_still_vetoes(self, text, digits):
+        assert digits in spell_out_long_numbers(text)
+        assert "4 5 0 0" not in spell_out_long_numbers(text)
+
+    def test_the_rupee_symbol_still_vetoes(self):
+        """Punctuation rather than a word, so it stays a substring check."""
+        assert spell_out_long_numbers("Your total is \u20b94500") == (
+            "Your total is \u20b94500"
+        )
+
+    @pytest.mark.parametrize(
+        "text", ["We are shipping 4821 units", "I prefer 4821 units"]
+    )
+    def test_a_word_containing_pin_or_ref_is_not_a_code(self, text):
+        assert "4 8 2 1" not in spell_out_long_numbers(text)
+
+    @pytest.mark.parametrize(
+        "text", ["Your PIN is 4821", "Your reference is 4821", "Order 4821"]
+    )
+    def test_a_real_code_word_still_spaces_it(self, text):
+        assert "4 8 2 1" in spell_out_long_numbers(text)

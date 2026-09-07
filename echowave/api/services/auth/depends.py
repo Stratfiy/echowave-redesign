@@ -1,7 +1,7 @@
 from typing import Annotated, Optional
 
 import httpx
-from fastapi import Depends, Header, HTTPException, Query, WebSocket
+from fastapi import Depends, Header, HTTPException, Query, Request, WebSocket
 from loguru import logger
 from pydantic import ValidationError
 
@@ -16,6 +16,7 @@ from api.enums import (
     StaffRole,
 )
 from api.schemas.ai_model_configuration import EffectiveAIModelConfiguration
+from api.services.auth.key_environment import is_sandbox
 from api.services.auth.stack_auth import stackauth
 from api.services.configuration.registry import ServiceProviders
 from api.services.posthog_client import (
@@ -40,6 +41,7 @@ async def require_local_auth() -> None:
 
 
 async def get_user(
+    request: Request = None,  # type: ignore[assignment]
     authorization: Annotated[str | None, Header()] = None,
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
 ) -> UserModel:
@@ -47,7 +49,9 @@ async def get_user(
     # Check if API key is provided (takes precedence)
     # ------------------------------------------------------------------
     if x_api_key:
-        return await _handle_api_key_auth(x_api_key)
+        return await _handle_api_key_auth(
+            x_api_key, method=getattr(request, "method", None)
+        )
 
     # ------------------------------------------------------------------
     # Check if we're using local (email/password) auth
@@ -320,10 +324,25 @@ async def _handle_oss_auth(authorization: str | None) -> UserModel:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
-async def _handle_api_key_auth(api_key: str) -> UserModel:
+async def _handle_api_key_auth(api_key: str, *, method: str | None = None) -> UserModel:
     """
     Handle authentication via X-API-Key header.
     Returns the user who created the API key with the correct organization context.
+
+    **A sandbox key is read-only here.** This function hands back the user who
+    created the key, so from this point on the request is indistinguishable
+    from that person using the dashboard — which means the sandbox rule
+    enforced on the public agent API (only verified numbers) was bypassable by
+    any other route: create a campaign, start it, and it dials a contact list
+    from a background job that never saw a key at all.
+
+    Restricted here rather than at the routes that dial, because "the routes
+    that dial" is a list, and reasoning about which routes belong on it is
+    exactly what produced the hole. A method check is provably complete: a
+    sandbox key can read anything its creator can read, and can change or
+    start nothing. Placing calls is still open to it through the public agent
+    API, where the destination is checked against the organization's verified
+    numbers.
     """
     # Validate the API key
     api_key_model = await db_client.validate_api_key(api_key)
@@ -342,6 +361,21 @@ async def _handle_api_key_auth(api_key: str) -> UserModel:
 
     # Set the organization context to the API key's organization
     user.selected_organization_id = api_key_model.organization_id
+
+    if is_sandbox(getattr(api_key_model, "environment", None)) and method not in (
+        None,
+        "GET",
+        "HEAD",
+        "OPTIONS",
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "This is a sandbox key. It can read, and it can start calls to "
+                "your verified numbers through the agent API, but it cannot "
+                "change anything. Use a production key."
+            ),
+        )
 
     logger.debug(
         f"Authenticated via API key: {api_key_model.key_prefix}... "
@@ -447,10 +481,11 @@ def _require_staff_role(minimum: StaffRole):
     """
 
     async def _dependency(
+        request: Request = None,  # type: ignore[assignment]
         authorization: Annotated[str | None, Header()] = None,
         x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
     ) -> UserModel:
-        user = await get_user(authorization, x_api_key)
+        user = await get_user(request, authorization, x_api_key)
         rank = STAFF_ROLE_RANK.get(user.staff_role or "", -1)
         if rank < STAFF_ROLE_RANK[minimum.value]:
             raise HTTPException(
@@ -518,13 +553,22 @@ async def get_user_ws(
         raise HTTPException(status_code=401, detail="Missing authentication token")
 
     try:
-        # API key takes precedence
+        # API key takes precedence.
+        #
+        # By keyword, not position: `get_user` takes the request first now, and
+        # passing these positionally handed the key to the `authorization`
+        # parameter — which would have broken websocket auth outright.
+        #
+        # No method is passed because a websocket has none, so the sandbox
+        # read-only rule does not apply here. That is the right answer rather
+        # than an omission: this path carries browser and text-chat sessions,
+        # where the agent talks to whoever opened the connection. Nobody's
+        # phone rings, so there is no stranger to protect.
         if api_key:
-            user = await get_user(None, api_key)
+            user = await get_user(x_api_key=api_key)
         else:
             # Use the same logic as get_user but with token from query
-            authorization = f"Bearer {token}"
-            user = await get_user(authorization, None)
+            user = await get_user(authorization=f"Bearer {token}")
         return user
     except HTTPException as e:
         await websocket.close(code=1008, reason=e.detail)

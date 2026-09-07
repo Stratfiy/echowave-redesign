@@ -23,6 +23,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { WIDGET_MODE_DOCUMENTATION_URLS } from "@/constants/documentation";
+import { resolveBrowserBackendUrl } from "@/lib/apiClient";
 import { detailFromResult } from "@/lib/apiError";
 
 interface WidgetConfiguratorProps {
@@ -127,7 +128,7 @@ export function WidgetConfigurator({
                         .logo as Record<string, unknown> | undefined;
                     setLogoUrl(
                         logo && typeof logo.key === "string" && logo.key
-                            ? `/api/v1/public/embed/logo/${response.data.token}`
+                            ? `${resolveBrowserBackendUrl()}/api/v1/public/embed/logo/${response.data.token}`
                             : null
                     );
                 }
@@ -238,7 +239,7 @@ export function WidgetConfigurator({
                 // Cache-bust: the public URL is keyed by token, not by object,
                 // so a replaced logo has the same address as the old one.
                 setLogoUrl(
-                    `/api/v1/public/embed/logo/${data.token}?v=${Date.now()}`
+                    `${resolveBrowserBackendUrl()}/api/v1/public/embed/logo/${data.token}?v=${Date.now()}`
                 );
             }
         }

@@ -15,9 +15,11 @@ from api.services.auth.depends import get_user
 from api.services.embed_logo import (
     MAX_LOGO_BYTES,
     LogoRejected,
+    is_own_logo_key,
     logo_from_settings,
     logo_storage_key,
     merge_logo_into_settings,
+    sanitize_client_settings,
     validate_logo,
 )
 from api.services.posthog_client import capture_event
