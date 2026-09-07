@@ -120,6 +120,10 @@ type MandateView = {
     mandate: Mandate | null;
     required_for_numbers: boolean;
     configured: boolean;
+    // What the next number costs this account, from the same resolver that
+    // bills it. Optional so a backend that predates the field renders the
+    // number without a price rather than "₹NaN".
+    number_price_paise?: number | null;
 };
 
 type ConfigOption = { id: number; name: string; is_platform_managed: boolean };
@@ -276,6 +280,13 @@ export default function BuyNumberPage() {
     const approved = kycStatus === "carrier_approved";
     const mandate = mandateView?.mandate ?? null;
     const mandateRequired = mandateView?.required_for_numbers !== false;
+    // Never a hardcoded figure: this screen quoted ₹349 while every account
+    // was charged ₹559. Undefined until the fetch lands, and the copy below
+    // omits the price rather than inventing one.
+    const numberPrice =
+        typeof mandateView?.number_price_paise === "number"
+            ? formatPaise(mandateView.number_price_paise)
+            : null;
     const autopayDone = !mandateRequired || Boolean(mandate?.authorised);
 
     const runSearch = useCallback(
@@ -419,8 +430,9 @@ export default function BuyNumberPage() {
             <div>
                 <h1 className="mb-1 text-3xl font-bold">Get a phone number</h1>
                 <p className="text-muted-foreground">
-                    An Indian number of your own, ₹349 a month, on our carrier
-                    account.
+                    An Indian number of your own
+                    {numberPrice ? `, ${numberPrice} a month,` : ","} on our
+                    carrier account.
                 </p>
             </div>
 
@@ -633,9 +645,11 @@ export default function BuyNumberPage() {
                                                                 .join(" · ")}
                                                         </span>
                                                     </span>
-                                                    <span className="text-xs text-muted-foreground">
-                                                        ₹349/month
-                                                    </span>
+                                                    {numberPrice && (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {numberPrice}/month
+                                                        </span>
+                                                    )}
                                                 </button>
                                             </li>
                                         ))}
@@ -761,8 +775,8 @@ export default function BuyNumberPage() {
                             <span className="font-mono font-medium text-foreground">
                                 {selected}
                             </span>{" "}
-                            — ₹349 a month, charged from today, prorated for the
-                            rest of this month.
+                            {numberPrice ? `— ${numberPrice} a month, charged` : "— charged"}{" "}
+                            from today, prorated for the rest of this month.
                         </p>
                         <Button onClick={handleBuy} disabled={buying}>
                             {buying && (

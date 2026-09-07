@@ -452,15 +452,26 @@ async def get_mandate(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     """
     organization_id = _organization_id(user)
     from api.services.billing import mandates as mandate_service
+    from api.services.billing import rentals
 
     async with db_client.async_session() as session:
         mandate = await mandate_service.get_mandate(
+            session, organization_id=organization_id
+        )
+        # The price the buy-a-number screen quotes. Served from the same
+        # resolver the charge itself uses, because the screen previously
+        # carried its own hardcoded figure and it drifted: it read Rs349 for
+        # months while every account was charged NUMBER_RENTAL_PRICE_PAISE
+        # (Rs559). A quote a customer is shown before authorising a standing
+        # instruction has to come from the thing that bills them.
+        number_price_paise = await rentals.next_number_price_paise(
             session, organization_id=organization_id
         )
     return {
         "mandate": _mandate_view(mandate),
         "required_for_numbers": REQUIRE_MANDATE_FOR_NUMBERS,
         "configured": mandate_service.is_configured(),
+        "number_price_paise": number_price_paise,
     }
 
 

@@ -24,6 +24,7 @@ from api.services.pipecat.tracing_config import (
     register_org_langfuse_credentials,
     unregister_org_langfuse_credentials,
 )
+from api.services.telephony import credential_encryption
 from api.services.workflow.disposition_run import classify_call
 from api.services.workflow.dto import (
     QANodeData,

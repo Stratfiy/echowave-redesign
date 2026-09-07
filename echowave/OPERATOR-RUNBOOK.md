@@ -82,9 +82,10 @@ subscribe anyone if the amount does not match. Get it right anyway.
 | | |
 |---|---:|
 | Call balance | ₹2,500.00 |
-| One number | ₹499.00 |
-| **Net** | **₹2,999.00** |
-| GST at 18% | ₹539.82 |
+| One number, at the extra-number price | ₹559.00 |
+| Contents at list | ₹3,059.00 |
+| **Plan price (net)** | **₹2,999.00** — a ₹60 discount on the parts |
+| GST at 18% on the net | ₹539.82 |
 | **Amount to create the Razorpay plan at** | **₹3,538.82** = `353882` paise |
 
 Razorpay takes paise, so the plan's `item.amount` is `353882`.
@@ -137,9 +138,10 @@ needs a release.
 | Razorpay plan id — export | A second provider plan created at the **net**, for accounts outside India with an LUT. Blank refuses those accounts rather than over-collecting |
 
 The editor shows the contents at list price beside your price while you type.
-₹2,999 for ₹2,500 of balance and a ₹499 number is a deliberate zero-margin
-bundle; the same ₹2,999 against ₹3,500 of balance is a loss, and **the server
-refuses it** — granted balance is spendable at our cost the moment it lands.
+₹2,999 for ₹2,500 of balance and a ₹559 number is ₹3,059 of parts sold at a
+deliberate ₹60 discount; the same ₹2,999 against ₹3,500 of balance is a loss,
+and **the server refuses it** — granted balance is spendable at our cost the
+moment it lands.
 
 **Granted balance expires with its cycle.** The arriving collection retires the
 previous cycle, and a daily sweep retires one nobody renewed after 34 days —

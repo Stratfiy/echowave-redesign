@@ -190,7 +190,7 @@ deployment.
 | `PLATFORM_PLIVO_AUTH_ID`, `PLATFORM_PLIVO_AUTH_TOKEN` | Decibyl's *own* Plivo account — compliance applications are filed and numbers bought under it, never a customer's. Unset, forwarding a KYC application raises rather than quietly falling back to "a human will handle it" |
 | `PLATFORM_PLIVO_APPLICATION_ID` | The Plivo Application whose `answer_url` is the inbound dispatcher. Numbers are bought with this `app_id` set, so there is no console step and no window where a number is rented but answers nowhere |
 | `NUMBER_RENTAL_COST_PAISE` | What the carrier charges us, per number per month. Default 25000 (₹250) — an estimate, see the bottom of this file |
-| `NUMBER_RENTAL_PRICE_PAISE` | What the customer pays. Default 39900 (₹399). Stored alongside the cost so margin figures stop ignoring rental |
+| `NUMBER_RENTAL_PRICE_PAISE` | What the customer pays for a number *beyond* whatever the account's plan includes. Default 55900 (₹559 net, ₹659.82 with GST). Stored alongside the cost so margin figures stop ignoring rental |
 | `MANAGED_TELEPHONY_ENABLED=true` | Opens telephony verification to customers. Leave false until the Plivo reseller arrangement is approved — it gates document upload, and collecting identity records you cannot forward takes on DPDP custody for nothing |
 
 ### Hostnames
@@ -389,9 +389,11 @@ before you run it rather than after:
   refused with a 403 until Razorpay Subscriptions is activated and the customer
   has authorised a mandate. Set it `false` to keep the old prepaid-balance
   behaviour while you wait for that approval.
-* **`MANAGED_PROVIDER_MARKUP_BPS` defaults to `13000`** — a 1.3x markup on STT,
+* **`MANAGED_PROVIDER_MARKUP_BPS` defaults to `17000`** — a 1.7x markup on STT,
   LLM and TTS bought with our keys, applied to calls from the moment it is
-  deployed. `10000` charges at cost, exactly as before.
+  deployed. `10000` charges at cost, exactly as before. This fallback is meant
+  to track the live value in `managed_markup_history`; when the markup is
+  raised through the OTP flow, raise this to match.
 
 The UI gained pages (`/analytics`, `/numbers`), so it needs the rebuild that
 `remote_up.sh --build` does. The API hostname is resolved at runtime rather than
