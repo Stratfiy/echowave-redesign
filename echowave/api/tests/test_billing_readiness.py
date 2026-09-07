@@ -18,7 +18,7 @@ Two properties matter more than any individual check:
   them.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -26,7 +26,9 @@ from api.db.models import (
     OrganizationModel,
     PaymentModel,
     ProviderRateModel,
+    SubscriptionPlanModel,
     TaxDocumentModel,
+    UsdInrRateHistoryModel,
     UserModel,
     WorkflowModel,
     WorkflowRunModel,
@@ -420,6 +422,17 @@ class TestTheWholeAssessment:
         org = await _org(async_session, "complete")
         payment = await _paid_payment(async_session, org, order="order_ok")
         await _voucher_for(async_session, payment, number="RV/26-27/000009")
+        # A rate somebody chose, superseding the one the migration seeds. A
+        # deployment still on the seeded ₹96 is not "fully configured": it is
+        # billing every dollar-quoted component at a placeholder.
+        async_session.add(
+            UsdInrRateHistoryModel(
+                paise_per_usd=10_400,
+                effective_from=datetime.now(UTC) - timedelta(days=1),
+                effective_to=None,
+                source="rbi",
+            )
+        )
         async_session.add(
             ProviderRateModel(
                 provider="sarvam",
@@ -589,3 +602,144 @@ class TestTheGapThatOnlyOpensInProduction:
         # And it must not inflate the blocking count, which is the number an
         # operator works down to zero.
         assert check not in assessment.blocking
+
+
+@pytest.mark.asyncio
+class TestTheExchangeRateOnFile:
+    """The placeholder that looks exactly like a real rate.
+
+    Migration c73e1b5a94d2 seeds ₹96 effective from 1970 with no end date. So
+    the rate history is never empty on any deployment, `resolve_usd_inr` never
+    reaches its fallback branch, and the warning it logs there has never fired.
+    Every screen reads a row and sees a rate.
+
+    That makes "is a rate on file" the wrong question — the answer is always
+    yes — and it is why REMAINING-WORK §A2's "an empty history bills at the
+    fallback" describes a state that cannot occur. Against a rupee nearer ₹104
+    the seeded figure is roughly 8% light on every dollar-quoted component.
+    """
+
+    async def _rate(self, async_session, *, paise, source, frm_days, to_days=None):
+        now = datetime.now(UTC)
+        row = UsdInrRateHistoryModel(
+            paise_per_usd=paise,
+            effective_from=now - timedelta(days=frm_days),
+            effective_to=None if to_days is None else now - timedelta(days=to_days),
+            source=source,
+        )
+        async_session.add(row)
+        await async_session.flush()
+        return row
+
+    async def test_the_seeded_rate_alone_is_not_ready(self, async_session, configured):
+        """The test database carries the migration's row and nothing else,
+        which is exactly the state a fresh production deployment is in."""
+        check = _by_key(await assess(async_session))["usd_inr_rate_on_file"]
+        assert check.status == ACTION_REQUIRED
+
+    async def test_it_says_the_seeded_row_is_why(self, async_session, configured):
+        check = _by_key(await assess(async_session))["usd_inr_rate_on_file"]
+        assert "migration seeded" in check.detail
+        assert "96.00" in check.detail
+
+    async def test_a_rate_somebody_chose_is_ready(self, async_session, configured):
+        await self._rate(async_session, paise=10_400, source="rbi", frm_days=1)
+
+        check = _by_key(await assess(async_session))["usd_inr_rate_on_file"]
+        assert check.status == READY
+        assert "104.00" in check.detail
+
+    async def test_a_real_rate_that_has_already_expired_does_not_count(
+        self, async_session, configured
+    ):
+        """An effective-dated row that closed yesterday leaves today covered
+        only by the seed. Checking the table is non-empty would call this
+        ready and be wrong every day after."""
+        await self._rate(
+            async_session, paise=10_400, source="rbi", frm_days=30, to_days=1
+        )
+
+        check = _by_key(await assess(async_session))["usd_inr_rate_on_file"]
+        assert check.status == ACTION_REQUIRED
+
+
+@pytest.mark.asyncio
+class TestSellingToAnExportCustomer:
+    """Two halves that are each useless alone.
+
+    A pinned provider plan collects one amount for the life of the mandate, so
+    an export account needs its own plan at the net — the domestic plan would
+    overcharge it by the GST every month. And without an LUT the tax path
+    refuses an export outright rather than zero-rating it.
+
+    An export account is therefore always refused rather than mis-billed, which
+    is why India-only is `ready` here. What this catches is the half-configured
+    state, where somebody has done one half and believes exports work.
+    """
+
+    async def _plan(self, async_session, *, code: str, export_id: str | None):
+        plan = SubscriptionPlanModel(
+            code=code,
+            label=code.title(),
+            price_paise=299_900,
+            balance_paise=250_000,
+            included_numbers=1,
+            razorpay_plan_id=f"plan_{code}",
+            razorpay_plan_id_export=export_id,
+            enabled=True,
+        )
+        async_session.add(plan)
+        await async_session.flush()
+        return plan
+
+    async def test_india_only_is_ready_because_refusing_is_safe(
+        self, async_session, configured, monkeypatch
+    ):
+        monkeypatch.setattr(readiness, "SUPPLIER_HAS_LUT", False)
+        await self._plan(async_session, code="rd-starter", export_id=None)
+
+        checks = _by_key(await assess(async_session))
+        assert checks["export_supply"].status == READY
+
+    async def test_export_plans_without_an_lut_are_action_required(
+        self, async_session, configured, monkeypatch
+    ):
+        """The plans are created and cannot be sold: the tax path refuses the
+        account before the plan id is ever read."""
+        monkeypatch.setattr(readiness, "SUPPLIER_HAS_LUT", False)
+        await self._plan(async_session, code="rd-starter", export_id="plan_x")
+
+        check = _by_key(await assess(async_session))["export_supply"]
+        assert check.status == ACTION_REQUIRED
+        assert "SUPPLIER_HAS_LUT" in check.remedy
+
+    async def test_an_lut_with_a_plan_missing_its_export_id_is_action_required(
+        self, async_session, configured, monkeypatch
+    ):
+        monkeypatch.setattr(readiness, "SUPPLIER_HAS_LUT", True)
+        await self._plan(async_session, code="rd-starter", export_id="plan_x")
+        await self._plan(async_session, code="rd-growth", export_id=None)
+
+        check = _by_key(await assess(async_session))["export_supply"]
+        assert check.status == ACTION_REQUIRED
+        assert "rd-growth" in check.detail
+        assert "rd-starter" not in check.detail
+
+    async def test_both_halves_configured_is_ready(
+        self, async_session, configured, monkeypatch
+    ):
+        monkeypatch.setattr(readiness, "SUPPLIER_HAS_LUT", True)
+        await self._plan(async_session, code="rd-starter", export_id="plan_x")
+
+        checks = _by_key(await assess(async_session))
+        assert checks["export_supply"].status == READY
+
+    async def test_an_lut_with_no_pinned_plan_at_all_is_unknown(
+        self, async_session, configured, monkeypatch
+    ):
+        """Nothing has been sold yet, so there is no evidence either way —
+        and `unknown` is not a pass."""
+        monkeypatch.setattr(readiness, "SUPPLIER_HAS_LUT", True)
+
+        checks = _by_key(await assess(async_session))
+        assert checks["export_supply"].status == UNKNOWN

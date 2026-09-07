@@ -21,7 +21,7 @@ none of them can be done from here.
 | # | What | Why it matters if skipped |
 |---|---|---|
 | A1 | Set `SUPPLIER_LEGAL_NAME` and `SUPPLIER_GSTIN` | Money is captured and credited and **no tax document is ever issued**. Under GST an advance is taxable on receipt, so every payment is an accruing liability with a log line as its only trace |
-| A2 | Put a real USD/INR rate on file | Everything is quoted in dollars and settled in rupees. An empty history bills at the ₹96 fallback — roughly 8% light against a real ₹104, on every charge |
+| A2 | Put a real USD/INR rate on file | Everything is quoted in dollars and settled in rupees. **The history is never empty** — migration `c73e1b5a94d2` seeds ₹96 effective from 1970 with no end date, so `resolve_usd_inr` never reaches its fallback and never logs the warning. A deployment nobody has touched reads as having a rate. Roughly 8% light against a real ₹104, on every charge. Superadmin → Billing → Readiness now names the seeded row rather than counting it |
 | A3 | Razorpay live keys + `RAZORPAY_WEBHOOK_SECRET` | Test keys work perfectly, produce orders, fire webhooks and take no money |
 | A4 | Create the Razorpay plan at **₹3,538.82**, not ₹2,999 | A plan pinned at the net figure collects no GST at all, monthly, by standing instruction. The code now refuses the mismatch — it does not create the plan for you. `OPERATOR-RUNBOOK.md` §2 |
 | A5 | SMTP, and prove one receipt arrives | Every document below is issued whether or not it is delivered |
