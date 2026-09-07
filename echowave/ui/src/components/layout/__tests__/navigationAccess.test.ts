@@ -17,16 +17,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { NAV_SECTIONS, type SidebarNavItem, STAFF_SECTION } from "../navigation";
+import { getVisibleNavSections, NAV_SECTIONS, type SidebarNavItem, STAFF_SECTION } from "../navigation";
 
 type Roles = { isStaff: boolean; isOrganizationAdmin: boolean };
 
 /** The filter both the sidebar and the search index apply. */
 function visibleTo(roles: Roles): SidebarNavItem[] {
-    const sections = roles.isStaff ? [...NAV_SECTIONS, STAFF_SECTION] : NAV_SECTIONS;
-    return sections
-        .flatMap((section) => section.items)
-        .filter((item) => !item.requiresOrganizationAdmin || roles.isOrganizationAdmin);
+    return getVisibleNavSections(roles).flatMap(section => section.items);
 }
 
 const MEMBER: Roles = { isStaff: false, isOrganizationAdmin: false };

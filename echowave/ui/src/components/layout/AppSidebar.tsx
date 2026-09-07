@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   ArrowUpCircle,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   UserRound,
@@ -10,7 +11,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import posthog from "posthog-js";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/BrandLogo";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
@@ -40,9 +41,9 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 import {
-  NAV_SECTIONS,
+  getActiveNavUrl,
+  getVisibleNavSections,
   type SidebarNavItem,
-  STAFF_SECTION,
 } from "./navigation";
 
 const TELEPHONY_WARNING_COPY = "Action required";
@@ -76,21 +77,26 @@ export function AppSidebar() {
   // worse than making a reviewer reload.
   const roles = useAccessRoles();
 
-  // Two filters, and they answer different questions. The staff section is
-  // about who you work for; requiresOrganizationAdmin is about your standing
-  // inside the customer account you are currently looking at. A section left
-  // empty by the second filter is dropped rather than rendered as a bare
-  // heading.
-  const navSections = (roles.isStaff ? [...NAV_SECTIONS, STAFF_SECTION] : NAV_SECTIONS)
-    .map((section) => ({
-      ...section,
-      items: section.items.filter(
-        (item) => !item.requiresOrganizationAdmin || roles.isOrganizationAdmin
-      ),
-    }))
-    .filter((section) => section.items.length > 0);
-
-  const isActive = (path: string) => pathname.startsWith(path);
+  const navSections = getVisibleNavSections(roles);
+  const activeUrl = getActiveNavUrl(pathname, navSections);
+  const activeSection = navSections.find(section => section.items.some(item => item.url === activeUrl))?.label;
+  const [closedSections, setClosedSections] = useState<string[]>(["MONITOR", "DEVELOPERS", "WORKSPACE"]);
+  useEffect(() => {
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem("decibyl.sidebar.closedSections") ?? "null");
+      if (Array.isArray(saved) && saved.every(value => typeof value === "string")) setClosedSections(saved);
+    } catch { /* Storage may be unavailable in private browsing. */ }
+  }, []);
+  useEffect(() => {
+    if (activeSection) setClosedSections(current => current.filter(label => label !== activeSection));
+  }, [pathname, activeSection]);
+  const toggleSection = (label: string) => {
+    const next = closedSections.includes(label)
+      ? closedSections.filter(section => section !== label)
+      : [...closedSections, label];
+    setClosedSections(next);
+    try { localStorage.setItem("decibyl.sidebar.closedSections", JSON.stringify(next)); } catch { /* Optional preference. */ }
+  };
 
   // Eighteen destinations do not fit a 900px viewport, so the list scrolls.
   // Left alone it rests at the top, which puts the *current* page half under
@@ -100,7 +106,7 @@ export function AppSidebar() {
   const activeLinkRef = useRef<HTMLAnchorElement | null>(null);
   useEffect(() => {
     activeLinkRef.current?.scrollIntoView({ block: "nearest" });
-  }, [pathname]);
+  }, [pathname, closedSections]);
 
   const handleMobileNavClick = () => {
     if (isMobile) {
@@ -109,7 +115,7 @@ export function AppSidebar() {
   };
 
   const SidebarLink = ({ item }: { item: SidebarNavItem }) => {
-    const isItemActive = isActive(item.url);
+    const isItemActive = activeUrl === item.url;
     const Icon = item.icon;
     const showWarningDot = item.showsTelephonyWarning && hasTelephonyWarning;
     const tooltip = {
@@ -136,6 +142,7 @@ export function AppSidebar() {
       <SidebarMenuButton
         asChild
         tooltip={tooltip}
+        isActive={isItemActive}
         // Selected state: a pale tint of the accent with the icon in full
         // accent, which is the one place besides a primary button where the
         // orange is allowed to appear. The previous treatment stacked a tinted
@@ -150,6 +157,7 @@ export function AppSidebar() {
         <Link
           ref={isItemActive ? activeLinkRef : undefined}
           href={item.url}
+          aria-current={isItemActive ? "page" : undefined}
           onClick={handleMobileNavClick}
           className={cn("relative", isCollapsed && "justify-center")}
           translate="no"
@@ -302,24 +310,38 @@ export function AppSidebar() {
           viewport once MANAGE has six entries, so the last item scrolls under
           the footer. Without a background on the footer it showed through and
           the final entry read as clipped rather than as scrolled. */}
-      <SidebarContent className={cn("notranslate pb-2", isCollapsed && "px-0")} translate="no">
-        {navSections.map((section, index) => (
+      <SidebarContent className={cn("notranslate gap-1 pb-2 group-data-[collapsible=icon]:overflow-y-auto", isCollapsed && "px-0")} translate="no">
+        {navSections.map((section) => (
           <SidebarGroup
             key={section.label ?? "overview"}
-            className={index === 0 ? "mt-2" : "mt-6"}
+            className="py-1"
           >
             {section.label && (
               <SidebarGroupLabel
+                asChild
                 className={cn(
-                  "notranslate text-xs font-semibold uppercase tracking-wider text-muted-foreground",
+                  "notranslate h-7 text-xs font-semibold uppercase tracking-wider text-muted-foreground",
                   isCollapsed && "hidden"
                 )}
                 translate="no"
               >
-                {section.label}
+                <button
+                  type="button"
+                  aria-expanded={!closedSections.includes(section.label)}
+                  aria-controls={`nav-${section.label}`}
+                  onClick={() => toggleSection(section.label!)}
+                  className="w-full justify-between hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {section.label}
+                  <ChevronDown aria-hidden="true" className={cn("h-3 w-3 transition-transform", closedSections.includes(section.label) && "-rotate-90")} />
+                </button>
               </SidebarGroupLabel>
             )}
-            <SidebarMenu>
+            <SidebarMenu
+              id={section.label ? `nav-${section.label}` : undefined}
+              hidden={!isCollapsed && !!section.label && closedSections.includes(section.label)}
+              className={cn(!isCollapsed && !!section.label && closedSections.includes(section.label) && "hidden")}
+            >
               {section.items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarLink item={item} />

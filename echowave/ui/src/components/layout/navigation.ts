@@ -13,7 +13,9 @@ import {
   type LucideIcon,
   Megaphone,
   Phone,
+  PhoneIncoming,
   PhoneOff,
+  Settings,
   Shield,
   ShieldCheck,
   TrendingUp,
@@ -26,6 +28,8 @@ export type SidebarNavItem = {
   url: string;
   icon: LucideIcon;
   showsTelephonyWarning?: boolean;
+  /** Related routes belonging to this destination. */
+  activePaths?: string[];
   /** Extra words the top-bar search should match on. The visible title is what
    *  someone reads; it is rarely what they type. "Agent Runs" is where calls
    *  are listed, and nobody searching for a call types "runs". */
@@ -102,56 +106,39 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         icon: Home,
         keywords: ["home", "dashboard", "start"],
       },
+      {
+        title: "Billing",
+        url: "/billing",
+        icon: Wallet,
+        keywords: ["credit", "top up", "invoice", "payment", "balance"],
+      },
     ],
   },
   {
     label: "BUILD",
     items: [
       {
-        title: "Voice Agents",
+        title: "Voice agents",
         url: "/workflow",
         icon: Workflow,
         keywords: ["workflow", "agent", "builder", "canvas", "flow"],
       },
       {
-        title: "Models",
+        title: "Models & voices",
         url: "/model-configurations",
         icon: Brain,
         keywords: ["llm", "stt", "tts", "voice", "provider"],
       },
-      // Sits under Models because that is where someone discovers they want it:
-      // a slot in the model picker offers "your own key", and this is where the
-      // key goes. Storing keys and choosing models are separate jobs, which is
-      // why they are separate screens.
-      //
-      // One entry rather than two: provider keys and Tools used to be separate
-      // peers in this list, with Google Calendar buried inside the provider
-      // keys screen under no name of its own. All three are the same idea — an
-      // outside account or service an agent can reach — so they are grouped
-      // the way a competitor product groups them, under one "Integrations"
-      // label, with a tab strip (components/integrations/IntegrationsTabs) on
-      // the screens themselves. Every route is unchanged, so deep links —
-      // including the three from the model editor and the Google OAuth
-      // callback — still land where they did.
-      //
-      // Not admin-gated, despite storing secrets. `GET /api/v1/provider-keys`
-      // deliberately takes plain `get_user` — only PUT, POST /active and
-      // DELETE require ADMIN. Reading is open because BYOK is a member's job:
-      // the model picker offers "your own key" per slot, and a member who
-      // cannot see which keys the account holds cannot tell an empty slot from
-      // one somebody already filled, or name the key they need in order to ask
-      // for it. Keys are masked to their last four characters, so the screen
-      // shows what exists rather than what it is. Adding, pausing and removing
-      // are gated inside the screen.
-      // Points at the catalogue rather than the keys screen. "Integrations"
-      // in a sidebar is read as "what does this connect to", and answering
-      // that with a form for pasting an OpenAI key answers a different
-      // question. `/integrations` itself is untouched, so the deep links from
-      // the model editor and the Google OAuth callback still land where they
-      // did — the tab strip carries somebody between the two.
+      {
+        title: "Knowledge base",
+        url: "/files",
+        icon: Database,
+        keywords: ["files", "knowledge base", "upload", "document"],
+      },
       {
         title: "Integrations",
         url: "/integrations/apps",
+        activePaths: ["/integrations", "/tools", "/provider-keys"],
         icon: KeyRound,
         keywords: [
           "byok",
@@ -178,70 +165,15 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "google calendar",
         ],
       },
-      {
-        title: "Files",
-        url: "/files",
-        icon: Database,
-        keywords: ["knowledge base", "upload", "document"],
-      },
-      // Next to Files because both are "things the agent reads", and an
-      // account looking for where their customer data lives checks there
-      // first. Not under Telephony: a list is attached to a number, but it
-      // is not a property of one, and burying it inside the number dialog
-      // would make it findable only by somebody already editing a number.
-      {
-        title: "Contacts",
-        url: "/contacts",
-        icon: ContactRound,
-        keywords: [
-          "contact list",
-          "caller",
-          "inbound",
-          "csv",
-          "customers",
-          "database",
-          "import",
-        ],
-      },
-      {
-        title: "Recordings",
-        url: "/recordings",
-        icon: AudioLines,
-        keywords: ["audio", "playback", "transcript"],
-      },
-      {
-        title: "Developers",
-        url: "/api-keys",
-        icon: Key,
-        keywords: ["api", "sdk", "mcp", "token"],
-      },
     ],
   },
-  // Shipping an agent is a different job from building one, and until now it
-  // had nowhere to live: numbers and campaigns sat under BUILD next to the
-  // canvas and the model picker, and the web widget was a modal behind a
-  // button on the last tab of one agent's settings screen. Bolna gives
-  // deployment its own group; Vapi puts phone numbers at the top level. Both
-  // are right, for the same reason — the person putting an agent live is often
-  // not the person who built it, and is never in the mood to look for it.
-  //
-  // Three entries, not the five sketched from Bolna's sidebar. Batches do not
-  // exist here, and SIP trunks are a tab inside Phone numbers rather than a
-  // destination of their own — listing either would be navigation pointing at
-  // nothing, which is the failure this group exists to fix.
   {
     label: "DEPLOY",
     items: [
-      // One entry, four screens. Verification, buying a number, carriers and
-      // test numbers are one job done in sequence — get verified, buy a
-      // number, point it at an agent — and as four peers in this list they
-      // read as four unrelated features and took a quarter of the navigation.
-      // The sequence now lives in a tab strip on the screens themselves
-      // (components/telephony/TelephonyTabs); every route is unchanged, so
-      // deep links and the keywords below still land where they did.
       {
         title: "Phone numbers",
         url: "/telephony-configurations",
+        activePaths: ["/numbers", "/verified-numbers", "/verification"],
         icon: Phone,
         showsTelephonyWarning: true,
         keywords: [
@@ -273,29 +205,18 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         icon: Megaphone,
         keywords: ["outbound", "dial", "csv", "bulk"],
       },
-      // Everything behind this entry already worked and none of it was
-      // mentioned anywhere a customer looks, so "can it talk to my CRM" was
-      // answered as no, by silence.
       {
-        title: "Connect",
-        url: "/deploy/connect",
-        icon: Workflow,
+        title: "Contacts",
+        url: "/contacts",
+        icon: ContactRound,
         keywords: [
-          "api",
-          "webhook",
-          "trigger",
-          "n8n",
-          "zapier",
-          "make",
-          "integration",
-          "crm",
-          "zoho",
-          "hubspot",
-          "meta",
-          "facebook",
-          "lead ads",
-          "google sheet",
-          "automation",
+          "contact list",
+          "caller",
+          "inbound",
+          "csv",
+          "customers",
+          "database",
+          "import",
         ],
       },
       {
@@ -318,11 +239,14 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
     ],
   },
   {
-    label: "MANAGE",
+    label: "MONITOR",
     items: [
-      // Above the runs table because it answers the question people arrive
-      // with — is this working, and what is it costing — where the table only
-      // answers which calls happened.
+      {
+        title: "Call logs",
+        url: "/usage",
+        icon: TrendingUp,
+        keywords: ["agent runs", "calls", "history", "logs", "transcripts"],
+      },
       {
         title: "Analytics",
         url: "/analytics",
@@ -330,56 +254,91 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         keywords: ["metrics", "latency", "cost", "charts"],
       },
       {
-        title: "Agent Runs",
-        url: "/usage",
-        icon: TrendingUp,
-        keywords: ["calls", "history", "logs", "transcripts"],
+        title: "Recordings",
+        url: "/recordings",
+        icon: AudioLines,
+        keywords: ["audio", "playback", "transcript"],
       },
+      { title: "Missed calls", url: "/missed-calls", icon: PhoneIncoming, keywords: ["callback", "refused", "inbound"] },
       {
         title: "Reports",
         url: "/reports",
         icon: FileText,
         keywords: ["export", "csv", "download"],
       },
-      // Under MANAGE rather than its own section: on a prepaid account this is
-      // where someone looks when calls stop, so it belongs next to the usage
-      // that drained the balance.
+    ],
+  },
+  {
+    label: "DEVELOPERS",
+    items: [
       {
-        title: "Billing",
-        url: "/billing",
-        icon: Wallet,
-        keywords: ["credit", "top up", "invoice", "payment", "balance"],
+        title: "API keys & SDKs",
+        url: "/api-keys",
+        icon: Key,
+        keywords: ["api", "sdk", "mcp", "token"],
       },
-      // Under MANAGE beside Billing because that is what it is about: this
-      // screen changes nothing about the product, only the commercial
-      // arrangement behind it. Open to every member — asking is not spending,
-      // and the person who notices there is a partner programme is rarely the
-      // one holding the billing profile.
       {
-        title: "Partner programme",
-        url: "/partner",
-        icon: Handshake,
-        keywords: ["reseller", "agency", "commission", "developer", "referral"],
+        title: "API & webhooks",
+        url: "/deploy/connect",
+        icon: Workflow,
+        keywords: [
+          "api",
+          "webhook",
+          "trigger",
+          "n8n",
+          "zapier",
+          "make",
+          "integration",
+          "crm",
+          "zoho",
+          "hubspot",
+          "meta",
+          "facebook",
+          "lead ads",
+          "google sheet",
+          "automation",
+        ],
       },
-      // Retention, erasure and export are obligations the account holder owes
-      // the people they called, so they belong where an account is managed
-      // rather than buried in Settings beside integration toggles.
+    ],
+  },
+  {
+    label: "WORKSPACE",
+    items: [
       {
         title: "Privacy",
         url: "/privacy",
         icon: Shield,
         keywords: ["retention", "erasure", "dpdp", "gdpr"],
       },
-      // Next to Privacy for the same reason Privacy is here: both are duties
-      // the account holder owes the people they call. Suppression is the one
-      // that stops a call from being placed, so it must be findable without
-      // being told the URL — the mistake the staff review queue made.
       {
         title: "Do not call",
         url: "/do-not-call",
         icon: PhoneOff,
         keywords: ["dnd", "suppression", "opt out", "tcccpr", "trai", "blocklist"],
       },
+      {
+        title: "Partner programme",
+        url: "/partner",
+        icon: Handshake,
+        keywords: ["reseller", "agency", "commission", "developer", "referral"],
+      },
+      { title: "Settings", url: "/settings", icon: Settings, keywords: ["account", "workspace", "preferences"] },
     ],
   },
 ];
+
+/** Shared by the sidebar and page search so both respect the same roles. */
+export function getVisibleNavSections(roles: { isStaff: boolean; isOrganizationAdmin: boolean }): SidebarNavSection[] {
+  return (roles.isStaff ? [...NAV_SECTIONS, STAFF_SECTION] : NAV_SECTIONS)
+    .map(section => ({ ...section, items: section.items.filter(item => !item.requiresOrganizationAdmin || roles.isOrganizationAdmin) }))
+    .filter(section => section.items.length > 0);
+}
+
+/** Segment boundaries avoid matching /workflow-templates as /workflow.
+ * The most specific match keeps nested staff pages from selecting two links. */
+export function getActiveNavUrl(pathname: string, sections: SidebarNavSection[]): string | undefined {
+  return sections.flatMap(section => section.items)
+    .flatMap(item => [item.url, ...(item.activePaths ?? [])].map(path => ({ path, url: item.url })))
+    .filter(({ path }) => pathname === path || pathname.startsWith(`${path}/`))
+    .sort((a, b) => b.path.length - a.path.length)[0]?.url;
+}
