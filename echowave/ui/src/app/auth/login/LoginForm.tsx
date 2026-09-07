@@ -11,6 +11,7 @@ import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { detailFromError } from "@/lib/apiError";
 
 export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
   // Google sign-in failures come back as ?error= on this page — the backend has
@@ -60,22 +61,27 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
       });
 
       if (res.error || !res.data) {
-        const detail = (res.error as { detail?: string })?.detail;
+        const detail = detailFromError(res.error, "Login failed");
         if (detail === "mfa_required") {
           // Not a failure to report — the password was right. Ask for the code.
           setMfaRequired(true);
           return;
         }
-        toast.error(detail || "Login failed");
+        toast.error(detail);
         return;
       }
 
       // Set httpOnly cookies via server route
-      await fetch("/api/auth/session", {
+      const session = await fetch("/api/auth/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: res.data.token, user: res.data.user }),
       });
+
+      if (!session.ok) {
+        toast.error("Could not save your sign-in session. Please try again.");
+        return;
+      }
 
       window.location.href = "/after-sign-in";
     } catch {

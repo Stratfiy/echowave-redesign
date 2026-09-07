@@ -12,6 +12,7 @@ import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { detailFromError } from "@/lib/apiError";
 
 function SignupForm() {
   // A partner's referral code, from the link they handed out. Read here and
@@ -46,17 +47,21 @@ function SignupForm() {
       });
 
       if (res.error || !res.data) {
-        const detail = (res.error as { detail?: string })?.detail;
-        toast.error(detail || "Signup failed");
+        toast.error(detailFromError(res.error, "Signup failed"));
         return;
       }
 
       // Set httpOnly cookies via server route
-      await fetch("/api/auth/session", {
+      const session = await fetch("/api/auth/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: res.data.token, user: res.data.user }),
       });
+
+      if (!session.ok) {
+        toast.error("Your account was created, but we could not save your session. Please sign in.");
+        return;
+      }
 
       window.location.href = "/after-sign-in";
     } catch {
