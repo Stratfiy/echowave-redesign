@@ -33,18 +33,45 @@ _FACTORY = (
 _TIER_FIELDS = set(DecibylTTSService.model_fields)
 
 
+#: The branch shape this file reasons about.
+_BRANCH = re.compile(
+    r"(?:el)?if user_config\.tts\.provider == ServiceProviders\.(\w+)\.value:"
+)
+
+
 def _branches() -> dict[str, str]:
+    """The provider branches, wherever they currently live.
+
+    Found by looking for the function that *has* them rather than by name.
+    `create_tts_service` used to hold them and now delegates to
+    `_create_tts_service`, which set this parse to zero branches — and the two
+    assertions below went on passing against an empty dict for as long as it
+    took another failure to stop pytest before reaching this one. Anchoring on
+    a name is what made a refactor able to switch off a safety check silently;
+    anchoring on the content cannot.
+    """
     source = _FACTORY.read_text()
     tree = ast.parse(source)
-    fn = next(
-        n
-        for n in tree.body
-        if isinstance(n, ast.FunctionDef) and n.name == "create_tts_service"
+    holders = []
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        segment = ast.get_source_segment(source, node) or ""
+        if _BRANCH.search(segment):
+            holders.append((node.name, segment))
+
+    assert holders, (
+        "No function in service_factory.py dispatches on "
+        "user_config.tts.provider. Either the branches moved somewhere this "
+        "parse cannot see, or they are gone — both mean the checks below are "
+        "testing nothing."
     )
-    body = ast.get_source_segment(source, fn) or ""
-    parts = re.split(
-        r"(?:el)?if user_config\.tts\.provider == ServiceProviders\.(\w+)\.value:", body
+    assert len(holders) == 1, (
+        f"TTS provider branches are split across {[n for n, _ in holders]}. "
+        "This file assumes one place to check; teach it about the others."
     )
+
+    parts = _BRANCH.split(holders[0][1])
     return {parts[i]: parts[i + 1] for i in range(1, len(parts) - 1, 2)}
 
 
