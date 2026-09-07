@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Download, Globe } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Globe, PhoneCall, SearchX } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import TimezoneSelect, { type ITimezoneOption } from 'react-timezone-select';
@@ -10,6 +11,7 @@ import { downloadUsageRunsReportApiV1OrganizationsUsageRunsReportGet, getDailyUs
 import type { DailyUsageBreakdownResponse, OrganizationPreferences, UsageHistoryResponse, WorkflowRunUsageResponse, WorkflowSummaryResponse } from '@/client/types.gen';
 import { CallTypeCell } from '@/components/CallTypeCell';
 import { DailyUsageTable } from '@/components/DailyUsageTable';
+import { EmptyState } from '@/components/EmptyState';
 import { FilterBuilder } from '@/components/filters/FilterBuilder';
 import { MediaPreviewButton, MediaPreviewDialog } from '@/components/MediaPreviewDialog';
 import { OutcomesSummary } from '@/components/OutcomesSummary';
@@ -24,9 +26,12 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import type { CallOutcome } from '@/constants/callOutcomes';
 import { useUserConfig } from '@/context/UserConfigContext';
+import { useCallOutcomes } from '@/hooks/useCallOutcomes';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
+import { emptyReason } from '@/lib/emptyState';
 import { usageFilterAttributes } from '@/lib/filterAttributes';
 import { decodeFiltersFromURL, encodeFiltersToURL } from '@/lib/filters';
 import type { ActiveFilter, DateRangeValue, FilterAttribute, NumberFilterOption } from '@/types/filters';
@@ -34,11 +39,46 @@ import type { ActiveFilter, DateRangeValue, FilterAttribute, NumberFilterOption 
 // Get local timezone
 const getLocalTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+/** The label a business gave a code, falling back to the code itself.
+
+    A run stores codes, not labels, so an outcome renamed after the call still
+    reads as whatever it is called now — and a code from an agent whose list
+    has since changed still shows something rather than nothing. */
+/** `call_outcomes` until the generated client is next rebuilt.
+
+    `npm run generate-client` needs a running backend, so the field is
+    declared here rather than hand-edited into `src/client/types.gen.ts`,
+    which a regeneration would silently revert. Delete this once the
+    generated type carries it. */
+type RunWithOutcomes = { call_outcomes?: string[] | null };
+
+const outcomeLabel = (code: string, options: CallOutcome[] | null): string =>
+    options?.find((outcome) => outcome.code === code)?.label
+    ?? code.replace(/_/g, ' ');
+
 const buildAgentFilterAttributes = (
     agentOptions: NumberFilterOption[] | null,
-    isLoadingAgentOptions: boolean
+    isLoadingAgentOptions: boolean,
+    outcomeOptions: CallOutcome[] | null,
+    isLoadingOutcomeOptions: boolean
 ): FilterAttribute[] => {
     return usageFilterAttributes.map(attribute => {
+        // The outcomes are per agent while this page is org-wide, so the menu
+        // is the union across the org. Offering only the defaults would leave
+        // every custom code out and its calls unfindable.
+        if (attribute.id === 'callOutcome') {
+            return {
+                ...attribute,
+                config: {
+                    ...attribute.config,
+                    ...(outcomeOptions
+                        ? { options: outcomeOptions.map(outcome => outcome.code) }
+                        : {}),
+                    optionsLoading: isLoadingOutcomeOptions,
+                },
+            } satisfies FilterAttribute;
+        }
+
         if (attribute.id !== 'workflowId') {
             return attribute;
         }
@@ -79,9 +119,15 @@ export default function UsagePage() {
     const [isDownloadingReport, setIsDownloadingReport] = useState(false);
     const [agentFilterOptions, setAgentFilterOptions] = useState<NumberFilterOption[] | null>(null);
     const [isLoadingAgentFilterOptions, setIsLoadingAgentFilterOptions] = useState(false);
+    const { outcomes: callOutcomeOptions, isLoading: isLoadingCallOutcomes } = useCallOutcomes();
     const availableUsageFilterAttributes = useMemo(
-        () => buildAgentFilterAttributes(agentFilterOptions, isLoadingAgentFilterOptions),
-        [agentFilterOptions, isLoadingAgentFilterOptions]
+        () => buildAgentFilterAttributes(
+            agentFilterOptions,
+            isLoadingAgentFilterOptions,
+            callOutcomeOptions,
+            isLoadingCallOutcomes
+        ),
+        [agentFilterOptions, isLoadingAgentFilterOptions, callOutcomeOptions, isLoadingCallOutcomes]
     );
 
     // Daily usage breakdown state (only for paid orgs)
@@ -568,6 +614,11 @@ export default function UsagePage() {
                                                 <TableHead className="font-semibold">Call Type</TableHead>
                                                 <TableHead className="font-semibold">Phone Number</TableHead>
                                                 <TableHead className="font-semibold">Disposition</TableHead>
+                                                {/* How the call ended, then what it
+                                                    achieved. Two columns because a call
+                                                    is legitimately `user_hangup` and
+                                                    `booked` at once. */}
+                                                <TableHead className="font-semibold">Outcome</TableHead>
                                                 <TableHead className="font-semibold">Date</TableHead>
                                                 <TableHead className="font-semibold text-right">Duration</TableHead>
                                                 {organizationPricing?.price_per_second_usd && (
@@ -601,6 +652,19 @@ export default function UsagePage() {
                                                             <Badge variant="default">
                                                                 {run.disposition}
                                                             </Badge>
+                                                        ) : (
+                                                            <span className="text-sm text-muted-foreground">-</span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {(run as RunWithOutcomes).call_outcomes?.length ? (
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {(run as RunWithOutcomes).call_outcomes?.map((code: string) => (
+                                                                    <Badge key={code} variant="secondary">
+                                                                        {outcomeLabel(code, callOutcomeOptions)}
+                                                                    </Badge>
+                                                                ))}
+                                                            </div>
                                                         ) : (
                                                             <span className="text-sm text-muted-foreground">-</span>
                                                         )}
@@ -676,7 +740,29 @@ export default function UsagePage() {
                                 )}
                             </>
                         ) : (
-                            <p className="text-center py-8 text-muted-foreground">No runs found</p>
+                            emptyReason({ hasFilters: appliedFilters.length > 0 }) === "filtered-out" ? (
+                                <EmptyState
+                                    icon={SearchX}
+                                    title="No calls match these filters"
+                                    description="Widen the date range, or clear a filter to see everything again."
+                                    action={
+                                        <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                                            Clear filters
+                                        </Button>
+                                    }
+                                />
+                            ) : (
+                                <EmptyState
+                                    icon={PhoneCall}
+                                    title="No calls yet"
+                                    description="Every call an agent takes or makes lands here, with its recording, transcript and outcome. Make one to see it."
+                                    action={
+                                        <Button asChild size="sm">
+                                            <Link href="/workflow">Go to your agents</Link>
+                                        </Button>
+                                    }
+                                />
+                            )
                         )}
                     </CardContent>
                 </Card>

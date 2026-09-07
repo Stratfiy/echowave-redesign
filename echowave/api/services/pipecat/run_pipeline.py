@@ -4,7 +4,6 @@ from typing import Optional
 from fastapi import HTTPException
 from loguru import logger
 
-from api.constants import FOLLOW_CALLER_LANGUAGE
 from api.db import db_client
 from api.enums import WorkflowRunMode
 from api.schemas.workflow_configurations import (
@@ -32,12 +31,19 @@ from api.services.pipecat.active_calls import (
     unregister_active_call as unregister_worker_active_call,
 )
 from api.services.pipecat.audio_config import AudioConfig, create_audio_config
+from api.services.pipecat.dynamic_greeting import (
+    fetch_greeting as fetch_dynamic_greeting,
+)
+from api.services.pipecat.dynamic_greeting import (
+    is_enabled as is_dynamic_greeting_enabled,
+)
 from api.services.pipecat.event_handlers import (
     register_audio_data_handler,
     register_event_handlers,
 )
 from api.services.pipecat.in_memory_buffers import InMemoryLogsBuffer
 from api.services.pipecat.interruption_backoff import InterruptionBackoff
+from api.services.pipecat.language_following import should_follow_caller_language
 from api.services.pipecat.pipeline_builder import (
     build_pipeline,
     build_realtime_pipeline,
@@ -69,6 +75,7 @@ from api.services.pipecat.service_factory import (
     create_tts_service_with_backups,
     stt_uses_external_turns,
 )
+from api.services.pipecat.speech_text import build_speech_text_transforms
 from api.services.pipecat.tracing_config import (
     ensure_tracing,
 )
@@ -79,6 +86,8 @@ from api.services.pipecat.ws_sender_registry import get_ws_sender
 from api.services.telephony import registry as telephony_registry
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.pipecat_engine import PipecatEngine
+from api.services.workflow.speaking_style import wants_code_mixed_speech
+from api.services.workflow.squad_loader import assemble_for_run
 from api.services.workflow.workflow_graph import WorkflowGraph
 from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
 from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
@@ -447,9 +456,15 @@ async def _run_pipeline_telephony_impl(
     set_current_org_id(workflow.organization_id)
 
     ambient_noise_config = None
+    # Its opposite number, read the same way: ambient noise adds room tone to
+    # the outbound leg, suppression takes hiss off the inbound one.
+    noise_suppression_config = None
     if workflow.workflow_configurations:
         ambient_noise_config = workflow.workflow_configurations.get(
             "ambient_noise_configuration"
+        )
+        noise_suppression_config = workflow.workflow_configurations.get(
+            "noise_suppression_configuration"
         )
 
     # The telephony config id is stamped on the workflow run when it's created
@@ -493,6 +508,7 @@ async def _run_pipeline_telephony_impl(
         audio_config,
         workflow.organization_id,
         ambient_noise_config=ambient_noise_config,
+        noise_suppression_config=noise_suppression_config,
         telephony_configuration_id=telephony_configuration_id,
         is_realtime=is_realtime,
         **transport_kwargs,
@@ -577,11 +593,15 @@ async def _run_pipeline_smallwebrtc_impl(
         set_current_org_id(workflow.organization_id)
 
     ambient_noise_config = None
+    noise_suppression_config = None
     if workflow and workflow.workflow_configurations:
         if "ambient_noise_configuration" in workflow.workflow_configurations:
             ambient_noise_config = workflow.workflow_configurations[
                 "ambient_noise_configuration"
             ]
+        noise_suppression_config = workflow.workflow_configurations.get(
+            "noise_suppression_configuration"
+        )
 
     # Create audio configuration for WebRTC
     audio_config = create_audio_config(WorkflowRunMode.SMALLWEBRTC.value)
@@ -616,6 +636,7 @@ async def _run_pipeline_smallwebrtc_impl(
         workflow_run_id,
         audio_config,
         ambient_noise_config,
+        noise_suppression_config,
         is_realtime=is_realtime,
     )
     await _run_pipeline_impl(
@@ -859,6 +880,10 @@ async def _run_pipeline_impl(
             user_config,
             audio_config,
             correlation_id=mps_correlation_id,
+            # Respell the names this business cares about, and space out a
+            # number the caller has to write down. Both run on the aggregated
+            # sentence, just before it reaches the voice.
+            speech_text_transforms=build_speech_text_transforms(run_configs),
         )
         llm = create_llm_service(user_config, correlation_id=mps_correlation_id)
         inference_llm = None
@@ -912,6 +937,15 @@ async def _run_pipeline_impl(
         workflow_run_id,
         initial_context=merged_call_context_vars,
         language=resolved_language if isinstance(resolved_language, str) else None,
+    )
+
+    # Handoffs resolved before the graph is built, so the runtime below never
+    # learns what one is: by the time it walks this, a squad is one graph.
+    # Org-scoped inside `assemble_for_run` — a handoff naming another account's
+    # agent resolves to nothing and the call fails here rather than splicing in
+    # somebody else's prompts and tools.
+    run_workflow_json = await assemble_for_run(
+        run_workflow_json, organization_id=workflow.organization_id
     )
 
     workflow_graph = WorkflowGraph(
@@ -1029,6 +1063,7 @@ async def _run_pipeline_impl(
         embeddings_endpoint=embeddings_endpoint,
         embeddings_api_version=embeddings_api_version,
         has_recordings=has_recordings,
+        code_mixed_speech=wants_code_mixed_speech(run_configs),
         context_compaction_enabled=context_compaction_enabled,
     )
 
@@ -1204,6 +1239,33 @@ async def _run_pipeline_impl(
     )
     engine.set_fetch_recording_audio(fetch_audio)
 
+    # The opening line, asked for at the moment the phone is answered.
+    #
+    # A pre-call variable can carry a name; it cannot carry a fact that is only
+    # true now — "your order shipped this morning", "two slots left today".
+    # Installed only when the agent configured it, so an agent that did not
+    # makes no request and pays no latency.
+    greeting_config = run_configs.get("dynamic_greeting_configuration")
+    if is_dynamic_greeting_enabled(greeting_config):
+
+        async def _dynamic_greeting(static_greeting: str) -> str:
+            return await fetch_dynamic_greeting(
+                greeting_config,
+                context={
+                    "workflow_id": workflow_id,
+                    "workflow_run_id": workflow_run_id,
+                    "phone_number": (workflow_run.initial_context or {}).get(
+                        "phone_number"
+                    )
+                    if workflow_run
+                    else None,
+                    "call_context_vars": call_context_vars or {},
+                },
+                fallback=static_greeting,
+            )
+
+        engine.set_fetch_dynamic_greeting(_dynamic_greeting)
+
     voicemail_config = (workflow.workflow_configurations or {}).get(
         "voicemail_detection", {}
     )
@@ -1266,8 +1328,33 @@ async def _run_pipeline_impl(
     # answers in the language it hears, so it gets no follower — pushing TTS
     # settings at a model that generates its own speech would do nothing, and
     # pinning a language on one would make it worse at what it is good at.
+    # Always on, and not configurable. Every correction it makes is one a
+    # human would make reading the transcript, and there is no call on this
+    # platform that is better off with a phone number written as words.
+    # A realtime speech-to-speech model produces no TranscriptionFrames for it
+    # to edit, so it is pointless rather than harmful there.
+    digit_normaliser = None
+    if not is_realtime:
+        from api.services.pipecat.digit_normaliser import SpokenDigitNormaliser
+
+        digit_normaliser = SpokenDigitNormaliser()
+
+    # Per agent, replacing FOLLOW_CALLER_LANGUAGE. Following is a property of
+    # the conversation, not of the server the call landed on: the same account
+    # wants it on a clinic line and off on a compliance line reading out a
+    # disclosure that was approved in one language, and one switch for the
+    # whole install could give it both or neither.
+    # The keypad, for the agents whose prompt asks for a number. A realtime
+    # speech-to-speech model runs a different pipeline that has no slot for
+    # this, so it is excluded here rather than half-built there.
+    dtmf_collector = None
+    if run_configs.get("accept_keypad_input") and not is_realtime:
+        from api.services.pipecat.dtmf_collector import DtmfCollector
+
+        dtmf_collector = DtmfCollector()
+
     language_follower = None
-    if FOLLOW_CALLER_LANGUAGE and not is_realtime:
+    if should_follow_caller_language(run_configs, is_realtime=is_realtime):
         from api.services.pipecat.language_follower import (
             LanguageFollower,
             configured_language,
@@ -1304,6 +1391,8 @@ async def _run_pipeline_impl(
             pipeline_metrics_aggregator,
             voicemail_detector=voicemail_detector,
             recording_router=recording_router,
+            digit_normaliser=digit_normaliser,
+            dtmf_collector=dtmf_collector,
             language_follower=language_follower,
             interruption_backoff=_create_interruption_backoff(run_configs),
         )

@@ -1,6 +1,6 @@
 "use client";
 
-import { AudioLines, Check, Pause, Pencil, Play, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { AudioLines, Check, Pause, Pencil, Play, RefreshCw, Search, SearchX, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -11,6 +11,7 @@ import {
 } from "@/client/sdk.gen";
 import type { RecordingResponseSchema } from "@/client/types.gen";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { EmptyState } from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -211,14 +212,19 @@ export default function RecordingsList({ refreshKey }: { refreshKey?: number }) 
 
             {/* Recordings List */}
             {filteredRecordings.length === 0 ? (
-                <div className="text-center py-12">
-                    <AudioLines className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">
-                        {searchQuery
-                            ? "No recordings match your search"
-                            : "No recordings yet"}
-                    </p>
-                </div>
+                searchQuery ? (
+                    <EmptyState
+                        icon={SearchX}
+                        title="No recordings match your search"
+                        description="Try a shorter search, or clear it to see everything."
+                    />
+                ) : (
+                    <EmptyState
+                        icon={AudioLines}
+                        title="No recordings yet"
+                        description="Upload audio the agent plays instead of speaking — a greeting in a real voice, a disclosure that has to be word for word."
+                    />
+                )
             ) : (
                 <div className="space-y-3">
                     {filteredRecordings.map((rec) => {

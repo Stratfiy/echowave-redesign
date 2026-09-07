@@ -12,6 +12,8 @@ interface WorkflowContextType {
         updater: (tool: ToolResponse) => ToolResponse,
     ) => void;
     recordings?: RecordingResponseSchema[];
+    /** This agent's stable reference, so a hand-over cannot offer itself. */
+    workflowUuid?: string;
     readOnly?: boolean;
 }
 

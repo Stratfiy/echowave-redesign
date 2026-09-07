@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
+from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
 from api.services.workflow.tools.knowledge_base import get_knowledge_base_tool
 
 # ---------------------------------------------------------------------------
@@ -52,6 +53,7 @@ def compose_system_prompt_for_node(
     workflow: "WorkflowGraph",
     format_prompt: Callable[[str], str],
     has_recordings: bool,
+    code_mixed_speech: bool = False,
 ) -> str:
     """Compose the full system prompt text for a workflow node.
 
@@ -64,6 +66,9 @@ def compose_system_prompt_for_node(
         workflow: The full workflow graph (needed for global node prompt).
         format_prompt: Callable to render template variables in prompts.
         has_recordings: Whether any node in the workflow uses recordings.
+        code_mixed_speech: Whether to tell the model to speak the way callers
+            here actually do — mixing English into the local language — rather
+            than in the formal register it reaches for by default.
 
     Returns:
         The composed system prompt text.
@@ -76,6 +81,12 @@ def compose_system_prompt_for_node(
     formatted_node_prompt = format_prompt(node.prompt)
 
     parts = [p for p in (global_prompt, formatted_node_prompt) if p]
+
+    # After the operator's own prompts, so it reads as the most recent
+    # instruction, and before the recording block, which is a response *format*
+    # and has to be the last thing the model is told.
+    if code_mixed_speech:
+        parts.append(CODE_MIXED_INSTRUCTIONS)
 
     if has_recordings and "RECORDING_ID:" in formatted_node_prompt:
         parts.append(RECORDING_RESPONSE_MODE_INSTRUCTIONS)

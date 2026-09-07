@@ -213,6 +213,15 @@ class OrganizationUsageClient(BaseDBClient):
                 if run.gathered_context:
                     disposition = run.gathered_context.get("mapped_call_disposition")
 
+                # What the call achieved, as opposed to how it ended. A second
+                # field rather than a richer `disposition`, because a call is
+                # legitimately both `user_hangup` and `booked` and one column
+                # cannot hold both facts. Absent on calls that finished before
+                # this ran, which the UI shows as nothing rather than guessing.
+                outcomes = ((run.annotations or {}).get("disposition") or {}).get(
+                    "dispositions"
+                )
+
                 run_data = {
                     "id": run.id,
                     "workflow_id": run.workflow_id,
@@ -233,6 +242,7 @@ class OrganizationUsageClient(BaseDBClient):
                     "call_type": run.call_type,
                     "mode": run.mode,
                     "disposition": disposition,
+                    "call_outcomes": outcomes if isinstance(outcomes, list) else None,
                     "initial_context": run.initial_context,
                     "gathered_context": run.gathered_context,
                 }

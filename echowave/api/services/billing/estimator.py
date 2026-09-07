@@ -49,10 +49,37 @@ from api.services.billing.rates import resolve_platform_rate, resolve_provider_r
 from api.services.billing.usage import byok_tier_from_components
 
 # Consumption per connected minute, used only when we have no measured history
-# for a model. Derived from a typical Indian voice-agent turn: roughly six
-# exchanges a minute, ~150 output tokens each, with the prompt re-sent per turn
-# dominating input tokens.
-DEFAULT_TOKENS_PER_MINUTE = 1_400
+# for a model. Two terms, because a minute of agent time is two different kinds
+# of model usage and the second was missing.
+#
+# The conversation: roughly six exchanges a minute, ~150 output tokens each,
+# with the prompt re-sent per turn dominating input tokens.
+DEFAULT_CONVERSATION_TOKENS_PER_MINUTE = 1_400
+
+# Post-call analysis, which is not optional and was not counted. Every agent is
+# created with a QA node (see ``workflow/qa_node.py``), and every completed call
+# is also classified for its outcome — so a finished call runs roughly one QA
+# inference per step it reached, a rolling summary between them, and one
+# disposition pass. Call it six completions, each re-reading the transcript:
+# ~600 input and ~100 output tokens on a two-minute call, so ~4,200 tokens
+# across two minutes.
+#
+# It is an estimate of our own machinery rather than a measurement, which is
+# exactly why it is named and stated here instead of being folded into the
+# number above. It is also why erring high is right: the whole point of this
+# module is that the first invoice holds no surprises, and there is only one
+# direction a quote must never be wrong in.
+#
+# Accounts with history never use either figure — ``_measured_units_per_minute``
+# reads their real calls, and post-call tokens are already in those, because
+# ``run_integrations`` records them under the vendor that served them.
+DEFAULT_POST_CALL_TOKENS_PER_MINUTE = 2_100
+
+#: What a pipeline agent's language model actually consumes per connected
+#: minute: the conversation plus the analysis afterwards.
+DEFAULT_TOKENS_PER_MINUTE = (
+    DEFAULT_CONVERSATION_TOKENS_PER_MINUTE + DEFAULT_POST_CALL_TOKENS_PER_MINUTE
+)
 
 #: What speech synthesis actually delivers: 150 words a minute at ~6 characters
 #: a word, the rate conversational TTS is tuned to. Named rather than inlined

@@ -21,6 +21,9 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const TABS = [
+    // First, because it is the question people arrive with: what does this
+    // connect to. The two behind it are where you then set one up.
+    { href: "/integrations/apps", label: "Apps" },
     { href: "/integrations", label: "Providers" },
     { href: "/tools", label: "Tools" },
 ];
@@ -35,8 +38,12 @@ export function IntegrationsTabs() {
         >
             <ul className="flex min-w-max gap-1">
                 {TABS.map((tab) => {
+                    // Exact match on /integrations, or the Apps sub-route
+                    // would light both it and Providers.
                     const active =
-                        pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+                        tab.href === "/integrations"
+                            ? pathname === "/integrations"
+                            : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
                     return (
                         <li key={tab.href}>
                             <Link

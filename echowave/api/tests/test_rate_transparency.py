@@ -340,9 +340,28 @@ class TestSpeechToSpeechIsQuotedAtWhatItCosts:
 
     def test_an_ordinary_language_model_keeps_the_text_assumption(self):
         from api.services.billing.estimator import (
-            DEFAULT_TOKENS_PER_MINUTE,
+            DEFAULT_CONVERSATION_TOKENS_PER_MINUTE,
             REALTIME_TOKENS_PER_MINUTE,
         )
 
         assert "openai" not in REALTIME_TOKENS_PER_MINUTE
-        assert DEFAULT_TOKENS_PER_MINUTE == 1_400
+        assert DEFAULT_CONVERSATION_TOKENS_PER_MINUTE == 1_400
+
+    def test_the_quote_counts_the_analysis_after_the_call_too(self):
+        """It is not optional, and it was not counted.
+
+        Every agent is created with a QA node and every completed call is
+        classified, so a quote covering only the conversation is short by all
+        of it — in the one direction a price shown to a customer must never be
+        wrong in.
+        """
+        from api.services.billing.estimator import (
+            DEFAULT_CONVERSATION_TOKENS_PER_MINUTE,
+            DEFAULT_POST_CALL_TOKENS_PER_MINUTE,
+            DEFAULT_TOKENS_PER_MINUTE,
+        )
+
+        assert DEFAULT_POST_CALL_TOKENS_PER_MINUTE > 0
+        assert DEFAULT_TOKENS_PER_MINUTE == (
+            DEFAULT_CONVERSATION_TOKENS_PER_MINUTE + DEFAULT_POST_CALL_TOKENS_PER_MINUTE
+        )

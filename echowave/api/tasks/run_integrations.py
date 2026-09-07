@@ -24,6 +24,7 @@ from api.services.pipecat.tracing_config import (
     register_org_langfuse_credentials,
     unregister_org_langfuse_credentials,
 )
+from api.services.workflow.disposition_run import classify_call
 from api.services.workflow.dto import (
     QANodeData,
     QARFNode,
@@ -32,6 +33,10 @@ from api.services.workflow.dto import (
     WebhookRFNode,
 )
 from api.services.workflow.qa import run_per_node_qa_analysis
+from api.services.workflow.qa.conversation import (
+    build_conversation_structure,
+    format_transcript,
+)
 from api.tasks.function_names import FunctionNames
 from api.utils.recording_artifacts import get_recording_storage_key
 from api.utils.template_renderer import render_template
@@ -127,6 +132,78 @@ async def _run_qa_nodes(
             results[f"qa_{node_id}"] = {"error": str(e)}
 
     return results
+
+
+async def _classify_disposition(
+    workflow_run: WorkflowRunModel,
+    workflow_run_id: int,
+) -> dict:
+    """What this call achieved, as labels an operations team can filter on.
+
+    Not the same question QA answers. A polite, well-run call to somebody who
+    was never going to buy scores well and books nothing, so a score cannot
+    stand in for an outcome — and neither can the transcript, at a hundred
+    calls.
+
+    Runs on every completed call, including one whose agent has no QA node: a
+    disposition is a property of the call, not of a QA step.
+
+    The taxonomy is the workflow's configured ``call_outcomes``, falling back
+    to a default set so an agent nobody configured still classifies.
+
+    Deliberately *not* ``call_disposition_codes``. That column looks like the
+    obvious home and is not configuration: ``event_handlers`` appends to it
+    every ``mapped_call_disposition`` a call has actually produced, so it is a
+    registry of what has happened, kept so the calls list can offer a dropdown
+    of codes that occurred. Reading a taxonomy out of it would mean the
+    business's list of outcomes silently grew every time a call ended a new
+    way.
+    """
+    logs = workflow_run.logs or {}
+    events = logs.get("realtime_feedback_events", [])
+    transcript = format_transcript(build_conversation_structure(events))
+
+    workflow = getattr(workflow_run, "workflow", None)
+    configurations = getattr(workflow, "workflow_configurations", None) or {}
+    codes = (
+        configurations.get("call_outcomes")
+        if isinstance(configurations, dict)
+        else None
+    )
+
+    result = await classify_call(
+        workflow_run=workflow_run,
+        transcript=transcript,
+        disposition_codes=codes,
+    )
+
+    # The tokens go on the receipt, not in the analysis. Keyed by the vendor
+    # that served them, because `usage.provider_from_processor` reads the first
+    # half of this key as a provider name and looks up a rate for it — the
+    # mistake that left every QA token uncosted for months.
+    provider = result.pop("provider", None)
+    model = result.pop("model", None)
+    token_usage = result.pop("token_usage", None) or {}
+    if provider and model and token_usage.get("total_tokens"):
+        try:
+            usage_info = dict(workflow_run.usage_info or {})
+            llm_usage = dict(usage_info.get("llm", {}))
+            key = f"{provider}|||{model}"
+            existing = dict(llm_usage.get(key) or {})
+            for field, value in token_usage.items():
+                existing[field] = (existing.get(field) or 0) + (value or 0)
+            llm_usage[key] = existing
+            usage_info["llm"] = llm_usage
+            await db_client.update_workflow_run(
+                run_id=workflow_run_id, usage_info=usage_info
+            )
+        except Exception as error:  # noqa: BLE001 - a receipt line, not the answer
+            logger.warning(
+                f"Failed to record disposition tokens for {workflow_run_id}: {error}"
+            )
+
+    logger.info(f"Disposition for run {workflow_run_id}: {result.get('dispositions')}")
+    return {"disposition": result}
 
 
 async def _update_usage_info_with_qa_tokens(
@@ -257,6 +334,35 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
             # remove — which is the common case, so it is not worth tracking
             # whether this worker happens to hold one.
             unregister_org_langfuse_credentials(org_id=organization_id)
+
+        # Disposition, ahead of everything below because everything below is
+        # conditional. The gate in step 4 returns early for a workflow with no
+        # webhook, SMS, QA or campaign — which is most agents on the day they
+        # are made — and a disposition that only exists on the calls that
+        # happened to have an integration configured is worse than none: it
+        # makes the filter under-count without ever looking wrong.
+        #
+        # A failure is recorded as `unclear` rather than raised. The call is
+        # already over; post-call analysis must never be the reason it fails to
+        # report.
+        try:
+            if (workflow_run.annotations or {}).get("disposition"):
+                # This job retries. Classifying twice is a second model bill for
+                # an answer already stored, and the token merge below it is
+                # additive, so the run would also be charged for it twice.
+                logger.debug(f"Disposition already recorded for {workflow_run_id}")
+            else:
+                await db_client.update_workflow_run(
+                    workflow_run_id,
+                    annotations=await _classify_disposition(
+                        workflow_run, workflow_run_id
+                    ),
+                )
+                workflow_run, _ = await db_client.get_workflow_run_with_context(
+                    workflow_run_id
+                )
+        except Exception as error:  # noqa: BLE001 - the call is already over
+            logger.warning(f"Disposition step failed for {workflow_run_id}: {error}")
 
         # Step 2: Get workflow definition from the run's pinned version
         workflow_definition = workflow_run.definition.workflow_json

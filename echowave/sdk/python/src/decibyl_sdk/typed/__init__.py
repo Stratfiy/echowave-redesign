@@ -8,6 +8,7 @@ from decibyl_sdk.typed.agent_node import AgentNode
 from decibyl_sdk.typed.branch import Branch
 from decibyl_sdk.typed.end_call import EndCall
 from decibyl_sdk.typed.global_node import GlobalNode
+from decibyl_sdk.typed.handoff import Handoff
 from decibyl_sdk.typed.paygent import Paygent
 from decibyl_sdk.typed.qa import Qa
 from decibyl_sdk.typed.sms import Sms
@@ -23,6 +24,7 @@ __all__ = [
     "Branch",
     "EndCall",
     "GlobalNode",
+    "Handoff",
     "Paygent",
     "Qa",
     "Sms",

@@ -18,10 +18,11 @@
 
 "use client";
 
-import { ArrowLeft, Loader2, Wrench } from "lucide-react";
+import { Loader2, Wrench } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AgentHeader } from "@/app/workflow/[workflowId]/components/AgentHeader";
 import { AgentTabs } from "@/app/workflow/[workflowId]/components/AgentTabs";
 import {
     getWorkflowApiV1WorkflowFetchWorkflowIdGet,
@@ -150,16 +151,7 @@ export default function AgentToolsPage() {
 
     return (
         <WorkflowLayout>
-            <div className="flex h-14 items-center gap-3 border-b bg-[#1a1a1a] px-4">
-                <button
-                    onClick={() => router.push(`/workflow/${workflowId}`)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[#2a2a2a]"
-                    aria-label="Back to agent"
-                >
-                    <ArrowLeft className="h-5 w-5 text-gray-400" />
-                </button>
-                <p className="truncate text-sm font-semibold text-white">{name}</p>
-            </div>
+            <AgentHeader workflowId={workflowId} name={name} />
 
             <AgentTabs workflowId={workflowId} />
 

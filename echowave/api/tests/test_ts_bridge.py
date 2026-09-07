@@ -160,6 +160,10 @@ def _sample_property_value(prop: PropertySpec, *, path: str) -> Any:
         return f"recording_{slug}"
     if prop.type == PropertyType.credential_ref:
         return f"credential_{slug}"
+    if prop.type == PropertyType.agent_ref:
+        # A workflow uuid. Shaped like one rather than a slug, because the
+        # round trip is what this asserts and a real value is what crosses it.
+        return f"00000000-0000-4000-8000-{abs(hash(slug)) % 10**12:012d}"
     if prop.type == PropertyType.number:
         return _sample_number(prop)
     if prop.type == PropertyType.boolean:

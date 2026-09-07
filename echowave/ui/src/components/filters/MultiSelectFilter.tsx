@@ -16,6 +16,13 @@ interface MultiSelectFilterProps {
   error?: string;
   showSelectAll?: boolean;
   searchable?: boolean;
+  /**
+   * Offer "any"/"all". Only for a field a row can hold several of — asking it
+   * about a single-valued field would be offering a choice with one real
+   * answer.
+   */
+  matchModes?: boolean;
+  optionsLoading?: boolean;
 }
 
 export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
@@ -25,6 +32,8 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
   error,
   showSelectAll = true,
   searchable = true,
+  matchModes = false,
+  optionsLoading = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -35,19 +44,23 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
       )
     : options;
 
+  // The match survives every other edit: somebody who picked "all" and then
+  // adds a third box has not changed their mind about how the boxes combine.
+  const match = value.match ?? "any";
+
   const handleSelectAll = () => {
-    onChange({ codes: options });
+    onChange({ codes: options, match });
   };
 
   const handleSelectNone = () => {
-    onChange({ codes: [] });
+    onChange({ codes: [], match });
   };
 
   const handleToggleOption = (option: string) => {
     const newCodes = value.codes.includes(option)
       ? value.codes.filter(code => code !== option)
       : [...value.codes, option];
-    onChange({ codes: newCodes });
+    onChange({ codes: newCodes, match });
   };
 
   const getDisplayText = () => {
@@ -110,7 +123,11 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
             )}
 
             <div className="max-h-[200px] overflow-auto space-y-1">
-              {filteredOptions.length === 0 ? (
+              {optionsLoading ? (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  Loading...
+                </p>
+              ) : filteredOptions.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-2">
                   No options found
                 </p>
@@ -137,7 +154,27 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
               )}
             </div>
 
-            <div className="pt-2 border-t">
+            <div className="pt-2 border-t space-y-2">
+              {/* Only once there is something to combine. With one box ticked
+                  the two options mean the same thing, and offering the choice
+                  there just invites somebody to wonder which they wanted. */}
+              {matchModes && value.codes.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Match</span>
+                  {(["any", "all"] as const).map((mode) => (
+                    <Button
+                      key={mode}
+                      type="button"
+                      size="sm"
+                      variant={match === mode ? "default" : "outline"}
+                      className="h-6 px-2 text-xs"
+                      onClick={() => onChange({ codes: value.codes, match: mode })}
+                    >
+                      {mode === "any" ? "Any of these" : "All of these"}
+                    </Button>
+                  ))}
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 {value.codes.length} selected
               </p>

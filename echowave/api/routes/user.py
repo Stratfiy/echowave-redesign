@@ -16,6 +16,7 @@ from api.schemas.workflow_configurations import (
     get_default_workflow_configurations,
 )
 from api.services.auth.depends import get_user
+from api.services.auth.key_environment import PRODUCTION, normalise
 from api.services.configuration import vendor_voices, voice_catalogue
 from api.services.configuration.ai_model_configuration import (
     convert_legacy_ai_model_configuration_to_v2,
@@ -323,6 +324,9 @@ class APIKeyResponse(BaseModel):
     id: int
     name: str
     key_prefix: str
+    # "production" or "sandbox". Defaulted for keys issued before environments
+    # existed, all of which are production.
+    environment: str = PRODUCTION
     is_active: bool
     created_at: datetime
     last_used_at: datetime | None = None
@@ -331,12 +335,18 @@ class APIKeyResponse(BaseModel):
 
 class CreateAPIKeyRequest(BaseModel):
     name: str
+    # A sandbox key can only call numbers this organization has verified, so
+    # somebody can be given API access without being given the ability to dial
+    # your customers. Defaulted to production: an older client that does not
+    # send this is asking for the key it has always got.
+    environment: Literal["production", "sandbox"] = PRODUCTION
 
 
 class CreateAPIKeyResponse(BaseModel):
     id: int
     name: str
     key_prefix: str
+    environment: str = PRODUCTION
     api_key: str  # Only returned when creating a new key
     created_at: datetime
 
@@ -359,6 +369,7 @@ async def get_api_keys(
             id=key.id,
             name=key.name,
             key_prefix=key.key_prefix,
+            environment=normalise(key.environment),
             is_active=key.is_active,
             created_at=key.created_at,
             last_used_at=key.last_used_at,
@@ -381,12 +392,14 @@ async def create_api_key(
         organization_id=user.selected_organization_id,
         name=request.name,
         created_by=user.id,
+        environment=request.environment,
     )
 
     return CreateAPIKeyResponse(
         id=api_key.id,
         name=api_key.name,
         key_prefix=api_key.key_prefix,
+        environment=normalise(api_key.environment),
         api_key=raw_key,
         created_at=api_key.created_at,
     )

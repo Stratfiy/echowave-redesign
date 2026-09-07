@@ -3,7 +3,8 @@
 from datetime import UTC, datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from loguru import logger
 from pydantic import BaseModel
 
 from api.constants import BACKEND_API_ENDPOINT, ENVIRONMENT, UI_APP_URL
@@ -11,7 +12,18 @@ from api.db import db_client
 from api.db.models import EmbedTokenModel, UserModel
 from api.enums import PostHogEvent
 from api.services.auth.depends import get_user
+from api.services.embed_logo import (
+    MAX_LOGO_BYTES,
+    LogoRejected,
+    is_own_logo_key,
+    logo_from_settings,
+    logo_storage_key,
+    merge_logo_into_settings,
+    sanitize_client_settings,
+    validate_logo,
+)
 from api.services.posthog_client import capture_event
+from api.services.storage import get_current_storage_backend, get_storage
 
 router = APIRouter(prefix="/workflow")
 
@@ -119,7 +131,12 @@ async def create_or_update_embed_token(
             existing_tokens[0].id,
             user.selected_organization_id,
             allowed_domains=allowed_domains,
-            settings=embed_request.settings,
+            # `logo` is server-managed. The client may neither set it — which
+            # would let it name any object in the bucket — nor drop it by
+            # omission, which is what the widget editor was doing on every save.
+            settings=sanitize_client_settings(
+                embed_request.settings, existing_tokens[0].settings
+            ),
             usage_limit=embed_request.usage_limit,
             expires_at=expires_at,
             is_active=True,
@@ -131,7 +148,7 @@ async def create_or_update_embed_token(
             organization_id=user.selected_organization_id,
             created_by=user.id,
             allowed_domains=allowed_domains,
-            settings=embed_request.settings,
+            settings=sanitize_client_settings(embed_request.settings, None),
             usage_limit=embed_request.usage_limit,
             expires_at=expires_at,
         )
@@ -245,3 +262,151 @@ async def deactivate_embed_token(
         return {"message": "Embed token deactivated successfully"}
     else:
         raise HTTPException(status_code=500, detail="Failed to deactivate embed token")
+
+
+async def _active_token_or_404(workflow_id: int, user: UserModel):
+    """The workflow's active embed token, having checked the caller owns it.
+
+    Both logo routes need the same three steps in the same order, and the
+    ordering is the access control: the workflow lookup is scoped to the
+    caller's organization, so a workflow id belonging to somebody else is a 404
+    before any token is read.
+    """
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if not workflow:
+        raise HTTPException(
+            status_code=404, detail=f"Workflow with id {workflow_id} not found"
+        )
+
+    tokens = await db_client.get_embed_tokens_by_workflow(
+        workflow_id, user.selected_organization_id, active_only=True
+    )
+    if not tokens:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "This agent has no widget yet. Save the widget settings first, "
+                "then add a logo."
+            ),
+        )
+    return tokens[0]
+
+
+@router.post("/{workflow_id}/embed-token/logo")
+async def upload_embed_logo(
+    workflow_id: int,
+    file: UploadFile = File(...),
+    user: UserModel = Depends(get_user),
+) -> EmbedTokenResponse:
+    """Store a logo for this workflow's widget and point the token at it.
+
+    Read into memory rather than streamed: the cap is 512 KB, and the format
+    has to be sniffed from the leading bytes before anything is written
+    anywhere. Streaming a file to storage and validating afterwards means a
+    rejected upload has already been stored.
+    """
+    token = await _active_token_or_404(workflow_id, user)
+
+    # Cap the read itself. Trusting UploadFile.size would let a lying client
+    # stream an arbitrary amount into this process's memory.
+    data = await file.read(MAX_LOGO_BYTES + 1)
+    try:
+        content_type, extension = validate_logo(data)
+    except LogoRejected as rejection:
+        raise HTTPException(status_code=400, detail=str(rejection)) from rejection
+
+    backend = get_current_storage_backend()
+    key = logo_storage_key(user.selected_organization_id, workflow_id, extension)
+
+    stored = await get_storage().acreate_file_from_bytes(key, data)
+    if not stored:
+        raise HTTPException(
+            status_code=502, detail="Could not store the logo. Try again."
+        )
+
+    previous = logo_from_settings(token.settings)
+
+    updated = await db_client.update_embed_token(
+        token.id,
+        user.selected_organization_id,
+        settings=merge_logo_into_settings(
+            token.settings,
+            key=key,
+            content_type=content_type,
+            backend=backend.value,
+        ),
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Embed token not found")
+
+    # Only after the new one is recorded. Deleting first would leave the widget
+    # pointing at a missing object if the update failed.
+    if (
+        previous
+        and previous.get("key") != key
+        and is_own_logo_key(
+            previous.get("key", ""), user.selected_organization_id, workflow_id
+        )
+    ):
+        try:
+            await get_storage().adelete_file(previous["key"])
+        except Exception as error:  # noqa: BLE001 - a leftover object is not a failure
+            logger.warning(f"Could not remove replaced embed logo: {error}")
+
+    return EmbedTokenResponse(
+        id=updated.id,
+        token=updated.token,
+        allowed_domains=updated.allowed_domains,
+        settings=updated.settings,
+        is_active=updated.is_active,
+        usage_count=updated.usage_count,
+        usage_limit=updated.usage_limit,
+        expires_at=updated.expires_at,
+        created_at=updated.created_at,
+        embed_script=generate_embed_script(updated),
+    )
+
+
+@router.delete("/{workflow_id}/embed-token/logo")
+async def delete_embed_logo(
+    workflow_id: int,
+    user: UserModel = Depends(get_user),
+) -> EmbedTokenResponse:
+    """Drop the logo, and the object behind it."""
+    token = await _active_token_or_404(workflow_id, user)
+    existing = logo_from_settings(token.settings)
+
+    updated = await db_client.update_embed_token(
+        token.id,
+        user.selected_organization_id,
+        settings=merge_logo_into_settings(
+            token.settings, key=None, content_type=None, backend=None
+        ),
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Embed token not found")
+
+    # Only a key of ours, for this tenant. A row predating the guard could name
+    # anything, and a delete is not reversible.
+    if existing and is_own_logo_key(
+        existing.get("key", ""), user.selected_organization_id, workflow_id
+    ):
+        try:
+            await get_storage().adelete_file(existing["key"])
+        except Exception as error:  # noqa: BLE001 - the record is already gone
+            logger.warning(f"Could not remove embed logo object: {error}")
+
+    return EmbedTokenResponse(
+        id=updated.id,
+        token=updated.token,
+        allowed_domains=updated.allowed_domains,
+        settings=updated.settings,
+        is_active=updated.is_active,
+        usage_count=updated.usage_count,
+        usage_limit=updated.usage_limit,
+        expires_at=updated.expires_at,
+        created_at=updated.created_at,
+        embed_script=generate_embed_script(updated),
+    )

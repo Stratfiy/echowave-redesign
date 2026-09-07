@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import posthog from "posthog-js";
 import React, { useEffect, useRef } from "react";
 
 import { BrandLogo } from "@/components/BrandLogo";
@@ -29,8 +30,9 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { PostHogEvent } from "@/constants/posthog-events";
+import { SETUP_CALL_LABEL, SETUP_CALL_URL } from "@/constants/setupCall";
 import { useAppConfig } from "@/context/AppConfigContext";
-import { useLeadForms } from "@/context/LeadFormsContext";
 import { useTelephonyConfigWarnings } from "@/context/TelephonyConfigWarningsContext";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { useLatestReleaseVersion } from "@/hooks/useLatestReleaseVersion";
@@ -50,7 +52,6 @@ export function AppSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
   const { provider } = useAuth();
   const { config } = useAppConfig();
-  const { openHireExpert } = useLeadForms();
   const {
     telnyxMissingWebhookPublicKeyCount,
     vonageMissingSignatureSecretCount,
@@ -184,32 +185,48 @@ export function AppSidebar() {
     );
   };
 
-  // "Hire an Expert" is now the only thing in the footer. Expanded: a labelled
-  // pill filling the row. Collapsed: icon-only.
-  const hireExpertButton = isCollapsed ? (
+  // The only thing in the footer, and it used to read "Hire an Expert" —
+  // an offer to sell an agency, permanently visible, on a product sold on not
+  // needing one. Now it books a setup call instead: same help, no contradiction.
+  // Expanded: a labelled pill filling the row. Collapsed: icon-only.
+  const setupCallButton = isCollapsed ? (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           size="icon"
           className="h-7 w-7 rounded-full"
-          onClick={() => openHireExpert("sidebar")}
-          aria-label="Hire an Expert"
+          asChild
+          aria-label={SETUP_CALL_LABEL}
         >
-          <UserRound className="h-3.5 w-3.5" />
+          <a
+            href={SETUP_CALL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() =>
+              posthog.capture(PostHogEvent.HIRE_EXPERT_OPENED, { source: "sidebar" })
+            }
+          >
+            <UserRound className="h-3.5 w-3.5" />
+          </a>
         </Button>
       </TooltipTrigger>
       <TooltipContent side="right">
-        <p>Hire an Expert</p>
+        <p>{SETUP_CALL_LABEL}</p>
       </TooltipContent>
     </Tooltip>
   ) : (
-    <Button
-      size="sm"
-      className="h-7 gap-1.5 rounded-full px-3 text-xs"
-      onClick={() => openHireExpert("sidebar")}
-    >
-      <UserRound className="h-3.5 w-3.5" />
-      Hire an Expert
+    <Button size="sm" className="h-7 gap-1.5 rounded-full px-3 text-xs" asChild>
+      <a
+        href={SETUP_CALL_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() =>
+          posthog.capture(PostHogEvent.HIRE_EXPERT_OPENED, { source: "sidebar" })
+        }
+      >
+        <UserRound className="h-3.5 w-3.5" />
+        {SETUP_CALL_LABEL}
+      </a>
     </Button>
   );
 
@@ -318,7 +335,7 @@ export function AppSidebar() {
         translate="no"
       >
         <div className={cn("flex", isCollapsed ? "justify-center" : "justify-stretch [&>button]:w-full")}>
-          {hireExpertButton}
+          {setupCallButton}
         </div>
       </SidebarFooter>
       <SidebarRail />

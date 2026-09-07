@@ -44,6 +44,11 @@ class PropertyType(str, Enum):
     document_refs = "document_refs"
     recording_ref = "recording_ref"
     credential_ref = "credential_ref"
+    #: Another agent in the same organization, by workflow uuid. The catalog is
+    #: `/workflow/summary`, which is already the org-scoped list of "your
+    #: agents" — and being org-scoped is what stops a handoff naming somebody
+    #: else's.
+    agent_ref = "agent_ref"
 
     # Domain-specific input widgets
     mention_textarea = "mention_textarea"  # textarea with {{var}} mentions

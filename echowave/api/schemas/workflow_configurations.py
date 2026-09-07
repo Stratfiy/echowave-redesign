@@ -87,6 +87,33 @@ class AmbientNoiseConfigurationDefaults(BaseModel):
     volume: float = 0.3
 
 
+class CallOutcome(BaseModel):
+    """One label this agent's calls can be classified as afterwards.
+
+    Distinct from ``call_disposition_codes`` on the workflow, which is not
+    configuration at all: that column is a registry the pipeline appends to
+    with every ``mapped_call_disposition`` it has actually seen, so the calls
+    list can offer a dropdown of codes that occurred. This is the taxonomy a
+    business *decides on* — the outcomes it wants sorted by, whether or not a
+    call has produced one yet.
+
+    Per workflow, because the outcomes are. A clinic books appointments, a
+    lending agent gets a payment promise, an NDR agent confirms an address.
+    Both Vapi and Bolna let you define the shape here rather than shipping a
+    fixed set, and for the same reason: there isn't one.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    #: Narrower than the label, because it ends up a CRM field name, a URL
+    #: parameter and a CSV column heading.
+    code: str = Field(default="", max_length=40)
+    label: str = Field(default="", max_length=60)
+    #: What the model is told this code means. A classifier shown only a list
+    #: of names invents its own definitions for them.
+    when: str = Field(default="", max_length=200)
+
+
 class WorkflowConfigurationDefaults(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -146,6 +173,41 @@ class WorkflowConfigurationDefaults(BaseModel):
     fallback_stt: list[FallbackServiceConfiguration] = Field(
         default_factory=list, max_length=2
     )
+    # What a finished call is classified as. Empty means the default list in
+    # `services/workflow/disposition.py` applies, so an agent nobody configured
+    # still produces outcomes rather than an empty column somebody has to
+    # discover is empty.
+    #
+    # Capped because every entry is sent with every transcript, and past thirty
+    # this is not a taxonomy anybody sorts by.
+    call_outcomes: list[CallOutcome] = Field(default_factory=list, max_length=30)
+    # Does the agent move with a caller who switches language mid-call?
+    #
+    # This replaced an environment variable, which made following a property of
+    # the deployment rather than of the agent: a clinic line wants it and the
+    # same account's compliance line, reading a disclosure approved in one
+    # language, does not.
+    #
+    # Off by default. Nothing follows today, so defaulting it on would change
+    # the behaviour of every live call in one deploy on a judgement nobody made
+    # per agent.
+    follow_caller_language: bool = False
+    # Does the agent read the caller's keypad?
+    #
+    # Off by default for the same reason as above — this adds a turn the agent
+    # did not previously get, and an agent whose prompt has no idea what to do
+    # with "[the caller pressed 1]" answers it badly. Turned on where the
+    # prompt asks for a number, which is where it is worth having: speech
+    # recognition is at its worst on a ten-digit mobile number and the keypad
+    # is at its best.
+    accept_keypad_input: bool = False
+    # Speak the way callers here actually do, mixing English into the local
+    # language, rather than in the formal register a model reaches for when
+    # told to speak Hindi.
+    #
+    # Off by default because the instruction is appended to the operator's own
+    # prompt, and somebody who wrote "reply only in formal Hindi" meant it.
+    speak_like_callers: bool = False
 
 
 def get_default_workflow_configurations() -> WorkflowConfigurationDefaults:

@@ -13,9 +13,11 @@ import { ActiveFilter, availableAttributes, FilterAttribute } from "@/types/filt
 interface WorkflowExecutionsProps {
     workflowId: number;
     searchParams: URLSearchParams;
+    /** Called once the agent is loaded, so the page can title itself. */
+    onWorkflowName?: (name: string) => void;
 }
 
-export function WorkflowExecutions({ workflowId, searchParams }: WorkflowExecutionsProps) {
+export function WorkflowExecutions({ workflowId, searchParams, onWorkflowName }: WorkflowExecutionsProps) {
     const router = useRouter();
     const [workflowRuns, setWorkflowRuns] = useState<WorkflowRunResponseSchema[]>([]);
     const [loading, setLoading] = useState(true);
@@ -59,6 +61,9 @@ export function WorkflowExecutions({ workflowId, searchParams }: WorkflowExecuti
             });
 
             const workflow = response.data;
+            // Already fetched, and the page above wants it for its header —
+            // handing it up beats a second request for a title.
+            if (workflow?.name) onWorkflowName?.(workflow.name);
             const codes = workflow?.call_disposition_codes?.disposition_codes;
             if (codes && codes.length > 0) {
                 setConfiguredAttributes(prev => prev.map(attr => {
@@ -77,7 +82,7 @@ export function WorkflowExecutions({ workflowId, searchParams }: WorkflowExecuti
         } catch (err) {
             console.error("Failed to load disposition codes:", err);
         }
-    }, [workflowId, isAuthenticated]);
+    }, [workflowId, isAuthenticated, onWorkflowName]);
 
     useEffect(() => {
         loadDispositionCodes();

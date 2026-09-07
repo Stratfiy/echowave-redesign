@@ -5,6 +5,11 @@ import posthog from "posthog-js";
 import { useEffect, useRef, useState } from "react";
 
 import { PostHogEvent } from "@/constants/posthog-events";
+import {
+  SETUP_CALL_BLURB,
+  SETUP_CALL_LABEL,
+  SETUP_CALL_URL,
+} from "@/constants/setupCall";
 import { useLeadForms } from "@/context/LeadFormsContext";
 
 interface HireExpertNudgeProps {
@@ -20,7 +25,7 @@ function nudgeDoneKey(workflowId: number) {
 }
 
 export function HireExpertNudge({ workflowId }: HireExpertNudgeProps) {
-  const { openHireExpert, hasOpenedHireRef } = useLeadForms();
+  const { hasOpenedHireRef } = useLeadForms();
   const [visible, setVisible] = useState(false);
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -58,8 +63,9 @@ export function HireExpertNudge({ workflowId }: HireExpertNudgeProps) {
 
   const handleClick = () => {
     posthog.capture(PostHogEvent.HIRE_NUDGE_CLICKED, { workflowId });
+    hasOpenedHireRef.current = true;
     markDone();
-    openHireExpert("builder_nudge");
+    // The anchor navigates on its own; this only records and closes the nudge.
   };
 
   const handleDismiss = () => {
@@ -73,13 +79,21 @@ export function HireExpertNudge({ workflowId }: HireExpertNudgeProps) {
       aria-live="polite"
       className="fixed bottom-6 right-6 z-50 flex max-w-xs items-center gap-3 rounded-lg border border-primary bg-background p-3 shadow-lg animate-in fade-in slide-in-from-bottom-2"
     >
-      <button type="button" onClick={handleClick} className="flex flex-1 items-center gap-3 text-left">
+      <a
+        href={SETUP_CALL_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={handleClick}
+        className="flex flex-1 items-center gap-3 text-left"
+      >
         <UserRound className="h-5 w-5 shrink-0 text-primary" />
         <span>
-          <span className="block text-sm font-semibold">Hire an Expert</span>
-          <span className="block text-xs text-muted-foreground">We&apos;ll build your agent for you</span>
+          <span className="block text-sm font-semibold">{SETUP_CALL_LABEL}</span>
+          <span className="block text-xs text-muted-foreground">
+            {SETUP_CALL_BLURB}
+          </span>
         </span>
-      </button>
+      </a>
       <button
         type="button"
         onClick={handleDismiss}

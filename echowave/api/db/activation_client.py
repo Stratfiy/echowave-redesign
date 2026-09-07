@@ -40,7 +40,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
-from api.enums import CreditLedgerKind
+from api.enums import NON_VOICE_RUN_MODES, CreditLedgerKind
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -144,6 +144,12 @@ class ActivationClient(BaseDBClient):
             # workflow_runs has no organization_id of its own; it reaches the
             # org through its workflow. Joining rather than assuming the column
             # exists is the difference between this query and a 500.
+            #
+            # Calls only. A text chat is also a workflow run, so without this
+            # an account that typed into the chat widget and never dialled
+            # anybody counted as having reached "first call" — which is the
+            # step the whole funnel exists to measure, and the one a decision
+            # about the product gets made on.
             with_call_orgs = {
                 row
                 for row in (
@@ -154,7 +160,10 @@ class ActivationClient(BaseDBClient):
                             WorkflowModel,
                             WorkflowModel.id == WorkflowRunModel.workflow_id,
                         )
-                        .where(WorkflowModel.organization_id.in_(with_agent_orgs))
+                        .where(
+                            WorkflowModel.organization_id.in_(with_agent_orgs),
+                            WorkflowRunModel.mode.notin_(sorted(NON_VOICE_RUN_MODES)),
+                        )
                     )
                 ).scalars()
             }

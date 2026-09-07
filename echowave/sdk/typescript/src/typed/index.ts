@@ -7,6 +7,7 @@ export { type AgentNode, agentNode } from "./agent-node.js";
 export { type Branch, branch } from "./branch.js";
 export { type EndCall, endCall } from "./end-call.js";
 export { type GlobalNode, globalNode } from "./global-node.js";
+export { type Handoff, handoff } from "./handoff.js";
 export { type Paygent, paygent } from "./paygent.js";
 export { type Qa, qa } from "./qa.js";
 export { type Sms, sms } from "./sms.js";
@@ -21,6 +22,7 @@ import type {
     Branch,
     EndCall,
     GlobalNode,
+    Handoff,
     Paygent,
     Qa,
     Sms,
@@ -32,4 +34,4 @@ import type {
 } from "./index.js";
 
 /** Discriminated union of every generated typed node. */
-export type TypedNode = AgentNode | Branch | EndCall | GlobalNode | Paygent | Qa | Sms | StartCall | Trigger | Tuner | Wait | Webhook;
+export type TypedNode = AgentNode | Branch | EndCall | GlobalNode | Handoff | Paygent | Qa | Sms | StartCall | Trigger | Tuner | Wait | Webhook;

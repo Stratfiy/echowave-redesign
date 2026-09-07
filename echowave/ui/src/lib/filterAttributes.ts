@@ -1,3 +1,4 @@
+import { DEFAULT_CALL_OUTCOMES } from "@/constants/callOutcomes";
 import { DISPOSITION_CODES } from "@/constants/dispositionCodes";
 import { FilterAttribute } from "@/types/filters";
 
@@ -19,6 +20,23 @@ export const baseFilterAttributes: Record<string, Omit<FilterAttribute, "id">> =
       searchable: true,
       maxSelections: 10,
       showSelectAll: true,
+    },
+  },
+  callOutcome: {
+    type: "multiSelect",
+    label: "Call Outcome",
+    config: {
+      // Filled in per page from the organization's own taxonomy — the
+      // defaults are only what an agent nobody configured classifies
+      // against, and a menu missing the custom codes would leave those
+      // rows unmatchable.
+      options: DEFAULT_CALL_OUTCOMES.map((outcome) => outcome.code),
+      searchable: true,
+      maxSelections: 10,
+      showSelectAll: true,
+      // A call carries several outcomes, so "matches these two" has two
+      // honest readings and the filter has to say which.
+      matchModes: true,
     },
   },
   duration: {
@@ -142,6 +160,7 @@ export function createFilterAttributes(
 export const workflowFilterAttributes = createFilterAttributes([
   "dateRange",
   "dispositionCode",
+  "callOutcome",
   "duration",
   "status",
   "tokenUsage",
@@ -156,6 +175,7 @@ export const superadminFilterAttributes = createFilterAttributes(
     "callerNumber",
     "calledNumber",
     "dispositionCode",
+    "callOutcome",
     "status",
     "duration",
     "tokenUsage",
@@ -172,6 +192,7 @@ export const usageFilterAttributes = createFilterAttributes(
     "dateRange",
     "duration",
     "dispositionCode",
+    "callOutcome",
     "callerNumber",
     "calledNumber",
     "runId",

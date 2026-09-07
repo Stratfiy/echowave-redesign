@@ -1,19 +1,16 @@
-import { Check, Copy, ExternalLink, Loader2, Mic, Plus, Rocket, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Check, Copy, ExternalLink, ImageIcon, Loader2, Mic, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { formDataBodySerializer } from "@/client/client";
+import { client } from "@/client/client.gen";
 import {
     createOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPost,
     deactivateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenDelete,
     getEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenGet,
 } from "@/client/sdk.gen";
+import { InstallGuides } from "@/components/deploy/InstallGuides";
 import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -26,11 +23,10 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { WIDGET_MODE_DOCUMENTATION_URLS } from "@/constants/documentation";
+import { resolveBrowserBackendUrl } from "@/lib/apiClient";
 import { detailFromResult } from "@/lib/apiError";
 
-interface EmbedDialogProps {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
+interface WidgetConfiguratorProps {
     workflowId: number;
     workflowName: string;
 }
@@ -48,12 +44,22 @@ interface EmbedToken {
     embed_script: string;
 }
 
-export function EmbedDialog({
-    open,
-    onOpenChange,
+/**
+ * The widget configurator: allowed domains, mode, appearance, and the script
+ * tag to paste.
+ *
+ * This was a modal reached from a button on the last tab of an agent's
+ * settings screen, which meant the whole web-deployment story was invisible
+ * unless you already knew it was there. Bolna gives deployment its own group
+ * in the sidebar; we now do too, and this is what that screen renders.
+ *
+ * Lifted rather than copied. Two configurators would drift, and the one that
+ * drifted would be the one nobody opened.
+ */
+export function WidgetConfigurator({
     workflowId,
     workflowName,
-}: EmbedDialogProps) {
+}: WidgetConfiguratorProps) {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [embedToken, setEmbedToken] = useState<EmbedToken | null>(null);
@@ -69,6 +75,23 @@ export function EmbedDialog({
     const [buttonText, setButtonText] = useState("Talk to Agent");
     const [buttonColor, setButtonColor] = useState("#10b981");
     const [callToActionText, setCallToActionText] = useState("Click to start voice conversation");
+    // What the visitor sees once the call ends. Off by default, because a card
+    // appearing on a customer's page that they did not configure is a change
+    // to their site rather than a feature.
+    const [postCallEnabled, setPostCallEnabled] = useState(false);
+    const [postCallHeadline, setPostCallHeadline] = useState("");
+    const [postCallBody, setPostCallBody] = useState("");
+    const [postCallCtaText, setPostCallCtaText] = useState("");
+    const [postCallCtaUrl, setPostCallCtaUrl] = useState("");
+    const [postCallMinSeconds, setPostCallMinSeconds] = useState("10");
+    // The logo is uploaded on its own endpoint rather than carried in the
+    // settings save: it is a file, and the server has to see the bytes to
+    // decide whether it will serve them. `logoUrl` is what the widget renders,
+    // built by the server — the storage key never comes down here.
+    const [logoUrl, setLogoUrl] = useState<string | null>(null);
+    const [logoBusy, setLogoBusy] = useState(false);
+    const [logoError, setLogoError] = useState<string | null>(null);
+    const logoInputRef = useRef<HTMLInputElement>(null);
 
     const loadEmbedToken = useCallback(async () => {
         setLoading(true);
@@ -89,6 +112,25 @@ export function EmbedDialog({
                     setButtonText(settings.buttonText || "Talk to Agent");
                     setButtonColor(settings.buttonColor || "#10b981");
                     setCallToActionText(settings.callToActionText || "Click to start voice conversation");
+
+                    const postCall = (response.data.settings as Record<string, unknown>)
+                        .postCall as Record<string, unknown> | undefined;
+                    if (postCall) {
+                        setPostCallEnabled(postCall.enabled === true);
+                        setPostCallHeadline(String(postCall.headline ?? ""));
+                        setPostCallBody(String(postCall.body ?? ""));
+                        setPostCallCtaText(String(postCall.ctaText ?? ""));
+                        setPostCallCtaUrl(String(postCall.ctaUrl ?? ""));
+                        setPostCallMinSeconds(String(postCall.minSeconds ?? 10));
+                    }
+
+                    const logo = (response.data.settings as Record<string, unknown>)
+                        .logo as Record<string, unknown> | undefined;
+                    setLogoUrl(
+                        logo && typeof logo.key === "string" && logo.key
+                            ? `${resolveBrowserBackendUrl()}/api/v1/public/embed/logo/${response.data.token}`
+                            : null
+                    );
                 }
 
                 // Load domains
@@ -104,10 +146,8 @@ export function EmbedDialog({
     }, [workflowId]);
 
     useEffect(() => {
-        if (open) {
-            loadEmbedToken();
-        }
-    }, [open, loadEmbedToken]);
+        loadEmbedToken();
+    }, [loadEmbedToken]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -134,6 +174,19 @@ export function EmbedDialog({
                             size: "medium",
                             autoStart: false,
                             containerId: embedMode === "inline" ? "decibyl-inline-container" : undefined,
+                            postCall: {
+                                enabled: postCallEnabled,
+                                headline: postCallHeadline,
+                                body: postCallBody,
+                                ctaText: postCallCtaText,
+                                ctaUrl: postCallCtaUrl,
+                                // Sent as a number. The widget refuses a value
+                                // it cannot read and falls back to its own
+                                // default rather than to zero, but sending a
+                                // string from here would make that guard the
+                                // thing keeping the feature working.
+                                minSeconds: Number(postCallMinSeconds) || 0,
+                            },
                         },
                         usage_limit: null,
                         expires_in_days: null,
@@ -156,6 +209,56 @@ export function EmbedDialog({
         } finally {
             setSaving(false);
         }
+    };
+
+    /** Upload a logo, and let the server decide whether it will serve it.
+
+        No client-side type check beyond the file picker's `accept`: the server
+        sniffs the bytes and is the only opinion that counts, so validating
+        here would only produce a second, quieter set of rules to keep in step
+        with it. What the screen does owe the user is the server's reason,
+        verbatim. */
+    const uploadLogo = async (file: File) => {
+        setLogoBusy(true);
+        setLogoError(null);
+        // A plain object, not a FormData — `formDataBodySerializer` builds the
+        // FormData itself from `Object.entries(body)`, and a FormData's entries
+        // are not own properties, so handing it one sends an empty body. Same
+        // trap the KYC upload documents.
+        const result = await client.post({
+            ...formDataBodySerializer,
+            url: `/api/v1/workflow/${workflowId}/embed-token/logo`,
+            body: { file },
+            headers: { "Content-Type": null },
+        });
+        if (result.error) {
+            setLogoError(detailFromResult(result, "Could not upload that logo"));
+        } else {
+            const data = result.data as { token?: string } | undefined;
+            if (data?.token) {
+                // Cache-bust: the public URL is keyed by token, not by object,
+                // so a replaced logo has the same address as the old one.
+                setLogoUrl(
+                    `${resolveBrowserBackendUrl()}/api/v1/public/embed/logo/${data.token}?v=${Date.now()}`
+                );
+            }
+        }
+        setLogoBusy(false);
+        if (logoInputRef.current) logoInputRef.current.value = "";
+    };
+
+    const removeLogo = async () => {
+        setLogoBusy(true);
+        setLogoError(null);
+        const result = await client.delete({
+            url: `/api/v1/workflow/${workflowId}/embed-token/logo`,
+        });
+        if (result.error) {
+            setLogoError(detailFromResult(result, "Could not remove the logo"));
+        } else {
+            setLogoUrl(null);
+        }
+        setLogoBusy(false);
     };
 
     const copyToClipboard = (text: string) => {
@@ -183,28 +286,24 @@ export function EmbedDialog({
     };
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <div className="flex items-center justify-between">
-                        <DialogTitle className="flex items-center gap-2">
-                            <Rocket className="h-5 w-5" />
-                            Configure Widget
-                        </DialogTitle>
+        <div className="space-y-6">
+            <Card>
+                <CardContent className="space-y-6 pt-6">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <p className="text-sm text-muted-foreground">
+                            Add &quot;{workflowName}&quot; to any website with a
+                            single script tag.
+                        </p>
                         <a
                             href={WIDGET_MODE_DOCUMENTATION_URLS[embedMode]}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors pr-6"
+                            className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
                         >
                             Docs
                             <ExternalLink className="h-3.5 w-3.5" />
                         </a>
                     </div>
-                    <DialogDescription>
-                        Add &quot;{workflowName}&quot; to any website with a simple script tag.
-                    </DialogDescription>
-                </DialogHeader>
 
                 {loading ? (
                     <div className="flex items-center justify-center py-8">
@@ -421,7 +520,23 @@ export function EmbedDialog({
                                                 className="inline-flex items-center gap-2 rounded-full px-5 py-3 font-medium text-white shadow-lg whitespace-nowrap"
                                                 style={{ backgroundColor: buttonColor }}
                                             >
-                                                <Mic className="h-4 w-4" />
+                                                {/* The widget swaps the
+                                                    microphone for the logo
+                                                    while idle, so a preview
+                                                    still showing the mic would
+                                                    be showing something that
+                                                    does not ship. */}
+                                                {logoUrl ? (
+                                                    // eslint-disable-next-line @next/next/no-img-element
+                                                    <img
+                                                        src={logoUrl}
+                                                        alt=""
+                                                        aria-hidden="true"
+                                                        className="h-[18px] w-[18px] rounded object-contain"
+                                                    />
+                                                ) : (
+                                                    <Mic className="h-4 w-4" />
+                                                )}
                                                 {buttonText || "Talk to Agent"}
                                             </button>
                                         </div>
@@ -554,6 +669,238 @@ document.getElementById('talk-btn').addEventListener('click', () => {
 
                                 <Separator />
 
+                                {/* The customer's logo, not ours.
+                                    Gnani ships an icon upload beside its
+                                    widget config; we had colour and button
+                                    text, so every widget on every customer's
+                                    site wore our microphone. */}
+                                <div className="space-y-3">
+                                    <Label>Logo</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Shown on the button in place of the
+                                        microphone. PNG, JPEG, WebP or GIF, up
+                                        to 512 KB — it loads on every visit to
+                                        your site.
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border bg-muted/30">
+                                            {logoUrl ? (
+                                                // eslint-disable-next-line @next/next/no-img-element
+                                                <img
+                                                    src={logoUrl}
+                                                    alt="Your widget logo"
+                                                    className="h-full w-full object-contain"
+                                                />
+                                            ) : (
+                                                <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                                            )}
+                                        </div>
+                                        {/* Hidden input behind a real button:
+                                            the repo's own convention, because
+                                            a visible file input styles
+                                            differently in every browser. */}
+                                        <input
+                                            ref={logoInputRef}
+                                            type="file"
+                                            accept="image/png,image/jpeg,image/webp,image/gif"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) uploadLogo(file);
+                                            }}
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            disabled={logoBusy}
+                                            onClick={() => logoInputRef.current?.click()}
+                                        >
+                                            {logoBusy ? (
+                                                <>
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    Working...
+                                                </>
+                                            ) : logoUrl ? (
+                                                "Replace logo"
+                                            ) : (
+                                                "Upload logo"
+                                            )}
+                                        </Button>
+                                        {logoUrl && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                disabled={logoBusy}
+                                                onClick={removeLogo}
+                                            >
+                                                Remove
+                                            </Button>
+                                        )}
+                                    </div>
+                                    {/* Uploading acts immediately rather than
+                                        waiting for Save, so its failure has to
+                                        be reported here rather than by the
+                                        save button below. */}
+                                    {logoError && (
+                                        <p className="text-xs text-destructive">{logoError}</p>
+                                    )}
+                                    {!embedToken && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Save the widget once before adding a
+                                            logo — it attaches to the widget,
+                                            which does not exist yet.
+                                        </p>
+                                    )}
+                                </div>
+
+                                <Separator />
+
+                                {/* After the call.
+                                    A voice widget that ends a call and simply
+                                    closes throws away the one moment the
+                                    visitor is most interested: they have just
+                                    had the product demonstrate itself. This is
+                                    the offer that goes in that moment.
+
+                                    Held back until the call was real. Someone
+                                    who clicked, heard a word and closed did not
+                                    have a conversation, and showing them a
+                                    pitch is how a widget becomes a popup. */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="space-y-0.5">
+                                            <Label htmlFor="post-call-enabled">
+                                                Show something after the call
+                                            </Label>
+                                            <p className="text-sm text-muted-foreground">
+                                                A card the visitor sees when the
+                                                call ends — a next step, an
+                                                offer, a link to book.
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            id="post-call-enabled"
+                                            checked={postCallEnabled}
+                                            onCheckedChange={setPostCallEnabled}
+                                        />
+                                    </div>
+
+                                    {postCallEnabled && (
+                                        <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="post-call-headline" className="text-sm">
+                                                    Headline
+                                                </Label>
+                                                <Input
+                                                    id="post-call-headline"
+                                                    value={postCallHeadline}
+                                                    onChange={(e) => setPostCallHeadline(e.target.value)}
+                                                    placeholder="Want one of these on your site?"
+                                                    maxLength={80}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="post-call-body" className="text-sm">
+                                                    Message
+                                                </Label>
+                                                <Input
+                                                    id="post-call-body"
+                                                    value={postCallBody}
+                                                    onChange={(e) => setPostCallBody(e.target.value)}
+                                                    placeholder="That was a Decibyl agent. Build your own in a couple of minutes."
+                                                    maxLength={200}
+                                                />
+                                            </div>
+                                            <div className="grid gap-4 sm:grid-cols-2">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="post-call-cta-text" className="text-sm">
+                                                        Button text
+                                                    </Label>
+                                                    <Input
+                                                        id="post-call-cta-text"
+                                                        value={postCallCtaText}
+                                                        onChange={(e) => setPostCallCtaText(e.target.value)}
+                                                        placeholder="Start free"
+                                                        maxLength={40}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="post-call-cta-url" className="text-sm">
+                                                        Button link
+                                                    </Label>
+                                                    <Input
+                                                        id="post-call-cta-url"
+                                                        value={postCallCtaUrl}
+                                                        onChange={(e) => setPostCallCtaUrl(e.target.value)}
+                                                        placeholder="https://example.com/signup"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="post-call-min-seconds" className="text-sm">
+                                                    Only after a call lasting at least
+                                                </Label>
+                                                <div className="flex items-center gap-2">
+                                                    <Input
+                                                        id="post-call-min-seconds"
+                                                        type="number"
+                                                        min={0}
+                                                        max={600}
+                                                        value={postCallMinSeconds}
+                                                        onChange={(e) => setPostCallMinSeconds(e.target.value)}
+                                                        className="w-28"
+                                                    />
+                                                    <span className="text-sm text-muted-foreground">
+                                                        seconds
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Below this, nothing is shown. Somebody who
+                                                    opened the widget and closed it did not have
+                                                    a conversation, and an offer at that moment
+                                                    reads as a popup.
+                                                </p>
+                                            </div>
+
+                                            {/* Preview. Deliberately the same
+                                                shape and copy the widget will
+                                                render, so what is approved here
+                                                is what a visitor sees. */}
+                                            <div className="space-y-2">
+                                                <Label className="text-sm">Preview</Label>
+                                                <div className="flex justify-center rounded-lg border bg-background p-6">
+                                                    <div className="w-[280px] rounded-[14px] bg-white p-4 text-left shadow-lg">
+                                                        <p className="text-[15px] font-semibold leading-snug text-gray-900">
+                                                            {postCallHeadline || "Want one of these on your site?"}
+                                                        </p>
+                                                        <p className="mt-1.5 text-[13px] leading-relaxed text-gray-600">
+                                                            {postCallBody ||
+                                                                "That was a Decibyl agent. Build your own in a couple of minutes."}
+                                                        </p>
+                                                        <span
+                                                            className="mt-3 inline-block rounded-full px-4 py-2 text-[13px] font-semibold text-white"
+                                                            style={{ backgroundColor: buttonColor }}
+                                                        >
+                                                            {postCallCtaText || "Start free"}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {postCallEnabled &&
+                                                    postCallCtaText.trim() !== "" &&
+                                                    !/^https?:\/\//i.test(postCallCtaUrl.trim()) && (
+                                                        <p className="text-xs text-amber-700 dark:text-amber-500">
+                                                            The button needs an http:// or https://
+                                                            link. Without one the widget shows the
+                                                            message and drops the button.
+                                                        </p>
+                                                    )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <Separator />
+
                                 {saveError && (
                                     <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                                         {saveError}
@@ -615,10 +962,19 @@ document.getElementById('talk-btn').addEventListener('click', () => {
                                                 </pre>
                                             </div>
                                             <p className="text-xs text-muted-foreground">
-                                                Add this script to your website&apos;s HTML to enable the voice widget.
-                                                Configuration changes will apply automatically without re-embedding.
+                                                Changes you save here apply on their own — the
+                                                script never needs pasting again.
                                             </p>
                                         </div>
+                                        {/* Rendered here rather than by the page:
+                                            the script and the domain list are
+                                            this component's state, and the two
+                                            things a guide has to be able to
+                                            quote are exactly those. */}
+                                        <InstallGuides
+                                            embedScript={embedToken.embed_script}
+                                            domains={domains}
+                                        />
                                     </>
                                 ) : (
                                     <>
@@ -635,7 +991,8 @@ document.getElementById('talk-btn').addEventListener('click', () => {
                         )}
                     </div>
                 )}
-            </DialogContent>
-        </Dialog>
+                </CardContent>
+            </Card>
+        </div>
     );
 }

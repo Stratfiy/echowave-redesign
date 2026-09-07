@@ -6,6 +6,9 @@ export interface AttributeConfig {
 
   // For multiSelect
   options?: string[]; // Available options to select from
+  /** Offer the any/all choice. Only meaningful where a row can hold several. */
+  matchModes?: boolean;
+  optionsLoading?: boolean;
   searchable?: boolean;
   maxSelections?: number;
   showSelectAll?: boolean; // Show select all/none buttons
@@ -52,6 +55,13 @@ export interface DateRangeValue {
 
 export interface MultiSelectValue {
   codes: string[];
+  /**
+   * How several ticked boxes combine, for a field that holds several values
+   * at once. "any" is the default and what somebody ticking two boxes
+   * expects; "all" narrows to the rows carrying both. Absent on a
+   * single-valued field, where the question does not arise.
+   */
+  match?: "any" | "all";
 }
 
 export interface NumberRangeValue {

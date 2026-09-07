@@ -1,10 +1,10 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowLeft, BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Loader2, Mic, Pause, PhoneOff, Play, Rocket, Settings, Trash2Icon, Upload, Variable, X } from "lucide-react";
+import { BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Languages, Loader2, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, Tags, Trash2, Trash2Icon, Upload, Variable, Volume2, X } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -40,6 +40,14 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+    type CallOutcome,
+    DEFAULT_CALL_OUTCOMES,
+    MAX_CALL_OUTCOMES,
+    normaliseOutcomeCode,
+    outcomesToSave,
+    UNCLEAR_OUTCOME,
+} from "@/constants/callOutcomes";
 import { SETTINGS_DOCUMENTATION_URLS } from "@/constants/documentation";
 import { UnsavedChangesProvider, useUnsavedChanges, useUnsavedChangesContext } from "@/context/UnsavedChangesContext";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
@@ -60,6 +68,8 @@ import {
     matchLatencyPreset,
     MAX_USER_SPEECH_TIMEOUT,
     MIN_USER_SPEECH_TIMEOUT,
+    type NoiseSuppressionConfiguration,
+    type PronunciationEntry,
     resolveWorkflowConfigurations,
     TURN_START_STRATEGY_OPTIONS,
     type TurnStartStrategy,
@@ -68,8 +78,8 @@ import {
     type WorkflowConfigurations,
 } from "@/types/workflow-configurations";
 
+import { AgentHeader } from "../components/AgentHeader";
 import { AgentTabs } from "../components/AgentTabs";
-import { EmbedDialog } from "../components/EmbedDialog";
 import { QaCard } from "../components/QaCard";
 import { useWorkflowState } from "../hooks/useWorkflowState";
 import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
@@ -280,8 +290,17 @@ function GeneralSection({
     modelConfigurationDefaults: ModelConfigurationDefaultsV2 | null;
 }) {
     const [name, setName] = useState(workflowName);
+    const [noiseSuppressionConfig, setNoiseSuppressionConfig] =
+        useState<NoiseSuppressionConfiguration>(
+            workflowConfigurations.noise_suppression_configuration ?? {
+                enabled: false,
+            },
+        );
     const [ambientNoiseConfig, setAmbientNoiseConfig] = useState<AmbientNoiseConfiguration>(
         workflowConfigurations.ambient_noise_configuration,
+    );
+    const [acceptKeypadInput, setAcceptKeypadInput] = useState(
+        workflowConfigurations.accept_keypad_input ?? false,
     );
     const [maxCallDuration, setMaxCallDuration] = useState(workflowConfigurations.max_call_duration);
     const [maxUserIdleTimeout, setMaxUserIdleTimeout] = useState(workflowConfigurations.max_user_idle_timeout);
@@ -348,9 +367,14 @@ function GeneralSection({
 
     const isDirty = useMemo(() => {
         const initAmbient = workflowConfigurations.ambient_noise_configuration;
+        const initSuppression = workflowConfigurations.noise_suppression_configuration ?? {
+            enabled: false,
+        };
         return (
             name !== workflowName ||
             JSON.stringify(ambientNoiseConfig) !== JSON.stringify(initAmbient) ||
+            JSON.stringify(noiseSuppressionConfig) !== JSON.stringify(initSuppression) ||
+            acceptKeypadInput !== (workflowConfigurations.accept_keypad_input ?? false) ||
             maxCallDuration !== workflowConfigurations.max_call_duration ||
             maxUserIdleTimeout !== workflowConfigurations.max_user_idle_timeout ||
             smartTurnStopSecs !== workflowConfigurations.smart_turn_stop_secs ||
@@ -366,7 +390,7 @@ function GeneralSection({
             includeTranscriptEndTimestamps !==
             (workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false)
         );
-    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, noiseSuppressionConfig, acceptKeypadInput, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -435,6 +459,8 @@ function GeneralSection({
                 {
                     ...workflowConfigurations,
                     ambient_noise_configuration: ambientNoiseConfig,
+                    noise_suppression_configuration: noiseSuppressionConfig,
+                    accept_keypad_input: acceptKeypadInput,
                     max_call_duration: maxCallDuration,
                     max_user_idle_timeout: maxUserIdleTimeout,
                     smart_turn_stop_secs: smartTurnStopSecs,
@@ -750,6 +776,75 @@ function GeneralSection({
                     blurb="What the caller hears behind the agent."
                     defaultOpen={true}
                 >
+                {/* Noise suppression.
+                    Immediately above Ambient Noise deliberately: they are
+                    opposite operations on opposite legs — this takes hiss off
+                    what the agent hears, that adds room tone to what the
+                    caller hears — and side by side is the only arrangement
+                    where nobody mistakes one for the other. */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Noise suppression</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Strip background noise out of what the caller sends,
+                            before the agent hears it. Worth it on a mobile call
+                            from a shop floor or a roadside.
+                        </p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="noise-suppression-enabled" className="text-sm">
+                            Suppress background noise
+                        </Label>
+                        <Switch
+                            id="noise-suppression-enabled"
+                            checked={noiseSuppressionConfig.enabled}
+                            onCheckedChange={(checked) =>
+                                setNoiseSuppressionConfig({ enabled: checked })
+                            }
+                        />
+                    </div>
+                    {/* The cost is stated because it is the only reason not to
+                        turn this on, and latency is what we compete on. */}
+                    <p className="text-xs text-muted-foreground">
+                        {noiseSuppressionConfig.enabled
+                            ? "Adds about 20ms to each turn. On a quiet line it buys nothing, so leave it off unless callers are somewhere noisy."
+                            : "Off. Calls are passed through as the carrier sends them."}
+                    </p>
+                </div>
+
+                <Separator />
+
+                {/* Keypad. Beside noise suppression rather than with the
+                    models: both are about what reaches the agent from the
+                    caller's end of the line. */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Keypad</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Let the caller type a number instead of saying it &mdash;
+                            a mobile number, an order id, an OTP, or a menu choice.
+                            Worth turning on wherever the agent asks for digits.
+                        </p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="accept-keypad-input" className="text-sm">
+                            Accept keypad input
+                        </Label>
+                        <Switch
+                            id="accept-keypad-input"
+                            checked={acceptKeypadInput}
+                            onCheckedChange={setAcceptKeypadInput}
+                        />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        {acceptKeypadInput
+                            ? "Digits arrive as one entry when the caller presses # or stops typing, so the agent answers the whole number rather than each key. Tell it in the prompt that callers may type — an agent that does not expect it answers badly."
+                            : "Off. Keypresses are ignored, and a caller who types gets no response to it."}
+                    </p>
+                </div>
+
+                <Separator />
+
                 {/* Ambient Noise */}
                 <div className="space-y-4">
                     <div>
@@ -1156,6 +1251,376 @@ function DictionarySection({
                 {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
                 <Button onClick={handleSave} disabled={isSaving || !isDirty}>
                     {isSaving ? "Saving..." : "Save Dictionary"}
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Section: Pronunciation
+// ---------------------------------------------------------------------------
+
+function PronunciationSection({
+    entries,
+    onSave,
+}: {
+    entries: PronunciationEntry[];
+    onSave: (entries: PronunciationEntry[]) => Promise<void>;
+}) {
+    const [rows, setRows] = useState<PronunciationEntry[]>(entries);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const isDirty = JSON.stringify(rows) !== JSON.stringify(entries);
+    useUnsavedChanges("pronunciation", isDirty);
+
+    const update = (index: number, field: keyof PronunciationEntry, value: string) =>
+        setRows((prev) =>
+            prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
+        );
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            // Blank rows are how somebody leaves the editor, not something to
+            // store and later apply as an empty find-and-replace.
+            await onSave(rows.filter((row) => row.find.trim() && row.say.trim()));
+        } catch (error) {
+            console.error("Failed to save pronunciation:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card id="pronunciation">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                    <Volume2 className="h-4 w-4" />
+                    Pronunciation
+                </CardTitle>
+                <CardDescription>
+                    Fix any word the voice says wrong &mdash; your business name, a
+                    doctor&apos;s name, a locality. Write it how it should sound, the
+                    way you would for a new receptionist.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                {rows.length > 0 && (
+                    <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-xs text-muted-foreground">
+                        <span>Word</span>
+                        <span>Say it like</span>
+                        <span className="w-8" />
+                    </div>
+                )}
+                {rows.map((row, index) => (
+                    <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                        <Input
+                            value={row.find}
+                            onChange={(e) => update(index, "find", e.target.value)}
+                            placeholder="Chinnaswamy"
+                        />
+                        <Input
+                            value={row.say}
+                            onChange={(e) => update(index, "say", e.target.value)}
+                            placeholder="Chinna-swaamy"
+                        />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Remove ${row.find || "entry"}`}
+                            onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))}
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </div>
+                ))}
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRows((prev) => [...prev, { find: "", say: "" }])}
+                >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add a word
+                </Button>
+                {rows.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                        Nothing set. The voice says every word its own way.
+                    </p>
+                )}
+            </CardContent>
+            <CardFooter className="justify-end gap-3 border-t pt-6">
+                {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
+                <Button onClick={handleSave} disabled={isSaving || !isDirty}>
+                    {isSaving ? "Saving..." : "Save Pronunciation"}
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Section: Caller's language
+// ---------------------------------------------------------------------------
+
+/**
+ * Does the agent move when the caller does?
+ *
+ * A caller in India frequently opens in English, switches to Hindi when the
+ * conversation gets substantive, and mixes both in a sentence. An agent fixed
+ * to one language answers the whole call in it, which is the most common
+ * reason a voice agent here gets hung up on.
+ *
+ * Per agent rather than per install, which is what this replaced. The same
+ * account wants it on a clinic line and off on a compliance line reading a
+ * disclosure that was approved in one language.
+ */
+function CallerLanguageSection({
+    follow,
+    codeMixed,
+    onSave,
+}: {
+    follow: boolean;
+    codeMixed: boolean;
+    onSave: (settings: { follow: boolean; codeMixed: boolean }) => Promise<void>;
+}) {
+    const [value, setValue] = useState(follow);
+    const [mixed, setMixed] = useState(codeMixed);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const isDirty = value !== follow || mixed !== codeMixed;
+    useUnsavedChanges("language", isDirty);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await onSave({ follow: value, codeMixed: mixed });
+        } catch (error) {
+            console.error("Failed to save language settings:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card id="language">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                    <Languages className="h-4 w-4" />
+                    Caller&apos;s language
+                </CardTitle>
+                <CardDescription>
+                    How the agent handles the language a caller actually speaks
+                    &mdash; which is rarely one language, spoken formally.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <Label htmlFor="follow-caller-language" className="text-sm">
+                        Follow the caller
+                    </Label>
+                    <Switch
+                        id="follow-caller-language"
+                        checked={value}
+                        onCheckedChange={setValue}
+                    />
+                </div>
+                {/* What it costs is the only reason not to, so it is stated
+                    rather than discovered on a live call. */}
+                <p className="text-xs text-muted-foreground">
+                    {value
+                        ? "Switches after two turns in the new language, so one mis-heard word cannot flip the voice. Needs a transcriber in multilingual mode; speech-to-speech models already do this themselves and ignore the setting."
+                        : "Off. The agent answers in its configured language for the whole call, whatever the caller does."}
+                </p>
+
+                <Separator />
+
+                {/* The other half of the same complaint. Following the caller
+                    into Hindi is no use if what comes back is news-bulletin
+                    Hindi nobody speaks. */}
+                <div className="flex items-center justify-between">
+                    <Label htmlFor="speak-like-callers" className="text-sm">
+                        Speak the way callers do
+                    </Label>
+                    <Switch
+                        id="speak-like-callers"
+                        checked={mixed}
+                        onCheckedChange={setMixed}
+                    />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                    {mixed
+                        ? "Mixes English into the local language the way people actually do — “aapka appointment book ho gaya hai”, not a formal translation nobody says. Added after your own prompt, so an instruction of yours about language still wins."
+                        : "Off. Told to speak Hindi, the model uses the formal register it defaults to — which is understood less, not more."}
+                </p>
+            </CardContent>
+            <CardFooter className="justify-end gap-3 border-t pt-6">
+                {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
+                <Button onClick={handleSave} disabled={isSaving || !isDirty}>
+                    {isSaving ? "Saving..." : "Save Language"}
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Section: Call outcomes
+// ---------------------------------------------------------------------------
+
+/**
+ * The list this agent's finished calls are classified against.
+ *
+ * On the Analysis tab beside QA, and not the same thing. QA scores how the
+ * call was handled; this records what it achieved, and the two come apart
+ * constantly — a polite, well-run call to somebody who was never going to buy
+ * scores well and books nothing.
+ *
+ * Editable because the outcomes are a property of the business, not of us. A
+ * clinic books appointments, a lending agent gets a payment promise, an NDR
+ * agent confirms an address. The defaults are a starting point somebody
+ * changes, which is where Vapi and Bolna both land and for the same reason:
+ * there is no list that fits everyone.
+ */
+function CallOutcomesSection({
+    outcomes,
+    onSave,
+}: {
+    outcomes: CallOutcome[];
+    onSave: (outcomes: CallOutcome[]) => Promise<void>;
+}) {
+    // An agent that has never been configured is already classifying against
+    // the defaults, so that is what the editor shows — not an empty list
+    // implying nothing happens.
+    const stored = outcomes.length > 0 ? outcomes : [...DEFAULT_CALL_OUTCOMES];
+    const [rows, setRows] = useState<CallOutcome[]>(stored);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const isDirty = JSON.stringify(rows) !== JSON.stringify(stored);
+    useUnsavedChanges("outcomes", isDirty);
+
+    const update = (index: number, field: keyof CallOutcome, value: string) =>
+        setRows((prev) =>
+            prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
+        );
+
+    // Shown under the row as it is typed rather than rewritten on save: a
+    // code is what lands in a CRM field and a CSV heading, and finding out
+    // afterwards that "Call Back" became `call_back` is a surprise.
+    const codeHint = (raw: string) => {
+        const normalised = normaliseOutcomeCode(raw);
+        if (!raw.trim()) return null;
+        if (!normalised) return "Needs to start with a letter";
+        return normalised === raw ? null : `Saved as ${normalised}`;
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await onSave(outcomesToSave(rows));
+        } catch (error) {
+            console.error("Failed to save call outcomes:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card id="outcomes">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                    <Tags className="h-4 w-4" />
+                    Call outcomes
+                </CardTitle>
+                <CardDescription>
+                    What you want to sort finished calls by. Every call gets one or
+                    more of these after it ends &mdash; a call that books and also
+                    asks for a follow-up is both. Separate from how the call ended,
+                    which is recorded either way.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <div className="grid grid-cols-[1fr_1.6fr_auto] gap-2 text-xs text-muted-foreground">
+                    <span>Name</span>
+                    <span>Use it when</span>
+                    <span className="w-8" />
+                </div>
+                {rows.map((row, index) => {
+                    const locked = row.code === UNCLEAR_OUTCOME.code;
+                    const hint = codeHint(row.label || row.code);
+                    return (
+                        <div key={index} className="space-y-1">
+                            <div className="grid grid-cols-[1fr_1.6fr_auto] gap-2">
+                                <Input
+                                    value={row.label || row.code}
+                                    disabled={locked}
+                                    onChange={(e) => {
+                                        update(index, "label", e.target.value);
+                                        update(index, "code", e.target.value);
+                                    }}
+                                    placeholder="Booked"
+                                />
+                                <Input
+                                    value={row.when}
+                                    disabled={locked}
+                                    onChange={(e) => update(index, "when", e.target.value)}
+                                    placeholder="An appointment is confirmed"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={locked}
+                                    aria-label={`Remove ${row.label || row.code || "outcome"}`}
+                                    onClick={() =>
+                                        setRows((prev) => prev.filter((_, i) => i !== index))
+                                    }
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            {locked ? (
+                                <p className="text-xs text-muted-foreground">
+                                    Always available. Without somewhere to put a call it
+                                    genuinely cannot read, the classifier picks the nearest
+                                    real outcome instead.
+                                </p>
+                            ) : (
+                                hint && <p className="text-xs text-muted-foreground">{hint}</p>
+                            )}
+                        </div>
+                    );
+                })}
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={rows.length >= MAX_CALL_OUTCOMES}
+                    onClick={() =>
+                        setRows((prev) => [
+                            // Before `unclear`, which stays at the bottom.
+                            ...prev.filter((r) => r.code !== UNCLEAR_OUTCOME.code),
+                            { code: "", label: "", when: "" },
+                            ...prev.filter((r) => r.code === UNCLEAR_OUTCOME.code),
+                        ])
+                    }
+                >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add an outcome
+                </Button>
+                {rows.length >= MAX_CALL_OUTCOMES && (
+                    <p className="text-xs text-muted-foreground">
+                        {MAX_CALL_OUTCOMES} is the limit. Past that this is not a list
+                        anyone sorts by, and each one is sent with every transcript.
+                    </p>
+                )}
+            </CardContent>
+            <CardFooter className="justify-end gap-3 border-t pt-6">
+                {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
+                <Button onClick={handleSave} disabled={isSaving || !isDirty}>
+                    {isSaving ? "Saving..." : "Save Outcomes"}
                 </Button>
             </CardFooter>
         </Card>
@@ -1622,27 +2087,29 @@ function WorkflowSettingsInner({
     workflow: WorkflowResponse;
     user: { id: string; email?: string };
 }) {
-    const router = useRouter();
     const { dirtySections, confirmNavigate } = useUnsavedChangesContext();
 
-    const [isEmbedDialogOpen, setIsEmbedDialogOpen] = useState(false);
-    // Read once from the URL so a link can land on a tab -- the wizard's
-    // "Advanced setup" and the docs both want to point at one -- and written
-    // back with replaceState rather than the router so switching tabs does not
-    // stack history entries a Back press has to walk out of.
-    const [activeTab, setActiveTab] = useState<TabId>(DEFAULT_TAB);
+    // Which tabs are hiding an edit nobody has saved. Derived from the section
+    // map rather than tracked separately: `tabs.ts` already decides what lives
+    // where, and a second list of that would be the one that goes stale.
+    const dirtyTabIds = useMemo(
+        () =>
+            new Set(
+                TABS.filter((tab) =>
+                    tab.sections.some((id) => dirtySections.has(id)),
+                ).map((tab) => tab.id),
+            ),
+        [dirtySections],
+    );
 
-    useEffect(() => {
-        const requested = new URLSearchParams(window.location.search).get("tab");
-        if (isTabId(requested)) setActiveTab(requested);
-    }, []);
-
-    const selectTab = useCallback((next: TabId) => {
-        setActiveTab(next);
-        const url = new URL(window.location.href);
-        url.searchParams.set("tab", next);
-        window.history.replaceState(null, "", url);
-    }, []);
+    // Read from the URL on every render, not once on mount. The tabs are links
+    // now, and a link to this same route with a different `?tab=` does not
+    // remount the page — so a value captured in an effect would leave the URL
+    // saying "calling" and the screen still showing Models. That is also what
+    // makes a link land on a tab at all, which the wizard's "Advanced setup"
+    // and the docs both rely on.
+    const requestedTab = useSearchParams().get("tab");
+    const activeTab: TabId = isTabId(requestedTab) ? requestedTab : DEFAULT_TAB;
     const [modelConfigurationDefaults, setModelConfigurationDefaults] = useState<ModelConfigurationDefaultsV2 | null>(null);
     const [organizationModelConfiguration, setOrganizationModelConfiguration] = useState<OrganizationAiModelConfigurationResponse | null>(null);
     const [modelConfigurationLoading, setModelConfigurationLoading] = useState(true);
@@ -1682,6 +2149,9 @@ function WorkflowSettingsInner({
         saveWorkflowConfigurations,
         saveTemplateContextVariables,
         saveDictionary,
+        savePronunciationLexicon,
+        saveCallOutcomes,
+        saveLanguageSettings,
     } = useWorkflowState({
         initialWorkflowName: workflow.name,
         workflowId,
@@ -1727,68 +2197,22 @@ function WorkflowSettingsInner({
 
     return (
         <div className="min-h-screen">
-            {/* Sticky header */}
-            <header className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => confirmNavigate(() => router.push(`/workflow/${workflowId}`))}
-                >
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Workflow Settings</p>
-                    <h1 className="truncate text-sm font-semibold">{workflowName || workflow.name}</h1>
-                </div>
+            <AgentHeader
+                workflowId={workflowId}
+                name={workflowName || workflow.name}
+                onBack={confirmNavigate}
+            />
 
-                {/* The strip lives in the sticky header so it stays reachable
-                    from the bottom of a long tab -- Conversation alone is
-                    several screens. Scrolls on a phone rather than wrapping
-                    into a second row that would double the header's height. */}
-                <div
-                    role="tablist"
-                    aria-label="Settings sections"
-                    className="-mb-3 ml-auto flex min-w-0 gap-1 overflow-x-auto pb-1"
-                >
-                    {TABS.map((tab) => {
-                        const Icon = tab.icon;
-                        const unsaved = tab.sections.some((id) => dirtySections.has(id));
-                        return (
-                            <button
-                                key={tab.id}
-                                role="tab"
-                                type="button"
-                                aria-selected={activeTab === tab.id}
-                                onClick={() => selectTab(tab.id)}
-                                className={cn(
-                                    "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
-                                    activeTab === tab.id
-                                        ? "bg-muted font-medium text-foreground"
-                                        : "text-muted-foreground hover:text-foreground",
-                                )}
-                            >
-                                <Icon className="h-3.5 w-3.5" />
-                                {tab.label}
-                                {/* A tab hiding an unsaved edit has to say so,
-                                    or switching away looks like discarding. */}
-                                {unsaved && (
-                                    <span
-                                        className="h-1.5 w-1.5 rounded-full bg-orange-500"
-                                        aria-label="Unsaved changes"
-                                    />
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
-            </header>
-
-            {/* The agent-level strip above the settings-level one: which agent
-                you are in, then which part of it. Analysis and Advanced both
-                land here, so the page says which of the two is showing. */}
+            {/* The only strip. It used to be the outer of two, with Analysis
+                and Advanced appearing in both a centimetre apart and going to
+                different places. Four of its tabs are this page, so the page
+                says which one is showing and which are hiding an unsaved
+                edit — a tab that hides one without saying so is how somebody
+                loses work. */}
             <AgentTabs
                 workflowId={workflowId}
-                settingsGroup={activeTab === "analysis" ? "analysis" : "advanced"}
+                settingsTab={activeTab}
+                dirtyTabs={dirtyTabIds}
             />
 
             <div className="mx-auto max-w-4xl px-6 py-8">
@@ -1832,6 +2256,23 @@ function WorkflowSettingsInner({
                                 it is words the transcriber should listen for,
                                 which is a property of the ears, not a topic. */}
                             <DictionarySection dictionary={dictionary} onSave={saveDictionary} />
+                            {/* Directly under Dictionary: the two halves of
+                                the same complaint. Dictionary tells the
+                                transcriber what to listen for; this tells the
+                                voice how to say it back. */}
+                            <PronunciationSection
+                                entries={workflowConfigurations?.pronunciation_lexicon ?? []}
+                                onSave={savePronunciationLexicon}
+                            />
+                            {/* With the voice, not on Calling: this decides
+                                which voice speaks, and it is edited in the
+                                same sitting as the dictionary and the
+                                pronunciations. */}
+                            <CallerLanguageSection
+                                follow={workflowConfigurations?.follow_caller_language ?? false}
+                                codeMixed={workflowConfigurations?.speak_like_callers ?? false}
+                                onSave={saveLanguageSettings}
+                            />
                             </div>
 
                             <div
@@ -1845,6 +2286,16 @@ function WorkflowSettingsInner({
                                 path does now, so for a new agent this reads as
                                 on; it stays the control for older ones. */}
                             <QaCard workflowId={workflowId} />
+
+                            {/* Under QA because it is the other half of the
+                                same screen: QA says how the call was handled,
+                                this says what it achieved, and a well-handled
+                                call that books nothing scores well on one and
+                                badly on the other. */}
+                            <CallOutcomesSection
+                                outcomes={workflowConfigurations?.call_outcomes ?? []}
+                                onSave={saveCallOutcomes}
+                            />
 
                             {/* Recordings – moved to org-level page */}
                             <Card id="recordings">
@@ -1889,8 +2340,16 @@ function WorkflowSettingsInner({
                                     </CardDescription>
                                 </CardHeader>
                                 <CardFooter className="border-t pt-6">
-                                    <Button variant="outline" onClick={() => setIsEmbedDialogOpen(true)}>
-                                        Configure Widget
+                                    {/* A link, not a modal. The configurator now
+                                        has its own screen under DEPLOY, where
+                                        somebody who did not build this agent can
+                                        find it. ?agent= carries the choice across
+                                        so arriving from here skips the picker. */}
+                                    <Button variant="outline" asChild>
+                                        <Link href={`/deploy/web-widget?agent=${workflowId}`}>
+                                            Configure Widget
+                                            <ExternalLink className="ml-2 h-4 w-4" />
+                                        </Link>
                                     </Button>
                                 </CardFooter>
                             </Card>
@@ -1916,13 +2375,6 @@ function WorkflowSettingsInner({
 
             </div>
 
-            {/* Dialogs for complex sections */}
-            <EmbedDialog
-                open={isEmbedDialogOpen}
-                onOpenChange={setIsEmbedDialogOpen}
-                workflowId={workflowId}
-                workflowName={workflowName || workflow.name}
-            />
         </div>
     );
 }

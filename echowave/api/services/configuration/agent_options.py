@@ -30,6 +30,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.schemas.ai_model_configuration import DECIBYL_DEFAULT_VOICE
+from api.services.billing.addons import DEFAULT_AGENT_ADDONS
 from api.services.billing.estimator import estimate_cost_per_minute
 from api.services.configuration import managed_tiers, voice_catalogue
 from api.services.configuration.ai_model_configuration import (
@@ -149,6 +150,10 @@ async def pipeline_estimate(
     estimate = await estimate_cost_per_minute(
         session,
         organization_id=organization_id,
+        # What a new agent runs on every call whether or not anybody
+        # asked for it. Left out, every quote on this screen was short
+        # by the QA fee — in the one direction a price must not be.
+        addons=DEFAULT_AGENT_ADDONS,
         stt_provider=stt.provider,
         stt_model=stt.model,
         llm_provider=llm.provider,
@@ -244,6 +249,10 @@ async def realtime_estimate(
     estimate = await estimate_cost_per_minute(
         session,
         organization_id=organization_id,
+        # What a new agent runs on every call whether or not anybody
+        # asked for it. Left out, every quote on this screen was short
+        # by the QA fee — in the one direction a price must not be.
+        addons=DEFAULT_AGENT_ADDONS,
         llm_provider=upstream.provider,
         llm_model=upstream.model,
         telephony_provider=telephony_provider,
@@ -918,6 +927,10 @@ async def model_row(
     estimate = await estimate_cost_per_minute(
         session,
         organization_id=organization_id,
+        # What a new agent runs on every call whether or not anybody
+        # asked for it. Left out, every quote on this screen was short
+        # by the QA fee — in the one direction a price must not be.
+        addons=DEFAULT_AGENT_ADDONS,
         stt_provider=by_component.get("stt", (None, ""))[0],
         stt_model=by_component.get("stt", (None, ""))[1],
         # The realtime model goes in the llm slot for the same reason it is

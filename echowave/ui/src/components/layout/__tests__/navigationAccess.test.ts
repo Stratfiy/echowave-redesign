@@ -84,8 +84,15 @@ describe("admin-only destinations are hidden from members", () => {
         // keys the account holds to tell an empty slot from a filled one — and
         // three links in the model editor point straight here. Adding, pausing
         // and removing are gated inside the screen instead.
+        //
+        // The nav entry now points at the Apps catalogue rather than the keys
+        // screen — "Integrations" in a sidebar is read as "what does this
+        // connect to" — and the keys are a tab away from it. What must hold is
+        // that the area is not role-gated, not which of its tabs is the entry.
         for (const roles of [MEMBER, ADMIN]) {
-            expect(urls(roles)).toContain("/integrations");
+            expect(
+                urls(roles).some((url) => url.startsWith("/integrations")),
+            ).toBe(true);
         }
     });
 
@@ -134,8 +141,12 @@ describe("what stays open to every member", () => {
 
     it("leaves the BYOK vault reachable", () => {
         // The screen a member is sent to from three places in the model editor
-        // the moment they choose "your own key" for a slot.
-        expect(urls(MEMBER)).toContain("/integrations");
+        // the moment they choose "your own key" for a slot. Those links go
+        // straight to `/integrations` and are unaffected by which tab the nav
+        // points at; this checks the member can also get there by navigating.
+        expect(
+            urls(MEMBER).some((url) => url.startsWith("/integrations")),
+        ).toBe(true);
     });
 
     it("gives a member most of the product, not a stub", () => {

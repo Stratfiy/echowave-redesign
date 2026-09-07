@@ -24,7 +24,10 @@ export const TABS = [
         id: "models",
         label: "Models",
         icon: Brain,
-        sections: ["models", "dictionary"],
+        // "pronunciation" sits here with "dictionary": one tells the
+        // transcriber what to listen for, the other tells the voice how to say
+        // it back, and both are edited in the same sitting.
+        sections: ["models", "dictionary", "pronunciation", "language"],
     },
     {
         id: "calling",
@@ -36,7 +39,9 @@ export const TABS = [
         id: "analysis",
         label: "Analysis",
         icon: FileDown,
-        sections: ["qa", "recordings", "report"],
+        // "outcomes" beside "qa": one says how the call was handled,
+        // the other what it achieved, and they come apart constantly.
+        sections: ["qa", "outcomes", "recordings", "report"],
     },
     {
         id: "deploy",

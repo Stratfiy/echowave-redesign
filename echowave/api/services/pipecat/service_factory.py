@@ -1,4 +1,5 @@
 import os
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode, urlparse, urlunparse
@@ -303,6 +304,16 @@ def create_stt_service(
                 endpointing=100,
                 model=user_config.stt.model,
                 keyterm=keyterms or [],
+                # Deepgram has always been able to return "987" instead of
+                # "nine eight seven" and we had never asked it to. Phone
+                # numbers, order numbers, amounts and OTPs are the payload of
+                # most of the calls this platform runs, and a number written as
+                # words is one an extraction, a webhook or a CRM cannot use.
+                #
+                # `numerals` only; not `smart_format`, which also rewrites
+                # dates, currency and punctuation to US conventions and would
+                # turn an Indian date into an American one.
+                numerals=True,
             ),
             should_interrupt=False,  # Let UserAggregator take care of sending InterruptionFrame
             sample_rate=audio_config.transport_in_sample_rate,
@@ -743,11 +754,32 @@ def _create_tts_service_instance(provider, service, /, **kwargs):
     kwargs.setdefault("text_filters", [XMLFunctionTagFilter()])
     kwargs.setdefault("skip_aggregator_types", ["recording_router", "recording"])
 
+    transforms = _SPEECH_TEXT_TRANSFORMS.get()
+    if transforms:
+        kwargs.setdefault("text_transforms", transforms)
+
     return service(**kwargs)
 
 
+# The speech transforms in force while a TTS service is being constructed.
+#
+# A ContextVar rather than a parameter because `create_tts_service` dispatches
+# to about fifteen provider branches that each call
+# `_create_tts_service_instance` with their own keyword arguments. Threading
+# one more argument through every branch is the kind of change where a provider
+# gets missed, and a provider silently missing this would mispronounce the
+# customer's name on exactly one voice — the hardest possible thing to notice.
+# Set at the single entry point, read at the single choke point.
+_SPEECH_TEXT_TRANSFORMS: ContextVar[list | None] = ContextVar(
+    "speech_text_transforms", default=None
+)
+
+
 def create_tts_service(
-    user_config, audio_config: "AudioConfig", correlation_id: str | None = None
+    user_config,
+    audio_config: "AudioConfig",
+    correlation_id: str | None = None,
+    speech_text_transforms=None,
 ):
     """Create and return appropriate TTS service based on user configuration
 
@@ -758,6 +790,18 @@ def create_tts_service(
     logger.info(
         f"Creating TTS service: provider={user_config.tts.provider}, model={user_config.tts.model}"
     )
+    token = _SPEECH_TEXT_TRANSFORMS.set(speech_text_transforms)
+    try:
+        return _create_tts_service(user_config, audio_config, correlation_id)
+    finally:
+        _SPEECH_TEXT_TRANSFORMS.reset(token)
+
+
+def _create_tts_service(
+    user_config, audio_config: "AudioConfig", correlation_id: str | None = None
+):
+    """Dispatch to the provider branch. Split from `create_tts_service` only so
+    the context variable above is set for the whole of it."""
     if user_config.tts.provider == ServiceProviders.DEEPGRAM.value:
         return _create_tts_service_instance(
             user_config.tts.provider,
@@ -1200,7 +1244,10 @@ def _with_backups(primary, backups: list, component: str):
 
 
 def create_tts_service_with_backups(
-    user_config, audio_config: "AudioConfig", correlation_id: str | None = None
+    user_config,
+    audio_config: "AudioConfig",
+    correlation_id: str | None = None,
+    speech_text_transforms=None,
 ):
     """The configured voice, plus any backups, as one processor.
 
@@ -1209,12 +1256,17 @@ def create_tts_service_with_backups(
     it is built by the same branch of ``create_tts_service`` as any primary --
     there is no second construction path to keep in step.
     """
-    primary = create_tts_service(user_config, audio_config, correlation_id)
+    primary = create_tts_service(
+        user_config, audio_config, correlation_id, speech_text_transforms
+    )
     backups = [
         create_tts_service(
             user_config.model_copy(update={"tts": section}),
             audio_config,
             correlation_id,
+            # Backups get them too: a caller who has failed over should not
+            # start hearing the clinic's name mispronounced.
+            speech_text_transforms,
         )
         for section in getattr(user_config, "fallback_tts", None) or []
     ]

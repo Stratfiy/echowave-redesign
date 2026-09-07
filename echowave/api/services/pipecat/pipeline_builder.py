@@ -38,12 +38,21 @@ def build_pipeline(
     voicemail_detector=None,
     recording_router=None,
     language_follower=None,
+    digit_normaliser=None,
+    dtmf_collector=None,
     interruption_backoff=None,
 ):
     """Build the main pipeline with all components.
 
     Args:
         audio_buffer: AudioBufferProcessor that handles both input and output audio recording.
+        dtmf_collector: Optional DtmfCollector. When provided, inserted before
+            the context aggregator so a completed keypad entry becomes a user
+            turn — it reads InputDTMFFrames, which every telephony serializer
+            already produces and nothing else consumes.
+        digit_normaliser: Optional SpokenDigitNormaliser. When provided,
+            inserted directly after STT, ahead of everything that reads a
+            transcription.
         language_follower: Optional LanguageFollower. When provided, inserted
             immediately after STT so it sees the detected language on every
             transcription and can push TTS settings downstream before the
@@ -65,9 +74,25 @@ def build_pipeline(
     # reads the detected language off each TranscriptionFrame and pushes TTS
     # settings downstream, so the switch lands before the next synthesis rather
     # than a turn late.
+    # Before the language follower, and before the context aggregator: a
+    # number has to be got right once, at the earliest point it can be, rather
+    # than by each consumer separately. Extraction, QA and the LLM then all see
+    # the same corrected text.
+    if digit_normaliser:
+        logger.info("Adding spoken-digit normaliser to pipeline")
+        processors.append(digit_normaliser)
+
     if language_follower:
         logger.info("Adding language follower to pipeline")
         processors.append(language_follower)
+
+    # Before the context aggregator, because what it pushes is a user message
+    # for the aggregator to carry. After STT rather than at the transport, so
+    # everything that reads the caller's turn sees keypad entries and speech in
+    # the order they happened.
+    if dtmf_collector:
+        logger.info("Adding DTMF collector to pipeline")
+        processors.append(dtmf_collector)
 
     # Insert voicemail detector after STT if enabled
     # Note: We intentionally do NOT use voicemail_detector.gate() to allow TTS

@@ -102,6 +102,7 @@ class PipecatEngine:
         embeddings_endpoint: Optional[str] = None,
         embeddings_api_version: Optional[str] = None,
         has_recordings: bool = False,
+        code_mixed_speech: bool = False,
         context_compaction_enabled: bool = False,
         is_voice: bool = True,
     ):
@@ -186,10 +187,16 @@ class PipecatEngine:
 
         # Recording audio fetcher (set via set_fetch_recording_audio from _run_pipeline)
         self._fetch_recording_audio = None
+        # Opening-line fetcher, set the same way. Async and returns the line to
+        # speak, having already fallen back to the static greeting on any
+        # failure — a caller is on the line, so there is no error to handle
+        # here.
+        self._fetch_dynamic_greeting = None
 
         # True when the workflow has active recordings; enables recording
         # response mode instructions on all nodes for in-context learning.
         self._has_recordings: bool = has_recordings
+        self._code_mixed_speech: bool = code_mixed_speech
 
         # Background context summarization on node transitions
         self._context_compaction_enabled: bool = context_compaction_enabled
@@ -655,6 +662,7 @@ class PipecatEngine:
             workflow=self.workflow,
             format_prompt=self._format_prompt,
             has_recordings=self._has_recordings,
+            code_mixed_speech=self._code_mixed_speech,
         )
         functions = await compose_functions_for_node(
             node=node,
@@ -892,6 +900,20 @@ class PipecatEngine:
                         "falling back to LLM generation"
                     )
                 elif greeting_value and self.task is not None:
+                    # Only the opening line, and only on the way in. A greeting
+                    # on a later node is a transition the caller is already in
+                    # the middle of; pausing that to make an HTTP request would
+                    # put a hole in the middle of a conversation rather than at
+                    # the start of one.
+                    if (
+                        self._fetch_dynamic_greeting is not None
+                        and previous_node_id is None
+                        and node_id == self.workflow.start_node_id
+                    ):
+                        greeting_value = await self._fetch_dynamic_greeting(
+                            greeting_value
+                        )
+
                     logger.debug("Playing text greeting via TTS")
                     # append_to_context=True so the assistant aggregator commits
                     # the greeting to the LLM context once TTS finishes; without
@@ -1234,6 +1256,10 @@ class PipecatEngine:
         going straight to the caller.
         """
         self._transport_output = transport_output
+
+    def set_fetch_dynamic_greeting(self, fetch_fn) -> None:
+        """Install the opening-line fetcher. See ``services/pipecat/dynamic_greeting``."""
+        self._fetch_dynamic_greeting = fetch_fn
 
     def set_fetch_recording_audio(self, fetch_fn) -> None:
         """Set the recording audio fetcher callback."""

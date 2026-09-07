@@ -3,8 +3,56 @@ import type {
     OrganizationAiModelConfigurationV2,
     WorkflowConfigurationDefaults as GeneratedWorkflowConfigurationDefaults,
 } from "@/client/types.gen";
+import type { CallOutcome } from "@/constants/callOutcomes";
 
 export type WorkflowConfigurationDefaults = GeneratedWorkflowConfigurationDefaults;
+
+/**
+ * Noise suppression on the inbound leg — the opposite operation to ambient
+ * noise, which adds room tone to the outbound one.
+ *
+ * No level. Gnani exposes `suppressionLevel` 20–100; RNNoise is a trained
+ * network with no such parameter, so a slider here would move nothing.
+ */
+/**
+ * How the agent should say a word, when the voice gets it wrong.
+ *
+ * A respelling, not a phoneme alphabet: half our TTS providers do not support
+ * SSML/IPA, the Indic voices that do support it least are the ones that need
+ * it most, and nobody running a clinic will type /t\u0283\u026an\u0259swa\u02d0mi/. They will
+ * happily type "Chinna-swaamy", which is how they would write it for a new
+ * receptionist.
+ */
+export type { CallOutcome };
+
+export type PronunciationEntry = {
+    /** What appears in the text. */
+    find: string;
+    /** What the voice should be handed instead. */
+    say: string;
+};
+
+/**
+ * Ask the customer's own system what to open with, at the moment the phone is
+ * answered.
+ *
+ * A template variable resolves before the call is placed, so it can carry a
+ * name but not a fact that is only true now — "your order shipped this
+ * morning", "two slots left today". Everything about this is shaped by the
+ * caller already being on the line: the timeout is short and capped by us, and
+ * every failure falls back to the agent's own greeting.
+ */
+export type DynamicGreetingConfiguration = {
+    enabled: boolean;
+    /** POSTed the call context; should answer { greeting: "..." }. */
+    url: string;
+    /** Capped server-side. Dead air on answer is the worst thing we can do. */
+    timeout_ms?: number;
+};
+
+export type NoiseSuppressionConfiguration = {
+    enabled: boolean;
+};
 
 export type AmbientNoiseConfiguration = Omit<
     AmbientNoiseConfigurationDefaults,
@@ -196,6 +244,33 @@ type WorkflowConfigurationBase = Omit<
 
 export type WorkflowConfigurations = WorkflowConfigurationBase & {
     ambient_noise_configuration: AmbientNoiseConfiguration;
+    noise_suppression_configuration?: NoiseSuppressionConfiguration;
+    pronunciation_lexicon?: PronunciationEntry[];
+    /**
+     * What a finished call is classified as. Empty means the platform default
+     * list applies, so an agent nobody has configured still produces outcomes
+     * rather than an empty column somebody has to discover is empty.
+     */
+    call_outcomes?: CallOutcome[];
+    /**
+     * Whether the agent switches language when the caller does. Off unless
+     * turned on: nothing follows today, so a default of on would change every
+     * live call at once.
+     */
+    follow_caller_language?: boolean;
+    /**
+     * Whether keypresses reach the agent as a turn. Off unless turned on: it
+     * adds input the agent did not previously get, and a prompt that does not
+     * expect it answers it badly.
+     */
+    accept_keypad_input?: boolean;
+    /**
+     * Speak the way callers here actually do, mixing English into the local
+     * language, rather than the formal register a model reaches for. Appended
+     * to the operator's own prompt, so off unless asked for.
+     */
+    speak_like_callers?: boolean;
+    dynamic_greeting_configuration?: DynamicGreetingConfiguration;
     max_call_duration: number;  // Maximum call duration in seconds
     max_user_idle_timeout: number;  // Maximum user idle time in seconds
     smart_turn_stop_secs: number;  // Timeout in seconds for incomplete turn detection
@@ -221,6 +296,16 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
         enabled: false,
         volume: 0.3
     },
+    // Off: it costs 20 ms on every call and buys nothing on a quiet line.
+    noise_suppression_configuration: {
+        enabled: false
+    },
+    pronunciation_lexicon: [],
+    call_outcomes: [],
+    follow_caller_language: false,
+    accept_keypad_input: false,
+    speak_like_callers: false,
+    dynamic_greeting_configuration: { enabled: false, url: "" },
     max_call_duration: 300,
     max_user_idle_timeout: 10,  // 10 seconds
     smart_turn_stop_secs: 2,  // 2 seconds
