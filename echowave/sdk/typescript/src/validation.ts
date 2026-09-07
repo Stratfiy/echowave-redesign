@@ -24,6 +24,7 @@ const SCALAR_TYPES: Record<string, ReadonlyArray<string> | null> = {
     document_refs: ["array"],
     recording_ref: ["string"],
     credential_ref: ["string"],
+    agent_ref: ["string"],
     mention_textarea: ["string"],
     url: ["string"],
 };

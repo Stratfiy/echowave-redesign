@@ -36,6 +36,7 @@ _SCALAR_PY_TYPES = {
     "url": "str",
     "recording_ref": "str",
     "credential_ref": "str",
+    "agent_ref": "str",
     "tool_refs": "list[str]",
     "document_refs": "list[str]",
 }

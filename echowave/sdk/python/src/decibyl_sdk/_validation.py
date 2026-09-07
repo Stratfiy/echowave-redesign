@@ -27,6 +27,7 @@ _SCALAR_TYPES: dict[str, tuple[type, ...] | None] = {
     "document_refs": (list,),
     "recording_ref": (str,),
     "credential_ref": (str,),
+    "agent_ref": (str,),
     "mention_textarea": (str,),
     "url": (str,),
 }
