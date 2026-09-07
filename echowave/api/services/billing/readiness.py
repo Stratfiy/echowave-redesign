@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import (
@@ -47,17 +47,21 @@ from api.constants import (
     RAZORPAY_WEBHOOK_SECRET,
     SUPPLIER_ADDRESS,
     SUPPLIER_GSTIN,
+    SUPPLIER_HAS_LUT,
     SUPPLIER_LEGAL_NAME,
     SUPPLIER_STATE_CODE,
 )
 from api.db.models import (
     PaymentModel,
     ProviderRateModel,
+    SubscriptionPlanModel,
     TaxDocumentModel,
     TelephonyConfigurationModel,
+    UsdInrRateHistoryModel,
     WorkflowRunModel,
 )
 from api.services.billing import carrier_rates
+from api.services.billing.money import DEFAULT_USD_INR_PAISE
 from api.services.readiness import (
     ACTION_REQUIRED,
     NEEDS_A_HUMAN,
@@ -661,6 +665,210 @@ async def _worker_check() -> Check:
     )
 
 
+#: `source` on the row migration c73e1b5a94d2 seeds. It writes ₹96 effective
+#: from 1970 with no end date, so the rate history is never empty on any
+#: deployment and `rates.resolve_usd_inr` never reaches its fallback branch —
+#: the warning it logs there has never once fired in production. A placeholder
+#: that looks exactly like a real rate to every reader is why this check exists.
+SEEDED_FX_SOURCE = "migration"
+
+
+async def _fx_rate_check(
+    session: AsyncSession, *, now: datetime | None = None
+) -> Check:
+    """Has anyone put a real USD/INR rate on file.
+
+    The platform fee is quoted in dollars and settled in rupees, so the rate is
+    part of every dollar-denominated component's price. Against a rupee nearer
+    ₹104 the seeded ₹96 is roughly 8% light, on every charge.
+
+    This checks the rate in force *now* and whether it is the migration's
+    placeholder, which is two failure modes rather than one:
+
+    * an effective-dated row that closed yesterday leaves today uncovered, and
+    * the seeded row covers every moment from 1970 onward, so "a row exists" is
+      true on a deployment where nobody has ever set a rate.
+
+    Reporting ready on the second is the specific dishonesty this vocabulary
+    exists to avoid, which is why the placeholder is named rather than counted.
+    """
+    now = now or datetime.now(UTC)
+    row = await session.scalar(
+        select(UsdInrRateHistoryModel)
+        .where(
+            UsdInrRateHistoryModel.effective_from <= now,
+            or_(
+                UsdInrRateHistoryModel.effective_to.is_(None),
+                UsdInrRateHistoryModel.effective_to > now,
+            ),
+        )
+        .order_by(UsdInrRateHistoryModel.effective_from.desc())
+        .limit(1)
+    )
+    reference = (
+        "REMAINING-WORK.md §A2 — everything is quoted in dollars and settled in rupees"
+    )
+    remedy = (
+        "Put the rate you actually convert at on file at "
+        "/superadmin/billing/rate-card, effective-dated from the day you "
+        "started charging rather than from today — anything earlier stays on "
+        "the seeded figure."
+    )
+
+    if row is None:
+        return Check(
+            key="usd_inr_rate_on_file",
+            title="A real USD/INR rate is in force",
+            status=ACTION_REQUIRED,
+            detail=(
+                f"No rate covers {now.date().isoformat()}, so every "
+                f"dollar-quoted component is billing at the "
+                f"₹{DEFAULT_USD_INR_PAISE / 100:,.2f} fallback in code."
+            ),
+            reference=reference,
+            remedy=remedy,
+        )
+
+    if (row.source or "").strip().lower() == SEEDED_FX_SOURCE:
+        return Check(
+            key="usd_inr_rate_on_file",
+            title="A real USD/INR rate is in force",
+            status=ACTION_REQUIRED,
+            detail=(
+                f"The only rate in force is the one the migration seeded — "
+                f"₹{row.paise_per_usd / 100:,.2f}, effective from 1970 and "
+                "never superseded. Nothing is failing and no warning is "
+                "logged, because a row does exist; it simply is not a rate "
+                "anybody chose."
+            ),
+            reference=reference,
+            remedy=remedy,
+        )
+
+    return Check(
+        key="usd_inr_rate_on_file",
+        title="A real USD/INR rate is in force",
+        status=READY,
+        detail=(
+            f"₹{row.paise_per_usd / 100:,.2f} per USD, from {row.source}, "
+            f"effective {row.effective_from.date().isoformat()}."
+        ),
+        reference=reference,
+    )
+
+
+async def _export_supply_check(session: AsyncSession) -> Check:
+    """Can a customer outside India actually be sold a plan.
+
+    Two things have to line up, and each one alone is a dead end:
+
+    * **An LUT on file.** Without ``SUPPLIER_HAS_LUT`` the tax path refuses an
+      export outright (``tax.compute`` raises ``TaxError``) rather than
+      zero-rating it, because a zero-rated invoice without an LUT understates a
+      liability that is ours.
+    * **A second provider plan, pinned at the net.** A pinned Razorpay plan
+      collects one amount forever, so the domestic plan — pinned at the gross —
+      would overcharge an export account by the GST every month for the life of
+      the mandate. ``mandates`` refuses that rather than let it happen.
+
+    An export account is therefore always refused rather than mis-billed, which
+    is why a deployment selling only in India is ``ready`` here. What this
+    catches is the half-configured state: an LUT filed but no export plan, or
+    export plans created but no LUT — both of which look like export support
+    and serve nobody.
+    """
+    plans = (
+        (
+            await session.execute(
+                select(SubscriptionPlanModel).where(
+                    SubscriptionPlanModel.enabled.is_(True),
+                    SubscriptionPlanModel.razorpay_plan_id.isnot(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    without_export = sorted(p.code for p in plans if not p.razorpay_plan_id_export)
+    with_export = sorted(p.code for p in plans if p.razorpay_plan_id_export)
+    reference = "PRICING-DECISIONS.md §B2 — a pinned plan cannot collect two amounts"
+
+    if not SUPPLIER_HAS_LUT:
+        if with_export:
+            return Check(
+                key="export_supply",
+                title="An export customer can be sold a plan",
+                status=ACTION_REQUIRED,
+                detail=(
+                    f"{len(with_export)} plan(s) carry an export plan id "
+                    f"({', '.join(with_export)}), but no LUT is on file, so "
+                    "every export account is refused before the plan is ever "
+                    "reached. The plans you created cannot be sold."
+                ),
+                reference=reference,
+                remedy=(
+                    "File the LUT, then set SUPPLIER_HAS_LUT=true and "
+                    "SUPPLIER_LUT_NUMBER (it prints on the invoice)."
+                ),
+            )
+        return Check(
+            key="export_supply",
+            title="An export customer can be sold a plan",
+            status=READY,
+            detail=(
+                "No LUT on file and no export plans, so this deployment sells "
+                "in India only. An account outside India is refused rather "
+                "than invoiced at the wrong tax — which is the safe direction."
+            ),
+            reference=reference,
+        )
+
+    if not plans:
+        return Check(
+            key="export_supply",
+            title="An export customer can be sold a plan",
+            status=UNKNOWN,
+            detail=(
+                "An LUT is on file, but no plan is pinned to a provider plan "
+                "yet, so there is nothing to check the export half against."
+            ),
+            reference=reference,
+        )
+
+    if without_export:
+        return Check(
+            key="export_supply",
+            title="An export customer can be sold a plan",
+            status=ACTION_REQUIRED,
+            detail=(
+                f"An LUT is on file, but {len(without_export)} plan(s) have no "
+                f"export plan id ({', '.join(without_export)}). An export "
+                "account choosing one of those is refused at mandate time — "
+                "correctly, since the domestic plan would overcharge it by the "
+                "GST every month, but refused all the same."
+            ),
+            reference=reference,
+            remedy=(
+                "For each, create a second Razorpay plan at the plan's **net** "
+                "price and put its id in the export field at "
+                "/superadmin/billing/plans."
+            ),
+        )
+
+    return Check(
+        key="export_supply",
+        title="An export customer can be sold a plan",
+        status=READY,
+        detail=(
+            f"An LUT is on file and every sellable plan carries an export plan "
+            f"id ({', '.join(with_export)}). Exports are zero-rated and "
+            "collected at the net."
+        ),
+        reference=reference,
+    )
+
+
 async def _carrier_price_check(session: AsyncSession) -> Check:
     """Whether every carrier we could sell minutes on has a real rate.
 
@@ -830,6 +1038,8 @@ async def assess(
     checks.append(await _worker_check())
     checks.extend(await _payment_evidence(session))
     checks.extend(await _price_book_evidence(session, now=now))
+    checks.append(await _fx_rate_check(session, now=now))
+    checks.append(await _export_supply_check(session))
     checks.append(await _carrier_price_check(session))
     checks.append(await _carrier_enablement_check(session))
     checks.append(_round_trip_obligation())

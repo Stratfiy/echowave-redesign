@@ -665,6 +665,15 @@ one is the thing to open when actually starting to build.
       and read the new error text.
 - [ ] **Verify §2.7 and §2.8** live — sign up a fresh test account and confirm
       ₹1,000 first-recharge and no-double-billed-numbers behave as described.
+- [x] **In-repo ₹499 quotes corrected (7 Sep).** This item originally said
+      "outside this repo" — that was wrong. ₹499 was also live in
+      `COMPETITIVE-BUNDLES-2026.md`, and in the plan-breakdown tables in
+      `OPERATOR-RUNBOOK.md` and `GO-LIVE-RUNBOOK.md`, where it was worse than
+      a stale price: the tables read ₹2,500 + ₹499 = ₹2,999, an exact
+      decomposition that only sums because the number is wrong. They now show
+      ₹3,059 of parts sold at ₹2,999, the ₹60 discount §3.3 derives. The
+      operator's actual action — create the Razorpay plan at ₹3,538.82 — was
+      correct throughout and is unchanged.
 - [ ] **Correct the ₹499 figure** wherever it's quoted outside this repo
       (decks, sales conversations) — it should be ₹559 (§3.3).
 - [ ] **Flip `MANAGED_TELEPHONY_ENABLED` once Plivo reseller approval lands**

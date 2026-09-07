@@ -175,7 +175,9 @@ surprises them.
 ### Number entitlement
 
 Agni charges ₹350/month for an India DID **on top of** the ₹2,999. We include
-one at ₹499 of value inside the bundle. Keep that — an included number is the
+one at ₹559 of value inside the bundle — that figure is not pinned here, it
+derives from `NUMBER_RENTAL_PRICE_PAISE`, so it moves when the extra-number
+price moves. Keep the entitlement — an included number is the
 single clearest way the bundle reads as better, and it removes the step where a
 new customer has to buy something a second time.
 

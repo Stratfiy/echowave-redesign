@@ -109,7 +109,7 @@ def prorated_amount(
     """A partial month's price, by whole days.
 
     Days rather than seconds because a customer can check days against a
-    calendar, and the difference between the two is a few paise on a ₹399
+    calendar, and the difference between the two is a few paise on a ₹559
     rental. ``round_half_up_div`` for the same reason it is used everywhere
     else in billing: banker's rounding would make a half-paise land differently
     depending on which day of the month it was.

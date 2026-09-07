@@ -113,9 +113,10 @@ Webhook path: `POST /api/v1/billing/razorpay/webhook`, signed with
 | | |
 |---|---:|
 | Call balance | ₹2,500.00 |
-| One number | ₹499.00 |
-| **Net** | **₹2,999.00** |
-| GST @ 18% | ₹539.82 |
+| One number, at the extra-number price | ₹559.00 |
+| Contents at list | ₹3,059.00 |
+| **Plan price (net)** | **₹2,999.00** — a ₹60 discount on the parts |
+| GST @ 18% on the net | ₹539.82 |
 | **Create the plan at** | **₹3,538.82** = `353882` paise |
 
 Once pinned, the amount on that plan is what the bank collects and no code can
