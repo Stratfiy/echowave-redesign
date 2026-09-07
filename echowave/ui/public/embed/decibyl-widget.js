@@ -223,7 +223,7 @@
         if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
           ctaUrl = parsed.href;
         }
-      } catch (error) {
+      } catch {
         // An unparseable URL is the same as none.
       }
     }
