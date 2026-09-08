@@ -246,3 +246,57 @@ class TestEveryRefusalSaysWhy:
         assert decision.action == SKIP
         assert decision.reason.strip()
         assert decision.will_take_money is False
+
+
+class TestAChargeThatNeverCameBack:
+    """The crash window, and why the row is committed before the bank is called.
+
+    `execute` used to flush the `charging` status rather than commit it. The
+    sweep commits only when it finishes, so a worker that died during the HTTP
+    call rolled the status back to `scheduled` — and the next sweep, seeing a
+    notice that had elapsed, presented the card again for a debit the bank may
+    already have taken.
+
+    Committed, the row survives the crash saying `charging`, and this is what
+    refuses to retry it. Nothing here can tell whether the money moved; the only
+    record of the request is the row that says it was made. Retrying is the one
+    action guaranteed to be wrong if it did.
+    """
+
+    def test_a_started_charge_is_never_retried(self):
+        history = History(
+            notified_at=NOW - timedelta(hours=NOTICE_HOURS + 1),
+            charge_started=True,
+        )
+        decision = _decide(history=history)
+        assert decision.action == SKIP
+        assert decision.will_take_money is False
+        assert "reconcile" in decision.reason
+
+    def test_it_outranks_an_elapsed_notice(self):
+        """Checked before the notice branch. Ordered the other way, an elapsed
+        notice would charge a card that is already mid-charge."""
+        history = History(
+            notified_at=NOW - timedelta(days=30),
+            charge_started=True,
+        )
+        assert _decide(history=history).action == SKIP
+
+    def test_it_outranks_the_trigger_as_well(self):
+        """Even with plenty of balance, a started charge is unresolved and must
+        not be quietly forgotten by a sweep that decides the account is fine."""
+        rich = _account(balance_paise=10_000_000, daily_burn_paise=1)
+        history = History(charge_started=True)
+        assert _decide(account=rich, history=history).action == SKIP
+
+    def test_a_scheduled_attempt_that_has_not_charged_still_proceeds(self):
+        """The guard must be about `charging` specifically, not about any
+        attempt existing — otherwise the first debit never runs."""
+        history = History(
+            notified_at=NOW - timedelta(hours=NOTICE_HOURS + 1),
+            charge_started=False,
+        )
+        assert _decide(history=history).action == CHARGE
+
+    def test_the_default_is_not_started(self):
+        assert History().charge_started is False

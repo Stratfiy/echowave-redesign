@@ -115,6 +115,9 @@ class History:
     consecutive_failures: int = 0
     #: Set when a notice has been sent and the debit is waiting out its clock.
     notified_at: datetime | None = None
+    #: True when an attempt has already reached the bank and not come back.
+    #: Distinct from ``in_flight``, which merely means one exists.
+    charge_started: bool = False
 
 
 @dataclass(frozen=True)
@@ -164,6 +167,18 @@ def decide(
 
     if not settings.enabled:
         return _skip("auto top-up is off for this account")
+
+    if history.charge_started:
+        # An attempt that reached the bank and never came back. The money may
+        # have moved; nothing here can tell, because the only record of the
+        # request is the row that says it was made. Retrying is the one action
+        # guaranteed to be wrong if it did — so this stops and waits for a
+        # person, which is the whole reason the row is committed before the
+        # bank is called rather than after.
+        return _skip(
+            "a previous charge was started and never completed; "
+            "reconcile it against the provider before trying again"
+        )
 
     # A scheduled debit whose notice period has elapsed is the one case that
     # takes money, and it is checked before the trigger is re-evaluated: the

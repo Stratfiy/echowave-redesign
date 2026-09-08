@@ -141,6 +141,7 @@ async def load_history(
             session, organization_id=organization_id
         ),
         notified_at=pending.notified_at if pending is not None else None,
+        charge_started=(pending is not None and pending.status == CHARGING),
     )
 
 
@@ -285,8 +286,18 @@ async def execute(
         await _fail(session, attempt=attempt, reason="no saved instrument on file")
         raise payments.PaymentError("No saved instrument on file.")
 
+    # Committed, not merely flushed. This function's contract — and the note at
+    # the top of this module — is that the row is written before the bank is
+    # called. A flush is not that: the transaction commits only when the sweep
+    # finishes, so a worker that died during the charge would roll the status
+    # back to `scheduled`, and the next sweep would present the card again for
+    # a debit the bank may already have taken.
+    #
+    # Committed, a crash leaves `charging` on the row, which `decide` refuses to
+    # retry. A stuck attempt needing a human beats a second charge.
     attempt.status = CHARGING
-    await session.flush()
+    await session.commit()
+    await session.refresh(attempt)
 
     try:
         order = await payments.create_topup_order(
