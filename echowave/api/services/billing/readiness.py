@@ -709,10 +709,10 @@ async def _fx_rate_check(
         "REMAINING-WORK.md §A2 — everything is quoted in dollars and settled in rupees"
     )
     remedy = (
-        "Put the rate you actually convert at on file at "
+        "Set the rate you convert at — the same figure is fine — at "
         "/superadmin/billing/rate-card, effective-dated from the day you "
-        "started charging rather than from today — anything earlier stays on "
-        "the seeded figure."
+        "started charging rather than from today. That records who chose it "
+        "and clears this check."
     )
 
     if row is None:
@@ -735,11 +735,11 @@ async def _fx_rate_check(
             title="A real USD/INR rate is in force",
             status=ACTION_REQUIRED,
             detail=(
-                f"The only rate in force is the one the migration seeded — "
-                f"₹{row.paise_per_usd / 100:,.2f}, effective from 1970 and "
-                "never superseded. Nothing is failing and no warning is "
-                "logged, because a row does exist; it simply is not a rate "
-                "anybody chose."
+                f"₹{row.paise_per_usd / 100:,.2f} is in force, but it is the row "
+                "the migration seeded rather than one an operator set, so "
+                "nothing here distinguishes a rate that was chosen from one "
+                "nobody has touched. This says the provenance is unrecorded — "
+                "not that the figure is wrong."
             ),
             reference=reference,
             remedy=remedy,
