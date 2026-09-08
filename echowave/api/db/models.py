@@ -4525,3 +4525,126 @@ class EmailVerificationChallengeModel(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     __table_args__ = (UniqueConstraint("user_id", name="_email_verification_user_uc"),)
+
+
+class AutoTopupSettingModel(Base):
+    """One account's standing instruction to top itself up.
+
+    Separate from ``PaymentMandateModel`` on purpose: the mandate is the bank's
+    permission and has a life of its own, while this is the customer's *policy*
+    — how low to get and how much to buy. One can exist without the other, and
+    conflating them would mean revoking a card silently discarded a preference,
+    or changing an amount required re-authorising with a bank.
+
+    Everything defaults to off and to zero. An account that somehow reaches an
+    enabled row without choosing an amount takes no money, because zero fails
+    the platform minimum in :mod:`api.services.billing.auto_topup`.
+    """
+
+    __tablename__ = "auto_topup_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+
+    enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+
+    # Trigger points. Both are held rather than one, mirroring `low_balance`:
+    # runway is the measure that scales, the absolute floor is the backstop for
+    # an account too new or too quiet to have a burn rate.
+    trigger_days = Column(Integer, nullable=False, default=5, server_default="5")
+    trigger_paise = Column(
+        BigInteger, nullable=False, default=15_000, server_default="15000"
+    )
+
+    amount_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+
+    # The runaway ceiling, in both dimensions. The count stops a fast loop; the
+    # money stops a slow one. Zero money cap means "count only", deliberately.
+    monthly_cap_paise = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    max_per_month = Column(Integer, nullable=False, default=4, server_default="4")
+
+    # Set when the run of failures trips the stop, so the UI can say why nothing
+    # is happening rather than leaving a toggle that looks on and does nothing.
+    paused_reason = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+
+
+class AutoTopupAttemptModel(Base):
+    """Every automatic debit, from the decision to the outcome.
+
+    This is the ledger the safety rules read: in-flight, cooldown, the monthly
+    caps and the consecutive-failure stop are all questions about rows here. It
+    is therefore written *before* the provider is called, never after — a crash
+    between the request and the record would otherwise leave a charge that no
+    guard can see, and the next sweep would make another.
+
+    ``notified_at`` is when the customer was told, and the debit may not run
+    until a clear day after it. That column is the compliance artefact: if
+    anybody ever asks whether notice was given, this is the answer.
+    """
+
+    __tablename__ = "auto_topup_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # scheduled | charging | succeeded | failed | cancelled. A plain string so a
+    # new outcome does not need a migration, as elsewhere in billing.
+    status = Column(
+        String(24), nullable=False, default="scheduled", server_default="scheduled"
+    )
+    amount_paise = Column(BigInteger, nullable=False)
+
+    #: Why the engine decided this, kept verbatim. A support question about an
+    #: unexpected debit is answered from this column.
+    reason = Column(Text, nullable=True)
+
+    notified_at = Column(DateTime(timezone=True), nullable=True)
+    charge_after = Column(DateTime(timezone=True), nullable=True)
+    charged_at = Column(DateTime(timezone=True), nullable=True)
+    failure_reason = Column(Text, nullable=True)
+
+    #: The payment this became, once it became one.
+    payment_id = Column(
+        Integer, ForeignKey("payments.id", ondelete="SET NULL"), nullable=True
+    )
+    provider_payment_id = Column(String(64), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index("ix_auto_topup_attempts_org", "organization_id", "status"),
+        # At most one attempt in flight per account. This is the double-charge
+        # guard made structural: the engine also refuses, but the engine runs in
+        # a worker that can be running twice, and a unique index cannot.
+        Index(
+            "uq_auto_topup_attempts_in_flight",
+            "organization_id",
+            unique=True,
+            postgresql_where=text("status IN ('scheduled', 'charging')"),
+        ),
+    )

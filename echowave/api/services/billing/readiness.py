@@ -397,6 +397,48 @@ async def _webhook_reachability_check(*, probe: bool) -> Check:
     )
 
 
+def _auto_topup_provider_check() -> Check:
+    """Can we take a variable amount without the customer present?
+
+    Reported rather than assumed, because the answer is an *approval* and not a
+    setting, and it has a lead time measured in days. Collecting on a mandate
+    the customer is not watching requires the provider to enable recurring
+    payments on the merchant account: a card or UPI authorisation registered
+    with a maximum amount, a token stored against it, and a pre-debit notice to
+    the customer a clear day before each debit.
+
+    None of that is configuration this process can inspect, and the decision
+    engine in :mod:`api.services.billing.auto_topup` is deliberately inert
+    without it — it schedules and refuses, but nothing presents an instrument.
+    Left silent, the failure looks like a feature that quietly does nothing.
+    """
+    return Check(
+        key="auto_topup_provider_enabled",
+        title="The provider can collect without the customer present",
+        status=NEEDS_A_HUMAN,
+        detail=(
+            "Automatic top-up needs recurring payments enabled on the merchant "
+            "account — an authorisation registered with a maximum amount and a "
+            "token held against it. That is an approval from the provider, not "
+            "a setting here, so nothing in this process can confirm it. Until "
+            "it is in place the decision engine runs and schedules, and no "
+            "instrument is ever presented."
+        ),
+        reference=(
+            "api/services/billing/auto_topup.py — the notice period and the "
+            "monthly ceilings are already enforced"
+        ),
+        remedy=(
+            "Apply for recurring payments / e-mandate on the Razorpay account "
+            "and confirm the per-debit maximum they register. Indian e-mandate "
+            "rules also require the customer be notified a clear 24 hours "
+            "before each debit, which is why the engine schedules rather than "
+            "charges — confirm the notification channel with them at the same "
+            "time."
+        ),
+    )
+
+
 def _round_trip_obligation() -> Check:
     """The one thing no check can discharge: somebody has to pay, once.
 
@@ -1043,5 +1085,6 @@ async def assess(
     checks.append(await _export_supply_check(session))
     checks.append(await _carrier_price_check(session))
     checks.append(await _carrier_enablement_check(session))
+    checks.append(_auto_topup_provider_check())
     checks.append(_round_trip_obligation())
     return Readiness(checks=tuple(checks))
