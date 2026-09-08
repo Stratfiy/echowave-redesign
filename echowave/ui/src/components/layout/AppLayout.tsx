@@ -55,15 +55,9 @@ function BackendStatusBanner() {
 
 interface AppLayoutProps {
   children: ReactNode;
-  headerActions?: ReactNode;
-  stickyTabs?: ReactNode;
 }
 
-const AppLayout: React.FC<AppLayoutProps> = ({
-  children,
-  headerActions,
-  stickyTabs,
-}) => {
+const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const pathname = usePathname();
 
   // Check if current route should have sidebar
@@ -87,25 +81,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
               {/* The workflow editor is the one full-bleed canvas in the app —
                   it needs the whole viewport, so it opts out of the top bar. */}
               {!isWorkflowEditor && <TopBar />}
-              {/* Optional header area for specific pages */}
-              {headerActions && (
-                <header className="w-full border-b border-border bg-card">
-                  <div className="flex items-center justify-between px-6 py-3">
-                    {headerActions}
-                  </div>
-                </header>
-              )}
-
-              {/* Optional sticky tabs */}
-              {stickyTabs && (
-                <div className="sticky top-14 z-30 border-b border-border bg-card">
-                  <div className="flex items-center px-6">
-                    {stickyTabs}
-                  </div>
-                </div>
-              )}
-
-              {/* Main content area */}
+              {/* A page's own title band and tabs come from `PageHeader`,
+                  rendered by the page itself. This shell deliberately offers no
+                  second way to put a header on a screen — two of them is how the
+                  app ended up with titles at different sizes in different
+                  places. */}
               <main className="app-surface flex-1">
                 {children}
               </main>

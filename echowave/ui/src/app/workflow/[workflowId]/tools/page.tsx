@@ -38,7 +38,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
-import WorkflowLayout from "../../WorkflowLayout";
 
 type Tool = {
     tool_uuid: string;
@@ -150,7 +149,7 @@ export default function AgentToolsPage() {
     if (authLoading || loading) return <SpinLoader />;
 
     return (
-        <WorkflowLayout>
+        <>
             <AgentHeader workflowId={workflowId} name={name} />
 
             <AgentTabs workflowId={workflowId} />
@@ -252,6 +251,6 @@ export default function AgentToolsPage() {
                     </>
                 )}
             </div>
-        </WorkflowLayout>
+        </>
     );
 }
