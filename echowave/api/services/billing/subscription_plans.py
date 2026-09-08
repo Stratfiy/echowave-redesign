@@ -80,24 +80,6 @@ class Plan:
     razorpay_plan_id_export: str | None
     enabled: bool
     sort_order: int
-    #: Net for a zero-rated export account. ``None`` — the default, and
-    #: what every plan carried before this existed — means the same as
-    #: ``price_paise``. Set only by a plan deliberately holding one
-    #: headline price across both tax regimes.
-    price_paise_export: int | None = None
-
-    def net_for(self, *, is_export: bool) -> int:
-        """The net this account is priced at, before any gross-up.
-
-        The single place the two regimes diverge. A domestic account is charged
-        this plus GST; a zero-rated export account is charged it outright. Held
-        as a method rather than read at each call site so a plan that prices the
-        two differently cannot be half-applied — which would show one figure and
-        collect another.
-        """
-        if is_export and self.price_paise_export is not None:
-            return self.price_paise_export
-        return self.price_paise
 
     @property
     def numbers_value_paise(self) -> int:
@@ -121,11 +103,6 @@ def _view(row: SubscriptionPlanModel) -> Plan:
         label=row.label,
         blurb=row.blurb or "",
         price_paise=int(row.price_paise),
-        price_paise_export=(
-            int(row.price_paise_export)
-            if getattr(row, "price_paise_export", None) is not None
-            else None
-        ),
         balance_paise=int(row.balance_paise or 0),
         included_numbers=int(row.included_numbers or 0),
         # A plan with no figure of its own follows the platform rental price
@@ -338,7 +315,6 @@ async def save(
     price_paise: int,
     balance_paise: int,
     included_numbers: int,
-    price_paise_export: int | None = None,
     blurb: str = "",
     extra_number_price_paise: int | None = None,
     knowledge_base_bytes: int = 0,
@@ -428,12 +404,6 @@ async def save(
     row.label = label.strip()
     row.blurb = (blurb or "").strip()
     row.price_paise = int(price_paise)
-    # Null means "same as domestic", which is what every plan did before
-    # this column existed. Only a plan deliberately holding one headline
-    # across both regimes sets it.
-    row.price_paise_export = (
-        int(price_paise_export) if price_paise_export is not None else None
-    )
     row.balance_paise = int(balance_paise)
     row.included_numbers = int(included_numbers)
     row.extra_number_price_paise = (
