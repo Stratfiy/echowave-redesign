@@ -29,6 +29,7 @@ import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { SimpleModelPicker } from "@/components/agent/SimpleModelPicker";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import ModelConfigurationV2 from "@/components/ModelConfigurationV2";
 import { SETTINGS_DOCUMENTATION_URLS } from "@/constants/documentation";
 import { UnsavedChangesProvider } from "@/context/UnsavedChangesContext";
@@ -61,25 +62,25 @@ export default function ServiceConfigurationPage() {
     // navigating away with it half-changed used to discard it silently.
     return (
         <UnsavedChangesProvider>
-        <div className="min-h-screen">
-            <div className="container mx-auto px-4 py-8">
-                <div className="mx-auto max-w-6xl space-y-6">
-                    <div>
-                        <h1 className="text-[26px] leading-tight">Models &amp; voices</h1>
-                        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                            The default for every agent in this organization. An agent can
-                            choose a different bundle while you create it, and that choice
-                            wins for that agent.{" "}
-                            <a
-                                href={SETTINGS_DOCUMENTATION_URLS.modelOverrides}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-0.5 underline"
-                            >
-                                Learn more <ExternalLink className="h-3 w-3" />
-                            </a>
-                        </p>
-                    </div>
+            <PageHeader
+                title="Models & voices"
+                description={
+                    <>
+                        The default for every agent in this organization. An agent can
+                        choose a different bundle while you create it, and that choice
+                        wins for that agent.{" "}
+                        <a
+                            href={SETTINGS_DOCUMENTATION_URLS.modelOverrides}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-0.5 underline"
+                        >
+                            Learn more <ExternalLink className="h-3 w-3" />
+                        </a>
+                    </>
+                }
+            />
+            <PageBody className="space-y-6">
 
                     <div
                         role="tablist"
@@ -116,9 +117,7 @@ export default function ServiceConfigurationPage() {
                     ) : (
                         <ModelConfigurationV2 guardUnsavedChanges />
                     )}
-                </div>
-            </div>
-        </div>
+            </PageBody>
         </UnsavedChangesProvider>
     );
 }

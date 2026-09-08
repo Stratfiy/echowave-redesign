@@ -158,7 +158,7 @@ export default function WorkflowPage() {
     return (
         <>
             <PageHeader
-                title="Voice Agents"
+                title="Voice agents"
                 description="Design a conversation, publish it, and point a number at it."
                 actions={
                     <>
