@@ -521,12 +521,21 @@ async def create_plan_mandate(
     # The plan decides the price and which provider plan to subscribe to. The
     # constants remain the fallback for a deployment that has not run the plans
     # migration, so this function keeps working before the table exists.
+    # The profile is read first because the plan's net can depend on the tax
+    # regime. A plan sold as one headline in both — "₹2,999, GST included in
+    # India" — carries two nets that collect the same amount, and choosing the
+    # net after computing tax would price the account on the domestic figure
+    # and then charge the export one.
+    profile = await get_profile(session, organization_id=organization_id)
     net_paise = int(
         price_paise
         if price_paise is not None
-        else (plan.price_paise if plan is not None else STARTER_PLAN_PRICE_PAISE)
+        else (
+            plan.net_for(is_export=profile.is_export)
+            if plan is not None
+            else STARTER_PLAN_PRICE_PAISE
+        )
     )
-    profile = await get_profile(session, organization_id=organization_id)
     try:
         breakdown = compute_tax(
             taxable_paise=net_paise,

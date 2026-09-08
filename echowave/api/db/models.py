@@ -3164,8 +3164,18 @@ class SubscriptionPlanModel(Base):
     label = Column(String(80), nullable=False)
     blurb = Column(Text, nullable=False, default="", server_default="")
 
-    #: Net of GST, per period.
+    #: Net of GST, per period. What a **domestic** account is priced at; the
+    #: customer is charged this grossed up at their own rate.
     price_paise = Column(BigInteger, nullable=False)
+    #: Net for a **zero-rated export** account, when it differs.
+    #:
+    #: One net price cannot serve both regimes once the headline is the thing
+    #: held constant. A domestic account pays ``price_paise`` plus GST while an
+    #: export account pays its net outright, so selling "₹2,999" to everyone
+    #: means two different nets that collect the same amount. Null keeps the old
+    #: behaviour exactly — export pays ``price_paise`` — so a plan that does not
+    #: care is unaffected.
+    price_paise_export = Column(BigInteger, nullable=True)
     #: Call balance granted when a cycle is collected.
     balance_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
     #: How many numbers the price covers. The next one bills separately.

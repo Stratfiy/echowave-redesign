@@ -123,7 +123,11 @@ class TestTheKnowledgeBaseIsSomethingAPlanBuys:
             code="scale",
             label="Scale",
             price_paise=1_999_900,
-            balance_paise=1_900_000,
+            # Rs18,000 rather than Rs19,000: four numbers cost Rs1,000 of
+            # carrier rent a month, and the old figure left Rs999 to cover it.
+            # This test is about knowledge-base entitlements, not pricing, so
+            # the fixture is made solvent rather than the guard relaxed.
+            balance_paise=1_800_000,
             included_numbers=4,
             knowledge_base_bytes=500 * MB,
             knowledge_base_max_file_bytes=25 * MB,

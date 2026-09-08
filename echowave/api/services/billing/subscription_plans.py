@@ -80,6 +80,24 @@ class Plan:
     razorpay_plan_id_export: str | None
     enabled: bool
     sort_order: int
+    #: Net for a zero-rated export account. ``None`` — the default, and
+    #: what every plan carried before this existed — means the same as
+    #: ``price_paise``. Set only by a plan deliberately holding one
+    #: headline price across both tax regimes.
+    price_paise_export: int | None = None
+
+    def net_for(self, *, is_export: bool) -> int:
+        """The net this account is priced at, before any gross-up.
+
+        The single place the two regimes diverge. A domestic account is charged
+        this plus GST; a zero-rated export account is charged it outright. Held
+        as a method rather than read at each call site so a plan that prices the
+        two differently cannot be half-applied — which would show one figure and
+        collect another.
+        """
+        if is_export and self.price_paise_export is not None:
+            return self.price_paise_export
+        return self.price_paise
 
     @property
     def numbers_value_paise(self) -> int:
@@ -103,6 +121,11 @@ def _view(row: SubscriptionPlanModel) -> Plan:
         label=row.label,
         blurb=row.blurb or "",
         price_paise=int(row.price_paise),
+        price_paise_export=(
+            int(row.price_paise_export)
+            if getattr(row, "price_paise_export", None) is not None
+            else None
+        ),
         balance_paise=int(row.balance_paise or 0),
         included_numbers=int(row.included_numbers or 0),
         # A plan with no figure of its own follows the platform rental price
@@ -315,6 +338,7 @@ async def save(
     price_paise: int,
     balance_paise: int,
     included_numbers: int,
+    price_paise_export: int | None = None,
     blurb: str = "",
     extra_number_price_paise: int | None = None,
     knowledge_base_bytes: int = 0,
@@ -364,6 +388,29 @@ async def save(
             "plan that grants more than it collects loses money on every "
             "cycle. Raise the price or lower the balance."
         )
+
+    # The balance is not the only thing the price has to cover. An included
+    # number is rented from a carrier every month whether the customer calls or
+    # not, so a plan whose price barely exceeds its balance still loses money —
+    # by exactly the carrier's rent, every cycle, on every account.
+    #
+    # The check above misses that by design: it was written when the only cost
+    # inside a plan was balance. Holding a headline price constant across tax
+    # regimes is what makes the gap reachable — pricing "₹2,999 including GST"
+    # drops the domestic net to ₹2,541.53, which still clears a ₹2,500 balance
+    # by ₹41.53 and then loses ₹208.47 a month to a number that costs ₹250.
+    carrier_cost = included_numbers * constants.NUMBER_RENTAL_COST_PAISE
+    if carrier_cost and balance_paise + carrier_cost > price_paise:
+        shortfall = balance_paise + carrier_cost - price_paise
+        raise PlanError(
+            f"This plan collects ₹{price_paise / 100:,.2f} net and spends "
+            f"₹{balance_paise / 100:,.2f} of it on granted balance and "
+            f"₹{carrier_cost / 100:,.2f} renting "
+            f"{included_numbers} number{'s' if included_numbers != 1 else ''} "
+            f"from the carrier — ₹{shortfall / 100:,.2f} more than it takes, "
+            "every cycle, on every account. Lower the balance, raise the "
+            "price, or include fewer numbers."
+        )
     if included_numbers and not (
         extra_number_price_paise
         if extra_number_price_paise is not None
@@ -381,6 +428,12 @@ async def save(
     row.label = label.strip()
     row.blurb = (blurb or "").strip()
     row.price_paise = int(price_paise)
+    # Null means "same as domestic", which is what every plan did before
+    # this column existed. Only a plan deliberately holding one headline
+    # across both regimes sets it.
+    row.price_paise_export = (
+        int(price_paise_export) if price_paise_export is not None else None
+    )
     row.balance_paise = int(balance_paise)
     row.included_numbers = int(included_numbers)
     row.extra_number_price_paise = (
