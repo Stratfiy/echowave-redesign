@@ -679,8 +679,9 @@ async def _fx_rate_check(
     """Has anyone put a real USD/INR rate on file.
 
     The platform fee is quoted in dollars and settled in rupees, so the rate is
-    part of every dollar-denominated component's price. Against a rupee nearer
-    ₹104 the seeded ₹96 is roughly 8% light, on every charge.
+    part of every dollar-denominated component's price. This check is about
+    *provenance*, not about the figure: see PRICING-DECISIONS.md §3.2a, where
+    the rate in use is recorded as a settled decision. Do not reopen it here.
 
     This checks the rate in force *now* and whether it is the migration's
     placeholder, which is two failure modes rather than one:
