@@ -150,7 +150,12 @@ async def erase_number(
     failures = 0
 
     for run in runs:
-        deleted, failed = await _delete_objects(_storage_keys(run))
+        # Erasure takes everything, unlike the retention sweep, whose two
+        # windows expire at different times. A subject asking to be erased
+        # is not asking for their recording only.
+        deleted, failed = await _delete_objects(
+            _storage_keys(run, include_transcript=True)
+        )
         objects_deleted += deleted
         if failed:
             failures += len(failed)
@@ -237,7 +242,12 @@ async def erase_organization(
     failures = 0
 
     for run in runs:
-        deleted, failed = await _delete_objects(_storage_keys(run))
+        # Erasure takes everything, unlike the retention sweep, whose two
+        # windows expire at different times. A subject asking to be erased
+        # is not asking for their recording only.
+        deleted, failed = await _delete_objects(
+            _storage_keys(run, include_transcript=True)
+        )
         objects_deleted += deleted
         if failed:
             failures += len(failed)

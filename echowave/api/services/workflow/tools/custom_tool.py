@@ -297,7 +297,14 @@ async def execute_http_tool(
         logger.debug(
             f"Resolved preset parameters for '{tool.name}': {list(preset_arguments.keys())}"
         )
-    logger.debug(f"Request body: {body}, params: {params}")
+    # Field *names* only. The values are whatever the agent collected from the
+    # person on the line — a name, a phone number, a complaint — and a debug log
+    # is not a lawful place to keep that. `redaction.py` exists because the same
+    # data on a run row had to be erasable; a log line is not erasable at all.
+    logger.debug(
+        f"Request fields for '{tool.name}': body={sorted((body or {}).keys())}, "
+        f"params={sorted((params or {}).keys())}"
+    )
 
     try:
         async with httpx.AsyncClient(timeout=timeout_seconds) as client:
@@ -315,16 +322,39 @@ async def execute_http_tool(
             except Exception:
                 response_data = {"raw_response": response.text}
 
-            result = {
-                "status": "success",
-                "status_code": response.status_code,
-                "data": response_data,
-            }
+            # The status code decides, not the absence of an exception.
+            #
+            # This returned "success" for every response the server managed to
+            # send, which meant a 401 from an expired token, a 404 from a wrong
+            # datacentre in the URL, and a 500 from the vendor all reached the
+            # model as a completed action. The model then tells the caller their
+            # appointment is booked. Nothing was booked, the call ends, and the
+            # only record is a status code nobody reads inside a "success".
+            #
+            # A redirect counts as a failure here for the same reason: this
+            # client does not follow them, so a 301 carries a body that is not
+            # the API's answer. Reporting it plainly gets the URL corrected;
+            # calling it success hides it until a customer complains.
+            if not 200 <= response.status_code < 300:
+                logger.warning(
+                    f"Custom tool '{tool.name}' returned HTTP "
+                    f"{response.status_code}; reporting failure to the caller"
+                )
+                return {
+                    "status": "error",
+                    "status_code": response.status_code,
+                    "error": (f"The request failed with HTTP {response.status_code}."),
+                    "data": response_data,
+                }
 
             logger.debug(
                 f"Custom tool '{tool.name}' completed with status {response.status_code}"
             )
-            return result
+            return {
+                "status": "success",
+                "status_code": response.status_code,
+                "data": response_data,
+            }
 
     except httpx.TimeoutException:
         logger.error(f"Custom tool '{tool.name}' timed out after {timeout_seconds}s")
