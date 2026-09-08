@@ -27,6 +27,8 @@ import { useAuth } from "@/lib/auth";
 import {
     CREDENTIAL_TYPES,
     credentialFields,
+    type CredentialTypeValue,
+    missingRequired,
 } from "@/lib/credentials/fields";
 
 interface CreateCredentialDialogProps {
@@ -44,7 +46,8 @@ export function CreateCredentialDialog({
 
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
-    const [credentialType, setCredentialType] = useState<WebhookCredentialType>("bearer_token");
+    const [credentialType, setCredentialType] =
+        useState<CredentialTypeValue>("bearer_token");
     const [credentialData, setCredentialData] = useState<Record<string, string>>({});
     const [isCreating, setIsCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -62,7 +65,11 @@ export function CreateCredentialDialog({
                 body: {
                     name,
                     description: description || undefined,
-                    credential_type: credentialType,
+                    // The generated client predates the `oauth2` enum value;
+                    // regenerating needs a running backend, and
+                    // `validate_credential_data` on the server is the authority
+                    // either way. Delete after `npm run generate-client`.
+                    credential_type: credentialType as WebhookCredentialType,
                     credential_data: credentialData,
                 },
             });
@@ -150,7 +157,7 @@ export function CreateCredentialDialog({
                         <Select
                             value={credentialType}
                             onValueChange={(v) => {
-                                setCredentialType(v as WebhookCredentialType);
+                                setCredentialType(v as CredentialTypeValue);
                                 setCredentialData({});
                             }}
                         >
@@ -169,7 +176,14 @@ export function CreateCredentialDialog({
 
                     {fields.map((field) => (
                         <div key={field.key} className="grid gap-2">
-                            <Label htmlFor={`cred-${field.key}`}>{field.label}</Label>
+                            <Label htmlFor={`cred-${field.key}`}>
+                                {field.label}
+                                {field.optional && (
+                                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                        optional
+                                    </span>
+                                )}
+                            </Label>
                             <Input
                                 id={`cred-${field.key}`}
                                 type={field.isSecret ? "password" : "text"}
@@ -182,6 +196,14 @@ export function CreateCredentialDialog({
                                 }
                                 placeholder={field.placeholder}
                             />
+                            {/* The hint is where a wrong value gives a 401 that
+                                reads as a bad secret — the Zoho scheme above
+                                all. Cheaper here than in a support thread. */}
+                            {field.hint && (
+                                <p className="text-xs text-muted-foreground">
+                                    {field.hint}
+                                </p>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -196,7 +218,11 @@ export function CreateCredentialDialog({
                     </Button>
                     <Button
                         onClick={handleCreate}
-                        disabled={!name.trim() || isCreating}
+                        disabled={
+                            !name.trim() ||
+                            isCreating ||
+                            missingRequired(credentialType, credentialData).length > 0
+                        }
                     >
                         {isCreating ? (
                             <>
