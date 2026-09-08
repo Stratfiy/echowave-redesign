@@ -23,7 +23,7 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 import { CurrentOrganization } from "./CurrentOrganization";
-import { NAV_SECTIONS, type SidebarNavItem, STAFF_SECTION } from "./navigation";
+import { getVisibleNavSections, type SidebarNavItem } from "./navigation";
 
 /**
  * Global search over the app's own destinations.
@@ -37,16 +37,7 @@ function useNavSearch(query: string, roles: AccessRoles) {
   return useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    // The search index is a second door to every destination, so it has to
-    // apply the same rules the sidebar does. It did not: STAFF_SECTION was
-    // concatenated unconditionally, so a customer typing "admin", "kyc" or
-    // "approve" was offered the staff review queue — the exact thing
-    // navigation.ts says is worse than making a reviewer reload. A hidden
-    // sidebar entry is not hidden if the search box still hands it over.
-    const sections = roles.isStaff ? [...NAV_SECTIONS, STAFF_SECTION] : NAV_SECTIONS;
-    const all: SidebarNavItem[] = sections
-      .flatMap((s) => s.items)
-      .filter((item) => !item.requiresOrganizationAdmin || roles.isOrganizationAdmin);
+    const all: SidebarNavItem[] = getVisibleNavSections({ isStaff: roles.isStaff, isOrganizationAdmin: roles.isOrganizationAdmin }).flatMap(section => section.items);
     return all
       .map((item) => {
         const title = item.title.toLowerCase();

@@ -56,10 +56,9 @@ import {
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { loadCheckout } from "@/lib/billing/checkout";
 import { formatDateTimeIST, formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
-
-const RAZORPAY_CHECKOUT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
 
 /** Rupee amounts offered as one click. Chosen to bracket a month of ordinary
  *  usage rather than to anchor high. */
@@ -141,53 +140,6 @@ const EMPTY_PROFILE: BillingProfileFields = {
     billing_email: "",
 };
 
-type RazorpayOptions = {
-    key: string;
-    amount: number;
-    currency: string;
-    order_id: string;
-    name: string;
-    description: string;
-    handler: () => void;
-    modal: { ondismiss: () => void };
-    theme: { color: string };
-};
-
-declare global {
-    interface Window {
-        Razorpay?: new (options: RazorpayOptions) => { open: () => void };
-    }
-}
-
-/** Load Razorpay's checkout script once, on demand.
- *
- *  Not in the app shell: it is a third-party script on every page load for a
- *  screen most people visit once a month. */
-function loadCheckout(): Promise<void> {
-    if (typeof window === "undefined") return Promise.reject(new Error("no window"));
-    if (window.Razorpay) return Promise.resolve();
-
-    return new Promise((resolve, reject) => {
-        const existing = document.querySelector<HTMLScriptElement>(
-            `script[src="${RAZORPAY_CHECKOUT_SRC}"]`,
-        );
-        if (existing) {
-            existing.addEventListener("load", () => resolve());
-            existing.addEventListener("error", () =>
-                reject(new Error("Could not load the payment window.")),
-            );
-            return;
-        }
-        const script = document.createElement("script");
-        script.src = RAZORPAY_CHECKOUT_SRC;
-        script.async = true;
-        script.onload = () => resolve();
-        script.onerror = () =>
-            reject(new Error("Could not load the payment window."));
-        document.body.appendChild(script);
-    });
-}
-
 function StatusBadge({ status }: { status: string }) {
     const shape =
         status === "paid"
@@ -219,6 +171,8 @@ function StatusBadge({ status }: { status: string }) {
 export default function BillingPage() {
     const { user, loading: authLoading } = useAuth();
     const hasFetched = useRef(false);
+    const mounted = useRef(true);
+    const pollGeneration = useRef(0);
     const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [balance, setBalance] = useState<Balance | null>(null);
@@ -239,60 +193,71 @@ export default function BillingPage() {
         null,
     );
 
-    const refresh = useCallback(async () => {
-        const [balanceResponse, paymentsResponse, profileResponse, documentsResponse] =
-            await Promise.all([
-                getBalanceApiV1BillingBalanceGet(),
-                listPaymentsApiV1BillingPaymentsGet(),
-                getBillingProfileApiV1BillingProfileGet(),
-                listTaxDocumentsApiV1BillingDocumentsGet(),
-            ]);
+    const refresh = useCallback(async (includeDetails = true) => {
+        try {
+            // Read payment status before the balance so a newly paid order cannot
+            // be confirmed alongside a balance fetched before its webhook committed.
+            const paymentsResponse = await listPaymentsApiV1BillingPaymentsGet();
+            const [balanceResponse, profileResponse, documentsResponse] =
+                await Promise.all([
+                    getBalanceApiV1BillingBalanceGet(),
+                    ...(includeDetails ? [getBillingProfileApiV1BillingProfileGet(), listTaxDocumentsApiV1BillingDocumentsGet()] : []),
+                ]);
 
-        if (balanceResponse.error) {
-            setError(
-                detailFromResult(balanceResponse, "Could not load your balance"),
-            );
+            if (balanceResponse.error) {
+                setError(
+                    detailFromResult(balanceResponse, "Could not load your balance"),
+                );
+                return null;
+            }
+            if (paymentsResponse.error) {
+                setError(
+                    detailFromResult(paymentsResponse, "Could not load your payments"),
+                );
+                return null;
+            }
+
+            if (profileResponse?.error || documentsResponse?.error) {
+                setError(profileResponse?.error
+                    ? detailFromResult(profileResponse, "Could not load your billing details. Please refresh.")
+                    : detailFromResult(documentsResponse, "Could not load your tax documents. Please refresh."));
+                return null;
+            }
+
+            const next = balanceResponse.data as unknown as Balance;
+            setBalance(next);
+            const nextPayments = (paymentsResponse.data as unknown as { payments: Payment[] }).payments ?? [];
+            setPayments(nextPayments);
+
+            if (profileResponse && !profileResponse.error) {
+                const loaded = profileResponse.data as unknown as {
+                    profile: BillingProfileFields;
+                    is_complete: boolean;
+                };
+                // Nulls become empty strings: a controlled input handed null flips
+                // to uncontrolled and React drops the value on the next render.
+                setProfile({
+                    ...EMPTY_PROFILE,
+                    ...Object.fromEntries(
+                        Object.entries(loaded.profile).map(([k, v]) => [k, v ?? ""]),
+                    ),
+                    country_code: loaded.profile.country_code || "IN",
+                });
+                setProfileComplete(loaded.is_complete);
+            }
+            if (documentsResponse && !documentsResponse.error) {
+                setDocuments(
+                    (documentsResponse.data as unknown as { documents: TaxDocument[] })
+                        .documents ?? [],
+                );
+            }
+
+            setError(null);
+            return { balance: next, payments: nextPayments };
+        } catch {
+            setError("Could not load billing. Check your connection and refresh to try again.");
             return null;
         }
-        if (paymentsResponse.error) {
-            setError(
-                detailFromResult(paymentsResponse, "Could not load your payments"),
-            );
-            return null;
-        }
-
-        const next = balanceResponse.data as unknown as Balance;
-        setBalance(next);
-        setPayments(
-            ((paymentsResponse.data as unknown as { payments: Payment[] }).payments) ??
-                [],
-        );
-
-        if (!profileResponse.error) {
-            const loaded = profileResponse.data as unknown as {
-                profile: BillingProfileFields;
-                is_complete: boolean;
-            };
-            // Nulls become empty strings: a controlled input handed null flips
-            // to uncontrolled and React drops the value on the next render.
-            setProfile({
-                ...EMPTY_PROFILE,
-                ...Object.fromEntries(
-                    Object.entries(loaded.profile).map(([k, v]) => [k, v ?? ""]),
-                ),
-                country_code: loaded.profile.country_code || "IN",
-            });
-            setProfileComplete(loaded.is_complete);
-        }
-        if (!documentsResponse.error) {
-            setDocuments(
-                (documentsResponse.data as unknown as { documents: TaxDocument[] })
-                    .documents ?? [],
-            );
-        }
-
-        setError(null);
-        return next;
     }, []);
 
     const saveProfile = useCallback(async () => {
@@ -321,6 +286,8 @@ export default function BillingPage() {
             }
             setNotice("Billing details saved.");
             await refresh();
+        } catch {
+            setError("Could not save your billing details. Please try again.");
         } finally {
             setSavingProfile(false);
         }
@@ -348,6 +315,8 @@ export default function BillingPage() {
             setNotice(
                 sentTo ? `${doc.number} sent to ${sentTo}.` : `${doc.number} sent.`,
             );
+        } catch {
+            setError("Could not send the document. Please try again.");
         } finally {
             setEmailingDocumentId(null);
         }
@@ -374,6 +343,8 @@ export default function BillingPage() {
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
+        } catch {
+            setError("Could not download the PDF. Please try again.");
         } finally {
             setDownloadingDocumentId(null);
         }
@@ -391,35 +362,40 @@ export default function BillingPage() {
     // Any timer still pending when the screen unmounts would keep firing
     // requests against a page nobody is looking at.
     useEffect(() => {
+        mounted.current = true;
         return () => {
+            mounted.current = false;
+            pollGeneration.current += 1;
             if (pollTimer.current) clearTimeout(pollTimer.current);
         };
     }, []);
 
-    /** Re-read the balance until it moves, or until we give up saying so.
-     *
-     *  The credit arrives by webhook, out of band from this browser, so there
-     *  is nothing to await — only to watch for. */
+    /** Confirm this order from the server, even when concurrent calls spend credit. */
     const waitForCredit = useCallback(
-        (before: number, attempt = 0) => {
+        (orderId: string, attempt = 0, generation = ++pollGeneration.current) => {
+            if (!mounted.current || generation !== pollGeneration.current) return;
             pollTimer.current = setTimeout(() => {
                 void (async () => {
-                    const next = await refresh();
-                    if (next && next.balance_paise > before) {
+                    const next = await refresh(false);
+                    if (!mounted.current || generation !== pollGeneration.current) return;
+                    const payment = next?.payments.find(item => item.order_id === orderId);
+                    if (payment?.status === "paid") {
                         setAwaitingCredit(false);
-                        setNotice("Payment received. Your credit is available now.");
+                        setNotice("Payment received. Your balance is up to date, including any recent usage.");
+                        return;
+                    }
+                    if (payment?.status === "failed") {
+                        setAwaitingCredit(false);
+                        setNotice(null);
+                        setError("The payment was not completed. Check your payment history before trying again.");
                         return;
                     }
                     if (attempt + 1 >= POLL_ATTEMPTS) {
                         setAwaitingCredit(false);
-                        setNotice(
-                            "Your payment is being confirmed. Credit usually appears " +
-                                "within a minute — refresh the page, or contact support " +
-                                "if it does not.",
-                        );
+                        setNotice("Your payment is still being confirmed. Refresh payment history in a minute, or contact support if it remains pending.");
                         return;
                     }
-                    waitForCredit(before, attempt + 1);
+                    waitForCredit(orderId, attempt + 1, generation);
                 })();
             }, POLL_INTERVAL_MS);
         },
@@ -468,7 +444,6 @@ export default function BillingPage() {
                 currency: string;
                 key_id: string;
             };
-            const balanceBefore = balance?.balance_paise ?? 0;
 
             const Checkout = window.Razorpay;
             if (!Checkout) {
@@ -491,7 +466,7 @@ export default function BillingPage() {
                     // callback is an unauthenticated client claiming success.
                     setAwaitingCredit(true);
                     setNotice("Payment submitted. Confirming with the bank…");
-                    waitForCredit(balanceBefore);
+                    waitForCredit(order.order_id);
                 },
                 modal: {
                     ondismiss: () => {
@@ -518,6 +493,16 @@ export default function BillingPage() {
             <div className="mx-auto max-w-4xl space-y-6 p-6">
                 <Skeleton className="h-32 w-full" />
                 <Skeleton className="h-64 w-full" />
+            </div>
+        );
+    }
+
+    if (!balance) {
+        return (
+            <div className="mx-auto max-w-4xl space-y-4 p-6">
+                <h1 className="text-2xl font-semibold">Billing</h1>
+                <p role="alert">{error ?? "Your billing information is unavailable."}</p>
+                <Button onClick={() => void refresh()}>Retry loading billing</Button>
             </div>
         );
     }
@@ -583,14 +568,14 @@ export default function BillingPage() {
             </div>
 
             {error && (
-                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>{error}</span>
                 </div>
             )}
 
             {notice && (
-                <div className="flex items-start gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-700 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-300">
+                <div role="status" className="flex items-start gap-2 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-700 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-300">
                     {awaitingCredit ? (
                         <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
                     ) : (
