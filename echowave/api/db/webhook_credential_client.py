@@ -105,6 +105,49 @@ class WebhookCredentialClient(BaseDBClient):
             result = await session.execute(query)
             return result.scalar_one_or_none()
 
+    async def save_oauth_token_cache(
+        self, credential_uuid: str, credential_data: dict
+    ) -> None:
+        """Write a freshly minted OAuth access token back onto the credential.
+
+        Deliberately narrow. This runs mid-call, from a worker that may not be
+        the one that loaded the row, and it must never touch the grant itself:
+        it re-reads the stored data under a row lock and copies across only the
+        two cache keys. An operator rotating the refresh token while a call is
+        in flight keeps their new value — the alternative, writing the whole
+        dict the caller happens to be holding, would silently restore the old
+        secret and the rotation would look like it never happened.
+
+        Failure is not raised. The access token is already in hand for the
+        request that minted it; losing the cache costs one extra exchange next
+        time, and that is not worth failing a live call over.
+        """
+        cache = {
+            key: credential_data.get(key)
+            for key in ("access_token", "expires_at")
+            if credential_data.get(key)
+        }
+        if not cache:
+            return
+        try:
+            async with self.async_session() as session:
+                row = await session.scalar(
+                    select(ExternalCredentialModel)
+                    .where(ExternalCredentialModel.credential_uuid == credential_uuid)
+                    .with_for_update()
+                )
+                if row is None:
+                    return
+                # A new dict, because SQLAlchemy does not track mutation of a
+                # JSON column in place and the write would be dropped.
+                row.credential_data = {**(row.credential_data or {}), **cache}
+                await session.commit()
+        except Exception:  # noqa: BLE001 - a cache write must not fail a call
+            logger.warning(
+                "Could not persist the refreshed OAuth token for credential {}",
+                credential_uuid,
+            )
+
     async def update_credential(
         self,
         credential_uuid: str,

@@ -48,7 +48,12 @@ from api.constants import (
     RAZORPAY_WEBHOOK_SECRET,
     TOPUP_INCREMENT_PAISE,
 )
-from api.db.models import CreditLedgerModel, PaymentMandateModel, PaymentModel
+from api.db.models import (
+    CreditLedgerModel,
+    PaymentMandateModel,
+    PaymentModel,
+    PaymentTokenModel,
+)
 from api.enums import CreditLedgerKind
 from api.services.billing.billing_profile import get_profile
 from api.services.billing.money import round_half_up_div
@@ -269,6 +274,198 @@ async def create_topup_order(
         currency="INR",
         key_id=key_id,
     )
+
+
+async def remember_token(
+    session: AsyncSession, *, organization_id: int, entity: dict
+) -> PaymentTokenModel | None:
+    """Keep the instrument a customer just authorised us to re-present.
+
+    Called from the captured-payment path, because that is the only moment the
+    provider hands the token over: it arrives once, on the payment that
+    registered it, and is never repeated. Missing it means the customer has to
+    authorise again, which they experience as the feature not working.
+
+    Only tokens marked recurring are kept. An ordinary card payment carries a
+    token id too — for the customer's own saved-card convenience — and treating
+    that as standing permission to debit would be taking money on the strength
+    of a checkbox they ticked to save typing.
+
+    Never raises. This runs inside the webhook that credits the ledger, and a
+    token we failed to store is a feature that needs re-authorising, while a
+    webhook that failed is a customer charged with no credit.
+    """
+    token_id = entity.get("token_id")
+    if not token_id:
+        return None
+    if not entity.get("recurring"):
+        # Saved for convenience, not authorised for collection. See above.
+        return None
+
+    try:
+        # A savepoint, not a bare flush. This runs inside the transaction that
+        # has just credited the customer's ledger, and a failed flush aborts the
+        # whole transaction — so without this, a token that could not be stored
+        # would roll back the credit for a payment the bank has already taken.
+        # That is the exact disaster the "never raises" contract exists to
+        # prevent, and catching the exception is not enough to prevent it.
+        async with session.begin_nested():
+            existing = await session.scalar(
+                select(PaymentTokenModel).where(
+                    PaymentTokenModel.provider == PROVIDER,
+                    PaymentTokenModel.token_id == str(token_id),
+                )
+            )
+            method = str(entity.get("method") or "") or None
+            card = entity.get("card") or {}
+            hint = card.get("last4") or entity.get("vpa") or None
+            # Razorpay reports the registered ceiling on the token, in paise. Absent
+            # means unknown, and unknown must not be read as unlimited.
+            max_amount = entity.get("max_amount")
+            max_amount = (
+                int(max_amount) if isinstance(max_amount, (int, float)) else None
+            )
+
+            if existing is not None:
+                existing.status = "active"
+                existing.customer_id = entity.get("customer_id") or existing.customer_id
+                existing.method = method or existing.method
+                existing.instrument_hint = hint or existing.instrument_hint
+                if max_amount is not None:
+                    existing.max_amount_paise = max_amount
+                await session.flush()
+                return existing
+
+            row = PaymentTokenModel(
+                organization_id=organization_id,
+                provider=PROVIDER,
+                token_id=str(token_id),
+                customer_id=entity.get("customer_id"),
+                method=method,
+                instrument_hint=str(hint) if hint else None,
+                max_amount_paise=max_amount,
+                status="active",
+            )
+            session.add(row)
+            await session.flush()
+            logger.info(
+                "Stored a recurring {} token for org {}",
+                method or "payment",
+                organization_id,
+            )
+            return row
+    except Exception as exc:  # noqa: BLE001 - never fail the crediting webhook
+        logger.error(
+            "Could not store the recurring token for org {}: {}",
+            organization_id,
+            exc,
+        )
+        return None
+
+
+async def active_token(
+    session: AsyncSession, *, organization_id: int
+) -> PaymentTokenModel | None:
+    """The instrument we may present for this account, if any."""
+    return await session.scalar(
+        select(PaymentTokenModel)
+        .where(
+            PaymentTokenModel.organization_id == organization_id,
+            PaymentTokenModel.provider == PROVIDER,
+            PaymentTokenModel.status == "active",
+        )
+        .order_by(PaymentTokenModel.created_at.desc())
+        .limit(1)
+    )
+
+
+async def revoke_token(session: AsyncSession, *, token_id: str) -> None:
+    """Stop presenting an instrument. Called when the bank or customer cancels.
+
+    Marked rather than deleted: a charge that failed against it is easier to
+    explain later with the row still there.
+    """
+    row = await session.scalar(
+        select(PaymentTokenModel).where(
+            PaymentTokenModel.provider == PROVIDER,
+            PaymentTokenModel.token_id == str(token_id),
+        )
+    )
+    if row is not None:
+        row.status = "revoked"
+        await session.flush()
+
+
+async def charge_saved_token(
+    *,
+    order_id: str,
+    amount_paise: int,
+    token: PaymentTokenModel,
+    email: str | None,
+    contact: str | None,
+) -> str:
+    """Present a saved instrument for an order nobody is watching.
+
+    ``amount_paise`` is the **gross** figure — what the card is charged — because
+    that is what the order was created for. Everything else in billing passes
+    net amounts, so this parameter is the exception and is named for it.
+
+    The customer is not present, so there is no page to redirect to and no way
+    to recover from a soft decline by asking them to try again. A failure here
+    is final for this attempt, and the caller records it against the attempt
+    ledger so the consecutive-failure stop can see it.
+    """
+    key_id, key_secret = _require_api_credentials()
+
+    if token.status != "active":
+        raise PaymentError("The saved instrument is no longer active.")
+    if token.max_amount_paise is not None and amount_paise > token.max_amount_paise:
+        # Checked here as well as in the decision engine: this function is the
+        # last thing between an amount and the customer's bank, and the engine
+        # is not its only possible caller.
+        raise PaymentError(
+            "The charge is above the authorised maximum on the saved instrument."
+        )
+
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.post(
+                f"{RAZORPAY_API_BASE}/payments/create/recurring",
+                auth=(key_id, key_secret),
+                json={
+                    "email": email or "",
+                    "contact": contact or "",
+                    "amount": amount_paise,
+                    "currency": "INR",
+                    "order_id": order_id,
+                    "customer_id": token.customer_id,
+                    "token": token.token_id,
+                    "recurring": "1",
+                    "description": "Automatic top-up",
+                },
+            )
+    except httpx.HTTPError as exc:
+        raise PaymentError("Could not reach Razorpay.") from exc
+
+    if response.status_code >= 400:
+        # The provider's own message is the fastest route to the cause — an
+        # expired card reads differently from a revoked mandate — so it is
+        # logged in full and summarised for the attempt row.
+        logger.error(
+            "Recurring charge failed for order {}: {} {}",
+            order_id,
+            response.status_code,
+            response.text[:500],
+        )
+        raise PaymentError(
+            f"The bank refused the charge (HTTP {response.status_code})."
+        )
+
+    payload = response.json()
+    payment_id = payload.get("razorpay_payment_id") or payload.get("id")
+    if not payment_id:
+        raise PaymentError("Razorpay did not return a payment id.")
+    return str(payment_id)
 
 
 def verify_webhook_signature(*, raw_body: bytes, signature: str | None) -> bool:
@@ -596,6 +793,15 @@ async def handle_webhook(
     payment.provider_payload = event
     payment.credit_ledger_id = entry.id
     await session.flush()
+
+    # The token arrives exactly once, on the payment that registered it, and is
+    # never repeated. Missing it means the customer has to authorise again,
+    # which they experience as the feature simply not working. Placed after the
+    # credit rather than before it because it must never be able to affect one:
+    # `remember_token` swallows its own failures for the same reason.
+    await remember_token(
+        session, organization_id=payment.organization_id, entity=entity
+    )
 
     # The advance is taxable on receipt, so the voucher belongs to this
     # transaction rather than to a later job. It returns None rather than

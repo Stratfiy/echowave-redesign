@@ -10,7 +10,7 @@ import httpx
 from loguru import logger
 
 from api.db import db_client
-from api.utils.credential_auth import build_auth_header
+from api.utils.credential_auth import resolve_auth_header
 
 PRE_CALL_FETCH_TIMEOUT_SECONDS = 10
 
@@ -74,7 +74,11 @@ async def execute_pre_call_fetch(
                 credential_uuid, organization_id
             )
             if credential:
-                headers.update(build_auth_header(credential))
+                headers.update(
+                    await resolve_auth_header(
+                        credential, persist=db_client.save_oauth_token_cache
+                    )
+                )
             else:
                 logger.warning(
                     f"Pre-call fetch: credential {credential_uuid} not found"

@@ -3,10 +3,20 @@
 This module provides functions for constructing HTTP authentication headers
 from ExternalCredentialModel instances. Used by both webhook integrations
 and custom tool execution.
+
+**Two entry points, and the async one is the real one.** Every type here but
+``oauth2`` is a value you can format into a header with no I/O, which is why
+``build_auth_header`` exists and stays synchronous. ``oauth2`` may have to
+exchange a refresh token first, so callers that can await should use
+``resolve_auth_header``; the sync function returns the cached token when it is
+still valid and ``{}`` when it is not, because sending a header known to be
+expired just turns a fixable 401 into a confusing one.
 """
 
 import base64
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional
+
+from api.services.integrations import oauth2
 
 if TYPE_CHECKING:
     from api.db.models import ExternalCredentialModel
@@ -51,7 +61,33 @@ def build_auth_header(credential: "ExternalCredentialModel") -> Dict[str, str]:
         header_value = cred_data.get("header_value", "")
         return {header_name: header_value}
 
+    elif cred_type == oauth2.CREDENTIAL_TYPE:
+        # Cache only. Minting needs the network, which this function cannot do.
+        token = oauth2.cached_token(cred_data)
+        return oauth2.header_for(cred_data, token) if token else {}
+
     return {}
+
+
+async def resolve_auth_header(
+    credential: "ExternalCredentialModel",
+    *,
+    persist: Optional[Callable[[str, Dict[str, Any]], Awaitable[None]]] = None,
+) -> Dict[str, str]:
+    """Same header, but allowed to mint an OAuth token first.
+
+    Every non-OAuth type takes the synchronous path unchanged, so this is safe
+    to use everywhere rather than only where OAuth is expected — which matters,
+    because a credential's type is chosen by the customer long after the call
+    site was written.
+
+    A refresh that fails raises ``oauth2.OAuth2Error``. It is not swallowed
+    here: the caller knows whether a missing header should abort the request or
+    be reported into a tool result, and this module does not.
+    """
+    if credential.credential_type == oauth2.CREDENTIAL_TYPE:
+        return await oauth2.resolve_header(credential, persist=persist)
+    return build_auth_header(credential)
 
 
 def build_auth_header_from_data(
@@ -91,5 +127,9 @@ def build_auth_header_from_data(
         header_name = cred_data.get("header_name", "X-Custom")
         header_value = cred_data.get("header_value", "")
         return {header_name: header_value}
+
+    elif credential_type == oauth2.CREDENTIAL_TYPE:
+        token = oauth2.cached_token(cred_data)
+        return oauth2.header_for(cred_data, token) if token else {}
 
     return {}

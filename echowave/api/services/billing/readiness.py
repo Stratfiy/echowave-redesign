@@ -42,9 +42,12 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import (
+    GST_RATE_BASIS_POINTS,
+    NUMBER_RENTAL_PRICE_PAISE,
     PUBLIC_BASE_URL,
     RAZORPAY_KEY_ID,
     RAZORPAY_WEBHOOK_SECRET,
+    STARTER_PLAN_PRICE_PAISE,
     SUPPLIER_ADDRESS,
     SUPPLIER_GSTIN,
     SUPPLIER_HAS_LUT,
@@ -53,6 +56,7 @@ from api.constants import (
 )
 from api.db.models import (
     PaymentModel,
+    PaymentTokenModel,
     ProviderRateModel,
     SubscriptionPlanModel,
     TaxDocumentModel,
@@ -397,6 +401,66 @@ async def _webhook_reachability_check(*, probe: bool) -> Check:
     )
 
 
+async def _auto_topup_provider_check(session: AsyncSession) -> Check:
+    """Has a recurring authorisation ever actually been captured?
+
+    Asked of the data rather than of the configuration, because everything that
+    can go wrong here goes wrong silently. Recurring payments can be approved on
+    the merchant account and still yield no token: the checkout has to request
+    one, the webhook has to carry ``recurring``, and the capture path has to
+    store it. Each of those failing looks identical from the outside — a
+    customer switches auto top-up on, nothing objects, and their balance runs
+    out anyway.
+
+    ``needs_a_human`` rather than ``action_required`` while no account has one,
+    because that is also the honest state of a deployment where nobody has
+    tried yet, and a permanently red check is one nobody reads.
+    """
+    active = await session.scalar(
+        select(func.count(PaymentTokenModel.id)).where(
+            PaymentTokenModel.status == "active"
+        )
+    )
+    reference = (
+        "api/services/billing/auto_topup.py — the notice period and the monthly "
+        "ceilings are enforced before anything is presented"
+    )
+
+    if active:
+        return Check(
+            key="auto_topup_instrument_captured",
+            title="A recurring payment method can be captured",
+            status=READY,
+            detail=(
+                f"{active} account(s) have an active saved instrument, so the "
+                "checkout is requesting a recurring token and the webhook is "
+                "storing it."
+            ),
+            reference=reference,
+        )
+
+    return Check(
+        key="auto_topup_instrument_captured",
+        title="A recurring payment method can be captured",
+        status=NEEDS_A_HUMAN,
+        detail=(
+            "No account has a saved instrument yet, so nothing has proved that "
+            "a recurring token is being requested at checkout and stored from "
+            "the webhook. Until one is captured, automatic top-up will schedule "
+            "and then refuse for want of anything to present."
+        ),
+        reference=reference,
+        remedy=(
+            "Buy credit once yourself with recurring enabled on the checkout, "
+            "then confirm a row appears in payment_tokens and that automatic "
+            "top-up on /billing offers to switch on. Confirm the per-charge "
+            "maximum your provider registered at the same time — it is stored "
+            "and enforced, and a charge above it is refused before the bank "
+            "sees it."
+        ),
+    )
+
+
 def _round_trip_obligation() -> Check:
     """The one thing no check can discharge: somebody has to pay, once.
 
@@ -679,8 +743,9 @@ async def _fx_rate_check(
     """Has anyone put a real USD/INR rate on file.
 
     The platform fee is quoted in dollars and settled in rupees, so the rate is
-    part of every dollar-denominated component's price. Against a rupee nearer
-    ₹104 the seeded ₹96 is roughly 8% light, on every charge.
+    part of every dollar-denominated component's price. This check is about
+    *provenance*, not about the figure: see PRICING-DECISIONS.md §3.2a, where
+    the rate in use is recorded as a settled decision. Do not reopen it here.
 
     This checks the rate in force *now* and whether it is the migration's
     placeholder, which is two failure modes rather than one:
@@ -709,10 +774,10 @@ async def _fx_rate_check(
         "REMAINING-WORK.md §A2 — everything is quoted in dollars and settled in rupees"
     )
     remedy = (
-        "Put the rate you actually convert at on file at "
+        "Set the rate you convert at — the same figure is fine — at "
         "/superadmin/billing/rate-card, effective-dated from the day you "
-        "started charging rather than from today — anything earlier stays on "
-        "the seeded figure."
+        "started charging rather than from today. That records who chose it "
+        "and clears this check."
     )
 
     if row is None:
@@ -735,11 +800,11 @@ async def _fx_rate_check(
             title="A real USD/INR rate is in force",
             status=ACTION_REQUIRED,
             detail=(
-                f"The only rate in force is the one the migration seeded — "
-                f"₹{row.paise_per_usd / 100:,.2f}, effective from 1970 and "
-                "never superseded. Nothing is failing and no warning is "
-                "logged, because a row does exist; it simply is not a rate "
-                "anybody chose."
+                f"₹{row.paise_per_usd / 100:,.2f} is in force, but it is the row "
+                "the migration seeded rather than one an operator set, so "
+                "nothing here distinguishes a rate that was chosen from one "
+                "nobody has touched. This says the provenance is unrecorded — "
+                "not that the figure is wrong."
             ),
             reference=reference,
             remedy=remedy,
@@ -752,6 +817,85 @@ async def _fx_rate_check(
         detail=(
             f"₹{row.paise_per_usd / 100:,.2f} per USD, from {row.source}, "
             f"effective {row.effective_from.date().isoformat()}."
+        ),
+        reference=reference,
+    )
+
+
+async def _plan_price_drift_check(session: AsyncSession) -> Check:
+    """Does the Starter row still hold the price the Razorpay plan collects?
+
+    Starter's price is **pinned**, not derived. It used to be balance plus the
+    number rental, and that was safe only while the plan was the sole way to
+    hold a number and the two prices were the same figure. They are not: ₹559 is
+    what an *extra* number costs, and a plan's included number is priced inside
+    its monthly price. See the note above ``STARTER_PLAN_BALANCE_PAISE`` in
+    ``api/constants.py``.
+
+    The migration that seeded this table derived the price anyway, and used a
+    stale fallback for the rental while doing it. A deployment whose environment
+    carried the current ₹559 therefore seeded Starter at ₹3,059 rather than
+    ₹2,999 — and the Razorpay plan behind it collects a fixed amount by standing
+    instruction, so the disagreement is settled at the bank, monthly, silently,
+    in whichever direction the mandate was created.
+
+    Nothing else can catch this. The row is valid, the plan sells, the mandate
+    authorises; only the two numbers being different is wrong, and neither side
+    knows about the other.
+    """
+    reference = (
+        "api/constants.py — the note above STARTER_PLAN_BALANCE_PAISE on why "
+        "the price is pinned rather than derived"
+    )
+
+    plan = await session.scalar(
+        select(SubscriptionPlanModel).where(SubscriptionPlanModel.code == "starter")
+    )
+    if plan is None:
+        return Check(
+            key="plan_price_matches_pin",
+            title="The plan's price matches what the bank collects",
+            status=UNKNOWN,
+            detail="No Starter plan row exists, so there is nothing to compare.",
+            reference=reference,
+        )
+
+    pinned = STARTER_PLAN_PRICE_PAISE
+    stored = int(plan.price_paise)
+    gross = stored + (stored * GST_RATE_BASIS_POINTS) // 10_000
+
+    if stored != pinned:
+        return Check(
+            key="plan_price_matches_pin",
+            title="The plan's price matches what the bank collects",
+            status=ACTION_REQUIRED,
+            detail=(
+                f"Starter is stored at ₹{stored / 100:,.2f} but "
+                f"STARTER_PLAN_PRICE_PAISE pins it at ₹{pinned / 100:,.2f}. "
+                f"A mandate created against the stored figure collects "
+                f"₹{gross / 100:,.2f} a month by standing instruction, and "
+                "nothing reconciles the two."
+            ),
+            reference=reference,
+            remedy=(
+                f"Decide which is right, then make them agree: correct the plan "
+                f"at /superadmin/billing/plans, or set STARTER_PLAN_PRICE_PAISE "
+                f"to ₹{stored / 100:,.0f}. Whichever you choose, the Razorpay "
+                "plan id on the row must collect that figure grossed up — "
+                "changing the price here does not change what an existing "
+                "mandate collects."
+            ),
+        )
+
+    return Check(
+        key="plan_price_matches_pin",
+        title="The plan's price matches what the bank collects",
+        status=READY,
+        detail=(
+            f"Starter is ₹{stored / 100:,.2f} net, matching the pinned price. "
+            f"The Razorpay plan behind it must collect ₹{gross / 100:,.2f} "
+            f"including GST. An extra number beyond the plan is "
+            f"₹{int(plan.extra_number_price_paise or NUMBER_RENTAL_PRICE_PAISE) / 100:,.2f}."
         ),
         reference=reference,
     )
@@ -1039,8 +1183,10 @@ async def assess(
     checks.extend(await _payment_evidence(session))
     checks.extend(await _price_book_evidence(session, now=now))
     checks.append(await _fx_rate_check(session, now=now))
+    checks.append(await _plan_price_drift_check(session))
     checks.append(await _export_supply_check(session))
     checks.append(await _carrier_price_check(session))
     checks.append(await _carrier_enablement_check(session))
+    checks.append(await _auto_topup_provider_check(session))
     checks.append(_round_trip_obligation())
     return Readiness(checks=tuple(checks))

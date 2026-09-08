@@ -3164,7 +3164,9 @@ class SubscriptionPlanModel(Base):
     label = Column(String(80), nullable=False)
     blurb = Column(Text, nullable=False, default="", server_default="")
 
-    #: Net of GST, per period.
+    #: Net of GST, per period. One net serves both tax regimes: a domestic
+    #: account is charged this plus GST, an export account is charged it
+    #: outright, and each has its own pinned provider plan at that amount.
     price_paise = Column(BigInteger, nullable=False)
     #: Call balance granted when a cycle is collected.
     balance_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
@@ -4525,3 +4527,193 @@ class EmailVerificationChallengeModel(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     __table_args__ = (UniqueConstraint("user_id", name="_email_verification_user_uc"),)
+
+
+class AutoTopupSettingModel(Base):
+    """One account's standing instruction to top itself up.
+
+    Separate from ``PaymentMandateModel`` on purpose: the mandate is the bank's
+    permission and has a life of its own, while this is the customer's *policy*
+    — how low to get and how much to buy. One can exist without the other, and
+    conflating them would mean revoking a card silently discarded a preference,
+    or changing an amount required re-authorising with a bank.
+
+    Everything defaults to off and to zero. An account that somehow reaches an
+    enabled row without choosing an amount takes no money, because zero fails
+    the platform minimum in :mod:`api.services.billing.auto_topup`.
+    """
+
+    __tablename__ = "auto_topup_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+
+    enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+
+    # Trigger points. Both are held rather than one, mirroring `low_balance`:
+    # runway is the measure that scales, the absolute floor is the backstop for
+    # an account too new or too quiet to have a burn rate.
+    trigger_days = Column(Integer, nullable=False, default=5, server_default="5")
+    trigger_paise = Column(
+        BigInteger, nullable=False, default=15_000, server_default="15000"
+    )
+
+    amount_paise = Column(BigInteger, nullable=False, default=0, server_default="0")
+
+    # The runaway ceiling, in both dimensions. The count stops a fast loop; the
+    # money stops a slow one. Zero money cap means "count only", deliberately.
+    monthly_cap_paise = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    max_per_month = Column(Integer, nullable=False, default=4, server_default="4")
+
+    # Set when the run of failures trips the stop, so the UI can say why nothing
+    # is happening rather than leaving a toggle that looks on and does nothing.
+    paused_reason = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+
+
+class AutoTopupAttemptModel(Base):
+    """Every automatic debit, from the decision to the outcome.
+
+    This is the ledger the safety rules read: in-flight, cooldown, the monthly
+    caps and the consecutive-failure stop are all questions about rows here. It
+    is therefore written *before* the provider is called, never after — a crash
+    between the request and the record would otherwise leave a charge that no
+    guard can see, and the next sweep would make another.
+
+    ``notified_at`` is when the customer was told, and the debit may not run
+    until a clear day after it. That column is the compliance artefact: if
+    anybody ever asks whether notice was given, this is the answer.
+    """
+
+    __tablename__ = "auto_topup_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # scheduled | charging | succeeded | failed | cancelled. A plain string so a
+    # new outcome does not need a migration, as elsewhere in billing.
+    status = Column(
+        String(24), nullable=False, default="scheduled", server_default="scheduled"
+    )
+    amount_paise = Column(BigInteger, nullable=False)
+
+    #: Why the engine decided this, kept verbatim. A support question about an
+    #: unexpected debit is answered from this column.
+    reason = Column(Text, nullable=True)
+
+    notified_at = Column(DateTime(timezone=True), nullable=True)
+    charge_after = Column(DateTime(timezone=True), nullable=True)
+    charged_at = Column(DateTime(timezone=True), nullable=True)
+    failure_reason = Column(Text, nullable=True)
+
+    #: The payment this became, once it became one.
+    payment_id = Column(
+        Integer, ForeignKey("payments.id", ondelete="SET NULL"), nullable=True
+    )
+    provider_payment_id = Column(String(64), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index("ix_auto_topup_attempts_org", "organization_id", "status"),
+        # At most one attempt in flight per account. This is the double-charge
+        # guard made structural: the engine also refuses, but the engine runs in
+        # a worker that can be running twice, and a unique index cannot.
+        Index(
+            "uq_auto_topup_attempts_in_flight",
+            "organization_id",
+            unique=True,
+            postgresql_where=text("status IN ('scheduled', 'charging')"),
+        ),
+    )
+
+
+class PaymentTokenModel(Base):
+    """A saved instrument we may present without the customer being there.
+
+    Distinct from ``PaymentMandateModel``, which is a provider *subscription*
+    collecting one fixed amount on the provider's schedule. This is the other
+    kind of standing permission: a token against which we may raise a charge of
+    our own choosing, up to a registered maximum, whenever our own logic says
+    so. Auto top-up needs that second kind — the amount is the customer's
+    configured top-up, and the timing is whenever their balance runs low.
+
+    **The maximum is the bank's, not ours.** It is registered when the customer
+    authorises and cannot be exceeded without them re-authorising, so it is
+    stored here and checked before a charge rather than discovered as a decline.
+
+    Only the last four digits or the UPI handle are kept, and only so the UI can
+    say *which* instrument is on file. Nothing here can be used to charge
+    anywhere but through the provider, and the token is theirs to revoke.
+    """
+
+    __tablename__ = "payment_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    provider = Column(
+        String(32), nullable=False, default="razorpay", server_default="razorpay"
+    )
+
+    #: The provider's identifiers. Both are needed to raise a recurring charge.
+    token_id = Column(String(64), nullable=False)
+    customer_id = Column(String(64), nullable=True)
+
+    #: card | upi | emandate — what the customer will recognise.
+    method = Column(String(24), nullable=True)
+    #: Last four digits, or the UPI handle. For display only.
+    instrument_hint = Column(String(64), nullable=True)
+
+    #: The ceiling registered with the bank at authorisation. Null means the
+    #: provider did not tell us, in which case nothing here may assume one.
+    max_amount_paise = Column(BigInteger, nullable=True)
+
+    #: active | revoked. A token the customer or their bank has cancelled must
+    #: never be presented again — it is a decline that costs money and standing.
+    status = Column(
+        String(24), nullable=False, default="active", server_default="active"
+    )
+
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index("ix_payment_tokens_org", "organization_id", "status"),
+        # One row per provider token. Webhooks arrive at least once, and a
+        # redelivery must update the row rather than add a second one that half
+        # the code then reads instead.
+        Index("uq_payment_tokens_token", "provider", "token_id", unique=True),
+    )

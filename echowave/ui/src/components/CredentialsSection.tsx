@@ -58,7 +58,12 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromResult } from "@/lib/apiError";
-import { CREDENTIAL_TYPES, credentialFields } from "@/lib/credentials/fields";
+import {
+    CREDENTIAL_TYPES,
+    credentialFields,
+    type CredentialTypeValue,
+    missingRequired,
+} from "@/lib/credentials/fields";
 
 const TYPE_LABEL: Record<string, string> = Object.fromEntries(
     CREDENTIAL_TYPES.map((t) => [t.value, t.label]),
@@ -249,7 +254,7 @@ function RotateCredentialDialog({
     onOpenChange: (open: boolean) => void;
     onRotated: () => void;
 }) {
-    const [type, setType] = useState<WebhookCredentialType>("bearer_token");
+    const [type, setType] = useState<CredentialTypeValue>("bearer_token");
     const [data, setData] = useState<Record<string, string>>({});
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -258,16 +263,21 @@ function RotateCredentialDialog({
     // half-typed secret into this form.
     useEffect(() => {
         if (credential) {
-            setType(credential.credential_type as WebhookCredentialType);
+            setType(credential.credential_type as CredentialTypeValue);
             setData({});
             setError(null);
         }
     }, [credential]);
 
     const fields = credentialFields(type);
-    // Every field, not just the secret ones. A bearer token sent without its
-    // header name is a credential the server stores and the tool cannot use.
-    const complete = fields.length > 0 && fields.every((f) => (data[f.key] ?? "").trim());
+    // Every *required* field, not just the secret ones. A bearer token sent
+    // without its header name is a credential the server stores and the tool
+    // cannot use. For the older types that is still every field — none of them
+    // marks anything optional — but an OAuth grant leaves the header prefix,
+    // header name and scope blank to mean "use the default", and requiring
+    // them would make the form impossible to submit for every vendor that
+    // follows the common case.
+    const complete = fields.length > 0 && missingRequired(type, data).length === 0;
 
     const save = useCallback(async () => {
         if (!credential) return;
@@ -278,7 +288,12 @@ function RotateCredentialDialog({
             // Type and data travel together: the server only validates the data
             // against the type when both are present, so sending the secret
             // alone would let a bearer token be stored under basic_auth.
-            body: { credential_type: type, credential_data: data },
+            // The generated client predates the `oauth2` enum value; regenerating
+            // needs a running backend. Delete after `npm run generate-client`.
+            body: {
+                credential_type: type as WebhookCredentialType,
+                credential_data: data,
+            },
         });
         setSaving(false);
         if (result.error) {
@@ -332,7 +347,14 @@ function RotateCredentialDialog({
 
                     {fields.map((field) => (
                         <div key={field.key} className="grid gap-2">
-                            <Label htmlFor={`rotate-${field.key}`}>{field.label}</Label>
+                            <Label htmlFor={`rotate-${field.key}`}>
+                                {field.label}
+                                {field.optional && (
+                                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                        optional
+                                    </span>
+                                )}
+                            </Label>
                             <Input
                                 id={`rotate-${field.key}`}
                                 type={field.isSecret ? "password" : "text"}
@@ -346,6 +368,11 @@ function RotateCredentialDialog({
                                 }
                                 placeholder={field.placeholder}
                             />
+                            {field.hint && (
+                                <p className="text-xs text-muted-foreground">
+                                    {field.hint}
+                                </p>
+                            )}
                         </div>
                     ))}
                 </div>

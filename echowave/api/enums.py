@@ -188,6 +188,10 @@ class WebhookCredentialType(Enum):
     BEARER_TOKEN = "bearer_token"  # Bearer token auth
     BASIC_AUTH = "basic_auth"  # Username/password
     CUSTOM_HEADER = "custom_header"  # Custom header key-value
+    # Refresh-token grant. The stored credential is the refresh token; the
+    # access token beside it is a cache the platform mints and re-mints.
+    # See api/services/integrations/oauth2.py.
+    OAUTH2 = "oauth2"
 
 
 class ToolCategory(Enum):

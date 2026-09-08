@@ -14,6 +14,10 @@ import type { CreateToolRequest, ToolResponse } from "@/client/types.gen";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { CredentialSelector } from "@/components/http";
 import { IntegrationsTabs } from "@/components/integrations/IntegrationsTabs";
+import {
+    type LibraryTool,
+    ToolLibraryDialog,
+} from "@/components/tools/ToolLibraryDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +45,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { resolveBrowserBackendUrl } from "@/lib/apiClient";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
@@ -63,6 +68,8 @@ export default function ToolsPage() {
     const { confirm, dialog: confirmDialog } = useConfirm();
     const [searchQuery, setSearchQuery] = useState("");
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+    const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+    const [creatingFromLibrary, setCreatingFromLibrary] = useState(false);
     const [newToolName, setNewToolName] = useState("");
     const [newToolDescription, setNewToolDescription] = useState("");
     const [newToolCategory, setNewToolCategory] = useState<ToolCategory>("http_api");
@@ -113,6 +120,62 @@ export default function ToolsPage() {
     useEffect(() => {
         fetchTools();
     }, [fetchTools]);
+
+    /** Create a tool from a catalogue entry.
+     *
+     * The entry is copied, not referenced: the operator lands on the detail
+     * page and changes the URL for their datacentre, attaches their
+     * credential, and edits anything else. Nothing re-reads the catalogue
+     * afterwards, so a later edit to the library never rewrites their tool.
+     */
+    const handlePickFromLibrary = async (entry: LibraryTool) => {
+        try {
+            setCreatingFromLibrary(true);
+            setError(null);
+            const accessToken = await getAccessToken();
+
+            // Fetched directly: the generated client predates this endpoint.
+            // Delete after `npm run generate-client`.
+            const seedResponse = await fetch(
+                `${resolveBrowserBackendUrl()}/api/v1/tool-library/${entry.key}/definition`,
+                { headers: { Authorization: `Bearer ${accessToken}` } },
+            );
+            if (!seedResponse.ok) {
+                setError("Could not load that ready-made tool.");
+                return;
+            }
+            const seed = (await seedResponse.json()) as {
+                name: string;
+                description: string;
+                definition: Record<string, unknown>;
+            };
+
+            const response = await createToolApiV1ToolsPost({
+                body: {
+                    name: seed.name,
+                    description: seed.description,
+                    category: "http_api",
+                    icon: "globe",
+                    icon_color: "#3B82F6",
+                    definition: seed.definition,
+                } as CreateToolRequest,
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+
+            if (response.error) {
+                setError(detailFromResult(response, "Failed to create the tool"));
+                return;
+            }
+            if (response.data) {
+                setIsLibraryOpen(false);
+                router.push(`/tools/${response.data.tool_uuid}`);
+            }
+        } catch {
+            setError("Could not reach the server.");
+        } finally {
+            setCreatingFromLibrary(false);
+        }
+    };
 
     const handleCreateTool = async () => {
         if (!newToolName.trim()) {
@@ -337,10 +400,18 @@ export default function ToolsPage() {
                                         Create and manage tools for your organization
                                     </CardDescription>
                                 </div>
-                                <Button onClick={() => setIsCreateDialogOpen(true)}>
-                                    <Plus className="w-4 h-4 mr-2" />
-                                    Create Tool
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setIsLibraryOpen(true)}
+                                    >
+                                        Browse ready-made
+                                    </Button>
+                                    <Button onClick={() => setIsCreateDialogOpen(true)}>
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Create Tool
+                                    </Button>
+                                </div>
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -509,6 +580,14 @@ export default function ToolsPage() {
             </div>
 
             {/* Create Tool Dialog */}
+            <ToolLibraryDialog
+                open={isLibraryOpen}
+                onOpenChange={setIsLibraryOpen}
+                onPick={handlePickFromLibrary}
+                getAccessToken={getAccessToken}
+                creating={creatingFromLibrary}
+            />
+
             <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
                 setIsCreateDialogOpen(open);
                 if (open) {

@@ -193,3 +193,49 @@ class TestTheExchangeRateGuards:
         """Daily noise of a few paise changes no invoice and would fill the
         table with rows nobody can act on."""
         assert fx_source.MIN_MOVE_PAISE > 0
+
+
+class TestTheFeedAddress:
+    """The regression that made this class necessary.
+
+    `api.frankfurter.app` began answering with a 301 to `api.frankfurter.dev`.
+    httpx does not follow redirects unless asked, so `raise_for_status` turned
+    every 301 into an exception, every nightly fetch wrote nothing, and the only
+    trace was a warning at a level nobody reads. Months of a rate that never
+    moved looked exactly like a rate that had nothing to refresh — the operator
+    found it by pressing *Fetch now* on the rate card, which is the only reason
+    this was ever visible.
+
+    So the assertions here are about reaching the feed at all, which no test
+    covered: everything above stubs the client and starts from a response.
+    """
+
+    async def test_redirects_are_followed(self, monkeypatch):
+        """A feed moving host is ordinary. Treating it as a failure is not."""
+        seen: dict = {}
+
+        def _capture(**kwargs):
+            seen.update(kwargs)
+            return _FakeClient({"rates": {"INR": 87.42}})
+
+        monkeypatch.setattr(fx_source.httpx, "AsyncClient", _capture)
+        await fx_source.fetch()
+        assert seen.get("follow_redirects") is True
+
+    async def test_a_timeout_is_still_set(self, monkeypatch):
+        """Guarding the line above must not have dropped the other kwarg — a
+        fetch with no timeout hangs the nightly worker instead of failing."""
+        seen: dict = {}
+
+        def _capture(**kwargs):
+            seen.update(kwargs)
+            return _FakeClient({"rates": {"INR": 87.42}})
+
+        monkeypatch.setattr(fx_source.httpx, "AsyncClient", _capture)
+        await fx_source.fetch()
+        assert seen.get("timeout") == fx_source.REQUEST_TIMEOUT_SECONDS
+
+    def test_the_url_points_at_the_host_that_answers(self):
+        """Named rather than inferred, so a future move is a deliberate edit
+        with this incident in the blame rather than another silent 301."""
+        assert fx_source.SOURCE_URL.startswith("https://api.frankfurter.dev/")

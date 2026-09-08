@@ -37,7 +37,14 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationRole
 from api.services.auth.depends import get_user, require_organization_role
-from api.services.billing import billing_profile, document_email, documents, payments
+from api.services.billing import (
+    auto_topup,
+    auto_topup_runner,
+    billing_profile,
+    document_email,
+    documents,
+    payments,
+)
 from api.services.billing.tax import TaxError
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -802,3 +809,202 @@ async def _confirm_plan_authorisation(result: dict[str, Any]) -> None:
             mandate_id,
             exc,
         )
+
+
+class AutoTopupRequest(BaseModel):
+    """What the customer is choosing. Amounts are net of GST, like every other
+    amount a customer enters — the card is charged that plus tax, exactly as a
+    manual top-up is."""
+
+    enabled: bool
+    amount_paise: int = Field(
+        ...,
+        ge=MIN_TOPUP_PAISE,
+        le=MAX_TOPUP_PAISE,
+        description="Credit to buy each time, in paise, net of GST.",
+    )
+    trigger_days: int = Field(
+        auto_topup.DEFAULT_TRIGGER_DAYS,
+        ge=1,
+        le=30,
+        description=(
+            "Top up when this many days of credit remain, judged on recent "
+            "spending. The debit runs a clear day after we notify you, so this "
+            "needs to be more than one."
+        ),
+    )
+    trigger_paise: int = Field(
+        auto_topup.DEFAULT_TRIGGER_PAISE,
+        ge=0,
+        description=(
+            "Also top up below this balance outright, for when there is not "
+            "enough recent spending to judge runway from."
+        ),
+    )
+    monthly_cap_paise: int = Field(
+        0,
+        ge=0,
+        description="Never spend more than this in a calendar month. 0 is no money cap.",
+    )
+    max_per_month: int = Field(
+        auto_topup.DEFAULT_MAX_PER_MONTH,
+        ge=1,
+        le=31,
+        description="Never top up more than this many times in a calendar month.",
+    )
+
+
+def _settings_response(row, token, pending) -> dict[str, Any]:
+    return {
+        "enabled": bool(row.enabled) if row else False,
+        "amount_paise": int(row.amount_paise) if row else 0,
+        "trigger_days": int(row.trigger_days)
+        if row
+        else auto_topup.DEFAULT_TRIGGER_DAYS,
+        "trigger_paise": (
+            int(row.trigger_paise) if row else auto_topup.DEFAULT_TRIGGER_PAISE
+        ),
+        "monthly_cap_paise": int(row.monthly_cap_paise) if row else 0,
+        "max_per_month": (
+            int(row.max_per_month) if row else auto_topup.DEFAULT_MAX_PER_MONTH
+        ),
+        # Why nothing is happening, when nothing is happening. A toggle that
+        # reads "on" while a run of declines has stopped it is the worst of both.
+        "paused_reason": row.paused_reason if row else None,
+        "instrument": (
+            {
+                "method": token.method,
+                "hint": token.instrument_hint,
+                "max_amount_paise": token.max_amount_paise,
+            }
+            if token
+            else None
+        ),
+        "pending": (
+            {
+                "amount_paise": pending.amount_paise,
+                "notified_at": pending.notified_at,
+                "charge_after": pending.charge_after,
+                "status": pending.status,
+            }
+            if pending
+            else None
+        ),
+        "notice_hours": auto_topup.NOTICE_HOURS,
+        "minimum_paise": MIN_TOPUP_PAISE,
+    }
+
+
+@router.get("/auto-topup")
+async def get_auto_topup(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+    """The standing instruction, the instrument behind it, and any debit due.
+
+    All three together because they are one question — "will my balance be kept
+    up, and how" — and answering it from three calls invites a screen that shows
+    a confident toggle above a missing payment method.
+    """
+    organization_id = _organization_id(user)
+    async with db_client.async_session() as session:
+        row = await auto_topup_runner.load_settings(
+            session, organization_id=organization_id
+        )
+        token = await payments.active_token(session, organization_id=organization_id)
+        pending = await auto_topup_runner.pending_attempt(
+            session, organization_id=organization_id
+        )
+        return _settings_response(row, token, pending)
+
+
+@router.put("/auto-topup")
+async def save_auto_topup(
+    request: AutoTopupRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> dict[str, Any]:
+    """Set it. Admin-gated, because it authorises money to leave.
+
+    Saving always clears ``paused_reason``: a customer who has come here and
+    changed something is telling us to try again, and leaving them paused with
+    no way to resume would mean support tickets for a self-service action.
+    """
+    organization_id = _organization_id(user)
+    async with db_client.async_session() as session:
+        row = await auto_topup_runner.load_settings(
+            session, organization_id=organization_id
+        )
+        if row is None:
+            from api.db.models import AutoTopupSettingModel
+
+            row = AutoTopupSettingModel(organization_id=organization_id)
+            session.add(row)
+
+        if request.enabled:
+            token = await payments.active_token(
+                session, organization_id=organization_id
+            )
+            if token is None:
+                # Refused rather than saved-and-silent. An enabled setting with
+                # no instrument behind it is a promise the product cannot keep,
+                # and the customer would only find out by running out of credit.
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "There is no saved payment method to charge. Make one "
+                        "top-up and choose to save the method for automatic "
+                        "top-ups, then switch this on."
+                    ),
+                )
+            if (
+                token.max_amount_paise is not None
+                and request.amount_paise > token.max_amount_paise
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Your bank authorised us for at most "
+                        f"₹{token.max_amount_paise / 100:,.0f} per charge. "
+                        "Choose a smaller amount, or authorise a new method."
+                    ),
+                )
+
+        row.enabled = request.enabled
+        row.amount_paise = request.amount_paise
+        row.trigger_days = request.trigger_days
+        row.trigger_paise = request.trigger_paise
+        row.monthly_cap_paise = request.monthly_cap_paise
+        row.max_per_month = request.max_per_month
+        row.paused_reason = None
+        await session.commit()
+
+        token = await payments.active_token(session, organization_id=organization_id)
+        pending = await auto_topup_runner.pending_attempt(
+            session, organization_id=organization_id
+        )
+        return _settings_response(row, token, pending)
+
+
+@router.post("/auto-topup/cancel-pending")
+async def cancel_pending_auto_topup(
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> dict[str, Any]:
+    """Stop a debit we have announced but not yet taken.
+
+    The notice we send says the customer can stop it, so there has to be
+    something that does. Only a scheduled attempt can be cancelled — once it is
+    ``charging`` the money may already be moving, and cancelling a row would
+    hide a charge rather than prevent one.
+    """
+    organization_id = _organization_id(user)
+    async with db_client.async_session() as session:
+        pending = await auto_topup_runner.pending_attempt(
+            session, organization_id=organization_id
+        )
+        if pending is None:
+            return {"cancelled": False, "detail": "Nothing is scheduled."}
+        if pending.status != auto_topup_runner.SCHEDULED:
+            raise HTTPException(
+                status_code=409,
+                detail="That top-up is already being charged and cannot be stopped.",
+            )
+        pending.status = auto_topup_runner.CANCELLED
+        await session.commit()
+        return {"cancelled": True}

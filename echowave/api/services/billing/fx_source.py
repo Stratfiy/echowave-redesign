@@ -31,7 +31,14 @@ from api.db.models import UsdInrRateHistoryModel
 
 #: Open, keyless, no attribution requirement. Named in the stored row so an
 #: auditor can see where a rate came from years later.
-SOURCE_URL = "https://api.frankfurter.app/latest?from=USD&to=INR"
+#:
+#: The host matters. ``api.frankfurter.app`` — the original — now answers with a
+#: 301 to this address, and the failure that caused is the reason redirects are
+#: followed below: every nightly fetch raised, wrote nothing, logged a warning
+#: at a level nobody reads, and left the seeded rate in force indefinitely. A
+#: job that fails silently forever is indistinguishable from one that has
+#: nothing to do.
+SOURCE_URL = "https://api.frankfurter.dev/v1/latest?from=USD&to=INR"
 SOURCE_NAME = "frankfurter"
 
 REQUEST_TIMEOUT_SECONDS = 10.0
@@ -65,7 +72,13 @@ async def fetch() -> FetchedRate:
     the rate cannot disagree with the arithmetic that consumes it.
     """
     try:
-        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
+        # `follow_redirects` is not httpx's default, and the one time this
+        # mattered it cost months of silent staleness rather than an error
+        # anybody saw. A rate feed changing its address is ordinary; a fetcher
+        # that treats a 301 as a failure is not.
+        async with httpx.AsyncClient(
+            timeout=REQUEST_TIMEOUT_SECONDS, follow_redirects=True
+        ) as client:
             response = await client.get(SOURCE_URL)
             response.raise_for_status()
             payload = response.json()

@@ -449,6 +449,22 @@ Starter (and on any plan above it, lower as the tier rises, the way Bolna's
 account with no plan and no override actually pays today, **not the ₹3.00
 you've decided on** — see §2.1 for how to set it.
 
+### 3.2a The USD/INR rate is ₹96, and that is a decision — settled 8 Sep 2026
+
+**₹96 per USD is the founder's stated live rate.** Recorded here because it has
+been raised as a defect more than once by people reading
+`resolve_usd_inr`'s fallback and assuming the seeded value must be a
+placeholder nobody chose. It was chosen. Do not re-open it, do not compare it
+to a spot rate, and do not describe it as "8% light" — that framing came from
+an assumption, not from this decision.
+
+What is still true and is a *different* point: the value lives in a row whose
+`source` reads `migration`, so nothing distinguishes "the founder set ₹96" from
+"nobody has touched this". Setting the same ₹96 at
+`/superadmin/billing/rate-card` records the intent and clears the readiness
+check. That is a bookkeeping action about provenance, not a request to change
+the number.
+
 ### 3.3 Phone number pricing — checked, and it's internally consistent
 
 | Figure | Value | Source |
