@@ -7,7 +7,7 @@ import pkgutil
 # refresh-token grant every integration and custom tool can use; importing
 # it here as though it registered a package would be harmless today and
 # misleading the moment somebody looks for its router.
-_INTERNAL_MODULES = {"base", "loader", "registry", "oauth2"}
+_INTERNAL_MODULES = {"base", "loader", "registry", "oauth2", "uhi"}
 _loaded = False
 
 
