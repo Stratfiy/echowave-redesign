@@ -5,6 +5,9 @@
 import * as Sentry from "@sentry/nextjs";
 import posthog from "posthog-js";
 
+// Do not load analytics or error tracking on pages handling credentials.
+const isAuthPage = typeof window !== "undefined" && window.location.pathname.startsWith("/auth/");
+
 // Drop errors originating from browser extensions (MetaMask's inpage.js,
 // injected widgets, etc.) by matching their URL scheme.
 const sharedSentryOptions = {
@@ -50,7 +53,7 @@ const initSentry = () => {
   }
 };
 
-if (process.env.NEXT_PUBLIC_NODE_ENV !== 'development') {
+if (!isAuthPage && process.env.NEXT_PUBLIC_NODE_ENV !== 'development') {
   initSentry();
 }
 
@@ -97,7 +100,7 @@ const initPostHog = () => {
   }
 };
 
-if (process.env.NEXT_PUBLIC_NODE_ENV !== 'development') {
+if (!isAuthPage && process.env.NEXT_PUBLIC_NODE_ENV !== 'development') {
   initPostHog();
 }
 

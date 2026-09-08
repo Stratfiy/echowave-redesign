@@ -16,11 +16,10 @@ Four decisions carry the security of this file:
   against Google's published keys, and the audience, issuer and expiry are
   checked with it.
 
-* **``state`` is signed and short-lived.** It is the only thing standing
+* **``state`` is signed, short-lived and bound to a browser cookie.** Together these stand
   between a user and a login CSRF, where an attacker completes a flow in the
-  victim's browser and lands them in the attacker's account. Signing it with
-  the same secret as our sessions means a forged one cannot survive the
-  callback.
+  victim's browser and lands them in the attacker's account. Signing it rejects forged states; comparing the HttpOnly browser cookie
+  also rejects genuine states issued in a different browser.
 
 * **``nonce`` is round-tripped.** State proves the request came from us; the
   nonce proves *this* ID token was minted for *this* request, which is what
@@ -37,6 +36,8 @@ Four decisions carry the security of this file:
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -275,3 +276,20 @@ async def complete_sign_in(
         )
 
     return identity, state_claims.get("next"), state_claims.get("ref")
+
+
+def browser_state_digest(state: str) -> str:
+    return hashlib.sha256(state.encode("utf-8")).hexdigest()
+
+
+def verify_browser_state(state: str, cookie: str | None) -> None:
+    """A signed state alone does not prove this browser initiated the flow."""
+    if (
+        not isinstance(cookie, str)
+        or not cookie
+        or not hmac.compare_digest(browser_state_digest(state), cookie)
+    ):
+        raise GoogleAuthError(
+            "This sign-in belongs to a different or expired browser session. Start again."
+        )
+    _read_state(state)

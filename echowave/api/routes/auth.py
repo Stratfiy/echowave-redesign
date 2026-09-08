@@ -1,8 +1,8 @@
 from datetime import UTC, datetime
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlparse
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, BackgroundTasks, Cookie, Depends, HTTPException
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -16,6 +16,8 @@ from api.schemas.auth import (
     MfaDisableRequest,
     MfaEnrollResponse,
     MfaVerifyRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
     SignupRequest,
     UserResponse,
 )
@@ -24,6 +26,7 @@ from api.services.auth import (
     email_verification_flow,
     google_oauth,
     mfa,
+    password_reset,
 )
 from api.services.auth.depends import (
     get_user,
@@ -131,7 +134,9 @@ async def login(request: LoginRequest):
             raise HTTPException(status_code=401, detail="Invalid authentication code")
 
     # Create JWT token
-    token = create_jwt_token(user.id, user.email)
+    token = create_jwt_token(
+        user.id, user.email, int(getattr(user, "auth_version", 0) or 0)
+    )
 
     capture_event(
         distinct_id=str(user.provider_id),
@@ -286,22 +291,49 @@ def _redirect_uri() -> str:
     return f"{BACKEND_API_ENDPOINT}/api/v1/auth/google/callback"
 
 
-@router.get("/google/start", dependencies=[Depends(require_local_auth)])
-async def google_start(next: str | None = None, ref: str | None = None) -> dict:
-    """Begin sign-in. Returns the URL to send the browser to.
+GOOGLE_STATE_COOKIE = (
+    "__Host-decibyl_google_state"
+    if BACKEND_API_ENDPOINT.startswith("https://")
+    else "decibyl_google_state"
+)
+GOOGLE_COOKIE_PATH = "/"
 
-    ``ref`` is a partner's referral code, carried in the signed state so it
-    survives the trip through Google and can attribute the account on the way
-    back. Ignored for anyone who already has an account.
-    """
+
+@router.get("/google/status", dependencies=[Depends(require_local_auth)])
+async def google_status() -> dict:
+    # A capability probe must not create a new OAuth state or overwrite a cookie.
+    return {"enabled": google_oauth.is_enabled()}
+
+
+@router.get("/google/start", dependencies=[Depends(require_local_auth)])
+async def google_start(
+    next: str | None = None, ref: str | None = None, redirect: bool = False
+) -> Response:
     try:
-        return {
-            "authorization_url": google_oauth.build_authorization_url(
-                redirect_uri=_redirect_uri(), next_path=next, referral_code=ref
-            )
-        }
+        url = google_oauth.build_authorization_url(
+            redirect_uri=_redirect_uri(), next_path=next, referral_code=ref
+        )
     except google_oauth.GoogleAuthError as exc:
+        if redirect:
+            return _google_failure(str(exc))
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    state = parse_qs(urlparse(url).query)["state"][0]
+    response = (
+        RedirectResponse(url=url, status_code=303)
+        if redirect
+        else JSONResponse({"authorization_url": url})
+    )
+    response.set_cookie(
+        GOOGLE_STATE_COOKIE,
+        google_oauth.browser_state_digest(state),
+        max_age=google_oauth.STATE_TTL_SECONDS,
+        httponly=True,
+        secure=BACKEND_API_ENDPOINT.startswith("https://"),
+        samesite="lax",
+        path=GOOGLE_COOKIE_PATH,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @router.get("/google/callback", dependencies=[Depends(require_local_auth)])
@@ -309,6 +341,7 @@ async def google_callback(
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
+    google_state: str | None = Cookie(default=None, alias=GOOGLE_STATE_COOKIE),
 ) -> RedirectResponse:
     """Complete sign-in and hand the browser back to the app with a token.
 
@@ -326,6 +359,7 @@ async def google_callback(
         )
 
     try:
+        google_oauth.verify_browser_state(state, google_state)
         identity, next_path, referral_code = await google_oauth.complete_sign_in(
             code=code, state=state, redirect_uri=_redirect_uri()
         )
@@ -402,7 +436,9 @@ async def google_callback(
     if getattr(user, "email_verified_at", None) is None:
         await db_client.mark_email_verified(user.id, verified_at=datetime.now(UTC))
 
-    token = create_jwt_token(user.id, identity.email)
+    token = create_jwt_token(
+        user.id, identity.email, int(getattr(user, "auth_version", 0) or 0)
+    )
     capture_event(
         distinct_id=str(user.provider_id),
         event=event,
@@ -410,17 +446,24 @@ async def google_callback(
     )
     logger.info("Google sign-in for user {} ({})", user.id, identity.email)
 
-    return RedirectResponse(
-        url=f"{UI_APP_URL}/auth/google?token={quote(token)}"
+    response = RedirectResponse(
+        url=f"{UI_APP_URL}/auth/google#token={quote(token)}"
         + (f"&next={quote(next_path)}" if next_path else ""),
         status_code=303,
     )
+    response.delete_cookie(GOOGLE_STATE_COOKIE, path=GOOGLE_COOKIE_PATH)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 def _google_failure(message: str) -> RedirectResponse:
-    return RedirectResponse(
+    response = RedirectResponse(
         url=f"{UI_APP_URL}/auth/login?error={quote(message)}", status_code=303
     )
+    response.delete_cookie(GOOGLE_STATE_COOKIE, path=GOOGLE_COOKIE_PATH)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -463,3 +506,26 @@ async def resend_email_verification(user: UserModel = Depends(get_user)) -> dict
     """
     sent = await email_verification_flow.issue_code(user.id, user.email or "")
     return {"sent": sent}
+
+
+@router.post("/password-reset/request", dependencies=[Depends(require_local_auth)])
+async def request_password_reset(
+    request: PasswordResetRequest, tasks: BackgroundTasks
+) -> dict:
+    if not password_reset.email_is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Password reset email is unavailable. Please contact support.",
+        )
+    tasks.add_task(password_reset.issue_link, str(request.email))
+    return {"message": password_reset.GENERIC_MESSAGE}
+
+
+@router.post("/password-reset/confirm", dependencies=[Depends(require_local_auth)])
+async def confirm_password_reset(request: PasswordResetConfirm) -> dict:
+    if not await password_reset.reset_password(request.token, request.password):
+        raise HTTPException(
+            status_code=400,
+            detail="This reset link is invalid or expired. Request a new one.",
+        )
+    return {"message": "Password updated. Sign in with your new password."}

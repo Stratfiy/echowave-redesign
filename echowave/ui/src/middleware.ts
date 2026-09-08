@@ -28,6 +28,8 @@ const PUBLIC_PATHS = [
   '/auth/login',
   '/auth/signup',
   '/auth/google',
+  '/auth/forgot-password',
+  '/auth/reset-password',
   '/invitations/accept',
 ];
 

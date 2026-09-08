@@ -12,6 +12,7 @@ import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { detailFromError } from "@/lib/apiError";
 
 function SignupForm() {
   // A partner's referral code, from the link they handed out. Read here and
@@ -46,17 +47,21 @@ function SignupForm() {
       });
 
       if (res.error || !res.data) {
-        const detail = (res.error as { detail?: string })?.detail;
-        toast.error(detail || "Signup failed");
+        toast.error(detailFromError(res.error, "Signup failed"));
         return;
       }
 
       // Set httpOnly cookies via server route
-      await fetch("/api/auth/session", {
+      const session = await fetch("/api/auth/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: res.data.token, user: res.data.user }),
       });
+
+      if (!session.ok) {
+        toast.error("Your account was created, but we could not save your session. Please sign in.");
+        return;
+      }
 
       window.location.href = "/after-sign-in";
     } catch {
@@ -72,6 +77,8 @@ function SignupForm() {
         <h1 className="text-2xl font-semibold tracking-tight" data-testid="signup-title">Create your account</h1>
         <p className="text-sm text-muted-foreground">Start building voice agents in minutes — no credit card required.</p>
       </div>
+
+      <p className="text-xs text-muted-foreground">By creating an account, you agree to our <a className="underline" href="https://www.decibyl.ai/legal/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>. Read how we use your information in our <a className="underline" href="https://www.decibyl.ai/legal/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.</p>
 
       <GoogleSignInButton label="Sign up with Google" referralCode={referralCode} />
 

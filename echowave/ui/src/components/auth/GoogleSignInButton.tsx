@@ -7,12 +7,11 @@
  * configured — a button that always fails after the user has already left the
  * site is worse than no button, and an air-gapped install has no Google to
  * reach. The check is the same one the backend makes, so the two cannot
- * disagree: `/auth/google/start` answers 503 when it is not configured, and we
+ * disagree: `/auth/google/status` reports whether it is configured, and we
  * simply do not render on that.
  */
 
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { useAppConfig } from "@/context/AppConfigContext";
@@ -45,7 +44,8 @@ export function GoogleSignInButton({
     referralCode?: string | null;
 }) {
     const [available, setAvailable] = useState<boolean | null>(null);
-    const [starting, setStarting] = useState(false);
+    const [failed, setFailed] = useState(false);
+    const [retry, setRetry] = useState(0);
     const { config } = useAppConfig();
 
     // Resolved the same way every other API call in the app resolves it.
@@ -61,58 +61,42 @@ export function GoogleSignInButton({
 
     useEffect(() => {
         let cancelled = false;
+        setFailed(false);
         (async () => {
             try {
-                const res = await fetch(`${apiBase}/api/v1/auth/google/start`);
-                if (!cancelled) setAvailable(res.ok);
+                const res = await fetch(`${apiBase}/api/v1/auth/google/status`);
+                if (!res.ok) throw new Error("status");
+                const body = await res.json();
+                if (!cancelled) setAvailable(body.enabled === true);
             } catch {
-                if (!cancelled) setAvailable(false);
+                if (!cancelled) setFailed(true);
             }
         })();
-        return () => {
-            cancelled = true;
-        };
-    }, [apiBase]);
+        return () => { cancelled = true; };
+    }, [apiBase, retry]);
 
+    if (failed) return (
+        <p className="text-sm text-muted-foreground" role="status">
+            Google sign-in could not be checked. {" "}
+            <button type="button" className="underline" onClick={() => setRetry(value => value + 1)}>Try again</button>
+        </p>
+    );
     if (available !== true) return null;
-
-    const start = async () => {
-        setStarting(true);
-        try {
-            const query = referralCode
-                ? `?ref=${encodeURIComponent(referralCode)}`
-                : "";
-            const res = await fetch(
-                `${apiBase}/api/v1/auth/google/start${query}`,
-            );
-            const body = await res.json();
-            if (!res.ok || !body.authorization_url) {
-                toast.error(body.detail || "Could not start sign-in with Google");
-                setStarting(false);
-                return;
-            }
-            // A full navigation, not a fetch: the consent screen is Google's
-            // page and has to own the tab.
-            window.location.href = body.authorization_url;
-        } catch {
-            toast.error("Could not reach Google. Try again.");
-            setStarting(false);
-        }
-    };
+    const query = new URLSearchParams({ redirect: "true" });
+    if (referralCode) query.set("ref", referralCode);
 
     return (
         <div className="space-y-4">
             <Button
-                type="button"
+                asChild
                 variant="outline"
                 className="w-full gap-2"
-                onClick={start}
-                disabled={starting}
                 data-testid="google-signin-button"
             >
-                <GoogleMark />
-                {starting ? "Redirecting…" : label}
+                <a href={`${apiBase}/api/v1/auth/google/start?${query}`}><GoogleMark />{label}</a>
             </Button>
+
+            <p className="text-xs text-muted-foreground">Google shares your name and email for sign-in. Calendar access is requested separately when you connect it.</p>
 
             <div className="flex items-center gap-3">
                 <span className="h-px flex-1 bg-border" />

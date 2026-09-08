@@ -38,6 +38,7 @@ export default function ChatwootWidget() {
 
   // Load the Chatwoot SDK exactly once for the lifetime of the app.
   useEffect(() => {
+    if (pathname.startsWith("/auth/")) return;
     // Don't initialize if environment variables are not set
     if (!CHATWOOT_BASE_URL || !CHATWOOT_WEBSITE_TOKEN) {
       console.warn("Chatwoot not configured: Missing NEXT_PUBLIC_CHATWOOT_URL or NEXT_PUBLIC_CHATWOOT_TOKEN");
@@ -83,7 +84,7 @@ export default function ChatwootWidget() {
     };
 
     document.body.appendChild(script);
-  }, []);
+  }, [pathname]);
 
   // Show/hide the bubble per route using Chatwoot's native API. We never tear
   // down and recreate the SDK — doing so left the bubble permanently hidden
@@ -91,7 +92,7 @@ export default function ChatwootWidget() {
   useEffect(() => {
     const applyVisibility = () => {
       if (!window.$chatwoot) return;
-      if (isBuilderPath(pathname)) {
+      if (pathname.startsWith("/auth/") || isBuilderPath(pathname)) {
         window.$chatwoot.toggle?.("close");
         window.$chatwoot.toggleBubbleVisibility?.("hide");
       } else {
