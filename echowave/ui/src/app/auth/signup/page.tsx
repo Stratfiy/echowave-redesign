@@ -78,6 +78,8 @@ function SignupForm() {
         <p className="text-sm text-muted-foreground">Start building voice agents in minutes — no credit card required.</p>
       </div>
 
+      <p className="text-xs text-muted-foreground">By creating an account, you agree to our <a className="underline" href="https://www.decibyl.ai/legal/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>. Read how we use your information in our <a className="underline" href="https://www.decibyl.ai/legal/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.</p>
+
       <GoogleSignInButton label="Sign up with Google" referralCode={referralCode} />
 
       <form onSubmit={handleSubmit} className="space-y-4" data-testid="signup-form">

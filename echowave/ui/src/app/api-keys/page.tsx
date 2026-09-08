@@ -181,7 +181,7 @@ export default function APIKeysPage() {
                 body: {
                     name: newKeyName,
                     environment: newKeyEnvironment,
-                } as { name: string; environment: string },
+                },
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                 }

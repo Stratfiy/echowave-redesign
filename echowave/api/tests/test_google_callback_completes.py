@@ -76,11 +76,16 @@ class TestAnExistingAccountCanSignInWithGoogle:
             "complete_sign_in",
             new=AsyncMock(return_value=(_identity(user.email), None, None)),
         ):
-            response = await auth_routes.google_callback(code="c", state="s")
+            state = google_oauth._issue_state(nonce="test-browser", next_path=None)
+            response = await auth_routes.google_callback(
+                code="c",
+                state=state,
+                google_state=google_oauth.browser_state_digest(state),
+            )
 
         # A redirect carrying a token, not a 500.
         assert response.status_code == 303
-        assert "/auth/google?token=" in response.headers["location"]
+        assert "/auth/google#token=" in response.headers["location"]
 
     async def test_a_verified_existing_account_still_signs_in(
         self, db_session, async_session, no_default_model_config
@@ -95,10 +100,15 @@ class TestAnExistingAccountCanSignInWithGoogle:
             "complete_sign_in",
             new=AsyncMock(return_value=(_identity(user.email), None, None)),
         ):
-            response = await auth_routes.google_callback(code="c", state="s")
+            state = google_oauth._issue_state(nonce="test-browser", next_path=None)
+            response = await auth_routes.google_callback(
+                code="c",
+                state=state,
+                google_state=google_oauth.browser_state_digest(state),
+            )
 
         assert response.status_code == 303
-        assert "/auth/google?token=" in response.headers["location"]
+        assert "/auth/google#token=" in response.headers["location"]
 
 
 @pytest.mark.asyncio
@@ -121,7 +131,12 @@ class TestGoogleDoesNotBypassTheSecondFactor:
             "complete_sign_in",
             new=AsyncMock(return_value=(_identity(user.email), None, None)),
         ):
-            response = await auth_routes.google_callback(code="c", state="s")
+            state = google_oauth._issue_state(nonce="test-browser", next_path=None)
+            response = await auth_routes.google_callback(
+                code="c",
+                state=state,
+                google_state=google_oauth.browser_state_digest(state),
+            )
 
         location = response.headers["location"]
         assert "/auth/login?error=" in location

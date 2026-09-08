@@ -67,6 +67,8 @@ class UserModel(Base):
     staff_role = Column(String(16), nullable=True)
     email = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)
+    # Incremented when a password is reset; legacy sessions have version zero.
+    auth_version = Column(Integer, nullable=False, default=0, server_default=text("0"))
 
     # Second factor. The secret is stored Fernet-encrypted, never in the clear:
     # a readable TOTP secret is password-equivalent, since anyone holding it can
@@ -4525,3 +4527,15 @@ class EmailVerificationChallengeModel(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     __table_args__ = (UniqueConstraint("user_id", name="_email_verification_user_uc"),)
+
+
+class PasswordResetChallengeModel(Base):
+    __tablename__ = "password_reset_challenges"
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    token_hash = Column(String(64), nullable=False, unique=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    window_started_at = Column(DateTime(timezone=True), nullable=False)
+    last_sent_at = Column(DateTime(timezone=True), nullable=False)
+    send_count = Column(Integer, nullable=False, default=1)

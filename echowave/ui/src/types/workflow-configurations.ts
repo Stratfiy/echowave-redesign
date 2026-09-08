@@ -328,6 +328,12 @@ export function resolveWorkflowConfigurations(
         ...FALLBACK_WORKFLOW_CONFIGURATIONS,
         ...defaults,
         ...configurations,
+        // API defaults permit omitted fields; controlled editor inputs need strings.
+        call_outcomes: configurations?.call_outcomes ?? defaults?.call_outcomes?.map(outcome => ({
+            code: outcome.code ?? "",
+            label: outcome.label ?? "",
+            when: outcome.when ?? "",
+        })),
         ambient_noise_configuration: {
             ...FALLBACK_WORKFLOW_CONFIGURATIONS.ambient_noise_configuration,
             ...defaults?.ambient_noise_configuration,

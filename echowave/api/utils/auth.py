@@ -28,9 +28,10 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_jwt_token(user_id: int, email: str) -> str:
+def create_jwt_token(user_id: int, email: str, auth_version: int = 0) -> str:
     payload = {
         "sub": str(user_id),
+        "ver": auth_version,
         "email": email,
         "exp": datetime.now(UTC) + timedelta(hours=OSS_JWT_EXPIRY_HOURS),
         "iat": datetime.now(UTC),
@@ -40,3 +41,7 @@ def create_jwt_token(user_id: int, email: str) -> str:
 
 def decode_jwt_token(token: str) -> dict:
     return jwt.decode(token, OSS_JWT_SECRET, algorithms=["HS256"])
+
+
+def session_version_matches(payload: dict, auth_version: int) -> bool:
+    return payload.get("ver", 0) == auth_version

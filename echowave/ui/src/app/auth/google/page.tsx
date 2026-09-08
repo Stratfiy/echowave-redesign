@@ -52,8 +52,10 @@ function Handoff() {
         if (ran.current) return;
         ran.current = true;
 
-        const token = params.get("token");
-        const next = params.get("next");
+        const fragment = new URLSearchParams(window.location.hash.slice(1));
+        // Accept the old query handoff during a rolling UI/API deployment.
+        const token = fragment.get("token") ?? params.get("token");
+        const next = fragment.get("next") ?? params.get("next");
 
         if (!token) {
             setError("That sign-in link was incomplete. Please try again.");

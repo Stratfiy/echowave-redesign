@@ -25,7 +25,7 @@ from api.services.posthog_client import (
     group_identify,
     set_person_properties,
 )
-from api.utils.auth import decode_jwt_token
+from api.utils.auth import decode_jwt_token, session_version_matches
 
 
 async def require_local_auth() -> None:
@@ -316,6 +316,10 @@ async def _handle_oss_auth(authorization: str | None) -> UserModel:
         payload = decode_jwt_token(token)
         user = await db_client.get_user_by_id(int(payload["sub"]))
         if user:
+            if not session_version_matches(payload, int(user.auth_version or 0)):
+                raise HTTPException(
+                    status_code=401, detail="Session expired. Please sign in again."
+                )
             return user
         raise HTTPException(status_code=401, detail="User not found")
     except HTTPException:

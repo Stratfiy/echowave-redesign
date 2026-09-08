@@ -179,6 +179,28 @@ simply unavailable to create; nothing else depends on it.
 `GOOGLE_CALENDAR_DEFAULT_TIMEZONE` (default `Asia/Kolkata`) is the single
 timezone every event is created in.
 
+### Google sign-in, consent and password recovery
+
+Google sign-in uses the same `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` as Calendar, but has a **different callback URL**. Register both callbacks if both features are enabled. Set these values only in backend secrets, never `NEXT_PUBLIC_*` variables.
+
+1. In Google Cloud, use a Web application OAuth client. Configure the Google Auth Platform branding/audience with the Decibyl name, an owned support address, and the verified `decibyl.ai` domain. Use the existing public policy pages: `https://www.decibyl.ai/legal/privacy` and `https://www.decibyl.ai/legal/terms` (both returned 200 in the audit). Complete any verification requirements shown by Google for the chosen audience and scopes.
+2. Register **exactly** `${BACKEND_API_ENDPOINT}/api/v1/auth/google/callback`. For an API served at `https://api.decibyl.ai`, that is `https://api.decibyl.ai/api/v1/auth/google/callback`. Match scheme, hostname and path; do not use the UI handoff `/auth/google` as Google's callback.
+3. Set `UI_APP_URL=https://app.decibyl.ai` for the hosted app, and ensure `BACKEND_API_ENDPOINT` is the public HTTPS API origin. Local password/Google sign-in requires `AUTH_PROVIDER=local`; Stack deployments keep their own identity-provider flows.
+4. `/api/v1/auth/google/status` must report `enabled: true` after configuration. The UI navigates the browser to `/google/start?redirect=true`, which sets a short-lived HttpOnly, SameSite=Lax state cookie before redirecting to Google. Keep this top-level redirect; a credentialed cross-origin fetch is unnecessary and can fail on self-hosted CORS settings.
+5. Test account selection, a first-time account, an existing password account, cancellation, a missing/foreign browser cookie and expiration. Sign-in asks only for `openid email profile`. Calendar permission is requested by the Calendar connection flow. MFA-enabled accounts still use the password + second-factor flow.
+
+The signup UI links the current Terms and Privacy policy and explains the information Google shares. This is an account notice, not a record of a caller agreeing to recording, a marketing opt-in, or a compliance certification. Keep caller notice/consent, DNC and retention controls in the voice workflow and organization privacy settings.
+
+Password recovery adds `/auth/forgot-password` and `/auth/reset-password` in the UI, and `POST /api/v1/auth/password-reset/request` / `confirm` in the API. Deploy migration `f4c9b31a82de` **before** starting the updated API: it adds `users.auth_version` and `password_reset_challenges`. Existing sessions retain version zero until a password is reset. A reset increments the version and revokes browser JWT sessions; it preserves MFA and API keys and returns the user to sign-in.
+
+The mail path uses the existing `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_USE_TLS` and `EMAIL_FROM_ADDRESS` configuration. Confirm the sender is verified with the mail provider. If mail is unconfigured the API returns an actionable 503. Configured requests respond generically and send after the response; an SMTP delivery failure is logged without tokens or full recipient addresses. Test actual delivery with an owned test inbox before enabling this in production.
+
+Links carry a 256-bit random token in the URL fragment, expire in 30 minutes and are stored only as SHA-256 digests. Issuance is limited to one per minute and five per account per hour. Consumption and session revocation happen in one transaction under a user-row lock. Invalid links are rejected before bcrypt work. Keep reverse-proxy rate limits on public auth endpoints as an additional abuse control.
+
+Acceptance checks: successful reset and new-password login; rejection of the old password and prior JWT; expired/replayed links; simultaneous reset submissions (only one succeeds); hourly send limits; MFA unchanged; unknown accounts receive the same generic request response. Google-only accounts can set a local password through the verified inbox; MFA remains required, so they can use the existing password + MFA sign-in path without being locked out. The new database tests cover expiry, rate limits, one-time consumption and MFA/session preservation; production SMTP, Google consent and external-provider round trips require configured test access.
+
+Sources: [Google's server-side OAuth guide](https://developers.google.com/identity/protocols/oauth2/web-server), [OWASP password recovery guidance](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html).
+
 ### Managed phone numbers
 
 Only if you are selling numbers rather than having customers bring their own

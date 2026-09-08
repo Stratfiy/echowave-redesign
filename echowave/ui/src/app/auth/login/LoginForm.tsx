@@ -116,7 +116,7 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <div className="flex items-center justify-between gap-3"><Label htmlFor="password">Password</Label><Link className="text-sm underline underline-offset-4" href="/auth/forgot-password">Forgot password?</Link></div>
           <Input
             id="password"
             type="password"
