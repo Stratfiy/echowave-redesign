@@ -42,9 +42,12 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import (
+    GST_RATE_BASIS_POINTS,
+    NUMBER_RENTAL_PRICE_PAISE,
     PUBLIC_BASE_URL,
     RAZORPAY_KEY_ID,
     RAZORPAY_WEBHOOK_SECRET,
+    STARTER_PLAN_PRICE_PAISE,
     SUPPLIER_ADDRESS,
     SUPPLIER_GSTIN,
     SUPPLIER_HAS_LUT,
@@ -819,6 +822,85 @@ async def _fx_rate_check(
     )
 
 
+async def _plan_price_drift_check(session: AsyncSession) -> Check:
+    """Does the Starter row still hold the price the Razorpay plan collects?
+
+    Starter's price is **pinned**, not derived. It used to be balance plus the
+    number rental, and that was safe only while the plan was the sole way to
+    hold a number and the two prices were the same figure. They are not: ₹559 is
+    what an *extra* number costs, and a plan's included number is priced inside
+    its monthly price. See the note above ``STARTER_PLAN_BALANCE_PAISE`` in
+    ``api/constants.py``.
+
+    The migration that seeded this table derived the price anyway, and used a
+    stale fallback for the rental while doing it. A deployment whose environment
+    carried the current ₹559 therefore seeded Starter at ₹3,059 rather than
+    ₹2,999 — and the Razorpay plan behind it collects a fixed amount by standing
+    instruction, so the disagreement is settled at the bank, monthly, silently,
+    in whichever direction the mandate was created.
+
+    Nothing else can catch this. The row is valid, the plan sells, the mandate
+    authorises; only the two numbers being different is wrong, and neither side
+    knows about the other.
+    """
+    reference = (
+        "api/constants.py — the note above STARTER_PLAN_BALANCE_PAISE on why "
+        "the price is pinned rather than derived"
+    )
+
+    plan = await session.scalar(
+        select(SubscriptionPlanModel).where(SubscriptionPlanModel.code == "starter")
+    )
+    if plan is None:
+        return Check(
+            key="plan_price_matches_pin",
+            title="The plan's price matches what the bank collects",
+            status=UNKNOWN,
+            detail="No Starter plan row exists, so there is nothing to compare.",
+            reference=reference,
+        )
+
+    pinned = STARTER_PLAN_PRICE_PAISE
+    stored = int(plan.price_paise)
+    gross = stored + (stored * GST_RATE_BASIS_POINTS) // 10_000
+
+    if stored != pinned:
+        return Check(
+            key="plan_price_matches_pin",
+            title="The plan's price matches what the bank collects",
+            status=ACTION_REQUIRED,
+            detail=(
+                f"Starter is stored at ₹{stored / 100:,.2f} but "
+                f"STARTER_PLAN_PRICE_PAISE pins it at ₹{pinned / 100:,.2f}. "
+                f"A mandate created against the stored figure collects "
+                f"₹{gross / 100:,.2f} a month by standing instruction, and "
+                "nothing reconciles the two."
+            ),
+            reference=reference,
+            remedy=(
+                f"Decide which is right, then make them agree: correct the plan "
+                f"at /superadmin/billing/plans, or set STARTER_PLAN_PRICE_PAISE "
+                f"to ₹{stored / 100:,.0f}. Whichever you choose, the Razorpay "
+                "plan id on the row must collect that figure grossed up — "
+                "changing the price here does not change what an existing "
+                "mandate collects."
+            ),
+        )
+
+    return Check(
+        key="plan_price_matches_pin",
+        title="The plan's price matches what the bank collects",
+        status=READY,
+        detail=(
+            f"Starter is ₹{stored / 100:,.2f} net, matching the pinned price. "
+            f"The Razorpay plan behind it must collect ₹{gross / 100:,.2f} "
+            f"including GST. An extra number beyond the plan is "
+            f"₹{int(plan.extra_number_price_paise or NUMBER_RENTAL_PRICE_PAISE) / 100:,.2f}."
+        ),
+        reference=reference,
+    )
+
+
 async def _export_supply_check(session: AsyncSession) -> Check:
     """Can a customer outside India actually be sold a plan.
 
@@ -1101,6 +1183,7 @@ async def assess(
     checks.extend(await _payment_evidence(session))
     checks.extend(await _price_book_evidence(session, now=now))
     checks.append(await _fx_rate_check(session, now=now))
+    checks.append(await _plan_price_drift_check(session))
     checks.append(await _export_supply_check(session))
     checks.append(await _carrier_price_check(session))
     checks.append(await _carrier_enablement_check(session))
