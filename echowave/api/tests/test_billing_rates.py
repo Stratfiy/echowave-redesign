@@ -19,7 +19,6 @@ from api.db.models import (
 )
 from api.enums import CostComponent, RateUnit
 from api.services.billing.money import (
-    DEFAULT_PLATFORM_RATE_MICROS_USD,
     DEFAULT_PULSE_SECONDS,
     DEFAULT_USD_INR_PAISE,
 )
@@ -50,12 +49,14 @@ class TestPlatformRateResolution:
             async_session, organization_id=org.id, at=JUN
         )
 
-        # $0.02/min converted at the seeded ₹96 — the receipt carries both, so
-        # a customer quoted in dollars can check the rupee figure.
+        # ₹3.00/min flat. The fee is rupee-native, so there is no dollar price
+        # to put on the receipt for this line and no FX applied to it — the
+        # rate must not move when the USD/INR row does. The FX rate is still
+        # carried, because add-on rates are quoted in dollars and convert.
         assert resolved.source == "global_default"
-        assert resolved.rate_micros_usd == DEFAULT_PLATFORM_RATE_MICROS_USD
+        assert resolved.rate_micros_usd is None
         assert resolved.usd_inr_paise == DEFAULT_USD_INR_PAISE
-        assert resolved.rate_mpaise == 192_000
+        assert resolved.rate_mpaise == 300_000
         assert resolved.pulse_seconds == DEFAULT_PULSE_SECONDS
 
     async def test_account_override_wins_over_default(self, async_session):

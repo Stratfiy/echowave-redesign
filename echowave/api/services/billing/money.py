@@ -37,9 +37,8 @@ MPAISE_PER_PAISE = 1000
 # figures go smaller still — cents would round the rate itself to zero.
 MICROS_PER_USD = 1_000_000
 
-# Global default platform rate: $0.02 per billable minute.
-# Matches the cheapest platform fee in the market; the differentiator is the
-# pulse below, not the headline number.
+# Retained for accounts and volume tiers whose rate is written in dollars.
+# It is no longer the global default — see DEFAULT_PLATFORM_RATE_MPAISE.
 DEFAULT_PLATFORM_RATE_MICROS_USD = 20_000
 
 #: Fallback USD→INR rate, in paise per dollar (₹96.00), used only when the
@@ -59,9 +58,22 @@ DEFAULT_USD_INR_PAISE = 9_600
 #: agents run.
 DEFAULT_PULSE_SECONDS = 15
 
-# Retained for the legacy INR-native path: an account whose contract is written
-# in rupees keeps an mpaise rate rather than tracking the dollar. ₹2.00/min.
-DEFAULT_PLATFORM_RATE_MPAISE = 200_000
+# The global default platform rate: ₹3.00 per billable minute, for a
+# pay-as-you-go account with no negotiated override and no volume tier.
+#
+# Rupee-native deliberately. The fee used to be quoted at $0.02 and converted,
+# which made the price an Indian customer pays a function of the dollar: at
+# ₹96 it billed ₹1.92, and it would drift with every FX row without anyone
+# deciding it should. We sell in rupees, invoice in rupees and are argued with
+# in rupees, so the number is fixed in rupees and does not move.
+#
+# ₹3.00 is decision 1 of PRICING-DECISIONS.md, recorded 28 Aug 2026 and until
+# now never actually set — every account was falling through to the $0.02
+# default, a 36% under-charge on the platform fee of every billed minute.
+#
+# An account or tier quoted in dollars still converts; only this fallback is
+# rupee-native.
+DEFAULT_PLATFORM_RATE_MPAISE = 300_000
 
 # How many raw units make up one unit of the quoted rate.
 #   MINUTE          → quantity is supplied in seconds

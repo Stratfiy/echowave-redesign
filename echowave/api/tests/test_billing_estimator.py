@@ -236,7 +236,7 @@ class TestEstimate:
         )
 
         # The list price is $0.02/min, converted at the seeded ₹96.
-        assert listed.platform_paise_per_minute == 192
+        assert listed.platform_paise_per_minute == 300
         assert negotiated.platform_paise_per_minute == 50
         assert negotiated.total_paise_per_minute < listed.total_paise_per_minute
 

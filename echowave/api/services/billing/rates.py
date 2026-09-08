@@ -39,7 +39,7 @@ from api.db.models import (
 )
 from api.enums import CostComponent, RateUnit
 from api.services.billing.money import (
-    DEFAULT_PLATFORM_RATE_MICROS_USD,
+    DEFAULT_PLATFORM_RATE_MPAISE,
     DEFAULT_PULSE_SECONDS,
     DEFAULT_USD_INR_PAISE,
     usd_to_mpaise,
@@ -222,14 +222,16 @@ async def resolve_platform_rate(
     if tier is not None:
         return _from_row(tier, source="volume_tier", fx=fx, tier_name=tier.name)
 
+    # Rupee-native: ₹3.00/min flat, with no FX applied to the fee itself, so
+    # the price a pay-as-you-go account pays does not move with the dollar.
+    # ``rate_micros_usd`` is therefore None — there is no dollar price to put
+    # on the receipt for this line. The FX rate is still carried, because the
+    # add-on rates and the dollar figure shown beside the rupee total are
+    # quoted in dollars and still have to convert.
     return ResolvedPlatformRate(
-        rate_mpaise=usd_to_mpaise(
-            micros_usd=DEFAULT_PLATFORM_RATE_MICROS_USD,
-            usd_inr_paise=fx.paise_per_usd,
-        ),
+        rate_mpaise=DEFAULT_PLATFORM_RATE_MPAISE,
         source="global_default",
         pulse_seconds=DEFAULT_PULSE_SECONDS,
-        rate_micros_usd=DEFAULT_PLATFORM_RATE_MICROS_USD,
         usd_inr_paise=fx.paise_per_usd,
     )
 
