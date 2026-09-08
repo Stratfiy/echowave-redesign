@@ -53,6 +53,7 @@ from api.constants import (
 )
 from api.db.models import (
     PaymentModel,
+    PaymentTokenModel,
     ProviderRateModel,
     SubscriptionPlanModel,
     TaxDocumentModel,
@@ -397,44 +398,62 @@ async def _webhook_reachability_check(*, probe: bool) -> Check:
     )
 
 
-def _auto_topup_provider_check() -> Check:
-    """Can we take a variable amount without the customer present?
+async def _auto_topup_provider_check(session: AsyncSession) -> Check:
+    """Has a recurring authorisation ever actually been captured?
 
-    Reported rather than assumed, because the answer is an *approval* and not a
-    setting, and it has a lead time measured in days. Collecting on a mandate
-    the customer is not watching requires the provider to enable recurring
-    payments on the merchant account: a card or UPI authorisation registered
-    with a maximum amount, a token stored against it, and a pre-debit notice to
-    the customer a clear day before each debit.
+    Asked of the data rather than of the configuration, because everything that
+    can go wrong here goes wrong silently. Recurring payments can be approved on
+    the merchant account and still yield no token: the checkout has to request
+    one, the webhook has to carry ``recurring``, and the capture path has to
+    store it. Each of those failing looks identical from the outside — a
+    customer switches auto top-up on, nothing objects, and their balance runs
+    out anyway.
 
-    None of that is configuration this process can inspect, and the decision
-    engine in :mod:`api.services.billing.auto_topup` is deliberately inert
-    without it — it schedules and refuses, but nothing presents an instrument.
-    Left silent, the failure looks like a feature that quietly does nothing.
+    ``needs_a_human`` rather than ``action_required`` while no account has one,
+    because that is also the honest state of a deployment where nobody has
+    tried yet, and a permanently red check is one nobody reads.
     """
+    active = await session.scalar(
+        select(func.count(PaymentTokenModel.id)).where(
+            PaymentTokenModel.status == "active"
+        )
+    )
+    reference = (
+        "api/services/billing/auto_topup.py — the notice period and the monthly "
+        "ceilings are enforced before anything is presented"
+    )
+
+    if active:
+        return Check(
+            key="auto_topup_instrument_captured",
+            title="A recurring payment method can be captured",
+            status=READY,
+            detail=(
+                f"{active} account(s) have an active saved instrument, so the "
+                "checkout is requesting a recurring token and the webhook is "
+                "storing it."
+            ),
+            reference=reference,
+        )
+
     return Check(
-        key="auto_topup_provider_enabled",
-        title="The provider can collect without the customer present",
+        key="auto_topup_instrument_captured",
+        title="A recurring payment method can be captured",
         status=NEEDS_A_HUMAN,
         detail=(
-            "Automatic top-up needs recurring payments enabled on the merchant "
-            "account — an authorisation registered with a maximum amount and a "
-            "token held against it. That is an approval from the provider, not "
-            "a setting here, so nothing in this process can confirm it. Until "
-            "it is in place the decision engine runs and schedules, and no "
-            "instrument is ever presented."
+            "No account has a saved instrument yet, so nothing has proved that "
+            "a recurring token is being requested at checkout and stored from "
+            "the webhook. Until one is captured, automatic top-up will schedule "
+            "and then refuse for want of anything to present."
         ),
-        reference=(
-            "api/services/billing/auto_topup.py — the notice period and the "
-            "monthly ceilings are already enforced"
-        ),
+        reference=reference,
         remedy=(
-            "Apply for recurring payments / e-mandate on the Razorpay account "
-            "and confirm the per-debit maximum they register. Indian e-mandate "
-            "rules also require the customer be notified a clear 24 hours "
-            "before each debit, which is why the engine schedules rather than "
-            "charges — confirm the notification channel with them at the same "
-            "time."
+            "Buy credit once yourself with recurring enabled on the checkout, "
+            "then confirm a row appears in payment_tokens and that automatic "
+            "top-up on /billing offers to switch on. Confirm the per-charge "
+            "maximum your provider registered at the same time — it is stored "
+            "and enforced, and a charge above it is refused before the bank "
+            "sees it."
         ),
     )
 
@@ -1085,6 +1104,6 @@ async def assess(
     checks.append(await _export_supply_check(session))
     checks.append(await _carrier_price_check(session))
     checks.append(await _carrier_enablement_check(session))
-    checks.append(_auto_topup_provider_check())
+    checks.append(await _auto_topup_provider_check(session))
     checks.append(_round_trip_obligation())
     return Readiness(checks=tuple(checks))

@@ -4648,3 +4648,72 @@ class AutoTopupAttemptModel(Base):
             postgresql_where=text("status IN ('scheduled', 'charging')"),
         ),
     )
+
+
+class PaymentTokenModel(Base):
+    """A saved instrument we may present without the customer being there.
+
+    Distinct from ``PaymentMandateModel``, which is a provider *subscription*
+    collecting one fixed amount on the provider's schedule. This is the other
+    kind of standing permission: a token against which we may raise a charge of
+    our own choosing, up to a registered maximum, whenever our own logic says
+    so. Auto top-up needs that second kind — the amount is the customer's
+    configured top-up, and the timing is whenever their balance runs low.
+
+    **The maximum is the bank's, not ours.** It is registered when the customer
+    authorises and cannot be exceeded without them re-authorising, so it is
+    stored here and checked before a charge rather than discovered as a decline.
+
+    Only the last four digits or the UPI handle are kept, and only so the UI can
+    say *which* instrument is on file. Nothing here can be used to charge
+    anywhere but through the provider, and the token is theirs to revoke.
+    """
+
+    __tablename__ = "payment_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    provider = Column(
+        String(32), nullable=False, default="razorpay", server_default="razorpay"
+    )
+
+    #: The provider's identifiers. Both are needed to raise a recurring charge.
+    token_id = Column(String(64), nullable=False)
+    customer_id = Column(String(64), nullable=True)
+
+    #: card | upi | emandate — what the customer will recognise.
+    method = Column(String(24), nullable=True)
+    #: Last four digits, or the UPI handle. For display only.
+    instrument_hint = Column(String(64), nullable=True)
+
+    #: The ceiling registered with the bank at authorisation. Null means the
+    #: provider did not tell us, in which case nothing here may assume one.
+    max_amount_paise = Column(BigInteger, nullable=True)
+
+    #: active | revoked. A token the customer or their bank has cancelled must
+    #: never be presented again — it is a decline that costs money and standing.
+    status = Column(
+        String(24), nullable=False, default="active", server_default="active"
+    )
+
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index("ix_payment_tokens_org", "organization_id", "status"),
+        # One row per provider token. Webhooks arrive at least once, and a
+        # redelivery must update the row rather than add a second one that half
+        # the code then reads instead.
+        Index(
+            "uq_payment_tokens_token", "provider", "token_id", unique=True
+        ),
+    )

@@ -40,6 +40,7 @@ REDIS_SETTINGS = RedisSettings(
 )
 
 from api.constants import ARQ_MAX_JOBS
+from api.tasks.auto_topup import sweep_auto_topups
 from api.tasks.backup import run_database_backup, run_ledger_snapshot
 from api.tasks.billing_rollup import refresh_billing_rollups
 from api.tasks.campaign_tasks import (
@@ -82,6 +83,7 @@ class WorkerSettings:
         run_database_backup,
         run_ledger_snapshot,
         refresh_exchange_rate,
+        sweep_auto_topups,
         record_worker_heartbeat,
         charge_recurring_rentals,
         reconcile_carrier_numbers,
@@ -172,6 +174,19 @@ class WorkerSettings:
         ),
         # 02:30 UTC is 08:00 IST — after the reference rates for the day are
         # published and before anyone opens the rate card.
+        # Twice a day, not once. A debit may not run until a clear day after
+        # the customer was told, so a single daily pass would either charge
+        # exactly 24 hours later with no slack for a late run, or slip a whole
+        # day each time. Two passes land the charge within a few hours of
+        # becoming due. 03:00 and 15:00 UTC are 08:30 and 20:30 IST — either
+        # side of the Indian working day rather than inside it.
+        cron(
+            sweep_auto_topups,
+            hour={3, 15},
+            minute={0},
+            second=0,
+            run_at_startup=False,
+        ),
         cron(
             refresh_exchange_rate,
             hour={2},
