@@ -43,6 +43,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
+from api.services.privacy.redaction import redact_annotations
 from api.utils.recording_artifacts import get_recording_storage_key
 
 #: The tracks a call can be recorded on. A purge that removed the mixed
@@ -226,6 +227,12 @@ async def purge_run(
         run.gathered_context = {}
         run.initial_context = {}
         run.logs = {}
+        # And what the post-call pass *learned* from it. The QA summary and
+        # every extracted field lived on past this point for as long as the row
+        # did — a transcript can expire while a tidy JSON object of the same
+        # person's details does not. Outcome labels survive; see redaction.py
+        # for why those identify nobody.
+        run.annotations = redact_annotations(run.annotations)
 
     await session.flush()
     return deleted, True

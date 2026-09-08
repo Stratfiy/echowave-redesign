@@ -83,6 +83,7 @@ async def _run(
     age_days: int = 0,
     number: str | None = None,
     recording: str = "recordings/1.wav",
+    annotations: dict | None = None,
 ):
     when = datetime.now(UTC) - timedelta(days=age_days)
     run = WorkflowRunModel(
@@ -96,6 +97,7 @@ async def _run(
         total_charged_paise=250,
         initial_context={"caller_number": number} if number else {},
         gathered_context={},
+        annotations=annotations or {},
     )
     async_session.add(run)
     await async_session.flush()
@@ -788,3 +790,97 @@ class TestBreachWindowReport:
 
         assert report["total_accesses"] == 0
         assert report["first_access"] is None
+
+
+# What the post-call pass writes, and the shape that used to survive a purge.
+LEARNED = {
+    "qa": {
+        "node_results": {
+            "n": {
+                "tags": ["booked"],
+                "summary": "Anita called about chest pain and booked Thursday.",
+                "score": 4,
+                "extracted_data": {"name": "Anita Sharma", "phone": "9876543210"},
+            }
+        }
+    },
+    "disposition": {"dispositions": ["booked"], "provider": "openai"},
+}
+
+
+@pytest.mark.asyncio
+class TestThePurgeReachesAnnotations:
+    """`annotations` is where the post-call pass records what it learned from
+    the conversation — the QA summary, and every field the extraction library
+    pulled out of the caller. Neither cleanup path cleared it, so a run could
+    be purged for retention or erased on a subject's own request and leave a
+    structured record of that person behind.
+
+    These test the paths rather than the helper: deleting the redaction call
+    from either one has to fail something here.
+    """
+
+    async def test_retention_strips_what_was_learned(self, async_session, storage):
+        org, workflow, _ = await _org(async_session, "annotretention")
+        run = await _run(async_session, workflow, annotations=dict(LEARNED))
+
+        await retention.purge_run(async_session, run=run, drop_transcript=True)
+
+        blob = repr(run.annotations)
+        assert "Anita Sharma" not in blob
+        assert "chest pain" not in blob
+        assert "9876543210" not in blob
+
+    async def test_retention_keeps_the_outcome_label(self, async_session, storage):
+        """Losing these would rewrite historical outcome analytics for every
+        purged run, which is its own kind of wrong."""
+        org, workflow, _ = await _org(async_session, "annotkeep")
+        run = await _run(async_session, workflow, annotations=dict(LEARNED))
+
+        await retention.purge_run(async_session, run=run, drop_transcript=True)
+
+        assert run.annotations["disposition"] == {"dispositions": ["booked"]}
+
+    async def test_a_recording_only_purge_leaves_annotations_alone(
+        self, async_session, storage
+    ):
+        """The transcript is still there, so what was learned from it is not
+        yet orphaned. Only the drop-transcript case erases."""
+        org, workflow, _ = await _org(async_session, "annotrecordingonly")
+        run = await _run(async_session, workflow, annotations=dict(LEARNED))
+
+        await retention.purge_run(async_session, run=run, drop_transcript=False)
+
+        assert "Anita Sharma" in repr(run.annotations)
+
+    async def test_erasing_a_person_strips_what_was_learned_about_them(
+        self, async_session, storage
+    ):
+        """This path answers a subject's own request and says it erases every
+        trace. A JSON object of their name and number is more identifying than
+        the audio was."""
+        org, workflow, _ = await _org(async_session, "annoterase")
+        run = await _run(
+            async_session,
+            workflow,
+            number="+919876543210",
+            annotations=dict(LEARNED),
+        )
+
+        await erasure.erase_number(
+            async_session, organization_id=org.id, number="9876543210"
+        )
+
+        blob = repr(run.annotations)
+        assert "Anita Sharma" not in blob
+        assert "chest pain" not in blob
+
+    async def test_erasing_an_organization_leaves_nothing(self, async_session, storage):
+        """Stricter than the per-person path: there is no account left to run
+        analytics for, so not even the labels stay."""
+        org, workflow, _ = await _org(async_session, "annoteraseorg")
+        run = await _run(async_session, workflow, annotations=dict(LEARNED))
+
+        await erasure.erase_organization(async_session, organization_id=org.id)
+
+        assert run.annotations == {}

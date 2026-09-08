@@ -43,6 +43,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
+from api.services.privacy.redaction import redact_annotations
 from api.services.privacy.retention import PURGED_MARKER, _delete_objects, _storage_keys
 
 
@@ -167,6 +168,12 @@ async def erase_number(
             for k, v in (run.extra or {}).items()
             if k not in {"recording_artifacts", "recordings"}
         }
+        # What the post-call pass learned about this person, which is the half
+        # this path used to leave behind. "Erase every trace" above was not
+        # true while `extracted_data` — their name, their number, whatever the
+        # agent was told to collect — sat in annotations after the audio and
+        # the transcript were gone.
+        run.annotations = redact_annotations(run.annotations)
         # Duration and cost stay. A GST return has to keep reconciling, and
         # "this call lasted 94 seconds and cost Rs 3.20" identifies nobody.
         runs_affected += 1
@@ -242,6 +249,10 @@ async def erase_organization(
         run.gathered_context = {}
         run.logs = {}
         run.extra = {}
+        # Whole-account erasure, so this is stricter than the per-person path:
+        # nothing derived from any conversation stays, not even the outcome
+        # labels, because there is no account left to run analytics for.
+        run.annotations = {}
         runs_affected += 1
 
     request.runs_affected = runs_affected
