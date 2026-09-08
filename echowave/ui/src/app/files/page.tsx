@@ -51,7 +51,7 @@ export default function FilesPage() {
         <div className="container mx-auto px-4 py-8">
             <div className="mb-8">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <h1 className="text-3xl font-bold">Knowledge Base Files</h1>
+                    <h1 className="text-[26px] leading-tight">Knowledge base</h1>
                     {/* Retrieval during a call is a real, measured cost, but it
                         is not billed as a separate line today — see
                         PRICING-DECISIONS.md. An absorbed feature nobody is

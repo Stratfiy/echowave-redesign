@@ -383,7 +383,7 @@ export default function APIKeysPage() {
             <div className="container mx-auto px-4 py-8">
                 <div className="max-w-6xl mx-auto">
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold mb-2">Developer Portal</h1>
+                        <h1 className="mb-2 text-[26px] leading-tight">API keys &amp; SDKs</h1>
                         <p className="text-muted-foreground">Manage your API keys to access Decibyl services programmatically</p>
                     </div>
 

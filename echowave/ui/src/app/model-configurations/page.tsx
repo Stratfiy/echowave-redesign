@@ -65,7 +65,7 @@ export default function ServiceConfigurationPage() {
             <div className="container mx-auto px-4 py-8">
                 <div className="mx-auto max-w-6xl space-y-6">
                     <div>
-                        <h1 className="text-3xl font-bold">Models</h1>
+                        <h1 className="text-[26px] leading-tight">Models &amp; voices</h1>
                         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
                             The default for every agent in this organization. An agent can
                             choose a different bundle while you create it, and that choice

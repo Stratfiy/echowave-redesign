@@ -155,7 +155,7 @@ export default function TelephonyConfigurationsPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Telephony configurations</h1>
+            <h1 className="mb-2 text-[26px] leading-tight">Phone numbers</h1>
             <p className="text-muted-foreground">
               Connect one or more telephony provider accounts. Each campaign uses one
               configuration; inbound calls are routed to the right one by account ID.{" "}

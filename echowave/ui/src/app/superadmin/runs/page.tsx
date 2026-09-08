@@ -9,6 +9,7 @@ import { getWorkflowRunsApiV1SuperuserWorkflowRunsGet } from '@/client/sdk.gen';
 import { FilterBuilder } from "@/components/filters/FilterBuilder";
 import { MediaPreviewButton, MediaPreviewDialog } from '@/components/MediaPreviewDialog';
 import { Badge } from "@/components/ui/badge";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -300,9 +301,7 @@ export default function RunsPage() {
             </div>
 
             {error && (
-                    <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
-                        {error}
-                    </div>
+                    <ErrorBanner className="mb-6">{error}</ErrorBanner>
                 )}
 
                 <FilterBuilder
