@@ -12,7 +12,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.services.workflow.tools.custom_tool import _resolve_preset_parameters
-from api.utils.credential_auth import build_auth_header
+from api.utils.credential_auth import resolve_auth_header
 from api.utils.template_renderer import render_template
 from api.utils.url_security import validate_user_configured_service_url
 
@@ -166,7 +166,11 @@ async def _execute_http_resolver(
             credential_uuid, organization_id
         )
         if credential:
-            headers.update(build_auth_header(credential))
+            headers.update(
+                await resolve_auth_header(
+                    credential, persist=db_client.save_oauth_token_cache
+                )
+            )
         else:
             raise TransferResolutionError(
                 "credential_not_found",

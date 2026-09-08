@@ -11,6 +11,7 @@ from api.db.models import UserModel
 from api.enums import OrganizationRole, WebhookCredentialType
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user, require_organization_role
+from api.services.integrations import oauth2
 
 router = APIRouter(prefix="/credentials")
 
@@ -93,6 +94,30 @@ def validate_credential_data(
             raise HTTPException(
                 status_code=400,
                 detail="Custom Header credential requires 'header_name' and 'header_value' fields",
+            )
+
+    elif credential_type == WebhookCredentialType.OAUTH2:
+        # Refused here rather than at call time. An OAuth credential missing
+        # its client secret looks identical to a working one on the
+        # credentials screen, and the first thing that tells anybody otherwise
+        # would be a tool failing mid-conversation.
+        absent = oauth2.missing_fields(credential_data)
+        if absent:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "OAuth credential requires "
+                    f"{', '.join(oauth2.REQUIRED_FIELDS)}. Missing: "
+                    f"{', '.join(absent)}"
+                ),
+            )
+        url = str(credential_data.get("token_url", ""))
+        if not url.startswith("https://"):
+            # The refresh token and the client secret are POSTed to this URL on
+            # every exchange. Plain http would put both on the wire.
+            raise HTTPException(
+                status_code=400,
+                detail="OAuth token_url must be an https:// URL",
             )
 
 

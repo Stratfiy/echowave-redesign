@@ -8,7 +8,7 @@ import httpx
 from loguru import logger
 
 from api.db import db_client
-from api.utils.credential_auth import build_auth_header
+from api.utils.credential_auth import resolve_auth_header
 from api.utils.template_renderer import render_template
 
 # Map tool parameter types to JSON schema types
@@ -256,7 +256,9 @@ async def execute_http_tool(
                 credential_uuid, organization_id
             )
             if credential:
-                auth_header = build_auth_header(credential)
+                auth_header = await resolve_auth_header(
+                    credential, persist=db_client.save_oauth_token_cache
+                )
                 headers.update(auth_header)
                 logger.debug(f"Applied credential '{credential.name}' to tool request")
             else:
