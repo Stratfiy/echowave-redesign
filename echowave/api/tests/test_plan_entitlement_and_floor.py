@@ -295,11 +295,27 @@ class TestAPlanCannotBeSoldAtALoss:
         assert plan.price_paise == constants.STARTER_PLAN_PRICE_PAISE
         assert plan.balance_paise == constants.STARTER_PLAN_BALANCE_PAISE
         assert plan.included_numbers == 1
-        # ₹2,500 of balance + one ₹499 number sold for ₹2,999: priced exactly at
-        # its parts, which is the deliberate ₹0 discount the plan was designed
-        # around rather than an accident.
-        assert plan.parts_paise == plan.price_paise
-        assert plan.discount_paise == 0
+        # ₹2,500 of balance + one ₹559 number, sold for ₹2,999: a deliberate ₹60
+        # discount, "the same shape Growth and Scale carry" — see the note above
+        # STARTER_PLAN_BALANCE_PAISE in api/constants.py.
+        #
+        # This asserted a ₹0 discount until the migration that seeds this table
+        # stopped disagreeing with everything else. It seeded the extra-number
+        # price from a fallback of ₹499 while `ensure_seeded` and the constant
+        # both said ₹559, so the figure an account got depended on whether its
+        # row came from the migration or the seeder. The ₹0 was that
+        # inconsistency, not a designed price.
+        assert plan.extra_number_price_paise == constants.NUMBER_RENTAL_PRICE_PAISE
+        assert plan.parts_paise == (
+            constants.STARTER_PLAN_BALANCE_PAISE + constants.NUMBER_RENTAL_PRICE_PAISE
+        )
+        assert plan.discount_paise == (
+            plan.parts_paise - constants.STARTER_PLAN_PRICE_PAISE
+        )
+        assert plan.discount_paise > 0, (
+            "a plan priced at or above its parts is not the shape this one was "
+            "designed in"
+        )
 
     async def test_seeding_twice_does_not_overwrite_an_edited_plan(self, async_session):
         await subscription_plans.ensure_seeded(async_session)
