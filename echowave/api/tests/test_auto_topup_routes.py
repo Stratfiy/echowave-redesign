@@ -97,7 +97,9 @@ class TestWhatTheScreenMustRefuse:
         """The route raises 400 for this. Asserted here at the layer the route
         asks, because the answer is what the refusal depends on."""
         org = await _org(async_session, "noinstrument")
-        assert await payments.active_token(async_session, organization_id=org.id) is None
+        assert (
+            await payments.active_token(async_session, organization_id=org.id) is None
+        )
 
     async def test_an_amount_above_the_authorised_ceiling_is_knowable_up_front(
         self, db_session, async_session

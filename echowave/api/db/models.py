@@ -4713,7 +4713,5 @@ class PaymentTokenModel(Base):
         # One row per provider token. Webhooks arrive at least once, and a
         # redelivery must update the row rather than add a second one that half
         # the code then reads instead.
-        Index(
-            "uq_payment_tokens_token", "provider", "token_id", unique=True
-        ),
+        Index("uq_payment_tokens_token", "provider", "token_id", unique=True),
     )

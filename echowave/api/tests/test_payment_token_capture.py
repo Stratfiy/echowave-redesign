@@ -145,9 +145,7 @@ class TestRedeliveryDoesNotDuplicate:
 
 @pytest.mark.asyncio
 class TestWhichInstrumentWeWouldPresent:
-    async def test_a_revoked_token_is_never_offered(
-        self, db_session, async_session
-    ):
+    async def test_a_revoked_token_is_never_offered(self, db_session, async_session):
         """Presenting a cancelled mandate is a decline that costs money and
         merchant standing, every time."""
         org = await _org(async_session, "revoked")
@@ -155,13 +153,15 @@ class TestWhichInstrumentWeWouldPresent:
             async_session, organization_id=org.id, entity=_entity()
         )
         await payments.revoke_token(async_session, token_id="token_abc")
-        assert await payments.active_token(async_session, organization_id=org.id) is None
+        assert (
+            await payments.active_token(async_session, organization_id=org.id) is None
+        )
 
-    async def test_an_account_with_no_token_has_none(
-        self, db_session, async_session
-    ):
+    async def test_an_account_with_no_token_has_none(self, db_session, async_session):
         org = await _org(async_session, "empty")
-        assert await payments.active_token(async_session, organization_id=org.id) is None
+        assert (
+            await payments.active_token(async_session, organization_id=org.id) is None
+        )
 
     async def test_one_accounts_token_is_never_offered_to_another(
         self, db_session, async_session
