@@ -48,6 +48,25 @@ success — the UI shows nothing, the audit trail says purged, and the recording
 is still there. If an object cannot be deleted the row keeps its pointer so the
 next sweep retries, rather than orphaning audio nobody can now find.
 
+**What the agent learned is erased with the conversation it came from.** A
+purge clears the recording, the transcript, the gathered context and the logs —
+and also the run's `annotations`, which is where the post-call pass writes the
+QA summary and `extracted_data`, every named field the extraction library was
+configured to pull out of the caller. For a long time it did not: a transcript
+could expire on schedule while a tidy JSON object of the same person's name,
+number and reason for calling stayed on the row indefinitely. On a subject's
+own erasure request that was the wrong half to keep.
+
+What survives a purge is closed-vocabulary labels and numbers — the disposition
+codes an operations team filters on, the QA tags, the score, the sentiment.
+Those come from sets the operator configured rather than from the caller, and
+dropping them would silently rewrite historical outcome reporting for every
+purged call. The rule is an allowlist, so a field added to the post-call pass
+later is erased by default rather than retained by oversight
+(`api/services/privacy/redaction.py`). **Erasing a whole organisation is
+stricter still**: nothing derived from any conversation stays, labels included,
+because there is no account left to report on.
+
 ### Erasure — DPDP s12(3), GDPR Art 17
 
 `api/services/privacy/erasure.py`. `POST /api/v1/privacy/erasure`.

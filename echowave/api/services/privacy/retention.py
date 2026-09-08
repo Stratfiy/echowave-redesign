@@ -43,6 +43,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
+from api.services.privacy.redaction import redact_annotations
 from api.utils.recording_artifacts import get_recording_storage_key
 
 #: The tracks a call can be recorded on. A purge that removed the mixed
@@ -142,12 +143,21 @@ async def set_policy(
     return await resolve_policy(session, organization_id=organization_id)
 
 
-def _storage_keys(run: WorkflowRunModel) -> list[str]:
-    """Every object belonging to one run.
+def _storage_keys(run: WorkflowRunModel, *, include_transcript: bool) -> list[str]:
+    """Every object belonging to one run that this purge is entitled to delete.
 
     Both mixed and per-speaker tracks: a purge that removed the combined
     recording and left the separated ones would be worse than none, because it
     would report success.
+
+    **`include_transcript` is not a refinement, it is the correctness of the
+    thing.** Recordings and transcripts have separate retention windows, and the
+    recording one is shorter — that is the point of having two. So the ordinary
+    case is a run whose audio has expired and whose transcript has not. Deleting
+    every object belonging to the run on that sweep destroyed the transcript
+    years early *and* left `transcript_url` pointing at it, so the row claimed a
+    transcript that storage no longer had. Data loss that reports success, and
+    the operator finds out when someone asks for a call that is gone.
     """
     keys: list[str] = []
     for track in RECORDING_TRACKS:
@@ -156,7 +166,10 @@ def _storage_keys(run: WorkflowRunModel) -> list[str]:
             keys.append(key)
 
     # The legacy columns hold bare storage keys on older rows.
-    for legacy in (run.recording_url, run.transcript_url):
+    legacy_columns = [run.recording_url]
+    if include_transcript:
+        legacy_columns.append(run.transcript_url)
+    for legacy in legacy_columns:
         if legacy and legacy != PURGED_MARKER and not legacy.startswith("http"):
             keys.append(legacy)
 
@@ -202,7 +215,9 @@ async def purge_run(
     Storage first. If an object cannot be deleted the row keeps its pointer, so
     the next sweep tries again rather than orphaning audio nobody can now find.
     """
-    deleted, failed = await _delete_objects(_storage_keys(run))
+    deleted, failed = await _delete_objects(
+        _storage_keys(run, include_transcript=drop_transcript)
+    )
     if failed:
         logger.warning(
             "Run {}: {} object(s) could not be deleted; leaving the row intact "
@@ -226,6 +241,12 @@ async def purge_run(
         run.gathered_context = {}
         run.initial_context = {}
         run.logs = {}
+        # And what the post-call pass *learned* from it. The QA summary and
+        # every extracted field lived on past this point for as long as the row
+        # did — a transcript can expire while a tidy JSON object of the same
+        # person's details does not. Outcome labels survive; see redaction.py
+        # for why those identify nobody.
+        run.annotations = redact_annotations(run.annotations)
 
     await session.flush()
     return deleted, True

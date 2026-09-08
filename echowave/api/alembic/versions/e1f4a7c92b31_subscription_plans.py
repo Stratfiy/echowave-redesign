@@ -9,12 +9,20 @@ exactly one plan. This makes a plan a row: priced, named and switched on by an
 operator without a release, the same way the rate card and the model bundles
 already are.
 
-The seed reproduces today's ₹2,999 exactly — ₹2,500 of balance and one number —
-so a deployment that runs this migration keeps selling precisely what it sold
-before. It is written from the environment's own figures rather than from
-literals here, because the price is derived from the rental price and hardcoding
-2999 in a migration is how the two drift apart the first time somebody moves the
-rental to ₹599.
+The seed reproduces today's ₹2,999 — ₹2,500 of balance and one number — so a
+deployment that runs this migration keeps selling precisely what it sold before.
+
+It reads STARTER_PLAN_PRICE_PAISE rather than adding the balance to the
+extra-number price. Deriving it was the original intent and it is now wrong:
+₹559 is what an *extra* number costs, a plan's included number is priced inside
+its monthly price, and Starter is pinned to a Razorpay plan that collects a
+fixed amount. Derived, a deployment with NUMBER_RENTAL_PRICE_PAISE=55900 seeds
+Starter at ₹3,059 while the bank collects ₹2,999 grossed up — and the two come
+apart at the bank rather than in a spreadsheet. See the note above
+STARTER_PLAN_BALANCE_PAISE in api/constants.py, which says exactly this.
+
+The same reasoning applies to the fallbacks: they match api/constants.py so one
+variable does not have two defaults, which is the other way these drift.
 """
 
 import os
@@ -63,7 +71,10 @@ def upgrade() -> None:
     )
 
     balance = _int_env("STARTER_PLAN_BALANCE_PAISE", 250_000)
-    number = _int_env("NUMBER_RENTAL_PRICE_PAISE", 49_900)
+    # The extra-number price, for `extra_number_price_paise` only. It does not
+    # feed the plan's own price — see the note at the top of this file.
+    number = _int_env("NUMBER_RENTAL_PRICE_PAISE", 55_900)
+    price = _int_env("STARTER_PLAN_PRICE_PAISE", 299_900)
     op.execute(
         sa.text(
             """
@@ -80,7 +91,7 @@ def upgrade() -> None:
             code=STARTER,
             label="Starter",
             blurb="A phone number and a month of calling, on one monthly payment.",
-            price=balance + number,
+            price=price,
             balance=balance,
             extra=number,
             rzp=os.getenv("RAZORPAY_STARTER_PLAN_ID") or None,

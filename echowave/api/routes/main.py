@@ -43,6 +43,7 @@ from api.routes.superuser import router as superuser_router
 from api.routes.telephony import router as telephony_router
 from api.routes.telephony_admin import router as telephony_admin_router
 from api.routes.tool import router as tool_router
+from api.routes.tool_library import router as tool_library_router
 from api.routes.turn_credentials import router as turn_credentials_router
 from api.routes.user import router as user_router
 from api.routes.verified_numbers import router as verified_numbers_router
@@ -102,6 +103,7 @@ router.include_router(folder_router)
 router.include_router(auth_router)
 router.include_router(node_types_router)
 router.include_router(extraction_library_router)
+router.include_router(tool_library_router)
 router.include_router(contacts_router)
 router.include_router(agent_stream_router)
 

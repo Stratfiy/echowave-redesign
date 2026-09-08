@@ -39,6 +39,7 @@ import {
     listTaxDocumentsApiV1BillingDocumentsGet,
     saveBillingProfileApiV1BillingProfilePut,
 } from "@/client/sdk.gen";
+import { AutoTopupSection } from "@/components/billing/AutoTopupSection";
 import { PlanSection } from "@/components/billing/PlanSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -620,6 +621,11 @@ export default function BillingPage() {
                 onSubscribed={() => void refresh()}
                 billingProfileComplete={balance?.billing_profile_complete ?? false}
             />
+
+            {/* Above "Add credit" deliberately: a customer who has just seen a
+                low balance should meet the thing that prevents the next one
+                before the thing that fixes this one. */}
+            <AutoTopupSection onChanged={() => void refresh()} />
 
             <section className="rounded-xl border bg-card p-6">
                 <h2 className="text-lg font-medium">Add credit</h2>
