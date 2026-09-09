@@ -236,6 +236,15 @@ class PostHogEvent(str, Enum):
     ORGANIZATION_USER_ASSOCIATED = "organization_user_associated"
     # usage_* events track orgs hitting capacity/limit boundaries
     USAGE_CONCURRENT_CALL_LIMIT_REACHED = "usage_concurrent_call_limit_reached"
+    # platform_* events are about our own infrastructure rather than any one
+    # account. They carry no organization and no user: the subject is a key we
+    # hold, and the audience is whoever is on call.
+    #
+    # Fired on transitions only. The check runs hourly, so an event per sweep
+    # would be a day of identical rows for one outage and would bury the moment
+    # it started — which is the only moment worth alerting on.
+    PLATFORM_KEY_REJECTED = "platform_key_rejected"
+    PLATFORM_KEY_RECOVERED = "platform_key_recovered"
 
 
 class CostComponent(str, Enum):

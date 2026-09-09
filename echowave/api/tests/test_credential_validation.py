@@ -111,7 +111,7 @@ class TestWhatTheSweepRecords:
         assert row.last_check_ok is False
         assert row.last_checked_at is not None
         assert "401" in row.last_check_error
-        assert results == [("llm", "openai", False)]
+        assert (results[0].ok, results[0].changed) == (False, True)
 
     @pytest.mark.asyncio
     async def test_an_acceptance_clears_a_previous_error(self):
@@ -129,7 +129,7 @@ class TestWhatTheSweepRecords:
         _, results = await _sweep([row], outcome="unverified", message="timeout")
         assert row.last_check_ok is True
         assert row.last_checked_at == checked_at
-        assert results == [("llm", "openai", None)]
+        assert (results[0].ok, results[0].changed) == (None, False)
 
     @pytest.mark.asyncio
     async def test_unverified_leaves_a_known_bad_verdict_alone(self):
@@ -146,7 +146,7 @@ class TestWhatTheSweepRecords:
         _, results = await _sweep([row], outcome="valid", key=None)
         assert row.last_check_ok is False
         assert "PLATFORM_CREDENTIAL_SECRET" in row.last_check_error
-        assert results == [("llm", "openai", False)]
+        assert (results[0].ok, results[0].changed) == (False, True)
 
     @pytest.mark.asyncio
     async def test_the_error_is_truncated(self):
@@ -163,3 +163,53 @@ class TestWhatTheSweepRecords:
     async def test_an_empty_vault_is_not_an_error(self):
         session, results = await _sweep([], outcome="valid")
         assert results == []
+
+
+class TestTransitions:
+    """What an alert fires on.
+
+    The sweep runs hourly. Alerting on state rather than on change would turn a
+    one-day outage into twenty-four identical events and bury the one that says
+    when it started, so only a verdict that actually moved is marked changed.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_first_rejection_is_a_change(self):
+        _, results = await _sweep([_row()], outcome="invalid", message="401")
+        assert results[0].changed is True
+
+    @pytest.mark.asyncio
+    async def test_a_key_still_rejected_is_not_a_change(self):
+        """The hour-two event nobody needs."""
+        row = _row(last_check_ok=False)
+        _, results = await _sweep([row], outcome="invalid", message="401")
+        assert results[0].ok is False
+        assert results[0].changed is False
+
+    @pytest.mark.asyncio
+    async def test_recovery_is_a_change(self):
+        row = _row(last_check_ok=False)
+        _, results = await _sweep([row], outcome="valid")
+        assert (results[0].ok, results[0].changed) == (True, True)
+
+    @pytest.mark.asyncio
+    async def test_a_key_still_good_is_not_a_change(self):
+        row = _row(last_check_ok=True)
+        _, results = await _sweep([row], outcome="valid")
+        assert results[0].changed is False
+
+    @pytest.mark.asyncio
+    async def test_the_first_ever_pass_is_a_change(self):
+        """NULL to True is news: it is the first time we ever confirmed it."""
+        row = _row(last_check_ok=None)
+        _, results = await _sweep([row], outcome="valid")
+        assert results[0].changed is True
+
+    @pytest.mark.asyncio
+    async def test_being_unable_to_ask_is_never_a_change(self):
+        """Nothing moved, because nothing was learned."""
+        for previous in (None, True, False):
+            row = _row(last_check_ok=previous)
+            _, results = await _sweep([row], outcome="unverified")
+            assert results[0].changed is False
+            assert row.last_check_ok is previous

@@ -7,6 +7,11 @@ from api.constants import POSTHOG_API_KEY, POSTHOG_HOST
 
 _posthog_client: Posthog | None = None
 POSTHOG_SERVER_GROUP_IDENTIFY_DISTINCT_ID = "server-group-identify"
+#: Distinct id for events whose subject is the deployment rather than a person
+#: — a platform provider key being rejected, say. PostHog requires one, and
+#: attributing infrastructure to whichever user happened to be nearby would put
+#: an outage on their timeline and count them as an active user for it.
+POSTHOG_SYSTEM_DISTINCT_ID = "system"
 POSTHOG_ORGANIZATION_GROUP_TYPE = "organization"
 
 

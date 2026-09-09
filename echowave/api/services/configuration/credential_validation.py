@@ -30,6 +30,7 @@ an acceptance grants nothing that holding the key did not already grant.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from loguru import logger
@@ -51,6 +52,23 @@ UNDECRYPTABLE = (
 )
 
 
+@dataclass(frozen=True)
+class CredentialCheck:
+    """What one sweep learned about one stored key.
+
+    ``ok`` is None for the keys we could not ask about. ``changed`` says
+    whether this differs from the verdict we already held — the only thing an
+    alert should fire on, since the check runs hourly and an outage that lasts
+    a day would otherwise be twenty-four identical events with the one that
+    mattered buried at the top.
+    """
+
+    component: str
+    provider: str
+    ok: bool | None
+    changed: bool = False
+
+
 def _truncate(text: str | None) -> str | None:
     if not text:
         return None
@@ -59,11 +77,12 @@ def _truncate(text: str | None) -> str | None:
 
 async def validate_stored_credentials(
     session: AsyncSession,
-) -> list[tuple[str, str, bool | None]]:
+) -> list[CredentialCheck]:
     """Check every active platform key and record what the vendor said.
 
-    Returns ``(component, provider, ok)`` per credential — ``None`` for the
-    ones we could not ask about — for logs and tests.
+    Returns one :class:`CredentialCheck` per credential, including whether the
+    verdict changed, so a caller can alert on the transition rather than on
+    every sweep.
 
     Only a definite verdict is written. An ``unverified`` outcome leaves the
     previous verdict and its timestamp untouched, so one unreachable vendor
@@ -77,8 +96,11 @@ async def validate_stored_credentials(
         )
     ).all()
 
-    results: list[tuple[str, str, bool | None]] = []
+    results: list[CredentialCheck] = []
     for row in rows:
+        # Read before _record overwrites it. A None here means we have never
+        # had a verdict, so the first real one is a change worth reporting.
+        previous = row.last_check_ok
         # Through resolve_api_key rather than decrypting here: that function
         # documents itself as the only place ciphertext is opened, and a second
         # decryption site is how that stops being true.
@@ -90,7 +112,11 @@ async def validate_stored_credentials(
             # to get nothing back is a key that will not decrypt. No vendor
             # will tell us about that, and it is as definite as a rejection.
             _record(row, ok=False, error=UNDECRYPTABLE)
-            results.append((row.component, row.provider, False))
+            results.append(
+                CredentialCheck(
+                    row.component, row.provider, False, changed=previous is not False
+                )
+            )
             continue
 
         result = await key_validation.validate_key(row.provider, key)
@@ -102,12 +128,15 @@ async def validate_stored_credentials(
                 row.provider,
                 result.message,
             )
-            results.append((row.component, row.provider, None))
+            # Not a change: we did not learn anything, so nothing moved.
+            results.append(CredentialCheck(row.component, row.provider, None))
             continue
 
         ok = result.outcome == "valid"
         _record(row, ok=ok, error=None if ok else _truncate(result.message))
-        results.append((row.component, row.provider, ok))
+        results.append(
+            CredentialCheck(row.component, row.provider, ok, changed=previous is not ok)
+        )
 
         if not ok:
             logger.error(
