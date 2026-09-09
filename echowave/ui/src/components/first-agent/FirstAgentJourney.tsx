@@ -115,7 +115,7 @@ function industryOf(template: Template): string {
 
 export function FirstAgentJourney() {
     const router = useRouter();
-    const { user, getAccessToken } = useAuth();
+    const { user, loading: authLoading, getAccessToken } = useAuth();
     const firstName = user?.displayName?.split(" ")[0];
 
     const [step, setStep] = useState<Step>("pick");
@@ -137,8 +137,12 @@ export function FirstAgentJourney() {
         [templates, templateId],
     );
 
-    // Templates, then whatever a previous visit left behind.
+    // Templates, then whatever a previous visit left behind. Waits for auth:
+    // the bearer interceptor is only registered once it has loaded, and a
+    // request before that fails silently.
+    const userId = user?.id;
     useEffect(() => {
+        if (authLoading || !userId) return;
         let cancelled = false;
         void (async () => {
             const response = await client.get({ url: "/api/v1/agent-templates" });
@@ -165,7 +169,7 @@ export function FirstAgentJourney() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [authLoading, userId]);
 
     useEffect(() => {
         if (!restored) return;
@@ -696,6 +700,8 @@ function HearStep({
     onRun: (runId: number) => void;
     onDone: () => void;
 }) {
+    const { user, loading: authLoading } = useAuth();
+    const userId = user?.id;
     const [mode, setMode] = useState<TestMode>("browser");
     const [numbers, setNumbers] = useState<VerifiedNumber[] | null>(null);
     const [phone, setPhone] = useState<string | null>(null);
@@ -707,6 +713,7 @@ function HearStep({
     const [startedAt, setStartedAt] = useState<number | null>(null);
 
     useEffect(() => {
+        if (authLoading || !userId) return;
         let cancelled = false;
         void (async () => {
             const response = await listNumbersApiV1VerifiedNumbersGet();
@@ -718,7 +725,7 @@ function HearStep({
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [authLoading, userId]);
 
     const startBrowser = async () => {
         setBusy(true);

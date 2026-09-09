@@ -28,7 +28,7 @@ const api = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: () => "/start" }));
 vi.mock("posthog-js", () => ({ default: { capture } }));
 vi.mock("@/lib/auth", () => ({
-    useAuth: () => ({ user: { id: 1, displayName: "Nithish K" }, getAccessToken: () => Promise.resolve("token") }),
+    useAuth: () => ({ user: { id: 1, displayName: "Nithish K" }, loading: false, getAccessToken: () => Promise.resolve("token") }),
 }));
 vi.mock("@/client/client.gen", () => ({ client: { get: api.get, post: api.post } }));
 vi.mock("@/client/sdk.gen", () => ({
