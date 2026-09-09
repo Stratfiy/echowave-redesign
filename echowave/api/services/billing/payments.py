@@ -54,7 +54,8 @@ from api.db.models import (
     PaymentModel,
     PaymentTokenModel,
 )
-from api.enums import CreditLedgerKind
+from api.enums import CreditLedgerKind, PostHogEvent
+from api.services.posthog_client import capture_event
 from api.services.billing.billing_profile import get_profile
 from api.services.billing.money import round_half_up_div
 from api.services.billing.tax import TaxError, compute_tax
@@ -690,6 +691,15 @@ async def handle_webhook(
         if payment.status != "paid":
             payment.status = "failed"
             payment.provider_payload = event
+            # Counted only on the attempt that really failed, for the same
+            # reason: the late `failed` of a retry that then succeeded is not a
+            # lost customer and must not read as one.
+            _report_topup(
+                PostHogEvent.TOPUP_FAILED,
+                organization_id=payment.organization_id,
+                amount_paise=int(payment.amount_paise or 0),
+                reason="razorpay_payment_failed",
+            )
         return {"status": "failed", "order_id": order_id}
 
     # --- payment.captured ---
@@ -842,12 +852,43 @@ async def handle_webhook(
         payment_id,
         f" (voucher {voucher.number})" if voucher else "",
     )
+    # The only moment money has actually arrived. Fired here rather than at
+    # checkout because that is what closes the funnel honestly: everything
+    # between TOPUP_STARTED and this line is drop-off we could not see before.
+    # The idempotent and already-credited paths return above, so a redelivered
+    # webhook cannot double-count it.
+    _report_topup(
+        PostHogEvent.TOPUP_SUCCEEDED,
+        organization_id=payment.organization_id,
+        amount_paise=credited,
+    )
     return {
         "status": "credited",
         "order_id": order_id,
         "credited_paise": credited,
         "receipt_voucher_id": voucher.id if voucher else None,
     }
+
+
+def _report_topup(
+    event: str, *, organization_id: int, amount_paise: int, **extra
+) -> None:
+    """One line per outcome of a payment, from the webhook's point of view.
+
+    The route reports the attempt; this reports what became of it. Amount rides
+    along because a lost ₹500 and a lost ₹50,000 are different events
+    commercially. Nothing identifying does — no payment id against a person, no
+    card, no contact.
+    """
+    capture_event(
+        distinct_id=str(organization_id),
+        event=event,
+        properties={
+            "organization_id": organization_id,
+            "amount_paise": amount_paise,
+            **extra,
+        },
+    )
 
 
 async def current_balance_paise(session: AsyncSession, *, organization_id: int) -> int:

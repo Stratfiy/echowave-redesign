@@ -35,8 +35,9 @@ from api.constants import (
 )
 from api.db import db_client
 from api.db.models import UserModel
-from api.enums import OrganizationRole
+from api.enums import OrganizationRole, PostHogEvent
 from api.services.auth.depends import get_user, require_organization_role
+from api.services.posthog_client import capture_event
 from api.services.billing import (
     auto_topup,
     auto_topup_runner,
@@ -148,7 +149,32 @@ async def create_topup(
     """
     organization_id = _organization_id(user)
 
+    def _report(event: str, **extra: Any) -> None:
+        """One line per outcome of the pay attempt.
+
+        Nothing tracked any of this, so a customer who tried to pay and could
+        not looked exactly like one who never tried — the difference between a
+        pricing problem and a broken checkout, and we could not see it.
+
+        The amount rides along because a refused ₹500 and a refused ₹50,000 are
+        different events commercially. Nothing identifying does: no order id
+        against a person, no card, no contact.
+        """
+        capture_event(
+            distinct_id=str(organization_id),
+            event=event,
+            properties={
+                "organization_id": organization_id,
+                "amount_paise": request.amount_paise,
+                **extra,
+            },
+        )
+
     if not payments.webhook_is_configured():
+        # Refused before the customer can pay, on purpose: without a webhook
+        # secret the payment would succeed and never credit them. Counted,
+        # because it is a configuration fault that presents as lost revenue.
+        _report(PostHogEvent.TOPUP_FAILED, reason="webhook_not_configured")
         raise HTTPException(
             status_code=503,
             detail="Top-ups are temporarily unavailable. Please contact support.",
@@ -163,10 +189,18 @@ async def create_topup(
                 created_by=user.id,
             )
         except payments.PaymentNotConfigured as exc:
+            _report(PostHogEvent.TOPUP_FAILED, reason="payment_not_configured")
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except payments.PaymentError as exc:
+            _report(PostHogEvent.TOPUP_FAILED, reason="payment_error")
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         await session.commit()
+
+    # Started, not succeeded. The customer still has to get through Razorpay's
+    # checkout, and the credit lands on the webhook — see the settlement path
+    # for TOPUP_SUCCEEDED. Counting this as a completed payment would show a
+    # funnel with no drop-off and hide the step most likely to have one.
+    _report(PostHogEvent.TOPUP_STARTED, gross_paise=order.gross_paise)
 
     return {
         "order_id": order.order_id,

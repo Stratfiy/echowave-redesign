@@ -245,6 +245,20 @@ class PostHogEvent(str, Enum):
     # it started — which is the only moment worth alerting on.
     PLATFORM_KEY_REJECTED = "platform_key_rejected"
     PLATFORM_KEY_RECOVERED = "platform_key_recovered"
+    # A run we turned away before it started. Carries `reason`, which is
+    # QuotaCheckResult's own error_code — "no_credit" is revenue we declined,
+    # anything else is a defect wearing the same clothes, and the two need
+    # telling apart.
+    CALL_REFUSED = "call_refused"
+    # The money funnel. Nothing tracked any of it: a customer who tried to pay
+    # and could not looked identical to one who never tried.
+    TOPUP_STARTED = "topup_started"
+    TOPUP_SUCCEEDED = "topup_succeeded"
+    TOPUP_FAILED = "topup_failed"
+    # A call that delivered nothing and was not charged our fee. Worth counting
+    # rather than only logging: a rising number is a provider problem showing up
+    # as forgone revenue before anyone files a complaint.
+    PLATFORM_FEE_WAIVED = "platform_fee_waived"
 
 
 class CostComponent(str, Enum):
