@@ -29,7 +29,10 @@ from dataclasses import dataclass
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.schemas.ai_model_configuration import DECIBYL_DEFAULT_VOICE
+from api.schemas.ai_model_configuration import (
+    DECIBYL_DEFAULT_VOICE,
+    DECIBYL_GENDER_VOICES,
+)
 from api.services.billing.addons import DEFAULT_AGENT_ADDONS
 from api.services.billing.estimator import estimate_cost_per_minute
 from api.services.configuration import managed_tiers, voice_catalogue
@@ -542,7 +545,15 @@ async def save_bundle_selection(
         offered = [row.llm_tier] if row.llm_tier else list(managed_tiers.LLM_TIERS)
         if chosen not in offered:
             raise SelectionError(f"{row.label} does not offer a {chosen!r} brain.")
-        if voice and voice not in {v.voice_id for v in voices()}:
+        # The gender sentinels are not catalogue entries and must not be
+        # checked against one: they name what to resolve at pipeline build,
+        # from whichever vendor the tier is on then. Validating them here
+        # against today's voice list is how "male" becomes unsaveable.
+        if (
+            voice
+            and voice not in DECIBYL_GENDER_VOICES
+            and voice not in {v.voice_id for v in voices()}
+        ):
             raise SelectionError(f"{voice!r} is not a voice we offer.")
         managed = DecibylManagedAIModelConfiguration(
             api_key=service_key,

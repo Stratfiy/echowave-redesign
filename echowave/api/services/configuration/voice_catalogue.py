@@ -259,3 +259,42 @@ def facets(provider: str, *, model: str | None = None) -> dict[str, list[str]]:
         "accents": [],
         "languages": sorted({v.language for v in voices if v.language}),
     }
+
+
+def default_voice_id(
+    provider: str,
+    *,
+    model: str | None = None,
+    gender: str,
+    language: str | None = None,
+) -> str | None:
+    """A speaker of ``gender`` from whatever this provider currently offers.
+
+    Resolved at pipeline build rather than stored, so a managed agent that
+    asked for a male voice keeps having one after the tier moves to another
+    vendor — where the stored name would have become a voice id that vendor
+    rejects.
+
+    ``language`` is a preference, not a filter, and today it changes nothing:
+    both catalogues published here are genuinely multilingual — one Bulbul
+    speaker serves every Indic language and the model switches per request, so
+    the language on a Voice is a label rather than a constraint. The parameter
+    exists because that stops being true the moment a language-keyed vendor is
+    added, and a caller that already passes the language will get the better
+    answer for free rather than needing to be found and changed.
+
+    Returns None when the provider publishes no catalogue, or none of its
+    voices carry this gender — in which case the caller keeps whatever default
+    the vendor would have applied, which is better than a guess.
+    """
+    voices = filtered(provider, model=model, gender=gender).voices
+    if not voices:
+        return None
+
+    if language:
+        primary = language.split("-")[0].lower()
+        matching = [v for v in voices if (v.language or "").lower() == primary]
+        if matching:
+            return matching[0].voice_id
+
+    return voices[0].voice_id

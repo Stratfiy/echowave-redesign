@@ -9,7 +9,11 @@ from fastapi import HTTPException
 from loguru import logger
 
 from api.constants import MPS_API_URL
-from api.schemas.ai_model_configuration import DECIBYL_DEFAULT_VOICE
+from api.schemas.ai_model_configuration import (
+    DECIBYL_DEFAULT_VOICE,
+    DECIBYL_GENDER_VOICES,
+)
+from api.services.configuration import voice_catalogue
 from api.services.configuration.options import (
     DEEPGRAM_FLUX_MODELS,
     DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
@@ -1057,7 +1061,32 @@ def _create_tts_service(
             "min_buffer_size": 30,
             "max_chunk_length": 80,
         }
-        if voice and voice != DECIBYL_DEFAULT_VOICE:
+        # "male" and "female" are sentinels of the same kind as "default": a
+        # managed slot must not store "anushka", because that is a Sarvam name
+        # and storing it is what stops the tier being free to move. Resolved
+        # here, against whichever model the tier is on, so an agent that asked
+        # for a male voice still has one after the tier changes vendor.
+        #
+        # A gender we cannot satisfy falls through to the vendor's own default
+        # rather than to a guess: no voice at all sounds like the product, and
+        # the wrong-gender voice sounds like a bug.
+        if voice in DECIBYL_GENDER_VOICES:
+            resolved_voice = voice_catalogue.default_voice_id(
+                user_config.tts.provider,
+                model=user_config.tts.model,
+                gender=voice,
+                language=language,
+            )
+            if resolved_voice:
+                settings_kwargs["voice"] = resolved_voice
+            else:
+                logger.warning(
+                    "No {} voice published for {} {}; using the vendor default.",
+                    voice,
+                    user_config.tts.provider,
+                    user_config.tts.model,
+                )
+        elif voice and voice != DECIBYL_DEFAULT_VOICE:
             settings_kwargs["voice"] = voice
         if speed and speed != 1.0:
             settings_kwargs["pace"] = speed

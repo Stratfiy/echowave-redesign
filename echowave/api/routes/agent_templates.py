@@ -10,9 +10,11 @@ routes take a signed-in user for consistency with the rest of the API but hold
 no organization-scoped state.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
+
+from pydantic import BaseModel, Field
 
 from api.db import db_client
 from api.db.models import UserModel
@@ -22,6 +24,7 @@ from api.services.agent_templates.materialise import (
     to_workflow_definition,
 )
 from api.services.auth.depends import get_user
+from api.services.configuration.registry import ServiceProviders
 from api.services.workflow.trigger_paths import regenerate_trigger_uuids
 
 router = APIRouter(prefix="/agent-templates", tags=["agent-templates"])
@@ -76,9 +79,27 @@ async def get_agent_template(
     }
 
 
+class CreateFromTemplateRequest(BaseModel):
+    """What the template grid asks before it builds the agent.
+
+    Only the voice, and only its gender. Everything else a template needs it
+    already carries, and the first question anybody asks after picking one is
+    whether the agent sounds male or female.
+    """
+
+    voice_gender: Literal["male", "female"] | None = Field(
+        default=None,
+        description=(
+            "Give the agent a male or female voice. Omit to inherit the "
+            "organization's default."
+        ),
+    )
+
+
 @router.post("/{template_id}/create")
 async def create_from_template(
     template_id: str,
+    request: CreateFromTemplateRequest | None = None,
     user: UserModel = Depends(get_user),
 ) -> dict[str, Any]:
     """Make this template into an agent the account owns, and return it.
@@ -114,6 +135,25 @@ async def create_from_template(
         workflow_definition=regenerate_trigger_uuids(definition),
         user_id=user.id,
         organization_id=user.selected_organization_id,
+        # A gender, never a speaker. "anushka" is a Sarvam name, and writing one
+        # here is exactly the vendor pin the paragraph above refuses to make for
+        # models — see DECIBYL_GENDER_VOICES. The sentinel is resolved to a real
+        # voice at pipeline build, against whichever vendor the tier is on that
+        # day, so this keeps working when the tier moves.
+        workflow_configurations=_voice_override(request),
     )
 
     return {"id": workflow.id, "name": workflow.name, "template_id": template.id}
+
+
+def _voice_override(request: CreateFromTemplateRequest | None) -> dict | None:
+    """The agent-level override carrying the chosen voice, or nothing.
+
+    None rather than an empty override when no gender was asked for: the agent
+    then inherits the organization's configuration whole, which is what every
+    template did before this existed.
+    """
+    gender = request.voice_gender if request else None
+    if not gender:
+        return None
+    return {"tts": {"provider": ServiceProviders.DECIBYL.value, "voice": gender}}
