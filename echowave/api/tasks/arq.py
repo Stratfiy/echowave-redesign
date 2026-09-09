@@ -48,6 +48,7 @@ from api.tasks.campaign_tasks import (
     sync_campaign_source,
 )
 from api.tasks.credit_reservations import sweep_credit_reservations
+from api.tasks.credential_health import check_platform_credentials
 from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.data_retention import purge_expired_call_data
 from api.tasks.email_tax_document import email_tax_document
@@ -80,6 +81,7 @@ class WorkerSettings:
         refresh_billing_rollups,
         sweep_credit_reservations,
         sweep_uncosted_runs,
+        check_platform_credentials,
         issue_monthly_tax_invoices,
         purge_expired_call_data,
         run_database_backup,
@@ -152,6 +154,17 @@ class WorkerSettings:
             sweep_uncosted_runs,
             minute=set(range(0, 60, 10)),
             second=15,
+            run_at_startup=True,
+        ),
+        # Are our own provider keys still good? Hourly, and at startup so a
+        # deployment that comes up on a revoked key says so immediately rather
+        # than at the top of the next hour. A probe per call would add vendor
+        # latency to the dial path to catch something that changes maybe twice
+        # a year; see services/configuration/credential_validation.py.
+        cron(
+            check_platform_credentials,
+            minute={7},
+            second=0,
             run_at_startup=True,
         ),
         # Tax invoices for the month just ended. 20:30 UTC on the 1st is 02:00

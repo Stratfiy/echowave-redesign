@@ -22,7 +22,9 @@ from api.services.billing.delivery import (
 )
 from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
 
-ERROR = {"pipeline_error": {"detail": "Error connecting: no close frame received or sent"}}
+ERROR = {
+    "pipeline_error": {"detail": "Error connecting: no close frame received or sent"}
+}
 SPOKE_TTS = {"tts": {"sarvam|||bulbul:v2": 412}}
 SPOKE_TEXT = {
     "realtime_feedback_events": [
@@ -39,17 +41,27 @@ class TestAgentSpoke:
         assert agent_spoke(usage_info=None, logs=SPOKE_TEXT) is True
 
     def test_zero_tts_characters_are_not_evidence(self):
-        assert agent_spoke(usage_info={"tts": {"sarvam|||bulbul:v2": 0}}, logs=None) is False
+        assert (
+            agent_spoke(usage_info={"tts": {"sarvam|||bulbul:v2": 0}}, logs=None)
+            is False
+        )
 
     def test_an_empty_bot_line_is_not_evidence(self):
-        logs = {"realtime_feedback_events": [{"type": "rtf-bot-text", "payload": {"text": ""}}]}
+        logs = {
+            "realtime_feedback_events": [
+                {"type": "rtf-bot-text", "payload": {"text": ""}}
+            ]
+        }
         assert agent_spoke(usage_info=None, logs=logs) is False
 
     def test_the_caller_speaking_is_not_the_agent_speaking(self):
         """The exact shape of the failure: the human talks, we never answer."""
         logs = {
             "realtime_feedback_events": [
-                {"type": "rtf-user-transcription", "payload": {"final": True, "text": "Hello?"}}
+                {
+                    "type": "rtf-user-transcription",
+                    "payload": {"final": True, "text": "Hello?"},
+                }
             ]
         }
         assert agent_spoke(usage_info=None, logs=logs) is False
@@ -59,7 +71,12 @@ class TestAgentSpoke:
         assert agent_spoke(usage_info={}, logs={}) is False
 
     def test_malformed_shapes_do_not_raise(self):
-        assert agent_spoke(usage_info={"tts": "nonsense"}, logs={"realtime_feedback_events": 7}) is False
+        assert (
+            agent_spoke(
+                usage_info={"tts": "nonsense"}, logs={"realtime_feedback_events": 7}
+            )
+            is False
+        )
         assert agent_spoke(usage_info=[], logs=[1, 2, 3]) is False
 
 
@@ -69,7 +86,12 @@ class TestRecordedFailure:
 
     def test_fatality_is_not_asked(self):
         """A non-fatal error on a silent call did not survive anything."""
-        assert recorded_failure(extra={"pipeline_error": {"detail": "boom", "fatal": False}}) is True
+        assert (
+            recorded_failure(
+                extra={"pipeline_error": {"detail": "boom", "fatal": False}}
+            )
+            is True
+        )
 
     def test_no_error_is_no_failure(self):
         assert recorded_failure(extra=None) is False
@@ -84,7 +106,9 @@ class TestTheConjunction:
 
     def test_an_error_on_a_call_that_talked_still_pays(self):
         """A provider grumbled and the agent kept talking. That is a delivered call."""
-        assert platform_fee_is_waived(usage_info=SPOKE_TTS, logs={}, extra=ERROR) is False
+        assert (
+            platform_fee_is_waived(usage_info=SPOKE_TTS, logs={}, extra=ERROR) is False
+        )
 
     def test_silence_with_no_error_still_pays(self):
         """The guard against waiving on a shape we simply cannot read.
@@ -96,7 +120,10 @@ class TestTheConjunction:
         assert platform_fee_is_waived(usage_info={}, logs={}, extra={}) is False
 
     def test_an_ordinary_healthy_call_pays(self):
-        assert platform_fee_is_waived(usage_info=SPOKE_TTS, logs=SPOKE_TEXT, extra={}) is False
+        assert (
+            platform_fee_is_waived(usage_info=SPOKE_TTS, logs=SPOKE_TEXT, extra={})
+            is False
+        )
 
 
 class TestWhatTheReceiptShows:
@@ -116,7 +143,11 @@ class TestWhatTheReceiptShows:
             platform_rate_mpaise=DEFAULT_PLATFORM_RATE_MPAISE,
             pulse_seconds=15,
             usage=self._usage(),
-            provider_rates={("telephony", "plivo", ""): RateSpec(rate_mpaise=38_000, unit=RateUnit.MINUTE)},
+            provider_rates={
+                ("telephony", "plivo", ""): RateSpec(
+                    rate_mpaise=38_000, unit=RateUnit.MINUTE
+                )
+            },
             platform_fee_waived=True,
         )
         assert cost.platform_fee_paise == 0
@@ -130,11 +161,17 @@ class TestWhatTheReceiptShows:
             platform_rate_mpaise=DEFAULT_PLATFORM_RATE_MPAISE,
             pulse_seconds=15,
             usage=self._usage(),
-            provider_rates={("telephony", "plivo", ""): RateSpec(rate_mpaise=38_000, unit=RateUnit.MINUTE)},
+            provider_rates={
+                ("telephony", "plivo", ""): RateSpec(
+                    rate_mpaise=38_000, unit=RateUnit.MINUTE
+                )
+            },
             platform_fee_waived=True,
         )
         assert cost.total_provider_cost_paise > 0
-        assert cost.total_charged_paise == sum(line.cost_paise for line in cost.line_items)
+        assert cost.total_charged_paise == sum(
+            line.cost_paise for line in cost.line_items
+        )
 
     def test_the_same_call_unwaived_charges_one_pulse(self):
         """The regression this fixes: 3 seconds billed as 15 at ₹3.00/min."""

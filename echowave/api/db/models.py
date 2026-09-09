@@ -3580,6 +3580,22 @@ class PlatformProviderCredentialModel(Base):
         Boolean, nullable=False, default=True, server_default=text("true")
     )
     set_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # Whether the provider actually accepted this key, and when we last asked.
+    #
+    # Holding a key and holding a *working* key are different facts, and until
+    # these existed nothing recorded the second one. A revoked key stayed
+    # `is_active`, so the managed tier it backed was still offered, an agent
+    # saved against it happily, and the failure surfaced at dial time to a
+    # caller who could do nothing about it.
+    #
+    # NULL means never checked, which is deliberately distinct from False. No
+    # decision anywhere may treat "we have not asked" as "it does not work" —
+    # see credential_validation.py.
+    last_check_ok = Column(Boolean, nullable=True)
+    last_checked_at = Column(DateTime(timezone=True), nullable=True)
+    # The provider's own reason, truncated. Kept so the staff screen can say
+    # what is wrong rather than only that something is.
+    last_check_error = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at = Column(
         DateTime(timezone=True),

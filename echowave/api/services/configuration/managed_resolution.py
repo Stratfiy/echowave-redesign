@@ -24,6 +24,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import CostComponent
 from api.services.configuration import (
+    credential_validation,
     managed_language,
     managed_tiers,
     platform_credentials,
@@ -217,13 +218,33 @@ async def managed_availability(session) -> dict[str, bool]:
     available: dict[str, bool] = {}
     for name, component in MANAGED_SECTIONS:
         upstream = managed_tiers.resolve(component, "default")
+        credential_component = _credential_component(component)
         key = await platform_credentials.resolve_api_key(
             session,
-            component=_credential_component(component),
+            component=credential_component,
             provider=upstream.provider,
         )
-        available[name] = bool(key)
+        # Holding a key is necessary and no longer sufficient. A key the
+        # provider has explicitly rejected buys the customer the exact
+        # experience this function exists to prevent — they pick it, save it,
+        # build an agent, and find out at dial time — so a known-bad key
+        # withdraws the slot just as a missing one does.
+        #
+        # Only *known* bad. Never-checked and could-not-check both leave the
+        # slot on offer, so this can never take a working tier down because a
+        # probe timed out; see credential_validation.is_known_bad.
+        available[name] = bool(key) and not await _credential_is_known_bad(
+            session, component=credential_component, provider=upstream.provider
+        )
     return available
+
+
+async def _credential_is_known_bad(session, *, component, provider: str) -> bool:
+    """Has the vendor explicitly rejected the key backing this slot?"""
+    row = await platform_credentials.active_credential(
+        session, component=component, provider=provider
+    )
+    return credential_validation.is_known_bad(row)
 
 
 async def tier_availability(session) -> dict[str, dict[str, bool]]:

@@ -86,6 +86,13 @@ class PlatformCredential:
     label: str | None
     is_active: bool
     updated_at: str | None
+    #: What the vendor said when we last asked whether this key works.
+    #: None means never asked, which is not the same as rejected — see
+    #: credential_validation. The screen must render the three states
+    #: distinctly or it will report an unchecked key as a broken one.
+    last_check_ok: bool | None = None
+    last_checked_at: str | None = None
+    last_check_error: str | None = None
 
 
 def _mask(last_four: str) -> str:
@@ -101,6 +108,11 @@ def _view(row: PlatformProviderCredentialModel) -> PlatformCredential:
         label=row.label,
         is_active=bool(row.is_active),
         updated_at=row.updated_at.isoformat() if row.updated_at else None,
+        last_check_ok=row.last_check_ok,
+        last_checked_at=(
+            row.last_checked_at.isoformat() if row.last_checked_at else None
+        ),
+        last_check_error=row.last_check_error,
     )
 
 
@@ -261,6 +273,30 @@ async def _active_row(session: AsyncSession, component: str, provider: str):
             PlatformProviderCredentialModel.is_active.is_(True),
         )
     )
+
+
+async def active_credential(
+    session: AsyncSession, *, component: CostComponent | str, provider: str
+) -> PlatformProviderCredentialModel | None:
+    """The active credential row, or None.
+
+    A row, not a key: callers that need to know *about* a credential — when it
+    was last checked, whether the vendor accepted it — should not have to
+    decrypt one to find out. The realtime fallback is applied here too, so a
+    caller asking about ``openai_realtime`` is told about the OpenAI row that
+    actually authenticates it rather than nothing at all.
+    """
+    try:
+        component_value, provider = _normalise(component, provider)
+    except PlatformCredentialError:
+        return None
+
+    row = await _active_row(session, component_value, provider)
+    if row is None:
+        base = realtime_key_provider(provider)
+        if base is not None and base != provider:
+            row = await _active_row(session, component_value, base)
+    return row
 
 
 async def resolve_api_key(
