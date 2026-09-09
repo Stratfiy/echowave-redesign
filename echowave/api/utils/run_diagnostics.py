@@ -37,7 +37,7 @@ def get_pipeline_error(extra: dict | None) -> dict[str, Any] | None:
         return None
 
     error: dict[str, Any] = {"detail": detail}
-    for key in ("frame_type", "at"):
+    for key in ("frame_type", "at", "component", "ended_call_reason"):
         value = recorded.get(key)
         if isinstance(value, str) and value:
             error[key] = value

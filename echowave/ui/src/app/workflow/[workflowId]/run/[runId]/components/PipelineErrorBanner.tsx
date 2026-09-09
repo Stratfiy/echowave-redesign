@@ -7,6 +7,10 @@ export interface PipelineError {
     frame_type?: unknown;
     at?: unknown;
     fatal?: unknown;
+    /** The pipeline processor that raised this — a TTS, an STT, an LLM. */
+    component?: unknown;
+    /** Set when we ended the call ourselves rather than the provider doing it. */
+    ended_call_reason?: unknown;
 }
 
 /**
@@ -27,6 +31,12 @@ export function PipelineErrorBanner({ error }: { error: PipelineError | null }) 
     if (!detail) return null;
 
     const at = typeof error?.at === "string" ? error.at : null;
+    const component =
+        typeof error?.component === "string" ? error.component : null;
+    // The watchdog ended this call because the agent had gone silent. Worth
+    // saying outright: the provider's message alone reads as survivable, and
+    // the reader would otherwise be left wondering what actually hung up.
+    const muteAgent = error?.ended_call_reason === "mute_agent";
     // Only a fatal error ended the call. A non-fatal one is a provider
     // complaining about something it recovered from, and telling somebody their
     // completed call "ended on an error" would send them hunting for a failure
@@ -58,11 +68,21 @@ export function PipelineErrorBanner({ error }: { error: PipelineError | null }) 
                             fatal ? "text-destructive" : "text-amber-700",
                         )}
                     >
-                        {fatal
-                            ? "This call ended on a pipeline error"
-                            : "A service reported an error during this call"}
+                        {muteAgent
+                            ? "This call was ended because the agent could not speak"
+                            : fatal
+                              ? "This call ended on a pipeline error"
+                              : "A service reported an error during this call"}
                     </p>
+                    {muteAgent && (
+                        <p className="text-xs text-muted-foreground">
+                            A service failed and the agent never said anything, so
+                            the call was ended rather than left in silence. The
+                            platform fee for it was waived.
+                        </p>
+                    )}
                     <p className="break-words font-mono text-xs text-muted-foreground">
+                        {component ? `${component}: ` : ""}
                         {detail}
                     </p>
                     {at && (
