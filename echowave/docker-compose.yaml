@@ -14,6 +14,18 @@
 
 services:
   postgres:
+    # Comes back on its own after a reboot or a daemon restart.
+    #
+    # Six of the nine services had no restart policy, so a box that rebooted —
+    # AWS maintenance, a kernel panic, an operator restarting Docker — came back
+    # with only coturn running and the phones dead until somebody noticed and
+    # ran `docker compose up -d`. That was found by restarting the daemon and
+    # watching everything except coturn stay down.
+    #
+    # `unless-stopped` rather than `always`: a service someone deliberately
+    # stopped stays stopped across a reboot, which is what an operator taking
+    # something out of service means by it.
+    restart: unless-stopped
     # Raised from the default 100. Each API worker holds up to
     # DB_POOL_SIZE + DB_POOL_MAX_OVERFLOW connections, and the arq worker and
     # campaign dispatcher hold their own pools on top. At FASTAPI_WORKERS=4 that
@@ -52,6 +64,18 @@ services:
       - app-network
 
   redis:
+    # Comes back on its own after a reboot or a daemon restart.
+    #
+    # Six of the nine services had no restart policy, so a box that rebooted —
+    # AWS maintenance, a kernel panic, an operator restarting Docker — came back
+    # with only coturn running and the phones dead until somebody noticed and
+    # ran `docker compose up -d`. That was found by restarting the daemon and
+    # watching everything except coturn stay down.
+    #
+    # `unless-stopped` rather than `always`: a service someone deliberately
+    # stopped stays stopped across a reboot, which is what an operator taking
+    # something out of service means by it.
+    restart: unless-stopped
     image: redis:7
     ports:
       - "6379:6379"
@@ -68,6 +92,18 @@ services:
       - app-network
 
   minio:
+    # Comes back on its own after a reboot or a daemon restart.
+    #
+    # Six of the nine services had no restart policy, so a box that rebooted —
+    # AWS maintenance, a kernel panic, an operator restarting Docker — came back
+    # with only coturn running and the phones dead until somebody noticed and
+    # ran `docker compose up -d`. That was found by restarting the daemon and
+    # watching everything except coturn stay down.
+    #
+    # `unless-stopped` rather than `always`: a service someone deliberately
+    # stopped stays stopped across a reboot, which is what an operator taking
+    # something out of service means by it.
+    restart: unless-stopped
     image: minio/minio
     container_name: minio
     command: server /data --console-address ":9001"
@@ -119,6 +155,18 @@ services:
       - /workspace/scripts/run_decibyl_init.sh
 
   nginx:
+    # Comes back on its own after a reboot or a daemon restart.
+    #
+    # Six of the nine services had no restart policy, so a box that rebooted —
+    # AWS maintenance, a kernel panic, an operator restarting Docker — came back
+    # with only coturn running and the phones dead until somebody noticed and
+    # ran `docker compose up -d`. That was found by restarting the daemon and
+    # watching everything except coturn stay down.
+    #
+    # `unless-stopped` rather than `always`: a service someone deliberately
+    # stopped stays stopped across a reboot, which is what an operator taking
+    # something out of service means by it.
+    restart: unless-stopped
     image: nginx:alpine
     container_name: nginx_https
     profiles: ["remote"]
@@ -168,6 +216,18 @@ services:
       - app-network
 
   api:
+    # Comes back on its own after a reboot or a daemon restart.
+    #
+    # Six of the nine services had no restart policy, so a box that rebooted —
+    # AWS maintenance, a kernel panic, an operator restarting Docker — came back
+    # with only coturn running and the phones dead until somebody noticed and
+    # ran `docker compose up -d`. That was found by restarting the daemon and
+    # watching everything except coturn stay down.
+    #
+    # `unless-stopped` rather than `always`: a service someone deliberately
+    # stopped stays stopped across a reboot, which is what an operator taking
+    # something out of service means by it.
+    restart: unless-stopped
     image: ${REGISTRY:-decibylai}/decibyl-api:latest
     # Compose reads .env for *interpolation* only — values there do not reach a
     # container unless something puts them there. Every variable this file does
@@ -365,6 +425,18 @@ services:
       - app-network
 
   ui:
+    # Comes back on its own after a reboot or a daemon restart.
+    #
+    # Six of the nine services had no restart policy, so a box that rebooted —
+    # AWS maintenance, a kernel panic, an operator restarting Docker — came back
+    # with only coturn running and the phones dead until somebody noticed and
+    # ran `docker compose up -d`. That was found by restarting the daemon and
+    # watching everything except coturn stay down.
+    #
+    # `unless-stopped` rather than `always`: a service someone deliberately
+    # stopped stays stopped across a reboot, which is what an operator taking
+    # something out of service means by it.
+    restart: unless-stopped
     image: ${REGISTRY:-decibylai}/decibyl-ui:latest
     environment:
       # Bind the Next.js standalone server to all interfaces
