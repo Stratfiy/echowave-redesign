@@ -30,11 +30,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import SIGNUP_BONUS_MICROS_USD
-from api.enums import PostHogEvent
-from api.services.posthog_client import capture_event
 from api.db.models import CreditLedgerModel
-from api.enums import CreditLedgerKind
+from api.enums import CreditLedgerKind, PostHogEvent
 from api.services.billing.money import MICROS_PER_USD, round_half_up_div
+from api.services.posthog_client import capture_event
 
 #: Every bonus row carries this, so one query answers "what have we given away".
 REF_TYPE = "signup_bonus"

@@ -55,10 +55,10 @@ from api.db.models import (
     PaymentTokenModel,
 )
 from api.enums import CreditLedgerKind, PostHogEvent
-from api.services.posthog_client import capture_event
 from api.services.billing.billing_profile import get_profile
 from api.services.billing.money import round_half_up_div
 from api.services.billing.tax import TaxError, compute_tax
+from api.services.posthog_client import capture_event
 
 PROVIDER = "razorpay"
 

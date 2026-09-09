@@ -21,8 +21,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getBalanceApiV1BillingBalanceGet } from "@/client/sdk.gen";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatCredits, formatPaise } from "@/lib/billing/format";
 import { useAuth } from "@/lib/auth";
+import { formatCredits, formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
 /** How often the chip re-reads the balance while the tab is open. */

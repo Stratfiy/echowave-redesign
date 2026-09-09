@@ -18,6 +18,7 @@ import type {
     NodeSpec,
     NodeTypesResponse,
     RecordingListResponseSchema,
+    ToolLibraryResponse,
     ToolResponse,
     UpdateWorkflowRequest,
     WorkflowListResponse,
@@ -54,6 +55,19 @@ export abstract class _GeneratedClient {
     /** Fetch a single node spec by name. */
     async getNodeType(name: string): Promise<NodeSpec> {
         return this.request<NodeSpec>("GET", `/node-types/${name}`);
+    }
+
+    /** Ready-made tools for the apps businesses run on, grouped by vendor. */
+    async getToolLibrary(): Promise<ToolLibraryResponse> {
+        return this.request<ToolLibraryResponse>("GET", "/tool-library");
+    }
+
+    /** The http_api tool definition a catalogue entry seeds, ready to create a tool from. */
+    async getToolLibraryDefinition(key: string, opts: { credentialUuid?: string } = {}): Promise<unknown> {
+        const params: Record<string, unknown> = {
+            ...(opts.credentialUuid !== undefined ? { "credential_uuid": opts.credentialUuid } : {}),
+        };
+        return this.request("GET", `/tool-library/${key}/definition`, { params });
     }
 
     /** Get a single workflow by ID (returns draft if one exists, else published). */

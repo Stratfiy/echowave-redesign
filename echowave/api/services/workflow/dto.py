@@ -560,6 +560,9 @@ class AgentNodeData(
                 "with its name, data type, and a per-variable extraction hint."
             )
         },
+        # This step says goodbye and hangs up; it never waits on a reply, so
+        # offering a patience control here would be a dial that does nothing.
+        "patience_seconds": {"spec_exclude": True},
     },
 )
 class EndCallNodeData(
@@ -629,6 +632,9 @@ class EndCallNodeData(
         },
         "allow_interrupt": {"spec_exclude": True},
         "add_global_prompt": {"spec_exclude": True},
+        # Global is prepended to other steps rather than being a step the
+        # conversation sits on, so there is no silence for it to wait through.
+        "patience_seconds": {"spec_exclude": True},
     },
 )
 class GlobalNodeData(BaseNodeData, _PromptedNodeDataMixin):

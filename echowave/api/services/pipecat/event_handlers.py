@@ -29,7 +29,6 @@ from pipecat.pipeline.worker import PipelineWorker
 from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
 from pipecat.utils.enums import EndTaskReason
 
-
 #: How long a call may run with a broken component and a silent agent before we
 #: end it ourselves.
 #:
@@ -189,7 +188,9 @@ def register_event_handlers(
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 - never let the watchdog kill the process
-            logger.error("Mute-agent watchdog failed for run {}: {}", workflow_run_id, exc)
+            logger.error(
+                "Mute-agent watchdog failed for run {}: {}", workflow_run_id, exc
+            )
 
     def _arm_mute_agent_watchdog() -> None:
         """Start the watchdog once, and only while the agent is still silent."""

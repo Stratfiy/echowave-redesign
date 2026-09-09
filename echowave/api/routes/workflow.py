@@ -47,6 +47,7 @@ from api.services.configuration.resolve import (
 from api.services.posthog_client import capture_event
 from api.services.reports import generate_workflow_report_csv
 from api.services.storage import storage_fs
+from api.services.workflow import setup_progress
 from api.services.workflow.agent_brief import (
     AgentBrief,
     apply_brief,
@@ -67,7 +68,6 @@ from api.services.workflow.squad_loader import (
     validate_for_organization,
 )
 from api.services.workflow.template_generation import generate_workflow_definition
-from api.services.workflow import setup_progress
 from api.services.workflow.trigger_paths import (
     TriggerPathIssue,
     ensure_trigger_paths,

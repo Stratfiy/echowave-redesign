@@ -14,7 +14,6 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
-
 from pydantic import BaseModel, Field
 
 from api.db import db_client
@@ -26,11 +25,11 @@ from api.services.agent_templates.materialise import (
     to_workflow_definition,
 )
 from api.services.auth.depends import get_user
-from api.services.posthog_client import capture_event
 from api.services.configuration.agent_options import managed_stack_override
 from api.services.configuration.ai_model_configuration import (
     get_organization_ai_model_configuration_v2,
 )
+from api.services.posthog_client import capture_event
 from api.services.workflow.trigger_paths import regenerate_trigger_uuids
 
 router = APIRouter(prefix="/agent-templates", tags=["agent-templates"])

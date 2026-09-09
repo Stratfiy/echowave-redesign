@@ -27,7 +27,6 @@ from api.enums import CreditLedgerKind, PostHogEvent
 from api.services.billing.addons import addon_keys_from_usage_info
 from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_cost
 from api.services.billing.delivery import platform_fee_is_waived
-from api.services.posthog_client import capture_event
 from api.services.billing.fees import addon_rates_mpaise, uplifted_platform_rate_mpaise
 from api.services.billing.markup import resolve_markup_bps, resolve_markup_override_bps
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
@@ -36,6 +35,7 @@ from api.services.billing.usage import (
     byok_platform_tier,
     usage_items_from_usage_info,
 )
+from api.services.posthog_client import capture_event
 
 
 async def _period_minutes(

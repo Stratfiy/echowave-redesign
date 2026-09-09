@@ -292,6 +292,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tool-library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tool Library
+         * @description The whole catalogue.
+         *
+         *     Authenticated but not org-scoped: it is identical for everyone and holds no
+         *     tenant data. Behind auth because it is a product surface, not a secret.
+         */
+        get: operations["get_tool_library_api_v1_tool_library_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tool-library/{key}/definition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tool Library Definition
+         * @description What creating this tool would produce.
+         *
+         *     Returned rather than created, deliberately. The operator edits the URL for
+         *     their datacentre and reviews the parameters before anything is saved, and a
+         *     catalogue entry that wrote a live tool on a GET would be a surprising thing
+         *     for a browse action to do.
+         */
+        get: operations["get_tool_library_definition_api_v1_tool_library__key__definition_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/contact-lists": {
         parameters: {
             query?: never;
@@ -353,6 +401,41 @@ export interface components {
              * @default []
              */
             disposition_codes: string[];
+        };
+        /**
+         * CallOutcome
+         * @description One label this agent's calls can be classified as afterwards.
+         *
+         *     Distinct from ``call_disposition_codes`` on the workflow, which is not
+         *     configuration at all: that column is a registry the pipeline appends to
+         *     with every ``mapped_call_disposition`` it has actually seen, so the calls
+         *     list can offer a dropdown of codes that occurred. This is the taxonomy a
+         *     business *decides on* — the outcomes it wants sorted by, whether or not a
+         *     call has produced one yet.
+         *
+         *     Per workflow, because the outcomes are. A clinic books appointments, a
+         *     lending agent gets a payment promise, an NDR agent confirms an address.
+         *     Both Vapi and Bolna let you define the shape here rather than shipping a
+         *     fixed set, and for the same reason: there isn't one.
+         */
+        CallOutcome: {
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * When
+             * @default
+             */
+            when: string;
+        } & {
+            [key: string]: unknown;
         };
         /** ContactListRequest */
         ContactListRequest: {
@@ -909,6 +992,70 @@ export interface components {
             catalog: string;
         };
         /**
+         * LibraryTool
+         * @description One catalogue entry, and the `http_api` tool it seeds.
+         */
+        LibraryTool: {
+            /**
+             * Key
+             * @description Stable id for this entry. Not stored on the tool.
+             */
+            key: string;
+            /**
+             * Vendor
+             * @description Section heading in the picker.
+             */
+            vendor: string;
+            /**
+             * Display Name
+             * @description What the picker lists it as.
+             */
+            display_name: string;
+            /**
+             * Summary
+             * @description One line on what it does during a call.
+             */
+            summary: string;
+            /** Tool Name */
+            tool_name: string;
+            /** Tool Description */
+            tool_description: string;
+            /**
+             * Method
+             * @default GET
+             */
+            method: string;
+            /** Url */
+            url: string;
+            /** Parameters */
+            parameters?: components["schemas"]["LibraryToolParameter"][];
+            /**
+             * Setup Note
+             * @default
+             */
+            setup_note: string;
+        };
+        /**
+         * LibraryToolParameter
+         * @description One parameter the agent fills in, seeding a `ToolParameter`.
+         */
+        LibraryToolParameter: {
+            /** Name */
+            name: string;
+            /**
+             * Type
+             * @default string
+             */
+            type: string;
+            /** Description */
+            description: string;
+            /**
+             * Required
+             * @default true
+             */
+            required: boolean;
+        };
+        /**
          * McpToolConfig
          * @description Configuration for a customer MCP server tool definition.
          */
@@ -1228,6 +1375,15 @@ export interface components {
             /** Is Active */
             is_active: boolean;
         };
+        /** ToolLibraryResponse */
+        ToolLibraryResponse: {
+            /** Catalog */
+            catalog: string;
+            /** Vendors */
+            vendors: string[];
+            /** Tools */
+            tools: components["schemas"]["LibraryTool"][];
+        };
         /**
          * ToolParameter
          * @description A parameter that the tool accepts from the model at call time.
@@ -1421,7 +1577,7 @@ export interface components {
             provisional_vad_pause_secs: number;
             /**
              * Turn Stop Strategy
-             * @default turn_analyzer
+             * @default transcription
              * @enum {string}
              */
             turn_stop_strategy: "transcription" | "turn_analyzer";
@@ -1449,6 +1605,23 @@ export interface components {
             fallback_tts?: components["schemas"]["FallbackServiceConfiguration"][];
             /** Fallback Stt */
             fallback_stt?: components["schemas"]["FallbackServiceConfiguration"][];
+            /** Call Outcomes */
+            call_outcomes?: components["schemas"]["CallOutcome"][];
+            /**
+             * Follow Caller Language
+             * @default false
+             */
+            follow_caller_language: boolean;
+            /**
+             * Accept Keypad Input
+             * @default false
+             */
+            accept_keypad_input: boolean;
+            /**
+             * Speak Like Callers
+             * @default false
+             */
+            speak_like_callers: boolean;
         } & {
             [key: string]: unknown;
         };
@@ -1532,6 +1705,7 @@ export interface components {
 export type AmbientNoiseConfigurationDefaults = components['schemas']['AmbientNoiseConfigurationDefaults'];
 export type CalculatorToolDefinition = components['schemas']['CalculatorToolDefinition'];
 export type CallDispositionCodes = components['schemas']['CallDispositionCodes'];
+export type CallOutcome = components['schemas']['CallOutcome'];
 export type ContactListRequest = components['schemas']['ContactListRequest'];
 export type ContactListResponse = components['schemas']['ContactListResponse'];
 export type CreateToolRequest = components['schemas']['CreateToolRequest'];
@@ -1554,6 +1728,8 @@ export type HttpTransferResolverConfig = components['schemas']['HttpTransferReso
 export type InitiateCallRequest = components['schemas']['InitiateCallRequest'];
 export type LibraryExtraction = components['schemas']['LibraryExtraction'];
 export type LibraryOptions = components['schemas']['LibraryOptions'];
+export type LibraryTool = components['schemas']['LibraryTool'];
+export type LibraryToolParameter = components['schemas']['LibraryToolParameter'];
 export type McpToolConfig = components['schemas']['McpToolConfig'];
 export type McpToolDefinition = components['schemas']['McpToolDefinition'];
 export type NodeCategory = components['schemas']['NodeCategory'];
@@ -1569,6 +1745,7 @@ export type PropertySpec = components['schemas']['PropertySpec'];
 export type PropertyType = components['schemas']['PropertyType'];
 export type RecordingListResponseSchema = components['schemas']['RecordingListResponseSchema'];
 export type RecordingResponseSchema = components['schemas']['RecordingResponseSchema'];
+export type ToolLibraryResponse = components['schemas']['ToolLibraryResponse'];
 export type ToolParameter = components['schemas']['ToolParameter'];
 export type ToolResponse = components['schemas']['ToolResponse'];
 export type TransferCallConfig = components['schemas']['TransferCallConfig'];
@@ -2111,6 +2288,91 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExtractionLibraryResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tool_library_api_v1_tool_library_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolLibraryResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tool_library_definition_api_v1_tool_library__key__definition_get: {
+        parameters: {
+            query?: {
+                /** @description The OAuth credential to attach. Optional here so the shape can be previewed before an account is connected. */
+                credential_uuid?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-API-Key"?: string | null;
+            };
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Not found */

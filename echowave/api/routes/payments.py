@@ -37,7 +37,6 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationRole, PostHogEvent
 from api.services.auth.depends import get_user, require_organization_role
-from api.services.posthog_client import capture_event
 from api.services.billing import (
     auto_topup,
     auto_topup_runner,
@@ -47,6 +46,7 @@ from api.services.billing import (
     payments,
 )
 from api.services.billing.tax import TaxError
+from api.services.posthog_client import capture_event
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
