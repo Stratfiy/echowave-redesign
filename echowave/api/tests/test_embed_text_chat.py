@@ -154,3 +154,48 @@ class TestPreflight:
             "/api/v1/workflow/1", "https://clinic.example", "POST"
         )
         assert res is None
+
+
+class TestTheWidgetSpendsSomebodysBalance:
+    """A widget is the one entry point handed to strangers.
+
+    It sits on a public web page and every visitor who loads it spends the
+    issuing account's credit. Every other way a run starts asks whether the
+    account can afford it -- outbound, the ARI inbound path, the campaign
+    dispatcher, the signed-in text chat -- and this one did not.
+    """
+
+    def test_init_authorizes_the_run_before_the_session_exists(self):
+        """The check is in `/init`, so one refusal covers voice and text.
+
+        Asserted against the source rather than by driving the route, which
+        needs a token, a session, an origin and a workflow. What can actually
+        regress here is someone deleting the call or moving it after the
+        session is handed out -- and both are visible in the order of the
+        text.
+        """
+        import inspect
+
+        src = inspect.getsource(public_embed.initialize_embed_session)
+
+        assert "authorize_workflow_run_start" in src, (
+            "The public embed init no longer checks whether the account can "
+            "afford the run. Anyone who loads the widget spends the issuing "
+            "account's balance."
+        )
+
+        # Order matters: the run must exist to be attributable, and the
+        # session must not be handed out to a visitor we are about to refuse.
+        authorize_at = src.index("authorize_workflow_run_start")
+        run_created_at = src.index("create_workflow_run")
+        session_created_at = src.index("create_embed_session")
+        assert run_created_at < authorize_at < session_created_at
+
+    def test_a_refusal_is_402_not_403(self):
+        """The widget can tell "out of credit" from "not allowed here", and
+        only one of those is worth telling the site owner about."""
+        import inspect
+
+        src = inspect.getsource(public_embed.initialize_embed_session)
+        refusal = src[src.index("authorize_workflow_run_start") :]
+        assert "status_code=402" in refusal

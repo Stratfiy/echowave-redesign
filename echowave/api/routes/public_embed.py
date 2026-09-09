@@ -34,6 +34,7 @@ from api.services.embed_logo import (
     logo_from_settings,
     public_settings,
 )
+from api.services.quota_service import authorize_workflow_run_start
 from api.services.storage import (
     get_current_storage_backend,
     get_storage_for_backend,
@@ -391,6 +392,45 @@ async def initialize_embed_session(
     except Exception as e:
         logger.error(f"Failed to create workflow run: {e}")
         raise HTTPException(status_code=500, detail="Failed to create workflow run")
+
+    # Can the issuing account afford this? Every other way a run starts asks --
+    # outbound, the ARI inbound path, the campaign dispatcher, and the signed-in
+    # text chat -- and this one did not. A widget is the only entry point that
+    # is deliberately handed to strangers: it sits on a public web page, and
+    # whoever loads that page spends the issuing account's balance. The token's
+    # own `usage_limit` is a per-widget cap, optional, and counts sessions
+    # rather than money, so it is not this check.
+    #
+    # After the run exists so the refusal is attributable to it, and so hosted
+    # billing can attach a correlation id, which is the order every other
+    # caller uses. The refusal also reports `call_refused` to PostHog from
+    # inside authorize_workflow_run_start, so embed drop-off for no credit
+    # lands in the same funnel as every other refusal without a second call.
+    quota = await authorize_workflow_run_start(
+        workflow_id=embed_token.workflow_id,
+        organization_id=embed_token.organization_id,
+        workflow_run_id=workflow_run.id,
+    )
+    if not quota.has_quota:
+        # 402 rather than 403: the widget can tell "this account is out of
+        # credit" from "you are not allowed here", and only one of those is
+        # worth telling the site owner about. The message is the quota
+        # service's own, which is written for the account holder.
+        #
+        # The CORS headers are repeated onto the exception because raising one
+        # builds a fresh response and drops everything written onto the
+        # injected `response` above. Without them the browser rejects the fetch
+        # before any status reaches the widget's JS, so an account out of
+        # credit shows a spinner that never resolves instead of a reason.
+        raise HTTPException(
+            status_code=402,
+            detail=quota.error_message,
+            headers=(
+                {"Access-Control-Allow-Origin": origin, "Vary": "Origin"}
+                if origin
+                else None
+            ),
+        )
 
     # Generate session token
     session_token = generate_session_token()

@@ -140,6 +140,19 @@ def _patch_db(monkeypatch):
         "api.routes.public_embed.db_client.increment_embed_token_usage",
         _noop,
     )
+
+    # These tests are about CORS headers, not billing. /init now authorizes the
+    # run against the issuing account's balance, and the real check would reach
+    # for a database none of this has. Granting it keeps each test on its own
+    # subject; the refusal path gets its own test below, because a 402 the
+    # widget's JS cannot read is a different bug.
+    async def _has_quota(**_kwargs):
+        return SimpleNamespace(has_quota=True, error_message="", error_code="")
+
+    monkeypatch.setattr(
+        "api.routes.public_embed.authorize_workflow_run_start",
+        _has_quota,
+    )
     monkeypatch.setattr("api.routes.public_embed.TURN_SECRET", "test-secret")
     monkeypatch.setattr(
         "api.routes.public_embed.generate_turn_credentials",
@@ -251,6 +264,39 @@ def test_init_includes_acao_header():
         json={"token": "valid"},
     )
     assert resp.status_code == 200
+    _assert_embed_cors(resp, origin)
+
+
+def test_a_refused_init_still_carries_cors_headers(monkeypatch):
+    """A 402 the browser cannot read is a widget that hangs, not one that
+    explains itself.
+
+    The refusal is the response most likely to be seen by a site owner who has
+    run out of credit, and it is the one that has to survive the cross-origin
+    trip: without Access-Control-Allow-Origin the fetch rejects before any
+    status reaches the JS, so the visitor gets a spinner and the owner never
+    learns why.
+    """
+
+    async def _no_quota(**_kwargs):
+        return SimpleNamespace(
+            has_quota=False,
+            error_message="Insufficient credit.",
+            error_code="no_credit",
+        )
+
+    monkeypatch.setattr(
+        "api.routes.public_embed.authorize_workflow_run_start",
+        _no_quota,
+    )
+
+    origin = "https://mysite.vercel.app"
+    resp = client.post(
+        "/api/v1/public/embed/init",
+        headers={"Origin": origin},
+        json={"token": "valid"},
+    )
+    assert resp.status_code == 402
     _assert_embed_cors(resp, origin)
 
 
