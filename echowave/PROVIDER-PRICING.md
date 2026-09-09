@@ -146,29 +146,23 @@ are cheaper, not because the fee is.
 
 ---
 
-## 5. What this does to the Telangana tender
+## 5. The two levers a campaign quote turns on
 
-`TENDER-COST-AND-QUOTE.md` costs the campaign at **₹3,13,568** against a
-₹5.25L bid. Two of its assumptions are now verifiable, and they move in
-opposite directions:
+Whatever the campaign, two assumptions move a bid more than anything else and
+both have been wrong in past quotes, in opposite directions — which is how
+they hid each other.
 
-| Assumption | Tender used | Verified | Effect on campaign cost |
-|---|---|---|---|
-| Sarvam TTS | ₹0.003/char (= v3) | **v2 is ₹0.0015** | **−₹46,700** if v2 is used |
-| Telephony | ₹0.25/min (flagged unverified) | **₹0.34 SIP / ₹0.60 local** | **+₹8,100** to **+₹31,500** |
+| Assumption | Verified value | Why it matters |
+|---|---|---|
+| Sarvam TTS generation | **v2 is Rs1.50/1k, v3 is Rs3.00/1k** (`default_rates.py:576-588`) | The managed default resolves v2. A quote priced at v3 doubles the largest cost line |
+| Plivo India | **Rs0.38/min, both directions** (`default_rates.py:657-678`, confirmed on the account 27 Aug 2026) | This is the raw rate. A quote must gross it up for ringing time, and one that starts from a lower base under-costs every connected minute |
 
-Best case (Bulbul v2 + SIP): campaign cost falls about **₹38,600**.
-Worst case (v3 + local PSTN): it rises about **₹31,500**.
-
-Neither breaks the bid — the margin absorbs both — but the decision is worth
-making explicitly rather than discovering on the first invoice:
+Before any campaign is priced:
 
 1. **Confirm which Bulbul generation the campaign runs.** It is the single
-   largest cost lever, worth ₹46,700 on this campaign alone.
-2. **Get the written Plivo quote** the tender doc already lists as risk #4. The
-   ₹0.25/min assumption is below both published rates.
-
----
+   largest cost lever.
+2. **Price carriage from the rate card, not from memory.** Rs0.38 is what the
+   account is charged; the billed figure is that grossed up for ringing.
 
 ## 6. Standing caveats
 
