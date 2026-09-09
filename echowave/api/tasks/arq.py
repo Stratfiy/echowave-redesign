@@ -48,6 +48,7 @@ from api.tasks.campaign_tasks import (
     sync_campaign_source,
 )
 from api.tasks.credit_reservations import sweep_credit_reservations
+from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.data_retention import purge_expired_call_data
 from api.tasks.email_tax_document import email_tax_document
 from api.tasks.fx import refresh_exchange_rate
@@ -78,6 +79,7 @@ class WorkerSettings:
         place_missed_call_callback,
         refresh_billing_rollups,
         sweep_credit_reservations,
+        sweep_uncosted_runs,
         issue_monthly_tax_invoices,
         purge_expired_call_data,
         run_database_backup,
@@ -133,6 +135,23 @@ class WorkerSettings:
             sweep_credit_reservations,
             minute=set(range(0, 60, 5)),
             second=45,
+            run_at_startup=True,
+        ),
+        # The only thing standing between "the completion job did not run" and
+        # a call nobody is ever billed for. cost_completed_workflow_run is
+        # enqueued from exactly one place — the last statement of pipeline
+        # teardown — and is not retried when it fails, so a raised teardown, a
+        # Redis blip or an error inside the job all end the same way: providers
+        # paid, no receipt, and nothing looking for it.
+        #
+        # Every ten minutes, offset from the reservation sweeper so the two do
+        # not contend, and at startup because a worker restart is one of the
+        # ways the enqueue is lost in the first place. On a healthy deployment
+        # this is a query that returns nothing.
+        cron(
+            sweep_uncosted_runs,
+            minute=set(range(0, 60, 10)),
+            second=15,
             run_at_startup=True,
         ),
         # Tax invoices for the month just ended. 20:30 UTC on the 1st is 02:00
