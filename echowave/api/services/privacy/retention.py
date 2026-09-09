@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import (
@@ -283,8 +283,27 @@ async def purge_expired(
             .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
             .where(
                 WorkflowRunModel.created_at < oldest_kept,
-                WorkflowRunModel.recording_url.is_not(None),
-                WorkflowRunModel.recording_url != PURGED_MARKER,
+                # Not-yet-fully-purged, which is a different question from
+                # "still has audio". purge_run stamps recording_url the moment
+                # it deletes the audio, but only stamps transcript_url once the
+                # transcript window has also passed. Selecting on the recording
+                # alone therefore dropped every row at the *first* purge: the
+                # audio went at day 90, the row became invisible to this query,
+                # and the day-365 transcript purge never came for it. The
+                # transcript, the gathered context and every field the agent
+                # extracted from the caller stayed forever, against a retention
+                # period we publish in a privacy notice and warrant in a DPA.
+                #
+                # It also excluded runs that never had audio at all — recording
+                # disabled, or a text session — so their transcripts were never
+                # examined either.
+                #
+                # is_distinct_from, not !=, because a NULL transcript_url is
+                # "not purged" and SQL's != would answer NULL to that.
+                or_(
+                    WorkflowRunModel.recording_url.is_distinct_from(PURGED_MARKER),
+                    WorkflowRunModel.transcript_url.is_distinct_from(PURGED_MARKER),
+                ),
             )
             .order_by(WorkflowRunModel.created_at)
             .limit(limit)

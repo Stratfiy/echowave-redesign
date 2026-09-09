@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db.models import (
@@ -65,9 +65,17 @@ async def overdue_recordings(
     """
     now = now or datetime.now(UTC)
 
+    # Anything not fully purged, audio or text. Selecting on the recording
+    # alone made this metric structurally unable to see the failure it exists
+    # to catch: a run whose audio went at day 90 is stamped and disappears from
+    # a recording-only scan, so a transcript still sitting there at day 400
+    # counted as zero. The headline privacy number read healthy precisely
+    # because the data had outlived its window.
     conditions = [
-        WorkflowRunModel.recording_url.is_not(None),
-        WorkflowRunModel.recording_url != PURGED_MARKER,
+        or_(
+            WorkflowRunModel.recording_url.is_distinct_from(PURGED_MARKER),
+            WorkflowRunModel.transcript_url.is_distinct_from(PURGED_MARKER),
+        )
     ]
     if organization_id is not None:
         conditions.append(WorkflowModel.organization_id == organization_id)
@@ -78,6 +86,8 @@ async def overdue_recordings(
                 WorkflowRunModel.id,
                 WorkflowRunModel.created_at,
                 WorkflowModel.organization_id,
+                WorkflowRunModel.recording_url.is_distinct_from(PURGED_MARKER),
+                WorkflowRunModel.transcript_url.is_distinct_from(PURGED_MARKER),
             )
             .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
             .where(*conditions)
@@ -85,21 +95,35 @@ async def overdue_recordings(
         )
     ).all()
 
-    policies: dict[int, int] = {}
+    policies: dict[int, tuple[int, int]] = {}
     overdue: list[dict] = []
     oldest_age = 0
     total = 0
 
-    for run_id, created_at, organization_id in rows:
+    for (
+        run_id,
+        created_at,
+        organization_id,
+        run_recording,
+        run_transcript,
+    ) in rows:
         if organization_id is None or created_at is None:
             continue
         if organization_id not in policies:
             policy = await resolve_policy(session, organization_id=organization_id)
-            policies[organization_id] = policy.recording_days
-        window = policies[organization_id]
+            policies[organization_id] = (policy.recording_days, policy.transcript_days)
+        recording_days, transcript_days, has_audio, has_transcript = policies[
+            organization_id
+        ] + (run_recording, run_transcript)
         age_days = (now - created_at).days
-        if age_days < window:
+        # Each half against its own window. A row is overdue if either the
+        # audio it still holds is past the recording window, or the transcript
+        # it still holds is past the (longer) transcript one.
+        audio_overdue = has_audio and age_days >= recording_days
+        text_overdue = has_transcript and age_days >= transcript_days
+        if not (audio_overdue or text_overdue):
             continue
+        window = recording_days if audio_overdue else transcript_days
 
         total += 1
         oldest_age = max(oldest_age, age_days)

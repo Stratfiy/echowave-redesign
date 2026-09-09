@@ -185,7 +185,7 @@ RAZORPAY_WEBHOOK_SECRET=
 ```
 
 Without the webhook secret, top-ups are refused with a 503 — that is deliberate,
-not a bug. Point the Razorpay webhook at `POST /api/v1/payments/razorpay/webhook`.
+not a bug. Point the Razorpay webhook at `POST /api/v1/billing/razorpay/webhook`. The router carries `prefix="/billing"` (`api/routes/payments.py:50`), so the path does not contain `payments` despite the module name — pointing it at `/payments/...` returns 404, payments capture, and nobody is ever credited.
 
 **Un-audited.** The code was verified end-to-end on 12 Aug by a previous session
 (top-up → webhook → credit → voucher → email), but the audit that would have
