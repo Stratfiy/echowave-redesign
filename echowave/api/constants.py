@@ -113,12 +113,36 @@ ENABLE_SIGNUP = os.getenv("ENABLE_SIGNUP", "true").lower() == "true"
 # needs them baked into the bundle at build time.
 STACK_AUTH_PROJECT_ID = os.getenv("STACK_AUTH_PROJECT_ID")
 STACK_PUBLISHABLE_CLIENT_KEY = os.getenv("STACK_PUBLISHABLE_CLIENT_KEY")
-# Sign in with Google, layered on top of local auth rather than replacing it.
+# Our OAuth app's identity at Google, shared by the two features that need one.
+#
+# **Two consumers, one client, deliberately.** These were defined twice in this
+# file — once here for sign-in and once further down for the calendar tool —
+# reading the same variable, so the second assignment silently won and the two
+# features were sharing a client without anyone having decided they should.
+# They are folded here because sharing is the right answer: a Google OAuth
+# client takes several redirect URIs, and running two clients would mean two
+# consent screens and two sets of credentials for one app.
+#
+# Both redirect URIs have to be registered in Google Cloud Console, and a
+# missing one fails at Google with an error the user cannot act on:
+#
+#   {BACKEND_API_ENDPOINT}/api/v1/auth/google/callback
+#   {BACKEND_API_ENDPOINT}/api/v1/integrations/google-calendar/callback
+#
+# What is per-organization is not here: it is the refresh token the calendar
+# flow produces, on GoogleCalendarConnectionModel.
+#
 # Unset on a deployment that cannot reach Google — an air-gapped install, or
-# one that simply does not want it — and the button never renders and the
-# routes refuse; nothing else about authentication changes.
-GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
-GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+# one that simply does not want it — and the sign-in button never renders, the
+# auth routes refuse, and the calendar tool cannot be connected. Nothing else
+# about authentication changes.
+#
+# ``or None`` rather than a bare getenv so an empty variable reads the same as
+# an absent one. A deployment that sets the name and leaves the value blank is
+# saying "not this one", and treating "" as configured is how a half-configured
+# install ends up with a button that fails after the user has left the site.
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID") or None
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or None
 DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)
 # The Model Proxy Service. Nothing fails outright without it any more:
 # knowledge base ingestion and recording transcription both run in-process, and
@@ -469,14 +493,9 @@ REQUIRE_MANDATE_FOR_NUMBERS = (
     os.getenv("REQUIRE_MANDATE_FOR_NUMBERS", "true").lower() != "false"
 )
 
-# Google OAuth, for the google_calendar tool's "Connect Google Calendar" flow.
-# This is our OAuth app's identity, not a per-organization secret — every
-# organization that connects a calendar authorizes against the same client,
-# and what is per-organization is the refresh token that flow produces (see
-# GoogleCalendarConnectionModel). Registered in Google Cloud Console with
-# redirect URI {BACKEND_API_ENDPOINT}/api/v1/integrations/google-calendar/callback.
-GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID") or None
-GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or None
+# The Google OAuth client the calendar flow authorizes against is the same one
+# sign-in uses, defined once near the top of this file — including which
+# redirect URIs have to be registered for both to work.
 # IANA zone name events are created in. Google's API takes a zone name rather
 # than a UTC offset, so "Asia/Kolkata" is correct across DST-free India
 # year-round; a deployment outside India overrides this.
