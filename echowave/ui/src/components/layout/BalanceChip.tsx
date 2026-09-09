@@ -22,7 +22,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getBalanceApiV1BillingBalanceGet } from "@/client/sdk.gen";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/lib/auth";
-import { formatCredits, formatPaise } from "@/lib/billing/format";
+import { formatCredits, formatCreditsLabel } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
 /** How often the chip re-reads the balance while the tab is open. */
@@ -108,10 +108,10 @@ export function BalanceChip() {
                 {failed
                     ? "Could not read your balance. Open billing to check."
                     : blocked
-                      ? `Too low to place calls — ${formatPaise(paise)}. Add credits to start calling again.`
+                      ? `Too low to place calls — ${formatCreditsLabel(paise)} left. Add credits to start calling again.`
                       : lowBalance
-                        ? `Running low — ${formatPaise(paise)}. Calls stop when this reaches the minimum.`
-                        : `${formatPaise(paise)} of call credit. One credit is ₹1.`}
+                        ? `Running low — ${formatCreditsLabel(paise)} left. Calls stop when this reaches the minimum.`
+                        : `${formatCreditsLabel(paise)} of call credit.`}
             </TooltipContent>
         </Tooltip>
     );

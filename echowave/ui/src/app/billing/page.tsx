@@ -59,7 +59,7 @@ import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { loadCheckout } from "@/lib/billing/checkout";
-import { formatDateTimeIST, formatPaise } from "@/lib/billing/format";
+import { formatCredits, formatCreditsLabel, formatDateTimeIST, formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
 /** Rupee amounts offered as one click. Chosen to bracket a month of ordinary
@@ -600,7 +600,7 @@ export default function BillingPage() {
             <section className="rounded-xl border bg-card p-6">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Wallet className="h-4 w-4" />
-                    Available credit
+                    Available credits
                 </div>
                 <div
                     className={cn(
@@ -609,7 +609,7 @@ export default function BillingPage() {
                         runningLow && "text-amber-600 dark:text-amber-400",
                     )}
                 >
-                    {formatPaise(balancePaise)}
+                    {formatCredits(balancePaise)}
                 </div>
                 {/* Both messages name the floor, because it is not zero. An
                     account told "calls stop at zero" while sitting on ₹18 and
@@ -617,14 +617,14 @@ export default function BillingPage() {
                 {outOfCredit && (
                     <p className="mt-2 text-sm text-red-600 dark:text-red-400">
                         Calling is paused — the balance is below{" "}
-                        {formatPaise(floorPaise)}. Add credit from{" "}
+                        {formatCreditsLabel(floorPaise)}. Add credit from{" "}
                         {formatPaise(balance?.min_topup_paise ?? 0)} to start again.
                     </p>
                 )}
                 {runningLow && (
                     <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
                         Running low. Calling pauses once this falls below{" "}
-                        {formatPaise(floorPaise)}.
+                        {formatCreditsLabel(floorPaise)}.
                     </p>
                 )}
             </section>
