@@ -1,10 +1,8 @@
 import {
-  AudioLines,
-  Brain,
+  Bot,
   ChartColumnBig,
   ContactRound,
   Database,
-  FileText,
   Globe,
   Handshake,
   Home,
@@ -13,12 +11,10 @@ import {
   type LucideIcon,
   Megaphone,
   Phone,
-  PhoneIncoming,
-  PhoneOff,
+  PhoneCall,
   Settings,
   Shield,
   ShieldCheck,
-  TrendingUp,
   Wallet,
   Workflow,
 } from "lucide-react";
@@ -106,34 +102,71 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         icon: Home,
         keywords: ["home", "dashboard", "start"],
       },
+      // The partner programme is a commercial arrangement on the account, so
+      // it lives as a tab on Billing rather than as its own door in WORKSPACE.
       {
         title: "Billing",
         url: "/billing",
+        activePaths: ["/partner"],
         icon: Wallet,
-        keywords: ["credit", "top up", "invoice", "payment", "balance"],
+        keywords: [
+          "credit",
+          "top up",
+          "invoice",
+          "payment",
+          "balance",
+          "partner",
+          "reseller",
+          "agency",
+          "commission",
+          "referral",
+        ],
       },
     ],
   },
   {
     label: "BUILD",
     items: [
+      // Model configurations are no longer a sidebar destination: a voice, an
+      // LLM and a transcriber are properties of an agent, and the page is
+      // still reached from the agent editor. It highlights Agents while open.
       {
-        title: "Voice agents",
+        title: "Agents",
         url: "/workflow",
-        icon: Workflow,
-        keywords: ["workflow", "agent", "builder", "canvas", "flow"],
+        activePaths: ["/model-configurations"],
+        icon: Bot,
+        keywords: [
+          "workflow",
+          "voice agent",
+          "builder",
+          "canvas",
+          "flow",
+          "model",
+          "llm",
+          "stt",
+          "tts",
+          "voice",
+          "provider",
+        ],
       },
-      {
-        title: "Models & voices",
-        url: "/model-configurations",
-        icon: Brain,
-        keywords: ["llm", "stt", "tts", "voice", "provider"],
-      },
+      // Pre-recorded audio clips are agent material, like documents: both are
+      // things an agent draws on mid-call, so they share one door with a tab
+      // between them.
       {
         title: "Knowledge base",
         url: "/files",
+        activePaths: ["/recordings"],
         icon: Database,
-        keywords: ["files", "knowledge base", "upload", "document"],
+        keywords: [
+          "files",
+          "knowledge base",
+          "upload",
+          "document",
+          "recordings",
+          "audio",
+          "clips",
+          "playback",
+        ],
       },
       {
         title: "Integrations",
@@ -173,7 +206,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       {
         title: "Phone numbers",
         url: "/telephony-configurations",
-        activePaths: ["/numbers", "/verified-numbers", "/verification"],
+        activePaths: ["/numbers", "/verified-numbers", "/verification", "/missed-calls"],
         icon: Phone,
         showsTelephonyWarning: true,
         keywords: [
@@ -197,6 +230,8 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "my number",
           "trial",
           "verify phone",
+          "missed calls",
+          "callback",
         ],
       },
       {
@@ -241,30 +276,31 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
   {
     label: "MONITOR",
     items: [
+      // Daily reports are a view over the same calls, so they are a tab here
+      // rather than a fifth MONITOR entry. Missed calls moved to Phone numbers,
+      // where the telephony tab strip already listed them.
       {
-        title: "Call logs",
+        title: "Calls",
         url: "/usage",
-        icon: TrendingUp,
-        keywords: ["agent runs", "calls", "history", "logs", "transcripts"],
+        activePaths: ["/reports"],
+        icon: PhoneCall,
+        keywords: [
+          "agent runs",
+          "call logs",
+          "history",
+          "logs",
+          "transcripts",
+          "reports",
+          "export",
+          "csv",
+          "download",
+        ],
       },
       {
         title: "Analytics",
         url: "/analytics",
         icon: ChartColumnBig,
         keywords: ["metrics", "latency", "cost", "charts"],
-      },
-      {
-        title: "Recordings",
-        url: "/recordings",
-        icon: AudioLines,
-        keywords: ["audio", "playback", "transcript"],
-      },
-      { title: "Missed calls", url: "/missed-calls", icon: PhoneIncoming, keywords: ["callback", "refused", "inbound"] },
-      {
-        title: "Reports",
-        url: "/reports",
-        icon: FileText,
-        keywords: ["export", "csv", "download"],
       },
     ],
   },
@@ -304,23 +340,27 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
   {
     label: "WORKSPACE",
     items: [
+      // Privacy and the do-not-call list are the two halves of one obligation
+      // — the rights of the people being called — so they share a door.
       {
-        title: "Privacy",
+        title: "Compliance",
         url: "/privacy",
+        activePaths: ["/do-not-call"],
         icon: Shield,
-        keywords: ["retention", "erasure", "dpdp", "gdpr"],
-      },
-      {
-        title: "Do not call",
-        url: "/do-not-call",
-        icon: PhoneOff,
-        keywords: ["dnd", "suppression", "opt out", "tcccpr", "trai", "blocklist"],
-      },
-      {
-        title: "Partner programme",
-        url: "/partner",
-        icon: Handshake,
-        keywords: ["reseller", "agency", "commission", "developer", "referral"],
+        keywords: [
+          "privacy",
+          "retention",
+          "erasure",
+          "dpdp",
+          "gdpr",
+          "do not call",
+          "dnd",
+          "suppression",
+          "opt out",
+          "tcccpr",
+          "trai",
+          "blocklist",
+        ],
       },
       { title: "Settings", url: "/settings", icon: Settings, keywords: ["account", "workspace", "preferences"] },
     ],

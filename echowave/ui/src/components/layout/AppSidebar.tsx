@@ -151,7 +151,7 @@ export function AppSidebar() {
         className={cn(
           "rounded-md transition-colors hover:bg-accent hover:text-accent-foreground",
           isItemActive &&
-            "bg-primary/10 font-medium text-foreground hover:bg-primary/15 hover:text-foreground"
+            "bg-[var(--accent-brand-soft)] font-medium text-foreground hover:bg-[var(--accent-brand-soft)] hover:text-foreground"
         )}
       >
         <Link
@@ -239,7 +239,7 @@ export function AppSidebar() {
   );
 
   return (
-    <Sidebar collapsible="icon" variant="sidebar" className="app-sidebar-dock">
+    <Sidebar collapsible="icon" variant="floating" className="app-sidebar-dock">
       <SidebarHeader className="px-2 py-3 notranslate" translate="no">
         <div className="flex items-center justify-between">
           <div className={cn("flex items-center gap-2", isCollapsed && "hidden")}>

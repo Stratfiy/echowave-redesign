@@ -42,6 +42,7 @@ import {
     requestErasureApiV1PrivacyErasurePost,
     setRetentionApiV1PrivacyRetentionPut,
 } from "@/client/sdk.gen";
+import { COMPLIANCE_TABS, SectionTabs } from "@/components/layout/SectionTabs";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -392,6 +393,8 @@ export default function PrivacyPage() {
     }
 
     return (
+        <>
+        <SectionTabs tabs={COMPLIANCE_TABS} label="Compliance" />
         <div className="flex justify-center py-12 px-4">
             <div className="w-full max-w-4xl space-y-6">
                 <div>
@@ -942,5 +945,6 @@ export default function PrivacyPage() {
                 </AlertDialogContent>
             </AlertDialog>
         </div>
+        </>
     );
 }

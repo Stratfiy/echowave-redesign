@@ -116,7 +116,7 @@ function SignupForm() {
         </div>
         <Button
           type="submit"
-          className="w-full bg-brand-blue text-primary-foreground shadow-[var(--shadow-subtle)] hover:bg-brand-blue-hover"
+          className="w-full bg-primary text-primary-foreground shadow-[var(--shadow-subtle)] hover:bg-[var(--primary-pressed)]"
           disabled={loading}
           data-testid="signup-submit-btn"
         >

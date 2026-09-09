@@ -125,7 +125,10 @@ describe("what stays open to every member", () => {
     it("leaves the do-not-call list reachable", () => {
         // Listing, adding and uploading are open to members; only removal is
         // admin-gated, so the door stays open and the control is gated inside.
-        expect(urls(MEMBER)).toContain("/do-not-call");
+        // It is a tab under Compliance now, so the check is on the section's
+        // reachable paths rather than on a sidebar entry of its own.
+        const reachable = visibleTo(MEMBER).flatMap((item) => [item.url, ...(item.activePaths ?? [])]);
+        expect(reachable).toContain("/do-not-call");
     });
 
     it("leaves the product itself reachable", () => {

@@ -13,6 +13,7 @@ import { CallTypeCell } from '@/components/CallTypeCell';
 import { DailyUsageTable } from '@/components/DailyUsageTable';
 import { EmptyState } from '@/components/EmptyState';
 import { FilterBuilder } from '@/components/filters/FilterBuilder';
+import { CALLS_TABS, SectionTabs } from "@/components/layout/SectionTabs";
 import { MediaPreviewButton, MediaPreviewDialog } from '@/components/MediaPreviewDialog';
 import { OutcomesSummary } from '@/components/OutcomesSummary';
 import { Badge } from '@/components/ui/badge';
@@ -464,11 +465,13 @@ export default function UsagePage() {
     };
 
     return (
+        <>
+        <SectionTabs tabs={CALLS_TABS} label="Calls" />
         <div className="container mx-auto p-6 space-y-6">
             <div>
                 <div className="flex justify-between items-start">
                     <div>
-                        <h1 className="mb-2 text-[26px] leading-tight">Call logs</h1>
+                        <h1 className="mb-2 text-[26px] leading-tight">Calls</h1>
                         <p className="text-muted-foreground">See all your Agent Runs across all Voice Agents. You can use filters to filter out required Agent Runs.</p>
                     </div>
                         <div className="flex items-center gap-2">
@@ -770,5 +773,6 @@ export default function UsagePage() {
                 {/* Media Preview Dialog */}
                 {mediaPreview.dialog}
         </div>
+        </>
     );
 }
