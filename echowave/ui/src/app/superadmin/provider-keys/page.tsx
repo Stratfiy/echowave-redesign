@@ -71,6 +71,17 @@ type Credential = {
     label: string | null;
     is_active: boolean;
     updated_at: string | null;
+    /**
+     * What the vendor said when we last asked whether this key works.
+     *
+     * Three states, and they must stay three. `null` is "never asked", which
+     * is not "rejected" — every credential is null the moment the column
+     * ships, and rendering that as broken would tell an operator their whole
+     * platform is down. Only `false` is a rejection.
+     */
+    last_check_ok: boolean | null;
+    last_checked_at: string | null;
+    last_check_error: string | null;
 };
 
 type Payload = {
@@ -462,6 +473,11 @@ function ProviderKeysScreen() {
                     {visibleProviders.map((row) => {
                         const connected = row.stored.length > 0;
                         const paused = connected && row.stored.every((c) => !c.is_active);
+                        // Only an explicit false. A key we have never managed to
+                        // check reads as ordinary, exactly as it did before the
+                        // check existed.
+                        const rejectedRow = row.stored.find((c) => c.last_check_ok === false);
+                        const rejected = Boolean(rejectedRow) && !paused;
                         const busy =
                             actionBusy === `delete-${row.provider}` ||
                             actionBusy === `active-${row.provider}`;
@@ -475,6 +491,12 @@ function ProviderKeysScreen() {
                                         {connected ? (
                                             paused ? (
                                                 <Badge variant="secondary">Paused</Badge>
+                                            ) : rejected ? (
+                                                // A key the vendor refuses is worse than no
+                                                // key: the tier looks available and every
+                                                // call on it fails. It gets the loudest
+                                                // state on the card, not a footnote.
+                                                <Badge variant="destructive">Rejected</Badge>
                                             ) : (
                                                 <Badge className="bg-green-600 hover:bg-green-600">
                                                     Connected
@@ -497,6 +519,14 @@ function ProviderKeysScreen() {
                                                 {row.stored[0].masked_key}
                                                 {row.stored[0].label ? ` · ${row.stored[0].label}` : ""}
                                             </p>
+                                            {rejected && (
+                                                <p className="text-xs text-destructive">
+                                                    {rejectedRow?.last_check_error ??
+                                                        "The vendor is rejecting this key."}{" "}
+                                                    Managed tiers on it are withdrawn until
+                                                    it is replaced.
+                                                </p>
+                                            )}
                                             {row.stored.length < keyableComponents(row.serves).length && (
                                                 <p className="text-xs text-amber-700 dark:text-amber-400">
                                                     Used for{" "}

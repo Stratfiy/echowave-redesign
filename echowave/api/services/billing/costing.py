@@ -26,6 +26,7 @@ from api.db.models import (
 from api.enums import CreditLedgerKind
 from api.services.billing.addons import addon_keys_from_usage_info
 from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_cost
+from api.services.billing.delivery import platform_fee_is_waived
 from api.services.billing.fees import addon_rates_mpaise, uplifted_platform_rate_mpaise
 from api.services.billing.markup import resolve_markup_bps, resolve_markup_override_bps
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
@@ -167,8 +168,26 @@ async def cost_workflow_run(
         usage_info=run.usage_info, usd_inr_paise=platform.usd_inr_paise
     )
 
+    # A call that delivered no conversation is not charged our fee. Decided
+    # here rather than inside the pure cost engine because the evidence is the
+    # run's own logs and recorded error, which the engine deliberately cannot
+    # see. Provider pass-through is untouched — see delivery.py.
+    fee_waived = platform_fee_is_waived(
+        usage_info=run.usage_info,
+        logs=run.logs,
+        extra=getattr(run, "extra", None),
+    )
+    if fee_waived:
+        logger.warning(
+            "Workflow run {} delivered nothing — a provider errored and the "
+            "agent never spoke — so the platform fee is waived. Provider costs "
+            "are still charged.",
+            workflow_run_id,
+        )
+
     cost = compute_call_cost(
         billable_seconds=billable_seconds,
+        platform_fee_waived=fee_waived,
         platform_rate_mpaise=platform_rate_mpaise,
         pulse_seconds=platform.pulse_seconds,
         usage=usage,

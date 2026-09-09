@@ -626,6 +626,18 @@ def register_audio_data_handler(
             logger.error(f"Track audio buffer full: {e}")
 
 
+def _processor_name(frame) -> str | None:
+    """The name of the pipeline processor that raised this error, if known."""
+    processor = getattr(frame, "processor", None)
+    if processor is None:
+        return None
+    try:
+        name = getattr(processor, "name", None) or type(processor).__name__
+        return str(name)[:120]
+    except Exception:  # noqa: BLE001 - a label must never cost us the error itself
+        return None
+
+
 async def _mark_pipeline_error_fatal(workflow_run_id: int) -> None:
     """Promote an already-recorded error to fatal.
 
@@ -661,6 +673,14 @@ async def _record_pipeline_error(workflow_run_id: int, frame) -> None:
     extra["pipeline_error"] = {
         "detail": str(detail)[:1000],
         "frame_type": type(frame).__name__,
+        # Which service actually failed. Several providers raise the identical
+        # bare string — "Error connecting: no close frame received or sent"
+        # comes out of the Rime TTS and the OpenAI realtime LLM word for word —
+        # so without this the message names no component and answering "which
+        # one broke" means reading the pipeline source. pipecat stamps the
+        # originating processor onto every ErrorFrame it pushes; we were
+        # throwing it away.
+        "component": _processor_name(frame),
         "at": datetime.now(UTC).isoformat(),
         # Whether this ended the call. Without it the reader cannot tell a call
         # that died from one that finished after a provider grumbled, and the

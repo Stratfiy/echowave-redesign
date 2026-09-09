@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_superuser
+from api.services.configuration import credential_validation
 from api.services.configuration import key_validation
 from api.services.configuration import platform_credentials as creds
 from api.services.configuration.registry import (
@@ -67,6 +68,12 @@ def _view(credential: creds.PlatformCredential) -> dict[str, Any]:
         "label": credential.label,
         "is_active": credential.is_active,
         "updated_at": credential.updated_at,
+        # Three states, not two: True accepted, False rejected, null never
+        # asked. A screen that collapses null into False tells an operator a
+        # working key is broken.
+        "last_check_ok": credential.last_check_ok,
+        "last_checked_at": credential.last_checked_at,
+        "last_check_error": credential.last_check_error,
     }
 
 
@@ -201,6 +208,31 @@ async def delete_provider_key(component: str, provider: str) -> dict[str, Any]:
         await session.commit()
         remaining = await creds.list_credentials(session)
     return {"credentials": [_view(c) for c in remaining]}
+
+
+@router.post("/recheck")
+async def recheck_provider_keys() -> dict[str, Any]:
+    """Ask every vendor, now, whether the key we hold is still good.
+
+    The scheduled check runs hourly, which is the right cadence for catching a
+    key that was revoked while nobody was looking and the wrong one for the
+    minute after an operator has replaced it. Without this they would have to
+    wait out the hour, or place a test call and read the logs, to find out
+    whether the fix worked.
+    """
+    async with db_client.async_session() as session:
+        results = await credential_validation.validate_stored_credentials(session)
+        stored = await creds.list_credentials(session)
+    return {
+        "credentials": [_view(c) for c in stored],
+        "checked": len(results),
+        "rejected": sum(1 for _, _, ok in results if ok is False),
+        # Vendors we could not reach, and vendors we have no probe for. Neither
+        # is a failure and neither changes a stored verdict — but an operator
+        # who just replaced a key deserves to know we did not actually confirm
+        # it rather than being shown a silent pass.
+        "unverified": sum(1 for _, _, ok in results if ok is None),
+    }
 
 
 class OfferedModelsRequest(BaseModel):
