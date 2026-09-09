@@ -1233,7 +1233,22 @@ async def handle_inbound_run(request: Request):
                 source=f"inbound:{provider_class.PROVIDER_NAME}",
                 timeout=0,
             )
-        except CallConcurrencyLimitError:
+        except CallConcurrencyLimitError as exc:
+            # Every other way this route refuses a call says so. This one did
+            # not, which made it the one branch a log could not confirm or rule
+            # out: an operator whose inbound number had gone quiet saw the
+            # dispatch arrive, the number match, and then nothing.
+            #
+            # `max_concurrent` is on the line because the usual cause is not a
+            # busy account but a limit set to something it should never have
+            # been — at 0 or 1 the first caller is refused and it looks exactly
+            # like a phone that does not work.
+            logger.warning(
+                f"/inbound/run: no concurrency slot for org "
+                f"{config.organization_id} (limit {exc.max_concurrent}); "
+                f"refusing call from {normalized_data.from_number} to "
+                f"{normalized_data.to_number}"
+            )
             return provider_class.generate_validation_error_response(
                 TelephonyError.CONCURRENT_CALL_LIMIT
             )
@@ -1282,6 +1297,14 @@ async def handle_inbound_run(request: Request):
                 backend_endpoint=backend_endpoint,
             )
         except WorkflowRunSlotAlreadyBoundError:
+            # The other silent path to the same refusal. It means a slot was
+            # already bound to this run, which is a bug rather than a busy
+            # account — the caller is told the line is busy either way, so
+            # without this the two are indistinguishable in the log.
+            logger.error(
+                f"/inbound/run: run {workflow_run_id} already had a "
+                f"concurrency slot bound; refusing the call"
+            )
             return provider_class.generate_validation_error_response(
                 TelephonyError.CONCURRENT_CALL_LIMIT
             )
