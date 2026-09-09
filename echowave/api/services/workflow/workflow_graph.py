@@ -78,6 +78,10 @@ class Node:
         # node variant in the discriminated union.
         self.prompt = getattr(data, "prompt", None)
         self.allow_interrupt = getattr(data, "allow_interrupt", False)
+        # None means "use the agent's default". Kept as None rather than
+        # resolved here because the default lives on the run configuration,
+        # which the graph does not see.
+        self.patience_seconds = getattr(data, "patience_seconds", None)
         self.extraction_enabled = getattr(data, "extraction_enabled", False)
         self.extraction_prompt = getattr(data, "extraction_prompt", None)
         self.extraction_variables = getattr(data, "extraction_variables", None)
