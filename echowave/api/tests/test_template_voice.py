@@ -20,6 +20,11 @@ from api.schemas.ai_model_configuration import (
     DECIBYL_VOICE_MALE,
 )
 from api.services.configuration import voice_catalogue
+from api.services.configuration.agent_options import managed_stack_override
+from api.services.configuration.ai_model_configuration import (
+    WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
+    compile_workflow_model_configuration_override,
+)
 from api.services.configuration.registry import ServiceProviders
 
 
@@ -107,3 +112,63 @@ class TestResolvingToASpeaker:
             )
             is None
         )
+
+
+class TestTheOverrideItWrites:
+    """A template's voice choice must not quietly change anything else.
+
+    An agent-level override is a *whole* stack — there is no way to say "the
+    account's setup but a different voice", because every slot compiles
+    together. So the account's own tiers have to be carried forward. Writing
+    the defaults instead would move an account that had chosen the accurate
+    brain back down to the standard one every time somebody started from a
+    template, and nothing would have said so.
+    """
+
+    def _stack(self, override: dict) -> dict:
+        return override[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY]["stack"]
+
+    def test_the_voice_lands_on_the_tts_slot(self):
+        stack = self._stack(managed_stack_override(voice="female", llm_tier="default"))
+        assert stack["tts"]["voice"] == "female"
+
+    def test_the_accounts_brain_tier_survives(self):
+        stack = self._stack(managed_stack_override(voice="male", llm_tier="accurate"))
+        assert stack["llm"]["model"] == "accurate"
+
+    def test_the_accounts_speech_tiers_survive(self):
+        stack = self._stack(
+            managed_stack_override(
+                voice="male", llm_tier="default", stt_tier="premium", tts_tier="premium"
+            )
+        )
+        assert stack["stt"]["model"] == "premium"
+        assert stack["tts"]["model"] == "premium"
+
+    def test_every_slot_still_names_the_managed_tier(self):
+        """A slot naming a real vendor is the pin this whole design avoids."""
+        stack = self._stack(managed_stack_override(voice="female", llm_tier="default"))
+        for slot in ("llm", "stt", "tts"):
+            assert stack[slot]["provider"] == ServiceProviders.DECIBYL.value
+
+    def test_it_compiles_and_the_voice_survives(self):
+        """The override is stored as JSON and compiled at call time. A shape
+        that stores fine and compiles to something else is the failure this
+        catches."""
+        override = managed_stack_override(voice="female", llm_tier="accurate")
+        effective = compile_workflow_model_configuration_override(
+            override[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY]
+        )
+        assert effective.tts.voice == "female"
+        assert effective.llm.model == "accurate"
+
+    def test_a_realtime_account_has_no_voice_slot(self):
+        """Why the route declines to write one at all for those accounts: the
+        choice would be recorded and then discarded, so the customer would see
+        a voice on the agent and hear a different one on the call."""
+        stack = self._stack(
+            managed_stack_override(
+                voice="female", llm_tier="default", realtime_tier="premium"
+            )
+        )
+        assert "tts" not in stack

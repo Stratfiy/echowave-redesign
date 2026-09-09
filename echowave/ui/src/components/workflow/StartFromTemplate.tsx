@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { client } from "@/client/client.gen";
 import { detailFromResult } from "@/lib/apiError";
 import logger from "@/lib/logger";
+import { cn } from "@/lib/utils";
 
 /**
  * The six ready-made agents, offered where an account has none.
@@ -22,7 +23,15 @@ import logger from "@/lib/logger";
  * One click creates the agent and opens it. There is no preview step: the
  * agent it makes is editable, discardable, and faster to read than any summary
  * of it would be.
+ *
+ * The one question asked before that click is the voice. It is the first thing
+ * anybody wants to change about a ready-made agent, and it sits above the grid
+ * rather than on each card so that choosing a template stays one click — a
+ * decision per card would be six copies of the same question.
  */
+
+/** Male or female, or neither — see VoiceChoice. */
+type VoiceGender = "male" | "female";
 
 type TemplateCard = {
     id: string;
@@ -32,6 +41,64 @@ type TemplateCard = {
     summary: string;
     languages: string[];
 };
+
+/**
+ * Which voice the agent gets, asked once for the whole grid.
+ *
+ * Both buttons deselect on a second press, and nothing is selected to begin
+ * with. That third state is the important one: it means "use the workspace
+ * default", which is what a template has always done, so somebody who does not
+ * care about the voice is not made to have an opinion about it.
+ */
+function VoiceChoice({
+    value,
+    onChange,
+    disabled,
+}: {
+    value: VoiceGender | null;
+    onChange: (next: VoiceGender | null) => void;
+    disabled: boolean;
+}) {
+    const options: { id: VoiceGender; label: string }[] = [
+        { id: "female", label: "Female" },
+        { id: "male", label: "Male" },
+    ];
+
+    return (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+            <span id="template-voice-label" className="text-xs text-muted-foreground">
+                Voice
+            </span>
+            <div className="flex gap-1.5" role="group" aria-labelledby="template-voice-label">
+                {options.map((option) => {
+                    const active = value === option.id;
+                    return (
+                        <button
+                            key={option.id}
+                            type="button"
+                            disabled={disabled}
+                            aria-pressed={active}
+                            onClick={() => onChange(active ? null : option.id)}
+                            className={cn(
+                                "rounded-full border px-3 py-1 text-xs transition-colors disabled:cursor-wait disabled:opacity-60",
+                                active
+                                    ? "border-primary bg-primary/10 font-medium text-foreground"
+                                    : "border-border text-muted-foreground hover:bg-muted/40",
+                            )}
+                        >
+                            {option.label}
+                        </button>
+                    );
+                })}
+            </div>
+            <span className="text-xs text-muted-foreground">
+                {value
+                    ? "You can change this on the agent afterwards."
+                    : "Leave unset to use your workspace default."}
+            </span>
+        </div>
+    );
+}
 
 export function StartFromTemplate({
     /**
@@ -51,6 +118,15 @@ export function StartFromTemplate({
     const [templates, setTemplates] = useState<TemplateCard[] | null>(null);
     const [creating, setCreating] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    /**
+     * Nothing selected means "leave it alone", and that is the default on
+     * purpose: it is what every template did before this existed, and it is
+     * the only honest starting state. There is no gender to preselect —
+     * Sarvam's own default speaker is female on bulbul:v2 and male on v3, so
+     * any preselection here would be a claim about the tier that stops being
+     * true when the tier moves.
+     */
+    const [voiceGender, setVoiceGender] = useState<VoiceGender | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -75,6 +151,10 @@ export function StartFromTemplate({
         setError(null);
         const response = await client.post({
             url: `/api/v1/agent-templates/${template.id}/create`,
+            // A gender, never a speaker name. The backend resolves it to a real
+            // voice when the call starts, against whichever vendor the managed
+            // tier is on then — see DECIBYL_GENDER_VOICES.
+            body: voiceGender ? { voice_gender: voiceGender } : undefined,
         });
         if (response.error) {
             setCreating(null);
@@ -108,6 +188,8 @@ export function StartFromTemplate({
                     {error}
                 </p>
             )}
+
+            <VoiceChoice value={voiceGender} onChange={setVoiceGender} disabled={creating !== null} />
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {templates.map((template) => (

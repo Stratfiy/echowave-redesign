@@ -13,6 +13,7 @@ no organization-scoped state.
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
+from loguru import logger
 
 from pydantic import BaseModel, Field
 
@@ -24,7 +25,10 @@ from api.services.agent_templates.materialise import (
     to_workflow_definition,
 )
 from api.services.auth.depends import get_user
-from api.services.configuration.registry import ServiceProviders
+from api.services.configuration.agent_options import managed_stack_override
+from api.services.configuration.ai_model_configuration import (
+    get_organization_ai_model_configuration_v2,
+)
 from api.services.workflow.trigger_paths import regenerate_trigger_uuids
 
 router = APIRouter(prefix="/agent-templates", tags=["agent-templates"])
@@ -140,20 +144,67 @@ async def create_from_template(
         # models — see DECIBYL_GENDER_VOICES. The sentinel is resolved to a real
         # voice at pipeline build, against whichever vendor the tier is on that
         # day, so this keeps working when the tier moves.
-        workflow_configurations=_voice_override(request),
+        workflow_configurations=await _voice_override(
+            request, organization_id=user.selected_organization_id
+        ),
     )
 
     return {"id": workflow.id, "name": workflow.name, "template_id": template.id}
 
 
-def _voice_override(request: CreateFromTemplateRequest | None) -> dict | None:
+async def _voice_override(
+    request: CreateFromTemplateRequest | None, *, organization_id: int
+) -> dict | None:
     """The agent-level override carrying the chosen voice, or nothing.
 
     None rather than an empty override when no gender was asked for: the agent
     then inherits the organization's configuration whole, which is what every
     template did before this existed.
+
+    An agent-level override is a *whole* stack — there is no way to say "the
+    account's setup but a different voice", because every slot is compiled
+    together. So the account's own tiers are read and carried forward. Writing
+    the defaults instead would quietly move an account that had chosen the
+    accurate brain back down to the standard one, every time somebody started
+    from a template, and nothing would have said so.
+
+    A BYOK account gets no override at all. Its slots name real vendors and
+    real keys, and a managed stack written over the top would take the agent
+    off the customer's own models — a far larger change than the voice they
+    asked for.
     """
     gender = request.voice_gender if request else None
     if not gender:
         return None
-    return {"tts": {"provider": ServiceProviders.DECIBYL.value, "voice": gender}}
+
+    configuration = await get_organization_ai_model_configuration_v2(organization_id)
+    managed = getattr(configuration, "decibyl", None) if configuration else None
+    if managed is None:
+        logger.info(
+            "Template voice not applied for org {}: the account is not on a "
+            "managed stack, so an override would replace its own models.",
+            organization_id,
+        )
+        return None
+
+    if (managed.realtime_tier or "").strip():
+        # A speech-to-speech account has no voice slot to write into — one
+        # model hears and speaks, and managed_stack_override emits no tts
+        # section at all for it. Writing the override anyway would record a
+        # choice that is then silently discarded, which is worse than not
+        # recording it: the customer would see a voice they asked for on the
+        # agent and hear a different one on the call.
+        logger.info(
+            "Template voice not applied for org {}: the account is on a "
+            "speech-to-speech bundle, where the model provides the voice.",
+            organization_id,
+        )
+        return None
+
+    override = managed_stack_override(
+        voice=gender,
+        llm_tier=managed.llm_tier or "default",
+        stt_tier=managed.stt_tier or "default",
+        tts_tier=managed.tts_tier or "default",
+    )
+    return override or None
