@@ -259,6 +259,13 @@ class PostHogEvent(str, Enum):
     # rather than only logging: a rising number is a provider problem showing up
     # as forgone revenue before anyone files a complaint.
     PLATFORM_FEE_WAIVED = "platform_fee_waived"
+    # The activation funnel: signup to an agent answering a real number. Every
+    # step is a place somebody stops, and until these existed we could see the
+    # first (signed_up) and the last (call_started) and nothing between — so a
+    # drop-off had no location.
+    EMAIL_VERIFIED = "email_verified"
+    SIGNUP_BONUS_GRANTED = "signup_bonus_granted"
+    PHONE_NUMBER_ATTACHED = "phone_number_attached"
 
 
 class CostComponent(str, Enum):

@@ -1006,6 +1006,27 @@ async def update_phone_number(
 
     response = _phone_number_to_response(row)
 
+    # The last step of activation: an agent that answers a real number. It is
+    # the moment the product starts being used rather than tried, and nothing
+    # recorded it — so the funnel ended at "made an agent" and the step people
+    # actually stop at was invisible.
+    #
+    # Only when a workflow was attached by this request. Renaming a number or
+    # changing its allow-list comes through here too, and counting those would
+    # report activation every time somebody edited a label.
+    if request.inbound_workflow_id is not None:
+        capture_event(
+            distinct_id=str(user.provider_id),
+            event=PostHogEvent.PHONE_NUMBER_ATTACHED,
+            properties={
+                "organization_id": user.selected_organization_id,
+                "workflow_id": request.inbound_workflow_id,
+                # Not the number itself. A phone number identifies a person,
+                # and analytics is not where that belongs.
+                "country_code": row.country_code,
+            },
+        )
+
     # Sync the provider application or address with the inbound
     # calling webhook address
     response.provider_sync = await _sync_inbound_for_phone_number(

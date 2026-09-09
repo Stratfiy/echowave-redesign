@@ -19,12 +19,14 @@ from pydantic import BaseModel, Field
 
 from api.db import db_client
 from api.db.models import UserModel
+from api.enums import PostHogEvent
 from api.services.agent_templates import AgentTemplate, get_template, list_templates
 from api.services.agent_templates.materialise import (
     TemplateShapeError,
     to_workflow_definition,
 )
 from api.services.auth.depends import get_user
+from api.services.posthog_client import capture_event
 from api.services.configuration.agent_options import managed_stack_override
 from api.services.configuration.ai_model_configuration import (
     get_organization_ai_model_configuration_v2,
@@ -147,6 +149,25 @@ async def create_from_template(
         workflow_configurations=await _voice_override(
             request, organization_id=user.selected_organization_id
         ),
+    )
+
+    # The third door into an agent, and the only one that was silent. The
+    # wizard and the blank canvas both report themselves, so a funnel built on
+    # workflow_created undercounted exactly the path we are steering people to.
+    capture_event(
+        distinct_id=str(user.provider_id),
+        event=PostHogEvent.WORKFLOW_CREATED,
+        properties={
+            "workflow_id": workflow.id,
+            "workflow_name": workflow.name,
+            "source": "template_grid",
+            "template_id": template.id,
+            "vertical": template.vertical,
+            # Whether anybody uses the voice choice at all, which is the only
+            # way to find out whether it was worth asking.
+            "voice_gender": request.voice_gender if request else None,
+            "organization_id": user.selected_organization_id,
+        },
     )
 
     return {"id": workflow.id, "name": workflow.name, "template_id": template.id}
