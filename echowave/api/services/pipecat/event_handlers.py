@@ -30,6 +30,16 @@ from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
 from pipecat.utils.enums import EndTaskReason
 
 
+#: How long a call may run with a broken component and a silent agent before we
+#: end it ourselves.
+#:
+#: Long enough that a slow first token, a long pre-call fetch or a ringer does
+#: not trip it, short enough that nobody sits through a minute of nothing. The
+#: watchdog is only ever armed *after* a provider has already reported an
+#: error, so this timer never runs on a healthy call.
+MUTE_AGENT_GRACE_SECONDS = 20
+
+
 async def _capture_call_event(
     workflow_run_id: int,
     user_provider_id: str | None,
@@ -101,6 +111,101 @@ def register_event_handlers(
         "client_connected": False,
         "initial_response_triggered": False,
     }
+
+    # The mute-agent watchdog. Armed by the first non-fatal pipeline error and
+    # disarmed when the pipeline finishes; see _arm_mute_agent_watchdog.
+    mute_watchdog: dict[str, asyncio.Task | None] = {"task": None}
+
+    def agent_has_spoken() -> bool:
+        """Did the caller hear anything from the agent?
+
+        Three independent signals, OR-ed deliberately. A false "spoke" only
+        costs us a watchdog that does not fire — the status quo. A false
+        "silent" would hang up on a working call, which is the failure mode
+        this whole handler was rewritten to stop, so every signal that could
+        say yes gets a vote:
+
+        * bot audio actually buffered for the recording;
+        * TTS characters billed by the metrics aggregator, which is populated
+          from metrics frames and so survives a transport that never emits
+          per-track audio;
+        * a bot text event on the timeline.
+        """
+        if not in_memory_audio_buffers.bot.is_empty:
+            return True
+        if any(pipeline_metrics_aggregator.get_tts_usage_metrics().values()):
+            return True
+        try:
+            return in_memory_logs_buffer.contains_bot_speech()
+        except Exception:  # noqa: BLE001 - a diagnostic must not end a call
+            return True
+
+    async def _mute_agent_watchdog() -> None:
+        """End a call whose agent can no longer speak.
+
+        A provider that fails to *connect* is not the recoverable grumble the
+        non-fatal path was written for — it is dead for the rest of the call.
+        pipecat reports both as `fatal=False` (``push_error`` defaults to it),
+        so we cannot tell them apart from the frame. We can tell them apart by
+        their consequence: after a connect failure the agent never says
+        anything, and the caller sits in silence until they give up.
+
+        That silence used to run to whatever the caller's patience was, get
+        marked a completed run, and get billed. So: once a provider has
+        errored, give the agent a grace period to prove it can still talk. If
+        it cannot, end the call and say why.
+        """
+        try:
+            await asyncio.sleep(MUTE_AGENT_GRACE_SECONDS)
+            if agent_has_spoken():
+                return
+
+            logger.error(
+                "Workflow run {}: a provider errored and the agent has said "
+                "nothing after {}s. Ending the call rather than leaving the "
+                "caller in silence.",
+                workflow_run_id,
+                MUTE_AGENT_GRACE_SECONDS,
+            )
+            # Promote the recorded error to fatal. It ended the call, so the
+            # run detail screen should grade it as a failure rather than as a
+            # service that grumbled and recovered.
+            try:
+                await _mark_pipeline_error_fatal(workflow_run_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Could not promote the pipeline error: {}", exc)
+
+            asyncio.create_task(
+                _capture_call_event(
+                    workflow_run_id,
+                    user_provider_id,
+                    PostHogEvent.CALL_FAILED,
+                    extra_properties={"error_reason": "mute_agent"},
+                )
+            )
+            await engine.end_call_with_reason(
+                EndTaskReason.PIPELINE_ERROR.value, abort_immediately=True
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - never let the watchdog kill the process
+            logger.error("Mute-agent watchdog failed for run {}: {}", workflow_run_id, exc)
+
+    def _arm_mute_agent_watchdog() -> None:
+        """Start the watchdog once, and only while the agent is still silent."""
+        if mute_watchdog["task"] is not None:
+            return
+        if agent_has_spoken():
+            # The agent is talking, so whatever the provider complained about,
+            # it recovered. Nothing to watch.
+            return
+        mute_watchdog["task"] = asyncio.create_task(_mute_agent_watchdog())
+
+    def _disarm_mute_agent_watchdog() -> None:
+        task = mute_watchdog["task"]
+        if task is not None and not task.done():
+            task.cancel()
+        mute_watchdog["task"] = None
 
     async def maybe_trigger_initial_response():
         """Start the conversation after both pipeline_started and client_connected events.
@@ -238,9 +343,17 @@ def register_event_handlers(
             logger.error("Could not record the pipeline error detail: {}", exc)
 
         if not fatal:
-            # Not a failed call: no circuit-breaker strike, no CALL_FAILED, and
-            # above all no hangup. Counting these would trip a campaign's
-            # breaker on calls that completed and were charged for.
+            # Not a failed call *yet*: no circuit-breaker strike, no
+            # CALL_FAILED, and above all no immediate hangup. Counting these
+            # would trip a campaign's breaker on calls that completed and were
+            # charged for.
+            #
+            # But "the provider says it is fine" is not the same as "the caller
+            # can hear us". A connect failure arrives here looking exactly like
+            # a recovered grumble, and leaves the agent mute for the rest of
+            # the call. So arm the watchdog: if the agent still has not spoken
+            # a grace period from now, that call is over.
+            _arm_mute_agent_watchdog()
             return
 
         try:
@@ -273,6 +386,9 @@ def register_event_handlers(
         _frame: Frame,
     ):
         logger.debug("In on_pipeline_finished callback handler")
+
+        # The call is over one way or another; nothing left to watch.
+        _disarm_mute_agent_watchdog()
 
         # Turn and feedback observers run on independent queues. Drain them
         # before finalizing immutable transcripts and taking the DB snapshot.
@@ -508,6 +624,29 @@ def register_audio_data_handler(
                 await in_memory_buffers.bot.append(bot_audio)
         except MemoryError as e:
             logger.error(f"Track audio buffer full: {e}")
+
+
+async def _mark_pipeline_error_fatal(workflow_run_id: int) -> None:
+    """Promote an already-recorded error to fatal.
+
+    Used when the mute-agent watchdog ends the call: the provider called its
+    own error non-fatal, but it is what stopped the conversation, and a run
+    detail screen that grades it as a survivable grumble is telling the reader
+    the opposite of what happened.
+    """
+    run = await db_client.get_workflow_run_by_id(workflow_run_id)
+    extra = dict(getattr(run, "extra", None) or {}) if run else {}
+    recorded = extra.get("pipeline_error")
+    if not isinstance(recorded, dict):
+        return
+    extra["pipeline_error"] = {
+        **recorded,
+        "fatal": True,
+        # Kept distinct from `fatal` so the reason survives: the provider did
+        # not call this fatal, we did, because the agent went silent.
+        "ended_call_reason": "mute_agent",
+    }
+    await db_client.update_workflow_run(workflow_run_id, extra=extra)
 
 
 async def _record_pipeline_error(workflow_run_id: int, frame) -> None:
