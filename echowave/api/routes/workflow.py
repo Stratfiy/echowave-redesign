@@ -62,7 +62,10 @@ from api.services.workflow.run_usage_response import (
     format_public_usage_info,
 )
 from api.services.workflow.squad import SquadError, has_handoffs
-from api.services.workflow.squad_loader import assemble_for_run
+from api.services.workflow.squad_loader import (
+    assemble_for_run,
+    validate_for_organization,
+)
 from api.services.workflow.template_generation import generate_workflow_definition
 from api.services.workflow.trigger_paths import (
     TriggerPathIssue,
@@ -170,13 +173,48 @@ async def _validate_workflow_definition(
     # here turns "the squad is a circle" and "that agent was deleted" into
     # errors at save, rather than a call that fails while somebody is on the
     # line — which is the only time anyone would otherwise find out.
+    # Bound before the branch: the assembly check below reads it, and a
+    # workflow with no handoffs never enters the block that fills it.
+    squad_problems: list = []
     if dto and organization_id is not None and has_handoffs(workflow_definition):
+        # Ask what is wrong before asking it to be built. `assemble_for_run`
+        # raises on the first problem and has nowhere to attach it, so a squad
+        # with three broken handoffs reported one of them as a banner about the
+        # workflow and left the reader to find which step it meant. The
+        # validator answers the same five questions, in the same words, for
+        # every handoff, and names the node each belongs to.
+        squad_problems = await validate_for_organization(
+            workflow_definition, organization_id=organization_id
+        )
+        errors.extend(
+            WorkflowError(
+                kind=ItemKind.node if problem.node_id else ItemKind.workflow,
+                id=problem.node_id,
+                field=None,
+                message=problem.message,
+            )
+            for problem in squad_problems
+        )
+
+    # Assembly is only worth attempting on a squad the validator passed:
+    # otherwise it would raise the first of the problems just reported, as a
+    # duplicate with less information attached. What it still catches is the
+    # case the validator cannot — two agents that are each valid alone and do
+    # not fit together once spliced.
+    if (
+        dto
+        and organization_id is not None
+        and has_handoffs(workflow_definition)
+        and not squad_problems
+    ):
         try:
             assembled = await assemble_for_run(
                 workflow_definition, organization_id=organization_id
             )
             WorkflowGraph(ReactFlowDTO.model_validate(assembled))
         except SquadError as exc:
+            # A safety net now rather than the main path: reaching this means
+            # the splicer refused something the validator did not predict.
             errors.append(
                 WorkflowError(
                     kind=ItemKind.workflow,

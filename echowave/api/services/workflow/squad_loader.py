@@ -25,9 +25,11 @@ from loguru import logger
 from api.db import db_client
 from api.services.workflow.squad import (
     MAX_DEPTH,
+    SquadProblem,
     assemble,
     handoff_targets,
     has_handoffs,
+    validate,
 )
 
 
@@ -99,3 +101,21 @@ async def assemble_for_run(workflow_json: Any, *, organization_id: int) -> Any:
 
     members = await collect_members(workflow_json, organization_id=organization_id)
     return assemble(workflow_json, load_member=members.get)
+
+
+async def validate_for_organization(
+    workflow_json: Any, *, organization_id: int
+) -> list[SquadProblem]:
+    """Every problem with this squad, checked against what this account owns.
+
+    The organization scope is the point, and it is why this lives here rather
+    than in ``squad``: a handoff naming an agent in someone else's account must
+    report as missing, and only a query can say that. ``collect_members``
+    already fetches org-scoped and leaves an unresolvable reference absent, so
+    the validator sees exactly what the runtime would.
+    """
+    if not has_handoffs(workflow_json):
+        return []
+
+    members = await collect_members(workflow_json, organization_id=organization_id)
+    return validate(workflow_json, load_member=members.get)
