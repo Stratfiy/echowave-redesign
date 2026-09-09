@@ -50,6 +50,22 @@ def supplier_configured(monkeypatch):
     monkeypatch.setattr(documents, "SUPPLIER_HAS_LUT", True)
 
 
+def _a_settled_month_ago() -> datetime:
+    """An instant safely inside a month, in both UTC and IST.
+
+    The invoicing query buckets a run by its **Asia/Kolkata** date while these
+    tests derive the period from the UTC one. `now(UTC) - 40 days` lands on a
+    month end roughly three days in thirty, and after 18:30 UTC that instant is
+    already the 1st in IST -- so the run sat outside the period being invoiced
+    and the invoice came back None. `_month_end` below fixed the other half of
+    this; midday on the 15th fixes this half, because no timezone offset can
+    push it out of its own month.
+    """
+    return (datetime.now(UTC) - timedelta(days=40)).replace(
+        day=15, hour=12, minute=0, second=0, microsecond=0
+    )
+
+
 def _month_end(d: date) -> date:
     """The real last day of d's month.
 
@@ -248,7 +264,7 @@ class TestTaxInvoices:
 
     async def test_usage_is_invoiced_with_tax_on_top(self, async_session):
         org = await _org(async_session, "invoice")
-        when = datetime.now(UTC) - timedelta(days=40)
+        when = _a_settled_month_ago()
         await self._costed_run(async_session, org, charged_paise=50_000, when=when)
 
         invoice = await documents.issue_tax_invoice(
@@ -281,7 +297,7 @@ class TestTaxInvoices:
         """A duplicate invoice is a filing correction, not something you can
         delete."""
         org = await _org(async_session, "retryinvoice")
-        when = datetime.now(UTC) - timedelta(days=40)
+        when = _a_settled_month_ago()
         await self._costed_run(async_session, org, charged_paise=20_000, when=when)
         start = when.date().replace(day=1)
         end = _month_end(when.date())
@@ -307,7 +323,7 @@ class TestTaxInvoices:
     async def test_an_uncosted_run_is_not_invoiced(self, async_session):
         """A call whose receipt does not exist yet has no amount to invoice."""
         org = await _org(async_session, "uncosted")
-        when = datetime.now(UTC) - timedelta(days=40)
+        when = _a_settled_month_ago()
         user = UserModel(provider_id=f"user-uncosted-{org.id}")
         async_session.add(user)
         await async_session.flush()

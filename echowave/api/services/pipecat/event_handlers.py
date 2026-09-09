@@ -130,11 +130,17 @@ def register_event_handlers(
           per-track audio;
         * a bot text event on the timeline.
         """
-        if not in_memory_audio_buffers.bot.is_empty:
-            return True
-        if any(pipeline_metrics_aggregator.get_tts_usage_metrics().values()):
-            return True
+        # The guard covers all three signals, not just the last. This runs
+        # inside on_pipeline_error, so anything raised here escapes into the
+        # handler that is mid-way through recording a *different* failure --
+        # turning one provider's grumble into a broken error path on a live
+        # call. True is the safe answer: it declines to arm the watchdog and
+        # leaves the call exactly as it was.
         try:
+            if not in_memory_audio_buffers.bot.is_empty:
+                return True
+            if any(pipeline_metrics_aggregator.get_tts_usage_metrics().values()):
+                return True
             return in_memory_logs_buffer.contains_bot_speech()
         except Exception:  # noqa: BLE001 - a diagnostic must not end a call
             return True

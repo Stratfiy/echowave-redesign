@@ -236,7 +236,7 @@ class TestEffectiveDating:
         )
 
         assert resolved.source == "global_default"
-        assert resolved.rate_mpaise == 192_000
+        assert resolved.rate_mpaise == 300_000  # ₹3.00, the rupee-native default
 
     async def test_rates_are_scoped_to_their_own_account(self, async_session):
         """One account's enterprise deal must never leak onto another."""
@@ -493,15 +493,33 @@ class TestExchangeRateResolution:
         )
         await self._fx(async_session, 11_000, DEC, source="test")
 
+        # The rate has to be one that is actually quoted in dollars. The global
+        # default is rupee-native and carries no dollar price, so it is immune
+        # to FX by design and would prove nothing here — a dollar-quoted
+        # account rate is where effective-dated conversion still has to hold.
+        june_org = await _make_org(async_session, "org-fx-june")
+        december_org = await _make_org(async_session, "org-fx-dec")
+        async_session.add_all(
+            [
+                OrganizationRateHistoryModel(
+                    organization_id=june_org.id,
+                    platform_rate_micros_usd=20_000,
+                    effective_from=JUN,
+                ),
+                OrganizationRateHistoryModel(
+                    organization_id=december_org.id,
+                    platform_rate_micros_usd=20_000,
+                    effective_from=JUN,
+                ),
+            ]
+        )
+        await async_session.flush()
+
         june = await resolve_platform_rate(
-            async_session,
-            organization_id=(await _make_org(async_session, "org-fx-june")).id,
-            at=JUN,
+            async_session, organization_id=june_org.id, at=JUN
         )
         december = await resolve_platform_rate(
-            async_session,
-            organization_id=(await _make_org(async_session, "org-fx-dec")).id,
-            at=DEC,
+            async_session, organization_id=december_org.id, at=DEC
         )
 
         # Same $0.02 both times; different rupee amounts.

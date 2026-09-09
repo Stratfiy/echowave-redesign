@@ -54,8 +54,8 @@ class TestDefaultRate:
         # 90s is already a whole number of 15s pulses, so the fee is exactly
         # 1.5 minutes of rate rather than the two minutes a competitor bills.
         assert cost.billed_seconds == 90
-        assert cost.platform_fee_paise == 300  # 1.5 min * ₹2.00
-        assert cost.total_charged_paise == 300
+        assert cost.platform_fee_paise == 450  # 1.5 min * ₹3.00
+        assert cost.total_charged_paise == 450
         assert [line.component for line in cost.line_items] == ["platform"]
 
     def test_managed_call_itemises_every_component(self):
@@ -72,10 +72,10 @@ class TestDefaultRate:
         assert by_component["tts"].cost_paise == 40  # 1k chars @ 40_000
         assert by_component["llm"].cost_paise == 12  # 1k tokens @ 12_000
         assert by_component["telephony"].cost_paise == 55  # 1 min @ 55_000
-        assert by_component["platform"].cost_paise == 200  # 1 min @ ₹2.00
+        assert by_component["platform"].cost_paise == 300  # 1 min @ ₹3.00
 
         assert cost.total_provider_cost_paise == 25 + 40 + 12 + 55
-        assert cost.total_charged_paise == 132 + 200
+        assert cost.total_charged_paise == 132 + 300
 
 
 class TestNoMarkupOnInference:
@@ -301,8 +301,8 @@ class TestPulseBilling:
 
         assert ours.billed_seconds == 30
         assert theirs.billed_seconds == 60
-        assert ours.total_charged_paise == 100  # 0.5 min @ ₹2.00
-        assert theirs.total_charged_paise == 200
+        assert ours.total_charged_paise == 150  # 0.5 min @ ₹3.00
+        assert theirs.total_charged_paise == 300  # 1 min @ ₹3.00
 
     def test_a_sixty_second_pulse_reproduces_the_old_whole_minute_billing(self):
         """One parameter separates us from the competition, not two code
