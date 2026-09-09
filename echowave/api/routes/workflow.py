@@ -2,7 +2,7 @@ import json
 import re
 import uuid
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -67,6 +67,7 @@ from api.services.workflow.squad_loader import (
     validate_for_organization,
 )
 from api.services.workflow.template_generation import generate_workflow_definition
+from api.services.workflow import setup_progress
 from api.services.workflow.trigger_paths import (
     TriggerPathIssue,
     ensure_trigger_paths,
@@ -490,6 +491,39 @@ class CreateWorkflowTemplateRequest(BaseModel):
             closing_line=self.closing_line,
             hangup_prompt=self.hangup_prompt,
         )
+
+
+@router.get("/{workflow_id}/setup-progress")
+async def workflow_setup_progress(
+    workflow_id: int,
+    user: UserModel = Depends(get_user),
+) -> dict[str, Any]:
+    """What is left before this agent takes real calls.
+
+    Read from the database rather than from anything the browser remembers, so
+    it is right when a colleague did the step, right after a reload, and right
+    again when a number is detached.
+    """
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    progress = await setup_progress.for_workflow(
+        workflow_id=workflow_id,
+        organization_id=user.selected_organization_id,
+    )
+    return {
+        "steps": [
+            {
+                "key": step.key,
+                "title": step.title,
+                "hint": step.hint,
+                "done": step.done,
+            }
+            for step in progress.steps
+        ],
+        "complete": progress.complete,
+        "next_step": progress.next_step.key if progress.next_step else None,
+    }
 
 
 @router.post("/{workflow_id}/validate")
