@@ -420,7 +420,24 @@ class WorkflowRunClient(BaseDBClient):
                 # meant whichever landed second silently erased the other, so a
                 # call could lose either its inference cost or its telephony
                 # cost depending on the race.
-                run.usage_info = {**(run.usage_info or {}), **usage_info}
+                #
+                # ``key_sources`` needs the merge one level deeper. Both writers
+                # send it as a top-level dict — the callback sends
+                # {"telephony": ...}, the pipeline sends {"llm"/"stt"/"tts": ...}
+                # and never a telephony entry — so a one-level merge let
+                # whichever landed second replace the whole mapping. Losing the
+                # telephony entry does not lose the seconds; it loses the proof
+                # that *we* bought them, and ``billing.usage`` then reads a
+                # missing entry as customer-owned and bills no carriage. The
+                # call still happened and we still paid the carrier.
+                merged = {**(run.usage_info or {}), **usage_info}
+                previous_sources = (run.usage_info or {}).get("key_sources")
+                incoming_sources = usage_info.get("key_sources")
+                if isinstance(previous_sources, dict) and isinstance(
+                    incoming_sources, dict
+                ):
+                    merged["key_sources"] = {**previous_sources, **incoming_sources}
+                run.usage_info = merged
             if cost_info:
                 run.cost_info = cost_info
             if initial_context:

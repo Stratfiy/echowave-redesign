@@ -1,3 +1,4 @@
+import math
 import time
 from collections import defaultdict
 from typing import Dict, Optional
@@ -404,8 +405,14 @@ class PipelineMetricsAggregator(FrameProcessor):
         else:
             call_duration = self._stop_time - self._start_time
 
-        # Lets return a rounded integer
-        return int(round(call_duration))
+        # Ceiling, not nearest. Everything downstream of this number is a
+        # strict ceiling — billed_seconds rounds up to a whole pulse, billable
+        # minutes round up to a whole minute — and this was the one step in the
+        # chain that rounded the other way. A 30.4-second call reported 30s and
+        # billed two 15s pulses where 31s bills three, so any call whose
+        # fractional part fell below .5 on a pulse boundary silently gave away
+        # a pulse. It is small per call and it only ever ran against us.
+        return math.ceil(call_duration)
 
     def get_all_usage_metrics_serialized(self) -> Dict[str, Dict[str, any]]:
         """Get all aggregated usage metrics in JSON-serializable format."""
