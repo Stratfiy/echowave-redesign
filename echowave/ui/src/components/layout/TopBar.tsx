@@ -22,6 +22,7 @@ import type { LocalUser } from "@/lib/auth";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
+import { BalanceChip } from "./BalanceChip";
 import { CurrentOrganization } from "./CurrentOrganization";
 import { getVisibleNavSections, type SidebarNavItem } from "./navigation";
 
@@ -207,6 +208,13 @@ export function TopBar() {
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {/* Leftmost of the actions, for the same reason the organization is
+            here: on a prepaid product what is left to spend is context for
+            every screen, not a page you visit. It lived only on Billing, so
+            most people met the number for the first time after a call had
+            already been refused. */}
+        <BalanceChip />
+
         {/* Before the account menu, not inside it: which organization you are
             acting as is context for everything on the page, not a setting you
             occasionally open a menu to check. */}

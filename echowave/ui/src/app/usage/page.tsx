@@ -468,7 +468,7 @@ export default function UsagePage() {
             <div>
                 <div className="flex justify-between items-start">
                     <div>
-                        <h1 className="text-3xl font-bold mb-2">Agent Runs</h1>
+                        <h1 className="mb-2 text-[26px] leading-tight">Call logs</h1>
                         <p className="text-muted-foreground">See all your Agent Runs across all Voice Agents. You can use filters to filter out required Agent Runs.</p>
                     </div>
                         <div className="flex items-center gap-2">

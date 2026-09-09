@@ -395,7 +395,7 @@ export default function PrivacyPage() {
         <div className="flex justify-center py-12 px-4">
             <div className="w-full max-w-4xl space-y-6">
                 <div>
-                    <h1 className="text-2xl font-bold">Privacy &amp; data</h1>
+                    <h1 className="text-[26px] leading-tight">Privacy</h1>
                     <p className="text-muted-foreground">
                         The people you call have rights over their data. These are the
                         tools to honour them.

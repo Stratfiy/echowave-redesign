@@ -14,6 +14,7 @@ from api.db import db_client
 from api.db.models import WorkflowRunModel
 from api.enums import OrganizationConfigurationKey
 from api.services.billing.addons import CALL_QA as ADDON_CALL_QA
+from api.services.billing.addons import USAGE_INFO_KEY as USAGE_INFO_ADDONS_KEY
 from api.services.billing.addons import addon_keys_from_usage_info, record_addon_used
 from api.services.integrations import (
     IntegrationCompletionContext,
@@ -194,9 +195,12 @@ async def _classify_disposition(
             for field, value in token_usage.items():
                 existing[field] = (existing.get(field) or 0) + (value or 0)
             llm_usage[key] = existing
-            usage_info["llm"] = llm_usage
+            # Only the key this block owns. ``workflow_run`` was loaded before
+            # classification ran, so re-asserting the whole snapshot would
+            # revert anything the carrier's hangup callback wrote in the
+            # meantime — and it lands in exactly this window.
             await db_client.update_workflow_run(
-                run_id=workflow_run_id, usage_info=usage_info
+                run_id=workflow_run_id, usage_info={"llm": llm_usage}
             )
         except Exception as error:  # noqa: BLE001 - a receipt line, not the answer
             logger.warning(
@@ -273,9 +277,17 @@ async def _update_usage_info_with_qa_tokens(
         # that it ran.
         if any(result.get("token_usage") for result in qa_results.values()):
             record_addon_used(usage_info, ADDON_CALL_QA)
-        await db_client.update_workflow_run(
-            run_id=workflow_run_id, usage_info=usage_info
-        )
+        # Write back only the two keys this function owns, not the whole
+        # snapshot. ``workflow_run`` was loaded before QA ran, and QA is several
+        # LLM round-trips — tens of seconds, starting the moment the call ends,
+        # which is exactly when the carrier's hangup callback lands. Sending the
+        # entire stale dict re-asserted every key as it looked before that
+        # callback, so a value the callback had just written could be reverted
+        # by a job that only meant to add token counts.
+        patch: dict[str, Any] = {"llm": usage_info["llm"]}
+        if USAGE_INFO_ADDONS_KEY in usage_info:
+            patch[USAGE_INFO_ADDONS_KEY] = usage_info[USAGE_INFO_ADDONS_KEY]
+        await db_client.update_workflow_run(run_id=workflow_run_id, usage_info=patch)
         logger.info(f"Updated usage_info with QA token usage for run {workflow_run_id}")
     except Exception as e:
         logger.error(f"Failed to update usage_info with QA tokens: {e}")

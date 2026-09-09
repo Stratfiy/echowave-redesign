@@ -252,7 +252,7 @@ class TestCostWorkflowRun:
         # whole-minute competitor bills two.
         assert cost.billed_seconds == 90
         assert cost.pulse_seconds == 15
-        assert cost.platform_fee_paise == 288  # 1.5 min @ ₹1.92 ($0.02 at ₹96)
+        assert cost.platform_fee_paise == 450  # 1.5 min @ ₹3.00
         # Model usage on our keys is sold at MANAGED_PROVIDER_MARKUP_BPS.
         # Derived from the setting rather than written out, so moving the
         # multiplier is a configuration change and not a test edit — the
@@ -275,12 +275,12 @@ class TestCostWorkflowRun:
 
         assert run.billable_seconds == 90
         assert run.billed_seconds == 90
-        assert run.platform_rate_mpaise_applied == 192_000
+        assert run.platform_rate_mpaise_applied == 300_000
         assert run.total_provider_cost_paise == 12
         assert run.costed_at is not None
-        # The working behind the rupee figure, so the receipt can show a
-        # customer quoted in dollars how it was arrived at.
-        assert run.platform_rate_micros_usd_applied == 20_000
+        # The default fee is rupee-native, so there is no dollar price
+        # behind it. A dollar-quoted account or tier still records one.
+        assert run.platform_rate_micros_usd_applied is None
         assert run.usd_inr_paise_applied == 9_600
         assert run.pulse_seconds_applied == 15
 
@@ -407,7 +407,7 @@ class TestCostWorkflowRun:
         cost = await cost_workflow_run(async_session, run.id)
 
         assert cost.total_provider_cost_paise == 0
-        assert cost.total_charged_paise == 192  # 1 min @ ₹1.92
+        assert cost.total_charged_paise == 300  # 1 min @ ₹3.00
         items = (
             await async_session.scalars(
                 select(CallCostItemModel).where(
@@ -447,7 +447,7 @@ class TestCostWorkflowRun:
         cost = await cost_workflow_run(async_session, run.id)
 
         assert cost.total_provider_cost_paise == 0
-        assert cost.total_charged_paise == 192  # platform fee only, 1 min @ ₹1.92
+        assert cost.total_charged_paise == 300  # platform fee only, 1 min @ ₹3.00
         assert cost.uncosted == ()  # not "we don't know the price" -- not billed at all
         items = (
             await async_session.scalars(
@@ -652,11 +652,11 @@ class TestCostWorkflowRun:
             )
         ).all()
         assert len(items) == 1
-        assert run.total_charged_paise == 576  # 3 min @ ₹1.92
+        assert run.total_charged_paise == 900  # 3 min @ ₹3.00
 
         # The ledger reflects the corrected figure, not both attempts.
         assert (
-            await current_balance_paise(async_session, organization_id=org.id) == -576
+            await current_balance_paise(async_session, organization_id=org.id) == -900
         )
 
     async def test_usage_without_a_rate_is_reported_not_costed_at_zero(
@@ -690,7 +690,7 @@ class TestCostWorkflowRun:
             select(CreditLedgerModel).where(CreditLedgerModel.ref_id == str(run.id))
         )
         assert entry.kind == CreditLedgerKind.USAGE.value
-        assert entry.delta_paise == -384  # 2 min @ ₹1.92
+        assert entry.delta_paise == -600  # 2 min @ ₹3.00
         assert entry.ref_type == "workflow_run"
 
 
@@ -734,8 +734,8 @@ class TestDailyRollup:
         assert row.completed_calls == 3
         assert row.billable_seconds == 270
         assert row.billable_minutes == 6  # ceil(90/60) per call, then summed
-        # Billed on pulses, not on those reported minutes: 3 * 90s * ₹1.92/min.
-        assert row.charged_paise == 864
+        # Billed on pulses, not on those reported minutes: 3 * 90s * ₹3.00/min.
+        assert row.charged_paise == 1350
         assert row.margin_paise == row.charged_paise - row.provider_cost_paise
 
     async def test_a_late_evening_ist_call_lands_on_the_right_day(self, async_session):

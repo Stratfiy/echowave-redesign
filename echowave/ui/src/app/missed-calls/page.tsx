@@ -91,19 +91,22 @@ export default function MissedCallsPage() {
 
   return (
     <>
+      {/* Tabs sit above the header on every other screen in this section
+          (verified-numbers, telephony-configurations, numbers, verification).
+          Rendering them below it here made the tab row jump ~70px down the
+          page on the one click that should have moved nothing. */}
+      <TelephonyTabs />
       <PageHeader
         title="Missed calls"
         description="Someone rang a callback number and hung up. Here is what happened next."
-      />
-      <TelephonyTabs />
-      <PageBody>
-        <div className="mb-4 flex justify-end">
+        actions={
           <Button variant="outline" size="sm" onClick={() => void load()} disabled={refreshing}>
             <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-        </div>
-
+        }
+      />
+      <PageBody>
         {error ? (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
             <p className="font-medium text-destructive">{error}</p>

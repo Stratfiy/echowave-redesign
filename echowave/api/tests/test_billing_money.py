@@ -20,24 +20,27 @@ from api.services.billing.money import (
 )
 
 
-def test_global_default_is_two_rupees_per_minute():
-    """₹2.00/min = 200 paise = 200_000 millipaise.
+def test_global_default_is_three_rupees_per_minute():
+    """₹3.00/min = 300 paise = 300_000 millipaise.
 
     Guards the units: a factor-of-100 slip here silently misprices everything.
+    It also pins the commercial decision — this is the pay-as-you-go platform
+    fee, and it is rupee-native so no FX row can move it.
     """
-    assert DEFAULT_PLATFORM_RATE_MPAISE == 200_000
+    assert DEFAULT_PLATFORM_RATE_MPAISE == 300_000
     assert (
         platform_fee_paise(billable_minutes=1, rate_mpaise=DEFAULT_PLATFORM_RATE_MPAISE)
-        == 200
+        == 300
     )
-    assert format_paise(200) == "₹2.00"
+    assert format_paise(300) == "₹3.00"
 
 
-def test_the_list_price_is_two_cents_a_minute():
+def test_the_dollar_quoted_rate_is_two_cents_a_minute():
     """$0.02/min in micro-dollars.
 
-    Guards the units the same way the rupee test above does: a factor-of-1000
-    slip here misprices every call on the platform.
+    No longer the global default — it is what a dollar-quoted account or
+    volume tier converts from. Guards the units the same way the rupee test
+    above does: a factor-of-1000 slip misprices every call quoted in dollars.
     """
     assert DEFAULT_PLATFORM_RATE_MICROS_USD == 20_000
     assert format_micros_usd(DEFAULT_PLATFORM_RATE_MICROS_USD) == "$0.02"

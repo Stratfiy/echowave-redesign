@@ -17,7 +17,7 @@ import pytest
 from api.db.models import OrganizationModel, UserModel
 from api.enums import CostComponent, RateUnit
 from api.services.billing.money import (
-    DEFAULT_PLATFORM_RATE_MICROS_USD,
+    DEFAULT_PLATFORM_RATE_MPAISE,
     DEFAULT_PULSE_SECONDS,
 )
 from api.services.billing.rate_card import (
@@ -437,9 +437,7 @@ class TestReadingTheCard:
 
         assert card.using_fallback_platform_rate is True
         assert card.global_tier is None
-        assert card.fallback["platform_rate_micros_usd"] == (
-            DEFAULT_PLATFORM_RATE_MICROS_USD
-        )
+        assert card.fallback["platform_rate_mpaise"] == DEFAULT_PLATFORM_RATE_MPAISE
         assert card.fallback["pulse_seconds"] == DEFAULT_PULSE_SECONDS
 
     async def test_it_returns_only_what_is_in_force(self, async_session):
@@ -568,7 +566,7 @@ class TestTheDashboardReportsTheRealPrice:
 
         detail = await account_detail(async_session, organization_id=org.id)
 
-        # $0.02 at ₹96, not the ₹2.00 legacy constant.
+        # $0.02 at ₹96 from the seeded tier, not the ₹3.00 rupee-native default.
         assert detail["platform_rate_mpaise"] == 192_000
         assert detail["platform_rate_micros_usd"] == 20_000
         assert detail["platform_rate_is_override"] is False

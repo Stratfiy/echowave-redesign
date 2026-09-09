@@ -214,6 +214,73 @@ class TestPurgeDeletesObjects:
         assert result["runs_purged"] == 1
         assert len(storage.deleted) == 2
 
+    async def test_the_transcript_is_still_swept_after_the_audio_has_gone(
+        self, async_session, storage
+    ):
+        """The two-stage lifecycle, which is the shape every real policy has.
+
+        Audio expires before text — 90 days against 365 by default — so a run
+        is purged twice, and the second purge has to still find it. It did not:
+        the sweep selected on the recording pointer, purge_run stamped that
+        pointer the moment the audio went, and the row vanished from the query
+        that was meant to come back for the transcript. Transcripts, gathered
+        context and every field the agent extracted from the caller stayed for
+        the life of the row, against a window we publish in a privacy notice.
+
+        The test that existed set both windows to the same number, so the
+        second stage never ran and the gap was invisible.
+        """
+        org, workflow, _ = await _org(async_session, "two-stage")
+        await retention.set_policy(
+            async_session,
+            organization_id=org.id,
+            recording_retention_days=30,
+            transcript_retention_days=60,
+        )
+        run = await _run(async_session, workflow, age_days=40)
+        run.gathered_context = {"caller_name": "Asha"}
+        await async_session.flush()
+
+        first = await retention.purge_expired(async_session)
+
+        assert first["runs_purged"] == 1
+        assert run.recording_url == retention.PURGED_MARKER
+        # Past the audio window, inside the text one: the transcript stays.
+        assert run.transcript_url != retention.PURGED_MARKER
+        assert run.gathered_context == {"caller_name": "Asha"}
+
+        run.created_at = datetime.now(UTC) - timedelta(days=70)
+        await async_session.flush()
+
+        second = await retention.purge_expired(async_session)
+
+        assert second["runs_purged"] == 1
+        assert run.transcript_url == retention.PURGED_MARKER
+        assert run.gathered_context == {}
+
+    async def test_a_run_that_never_had_audio_still_loses_its_transcript(
+        self, async_session, storage
+    ):
+        """Recording disabled, or a text session. It has no recording pointer,
+        so a recording-shaped query never considered it at all and its
+        transcript was never examined."""
+        org, workflow, _ = await _org(async_session, "no-audio")
+        await retention.set_policy(
+            async_session,
+            organization_id=org.id,
+            recording_retention_days=30,
+            transcript_retention_days=30,
+        )
+        run = await _run(async_session, workflow, age_days=40, recording=None)
+        run.gathered_context = {"caller_name": "Ravi"}
+        await async_session.flush()
+
+        result = await retention.purge_expired(async_session)
+
+        assert result["runs_purged"] == 1
+        assert run.transcript_url == retention.PURGED_MARKER
+        assert run.gathered_context == {}
+
 
 @pytest.mark.asyncio
 class TestErasure:

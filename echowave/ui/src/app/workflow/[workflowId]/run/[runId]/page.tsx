@@ -1,6 +1,7 @@
 'use client';
 
 import {
+    AlertTriangle,
     Bot,
     Check,
     Copy,
@@ -18,7 +19,6 @@ import { useParams } from 'next/navigation';
 import posthog from 'posthog-js';
 import { useEffect, useRef, useState } from 'react';
 
-import WorkflowLayout from '@/app/workflow/WorkflowLayout';
 import {
     getWorkflowApiV1WorkflowFetchWorkflowIdGet,
     getWorkflowRunApiV1WorkflowWorkflowIdRunsRunIdGet,
@@ -82,6 +82,83 @@ function getTranscriptMetrics(logs: WorkflowRunLogs | null, gatheredContext: Rec
         : nodeNames.size;
 
     return { userTurns, botTurns, toolCalls, visitedNodes };
+}
+
+type RunOutcome = "completed" | "degraded" | "silent" | "failed";
+
+/**
+ * What actually happened on this call, rather than what we hoped happened.
+ *
+ * This screen used to say "Agent Run Completed" with a green tick and the
+ * sentence "Your voice agent run has been completed successfully" for every
+ * finished run, including one whose transcript was empty and whose pipeline had
+ * recorded an error. The error banner sat directly underneath the tick. Someone
+ * opening the page to find out why nothing was said was told, in the largest
+ * type on the screen, that nothing had gone wrong.
+ *
+ * `is_completed` only means the run reached the end of its lifecycle and was
+ * written back — it is set the same way for a call that talked for four minutes
+ * and for one that dropped before the first word. It is not an outcome, so it
+ * cannot be the headline.
+ */
+function getRunOutcome(run: WorkflowRunResponse | null): RunOutcome {
+    const detail = run?.pipeline_error?.detail;
+    const hasPipelineError = typeof detail === "string" && detail.trim().length > 0;
+    // Same reading as the banner below: absent `fatal` means fatal, because the
+    // field was added after the errors were.
+    const fatal = hasPipelineError && run?.pipeline_error?.fatal !== false;
+    if (fatal) return "failed";
+
+    const { userTurns, botTurns } = getTranscriptMetrics(
+        run?.logs ?? null,
+        run?.gathered_context ?? null,
+    );
+    // Neither side said anything. Whether or not a service complained, there is
+    // no conversation here and calling that a success is the thing this fixes.
+    if (userTurns + botTurns === 0) return "silent";
+
+    return hasPipelineError ? "degraded" : "completed";
+}
+
+const RUN_OUTCOME_COPY: Record<RunOutcome, { title: string; description: string; badgeClass: string }> = {
+    completed: {
+        title: "Agent Run Completed",
+        description:
+            "Your voice agent run has been completed successfully. You can preview or download the transcript and recording.",
+        badgeClass: "bg-emerald-500/20",
+    },
+    degraded: {
+        title: "Agent Run Completed With Errors",
+        description:
+            "The conversation happened, but a service reported an error during the call. The provider's own message is below, along with the transcript and recording.",
+        badgeClass: "bg-amber-500/20",
+    },
+    silent: {
+        title: "Agent Run Ended Without a Conversation",
+        description:
+            "This run finished, but neither side said anything — there are no turns to show. Check the error below, if there is one, and the metrics for where it stopped.",
+        badgeClass: "bg-amber-500/20",
+    },
+    failed: {
+        title: "Agent Run Failed",
+        description:
+            "This run ended on a pipeline error before it could finish. The cause is below, in the provider's own words.",
+        badgeClass: "bg-destructive/20",
+    },
+};
+
+function RunOutcomeIcon({ outcome }: { outcome: RunOutcome }) {
+    if (outcome === "completed") {
+        return (
+            <svg className="h-5 w-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+            </svg>
+        );
+    }
+    if (outcome === "failed") {
+        return <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />;
+    }
+    return <AlertTriangle className="h-5 w-5 text-amber-500" aria-hidden="true" />;
 }
 
 function MetricCard({ label, value }: { label: string; value: string }) {
@@ -688,6 +765,7 @@ export default function WorkflowRunPage() {
 
     let returnValue = null;
     const isTextChatRun = workflowRun?.mode === WORKFLOW_RUN_MODES.TEXTCHAT;
+    const runOutcome = getRunOutcome(workflowRun);
     const showRunDetailsView = Boolean(workflowRun?.is_completed || isTextChatRun);
     const userSplitRecordingUrl = workflowRun?.user_recording_url ?? null;
     const botSplitRecordingUrl = workflowRun?.bot_recording_url ?? null;
@@ -746,15 +824,13 @@ export default function WorkflowRunPage() {
                                 </div>
                                 <div className="flex min-w-0 items-center gap-4 pt-1">
                                     <CardTitle className="min-w-0 text-2xl">
-                                        {isTextChatRun ? 'Text Chat Session' : 'Agent Run Completed'}
+                                        {isTextChatRun ? 'Text Chat Session' : RUN_OUTCOME_COPY[runOutcome].title}
                                     </CardTitle>
-                                    <div className={`h-8 w-8 rounded-full flex items-center justify-center ${isTextChatRun ? 'bg-sky-500/15' : 'bg-emerald-500/20'}`}>
+                                    <div className={`h-8 w-8 rounded-full flex items-center justify-center ${isTextChatRun ? 'bg-sky-500/15' : RUN_OUTCOME_COPY[runOutcome].badgeClass}`}>
                                         {isTextChatRun ? (
                                             <FileText className="h-5 w-5 text-sky-500" />
                                         ) : (
-                                            <svg className="h-5 w-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                            </svg>
+                                            <RunOutcomeIcon outcome={runOutcome} />
                                         )}
                                     </div>
                                 </div>
@@ -777,7 +853,7 @@ export default function WorkflowRunPage() {
                             <p className="text-muted-foreground mb-8">
                                 {isTextChatRun
                                     ? 'Review the conversation history, metrics, and context captured for this text session.'
-                                    : 'Your voice agent run has been completed successfully. You can preview or download the transcript and recording.'}
+                                    : RUN_OUTCOME_COPY[runOutcome].description}
                             </p>
 
                             <div className="flex flex-wrap gap-4">
@@ -905,7 +981,7 @@ export default function WorkflowRunPage() {
     }
 
     return (
-        <WorkflowLayout>
+        <>
             {returnValue}
             {dialog}
 
@@ -919,6 +995,6 @@ export default function WorkflowRunPage() {
                     showNext={false}
                 />
             )}
-        </WorkflowLayout>
+        </>
     );
 }

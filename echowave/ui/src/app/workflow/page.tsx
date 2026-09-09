@@ -13,7 +13,6 @@ import { UploadWorkflowButton } from '@/components/workflow/UploadWorkflowButton
 import { getServerAccessToken, getServerAuthProvider } from '@/lib/auth/server';
 import logger from '@/lib/logger';
 
-import WorkflowLayout from "./WorkflowLayout";
 
 export const dynamic = 'force-dynamic';
 
@@ -114,30 +113,17 @@ async function WorkflowList() {
 }
 
 async function PageContent() {
-
     const workflowList = await WorkflowList();
 
-    return (
-        <>
-            <PageHeader
-                title="Voice Agents"
-                description="Design a conversation, publish it, and point a number at it."
-                actions={
-                    <>
-                        <UploadWorkflowButton />
-                        <CreateFolderButton />
-                        <CreateWorkflowButton />
-                    </>
-                }
-            />
-            <PageBody>{workflowList}</PageBody>
-        </>
-    );
+    return <PageBody>{workflowList}</PageBody>;
 }
 
 function WorkflowsLoading() {
+    // `PageBody`, not a container column: this stands in for the list only, and
+    // a skeleton in a different well than the thing it replaces makes the page
+    // jump sideways at the moment it loads.
     return (
-        <div className="container mx-auto px-4 py-8">
+        <PageBody>
             {/* Get Started Section Loading */}
             <div className="mb-12">
                 <div className="h-8 w-48 bg-muted rounded mb-6"></div>
@@ -164,17 +150,27 @@ function WorkflowsLoading() {
                     </CardContent>
                 </Card>
             </div>
-        </div>
+        </PageBody>
     );
 }
 
 export default function WorkflowPage() {
     return (
-        <WorkflowLayout showFeaturesNav={true}>
+        <>
+            <PageHeader
+                title="Voice agents"
+                description="Design a conversation, publish it, and point a number at it."
+                actions={
+                    <>
+                        <UploadWorkflowButton />
+                        <CreateFolderButton />
+                        <CreateWorkflowButton />
+                    </>
+                }
+            />
             <Suspense fallback={<WorkflowsLoading />}>
                 <PageContent />
             </Suspense>
-        </WorkflowLayout>
-
+        </>
     );
 }

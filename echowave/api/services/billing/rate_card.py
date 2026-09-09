@@ -40,7 +40,7 @@ from api.db.models import (
 )
 from api.enums import BillingAuditAction, CostComponent, RateUnit
 from api.services.billing.money import (
-    DEFAULT_PLATFORM_RATE_MICROS_USD,
+    DEFAULT_PLATFORM_RATE_MPAISE,
     DEFAULT_PULSE_SECONDS,
     DEFAULT_USD_INR_PAISE,
     usd_to_mpaise,
@@ -649,7 +649,8 @@ async def get_rate_card(session: AsyncSession) -> RateCard:
         ),
         using_fallback_platform_rate=global_tier is None,
         fallback={
-            "platform_rate_micros_usd": DEFAULT_PLATFORM_RATE_MICROS_USD,
+            # Rupee-native, so there is no dollar price to report for it.
+            "platform_rate_mpaise": DEFAULT_PLATFORM_RATE_MPAISE,
             "pulse_seconds": DEFAULT_PULSE_SECONDS,
             "paise_per_usd": DEFAULT_USD_INR_PAISE,
         },

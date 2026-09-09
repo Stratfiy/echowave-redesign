@@ -26,9 +26,10 @@ import {
     RefreshCw,
     UserRound,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import { privacyReadinessApiV1PrivacyReadinessGet } from "@/client/sdk.gen";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
@@ -108,52 +109,59 @@ export default function PrivacyReadinessPage() {
         void load();
     }, [authLoading, user, load]);
 
+    // The shell is rendered on every branch, not just the loaded one. This
+    // screen is a STAFF nav destination, and it previously returned a bare
+    // `space-y-6` div — nothing upstream adds a gutter, so it sat flush
+    // against the sidebar with no page title at all.
+    const shell = (body: ReactNode) => (
+        <>
+            <PageHeader
+                title="Privacy readiness"
+                description="Properties of this deployment, not of any one account. The checks that matter most do not raise an error when broken: a retention sweep that stopped running, an access log nobody can use to scope a breach, a grievance officer nobody can actually reach."
+                actions={
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void load()}
+                        disabled={loading}
+                    >
+                        <RefreshCw
+                            className={cn("mr-1.5 h-3.5 w-3.5", loading && "animate-spin")}
+                        />
+                        Re-check
+                    </Button>
+                }
+            />
+            <PageBody className="space-y-6">{body}</PageBody>
+        </>
+    );
+
     if (loading && !assessment) {
-        return (
+        return shell(
             <div className="flex h-40 items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
+            </div>,
         );
     }
 
     if (error && !assessment) {
-        return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
+        return shell(
+            <div className="rounded-[var(--radius-control)] border border-destructive/40 bg-destructive/10 px-4 py-3">
+                <p className="text-sm font-medium text-destructive">{error}</p>
+            </div>,
+        );
     }
 
-    if (!assessment) return null;
+    if (!assessment) return shell(null);
 
     const checks = [...assessment.checks].sort(
         (a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status),
     );
     const blocking = assessment.action_required;
 
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                    <h2 className="text-lg font-medium">Are we DPDP/GDPR ready?</h2>
-                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                        Properties of this deployment, not of any one account. The
-                        checks that matter most do not raise an error when broken: a
-                        retention sweep that stopped running, an access log nobody
-                        can use to scope a breach, a grievance officer nobody can
-                        actually reach.
-                    </p>
-                </div>
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void load()}
-                    disabled={loading}
-                >
-                    <RefreshCw
-                        className={cn("mr-1.5 h-3.5 w-3.5", loading && "animate-spin")}
-                    />
-                    Re-check
-                </Button>
-            </div>
-
+    return shell(
+        <>
             <div
                 className={cn(
                     "rounded-xl border p-5",
@@ -239,6 +247,6 @@ export default function PrivacyReadinessPage() {
                     );
                 })}
             </div>
-        </div>
+        </>,
     );
 }

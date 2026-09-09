@@ -21,6 +21,7 @@ import { ArrowRight, BookOpen, LifeBuoy, Phone, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
 import { AgentBuilderPanel } from '@/components/agent-builder/AgentBuilderPanel';
+import { PageBody, PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
@@ -30,18 +31,21 @@ export default function OverviewPage() {
     const firstName = user?.displayName?.split(' ')[0];
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            <div className="mx-auto max-w-4xl">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-medium tracking-tight">
-                        {firstName ? `Welcome, ${firstName}` : 'Welcome to Decibyl'}
-                    </h1>
-                    <p className="mt-2 text-muted-foreground">
-                        Describe your business below and you will have an agent you
-                        can talk to in a couple of minutes.
-                    </p>
-                </div>
-
+        <>
+            <PageHeader
+                title="Overview"
+                description={
+                    firstName
+                        ? `Welcome, ${firstName}. Describe your business below and you will have an agent you can talk to in a couple of minutes.`
+                        : 'Describe your business below and you will have an agent you can talk to in a couple of minutes.'
+                }
+            />
+            {/* The one screen that keeps a reading-width column inside the body.
+                Everything below is a chat composer and two prose cards; run
+                full-bleed at 1440 the input alone would be over a metre of
+                line, which is worse than the gutter the shell exists to remove. */}
+            <PageBody>
+                <div className="mx-auto max-w-4xl">
                 {/* The shortest path to a working agent. Everything else on this
                     page is what to do once it exists. */}
                 <AgentBuilderPanel />
@@ -118,7 +122,8 @@ export default function OverviewPage() {
                         </a>
                     </Button>
                 </div>
-            </div>
-        </div>
+                </div>
+            </PageBody>
+        </>
     );
 }

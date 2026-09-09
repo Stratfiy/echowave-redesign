@@ -3,7 +3,6 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
-import WorkflowLayout from "../../WorkflowLayout";
 import { AgentHeader } from "../components/AgentHeader";
 import { AgentTabs } from "../components/AgentTabs";
 import { WorkflowExecutions } from "../components/WorkflowExecutions";
@@ -17,7 +16,7 @@ export default function WorkflowRunsPage() {
     const handleName = useCallback((value: string) => setName(value), []);
 
     return (
-        <WorkflowLayout showFeaturesNav={false}>
+        <>
             {/* The same bar and the same strip as every other tab of this
                 agent. This screen used to have neither, so Logs was the one
                 place an agent stopped looking like one thing. */}
@@ -28,6 +27,6 @@ export default function WorkflowRunsPage() {
                 searchParams={searchParams}
                 onWorkflowName={handleName}
             />
-        </WorkflowLayout>
+        </>
     );
 }

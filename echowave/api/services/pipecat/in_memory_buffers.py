@@ -175,6 +175,22 @@ class InMemoryLogsBuffer:
                 return True
         return False
 
+    def contains_bot_speech(self) -> bool:
+        """Return True if the agent ever produced a line of speech.
+
+        The mirror of :meth:`contains_user_speech`, and the cheapest honest
+        answer to "did the caller hear anything at all". Used by the mute-agent
+        watchdog in ``event_handlers``: a call where a provider failed to
+        connect leaves the agent silent, and silence is indistinguishable from
+        a working call until you ask this question.
+        """
+        for event in self._events:
+            if event.get("type") == RealtimeFeedbackType.BOT_TEXT.value and event.get(
+                "payload", {}
+            ).get("text"):
+                return True
+        return False
+
     def generate_transcript_text(self, *, include_end_timestamps: bool = False) -> str:
         """Generate transcript text from logged events.
 

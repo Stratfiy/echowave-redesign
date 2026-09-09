@@ -99,6 +99,13 @@ export interface ConversationNodeTransitionItem extends ConversationItemBase {
 export interface ConversationNoticeItem extends ConversationItemBase {
     kind: "notice";
     tone: "warning" | "error";
+    /**
+     * Which picture goes with this notice. The default follows the tone, which
+     * is right for the interruption warning the tone was designed around and
+     * wrong for anything else: a provider failure drawn with a muted microphone
+     * reads as an audio setting, not an error.
+     */
+    icon?: "alert" | "mic-off";
     title: string;
     text: string;
     fatal?: boolean;

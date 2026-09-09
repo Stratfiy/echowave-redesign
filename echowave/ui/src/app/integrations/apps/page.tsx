@@ -86,7 +86,7 @@ export default function IntegrationAppsPage() {
             <IntegrationsTabs />
             <div className="container mx-auto max-w-5xl space-y-8 px-4 py-8">
                 <div>
-                    <h1 className="text-3xl font-bold">Apps</h1>
+                    <h1 className="text-[26px] leading-tight">Integrations</h1>
                     <p className="mt-2 text-sm text-muted-foreground">
                         What an agent can reach. Most of these are a webhook and a few
                         minutes &mdash; no developer, no agency. Anything marked

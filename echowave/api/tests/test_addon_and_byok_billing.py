@@ -28,7 +28,7 @@ from api.services.billing.cost_engine import RateSpec, UsageItem, compute_call_c
 from api.services.billing.money import DEFAULT_PLATFORM_RATE_MPAISE
 from api.services.billing.usage import byok_platform_tier
 
-RATE = DEFAULT_PLATFORM_RATE_MPAISE  # ₹2.00 per minute
+RATE = DEFAULT_PLATFORM_RATE_MPAISE  # ₹3.00 per minute
 
 PROVIDER_RATES = {
     ("tts", "sarvam", ""): RateSpec(rate_mpaise=1500, unit=RateUnit.THOUSAND_CHARS),

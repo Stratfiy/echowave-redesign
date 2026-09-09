@@ -26,7 +26,7 @@ export default function SettingsPage() {
   return (
     <UnsavedChangesProvider>
       <PageHeader
-        title="Platform Settings"
+        title="Settings"
         description="Manage your platform configuration and integrations."
       />
       {/* Two columns from lg up. As a single max-w-2xl column this page put a

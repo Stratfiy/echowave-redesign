@@ -18,7 +18,7 @@ and the balance gate can be switched off entirely.
 | `DATABASE_URL`, `REDIS_URL`, `PUBLIC_BASE_URL` | Nothing runs without them |
 | TLS on your domain | The browser needs it for microphone access, and carriers will not post webhooks to plain HTTP |
 | At least one working LLM/STT/TTS key | Either yours under **Provider keys**, or the customer's own under Models |
-| `BALANCE_ENFORCEMENT_ENABLED=false` | **Otherwise your test account cannot make a single call.** Prepaid is on by default and a fresh account has zero credit. Turn it off for testing, or top yourself up with a staff credit adjustment from the admin dashboard |
+| *(nothing — leave `BALANCE_ENFORCEMENT_ENABLED` alone)* | Prepaid is on by default and a fresh account has zero credit, so your own test account cannot place a call until it has some. **Give it credit, do not remove the ceiling:** a staff credit adjustment from the admin dashboard costs nothing and leaves the gate standing. Setting this to `false` does not just unblock you — it unblocks everyone, on every account, permanently. `reserve()` returns immediately, `_hold_funds` reads that as success, and calls run to completion against accounts with nothing in them. We pay the providers in cash and hold a receivable nobody can collect |
 | `MINIO_PUBLIC_BUCKET` left unset | Recordings are served by presigned URL |
 
 ### Putting it on an EC2 box, start to finish

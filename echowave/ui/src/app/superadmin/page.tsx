@@ -4,6 +4,7 @@ import { ArrowRight, KeyRound, List, Loader2, ShieldCheck, Wallet } from 'lucide
 import Link from "next/link";
 import { useState } from "react";
 
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -80,8 +81,11 @@ export default function SuperadminPage() {
     return (
         <>
             <main className="container mx-auto p-6 space-y-6 max-w-5xl">
-                <div className="text-center">
-                    <h1 className="text-3xl font-bold mb-2">Superadmin Dashboard</h1>
+                {/* Left-aligned like every other screen. This was the only
+                    centred page title in the product, which read as a
+                    different application rather than a different area. */}
+                <div>
+                    <h1 className="mb-2 text-[26px] leading-tight">Review queue</h1>
                     <p className="text-sm text-muted-foreground">Manage users and view system-wide data</p>
                 </div>
 
@@ -107,9 +111,9 @@ export default function SuperadminPage() {
                                     </div>
 
                                     {error?.target === "provider" && (
-                                        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
+                                        <ErrorBanner>
                                             {error.message}
-                                        </div>
+                                        </ErrorBanner>
                                     )}
 
                                     <Button
@@ -152,9 +156,9 @@ export default function SuperadminPage() {
                                     </div>
 
                                     {error?.target === "email" && (
-                                        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
+                                        <ErrorBanner>
                                             {error.message}
-                                        </div>
+                                        </ErrorBanner>
                                     )}
 
                                     <Button

@@ -50,6 +50,29 @@ export function formatPaise(paise: number | null | undefined): string {
     return rupees.format(paise / PAISE_PER_RUPEE);
 }
 
+/**
+ * The in-product spending unit. One credit is one rupee, always.
+ *
+ * Credits exist so the app can show one number to a domestic account and an
+ * export account alike, and so a provider's dollar-denominated price does not
+ * move on screen when the rupee does. They are a *display* unit and nothing
+ * more: the ledger is integer paise, money.py rounds exactly once, and a
+ * second unit with its own arithmetic would be a second rounding — which is
+ * how the two halves of a bill stop agreeing.
+ *
+ * The peg is deliberately 1:1 and deliberately public. Any prepaid system
+ * publishes its own exchange rate the moment someone pays ₹1,000 and watches
+ * the balance move, so a peg chosen to obscure the rate obscures nothing and
+ * costs the trust of whoever works it out.
+ *
+ * Rupees stay on invoices, receipts and every tax document, where they are a
+ * legal requirement rather than a preference.
+ */
+export function formatCredits(paise: number | null | undefined): string {
+    if (paise === null || paise === undefined) return "—";
+    return integers.format(Math.round(paise / PAISE_PER_RUPEE));
+}
+
 /** Abbreviated, e.g. ₹1.2L. Use on stat tiles and axis ticks where space is tight. */
 export function formatPaiseCompact(paise: number | null | undefined): string {
     if (paise === null || paise === undefined) return "—";
