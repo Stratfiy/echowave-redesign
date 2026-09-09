@@ -18,7 +18,7 @@ const buttonVariants = cva(
         // The workhorse: white, hairline edge, dark label. Most non-primary
         // actions in the app are this, and it is deliberately quiet.
         outline:
-          "border border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground",
+          "border border-border bg-card text-foreground hover:bg-accent hover:text-accent-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost:

@@ -3,6 +3,7 @@
 import { ExternalLink, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { KNOWLEDGE_TABS, SectionTabs } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,9 +35,11 @@ export default function RecordingsPage() {
     }
 
     return (
+        <>
+        <SectionTabs tabs={KNOWLEDGE_TABS} label="Knowledge base" />
         <div className="container mx-auto px-4 py-8">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold mb-2">Recordings</h1>
+                <h1 className="text-[26px] leading-tight mb-2">Audio clips</h1>
                 <p className="text-muted-foreground">
                     Manage audio recordings for your organization. Use{" "}
                     <code className="rounded bg-muted px-1 text-xs">@</code> in prompt fields to insert them,
@@ -73,5 +76,6 @@ export default function RecordingsPage() {
                 onUploadComplete={() => setRefreshKey((k) => k + 1)}
             />
         </div>
+        </>
     );
 }

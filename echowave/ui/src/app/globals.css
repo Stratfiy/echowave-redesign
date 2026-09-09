@@ -111,8 +111,11 @@
      --radius is the card value because that is what shadcn's Card inherits. */
   --radius: 0.75rem;
   --radius-control: 0.375rem;
-  --radius-button: 0.5rem;
-  --radius-large: 1rem;
+  /* Buttons are pills — the one deliberate departure from the reference set.
+     A round black button on ivory is the product's signature press. Inputs
+     keep their 6px so a field never reads as a button. */
+  --radius-button: 9999px;
+  --radius-large: 1.25rem;
   --radius-pill: 9999px;
 
   /* Neutrals. The reference's full ramp, kept by its own names so the intent
@@ -130,8 +133,9 @@
   --color-fog: #737373;
   --color-silver: #a3a3a3;
 
-  /* Canvas is white, not a grey floor. Cards separate from it by border. */
-  --background: #ffffff;
+  /* The floor is ivory, warm rather than grey, so white cards and the white
+     rail lift off it on colour alone — no shadow needed. */
+  --background: #f3efe8;
   --foreground: #171717;
   --card: #ffffff;
   --card-foreground: #171717;
@@ -141,15 +145,19 @@
   /* The committed action. Deep coral, white text, 5.55:1 — this is the button
      you press, and the colour that emphasised text on white is allowed to be.
      Used sparingly: one per surface, or it stops earning attention. */
-  --primary: #B24747;
+  --primary: #171717;
   --primary-foreground: #ffffff;
-  --primary-pressed: #963C3C;
+  --primary-pressed: #0a0a0a;
 
   /* The brand accent. Bright coral, for fills, active states, icon accents and
      the focus ring. Never body text — see the ratios above. */
-  --accent-brand: #FF6666;
-  --accent-brand-soft: rgba(255, 102, 102, 0.10);
-  --accent-brand-tint: #FFEDED;
+  --accent-brand: #e15b35;
+  --accent-brand-soft: rgba(225, 91, 53, 0.10);
+  --accent-brand-tint: #fbe9e2;
+  /* The one gradient, coral into tangerine. It sits on top of the ivory floor
+     as a wash behind a screen or a hero panel; it never sits behind text
+     smaller than a display size. */
+  --brand-gradient: linear-gradient(135deg, #e15b35 0%, #f08a4b 100%);
   /* Gradient end only — see the note above. Never a fill behind text. */
   --brand-pink: #ED2287;
 
@@ -180,7 +188,7 @@
      signature: a field should look like something you are meant to fill in,
      not like a container that happens to be empty. */
   --input: #d4d4d4;
-  --ring: #FF6666;
+  --ring: #e15b35;
 
   /* --brand-* are consumed by call sites written when the brand was blue. They
      are aliases onto the correct tokens, NOT a second palette.
@@ -195,6 +203,8 @@
      has to be read off it. */
   --brand-blue: #B24747;
   --brand-blue-hover: #963C3C;
+  /* Button fills no longer read this alias — every pressable fill is
+     --primary (ink). What remains on it is link text and tints. */
   --brand-blue-soft: rgba(225, 91, 83, 0.10);
   --brand-blue-glow: rgba(225, 91, 83, 0.14);
   --brand-panel: #ffffff;
@@ -220,7 +230,7 @@
   --tint-sand: #f5f5f5;
   --tint-slate: #f5f5f5;
 
-  --chart-1: #FF6666;
+  --chart-1: #e15b35;
   --chart-2: #ea580c;
   --chart-3: #16a34a;
   --chart-4: #2563eb;
@@ -230,16 +240,16 @@
      That is the border-first philosophy applied to the shell itself. */
   --sidebar: #ffffff;
   --sidebar-foreground: #171717;
-  --sidebar-primary: #B24747;
+  --sidebar-primary: #171717;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f5f5f5;
   --sidebar-accent-foreground: #171717;
   --sidebar-border: #e5e5e5;
-  --sidebar-ring: #FF6666;
+  --sidebar-ring: #e15b35;
 
   /* --cta predates --primary and is used on a handful of CTAs. Both point at
      the same deep coral, so the two vocabularies cannot drift apart onscreen. */
-  --cta: #B24747;
+  --cta: #171717;
   --cta-foreground: #ffffff;
 
   /* Elevation, reserved. Cards get NO shadow — the border defines them. These
@@ -524,8 +534,15 @@
      empty state should look empty and offer the next action, not be decorated
      to hide that it is empty. The imprint token now resolves to `none`, and
      both rules that consumed it are flat. */
+  /* Ivory floor with the brand gradient laid over it as two soft washes —
+     coral from the top-right, tangerine from the bottom-left. Light enough
+     that cards and text sit on it untouched; it is atmosphere, not a panel. */
   .app-surface {
     background-color: var(--background);
+    background-image:
+      radial-gradient(55% 45% at 100% 0%, rgba(225, 91, 53, 0.14), transparent 70%),
+      radial-gradient(45% 35% at 0% 100%, rgba(240, 138, 75, 0.10), transparent 70%);
+    background-repeat: no-repeat;
   }
 
   .auth-imprint {
@@ -557,10 +574,15 @@
    flush to the viewport edge. The previous treatment floated it as a rounded
    detached card, which costs ~28px of gutter on both sides and makes the nav
    read as a widget sitting on the page rather than as the frame around it. */
+/* The rail floats: a white card on the ivory floor, rounded like every other
+   large surface, edged by the same hairline and nothing else. No drop shadow —
+   the floor is warm enough that the card separates on colour alone, and a
+   shadow would make the one permanent element on screen the softest one. */
 .app-sidebar-dock [data-slot="sidebar-inner"] {
-  border-radius: 0;
-  border-right: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-large);
+  border: 1px solid var(--sidebar-border);
   background-color: var(--sidebar);
+  box-shadow: none;
   overflow: hidden;
 }
 

@@ -21,6 +21,16 @@ beforeEach(() => {
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
 describe("sidebar interactions", () => {
+  it("floats as a rounded card on the floor", () => {
+    render(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    expect(document.querySelector('[data-slot="sidebar"]')?.getAttribute("data-variant")).toBe("floating");
+  });
+  it("lights the sidebar entry a folded tab belongs to", () => {
+    route.pathname = "/do-not-call";
+    render(<SidebarProvider><AppSidebar /></SidebarProvider>);
+    expect(screen.getByRole("link", { name: "Compliance" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.queryByRole("link", { name: "Do not call" })).toBeNull();
+  });
   it("expands developers without removing its routes and remembers the choice", () => {
     render(<SidebarProvider><AppSidebar /></SidebarProvider>);
     expect(screen.queryByRole("link", { name: "API keys & SDKs" })).toBeNull();
@@ -38,7 +48,8 @@ describe("sidebar interactions", () => {
   it("keeps all customer destinations accessible in the collapsed rail", () => {
     render(<SidebarProvider defaultOpen={false}><AppSidebar /></SidebarProvider>);
     expect(screen.getByRole("link", { name: "Settings" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Reports" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Calls" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Compliance" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Review queue" })).toBeNull();
   });
 });

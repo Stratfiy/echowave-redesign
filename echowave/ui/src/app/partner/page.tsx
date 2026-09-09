@@ -30,6 +30,7 @@ import {
     getStatementsApiV1PartnersStatementsGet,
     submitApplicationApiV1PartnersApplicationPost,
 } from "@/client/sdk.gen";
+import { BILLING_TABS, SectionTabs } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -221,9 +222,11 @@ export default function PartnerPage() {
     const rejected = application?.status === "rejected";
 
     return (
+        <>
+        <SectionTabs tabs={BILLING_TABS} label="Billing" />
         <div className="mx-auto max-w-2xl space-y-6 p-6">
             <div>
-                <h1 className="text-xl font-semibold">Partner programme</h1>
+                <h1 className="text-[26px] leading-tight">Partner programme</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
                     For developers building on the API, agencies running accounts for
                     clients, and resellers. Your account keeps working exactly as it
@@ -523,5 +526,6 @@ export default function PartnerPage() {
                 </Card>
             )}
         </div>
+        </>
     );
 }

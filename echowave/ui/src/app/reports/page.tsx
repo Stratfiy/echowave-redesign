@@ -11,6 +11,7 @@ import {
   getWorkflowOptionsApiV1OrganizationsReportsWorkflowsGet
 } from '@/client/sdk.gen';
 import type { WorkflowRunDetail } from '@/client/types.gen';
+import { CALLS_TABS, SectionTabs } from "@/components/layout/SectionTabs";
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarPicker } from '@/components/ui/calendar';
 import { Card } from '@/components/ui/card';
@@ -198,6 +199,8 @@ export default function ReportsPage() {
   const isToday = format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
 
   return (
+    <>
+    <SectionTabs tabs={CALLS_TABS} label="Calls" />
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -329,5 +332,6 @@ export default function ReportsPage() {
         </>
       )}
     </div>
+    </>
   );
 }
