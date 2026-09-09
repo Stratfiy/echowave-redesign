@@ -138,6 +138,11 @@ class CallCost:
     # 62-second call was charged for 75 seconds and not 120.
     pulse_seconds: int = DEFAULT_PULSE_SECONDS
     billed_seconds: int = 0
+    # True when the platform fee was waived because the call delivered nothing
+    # — see services/billing/delivery.py. Reported rather than inferred from a
+    # missing line, so a receipt can say "waived" instead of leaving a reader
+    # to wonder whether the fee was forgotten.
+    platform_fee_waived: bool = False
     # Usage we could not price because no rate was on file. Surfaced rather
     # than silently costed at zero, which would understate provider cost and
     # overstate margin.
@@ -154,6 +159,7 @@ def compute_call_cost(
     provider_rates: Mapping[tuple[str, str, str], RateSpec] | None = None,
     addon_rates: Mapping[str, int] | None = None,
     markup_overrides: Mapping[tuple[str, str, str], int] | None = None,
+    platform_fee_waived: bool = False,
 ) -> CallCost:
     """Cost one call. Pure — no I/O, no clock, no database.
 
@@ -182,6 +188,14 @@ def compute_call_cost(
     this call actually used. Both are charged on pulse-rounded time, the same
     basis as the platform fee, so a 40-second call is charged 45 seconds of
     every fee and not a full minute of any of them.
+
+    ``platform_fee_waived`` drops the platform line entirely — not to zero, but
+    out of the receipt. The fee pays for delivering a conversation, and a call
+    that delivered none has nothing to charge for; the caller decides that (see
+    services/billing/delivery.py) because it needs the run's logs. Provider
+    pass-through is untouched: we paid those vendors whether or not the call
+    worked, and waiving them would understate cost rather than forgive a
+    charge.
 
     The returned ``total_charged_paise`` is exactly ``sum(line.cost_paise for
     line in line_items)``. It is never computed as a separately-rounded figure,
@@ -256,24 +270,29 @@ def compute_call_cost(
     # exactly the contract cost_paise already implements for a per-minute rate.
     # So the platform line is structurally identical to a provider one: measured
     # units times a rate, rounded once.
-    fee = cost_paise(
-        quantity=billed,
-        rate_mpaise=platform_rate_mpaise,
-        unit=RateUnit.MINUTE,
+    fee = (
+        0
+        if platform_fee_waived
+        else cost_paise(
+            quantity=billed,
+            rate_mpaise=platform_rate_mpaise,
+            unit=RateUnit.MINUTE,
+        )
     )
     # The platform fee is ours, not a vendor's, so it is never marked up and
     # its provider cost is zero. Marking it up would be charging a margin on a
     # margin.
-    lines.append(
-        CostLine(
-            component=CostComponent.PLATFORM.value,
-            provider=None,
-            units=billed,
-            unit_rate_mpaise=platform_rate_mpaise,
-            cost_paise=fee,
-            provider_cost_paise=0,
+    if not platform_fee_waived:
+        lines.append(
+            CostLine(
+                component=CostComponent.PLATFORM.value,
+                provider=None,
+                units=billed,
+                unit_rate_mpaise=platform_rate_mpaise,
+                cost_paise=fee,
+                provider_cost_paise=0,
+            )
         )
-    )
 
     # One line per priced feature the call used. The catalogue key rides in
     # ``provider`` so a receipt can name which feature was charged without the
@@ -309,6 +328,7 @@ def compute_call_cost(
         billable_minutes=minutes,
         platform_rate_mpaise=platform_rate_mpaise,
         platform_fee_paise=fee,
+        platform_fee_waived=platform_fee_waived,
         addon_fee_paise=addon_fee,
         total_provider_cost_paise=provider_total,
         total_charged_paise=total,
