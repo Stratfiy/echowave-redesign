@@ -2,7 +2,7 @@ import json
 import re
 import uuid
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -47,6 +47,7 @@ from api.services.configuration.resolve import (
 from api.services.posthog_client import capture_event
 from api.services.reports import generate_workflow_report_csv
 from api.services.storage import storage_fs
+from api.services.workflow import setup_progress
 from api.services.workflow.agent_brief import (
     AgentBrief,
     apply_brief,
@@ -62,7 +63,10 @@ from api.services.workflow.run_usage_response import (
     format_public_usage_info,
 )
 from api.services.workflow.squad import SquadError, has_handoffs
-from api.services.workflow.squad_loader import assemble_for_run
+from api.services.workflow.squad_loader import (
+    assemble_for_run,
+    validate_for_organization,
+)
 from api.services.workflow.template_generation import generate_workflow_definition
 from api.services.workflow.trigger_paths import (
     TriggerPathIssue,
@@ -170,13 +174,48 @@ async def _validate_workflow_definition(
     # here turns "the squad is a circle" and "that agent was deleted" into
     # errors at save, rather than a call that fails while somebody is on the
     # line — which is the only time anyone would otherwise find out.
+    # Bound before the branch: the assembly check below reads it, and a
+    # workflow with no handoffs never enters the block that fills it.
+    squad_problems: list = []
     if dto and organization_id is not None and has_handoffs(workflow_definition):
+        # Ask what is wrong before asking it to be built. `assemble_for_run`
+        # raises on the first problem and has nowhere to attach it, so a squad
+        # with three broken handoffs reported one of them as a banner about the
+        # workflow and left the reader to find which step it meant. The
+        # validator answers the same five questions, in the same words, for
+        # every handoff, and names the node each belongs to.
+        squad_problems = await validate_for_organization(
+            workflow_definition, organization_id=organization_id
+        )
+        errors.extend(
+            WorkflowError(
+                kind=ItemKind.node if problem.node_id else ItemKind.workflow,
+                id=problem.node_id,
+                field=None,
+                message=problem.message,
+            )
+            for problem in squad_problems
+        )
+
+    # Assembly is only worth attempting on a squad the validator passed:
+    # otherwise it would raise the first of the problems just reported, as a
+    # duplicate with less information attached. What it still catches is the
+    # case the validator cannot — two agents that are each valid alone and do
+    # not fit together once spliced.
+    if (
+        dto
+        and organization_id is not None
+        and has_handoffs(workflow_definition)
+        and not squad_problems
+    ):
         try:
             assembled = await assemble_for_run(
                 workflow_definition, organization_id=organization_id
             )
             WorkflowGraph(ReactFlowDTO.model_validate(assembled))
         except SquadError as exc:
+            # A safety net now rather than the main path: reaching this means
+            # the splicer refused something the validator did not predict.
             errors.append(
                 WorkflowError(
                     kind=ItemKind.workflow,
@@ -452,6 +491,39 @@ class CreateWorkflowTemplateRequest(BaseModel):
             closing_line=self.closing_line,
             hangup_prompt=self.hangup_prompt,
         )
+
+
+@router.get("/{workflow_id}/setup-progress")
+async def workflow_setup_progress(
+    workflow_id: int,
+    user: UserModel = Depends(get_user),
+) -> dict[str, Any]:
+    """What is left before this agent takes real calls.
+
+    Read from the database rather than from anything the browser remembers, so
+    it is right when a colleague did the step, right after a reload, and right
+    again when a number is detached.
+    """
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    progress = await setup_progress.for_workflow(
+        workflow_id=workflow_id,
+        organization_id=user.selected_organization_id,
+    )
+    return {
+        "steps": [
+            {
+                "key": step.key,
+                "title": step.title,
+                "hint": step.hint,
+                "done": step.done,
+            }
+            for step in progress.steps
+        ],
+        "complete": progress.complete,
+        "next_step": progress.next_step.key if progress.next_step else None,
+    }
 
 
 @router.post("/{workflow_id}/validate")

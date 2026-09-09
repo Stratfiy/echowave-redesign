@@ -260,7 +260,9 @@ class TestCostWorkflowRun:
         # which is what keeps margin visible, not what the multiplier is today.
         assert cost.total_provider_cost_paise == 12  # 1k tokens @ 12_000 mpaise
         charged_llm = round_half_up_div(12 * MANAGED_PROVIDER_MARKUP_BPS, 10_000)
-        assert cost.total_charged_paise == 288 + charged_llm
+        # 450 is the platform fee asserted above; #125 moved the fee to ₹3
+        # and updated that line but not this one, so the sum went stale.
+        assert cost.total_charged_paise == 450 + charged_llm
 
         items = (
             await async_session.scalars(
@@ -630,8 +632,9 @@ class TestCostWorkflowRun:
             .where(CreditLedgerModel.ref_id == str(run.id))
         )
         assert ledger_count == 1
+        # 1 min @ ₹3.00
         assert (
-            await current_balance_paise(async_session, organization_id=org.id) == -192
+            await current_balance_paise(async_session, organization_id=org.id) == -300
         )
 
     async def test_recosting_replaces_rather_than_appends(self, async_session):

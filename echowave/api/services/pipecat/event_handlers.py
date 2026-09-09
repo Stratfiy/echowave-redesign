@@ -29,7 +29,6 @@ from pipecat.pipeline.worker import PipelineWorker
 from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
 from pipecat.utils.enums import EndTaskReason
 
-
 #: How long a call may run with a broken component and a silent agent before we
 #: end it ourselves.
 #:
@@ -131,11 +130,17 @@ def register_event_handlers(
           per-track audio;
         * a bot text event on the timeline.
         """
-        if not in_memory_audio_buffers.bot.is_empty:
-            return True
-        if any(pipeline_metrics_aggregator.get_tts_usage_metrics().values()):
-            return True
+        # The guard covers all three signals, not just the last. This runs
+        # inside on_pipeline_error, so anything raised here escapes into the
+        # handler that is mid-way through recording a *different* failure --
+        # turning one provider's grumble into a broken error path on a live
+        # call. True is the safe answer: it declines to arm the watchdog and
+        # leaves the call exactly as it was.
         try:
+            if not in_memory_audio_buffers.bot.is_empty:
+                return True
+            if any(pipeline_metrics_aggregator.get_tts_usage_metrics().values()):
+                return True
             return in_memory_logs_buffer.contains_bot_speech()
         except Exception:  # noqa: BLE001 - a diagnostic must not end a call
             return True
@@ -189,7 +194,9 @@ def register_event_handlers(
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 - never let the watchdog kill the process
-            logger.error("Mute-agent watchdog failed for run {}: {}", workflow_run_id, exc)
+            logger.error(
+                "Mute-agent watchdog failed for run {}: {}", workflow_run_id, exc
+            )
 
     def _arm_mute_agent_watchdog() -> None:
         """Start the watchdog once, and only while the agent is still silent."""

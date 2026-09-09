@@ -134,6 +134,9 @@ class PipecatEngine:
         self._initialized = False
         self._call_disposed = False
         self._current_node: Optional[Node] = None
+        #: Set by run_pipeline; see set_user_idle_timeout.
+        self.user_idle_timeout_seconds: float | None = None
+        self._user_idle_handler = None
         self._gathered_context: dict = {}
         #: Consecutive branch nodes traversed without a conversational node in
         #: between. Reset by any non-branch node; see BRANCH_HOP_LIMIT.
@@ -687,6 +690,14 @@ class PipecatEngine:
         # Set current node for all nodes (including static ones) so STT mute filter works
         self._current_node = node
 
+        # A new step gets its own patience. Without this, the silence absorbed
+        # while the caller was away from the phone would be charged against
+        # whatever step they came back to, and the first question after a long
+        # physical task would be the one that hung up on them.
+        handler = getattr(self, "_user_idle_handler", None)
+        if handler is not None:
+            handler.reset()
+
         # Track visited nodes in gathered context for call tags
         nodes_visited = self._gathered_context.setdefault("nodes_visited", [])
         if node.name not in nodes_visited:
@@ -1208,8 +1219,24 @@ class PipecatEngine:
         """
         Returns a UserIdleHandler that manages user-idle timeouts with state.
         The handler tracks retry count and handles escalating prompts.
+
+        Kept on the engine as well as returned, because per-node patience has
+        to be forgotten when the conversation moves on: silence absorbed while
+        the caller was walking to a vehicle is not silence owed by the step
+        that comes after it.
         """
-        return engine_callbacks.create_user_idle_handler(self)
+        self._user_idle_handler = engine_callbacks.create_user_idle_handler(self)
+        return self._user_idle_handler
+
+    def set_user_idle_timeout(self, seconds: float | None) -> None:
+        """Tell the engine how often the pipeline reports the caller idle.
+
+        Per-node patience is spent in whole ticks of this, so the handler has
+        to know what it was actually configured with — otherwise raising the
+        agent-level timeout would silently multiply every node's patience by
+        the same factor.
+        """
+        self.user_idle_timeout_seconds = seconds
 
     def create_max_duration_callback(self):
         """

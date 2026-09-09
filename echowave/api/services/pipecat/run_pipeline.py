@@ -1199,6 +1199,9 @@ async def _run_pipeline_impl(
     assistant_context_aggregator = context_aggregator.assistant()
 
     # Register user idle event handlers
+    # Before the handler is made, so per-node patience is measured in ticks of
+    # the timeout this pipeline actually runs with rather than the default.
+    engine.set_user_idle_timeout(max_user_idle_timeout)
     user_idle_handler = engine.create_user_idle_handler()
 
     @user_context_aggregator.event_handler("on_user_turn_idle")

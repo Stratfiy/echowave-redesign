@@ -24,6 +24,19 @@ DECIBYL_SPEED_MAX = 2.0
 DECIBYL_SPEED_STEP = 0.1
 DECIBYL_SPEED_OPTIONS: tuple[float, ...] = (0.8, 1.0, 1.2)
 DECIBYL_DEFAULT_VOICE = "default"
+#: Voice presets that name a gender rather than a vendor's speaker.
+#:
+#: A managed slot must not carry "anushka": that is a Sarvam name, and pinning
+#: it is the thing agent_templates deliberately refuses to do for models — the
+#: tier stops being free to move. But "a male voice" is a real thing to want,
+#: and it is the first question anyone asks after picking a template.
+#:
+#: So these are sentinels of the same kind as "default": stored on the
+#: configuration, resolved to a real speaker at pipeline build from whatever
+#: provider the tier is on that day. See service_factory's Sarvam branch.
+DECIBYL_VOICE_MALE = "male"
+DECIBYL_VOICE_FEMALE = "female"
+DECIBYL_GENDER_VOICES: tuple[str, ...] = (DECIBYL_VOICE_MALE, DECIBYL_VOICE_FEMALE)
 DECIBYL_DEFAULT_LANGUAGE = "multi"
 
 

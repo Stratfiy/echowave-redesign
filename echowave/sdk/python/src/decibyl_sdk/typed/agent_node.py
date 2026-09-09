@@ -94,3 +94,12 @@ class AgentNode(TypedNode):
     Documents the agent can reference during this step.
     """
 
+    patience_seconds: Optional[float] = None
+    """
+    How long to let the caller be silent on this step before checking
+    whether they are still there. Leave empty to use the agent's default.
+    Raise it on a step where the caller has to go and do something — walk to
+    a vehicle, read a light, press a button on a device — because the
+    default assumes they are only thinking.
+    """
+

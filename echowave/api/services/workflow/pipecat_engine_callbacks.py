@@ -19,6 +19,10 @@ from pipecat.frames.frames import (
 )
 from pipecat.utils.enums import EndTaskReason
 
+from api.schemas.workflow_configurations import (
+    DEFAULT_MAX_USER_IDLE_TIMEOUT_SECONDS,
+)
+
 if TYPE_CHECKING:
     from api.services.workflow.pipecat_engine import PipecatEngine
 
@@ -28,16 +32,54 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
+def _as_seconds(value) -> float:
+    """A duration we are willing to hold a call open for, or zero.
+
+    Deliberately strict about the type. Anything with a ``__float__`` would be
+    accepted by a ``float()`` in a try block — a string, a Decimal, a test
+    double — and the thing being decided here is how long a real person is left
+    listening to silence. Only an actual number gets to decide that, and a bool
+    is not one despite being an int: ``patience_seconds=True`` means somebody
+    sent the wrong field, not one second.
+
+    Negative is treated as absent rather than clamped: it is a malformed value,
+    and the safe reading of a malformed value is "no special patience".
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0.0
+    return float(value) if value > 0 else 0.0
+
+
 class UserIdleHandler:
     """Helper class to manage user idle retry logic with state."""
 
     def __init__(self, engine: "PipecatEngine"):
         self._engine = engine
         self._retry_count = 0
+        #: Seconds of silence waited through on the current node, in ticks of
+        #: the pipeline's idle timeout. Reset whenever the caller speaks.
+        self._waited_seconds = 0.0
 
     def reset(self):
         """Reset the retry count when user becomes active."""
         self._retry_count = 0
+        self._waited_seconds = 0.0
+
+    def _node_patience(self) -> float:
+        """How long this step is willing to be silent before asking.
+
+        Some steps ask a question; some send the caller away to do something.
+        "Press 6# on the controller and tell me whether the GPS light is
+        blinking" is the second kind, and the default timeout assumes the
+        first — that a quiet caller is a caller thinking. Someone walking to a
+        vehicle is not thinking, and prompting them twice and hanging up is
+        exactly the wrong response to a person doing what we asked.
+
+        None on the node means the agent's default, which is the behaviour
+        every existing workflow already has.
+        """
+        node = getattr(self._engine, "_current_node", None)
+        return _as_seconds(getattr(node, "patience_seconds", None) if node else None)
 
     async def handle_idle(self, aggregator):
         """Handle user idle event with escalating prompts.
@@ -46,7 +88,26 @@ class UserIdleHandler:
         still there, the second disconnects. Only the second may end the call
         — see the instruction on the first message for why that has to be said
         out loud.
+
+        Before either, a step may ask for more rope. The idle event fires on
+        the pipeline's own timer, so patience is spent in whole ticks of it:
+        while the silence this node has absorbed is still under its budget we
+        say nothing at all and take no strike. Saying nothing is the point —
+        the caller is mid-task, and "are you still there?" every ten seconds
+        is worse than the silence it interrupts.
         """
+        patience = self._node_patience()
+        if patience > 0:
+            tick = self._engine_idle_tick()
+            self._waited_seconds += tick
+            if self._waited_seconds <= patience:
+                logger.debug(
+                    "User idle on a patient step: {}s of {}s waited, staying quiet",
+                    self._waited_seconds,
+                    patience,
+                )
+                return
+
         self._retry_count += 1
         logger.debug(f"Handling user_idle, attempt: {self._retry_count}")
 
@@ -73,6 +134,16 @@ class UserIdleHandler:
         await self._engine.end_call_with_reason(
             EndTaskReason.USER_IDLE_MAX_DURATION_EXCEEDED.value
         )
+
+    def _engine_idle_tick(self) -> float:
+        """Seconds between idle events, as the pipeline was configured.
+
+        Read from the engine rather than assumed, so raising the agent-level
+        timeout does not silently multiply every node's patience by the same
+        factor. Falls back to the shipped default when the engine cannot say.
+        """
+        tick = _as_seconds(getattr(self._engine, "user_idle_timeout_seconds", None))
+        return tick or DEFAULT_MAX_USER_IDLE_TIMEOUT_SECONDS
 
 
 def create_user_idle_handler(engine: "PipecatEngine") -> UserIdleHandler:

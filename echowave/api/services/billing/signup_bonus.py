@@ -31,8 +31,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.constants import SIGNUP_BONUS_MICROS_USD
 from api.db.models import CreditLedgerModel
-from api.enums import CreditLedgerKind
+from api.enums import CreditLedgerKind, PostHogEvent
 from api.services.billing.money import MICROS_PER_USD, round_half_up_div
+from api.services.posthog_client import capture_event
 
 #: Every bonus row carries this, so one query answers "what have we given away".
 REF_TYPE = "signup_bonus"
@@ -115,5 +116,13 @@ async def grant_signup_bonus(
         organization_id,
         amount,
         SIGNUP_BONUS_MICROS_USD / MICROS_PER_USD,
+    )
+    # After the flush, so this only fires for the request that actually won the
+    # race and wrote the row — the loser returns above having granted nothing,
+    # and counting it here would report twice as much given away as we gave.
+    capture_event(
+        distinct_id=str(organization_id),
+        event=PostHogEvent.SIGNUP_BONUS_GRANTED,
+        properties={"organization_id": organization_id, "amount_paise": amount},
     )
     return amount

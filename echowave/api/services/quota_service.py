@@ -32,6 +32,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.db.models import UserModel
+from api.enums import PostHogEvent
 from api.services.billing import reservations
 from api.services.configuration.ai_model_configuration import (
     get_effective_ai_model_configuration_for_workflow,
@@ -42,6 +43,7 @@ from api.services.managed_model_services import (
     uses_managed_model_services_v2,
 )
 from api.services.mps_service_key_client import mps_service_key_client
+from api.services.posthog_client import capture_event
 
 _MODEL_GATEWAY_UNREACHABLE_ERRORS = (
     httpx.TimeoutException,
@@ -248,6 +250,49 @@ async def _hold_funds(*, organization_id: int, workflow_run_id: int | None) -> b
 
 
 async def authorize_workflow_run_start(
+    *,
+    workflow_id: int,
+    organization_id: int,
+    workflow_run_id: int | None = None,
+    actor_user: UserModel | None = None,
+) -> QuotaCheckResult:
+    """Authorize a run, and report it to PostHog when we refuse.
+
+    Every refusal in here already carries an ``error_code``, so this is the one
+    place that can answer "how often, and why, do we turn a call away" without
+    instrumenting a dozen branches — and it is the question with money attached.
+    A run refused for no credit is revenue we declined; one refused because a
+    workflow could not be loaded is a defect wearing the same clothes, and
+    until now neither was counted.
+
+    Reporting only. It never changes the decision, and it can never raise:
+    ``capture_event`` swallows its own failures, and analytics must not be able
+    to refuse a call.
+    """
+    result = await _authorize_workflow_run_start(
+        workflow_id=workflow_id,
+        organization_id=organization_id,
+        workflow_run_id=workflow_run_id,
+        actor_user=actor_user,
+    )
+    if not result.has_quota:
+        capture_event(
+            distinct_id=str(organization_id),
+            event=PostHogEvent.CALL_REFUSED,
+            properties={
+                "organization_id": organization_id,
+                "workflow_id": workflow_id,
+                "workflow_run_id": workflow_run_id,
+                # The vocabulary is QuotaCheckResult's own error_code, so the
+                # funnel and the log agree about why, without a second list to
+                # keep in step.
+                "reason": result.error_code,
+            },
+        )
+    return result
+
+
+async def _authorize_workflow_run_start(
     *,
     workflow_id: int,
     organization_id: int,

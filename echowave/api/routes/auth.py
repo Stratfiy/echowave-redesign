@@ -448,6 +448,15 @@ async def verify_email(
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except email_verification.EmailVerificationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # The step between signing up and doing anything. Somebody who never gets
+    # past it is not a customer who did not like the product — they are a
+    # customer who never saw it — and those two look identical without this.
+    capture_event(
+        distinct_id=str(user.provider_id),
+        event=PostHogEvent.EMAIL_VERIFIED,
+        properties={"organization_id": user.selected_organization_id},
+    )
     return {"email_verified": True}
 
 

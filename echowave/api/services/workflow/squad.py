@@ -43,7 +43,7 @@ where the specialist runs on a bigger model than the receptionist.
 from __future__ import annotations
 
 import copy
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 #: The node type that names another agent.
 HANDOFF = "handoff"
@@ -55,6 +55,47 @@ _DROPPED_MEMBER_TYPES = frozenset({"startCall", "globalNode", "qa"})
 #: Past this it is not a squad, it is a call graph nobody can hold in their
 #: head, and every level multiplies the prompt the model is carrying.
 MAX_DEPTH = 3
+
+
+#: The five ways a squad is malformed, worded once.
+#:
+#: Single-sourced because these are raised at load time *and* reported at
+#: design time, and the two must not drift: an operator who fixes what the
+#: canvas told them and then reads a different sentence in the log has been
+#: given two problems where there was one.
+NO_WAY_BACK = (
+    "A handoff is a transfer, not a detour — the call continues with the other "
+    "agent and does not come back. Remove the step after it."
+)
+NO_AGENT_CHOSEN = "A handoff step has no agent chosen."
+CIRCULAR = (
+    "These agents hand off to each other in a circle, so a call would never "
+    "reach anybody."
+)
+MEMBER_MISSING = (
+    "A handoff points at an agent that no longer exists, or belongs to another account."
+)
+
+
+def too_deep_message() -> str:
+    return (
+        f"Agents can hand off {MAX_DEPTH} deep. This chain goes further, which "
+        "is a call nobody can follow and a prompt nobody can afford."
+    )
+
+
+class SquadProblem(NamedTuple):
+    """One thing wrong with a squad, and where to point at it.
+
+    ``node_id`` is the handoff the problem belongs to, so the canvas can mark
+    the step rather than showing a banner about a graph the reader then has to
+    search. ``code`` is for the UI to branch on; ``message`` is what a person
+    reads, and is the same sentence the runtime would have raised.
+    """
+
+    node_id: str | None
+    code: str
+    message: str
 
 
 class SquadError(ValueError):
@@ -220,10 +261,7 @@ def assemble(
         return workflow_json
 
     if _depth >= MAX_DEPTH:
-        raise SquadError(
-            f"Agents can hand off {MAX_DEPTH} deep. This chain goes further, "
-            "which is a call nobody can follow and a prompt nobody can afford."
-        )
+        raise SquadError(too_deep_message())
 
     spliced = copy.deepcopy(workflow_json)
     nodes: list[dict] = [n for n in spliced.get("nodes") or [] if isinstance(n, dict)]
@@ -237,26 +275,17 @@ def assemble(
         reference = str((node.get("data") or {}).get("agent_uuid") or "").strip()
 
         if any(edge.get("source") == handoff_id for edge in edges):
-            raise SquadError(
-                "A handoff is a transfer, not a detour — the call continues with "
-                "the other agent and does not come back. Remove the step after it."
-            )
+            raise SquadError(NO_WAY_BACK)
 
         if not reference:
-            raise SquadError("A handoff step has no agent chosen.")
+            raise SquadError(NO_AGENT_CHOSEN)
 
         if reference in _seen:
-            raise SquadError(
-                "These agents hand off to each other in a circle, so a call "
-                "would never reach anybody."
-            )
+            raise SquadError(CIRCULAR)
 
         member = load_member(reference)
         if member is None:
-            raise SquadError(
-                "A handoff points at an agent that no longer exists, or belongs "
-                "to another account."
-            )
+            raise SquadError(MEMBER_MISSING)
 
         # Resolved before splicing, so a member's own handoffs are already
         # flattened by the time its nodes are renamed.
@@ -281,3 +310,81 @@ def assemble(
         and edge.get("target") not in {n["id"] for n in handoffs}
     ]
     return spliced
+
+
+def validate(
+    workflow_json: Any,
+    *,
+    load_member: Callable[[str], dict | None],
+    _depth: int = 0,
+    _seen: tuple[str, ...] = (),
+) -> list[SquadProblem]:
+    """Every way this squad is malformed, without assembling it.
+
+    ``assemble`` raises on the first problem, which is right for a call — there
+    is nothing useful to do with the second one when the first has already
+    stopped the conversation. It is wrong for an editor. Every one of these
+    five conditions is decidable while somebody is building the agent, and
+    until this existed the only way to discover any of them was to place a call
+    and have it fail.
+
+    So: the same checks, in the same order, against the same sentences — but
+    collecting instead of raising, and carrying the node each belongs to so the
+    canvas can mark the step rather than describing the problem and leaving the
+    reader to find it.
+
+    Returns an empty list for a workflow with no handoffs, which is almost all
+    of them.
+    """
+    if not isinstance(workflow_json, dict):
+        return []
+
+    handoffs = _handoff_nodes(workflow_json)
+    if not handoffs:
+        return []
+
+    if _depth >= MAX_DEPTH:
+        # Attributed to the first handoff at this level: the chain is too long
+        # as a whole, and the step that would have extended it is the one a
+        # person can act on.
+        return [SquadProblem(handoffs[0].get("id"), "too_deep", too_deep_message())]
+
+    edges = [e for e in workflow_json.get("edges") or [] if isinstance(e, dict)]
+    problems: list[SquadProblem] = []
+
+    for node in handoffs:
+        handoff_id = node.get("id")
+        reference = str((node.get("data") or {}).get("agent_uuid") or "").strip()
+
+        if any(edge.get("source") == handoff_id for edge in edges):
+            problems.append(SquadProblem(handoff_id, "no_way_back", NO_WAY_BACK))
+
+        if not reference:
+            # Nothing further to check on this node: every remaining question
+            # is about the agent it names, and it names none.
+            problems.append(
+                SquadProblem(handoff_id, "no_agent_chosen", NO_AGENT_CHOSEN)
+            )
+            continue
+
+        if reference in _seen:
+            # Reported and not followed. Descending would loop, and the cycle
+            # is the finding.
+            problems.append(SquadProblem(handoff_id, "circular", CIRCULAR))
+            continue
+
+        member = load_member(reference)
+        if member is None:
+            problems.append(SquadProblem(handoff_id, "member_missing", MEMBER_MISSING))
+            continue
+
+        problems.extend(
+            validate(
+                member,
+                load_member=load_member,
+                _depth=_depth + 1,
+                _seen=(*_seen, reference),
+            )
+        )
+
+    return problems

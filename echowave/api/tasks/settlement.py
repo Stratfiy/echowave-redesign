@@ -23,6 +23,4 @@ async def sweep_uncosted_runs(_ctx) -> None:
         return
 
     if costed or failed:
-        logger.info(
-            "Settlement backstop swept: {} costed, {} failed", costed, failed
-        )
+        logger.info("Settlement backstop swept: {} costed, {} failed", costed, failed)

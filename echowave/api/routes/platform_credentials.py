@@ -18,8 +18,7 @@ from pydantic import BaseModel, Field
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_superuser
-from api.services.configuration import credential_validation
-from api.services.configuration import key_validation
+from api.services.configuration import credential_validation, key_validation
 from api.services.configuration import platform_credentials as creds
 from api.services.configuration.registry import (
     components_for_provider,

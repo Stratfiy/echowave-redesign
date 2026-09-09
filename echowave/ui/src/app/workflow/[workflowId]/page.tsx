@@ -9,6 +9,7 @@ import { getWorkflowApiV1WorkflowFetchWorkflowIdGet } from '@/client/sdk.gen';
 import type { WorkflowResponse } from '@/client/types.gen';
 import { FlowEdge, FlowNode } from '@/components/flow/types';
 import SpinLoader from '@/components/SpinLoader';
+import { SetupRail } from '@/components/workflow/SetupRail';
 import { PostHogEvent } from '@/constants/posthog-events';
 import { useAuth } from '@/lib/auth';
 import logger from '@/lib/logger';
@@ -79,27 +80,34 @@ export default function WorkflowDetailPage() {
     }
     else {
         return stableUser ? (
-            <RenderWorkflow
-                initialWorkflowName={workflow.name}
-                workflowId={workflow.id}
-                workflowUuid={workflow.workflow_uuid ?? undefined}
-                initialTotalRuns={workflow.total_runs ?? 0}
-                openTesterOnLoad={openTesterOnLoad}
-                initialFlow={{
-                    nodes: workflow.workflow_definition.nodes as FlowNode[],
-                    edges: workflow.workflow_definition.edges as FlowEdge[],
-                    viewport: { x: 0, y: 0, zoom: 0 }
-                }}
-                initialTemplateContextVariables={workflow.template_context_variables as Record<string, string> || {}}
-                initialWorkflowConfigurations={
-                    workflow.workflow_configurations
-                        ? (workflow.workflow_configurations as WorkflowConfigurations)
-                        : undefined
-                }
-                initialVersionNumber={workflow.version_number ?? null}
-                initialVersionStatus={workflow.version_status ?? null}
-                user={stableUser}
-            />
+            <>
+                {/* Above the canvas, because the two steps people stall on —
+                    calling the agent, putting it on a number — are both
+                    invisible from inside the editor. It removes itself once
+                    there is nothing left to do. */}
+                <SetupRail workflowId={workflow.id} />
+                <RenderWorkflow
+                    initialWorkflowName={workflow.name}
+                    workflowId={workflow.id}
+                    workflowUuid={workflow.workflow_uuid ?? undefined}
+                    initialTotalRuns={workflow.total_runs ?? 0}
+                    openTesterOnLoad={openTesterOnLoad}
+                    initialFlow={{
+                        nodes: workflow.workflow_definition.nodes as FlowNode[],
+                        edges: workflow.workflow_definition.edges as FlowEdge[],
+                        viewport: { x: 0, y: 0, zoom: 0 }
+                    }}
+                    initialTemplateContextVariables={workflow.template_context_variables as Record<string, string> || {}}
+                    initialWorkflowConfigurations={
+                        workflow.workflow_configurations
+                            ? (workflow.workflow_configurations as WorkflowConfigurations)
+                            : undefined
+                    }
+                    initialVersionNumber={workflow.version_number ?? null}
+                    initialVersionStatus={workflow.version_status ?? null}
+                    user={stableUser}
+                />
+            </>
         ) : null;
     }
 }

@@ -23,7 +23,7 @@ from api.db.models import (
     WorkflowModel,
     WorkflowRunModel,
 )
-from api.enums import CreditLedgerKind
+from api.enums import CreditLedgerKind, PostHogEvent
 from api.services.billing.addons import addon_keys_from_usage_info
 from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_cost
 from api.services.billing.delivery import platform_fee_is_waived
@@ -35,6 +35,7 @@ from api.services.billing.usage import (
     byok_platform_tier,
     usage_items_from_usage_info,
 )
+from api.services.posthog_client import capture_event
 
 
 async def _period_minutes(
@@ -178,6 +179,18 @@ async def cost_workflow_run(
         extra=getattr(run, "extra", None),
     )
     if fee_waived:
+        # Counted, not only logged. A rising number is a provider problem
+        # showing up as forgone revenue before anyone files a complaint, and a
+        # log line is not something anyone watches.
+        capture_event(
+            distinct_id=str(organization_id),
+            event=PostHogEvent.PLATFORM_FEE_WAIVED,
+            properties={
+                "organization_id": organization_id,
+                "workflow_run_id": workflow_run_id,
+                "billable_seconds": billable_seconds,
+            },
+        )
         logger.warning(
             "Workflow run {} delivered nothing — a provider errored and the "
             "agent never spoke — so the platform fee is waived. Provider costs "

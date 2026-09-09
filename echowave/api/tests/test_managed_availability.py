@@ -11,7 +11,17 @@ from api.services.configuration import managed_resolution
 
 
 class _FakeSession:
-    pass
+    """A session that holds no credential rows.
+
+    `managed_availability` reads credential health as of #126, so it now
+    touches the session where it never used to. Answering None means "no
+    health record", which is deliberately *not* the same as a failed check:
+    these tests decide availability through `resolve_api_key` alone, and an
+    unrecorded check must not withdraw a slot.
+    """
+
+    async def scalar(self, *_args, **_kwargs):
+        return None
 
 
 @pytest.fixture

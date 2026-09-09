@@ -23,6 +23,7 @@ from decibyl_sdk._generated_models import (
     NodeSpec,
     NodeTypesResponse,
     RecordingListResponseSchema,
+    ToolLibraryResponse,
     ToolResponse,
     UpdateWorkflowRequest,
     WorkflowListResponse,
@@ -57,6 +58,18 @@ class _GeneratedClient:
         """Fetch a single node spec by name."""
         data = self._request("GET", f"/node-types/{name}")
         return NodeSpec.model_validate(data)
+
+    def get_tool_library(self) -> ToolLibraryResponse:
+        """Ready-made tools for the apps businesses run on, grouped by vendor."""
+        data = self._request("GET", "/tool-library")
+        return ToolLibraryResponse.model_validate(data)
+
+    def get_tool_library_definition(self, key: str, *, credential_uuid: str | None = None) -> Any:
+        """The http_api tool definition a catalogue entry seeds, ready to create a tool from."""
+        params: dict[str, Any] = {}
+        if credential_uuid is not None:
+            params["credential_uuid"] = credential_uuid
+        return self._request("GET", f"/tool-library/{key}/definition", params=params)
 
     def get_workflow(self, workflow_id: int) -> WorkflowResponse:
         """Get a single workflow by ID (returns draft if one exists, else published)."""

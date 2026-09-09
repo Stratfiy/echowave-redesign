@@ -131,6 +131,20 @@ class _PromptedNodeDataMixin(BaseModel):
             "node's prompt at runtime."
         ),
     )
+    patience_seconds: Optional[float] = spec_field(
+        default=None,
+        ui_type=PropertyType.number,
+        display_name="Wait for the caller (seconds)",
+        description=(
+            "How long to let the caller be silent on this step before checking "
+            "whether they are still there. Leave empty to use the agent's "
+            "default. Raise it on a step where the caller has to go and do "
+            "something — walk to a vehicle, read a light, press a button on a "
+            "device — because the default assumes they are only thinking."
+        ),
+        ge=0,
+        le=600,
+    )
 
 
 class _ExtractionNodeDataMixin(BaseModel):
@@ -546,6 +560,9 @@ class AgentNodeData(
                 "with its name, data type, and a per-variable extraction hint."
             )
         },
+        # This step says goodbye and hangs up; it never waits on a reply, so
+        # offering a patience control here would be a dial that does nothing.
+        "patience_seconds": {"spec_exclude": True},
     },
 )
 class EndCallNodeData(
@@ -615,6 +632,9 @@ class EndCallNodeData(
         },
         "allow_interrupt": {"spec_exclude": True},
         "add_global_prompt": {"spec_exclude": True},
+        # Global is prepended to other steps rather than being a step the
+        # conversation sits on, so there is no silence for it to wait through.
+        "patience_seconds": {"spec_exclude": True},
     },
 )
 class GlobalNodeData(BaseNodeData, _PromptedNodeDataMixin):
