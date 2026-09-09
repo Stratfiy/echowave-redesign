@@ -47,7 +47,11 @@ describe("every card leads somewhere", () => {
         // buy.
         for (const entry of CATALOGUE) {
             if (!entry.href) continue;
-            const route = join(process.cwd(), "src/app", entry.href, "page.tsx");
+            // An href may deep-link to a card on the page (#google-calendar).
+            // Only the path part names a route; keeping the fragment here
+            // would look for a directory called "integrations#google-calendar".
+            const path = entry.href.split("#")[0];
+            const route = join(process.cwd(), "src/app", path, "page.tsx");
             expect(existsSync(route), `${entry.name} -> ${entry.href}`).toBe(true);
         }
     });

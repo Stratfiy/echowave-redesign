@@ -159,7 +159,10 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
         category: "Calendars",
         blurb: "Read free slots and book the appointment during the call",
         connect: "oauth",
-        href: "/integrations",
+        // The card, not the top of a long page of key fields. Landing on
+        // /integrations put the reader in front of somebody else's vendor keys
+        // and left them to find the one card they asked for.
+        href: "/integrations#google-calendar",
     },
     {
         id: "calcom",

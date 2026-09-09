@@ -274,9 +274,23 @@ function IntegrationsScreen() {
         }
 
         // Strip the query params so a refresh doesn't re-show the banner.
-        router.replace("/integrations");
+        router.replace("/integrations#google-calendar");
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Arriving from the catalogue's "Connect" on /integrations/apps, which
+    // deep-links to #google-calendar. The browser's own hash scroll fires
+    // before this card exists -- it renders behind `gcalLoading`, after a
+    // round trip -- so it lands on a page that has not drawn the thing it was
+    // aimed at, which is exactly the "it just dumps me on the keys page"
+    // complaint. Scrolling once the card is real is the whole fix.
+    useEffect(() => {
+        if (gcalLoading) return;
+        if (window.location.hash !== "#google-calendar") return;
+        document
+            .getElementById("google-calendar")
+            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, [gcalLoading]);
 
     /**
      * One row per vendor, not per slot.
@@ -699,7 +713,7 @@ function IntegrationsScreen() {
                 })}
             </div>
 
-            <Card>
+            <Card id="google-calendar" className="scroll-mt-24">
                 <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                     <div>
                         <CardTitle className="text-lg">Google Calendar</CardTitle>
