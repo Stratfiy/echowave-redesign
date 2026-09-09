@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import PostHogEvent
+from api.services.agent_builder.assemble import fill_placeholders, required_variables
 from api.services.agent_templates import AgentTemplate, get_template, list_templates
 from api.services.agent_templates.materialise import (
     TemplateShapeError,
@@ -47,6 +48,16 @@ def _summary(template: AgentTemplate) -> dict[str, Any]:
         "example_requests": template.example_requests,
         "typical_call_seconds": template.call_shape.typical_call_seconds,
         "typical_minutes_per_month": template.call_shape.minutes_per_month,
+        # What the first-agent flow asks before it builds. Derived from the
+        # prompts rather than read off the declaration so an undeclared
+        # placeholder is still asked about instead of reaching a caller.
+        "variables": [
+            {"name": key, "asks_for": template.template_variables.get(key, key)}
+            for key in required_variables(template)
+        ],
+        # The first words, so the flow can show them and let them be changed
+        # before the agent exists.
+        "greeting": (template.start_node.greeting if template.start_node else None),
     }
 
 
@@ -85,11 +96,14 @@ async def get_agent_template(
 
 
 class CreateFromTemplateRequest(BaseModel):
-    """What the template grid asks before it builds the agent.
+    """What is asked before the template becomes an agent.
 
-    Only the voice, and only its gender. Everything else a template needs it
-    already carries, and the first question anybody asks after picking one is
-    whether the agent sounds male or female.
+    The template grid asks only the voice. The first-agent flow asks a little
+    more — a name, the business facts the prompts have placeholders for, and
+    the opening line — because a new account has nothing else to fall back on,
+    and an agent that greets callers as "{{clinic_name}}" is not a first
+    impression. Every field is optional so the grid's one-click path is
+    unchanged.
     """
 
     voice_gender: Literal["male", "female"] | None = Field(
@@ -98,6 +112,29 @@ class CreateFromTemplateRequest(BaseModel):
             "Give the agent a male or female voice. Omit to inherit the "
             "organization's default."
         ),
+    )
+    agent_name: str | None = Field(
+        default=None,
+        max_length=120,
+        description="What the agent is called in the list. Omit to use the template's name.",
+    )
+    variables: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Answers to the template's placeholders, e.g. clinic_name. Written "
+            "into the prompts; anything unanswered stays a placeholder for the "
+            "call to fill."
+        ),
+    )
+    greeting: str | None = Field(
+        default=None,
+        max_length=600,
+        description="Replace the template's opening line. Omit to keep it.",
+    )
+    source: str | None = Field(
+        default=None,
+        max_length=40,
+        description="Which screen created it, for the funnel. Omit for the template grid.",
     )
 
 
@@ -135,8 +172,12 @@ async def create_from_template(
         # than 400 so it shows up as one.
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    if request is not None:
+        definition = _personalise(definition, request)
+
+    name = (request.agent_name or "").strip() if request else ""
     workflow = await db_client.create_workflow(
-        name=template.name,
+        name=name or template.name,
         workflow_definition=regenerate_trigger_uuids(definition),
         user_id=user.id,
         organization_id=user.selected_organization_id,
@@ -159,8 +200,13 @@ async def create_from_template(
         properties={
             "workflow_id": workflow.id,
             "workflow_name": workflow.name,
-            "source": "template_grid",
+            "source": (
+                request.source if request and request.source else "template_grid"
+            ),
             "template_id": template.id,
+            "renamed": bool(name),
+            "variables_answered": len(request.variables) if request else 0,
+            "greeting_changed": bool(request and request.greeting),
             "vertical": template.vertical,
             # Whether anybody uses the voice choice at all, which is the only
             # way to find out whether it was worth asking.
@@ -170,6 +216,30 @@ async def create_from_template(
     )
 
     return {"id": workflow.id, "name": workflow.name, "template_id": template.id}
+
+
+def _personalise(
+    definition: dict[str, Any], request: CreateFromTemplateRequest
+) -> dict[str, Any]:
+    """The operator's answers, written into the materialised definition.
+
+    Placeholders are filled everywhere they appear — prompts, greeting,
+    transition speech — because a clinic name the caller hears in the greeting
+    and not in the booking step is the kind of inconsistency that makes an
+    agent sound like a machine. The greeting override is applied after, so an
+    edited opening line is spoken exactly as typed even if it carries no
+    placeholder at all.
+    """
+    answers = {k: v.strip() for k, v in request.variables.items() if v and v.strip()}
+    if answers:
+        definition = fill_placeholders(definition, answers)
+
+    greeting = (request.greeting or "").strip()
+    if greeting:
+        for node in definition.get("nodes", []):
+            if node.get("type") == "startCall":
+                node["data"] = {**node.get("data", {}), "greeting": greeting}
+    return definition
 
 
 async def _voice_override(

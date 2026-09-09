@@ -103,6 +103,24 @@ def _fill(text: str, variables: dict[str, str]) -> str:
     return _PLACEHOLDER.sub(replace, text)
 
 
+def fill_placeholders(value: Any, variables: dict[str, str]) -> Any:
+    """``_fill`` applied through a whole workflow definition.
+
+    Walks dicts and lists and substitutes in every string it finds, so a
+    template materialised by ``to_workflow_definition`` can have the operator's
+    answers written into its prompts, greetings and transition speech without
+    this module knowing where in the definition those live. Runtime
+    placeholders and anything unanswered are left as they are.
+    """
+    if isinstance(value, str):
+        return _fill(value, variables)
+    if isinstance(value, list):
+        return [fill_placeholders(item, variables) for item in value]
+    if isinstance(value, dict):
+        return {key: fill_placeholders(item, variables) for key, item in value.items()}
+    return value
+
+
 def _global_prompt(template: AgentTemplate, variables: dict[str, str]) -> str:
     """The guardrails, as an instruction that applies on every turn."""
     rules = "\n".join(f"- {_fill(rule, variables)}" for rule in template.guardrails)

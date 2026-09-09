@@ -24,4 +24,23 @@ export const PostHogEvent = {
   ONBOARDING_SHOWN: "onboarding_shown",
   ONBOARDING_SUBMITTED: "onboarding_submitted",
   ONBOARDING_SKIPPED: "onboarding_skipped",
+  // Sign-up form, before there is a user to identify.
+  SIGNUP_SUBMITTED: "signup_submitted",
+  SIGNUP_SUCCEEDED: "signup_succeeded",
+  SIGNUP_FAILED: "signup_failed",
+  // The first-agent journey (/start): template → name → hear it → done.
+  // One event per decision, so the funnel shows where people stop.
+  FIRST_AGENT_STARTED: "first_agent_started",
+  FIRST_AGENT_TEMPLATE_PICKED: "first_agent_template_picked",
+  FIRST_AGENT_VOICE_PICKED: "first_agent_voice_picked",
+  FIRST_AGENT_SCRATCH_CHOSEN: "first_agent_scratch_chosen",
+  FIRST_AGENT_STEP_BACK: "first_agent_step_back",
+  FIRST_AGENT_CREATED: "first_agent_created",
+  FIRST_AGENT_CREATE_FAILED: "first_agent_create_failed",
+  FIRST_AGENT_TEST_STARTED: "first_agent_test_started",
+  FIRST_AGENT_TEST_COMPLETED: "first_agent_test_completed",
+  FIRST_AGENT_TEST_FAILED: "first_agent_test_failed",
+  FIRST_AGENT_VERIFY_NUMBER_CLICKED: "first_agent_verify_number_clicked",
+  FIRST_AGENT_HELP_CLICKED: "first_agent_help_clicked",
+  FIRST_AGENT_FINISHED: "first_agent_finished",
 } as const;

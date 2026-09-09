@@ -492,7 +492,13 @@ async def initiate_call(
         initial_context=updated_initial_context,
     )
 
-    return {"message": f"Call initiated successfully with run name {workflow_run_name}"}
+    # The run id as well as the sentence: the first-agent flow links straight
+    # to the run's recording and transcript once the call is over, and had no
+    # way to find the run it had just asked for.
+    return {
+        "message": f"Call initiated successfully with run name {workflow_run_name}",
+        "workflow_run_id": workflow_run_id,
+    }
 
 
 async def _verify_organization_phone_number(

@@ -43,7 +43,7 @@ export function SectionTabs({ tabs, label }: { tabs: SectionTab[]; label: string
   const pathname = usePathname() ?? "";
 
   return (
-    <nav aria-label={label} className="w-full overflow-x-auto border-b border-border bg-card px-6">
+    <nav aria-label={label} className="w-full overflow-x-auto border-b border-border/70 px-6">
       <ul className="flex min-w-max gap-1">
         {tabs.map((tab) => {
           // startsWith, so a detail page keeps its tab lit rather than dropping

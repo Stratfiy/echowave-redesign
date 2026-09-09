@@ -68,7 +68,10 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   return (
-    <div className={cn("border-b border-border bg-card", className)}>
+    // On the floor, not a white band over it: the ivory runs from the rail to
+    // the content and only cards are white. A bordered white strip here read
+    // as a second top bar and split the screen into three tones.
+    <div className={cn("bg-transparent", className)}>
       <div className="px-6 pt-5 pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">

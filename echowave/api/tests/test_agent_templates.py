@@ -330,3 +330,63 @@ class TestMaterialising:
         broken.nodes[-1].name = broken.nodes[-2].name
         with pytest.raises(TemplateShapeError):
             to_workflow_definition(broken)
+
+
+class TestPersonalising:
+    """The first-agent flow writes a name, the business facts and the opening
+    line into a template before it becomes an agent."""
+
+    def _clinic(self):
+        template = get_template("clinic_appointment")
+        assert template is not None
+        return template
+
+    def test_the_summary_lists_what_to_ask(self):
+        from api.routes.agent_templates import _summary
+
+        summary = _summary(self._clinic())
+        names = [v["name"] for v in summary["variables"]]
+        assert "clinic_name" in names
+        # The question, not the key: the flow shows this to a person.
+        asks = next(
+            v["asks_for"] for v in summary["variables"] if v["name"] == "clinic_name"
+        )
+        assert asks != "clinic_name"
+        assert summary["greeting"]
+
+    def test_answers_reach_every_prompt(self):
+        from api.routes.agent_templates import CreateFromTemplateRequest, _personalise
+
+        definition = _personalise(
+            to_workflow_definition(self._clinic()),
+            CreateFromTemplateRequest(variables={"clinic_name": "City Clinic"}),
+        )
+        text = str(definition)
+        assert "City Clinic" in text
+        assert "{{clinic_name}}" not in text
+        # Unanswered placeholders stay for the call to fill.
+        assert "{{opening_hours}}" in text
+
+    def test_the_greeting_is_replaced_verbatim(self):
+        from api.routes.agent_templates import CreateFromTemplateRequest, _personalise
+
+        definition = _personalise(
+            to_workflow_definition(self._clinic()),
+            CreateFromTemplateRequest(greeting="Namaste, Asha here from City Clinic."),
+        )
+        start = next(n for n in definition["nodes"] if n["type"] == "startCall")
+        assert start["data"]["greeting"] == "Namaste, Asha here from City Clinic."
+
+    def test_blank_answers_change_nothing(self):
+        from api.routes.agent_templates import CreateFromTemplateRequest, _personalise
+
+        original = to_workflow_definition(self._clinic())
+        assert (
+            _personalise(
+                original,
+                CreateFromTemplateRequest(
+                    variables={"clinic_name": "  "}, greeting=" "
+                ),
+            )
+            == original
+        )

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import posthog from "posthog-js";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 
@@ -12,6 +13,7 @@ import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PostHogEvent } from "@/constants/posthog-events";
 
 function SignupForm() {
   // A partner's referral code, from the link they handed out. Read here and
@@ -39,6 +41,9 @@ function SignupForm() {
     }
 
     setLoading(true);
+    // Before the request, so a sign-up that never returns still counts as an
+    // attempt. The email is not sent: the user is identified once signed in.
+    posthog.capture(PostHogEvent.SIGNUP_SUBMITTED, { referred: Boolean(referralCode) });
 
     try {
       const res = await signupApiV1AuthSignupPost({
@@ -47,9 +52,11 @@ function SignupForm() {
 
       if (res.error || !res.data) {
         const detail = (res.error as { detail?: string })?.detail;
+        posthog.capture(PostHogEvent.SIGNUP_FAILED, { reason: detail ?? "unknown" });
         toast.error(detail || "Signup failed");
         return;
       }
+      posthog.capture(PostHogEvent.SIGNUP_SUCCEEDED, { referred: Boolean(referralCode) });
 
       // Set httpOnly cookies via server route
       await fetch("/api/auth/session", {
@@ -60,6 +67,7 @@ function SignupForm() {
 
       window.location.href = "/after-sign-in";
     } catch {
+      posthog.capture(PostHogEvent.SIGNUP_FAILED, { reason: "network" });
       toast.error("An error occurred. Please try again.");
     } finally {
       setLoading(false);

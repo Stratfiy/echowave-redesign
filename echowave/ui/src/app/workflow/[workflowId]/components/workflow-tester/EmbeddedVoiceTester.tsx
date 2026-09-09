@@ -18,6 +18,8 @@ interface EmbeddedVoiceTesterProps {
     accessToken: string;
     onReset: () => void;
     onNodeTransition?: (transition: WorkflowRuntimeNodeTransition) => void;
+    /** The call ended cleanly. The first-agent flow moves on when it does. */
+    onCompleted?: () => void;
 }
 
 export function EmbeddedVoiceTester({
@@ -27,6 +29,7 @@ export function EmbeddedVoiceTester({
     accessToken,
     onReset,
     onNodeTransition,
+    onCompleted,
 }: EmbeddedVoiceTesterProps) {
     const router = useRouter();
     const {
@@ -54,6 +57,13 @@ export function EmbeddedVoiceTester({
         onNodeTransition,
     });
     const autoStartedRef = useRef(false);
+    const completedRef = useRef(false);
+
+    useEffect(() => {
+        if (!isCompleted || completedRef.current) return;
+        completedRef.current = true;
+        onCompleted?.();
+    }, [isCompleted, onCompleted]);
 
     useEffect(() => {
         if (autoStartedRef.current) {
