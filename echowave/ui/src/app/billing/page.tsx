@@ -27,7 +27,7 @@ import {
     Wallet,
     XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import {
     createTopupApiV1BillingTopupPost,
@@ -41,6 +41,7 @@ import {
 } from "@/client/sdk.gen";
 import { AutoTopupSection } from "@/components/billing/AutoTopupSection";
 import { PlanSection } from "@/components/billing/PlanSection";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -488,9 +489,27 @@ export default function BillingPage() {
         }
     }, [amountRupees, balance, refresh, waitForCredit]);
 
+    /**
+     * The page's title band, on every branch.
+     *
+     * Billing has three: a skeleton, an unavailable state, and the real thing.
+     * Only the last one used to carry a heading, so a slow or failing balance
+     * dropped the reader onto an untitled page — and the sidebar still said
+     * Billing, which made it read as a broken route rather than a slow one.
+     */
+    const shell = (body: ReactNode) => (
+        <>
+            <PageHeader
+                title="Billing"
+                description="Decibyl is prepaid. Calls run while there is credit on the account."
+            />
+            <PageBody>{body}</PageBody>
+        </>
+    );
+
     if (loading) {
-        return (
-            <div className="mx-auto max-w-4xl space-y-6 p-6">
+        return shell(
+            <div className="space-y-6">
                 <Skeleton className="h-32 w-full" />
                 <Skeleton className="h-64 w-full" />
             </div>
@@ -498,9 +517,8 @@ export default function BillingPage() {
     }
 
     if (!balance) {
-        return (
-            <div className="mx-auto max-w-4xl space-y-4 p-6">
-                <h1 className="text-2xl font-semibold">Billing</h1>
+        return shell(
+            <div className="space-y-4">
                 <p role="alert">{error ?? "Your billing information is unavailable."}</p>
                 <Button onClick={() => void refresh()}>Retry loading billing</Button>
             </div>
@@ -557,16 +575,8 @@ export default function BillingPage() {
             };
         });
 
-    return (
-        <div className="mx-auto max-w-4xl space-y-8 p-6">
-            <div>
-                <h1 className="text-2xl font-semibold">Billing</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Decibyl is prepaid. Calls run while there is credit on the
-                    account.
-                </p>
-            </div>
-
+    return shell(
+        <div className="space-y-8">
             {error && (
                 <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
