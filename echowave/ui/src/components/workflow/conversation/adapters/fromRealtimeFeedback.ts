@@ -88,7 +88,12 @@ function liveFeedbackItem(message: RealtimeFeedbackMessage, reasoningDurationMs?
             kind: "notice",
             id: message.id,
             timestamp: message.timestamp,
-            tone: "error",
+            // Red is reserved for the error that actually ended the call, so
+            // the rail and the banner above it grade the same event the same
+            // way. A recovered provider complaint drawn in red sends someone
+            // hunting for a failure that did not happen.
+            tone: message.fatal ? "error" : "warning",
+            icon: "alert",
             title: message.fatal ? "Fatal Pipeline Error" : "Pipeline Error",
             text: message.text,
             fatal: message.fatal,
@@ -271,7 +276,8 @@ export function conversationItemsFromRealtimeFeedbackEvents(events: RealtimeFeed
                 kind: "notice",
                 id: `error-${event.turn}-${index}`,
                 timestamp: event.timestamp,
-                tone: "error",
+                tone: event.payload.fatal ? "error" : "warning",
+                icon: "alert",
                 title: event.payload.fatal ? "Fatal Pipeline Error" : "Pipeline Error",
                 text: feedbackEventText(event),
                 fatal: event.payload.fatal,

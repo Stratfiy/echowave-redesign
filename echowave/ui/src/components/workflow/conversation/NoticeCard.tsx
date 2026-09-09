@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface NoticeCardProps {
     tone: "warning" | "error";
+    icon?: "alert" | "mic-off";
     title: string;
     text: string;
     linkHref?: string;
@@ -14,13 +15,14 @@ interface NoticeCardProps {
 
 export function NoticeCard({
     tone,
+    icon,
     title,
     text,
     linkHref,
     linkLabel,
 }: NoticeCardProps) {
     const isWarning = tone === "warning";
-    const Icon = isWarning ? MicOff : AlertTriangle;
+    const Icon = (icon ?? (isWarning ? "mic-off" : "alert")) === "mic-off" ? MicOff : AlertTriangle;
 
     return (
         <div

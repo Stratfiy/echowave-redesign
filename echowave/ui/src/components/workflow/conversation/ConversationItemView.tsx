@@ -71,6 +71,7 @@ export function ConversationItemView({ item, actions }: ConversationItemViewProp
     return (
         <NoticeCard
             tone={item.tone}
+            icon={item.icon}
             title={item.title}
             text={item.text}
             linkHref={item.linkHref}
