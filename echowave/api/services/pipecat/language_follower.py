@@ -1,4 +1,4 @@
-"""Follow the caller's language, and switch the agent's voice to match.
+"""Follow the caller's language: tell the model, and switch the voice to match.
 
 An agent is configured with one language. A caller in India frequently is not:
 they open in English, switch to Hindi when the conversation gets substantive,
@@ -9,9 +9,13 @@ agent gets hung up on here.
 The detection already exists and nothing was reading it. Deepgram runs in
 ``multi`` mode by default, so every ``TranscriptionFrame`` has carried a
 detected ``language`` since before any of this — it just went nowhere. This
-processor sits directly after STT, watches that field, and pushes a
-``TTSUpdateSettingsFrame`` downstream when the caller has genuinely changed
-language.
+processor sits directly after STT, watches that field, and when the caller has
+genuinely changed language pushes two things downstream: a
+``TTSUpdateSettingsFrame`` so the voice follows, and an
+``LLMMessagesAppendFrame`` so the model does. Both halves are needed. The voice
+alone produced the worst outcome of the three -- the model kept answering in the
+language its prompt was written in and the new voice read that text out, so a
+caller who moved to Tamil got English sentences in a Tamil voice.
 
 **The whole difficulty is deciding when a change is genuine.** Speech
 recognition mis-detects language constantly on short utterances — "hmm",
@@ -41,7 +45,12 @@ from collections.abc import Awaitable, Callable
 
 from loguru import logger
 
-from pipecat.frames.frames import Frame, TranscriptionFrame, TTSUpdateSettingsFrame
+from pipecat.frames.frames import (
+    Frame,
+    LLMMessagesAppendFrame,
+    TranscriptionFrame,
+    TTSUpdateSettingsFrame,
+)
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.services.settings import TTSSettings
 
@@ -92,6 +101,50 @@ def configured_language(tts_config, stt_config) -> str | None:
         if tag is not None and tag not in NOT_A_LANGUAGE:
             return tag
     return None
+
+
+#: What to call a language when instructing the model. A model told to answer
+#: in "ta" is being asked to guess; told to answer in Tamil it does not have to.
+#: Anything not listed falls back to the tag itself, which is still a better
+#: instruction than none.
+LANGUAGE_NAMES = {
+    "as": "Assamese",
+    "bn": "Bengali",
+    "en": "English",
+    "gu": "Gujarati",
+    "hi": "Hindi",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "mr": "Marathi",
+    "ne": "Nepali",
+    "or": "Odia",
+    "pa": "Punjabi",
+    "sa": "Sanskrit",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "ur": "Urdu",
+}
+
+
+def language_name(tag: str) -> str:
+    """The human name for a primary subtag, for putting in a prompt."""
+    return LANGUAGE_NAMES.get(tag, tag)
+
+
+def switch_instruction(language: str) -> str:
+    """What the model is told when the caller changes language.
+
+    Stated as the caller's own doing rather than as a style note, because a
+    model that is merely told a preference argues with it: it answers the first
+    turn in the new language, then drifts back to whatever the agent's prompt
+    is written in.
+    """
+    name = language_name(language)
+    return (
+        f"The caller has switched to {name}. Reply only in {name} from now on, "
+        f"and keep doing so for the rest of the call unless they change again. "
+        f"Do not explain the switch or apologise for it."
+    )
 
 
 class LanguageFollower(FrameProcessor):
@@ -209,6 +262,22 @@ class LanguageFollower(FrameProcessor):
         )
         await self.push_frame(
             TTSUpdateSettingsFrame(delta=delta), FrameDirection.DOWNSTREAM
+        )
+
+        # Switching the voice alone was half a feature, and the visible half was
+        # the wrong one. Nothing ever told the language model, so it kept
+        # answering in whatever language its prompt was written in and the new
+        # voice read that text out: an English sentence spoken by a Tamil voice,
+        # which is worse than never switching at all. The instruction goes into
+        # the context rather than being spoken, and run_llm is False because
+        # this rides just ahead of the caller's own transcription — that turn is
+        # what the model should answer, in the language it has just been given.
+        await self.push_frame(
+            LLMMessagesAppendFrame(
+                messages=[{"role": "system", "content": switch_instruction(language)}],
+                run_llm=False,
+            ),
+            FrameDirection.DOWNSTREAM,
         )
 
         if self._on_switch is not None:

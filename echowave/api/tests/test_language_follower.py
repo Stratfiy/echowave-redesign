@@ -15,7 +15,11 @@ about *not* switching.
 from unittest.mock import AsyncMock
 
 import pytest
-from pipecat.frames.frames import TranscriptionFrame, TTSUpdateSettingsFrame
+from pipecat.frames.frames import (
+    LLMMessagesAppendFrame,
+    TranscriptionFrame,
+    TTSUpdateSettingsFrame,
+)
 from pipecat.processors.frame_processor import FrameDirection
 
 from api.services.configuration.registry import (
@@ -30,12 +34,14 @@ from api.services.pipecat.language_follower import (
     LanguageFollower,
     configured_language,
     primary_subtag,
+    switch_instruction,
 )
 
 # Long enough to clear MIN_CHARS_FOR_DETECTION — short utterances are ignored
 # by design and are tested separately.
 LONG = "this is a sentence long enough to be worth trusting"
 LONG_HI = "yeh ek lambi baat hai jise sunkar bhasha pehchani ja sakti hai"
+LONG_TA = "idhu oru nedhiya vaakkiyam, mozhi kandupidikka podhumana neelam"
 
 
 def _follower(**kwargs):
@@ -291,3 +297,63 @@ class TestItNeverBreaksTheCall:
         await _hear(follower, "short", "ta")  # short, but still heard
 
         assert follower.languages_heard == ["hi", "en", "ta"]
+
+
+class TestItTellsTheModelToo:
+    """Switching the voice without telling the model is worse than not
+    switching. The model keeps answering in the language its prompt is written
+    in, and the new voice reads that text out — a Tamil voice speaking English."""
+
+    def _instructions(self, follower):
+        return [
+            call.args[0]
+            for call in follower.push_frame.await_args_list
+            if isinstance(call.args[0], LLMMessagesAppendFrame)
+        ]
+
+    async def test_a_switch_puts_the_new_language_in_the_context(self):
+        follower = _follower(initial_language="hi")
+
+        await _hear(follower, LONG_TA, "ta", times=CONFIRMATIONS_BEFORE_SWITCH)
+
+        appended = self._instructions(follower)
+        assert len(appended) == 1
+        message = appended[0].messages[0]
+        assert message["role"] == "system"
+        # Named, not tagged. A model told to answer in "ta" is being asked to
+        # guess; told Tamil, it does not have to.
+        assert "Tamil" in message["content"]
+        assert "ta" != message["content"]
+
+    async def test_the_instruction_does_not_trigger_a_reply_of_its_own(self):
+        """It rides just ahead of the caller's own transcription. That turn is
+        what the model should answer — in the language it has just been given."""
+        follower = _follower(initial_language="hi")
+
+        await _hear(follower, LONG_TA, "ta", times=CONFIRMATIONS_BEFORE_SWITCH)
+
+        assert self._instructions(follower)[0].run_llm is False
+
+    async def test_not_switching_says_nothing_to_the_model(self):
+        """The whole feature is about when *not* to act. A model given a
+        language instruction on a mis-detected "hmm" is the same defect as a
+        voice that flips on one."""
+        follower = _follower(initial_language="hi")
+
+        await _hear(follower, LONG_TA, "ta")  # one turn is noise, not a switch
+
+        assert self._instructions(follower) == []
+
+    async def test_the_voice_and_the_model_are_told_together(self):
+        """Either one alone leaves the call mismatched."""
+        follower = _follower(initial_language="hi")
+
+        await _hear(follower, LONG_TA, "ta", times=CONFIRMATIONS_BEFORE_SWITCH)
+
+        assert len(_switches(follower)) == 1
+        assert len(self._instructions(follower)) == 1
+
+    def test_an_unlisted_tag_still_produces_an_instruction(self):
+        """A tag with no name is still a better instruction than none."""
+        assert "Tamil" in switch_instruction("ta")
+        assert "xx" in switch_instruction("xx")
