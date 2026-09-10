@@ -682,7 +682,7 @@ export default function CreateWorkflowPage() {
                                 <p className="mt-2 text-xs text-muted-foreground">
                                     Want to name the models yourself?{" "}
                                     <Link
-                                        href="/model-configurations"
+                                        href="/settings#model-defaults"
                                         className="underline underline-offset-2 hover:text-foreground"
                                     >
                                         Advanced setup

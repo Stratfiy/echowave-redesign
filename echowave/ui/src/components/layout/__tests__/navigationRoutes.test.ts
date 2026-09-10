@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getActiveNavUrl, getVisibleNavSections } from "../navigation";
 const sections = getVisibleNavSections({ isStaff: true, isOrganizationAdmin: false });
 describe("navigation routes", () => {
-  it.each([['/tools/42', '/integrations/apps'], ['/integrations', '/integrations/apps'], ['/numbers', '/telephony-configurations'], ['/verified-numbers', '/telephony-configurations'], ['/missed-calls', '/telephony-configurations'], ['/workflow/42', '/workflow'], ['/model-configurations/7', '/workflow'], ['/recordings', '/files'], ['/reports', '/usage'], ['/do-not-call', '/privacy'], ['/partner', '/billing'], ['/superadmin/partners', '/superadmin/partners']])("selects %s in %s", (path, expected) => {
+  it.each([['/tools/42', '/integrations/apps'], ['/integrations', '/integrations/apps'], ['/numbers', '/telephony-configurations'], ['/verified-numbers', '/telephony-configurations'], ['/missed-calls', '/telephony-configurations'], ['/workflow/42', '/workflow'], ['/model-configurations', '/settings'], ['/recordings', '/files'], ['/reports', '/usage'], ['/do-not-call', '/privacy'], ['/partner', '/billing'], ['/superadmin/partners', '/superadmin/partners']])("selects %s in %s", (path, expected) => {
     expect(getActiveNavUrl(path, sections)).toBe(expected);
   });
   it("does not select an unrelated prefix", () => expect(getActiveNavUrl('/workflow-other', sections)).toBeUndefined());

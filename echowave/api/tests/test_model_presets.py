@@ -181,3 +181,127 @@ class TestWhatAPresetIsAllowedToChange:
         """One model hears and speaks, so there is no voice left to keep."""
         preset = model_presets.PRESETS_BY_SLUG["ultra_fast"]
         assert preset.realtime_tier and not preset.llm_tier
+
+
+class TestOneSlotAtATime:
+    """The Advanced tiles' pencil changes one slot and nothing else."""
+
+    def _cascade_stack(self):
+        return {
+            "architecture": "pipeline",
+            "stt": {"provider": "decibyl", "model": "default", "api_key": ""},
+            "llm": {"provider": "decibyl", "model": "accurate", "api_key": ""},
+            "tts": {
+                "provider": "sarvam",
+                "model": "bulbul:v2",
+                "voice": "anushka",
+                "api_key": "",
+                "use_platform_key": True,
+            },
+        }
+
+    def test_changing_the_voice_leaves_the_brain_alone(self):
+        from api.services.configuration.agent_options import with_model_slot
+
+        out = with_model_slot(
+            self._cascade_stack(),
+            component="tts",
+            provider="sarvam",
+            model="bulbul:v3",
+            voice="manisha",
+        )
+        assert out["llm"] == {"provider": "decibyl", "model": "accurate", "api_key": ""}
+        assert out["tts"]["model"] == "bulbul:v3"
+        assert out["tts"]["voice"] == "manisha"
+        assert out["tts"]["use_platform_key"] is True
+
+    def test_a_new_vendor_does_not_inherit_the_old_vendors_voice(self):
+        from api.services.configuration.agent_options import with_model_slot
+
+        out = with_model_slot(
+            self._cascade_stack(),
+            component="tts",
+            provider="elevenlabs",
+            model="eleven_flash_v2_5",
+        )
+        assert "voice" not in out["tts"]
+
+    def test_the_input_is_not_mutated(self):
+        from api.services.configuration.agent_options import with_model_slot
+
+        stack = self._cascade_stack()
+        with_model_slot(
+            stack, component="llm", provider="google", model="gemini-2.5-flash"
+        )
+        assert stack["llm"]["provider"] == "decibyl"
+
+    def test_a_speech_to_speech_model_replaces_ears_and_voice(self):
+        from api.services.configuration.agent_options import with_model_slot
+
+        out = with_model_slot(
+            self._cascade_stack(),
+            component="realtime",
+            provider="openai_realtime",
+            model="gpt-realtime",
+        )
+        assert out["architecture"] == "realtime"
+        assert "stt" not in out and "tts" not in out
+        assert out["realtime"]["model"] == "gpt-realtime"
+        assert "llm" in out
+
+    def test_picking_a_cascade_slot_leaves_speech_to_speech(self):
+        from api.services.configuration.agent_options import with_model_slot
+
+        realtime = {
+            "architecture": "realtime",
+            "realtime": {
+                "provider": "openai_realtime",
+                "model": "gpt-realtime",
+                "api_key": "",
+                "use_platform_key": True,
+            },
+            "llm": {"provider": "decibyl", "model": "default", "api_key": ""},
+        }
+        out = with_model_slot(
+            realtime, component="llm", provider="google", model="gemini-2.5-flash"
+        )
+        assert out["architecture"] == "pipeline"
+        assert "realtime" not in out
+        assert (
+            out["stt"]["provider"] == "decibyl" and out["tts"]["provider"] == "decibyl"
+        )
+
+    def test_an_unknown_slot_is_refused(self):
+        import pytest
+
+        from api.services.configuration.agent_options import (
+            SelectionError,
+            with_model_slot,
+        )
+
+        with pytest.raises(SelectionError):
+            with_model_slot(
+                self._cascade_stack(), component="embeddings", provider="x", model="y"
+            )
+
+    def test_a_managed_configuration_dumps_to_a_stack_without_keys(self):
+        from api.services.configuration.agent_options import (
+            managed_stack_override,
+            stack_from_configurations,
+        )
+        from api.services.configuration.ai_model_configuration import (
+            compile_workflow_model_configuration_override,
+        )
+
+        override = managed_stack_override(voice="female", llm_tier="accurate")
+        effective = compile_workflow_model_configuration_override(
+            override["model_configuration_v2_override"]
+        )
+        stack = stack_from_configurations(effective)
+        assert stack["architecture"] == "pipeline"
+        assert stack["llm"]["provider"] == "decibyl"
+        assert all(
+            not section.get("api_key")
+            for name, section in stack.items()
+            if isinstance(section, dict)
+        )

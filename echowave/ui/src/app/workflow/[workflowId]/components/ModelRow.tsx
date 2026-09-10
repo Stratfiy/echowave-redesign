@@ -24,12 +24,15 @@ import { Bot, Ear, Radio, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { client } from "@/client/client.gen";
+import type { VoiceOption } from "@/components/agent/VoicePicker";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
+
+import { type CatalogueOption, ModelSlotEditor, type SlotComponent } from "./ModelSlotEditor";
 
 type Slot = {
     component: "stt" | "llm" | "tts" | "realtime";
@@ -39,6 +42,8 @@ type Slot = {
     paise_per_minute: number | null;
     approximate: boolean;
     latency_ms: number | null;
+    /** Only on the voice slot: the voice it speaks in. */
+    voice?: string | null;
 };
 
 type Latency = {
@@ -109,9 +114,22 @@ function ms(value: number | null): string {
     return value === null ? "—" : `${Math.round(value)}ms`;
 }
 
-export function ModelRow({ workflowId }: { workflowId: number }) {
+export function ModelRow({
+    workflowId,
+    editable = false,
+}: {
+    workflowId: number;
+    /**
+     * Put a pencil on each tile. The editor screen shows the row read-only
+     * above the prompts; the Models tab shows the same row with the pencils,
+     * one slot at a time, from what Decibyl sells for that slot.
+     */
+    editable?: boolean;
+}) {
     const { user, loading: authLoading } = useAuth();
     const hasFetched = useRef(false);
+    const [catalogue, setCatalogue] = useState<Record<string, CatalogueOption[]>>({});
+    const [voices, setVoices] = useState<VoiceOption[]>([]);
 
     const [data, setData] = useState<ModelRowData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -152,7 +170,24 @@ export function ModelRow({ workflowId }: { workflowId: number }) {
         if (authLoading || !user || hasFetched.current) return;
         hasFetched.current = true;
         load();
-    }, [authLoading, user, load]);
+        if (!editable) return;
+        // What each pencil can offer. Fetched once, beside the row, and only
+        // when there are pencils to feed.
+        void (async () => {
+            const [catalogueResult, optionsResult] = await Promise.all([
+                client.get({ url: "/api/v1/agent-options/catalogue" }),
+                client.get({ url: "/api/v1/agent-options" }),
+            ]);
+            if (!catalogueResult.error) {
+                const body = catalogueResult.data as { catalogue?: Record<string, CatalogueOption[]> } | undefined;
+                setCatalogue(body?.catalogue ?? {});
+            }
+            if (!optionsResult.error) {
+                const body = optionsResult.data as { voices?: VoiceOption[] } | undefined;
+                setVoices(body?.voices ?? []);
+            }
+        })();
+    }, [authLoading, user, load, editable]);
 
     // Applying a preset rewrites the stack, so the cards, the price and the
     // active chip all change together -- re-reading is simpler than patching
@@ -325,10 +360,23 @@ export function ModelRow({ workflowId }: { workflowId: number }) {
                     return (
                         <Card key={slot.component} className="overflow-hidden">
                             <CardContent className="p-4">
-                                <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                    <Icon className="h-3.5 w-3.5" />
-                                    {slot.title}
-                                </p>
+                                <div className="flex items-start justify-between gap-2">
+                                    <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                        <Icon className="h-3.5 w-3.5" />
+                                        {slot.title}
+                                    </p>
+                                    {editable && (
+                                        <ModelSlotEditor
+                                            workflowId={workflowId}
+                                            component={slot.component as SlotComponent}
+                                            current={{ provider: slot.provider, model: slot.model }}
+                                            options={catalogue[slot.component] ?? []}
+                                            voices={slot.component === "tts" ? voices : undefined}
+                                            currentVoice={slot.voice ?? undefined}
+                                            onSaved={load}
+                                        />
+                                    )}
+                                </div>
                                 {/* Wraps rather than truncates: the model id is
                                     what the card is *for*, and vendor ids here
                                     are long enough that clipping loses the part
@@ -377,6 +425,52 @@ export function ModelRow({ workflowId }: { workflowId: number }) {
                 })}
             </div>
 
+            {/* The other architecture, one pencil away. A cascade agent can
+                become one model that hears and speaks; a speech-to-speech
+                agent can go back to separate ears, brain and voice by picking
+                a brain. */}
+            {editable && (catalogue.realtime ?? []).length > 0 && !data.is_realtime && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border px-4 py-3">
+                    <div>
+                        <p className="flex items-center gap-1.5 text-sm font-medium">
+                            <Radio className="h-4 w-4 text-muted-foreground" />
+                            Or one model that hears and speaks
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Speech-to-speech replies the instant the caller stops talking. It replaces the
+                            transcriber and the voice.
+                        </p>
+                    </div>
+                    <ModelSlotEditor
+                        workflowId={workflowId}
+                        component="realtime"
+                        current={{ provider: "", model: "" }}
+                        options={catalogue.realtime ?? []}
+                        onSaved={load}
+                    />
+                </div>
+            )}
+            {editable && data.is_realtime && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border px-4 py-3">
+                    <div>
+                        <p className="flex items-center gap-1.5 text-sm font-medium">
+                            <Bot className="h-4 w-4 text-muted-foreground" />
+                            Or separate ears, brain and voice
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Pick a brain to go back to the cascade; the transcriber and voice return as
+                            Decibyl&apos;s defaults, each with its own pencil.
+                        </p>
+                    </div>
+                    <ModelSlotEditor
+                        workflowId={workflowId}
+                        component="llm"
+                        current={{ provider: "", model: "" }}
+                        options={catalogue.llm ?? []}
+                        onSaved={load}
+                    />
+                </div>
+            )}
             {cost.includes_telephony === false && (
                 <p className="text-xs text-muted-foreground">
                     Call minutes are not included above — this account&apos;s numbers

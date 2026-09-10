@@ -81,6 +81,7 @@ import {
 
 import { AgentHeader } from "../components/AgentHeader";
 import { AgentTabs } from "../components/AgentTabs";
+import { ModelRow } from "../components/ModelRow";
 import { QaCard } from "../components/QaCard";
 import { useWorkflowState } from "../hooks/useWorkflowState";
 import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
@@ -1866,6 +1867,7 @@ function WorkflowModelOverridesSection({
     const savedV2Override = workflowConfigurations.model_configuration_v2_override;
     const hasSavedModelOverride = Boolean(savedV2Override || workflowConfigurations.model_overrides);
     const [overrideEnabled, setOverrideEnabled] = useState(Boolean(savedV2Override));
+    const [modelView, setModelView] = useState<"simple" | "advanced">("simple");
     const [isRemovingOverride, setIsRemovingOverride] = useState(false);
 
     useEffect(() => {
@@ -1906,19 +1908,50 @@ function WorkflowModelOverridesSection({
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-                {/* The agent's own choice, first. Vapi and Bolna both put the
-                    model on the assistant rather than the account, and that is
-                    what a customer expects: the receptionist on the fast cheap
-                    brain, the collections agent on the careful one. The
-                    per-slot editor below is for the account that wants to name
-                    vendors, and it stays behind a fold. */}
-                <SimpleModelPicker workflowId={workflowId} />
+                {/* Two vocabularies for one agent. Simple is a bundle — how it
+                    should sound and think, one price a minute. Advanced is the
+                    stack as tiles: transcriber, brain, voice (or one
+                    speech-to-speech model), each with its cost and measured
+                    reply time and a pencil to change just that one. Below the
+                    tiles, behind a fold, the per-slot editor for naming a model
+                    on your own key. Vapi and Bolna both put this on the
+                    assistant rather than the account; so does this. */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <div role="tablist" aria-label="How much detail to show" className="inline-flex rounded-full border border-border p-1">
+                        {(["simple", "advanced"] as const).map((key) => (
+                            <button
+                                key={key}
+                                role="tab"
+                                type="button"
+                                aria-selected={modelView === key}
+                                onClick={() => setModelView(key)}
+                                className={cn(
+                                    "rounded-full px-4 py-1 text-sm capitalize transition-colors",
+                                    modelView === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                                )}
+                            >
+                                {key}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                        {modelView === "simple"
+                            ? "Pick how it should sound and think, and see what a minute costs."
+                            : "Each part of the call, with its cost and measured reply time. Change one at a time."}
+                    </p>
+                </div>
 
-                <Collapsible>
+                {modelView === "simple" ? (
+                    <SimpleModelPicker workflowId={workflowId} />
+                ) : (
+                    <ModelRow workflowId={workflowId} editable />
+                )}
+
+                <Collapsible id="model-editor" className={cn(modelView !== "advanced" && "hidden")}>
                     <CollapsibleTrigger asChild>
                         <Button type="button" variant="ghost" size="sm" className="group -ml-2">
                             <ChevronRight className="mr-1 h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
-                            Advanced: choose each model, or use your own keys
+                            Use your own keys, or name a model that is not on the list
                         </Button>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="space-y-4 pt-4">
@@ -1941,7 +1974,7 @@ function WorkflowModelOverridesSection({
                             Set up your organization model configuration before overriding it per workflow.
                         </p>
                         <Button type="button" variant="outline" size="sm" asChild>
-                            <Link href="/model-configurations">Configure Models</Link>
+                            <Link href="/settings#model-defaults">Set model defaults</Link>
                         </Button>
                     </div>
                 )}
