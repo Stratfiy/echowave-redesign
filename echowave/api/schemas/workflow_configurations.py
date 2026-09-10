@@ -275,3 +275,27 @@ class WorkflowConfigurationDefaults(BaseModel):
 
 def get_default_workflow_configurations() -> WorkflowConfigurationDefaults:
     return WorkflowConfigurationDefaults()
+
+
+def new_agent_workflow_configurations() -> dict:
+    """What an agent created today starts with, over and above the field defaults.
+
+    Two different questions wear the same word "default" here, and conflating
+    them is what kept this feature off. A field default is what an agent with
+    nothing stored behaves as, and it governs every agent already running: it
+    has to stay conservative, because changing it changes live calls in one
+    deploy on a judgement nobody made per agent. This is the other question —
+    what a brand-new agent is set up as — and it is free to be opinionated,
+    because there is no existing behaviour to change.
+
+    ``follow_caller_language`` is the case that made the distinction worth
+    drawing. Its field default is off, and the reason given was that nothing
+    followed anyway: the switch changed the voice and left the model answering
+    in whatever language its prompt was written in. That is fixed, so the
+    reason is gone — but the field default still cannot move, because an agent
+    running today with nothing stored would start behaving differently on the
+    next call. A new agent has no such call to disturb, and for an India-first
+    product it should ship able to follow the caller. Written explicitly rather
+    than inherited, so an operator turning it off keeps it off.
+    """
+    return {"follow_caller_language": True}
