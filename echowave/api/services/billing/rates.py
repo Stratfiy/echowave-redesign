@@ -69,7 +69,7 @@ class ResolvedPlatformRate:
     """
 
     rate_mpaise: int
-    # "account_override" | "volume_tier" | "global_default"
+    # "internal_account" | "account_override" | "volume_tier" | "global_default"
     source: str
     pulse_seconds: int = DEFAULT_PULSE_SECONDS
     # Set when the rate was quoted in dollars, which is the normal case. None
@@ -185,6 +185,19 @@ async def resolve_platform_rate(
     customer's contract as though it were everybody's.
     """
     fx = await resolve_usd_inr(session, at=at)
+
+    # One of ours pays no platform fee at all: the fee is the margin, and
+    # charging it to the company by the company both drains the account we
+    # test on and counts as revenue on the operator dashboard. Checked before
+    # the override so an internal account cannot be given a rate by accident.
+    from api.services.billing.internal_accounts import is_internal
+
+    if await is_internal(session, organization_id):
+        return ResolvedPlatformRate(
+            rate_mpaise=0,
+            pulse_seconds=DEFAULT_PULSE_SECONDS,
+            source="internal_account",
+        )
 
     override = (
         await session.scalar(

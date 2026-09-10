@@ -188,6 +188,12 @@ class OrganizationModel(Base):
     # rather than a Postgres ENUM so new account types need no migration —
     # same convention as workflow_runs.mode. Values: see AccountType.
     account_type = Column(String(32), nullable=True)
+    # One of ours rather than a customer's: billed at provider cost, with no
+    # platform fee, no markup and no balance floor. See
+    # services/billing/internal_accounts.py for why all three travel together.
+    internal_billing = Column(
+        Boolean, nullable=False, server_default=text("false"), default=False
+    )
     billing_name = Column(String, nullable=True)
     billing_status = Column(
         String(16), nullable=False, default="active", server_default=text("'active'")

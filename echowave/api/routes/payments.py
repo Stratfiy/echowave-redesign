@@ -106,6 +106,7 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         balance = await payments.current_balance_paise(
             session, organization_id=organization_id
         )
+        internal = await is_internal(session, organization_id)
         profile = await billing_profile.get_profile(
             session, organization_id=organization_id
         )
@@ -142,7 +143,9 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         # Whether calling is possible right now. Derived here rather than left
         # to the client to compare two numbers, so one definition of "blocked"
         # serves the banner, the button and the runtime that refuses the call.
-        "calling_blocked": balance < MIN_BALANCE_PAISE,
+        # Reads the same rule the reservation gate applies, or the screen says
+        # blocked while calls go through.
+        "calling_blocked": (not internal) and balance < MIN_BALANCE_PAISE,
         # So the screen can show what will actually be charged before the
         # customer clicks pay, rather than surprising them at the card form.
         "gst_rate_basis_points": 0 if profile.is_export else GST_RATE_BASIS_POINTS,

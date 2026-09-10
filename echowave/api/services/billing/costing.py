@@ -28,6 +28,7 @@ from api.services.billing.addons import addon_keys_from_usage_info
 from api.services.billing.cost_engine import CallCost, RateSpec, compute_call_cost
 from api.services.billing.delivery import platform_fee_is_waived
 from api.services.billing.fees import addon_rates_mpaise, uplifted_platform_rate_mpaise
+from api.services.billing.internal_accounts import is_internal
 from api.services.billing.markup import resolve_markup_bps, resolve_markup_override_bps
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
 from api.services.billing.usage import (
@@ -148,6 +149,11 @@ async def cost_workflow_run(
     # does not rewrite this receipt.
     at = run.ended_at or run.created_at or datetime.now(UTC)
 
+    # One of ours: provider cost, no markup and no per-model override, because
+    # any of those would put margin on a call the company made to itself and
+    # count it as revenue. See services/billing/internal_accounts.py.
+    internal = await is_internal(session, organization_id)
+
     billable_seconds = run.billable_seconds
     if billable_seconds is None:
         billable_seconds = billable_seconds_from_usage_info(run.usage_info)
@@ -189,7 +195,7 @@ async def cost_workflow_run(
                 provider_rates[key] = RateSpec(
                     rate_mpaise=resolved.rate_mpaise, unit=resolved.unit
                 )
-        if key not in markup_overrides:
+        if key not in markup_overrides and not internal:
             override_bps = await resolve_markup_override_bps(
                 session,
                 provider=item.provider,
@@ -270,7 +276,9 @@ async def cost_workflow_run(
         # environment, so re-costing a March call prices it against the markup
         # that was in force in March. That is the whole reason the value is a
         # history and not a setting.
-        markup_bps=await resolve_markup_bps(session, at=at),
+        markup_bps=await resolve_markup_bps(
+            session, at=at, organization_id=organization_id
+        ),
         # Per-model overrides, same "as at the call's own time" reasoning as
         # the blanket markup above — see the loop that builds this.
         markup_overrides=markup_overrides,
