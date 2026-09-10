@@ -1,39 +1,15 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
+import { isPublicPath } from '@/lib/auth/publicPaths';
+
 import { getServerBackendUrl } from '@/lib/apiClient';
 
 const OSS_TOKEN_COOKIE = 'decibyl_auth_token';
 
-// Paths that don't require authentication in OSS mode.
-//
-// Every entry here is a page whose whole job is to run *before* a session
-// exists, so guarding it is guaranteed to break the thing it guards.
-//
-//   /auth/login, /auth/signup  — the obvious two.
-//   /auth/google               — where the backend callback hands the browser
-//                                back with `?token=`. This page is what calls
-//                                /api/auth/session and creates the cookie the
-//                                middleware looks for, so requiring the cookie
-//                                to reach it made Google sign-in impossible on
-//                                every deployment: the redirect below dropped
-//                                the query string, and the token with it, and
-//                                the user landed back on /auth/login with no
-//                                error to explain why.
-//   /invitations/accept        — an invitee following an emailed link is by
-//                                definition not a member yet, and often has no
-//                                account at all. Bouncing them to /auth/login
-//                                discarded the invitation token the same way.
-const PUBLIC_PATHS = [
-  '/auth/login',
-  '/auth/signup',
-  '/auth/google',
-  // The way back in for a forgotten password, and the public share page
-  // where a prospect talks to an agent with no account.
-  '/auth/forgot',
-  '/talk',
-  '/invitations/accept',
-];
+// Paths that don't require authentication in OSS mode live in one list
+// shared with the client-side auth wrapper — see lib/auth/publicPaths.ts.
+
 
 let cachedAuthProvider: string | null = null;
 
@@ -78,7 +54,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public paths without auth
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
 

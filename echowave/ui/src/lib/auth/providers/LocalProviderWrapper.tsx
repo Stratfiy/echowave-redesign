@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import logger from '@/lib/logger';
 
 import type { AuthUser, LocalUser } from '../types';
+import { isPublicPath } from '../publicPaths';
 import { AuthContext } from './AuthProvider';
 
 export function LocalProviderWrapper({ children }: { children: React.ReactNode }) {
@@ -24,8 +25,9 @@ export function LocalProviderWrapper({ children }: { children: React.ReactNode }
           setUser(data.user);
           logger.info('OSS auth initialized', { user: data.user });
         } else if (response.status === 401) {
-          // No token - redirect to login (but not if already on auth pages)
-          if (!window.location.pathname.startsWith('/auth/')) {
+          // No token - redirect to login, unless this page is one a visitor
+          // may open without an account (the share page, the auth pages).
+          if (!isPublicPath(window.location.pathname)) {
             window.location.href = '/auth/login';
             return;
           }
