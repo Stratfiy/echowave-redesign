@@ -234,3 +234,36 @@ class TestTheFunctionTheModelSees:
 
     def test_it_tells_the_model_not_to_quote_from_memory(self):
         assert "memory" in get_rate_table_tools(CARD)[0]["function"]["description"]
+
+
+class TestTheCardIsCheckedWhenItIsSaved:
+    """A card with no grids produces a tool that refuses every question at call
+    time. Better to refuse it here, where somebody is looking at a form."""
+
+    def _request(self, grids):
+        from api.schemas.tool import CreateToolRequest
+
+        return CreateToolRequest(
+            name="Rate card",
+            definition={"type": "rate_table", "config": {"grids": grids}},
+        )
+
+    def test_a_usable_card_is_accepted_and_names_its_own_category(self):
+        request = self._request({"parcel": {"1.0": {"1": 500}}})
+
+        assert request.category == "rate_table"
+        assert request.definition.config.grids["parcel"]["1.0"]["1"] == 500
+
+    @pytest.mark.parametrize(
+        "grids",
+        [
+            pytest.param({}, id="no grids at all"),
+            pytest.param({"parcel": {}}, id="a grid with no rows"),
+            pytest.param(
+                {"parcel": {"heavy": {"1": 5}}}, id="a band that is not a number"
+            ),
+        ],
+    )
+    def test_an_unusable_card_is_refused(self, grids):
+        with pytest.raises(ValueError):
+            self._request(grids)
