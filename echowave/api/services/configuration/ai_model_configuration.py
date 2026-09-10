@@ -39,7 +39,10 @@ from api.services.configuration.masking import (
     mask_key,
     resolve_masked_api_keys,
 )
-from api.services.configuration.registry import ServiceProviders
+from api.services.configuration.registry import (
+    DecibylEmbeddingsConfiguration,
+    ServiceProviders,
+)
 from api.services.configuration.resolve import resolve_effective_config
 
 AIModelConfigurationSource = Literal["organization_v2", "legacy_user_v1", "empty"]
@@ -63,6 +66,28 @@ class WorkflowAIModelConfigurationMigrationResult:
 from api.services.configuration import byok_resolution, managed_resolution
 
 
+def with_managed_embeddings(
+    effective: EffectiveAIModelConfiguration,
+) -> EffectiveAIModelConfiguration:
+    """The account's embeddings, or the managed ones when it named none.
+
+    An account that chose its own voice and brain and said nothing about
+    embeddings has not opted out of the knowledge base; it was never asked.
+    Left empty, every upload on such an account failed with "set your API
+    key in Model Configurations", a sentence about a field it had never
+    seen. The managed embeddings run on our key and are billed like any
+    other managed component. Applied to the *resolved* configuration only,
+    so what the account stored — and what the settings screen shows as its
+    choices — is unchanged.
+    """
+    if effective.embeddings is not None:
+        return effective
+    effective.embeddings = DecibylEmbeddingsConfiguration(
+        provider=ServiceProviders.DECIBYL, api_key="", model="decibyl_embedding_v1"
+    )
+    return effective
+
+
 async def get_resolved_ai_model_configuration(
     *,
     organization_id: int | None,
@@ -82,7 +107,7 @@ async def get_resolved_ai_model_configuration(
                 organization_configuration_row.last_validated_at
             )
         return ResolvedAIModelConfiguration(
-            effective=effective,
+            effective=with_managed_embeddings(effective),
             source="organization_v2",
             organization_configuration=organization_configuration,
         )

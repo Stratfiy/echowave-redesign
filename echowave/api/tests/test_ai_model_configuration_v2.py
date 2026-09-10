@@ -613,3 +613,60 @@ async def test_migrate_model_configuration_v2_upserts_and_migrates_workflows(
         fallback_user_config=legacy,
     )
     assert response == expected_response
+
+
+def test_a_byok_account_that_never_chose_embeddings_gets_the_managed_ones():
+    """Silence on embeddings is not opting out of the knowledge base. Before
+    this the resolved section was None and every upload on such an account
+    failed asking for a key in a field the account had never seen. The
+    stored configuration is left alone; only the resolved one is filled."""
+    from api.schemas.ai_model_configuration import (
+        BYOKAIModelConfiguration,
+        BYOKPipelineAIModelConfiguration,
+        OrganizationAIModelConfigurationV2,
+        compile_ai_model_configuration_v2,
+    )
+    from api.services.configuration.ai_model_configuration import (
+        with_managed_embeddings,
+    )
+
+    configuration = OrganizationAIModelConfigurationV2(
+        mode="byok",
+        byok=BYOKAIModelConfiguration(
+            mode="pipeline",
+            pipeline=BYOKPipelineAIModelConfiguration(
+                llm=OpenAILLMService(
+                    provider="openai", api_key="k", model="gpt-4.1-mini"
+                ),
+                tts=ElevenlabsTTSConfiguration(
+                    provider="elevenlabs",
+                    api_key="k",
+                    model="eleven_flash_v2_5",
+                    voice="Rachel",
+                ),
+                stt=DeepgramSTTConfiguration(
+                    provider="deepgram", api_key="k", model="nova-3-general"
+                ),
+            ),
+        ),
+    )
+    compiled = compile_ai_model_configuration_v2(configuration)
+    assert compiled.embeddings is None  # what the account stored, untouched
+
+    effective = with_managed_embeddings(compiled)
+    assert effective.embeddings is not None
+    assert effective.embeddings.provider == "decibyl"
+    assert effective.embeddings.model == "decibyl_embedding_v1"
+
+
+def test_an_account_with_its_own_embeddings_keeps_them():
+    from api.services.configuration.ai_model_configuration import (
+        with_managed_embeddings,
+    )
+
+    effective = EffectiveAIModelConfiguration(
+        embeddings=OpenAIEmbeddingsConfiguration(
+            provider="openai", api_key="sk-emb", model="text-embedding-3-small"
+        )
+    )
+    assert with_managed_embeddings(effective).embeddings.provider == "openai"

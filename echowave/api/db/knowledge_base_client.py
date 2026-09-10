@@ -132,6 +132,9 @@ class KnowledgeBaseClient(BaseDBClient):
         """Check if a document with the same hash already exists.
 
         Returns the first matching document if multiple exist (can happen with duplicates).
+        A document that failed to ingest holds nothing an agent can read, so it
+        is not "already ingested": without this, one failed upload blocked
+        every retry of the same file as a duplicate of itself.
 
         Args:
             file_hash: SHA-256 hash of the file
@@ -147,6 +150,7 @@ class KnowledgeBaseClient(BaseDBClient):
                     KnowledgeBaseDocumentModel.file_hash == file_hash,
                     KnowledgeBaseDocumentModel.organization_id == organization_id,
                     KnowledgeBaseDocumentModel.is_active == True,
+                    KnowledgeBaseDocumentModel.processing_status != "failed",
                 )
                 .order_by(KnowledgeBaseDocumentModel.created_at.asc())
                 .limit(1)
