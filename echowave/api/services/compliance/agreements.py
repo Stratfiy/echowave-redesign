@@ -71,7 +71,22 @@ AGREEMENTS: tuple[Agreement, ...] = (
         url="https://decibyl.ai/legal/terms",
         required=True,
     ),
+    # Accepted at signup with the terms. Not a campaign gate: the privacy
+    # policy is what we do with the customer's own data, and an account that
+    # predates its acceptance should not be stopped from calling over it.
+    Agreement(
+        key="privacy",
+        title="Privacy Policy",
+        version="2026-07",
+        url="https://decibyl.ai/privacy",
+        required=False,
+    ),
 )
+
+#: What the signup form must carry. Both are the click-wrap: the terms are the
+#: contract and the privacy policy is the notice DPDP wants given before any
+#: personal data is taken, which the signup form is the first to take.
+SIGNUP_AGREEMENTS: tuple[str, ...] = ("terms", "privacy")
 
 CURRENT_VERSIONS: dict[str, str] = {a.key: a.version for a in AGREEMENTS}
 CURRENT_TITLES: dict[str, str] = {a.key: a.title for a in AGREEMENTS}

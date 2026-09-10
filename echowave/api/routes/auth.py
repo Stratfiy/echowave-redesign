@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from loguru import logger
 from pydantic import BaseModel, EmailStr, Field
@@ -33,6 +33,7 @@ from api.services.auth.depends import (
 )
 from api.services.auth.provisioning import provision_new_account
 from api.services.billing.signup_bonus import grant_bonus_on_verification
+from api.services.compliance import agreements
 from api.services.posthog_client import capture_event
 from api.utils.auth import create_jwt_token, hash_password, verify_password
 
@@ -47,9 +48,25 @@ router = APIRouter(
     response_model=AuthResponse,
     dependencies=[Depends(require_local_auth)],
 )
-async def signup(request: SignupRequest):
+async def signup(request: SignupRequest, http_request: Request):
     if not ENABLE_SIGNUP:
         raise HTTPException(status_code=403, detail="Signup is disabled")
+
+    # The click-wrap. Checked before anything is created, so a form that
+    # skipped the tick creates nothing rather than an account with no record
+    # of what it agreed to.
+    missing = [
+        key
+        for key in agreements.SIGNUP_AGREEMENTS
+        if key not in (request.accepted_agreements or [])
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail="Please accept the "
+            + " and ".join(agreements.CURRENT_TITLES[k] for k in missing)
+            + " to create an account.",
+        )
 
     # Check if email is already taken
     existing_user = await db_client.get_user_by_email(request.email)
@@ -69,6 +86,24 @@ async def signup(request: SignupRequest):
     organization = await provision_new_account(
         user, referral_code=request.referral_code
     )
+
+    # The record of the click-wrap: who, which version, from where. Written
+    # after provisioning because the row hangs off the organization.
+    forwarded = http_request.headers.get("x-forwarded-for", "")
+    ip_address = forwarded.split(",")[0].strip() or (
+        http_request.client.host if http_request.client else None
+    )
+    async with db_client.async_session() as session:
+        for key in agreements.SIGNUP_AGREEMENTS:
+            await agreements.record_acceptance(
+                session,
+                organization_id=organization.id,
+                user_id=user.id,
+                agreement=key,
+                ip_address=ip_address,
+                user_agent=http_request.headers.get("user-agent"),
+            )
+        await session.commit()
 
     # Send the verification code, best effort.
     #
