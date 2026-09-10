@@ -234,7 +234,11 @@ async def test_managed_v2_run_mints_and_stores_correlation(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_managed_v2_run_without_service_key_is_denied(monkeypatch):
+async def test_managed_v2_run_without_service_key_proceeds(monkeypatch):
+    """No gateway key means no gateway attribution, nothing more. The call
+    runs on our platform keys and is priced by our own cost engine; refusing
+    it locked out every account whose signup could not reach the key-minting
+    service, with a message about keys it never held."""
     _patch_workflow_context(monkeypatch)
     monkeypatch.setattr(
         quota_service.db_client,
@@ -253,8 +257,8 @@ async def test_managed_v2_run_without_service_key_is_denied(monkeypatch):
         workflow_run_id=88,
     )
 
-    assert result.has_quota is False
-    assert result.error_code == "invalid_service_key"
+    assert result.has_quota is True
+    assert result.error_code == ""
 
 
 @pytest.mark.asyncio
@@ -824,7 +828,18 @@ async def test_funds_are_held_only_after_every_other_check_passes(monkeypatch):
     monkeypatch.setattr(
         quota_service,
         "get_effective_ai_model_configuration_for_workflow",
-        AsyncMock(return_value=_decibyl_config(api_key="", managed_service_version=2)),
+        AsyncMock(return_value=_decibyl_config(managed_service_version=2)),
+    )
+    # The later refusal: the gateway answers 500, which fails closed.
+    request = httpx.Request("POST", "https://services.decibyl.ai/x")
+    monkeypatch.setattr(
+        quota_service.mps_service_key_client,
+        "create_correlation_id",
+        AsyncMock(
+            side_effect=httpx.HTTPStatusError(
+                "boom", request=request, response=httpx.Response(500, request=request)
+            )
+        ),
     )
 
     result = await quota_service.authorize_workflow_run_start(
@@ -833,9 +848,9 @@ async def test_funds_are_held_only_after_every_other_check_passes(monkeypatch):
         workflow_run_id=88,
     )
 
-    # Refused for a missing service key, so nothing should have been held.
+    # Refused by the gateway, so nothing should have been held.
     assert result.has_quota is False
-    assert result.error_code == "invalid_service_key"
+    assert result.error_code == "quota_check_failed"
     hold.assert_not_awaited()
 
 

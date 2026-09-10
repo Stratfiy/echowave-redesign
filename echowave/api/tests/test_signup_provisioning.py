@@ -27,6 +27,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import select, text
 
+from api.db import db_client
 from api.db.models import OrganizationMembershipModel, OrganizationModel, UserModel
 from api.enums import OrganizationRole
 from api.services.auth.depends import require_organization_role
@@ -110,6 +111,34 @@ class TestANewAccountOwnsItself:
 
         await async_session.refresh(user)
         assert user.selected_organization_id == organization.id
+
+
+@pytest.mark.asyncio
+class TestANewAccountCanHearItsFirstAgent:
+    async def test_the_managed_stack_is_stored_when_no_key_could_be_minted(
+        self, async_session, db_session, no_default_model_config
+    ):
+        """Signup mints a gateway key from an external service, best-effort.
+        When that fails the account used to be left with no configuration,
+        and its first agent said "API key is missing" for every section. It
+        gets the managed stack written down instead."""
+        from api.enums import OrganizationConfigurationKey
+        from api.services.configuration.ai_model_configuration import (
+            get_resolved_ai_model_configuration,
+        )
+
+        user = await _new_user(async_session, "founder-stack")
+        organization = await provision_new_account(user)
+
+        stored = await db_client.get_configuration(
+            organization.id, OrganizationConfigurationKey.MODEL_CONFIGURATION_V2.value
+        )
+        assert stored is not None
+        resolved = await get_resolved_ai_model_configuration(
+            organization_id=organization.id
+        )
+        assert resolved.effective.llm is not None
+        assert resolved.effective.llm.provider == "decibyl"
 
 
 @pytest.mark.asyncio

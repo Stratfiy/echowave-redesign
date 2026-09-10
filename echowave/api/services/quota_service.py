@@ -140,11 +140,19 @@ async def _mint_managed_model_correlation(
 
     service_key = get_decibyl_service_api_key(user_config)
     if not service_key:
-        return QuotaCheckResult(
-            has_quota=False,
-            error_code="invalid_service_key",
-            error_message=INVALID_SERVICE_KEY_MESSAGE,
+        # No gateway key means no usage attribution on the gateway, and that
+        # is all it means: the call runs on our platform keys, priced by our
+        # own cost engine. Refusing here turned every account whose signup
+        # could not reach the key-minting service — an account that had
+        # chosen nothing and been given the managed stack — into one that
+        # could not make a call, with a message about keys it never held.
+        logger.info(
+            "Run {} on workflow {} has no managed gateway key; proceeding "
+            "without a gateway correlation id.",
+            workflow_run_id,
+            workflow_id,
         )
+        return QuotaCheckResult(has_quota=True)
 
     try:
         response = await mps_service_key_client.create_correlation_id(

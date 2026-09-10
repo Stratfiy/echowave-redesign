@@ -88,6 +88,7 @@ async def provision_new_account(
     # Best-effort, exactly as it was in signup. A default model configuration
     # is a convenience; failing to build one must not cost somebody the account
     # they just created, and they can pick their own stack afterwards.
+    model_config_v2 = None
     try:
         mps_config = await create_user_configuration_with_mps_key(
             user.id, organization.id, user.provider_id
@@ -95,14 +96,30 @@ async def provision_new_account(
         if mps_config:
             await db_client.update_user_configuration(user.id, mps_config)
             model_config_v2 = convert_legacy_ai_model_configuration_to_v2(mps_config)
-            await db_client.upsert_configuration(
-                organization.id,
-                OrganizationConfigurationKey.MODEL_CONFIGURATION_V2.value,
-                model_config_v2.model_dump(mode="json", exclude_none=True),
-            )
     except Exception:
         logger.warning(
             "Failed to create default configuration for new account", exc_info=True
+        )
+    if model_config_v2 is None:
+        # The key-minting service was unreachable or refused. The account
+        # still gets the managed stack — that is what resolution gives an
+        # account with no configuration anyway — written down so the settings
+        # screen shows what is in force rather than an empty form.
+        from api.services.configuration.ai_model_configuration import (
+            managed_default_configuration,
+        )
+
+        model_config_v2 = managed_default_configuration()
+    try:
+        await db_client.upsert_configuration(
+            organization.id,
+            OrganizationConfigurationKey.MODEL_CONFIGURATION_V2.value,
+            model_config_v2.model_dump(mode="json", exclude_none=True),
+        )
+    except Exception:
+        logger.warning(
+            "Failed to store the default configuration for new account",
+            exc_info=True,
         )
 
     # The welcome, last, and best-effort like everything above it.

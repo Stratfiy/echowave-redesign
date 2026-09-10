@@ -670,3 +670,22 @@ def test_an_account_with_its_own_embeddings_keeps_them():
         )
     )
     assert with_managed_embeddings(effective).embeddings.provider == "openai"
+
+
+def test_an_account_that_chose_nothing_runs_on_the_managed_stack():
+    """The first agent a new account hears used to fail with "API key is
+    missing" three times over, because an account with no stored
+    configuration resolved to no configuration at all. It resolves to the
+    managed stack now: default tiers, our keys, embeddings included."""
+    from api.services.configuration.ai_model_configuration import (
+        managed_default_configuration,
+        with_managed_embeddings,
+    )
+
+    default = managed_default_configuration()
+    assert default.mode == "decibyl"
+    effective = with_managed_embeddings(compile_ai_model_configuration_v2(default))
+    for section in (effective.llm, effective.stt, effective.tts, effective.embeddings):
+        assert section is not None
+        assert section.provider == "decibyl"
+    assert effective.llm.model == "default"

@@ -6308,7 +6308,7 @@ export type OrganizationModelServicesContext = {
     /**
      * Config Source
      */
-    config_source: 'organization_v2' | 'legacy_user_v1' | 'empty';
+    config_source: 'organization_v2' | 'legacy_user_v1' | 'managed_default' | 'empty';
     /**
      * Has Model Configuration V2
      */
