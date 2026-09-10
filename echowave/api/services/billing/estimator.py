@@ -726,11 +726,20 @@ async def price_components(
     out: dict[tuple[str, str, str], EstimateLine | None] = {}
     for component_value, provider, model in slots:
         try:
-            component = CostComponent(component_value)
+            # A realtime slot is metered as LLM usage — one speech-to-speech
+            # session billed in audio tokens, under the processor's name. Both
+            # the estimate path (above) and the catalogue's own sellability
+            # check (model_catalogue._rate_card_slot) already translate it that
+            # way; this loop did not, so CostComponent("realtime") raised and
+            # every speech-to-speech model in the picker came back with no
+            # price at all. rate_card_provider below turns openai_realtime into
+            # the name the card knows, and REALTIME_TOKENS_PER_MINUTE supplies
+            # the per-minute token assumption that goes with it.
+            component = CostComponent(
+                "llm" if component_value == "realtime" else component_value
+            )
         except ValueError:
-            # Not a recognised component string at all — e.g. "realtime",
-            # which is metered as LLM usage under the LLM component and has no
-            # per-minute line of its own under that name. "embedding" *is* a
+            # Not a recognised component string at all. "embedding" *is* a
             # real CostComponent now (query-time knowledge-base retrieval, see
             # billing/usage.py), so it reaches the branch below rather than
             # here — but nothing in the current catalogue actually passes
