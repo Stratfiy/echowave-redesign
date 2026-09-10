@@ -31,12 +31,18 @@ from api.services.pipecat.active_calls import (
     unregister_active_call as unregister_worker_active_call,
 )
 from api.services.pipecat.audio_config import AudioConfig, create_audio_config
+from api.services.pipecat.backchannel import Backchannel, backchannel_settings
 from api.services.pipecat.call_recording import recording_enabled
 from api.services.pipecat.dynamic_greeting import (
     fetch_greeting as fetch_dynamic_greeting,
 )
 from api.services.pipecat.dynamic_greeting import (
     is_enabled as is_dynamic_greeting_enabled,
+)
+from api.services.pipecat.end_call_phrases import (
+    EndCallPhraseWatcher,
+    end_call_farewell,
+    end_call_phrases,
 )
 from api.services.pipecat.event_handlers import (
     register_audio_data_handler,
@@ -1448,6 +1454,31 @@ async def _run_pipeline_impl(
 
         dtmf_collector = DtmfCollector()
 
+    # "Okay bye" hangs up, after the farewell, with no model turn. Off unless
+    # the agent lists phrases. Realtime pipelines carry no TranscriptionFrame
+    # for it to read, so it is left out there.
+    end_call_phrase_watcher = None
+    if not is_realtime:
+        phrases = end_call_phrases(run_configs)
+        if phrases:
+            farewell = end_call_farewell(run_configs)
+
+            async def _hang_up_on(phrase: str) -> None:
+                await engine.end_call_on_phrase(phrase, farewell)
+
+            end_call_phrase_watcher = EndCallPhraseWatcher(
+                phrases=phrases, on_match=_hang_up_on
+            )
+
+    # A filler while a slow reply starts. Off unless switched on; a realtime
+    # speech-to-speech model does its own.
+    backchannel = None
+    if not is_realtime:
+        settings = backchannel_settings(run_configs)
+        if settings:
+            delay_secs, filler_phrases = settings
+            backchannel = Backchannel(delay_secs=delay_secs, phrases=filler_phrases)
+
     language_follower = None
     if should_follow_caller_language(run_configs, is_realtime=is_realtime):
         from api.services.pipecat.language_follower import (
@@ -1490,6 +1521,8 @@ async def _run_pipeline_impl(
             dtmf_collector=dtmf_collector,
             language_follower=language_follower,
             interruption_backoff=_create_interruption_backoff(run_configs),
+            end_call_phrase_watcher=end_call_phrase_watcher,
+            backchannel=backchannel,
         )
 
     # Create pipeline task with audio configuration

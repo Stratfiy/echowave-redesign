@@ -59,6 +59,20 @@ export type RecordingConfiguration = {
     enabled: boolean;
 };
 
+/**
+ * A filler ("hmm", "one moment") when the reply is slow to start. Off unless
+ * switched on: the phrases must be in the agent's language.
+ */
+export type BackchannelConfiguration = {
+    enabled: boolean;
+    /** Seconds the caller waits before hearing a filler, 0.5 to 5. */
+    delay_secs?: number;
+    /** Rotated in order. Empty means the platform's English defaults. */
+    phrases?: string[];
+};
+
+export const BACKCHANNEL_DEFAULT_DELAY_SECS = 1.2;
+
 export type NoiseSuppressionConfiguration = {
     enabled: boolean;
     /** Share of the denoised signal in what the agent hears, 20 to 100. */
@@ -260,6 +274,13 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
     ambient_noise_configuration: AmbientNoiseConfiguration;
     noise_suppression_configuration?: NoiseSuppressionConfiguration;
     recording_configuration?: RecordingConfiguration;
+    backchannel_configuration?: BackchannelConfiguration;
+    /**
+     * Hang up when the caller says one of these, after end_call_farewell if
+     * set, with no model turn in between. Empty means off.
+     */
+    end_call_phrases?: string[];
+    end_call_farewell?: string | null;
     pronunciation_lexicon?: PronunciationEntry[];
     /**
      * What a finished call is classified as. Empty means the platform default
@@ -318,6 +339,9 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
         level: NOISE_SUPPRESSION_MAX_LEVEL
     },
     recording_configuration: { enabled: true },
+    backchannel_configuration: { enabled: false, delay_secs: BACKCHANNEL_DEFAULT_DELAY_SECS, phrases: [] },
+    end_call_phrases: [],
+    end_call_farewell: null,
     pronunciation_lexicon: [],
     call_outcomes: [],
     follow_caller_language: false,

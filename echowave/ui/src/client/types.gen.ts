@@ -1007,6 +1007,32 @@ export type ByokRealtimeAiModelConfiguration = {
 };
 
 /**
+ * BackchannelConfigurationDefaults
+ *
+ * A filler ("hmm", "one moment") when the reply is slow to start.
+ *
+ * Off by default: the phrases have to be in the agent's language, and a
+ * filler in the wrong one is worse than the silence. ``delay_secs`` is how
+ * long the caller waits before hearing one; ``phrases`` are rotated. See
+ * services/pipecat/backchannel.py.
+ */
+export type BackchannelConfigurationDefaults = {
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+    /**
+     * Delay Secs
+     */
+    delay_secs?: number;
+    /**
+     * Phrases
+     */
+    phrases?: Array<string>;
+    [key: string]: unknown;
+};
+
+/**
  * BatchRecordingCreateRequestSchema
  *
  * Request schema for creating one or more recording records after upload.
@@ -9941,6 +9967,15 @@ export type WorkflowConfigurationDefaults = {
     ambient_noise_configuration?: AmbientNoiseConfigurationDefaults;
     noise_suppression_configuration?: NoiseSuppressionConfigurationDefaults;
     recording_configuration?: RecordingConfigurationDefaults;
+    backchannel_configuration?: BackchannelConfigurationDefaults;
+    /**
+     * End Call Phrases
+     */
+    end_call_phrases?: Array<string>;
+    /**
+     * End Call Farewell
+     */
+    end_call_farewell?: string | null;
     /**
      * Max Call Duration
      */

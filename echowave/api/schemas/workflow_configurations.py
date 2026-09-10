@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -87,6 +87,22 @@ class AmbientNoiseConfigurationDefaults(BaseModel):
     volume: float = 0.3
 
 
+class BackchannelConfigurationDefaults(BaseModel):
+    """A filler ("hmm", "one moment") when the reply is slow to start.
+
+    Off by default: the phrases have to be in the agent's language, and a
+    filler in the wrong one is worse than the silence. ``delay_secs`` is how
+    long the caller waits before hearing one; ``phrases`` are rotated. See
+    services/pipecat/backchannel.py.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool = False
+    delay_secs: float = 1.2
+    phrases: list[str] = Field(default_factory=list)
+
+
 class RecordingConfigurationDefaults(BaseModel):
     """Whether the call's audio is kept.
 
@@ -166,6 +182,14 @@ class WorkflowConfigurationDefaults(BaseModel):
     recording_configuration: RecordingConfigurationDefaults = Field(
         default_factory=RecordingConfigurationDefaults
     )
+    backchannel_configuration: BackchannelConfigurationDefaults = Field(
+        default_factory=BackchannelConfigurationDefaults
+    )
+    # Hang up when the caller says one of these ("okay bye", "that's all"),
+    # after ``end_call_farewell`` if set, with no model turn in between.
+    # Empty means off. See services/pipecat/end_call_phrases.py.
+    end_call_phrases: list[str] = Field(default_factory=list)
+    end_call_farewell: Optional[str] = None
     max_call_duration: int = Field(
         default=DEFAULT_MAX_CALL_DURATION_SECONDS,
         gt=0,
