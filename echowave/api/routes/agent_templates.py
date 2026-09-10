@@ -65,8 +65,23 @@ def _summary(template: AgentTemplate) -> dict[str, Any]:
 async def list_agent_templates(
     _user: UserModel = Depends(get_user),
 ) -> dict[str, Any]:
-    """Every template, in catalogue order."""
-    return {"templates": [_summary(t) for t in list_templates()]}
+    """Every template, in catalogue order, with a clip per suggested voice."""
+    from api.services.configuration import voice_samples
+
+    out = []
+    for template in list_templates():
+        summary = _summary(template)
+        summary["suggested_voices"] = [
+            {
+                **voice.model_dump(),
+                "sample_url": await voice_samples.sample_url(
+                    voice.voice_id, voice.language
+                ),
+            }
+            for voice in template.suggested_voices
+        ]
+        out.append(summary)
+    return {"templates": out}
 
 
 @router.get("/{template_id}")

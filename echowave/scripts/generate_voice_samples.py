@@ -28,12 +28,20 @@ from api.services.configuration import voice_catalogue, voice_samples
 from api.services.storage import get_storage
 
 SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech"
+ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+ELEVENLABS_MODEL = "eleven_multilingual_v2"
 
 #: The tier the picker offers. Sampling a model nobody is served by would put
 #: a voice in front of a customer that their calls will not use.
 SAMPLE_MODEL = "bulbul:v2"
 
-_LANGUAGE_CODES = {"en": "en-IN", "hi": "hi-IN"}
+_LANGUAGE_CODES = {
+    "en": "en-IN",
+    "hi": "hi-IN",
+    "ta": "ta-IN",
+    "kn": "kn-IN",
+    "te": "te-IN",
+}
 
 
 async def _synthesise(
@@ -61,11 +69,69 @@ async def _synthesise(
     return b"".join(base64.b64decode(chunk) for chunk in chunks)
 
 
+async def _synthesise_elevenlabs(
+    client: httpx.AsyncClient, *, api_key: str, voice_id: str, language: str
+) -> bytes:
+    """One sentence, one ElevenLabs voice, as MP3 bytes. Multilingual v2
+    speaks every sample language with the same voice."""
+    response = await client.post(
+        ELEVENLABS_TTS_URL.format(voice_id=voice_id),
+        params={"output_format": "mp3_44100_128"},
+        headers={"xi-api-key": api_key, "Accept": "audio/mpeg"},
+        json={
+            "text": voice_samples.SAMPLE_LINES[language],
+            "model_id": ELEVENLABS_MODEL,
+        },
+        timeout=60.0,
+    )
+    response.raise_for_status()
+    return response.content
+
+
+async def _elevenlabs_samples(force: bool) -> tuple[int, int, int]:
+    """The template gallery's suggested voices, each in its own language."""
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    if not api_key:
+        logger.info("ELEVENLABS_API_KEY is not set; skipping the gallery voices.")
+        return 0, 0, 0
+    from api.services.agent_templates import list_templates
+
+    wanted = {
+        (v.voice_id, v.language)
+        for t in list_templates()
+        for v in t.suggested_voices
+        if v.provider == "elevenlabs"
+    }
+    storage = get_storage()
+    written = skipped = failed = 0
+    async with httpx.AsyncClient() as client:
+        for voice_id, language in sorted(wanted):
+            path = voice_samples.sample_path(voice_id, language, "mp3")
+            if not force and await storage.aget_file_metadata(path) is not None:
+                skipped += 1
+                continue
+            try:
+                audio = await _synthesise_elevenlabs(
+                    client, api_key=api_key, voice_id=voice_id, language=language
+                )
+                await storage.acreate_file_from_bytes(path, audio)
+                logger.info(f"wrote {path} ({len(audio)} bytes)")
+                written += 1
+            except Exception as exc:
+                logger.error(f"failed elevenlabs {voice_id}/{language}: {exc}")
+                failed += 1
+    return written, skipped, failed
+
+
 async def main(force: bool) -> int:
+    eleven_written, eleven_skipped, eleven_failed = await _elevenlabs_samples(force)
+    logger.info(
+        f"elevenlabs: {eleven_written} written, {eleven_skipped} skipped, {eleven_failed} failed"
+    )
     api_key = os.getenv("SARVAM_API_KEY")
     if not api_key:
-        logger.error("SARVAM_API_KEY is not set. Nothing to record with.")
-        return 1
+        logger.info("SARVAM_API_KEY is not set; the managed voices were not sampled.")
+        return 1 if eleven_failed and not eleven_written else 0
 
     storage = get_storage()
     catalogue = voice_catalogue.for_provider("sarvam", model=SAMPLE_MODEL)

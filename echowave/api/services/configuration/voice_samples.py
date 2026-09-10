@@ -34,17 +34,20 @@ SAMPLE_LINES: dict[str, str] = {
         "Am I speaking with the patient, or someone calling on their behalf?"
     ),
     "hi": ("नमस्ते, सनराइज़ क्लिनिक में कॉल करने के लिए धन्यवाद। क्या मैं मरीज़ से बात कर रही हूँ?"),
+    "ta": "வணக்கம், சன்ரைஸ் கிளினிக். நான் நோயாளியிடம் பேசுகிறேனா, அல்லது அவர் சார்பாக அழைக்கிறீர்களா?",
+    "kn": "ನಮಸ್ಕಾರ, ಸನ್‌ರೈಸ್ ಕ್ಲಿನಿಕ್. ನಾನು ರೋಗಿಯೊಂದಿಗೆ ಮಾತನಾಡುತ್ತಿದ್ದೇನೆಯೇ, ಅಥವಾ ಅವರ ಪರವಾಗಿ ಕರೆ ಮಾಡುತ್ತಿದ್ದೀರಾ?",
+    "te": "నమస్కారం, సన్‌రైజ్ క్లినిక్. నేను రోగితో మాట్లాడుతున్నానా, లేక వారి తరఫున కాల్ చేస్తున్నారా?",
 }
 
 #: The languages a sample is generated in. Kept to two deliberately: the point
 #: is to hear the voice, and a picker with seven voices times ten languages is
 #: the reading problem this was meant to solve.
-SAMPLE_LANGUAGES = ("en", "hi")
+SAMPLE_LANGUAGES = ("en", "hi", "ta", "kn", "te")
 
 
-def sample_path(voice_id: str, language: str) -> str:
+def sample_path(voice_id: str, language: str, ext: str = "wav") -> str:
     """Storage key for one voice in one language. Derived, never stored."""
-    return f"{SAMPLE_PREFIX}/{voice_id.strip().lower()}-{language}.wav"
+    return f"{SAMPLE_PREFIX}/{voice_id.strip().lower()}-{language}.{ext}"
 
 
 async def sample_url(voice_id: str, language: str = "en") -> str | None:
@@ -58,12 +61,15 @@ async def sample_url(voice_id: str, language: str = "en") -> str | None:
         return None
 
     storage = get_storage()
-    path = sample_path(voice_id, language)
-    try:
-        if await storage.aget_file_metadata(path) is None:
+    # WAV from Sarvam, MP3 from ElevenLabs; the browser plays either.
+    for ext in ("wav", "mp3"):
+        path = sample_path(voice_id, language, ext)
+        try:
+            if await storage.aget_file_metadata(path) is None:
+                continue
+            return await storage.aget_signed_url(path)
+        except Exception:
+            # Storage being unreachable must not take the model picker down
+            # with it. No sample is a worse picker; an exception is no picker.
             return None
-        return await storage.aget_signed_url(path)
-    except Exception:
-        # Storage being unreachable must not take the model picker down with
-        # it. No sample is a worse picker; an exception here is no picker.
-        return None
+    return None

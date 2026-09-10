@@ -33,3 +33,23 @@ Until the client's endpoints exist, point the three URLs at a mock that returns
 `{"valid": true}` / `{"triggered": true}` / `{"sent": true}` and the conversation
 runs end to end. Put the agent on a number under Phone numbers, or hear it in
 the browser from the agent's Test button.
+
+## Narayani Dental Clinic, Hosur
+
+A dental front desk: books, reschedules and cancels appointments, answers
+timings, directions and the consultation fee from the clinic's own facts, and
+sends anything clinical to a callback or, if urgent, to a person. Follows the
+caller between Tamil, Kannada, English and Hindi.
+
+```bash
+python -m scripts.demos.narayani_dental \
+    --base-url https://app.decibyl.ai \
+    --api-key dk_... \
+    --slots-url https://clinic.example/api/slots \
+    --book-url  https://clinic.example/api/book \
+    --transfer-to +919999999999
+```
+
+Doctors, hours and address are placeholders in `CLINIC` at the top of the
+script; change them before the demo. The two URLs can point at a mock returning
+`{"slots": [...]}` and `{"booked": true, "reference": "ND-1042"}`.
