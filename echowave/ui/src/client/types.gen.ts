@@ -3613,6 +3613,10 @@ export type EmbedConfigResponse = {
      */
     auto_start: boolean;
     /**
+     * Agent Name
+     */
+    agent_name?: string | null;
+    /**
      * Logo Url
      */
     logo_url?: string | null;
@@ -7910,6 +7914,20 @@ export type SetupFieldResponse = {
      * Value
      */
     value?: string;
+};
+
+/**
+ * ShareLinkResponse
+ */
+export type ShareLinkResponse = {
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Token
+     */
+    token: string;
 };
 
 /**
@@ -24038,6 +24056,50 @@ export type CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostRespons
 };
 
 export type CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostResponse = CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostResponses[keyof CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostResponses];
+
+export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/share-link';
+};
+
+export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostError = CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostErrors[keyof CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostErrors];
+
+export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ShareLinkResponse;
+};
+
+export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostResponse = CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostResponses[keyof CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostResponses];
 
 export type DeleteEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoDeleteData = {
     body?: never;

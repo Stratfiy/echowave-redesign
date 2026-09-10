@@ -28,6 +28,10 @@ const PUBLIC_PATHS = [
   '/auth/login',
   '/auth/signup',
   '/auth/google',
+  // The way back in for a forgotten password, and the public share page
+  // where a prospect talks to an agent with no account.
+  '/auth/forgot',
+  '/talk',
   '/invitations/accept',
 ];
 
