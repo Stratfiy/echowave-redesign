@@ -132,6 +132,13 @@ PLATFORM_SMS_FROM_NUMBER=
 PLATFORM_PLIVO_AUTH_ID=
 PLATFORM_PLIVO_AUTH_TOKEN=
 
+# Warn when the credits on that account drop below this, in the account's own
+# units — Plivo does not say whether its cash_credits are dollars or rupees, so
+# only you know. Unset, the balance screen reports the figure but never calls
+# it low, and the first warning you get is "empty", which is after the calls
+# have stopped. For a USD account, 50 is roughly a week's notice.
+PLATFORM_PLIVO_LOW_BALANCE=
+
 # Or Twilio instead. Having both is about carrier choice — it is NOT a way
 # around DLT, which attaches to the sending entity and the Indian destination.
 PLATFORM_TWILIO_ACCOUNT_SID=

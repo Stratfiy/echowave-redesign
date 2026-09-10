@@ -242,6 +242,15 @@ DECIBYL_DEVOPS_SECRET = os.getenv("DECIBYL_DEVOPS_SECRET") or None
 # the number-to-application link needs no console step.
 PLATFORM_PLIVO_AUTH_ID = os.getenv("PLATFORM_PLIVO_AUTH_ID") or None
 PLATFORM_PLIVO_AUTH_TOKEN = os.getenv("PLATFORM_PLIVO_AUTH_TOKEN") or None
+# Warn when the credits on that account fall below this, in the account's own
+# units. Plivo's account resource does not say whether cash_credits are dollars
+# or rupees, so only the operator who opened the account knows which — and a
+# figure invented here would be out by a factor of eighty on half the accounts
+# it could be applied to. Unset means no threshold: the balance is still
+# reported and still flagged at zero, but never as "running low", which on the
+# account that pays for every call is a warning arriving after the outage.
+# See services/configuration/provider_balance.py.
+PLATFORM_PLIVO_LOW_BALANCE = os.getenv("PLATFORM_PLIVO_LOW_BALANCE") or None
 PLATFORM_PLIVO_APPLICATION_ID = os.getenv("PLATFORM_PLIVO_APPLICATION_ID") or None
 
 # What we pay the carrier per number per month, and what we charge for it, both

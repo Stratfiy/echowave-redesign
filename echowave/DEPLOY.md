@@ -188,6 +188,7 @@ deployment.
 | Variable | Consequence |
 |---|---|
 | `PLATFORM_PLIVO_AUTH_ID`, `PLATFORM_PLIVO_AUTH_TOKEN` | Decibyl's *own* Plivo account — compliance applications are filed and numbers bought under it, never a customer's. Unset, forwarding a KYC application raises rather than quietly falling back to "a human will handle it" |
+| `PLATFORM_PLIVO_LOW_BALANCE` | Low-water mark for that account's credits, in its own units. Unset, the balance screen reports the figure and flags it only at zero — which on the account that pays for every call is a warning arriving after the outage |
 | `PLATFORM_PLIVO_APPLICATION_ID` | The Plivo Application whose `answer_url` is the inbound dispatcher. Numbers are bought with this `app_id` set, so there is no console step and no window where a number is rented but answers nowhere |
 | `NUMBER_RENTAL_COST_PAISE` | What the carrier charges us, per number per month. Default 25000 (₹250) — an estimate, see the bottom of this file |
 | `NUMBER_RENTAL_PRICE_PAISE` | What the customer pays for a number *beyond* whatever the account's plan includes. Default 55900 (₹559 net, ₹659.82 with GST). Stored alongside the cost so margin figures stop ignoring rental |

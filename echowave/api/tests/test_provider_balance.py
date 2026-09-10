@@ -44,6 +44,14 @@ class TestMoneyClassification:
     def test_empty_still_applies_without_a_currency(self):
         assert pb._classify_money(0.0, None) == "empty"
 
+    def test_an_explicit_floor_judges_what_a_currency_cannot(self):
+        assert pb._classify_money(10.0, None, 50.0) == "low"
+        assert pb._classify_money(80.0, None, 50.0) == "ok"
+
+    def test_an_explicit_floor_beats_the_currency_table(self):
+        # The operator knows their account; the table is only a fallback.
+        assert pb._classify_money(30.0, "usd", 5.0) == "ok"
+
 
 class TestQuotaClassification:
     def test_fully_spent_is_empty(self):
@@ -207,6 +215,54 @@ class TestCarriers:
         assert balance.status == "ok"
 
     @pytest.mark.asyncio
+    async def test_plivo_says_when_nobody_has_set_a_threshold(self, monkeypatch):
+        """A green pill on an unjudged balance must not read as reassurance."""
+        monkeypatch.setattr(pb, "PLATFORM_PLIVO_LOW_BALANCE", None)
+
+        def handler(request):
+            return httpx.Response(
+                200, json={"cash_credits": "26.54", "name": "Decibyl"}
+            )
+
+        async with _client(handler) as client:
+            balance = await pb._plivo(client, "AUTHID", "token")
+
+        assert balance.status == "ok"
+        assert "PLATFORM_PLIVO_LOW_BALANCE" in balance.detail
+        assert "Decibyl" in balance.detail
+
+    @pytest.mark.asyncio
+    async def test_an_operator_floor_makes_plivo_warn(self, monkeypatch):
+        # The whole point of the setting: without it this balance sits on "ok"
+        # until it hits zero, and zero is after the calls have stopped.
+        monkeypatch.setattr(pb, "PLATFORM_PLIVO_LOW_BALANCE", "50")
+
+        def handler(request):
+            return httpx.Response(
+                200, json={"cash_credits": "26.54", "name": "Decibyl"}
+            )
+
+        async with _client(handler) as client:
+            balance = await pb._plivo(client, "AUTHID", "token")
+
+        assert balance.status == "low"
+        assert balance.needs_attention
+        # Nothing to nag about once a floor exists.
+        assert "PLATFORM_PLIVO_LOW_BALANCE" not in (balance.detail or "")
+
+    @pytest.mark.asyncio
+    async def test_a_balance_above_the_operator_floor_is_ok(self, monkeypatch):
+        monkeypatch.setattr(pb, "PLATFORM_PLIVO_LOW_BALANCE", "10")
+
+        def handler(request):
+            return httpx.Response(200, json={"cash_credits": "26.54"})
+
+        async with _client(handler) as client:
+            balance = await pb._plivo(client, "AUTHID", "token")
+
+        assert balance.status == "ok"
+
+    @pytest.mark.asyncio
     async def test_plivo_at_zero_is_still_empty(self):
         def handler(request):
             return httpx.Response(200, json={"cash_credits": "0"})
@@ -227,6 +283,29 @@ class TestCarriers:
         assert balance.amount == 12.0
         assert balance.currency == "usd"
         assert balance.status == "low"
+
+
+class TestPlivoFloor:
+    def test_unset_is_no_threshold(self, monkeypatch):
+        monkeypatch.setattr(pb, "PLATFORM_PLIVO_LOW_BALANCE", None)
+        assert pb.plivo_floor() is None
+
+    def test_a_number_is_read(self, monkeypatch):
+        monkeypatch.setattr(pb, "PLATFORM_PLIVO_LOW_BALANCE", "42.5")
+        assert pb.plivo_floor() == 42.5
+
+    def test_nonsense_is_unset_not_zero(self, monkeypatch):
+        # A typo that silently became "warn below nothing" would leave the
+        # account looking healthy all the way down — the exact failure the
+        # setting exists to prevent.
+        monkeypatch.setattr(pb, "PLATFORM_PLIVO_LOW_BALANCE", "fifty dollars")
+        assert pb.plivo_floor() is None
+
+    def test_an_explicit_zero_is_honoured(self, monkeypatch):
+        # Distinct from nonsense: somebody who writes 0 means "only tell me at
+        # empty", which is what no floor already does, and is theirs to choose.
+        monkeypatch.setattr(pb, "PLATFORM_PLIVO_LOW_BALANCE", "0")
+        assert pb.plivo_floor() == 0.0
 
 
 class TestSupport:
