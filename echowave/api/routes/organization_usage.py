@@ -1,6 +1,6 @@
 import json
 from datetime import date as date_cls
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -187,6 +187,86 @@ Unknown attributes and unsupported `type` values are silently ignored.
 
 Date filtering on this endpoint is done via the dedicated `start_date` / `end_date` query params, not via a `dateRange` filter object.
 """
+
+
+@router.get("/usage/review")
+async def get_call_review(
+    days: int = Query(7, ge=1, le=90),
+    attention_only: bool = Query(
+        True, description="Only calls with a low score or an unhappy caller."
+    ),
+    limit: int = Query(50, ge=1, le=200),
+    user: UserModel = Depends(get_user),
+) -> Dict[str, Any]:
+    """The calls somebody should listen to, worst first.
+
+    Post-call QA grades every call and nobody reads the grades: they sit on
+    the run page, one call at a time. This is the queue — the bad ones from
+    the last few days, with the one line QA wrote, so a founder spends ten
+    minutes a morning on the calls that need it and none on the rest.
+    """
+    from sqlalchemy import select
+
+    from api.db.models import WorkflowModel, WorkflowRunModel
+    from api.services.review import verdict as review
+
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    async with db_client.async_session() as session:
+        rows = (
+            await session.execute(
+                select(WorkflowRunModel, WorkflowModel.name)
+                .join(WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
+                .where(
+                    WorkflowModel.organization_id == organization_id,
+                    WorkflowRunModel.created_at >= since,
+                    WorkflowRunModel.is_completed.is_(True),
+                    WorkflowRunModel.annotations.isnot(None),
+                )
+                .order_by(WorkflowRunModel.created_at.desc())
+                # Enough recent calls to find the bad ones in; the verdict
+                # lives in JSON, so the sieve is in Python.
+                .limit(2000)
+            )
+        ).all()
+
+    items: list[dict[str, Any]] = []
+    graded = 0
+    for run, agent_name in rows:
+        v = review.from_annotations(run.annotations)
+        if v is None:
+            continue
+        graded += 1
+        if attention_only and not v.needs_attention:
+            continue
+        items.append(
+            {
+                "run_id": run.id,
+                "workflow_id": run.workflow_id,
+                "agent_name": agent_name,
+                "created_at": run.created_at.isoformat() if run.created_at else None,
+                "billable_seconds": getattr(run, "billable_seconds", None),
+                "charged_paise": getattr(run, "total_charged_paise", None),
+                "call_type": getattr(run, "call_type", None),
+                **v.as_dict(),
+            }
+        )
+    # Worst first: lowest score, unscored-but-negative next, then newest.
+    items.sort(
+        key=lambda i: (
+            i["score"] if i["score"] is not None else review.ATTENTION_SCORE,
+            i["created_at"] or "",
+        )
+    )
+    return {
+        "days": days,
+        "graded": graded,
+        "needs_attention": sum(1 for i in items if i["needs_attention"]),
+        "items": items[:limit],
+    }
 
 
 @router.get("/usage/runs", response_model=UsageHistoryResponse)

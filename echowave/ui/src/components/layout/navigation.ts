@@ -1,6 +1,7 @@
 import {
   Bot,
   ChartColumnBig,
+  ClipboardCheck,
   ContactRound,
   Database,
   Globe,
@@ -280,6 +281,14 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // Daily reports are a view over the same calls, so they are a tab here
       // rather than a fifth MONITOR entry. Missed calls moved to Phone numbers,
       // where the telephony tab strip already listed them.
+      // The queue of calls worth listening to, graded by post-call QA.
+      // Before Calls: the one you open every morning goes first.
+      {
+        title: "Review",
+        url: "/review",
+        icon: ClipboardCheck,
+        keywords: ["review", "qa", "grades", "bad calls", "quality", "score"],
+      },
       {
         title: "Calls",
         url: "/usage",

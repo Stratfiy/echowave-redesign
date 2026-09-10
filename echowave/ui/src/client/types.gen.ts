@@ -3613,6 +3613,10 @@ export type EmbedConfigResponse = {
      */
     auto_start: boolean;
     /**
+     * Agent Name
+     */
+    agent_name?: string | null;
+    /**
      * Logo Url
      */
     logo_url?: string | null;
@@ -7910,6 +7914,20 @@ export type SetupFieldResponse = {
      * Value
      */
     value?: string;
+};
+
+/**
+ * ShareLinkResponse
+ */
+export type ShareLinkResponse = {
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Token
+     */
+    token: string;
 };
 
 /**
@@ -22946,6 +22964,64 @@ export type GetCurrentPeriodUsageApiV1OrganizationsUsageCurrentPeriodGetResponse
 
 export type GetCurrentPeriodUsageApiV1OrganizationsUsageCurrentPeriodGetResponse = GetCurrentPeriodUsageApiV1OrganizationsUsageCurrentPeriodGetResponses[keyof GetCurrentPeriodUsageApiV1OrganizationsUsageCurrentPeriodGetResponses];
 
+export type GetCallReviewApiV1OrganizationsUsageReviewGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+        /**
+         * Attention Only
+         *
+         * Only calls with a low score or an unhappy caller.
+         */
+        attention_only?: boolean;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/organizations/usage/review';
+};
+
+export type GetCallReviewApiV1OrganizationsUsageReviewGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCallReviewApiV1OrganizationsUsageReviewGetError = GetCallReviewApiV1OrganizationsUsageReviewGetErrors[keyof GetCallReviewApiV1OrganizationsUsageReviewGetErrors];
+
+export type GetCallReviewApiV1OrganizationsUsageReviewGetResponses = {
+    /**
+     * Response Get Call Review Api V1 Organizations Usage Review Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCallReviewApiV1OrganizationsUsageReviewGetResponse = GetCallReviewApiV1OrganizationsUsageReviewGetResponses[keyof GetCallReviewApiV1OrganizationsUsageReviewGetResponses];
+
 export type GetUsageHistoryApiV1OrganizationsUsageRunsGetData = {
     body?: never;
     headers?: {
@@ -24038,6 +24114,50 @@ export type CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostRespons
 };
 
 export type CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostResponse = CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostResponses[keyof CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostResponses];
+
+export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/share-link';
+};
+
+export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostError = CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostErrors[keyof CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostErrors];
+
+export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ShareLinkResponse;
+};
+
+export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostResponse = CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostResponses[keyof CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostResponses];
 
 export type DeleteEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoDeleteData = {
     body?: never;

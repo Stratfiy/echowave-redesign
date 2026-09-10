@@ -19,6 +19,7 @@ import type {
     OrganizationAiModelConfigurationV2,
     WorkflowResponse,
 } from "@/client/types.gen";
+import { ShareAgentDialog } from "@/components/agent/ShareAgentDialog";
 import { SimpleModelPicker } from "@/components/agent/SimpleModelPicker";
 import {
     AIModelConfigurationV2Editor,
@@ -503,7 +504,11 @@ function GeneralSection({
             <CardContent className="space-y-6">
                 {/* Agent Name */}
                 <div className="space-y-2">
-                    <Label htmlFor="workflow_name" className="text-sm font-medium">Agent Name</Label>
+                    <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="workflow_name" className="text-sm font-medium">Agent Name</Label>
+                        {/* The demo you text a prospect: one link, no account. */}
+                        <ShareAgentDialog workflowId={workflowId} />
+                    </div>
                     <Input
                         id="workflow_name"
                         value={name}

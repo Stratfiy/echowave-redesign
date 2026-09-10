@@ -181,6 +181,68 @@ async def create_or_update_embed_token(
     )
 
 
+class ShareLinkResponse(BaseModel):
+    url: str
+    token: str
+
+
+@router.post("/{workflow_id}/share-link")
+async def create_share_link(
+    workflow_id: int,
+    user: UserModel = Depends(get_user),
+) -> ShareLinkResponse:
+    """A link where anyone talks to this agent in the browser, no account.
+
+    The demo you text a prospect instead of screen-sharing. Backed by the
+    same token as the website widget — one per agent, reactivated if it was
+    switched off — so the share link and the widget are one thing to revoke.
+    Our own host is always allowed for the token (see public_embed), so this
+    needs no domain from the customer.
+    """
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if not workflow:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    existing = await db_client.get_embed_tokens_by_workflow(
+        workflow_id, user.selected_organization_id, active_only=False
+    )
+    if existing:
+        token = existing[0]
+        if not token.is_active or (
+            token.expires_at and token.expires_at < datetime.now(UTC)
+        ):
+            token = await db_client.update_embed_token(
+                token.id,
+                user.selected_organization_id,
+                is_active=True,
+                expires_at=None,
+            )
+    else:
+        token = await db_client.create_embed_token(
+            workflow_id=workflow_id,
+            organization_id=user.selected_organization_id,
+            created_by=user.id,
+            allowed_domains=[],
+            settings=sanitize_client_settings(None, None),
+            usage_limit=None,
+            expires_at=None,
+        )
+
+    capture_event(
+        distinct_id=str(user.provider_id),
+        event=PostHogEvent.AGENT_SHARED,
+        properties={
+            "workflow_id": workflow_id,
+            "organization_id": user.selected_organization_id,
+        },
+    )
+    return ShareLinkResponse(
+        url=f"{str(UI_APP_URL).rstrip('/')}/talk/{token.token}", token=token.token
+    )
+
+
 @router.get("/{workflow_id}/embed-token")
 async def get_embed_token(
     workflow_id: int,

@@ -89,7 +89,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     pathname !== "/" &&
     !pathname.startsWith("/handler") &&
     !pathname.startsWith("/auth") &&
-    !pathname.startsWith("/start");
+    !pathname.startsWith("/start") &&
+    // The public share page: a prospect, no account, no rail.
+    !pathname.startsWith("/talk");
 
   // Only match the exact editor page /workflow/<id>, not sub-routes like /workflow/<id>/runs
   const isWorkflowEditor = /^\/workflow\/\d+$/.test(pathname);

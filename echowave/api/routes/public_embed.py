@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from api.constants import BACKEND_API_ENDPOINT
+from api.constants import BACKEND_API_ENDPOINT, UI_APP_URL
 from api.db import db_client
 from api.enums import WorkflowRunMode
 from api.routes.turn_credentials import (
@@ -87,8 +87,22 @@ class EmbedConfigResponse(BaseModel):
     button_color: str
     size: str
     auto_start: bool
+    #: What the share page calls the agent. None for a widget on a customer's
+    #: own site, which names it itself.
+    agent_name: str | None = None
     # Absent when the account has not uploaded one, which is most of them.
     logo_url: str | None = None
+
+
+def is_platform_origin(origin: str) -> bool:
+    """Is this our own app? Host and port both, because on a developer's
+    machine every port is a different site and a token that let any
+    localhost port through would be the widget's own whitelist undone."""
+    if not origin or not UI_APP_URL:
+        return False
+    ours, our_port = _parse_origin_host_port(str(UI_APP_URL))
+    theirs, their_port = _parse_origin_host_port(origin)
+    return bool(ours) and ours == theirs and (our_port or None) == (their_port or None)
 
 
 def validate_origin(origin: str, allowed_domains: list) -> bool:
@@ -115,6 +129,11 @@ def validate_origin(origin: str, allowed_domains: list) -> bool:
     Returns:
         True if origin is allowed, False otherwise
     """
+    # The hosted share page is ours: a token whose owner gave out a link
+    # must work there without the owner having to whitelist our own host.
+    if is_platform_origin(origin):
+        return True
+
     if not allowed_domains:
         return False
 
@@ -493,8 +512,17 @@ async def get_embed_config(token: str, request: Request, response: Response):
             f"{str(BACKEND_API_ENDPOINT).rstrip('/')}/api/v1/public/embed/logo/{token}"
         )
 
+    agent_name = None
+    try:
+        agent_name = await db_client.get_workflow_name(
+            embed_token.workflow_id, organization_id=embed_token.organization_id
+        )
+    except Exception:  # noqa: BLE001 - a label, never a reason to refuse
+        agent_name = None
+
     return EmbedConfigResponse(
         workflow_id=embed_token.workflow_id,
+        agent_name=agent_name,
         settings=public_settings(settings),
         theme=settings.get("theme", "light"),
         position=settings.get("position", "bottom-right"),

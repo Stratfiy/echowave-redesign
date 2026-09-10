@@ -4,6 +4,7 @@ import { Loader2, Phone, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 
+import { PostCallSummary } from "@/components/agent/PostCallSummary";
 import { Button } from "@/components/ui/button";
 import { RealtimeFeedback } from "@/components/workflow/conversation";
 
@@ -151,6 +152,10 @@ export function EmbeddedVoiceTester({
 
                 <audio ref={audioRef} autoPlay playsInline className="hidden" />
             </div>
+
+            {/* The verdict where the person still is, not on a page they
+                would have to go and open. */}
+            {isCompleted && <PostCallSummary workflowId={workflowId} runId={workflowRunId} className="mt-3" />}
 
             <ApiKeyErrorDialog
                 open={apiKeyModalOpen}
