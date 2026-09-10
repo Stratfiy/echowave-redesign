@@ -17,13 +17,8 @@
  * it are the next two steps rather than a directory of subsystems.
  */
 
-import { ArrowRight, BookOpen, LifeBuoy, Phone, Sparkles } from 'lucide-react';
-import Link from 'next/link';
-
-import { AgentBuilderPanel } from '@/components/agent-builder/AgentBuilderPanel';
 import { PageBody, PageHeader } from '@/components/layout/PageHeader';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { OverviewDashboard } from '@/components/overview/OverviewDashboard';
 import { useAuth } from '@/lib/auth';
 
 export default function OverviewPage() {
@@ -36,8 +31,8 @@ export default function OverviewPage() {
                 title="Overview"
                 description={
                     firstName
-                        ? `Welcome, ${firstName}. Describe your business below and you will have an agent you can talk to in a couple of minutes.`
-                        : 'Describe your business below and you will have an agent you can talk to in a couple of minutes.'
+                        ? `Welcome back, ${firstName}. Calls, answer rate and credits at a glance.`
+                        : 'Calls, answer rate and credits at a glance.'
                 }
             />
             {/* The one screen that keeps a reading-width column inside the body.
@@ -45,84 +40,11 @@ export default function OverviewPage() {
                 full-bleed at 1440 the input alone would be over a metre of
                 line, which is worse than the gutter the shell exists to remove. */}
             <PageBody>
-                <div className="mx-auto max-w-4xl">
-                {/* The shortest path to a working agent. Everything else on this
-                    page is what to do once it exists. */}
-                <AgentBuilderPanel />
-
-                {/* The next two steps, in the order they happen — not a list of
-                    subsystems. Nothing here names a model vendor or a carrier:
-                    the buyer this screen is for does not know one from another
-                    and should not have to. */}
-                <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-lg">
-                                <Sparkles className="h-4 w-4 text-primary" />
-                                Build it yourself
-                            </CardTitle>
-                            <CardDescription>
-                                Prefer to start from a blank agent, or edit one you
-                                have already made? The builder has every step of the
-                                conversation.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Button asChild variant="outline">
-                                <Link href="/workflow">
-                                    Open agents
-                                    <ArrowRight className="ml-2 h-4 w-4" />
-                                </Link>
-                            </Button>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-lg">
-                                <Phone className="h-4 w-4 text-primary" />
-                                Put it on a phone number
-                            </CardTitle>
-                            <CardDescription>
-                                Once your agent sounds right, give it a number so
-                                customers can call it — or connect a number you
-                                already own.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Button asChild variant="outline">
-                                <Link href="/telephony-configurations">
-                                    Set up calling
-                                    <ArrowRight className="ml-2 h-4 w-4" />
-                                </Link>
-                            </Button>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Docs and a way to reach a person. The "Report an Issue" button
-                    that stood here pointed at a GitHub issue tracker — the wrong
-                    place to send a customer, who wants an answer rather than a
-                    ticket in a queue they cannot see. */}
-                <div className="mt-8 flex flex-wrap items-center gap-3">
-                    <Button asChild variant="ghost" size="sm">
-                        <a
-                            href="https://docs.decibyl.ai"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            <BookOpen className="mr-2 h-4 w-4" />
-                            Documentation
-                        </a>
-                    </Button>
-                    <Button asChild variant="ghost" size="sm">
-                        <a href="mailto:support@decibyl.ai">
-                            <LifeBuoy className="mr-2 h-4 w-4" />
-                            Get help
-                        </a>
-                    </Button>
-                </div>
-                </div>
+                {/* A door until the first call, a dashboard after it. The
+                    builder chat, the next steps and the docs links moved inside
+                    the dashboard's empty state so this page has one job at a
+                    time. */}
+                <OverviewDashboard firstName={firstName} />
             </PageBody>
         </>
     );

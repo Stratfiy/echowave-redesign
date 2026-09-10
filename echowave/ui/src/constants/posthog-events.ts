@@ -46,4 +46,7 @@ export const PostHogEvent = {
   // Squads: one front desk handing the call to member agents.
   SQUAD_CREATED: "squad_created",
   SQUAD_CREATE_FAILED: "squad_create_failed",
+  // Overview dashboard.
+  OVERVIEW_RANGE_CHANGED: "overview_range_changed",
+  OVERVIEW_EXPORT_CLICKED: "overview_export_clicked",
 } as const;
