@@ -15,6 +15,16 @@ import { useEffect, useRef, useState } from "react";
 
 type Config = { agent_name?: string | null; button_text?: string; theme?: string };
 type ChatMessage = { role: "user" | "assistant"; content: string };
+type VoiceStatus = "idle" | "connecting" | "connected" | "failed";
+
+const VOICE_STATUS_RE = /\bdecibyl-state-(idle|connecting|connected|failed)\b/;
+
+/** The widget's connection state, as it writes it onto its own button. */
+function readVoiceStatus(): VoiceStatus | null {
+  const cta = document.getElementById("decibyl-widget-cta");
+  const match = cta?.className.match(VOICE_STATUS_RE);
+  return match ? (match[1] as VoiceStatus) : null;
+}
 
 declare global {
   interface Window {
@@ -27,7 +37,12 @@ export default function TalkPage() {
   const [config, setConfig] = useState<Config | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [widgetLoaded, setWidgetLoaded] = useState(false);
-  const [voiceStarted, setVoiceStarted] = useState(false);
+  // The call's real state, read off the widget rather than off our click.
+  // The widget marks its own button with a `decibyl-state-<status>` class as
+  // the WebRTC connection moves through connecting / connected / failed; the
+  // caption used to flip to "Listening" the moment the orb was tapped, which
+  // told a visitor to speak into a call that had not connected.
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>("idle");
 
   // Text chat
   const [chatOpen, setChatOpen] = useState(false);
@@ -86,13 +101,31 @@ export default function TalkPage() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
 
+  // Watch the whole body rather than the button: the widget creates its
+  // button asynchronously after its own config fetch, so the element does
+  // not exist yet when this page mounts, and it re-renders the class on every
+  // status change thereafter. One observer covers both.
+  useEffect(() => {
+    if (!widgetLoaded) return;
+    const sync = () => {
+      const status = readVoiceStatus();
+      if (status) setVoiceStatus(status);
+    };
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+  }, [widgetLoaded]);
+
   const name = config?.agent_name?.trim() || "this agent";
 
   function startVoice() {
-    if (window.DecibylWidget) {
-      window.DecibylWidget.start();
-      setVoiceStarted(true);
-    }
+    window.DecibylWidget?.start();
   }
 
   async function openChat() {
@@ -180,10 +213,10 @@ export default function TalkPage() {
             type="button"
             onClick={startVoice}
             disabled={!widgetLoaded}
-            aria-label={voiceStarted ? "In call" : "Start voice call"}
+            aria-label={voiceStatus === "connected" ? "In call" : "Start voice call"}
             className="group relative flex h-36 w-36 items-center justify-center rounded-full outline-none disabled:cursor-not-allowed"
           >
-            {(voiceStarted || !widgetLoaded) && (
+            {(!widgetLoaded || voiceStatus === "connecting" || voiceStatus === "connected") && (
               <>
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/15" />
                 <span className="absolute inline-flex h-28 w-28 animate-ping rounded-full bg-primary/20 [animation-delay:300ms]" />
@@ -197,8 +230,16 @@ export default function TalkPage() {
               </svg>
             </span>
           </button>
-          <p className="mt-4 text-xs text-muted-foreground">
-            {!widgetLoaded ? "Preparing…" : voiceStarted ? "Listening — speak now" : "Tap to talk"}
+          <p className="mt-4 text-xs text-muted-foreground" data-testid="voice-caption">
+            {!widgetLoaded
+              ? "Preparing…"
+              : voiceStatus === "connecting"
+                ? "Connecting…"
+                : voiceStatus === "connected"
+                  ? "Listening — speak now"
+                  : voiceStatus === "failed"
+                    ? "Couldn't connect — try the chat below"
+                    : "Tap to talk"}
           </p>
 
           {!chatOpen && (

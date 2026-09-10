@@ -60,6 +60,44 @@ describe("TalkPage", () => {
     expect(screen.getByText("my lock is stuck")).toBeTruthy();
   });
 
+  it("drives the orb caption from the widget's real connection state, not the tap", async () => {
+    render(<TalkPage />);
+    await screen.findByText("Or chat by typing instead");
+
+    // The widget script is appended by the page in an effect, which flushes
+    // a beat after the text above renders — so wait for the element itself.
+    // Then fire its onload so the observer arms, and stand in for the
+    // button the widget would create.
+    await waitFor(() =>
+      expect(document.querySelector('script[src*="decibyl-widget.js"]')).not.toBeNull(),
+    );
+    const script = document.querySelector('script[src*="decibyl-widget.js"]') as HTMLScriptElement;
+    script.onload?.(new Event("load"));
+
+    const cta = document.createElement("button");
+    cta.id = "decibyl-widget-cta";
+    cta.className = "decibyl-widget-cta decibyl-state-idle";
+    document.body.appendChild(cta);
+    await waitFor(() => expect(screen.getByTestId("voice-caption").textContent).toBe("Tap to talk"));
+
+    // Tapping the orb must not claim we are listening — nothing has connected.
+    fireEvent.click(screen.getByLabelText("Start voice call"));
+    expect(screen.getByTestId("voice-caption").textContent).toBe("Tap to talk");
+
+    cta.className = "decibyl-widget-cta decibyl-state-connecting";
+    await waitFor(() => expect(screen.getByTestId("voice-caption").textContent).toBe("Connecting…"));
+
+    cta.className = "decibyl-widget-cta decibyl-state-connected";
+    await waitFor(() =>
+      expect(screen.getByTestId("voice-caption").textContent).toBe("Listening — speak now"),
+    );
+
+    cta.className = "decibyl-widget-cta decibyl-state-failed";
+    await waitFor(() =>
+      expect(screen.getByTestId("voice-caption").textContent).toBe("Couldn't connect — try the chat below"),
+    );
+  });
+
   it("shows the link's own sentence when it is not available", async () => {
     (global.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation((url: string) =>
       url.includes("/config/") ? json({ detail: "This link has used its minutes for today." }, 403) : json({}, 404),
