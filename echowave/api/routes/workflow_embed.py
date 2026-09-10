@@ -5,12 +5,13 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.constants import BACKEND_API_ENDPOINT, ENVIRONMENT, UI_APP_URL
 from api.db import db_client
 from api.db.models import EmbedTokenModel, UserModel
 from api.enums import PostHogEvent
+from api.services import share_links
 from api.services.auth.depends import get_user
 from api.services.embed_logo import (
     MAX_LOGO_BYTES,
@@ -184,6 +185,52 @@ async def create_or_update_embed_token(
 class ShareLinkResponse(BaseModel):
     url: str
     token: str
+    is_active: bool
+    expires_at: Optional[datetime]
+    #: Minutes of calling the link may start per day; null is uncapped.
+    daily_minutes_cap: Optional[int]
+    minutes_used_today: int
+
+
+class ShareLinkSettings(BaseModel):
+    """What the owner may change about a link after making it."""
+
+    #: Null lifts the cap. Zero is refused: a link that can never start a
+    #: call is a switched-off link, and that is the switch, not a cap.
+    daily_minutes_cap: Optional[int] = Field(
+        None, ge=1, le=share_links.MAX_DAILY_MINUTES
+    )
+    #: Days from now until the link stops working; null means it does not.
+    expires_in_days: Optional[int] = Field(None, ge=1, le=365)
+    lift_cap: bool = False
+    never_expires: bool = False
+
+
+async def _share_link_response(token: EmbedTokenModel) -> ShareLinkResponse:
+    async with db_client.async_session() as session:
+        usage = await share_links.usage_for(
+            session, embed_token_id=token.id, cap_minutes=token.daily_minutes_cap
+        )
+    return ShareLinkResponse(
+        url=f"{str(UI_APP_URL).rstrip('/')}/talk/{token.token}",
+        token=token.token,
+        is_active=bool(token.is_active),
+        expires_at=token.expires_at,
+        daily_minutes_cap=token.daily_minutes_cap,
+        minutes_used_today=usage.minutes_used_today,
+    )
+
+
+async def _share_token(workflow_id: int, user: UserModel) -> Optional[EmbedTokenModel]:
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if not workflow:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    existing = await db_client.get_embed_tokens_by_workflow(
+        workflow_id, user.selected_organization_id, active_only=False
+    )
+    return existing[0] if existing else None
 
 
 @router.post("/{workflow_id}/share-link")
@@ -198,18 +245,16 @@ async def create_share_link(
     switched off — so the share link and the widget are one thing to revoke.
     Our own host is always allowed for the token (see public_embed), so this
     needs no domain from the customer.
-    """
-    workflow = await db_client.get_workflow(
-        workflow_id, organization_id=user.selected_organization_id
-    )
-    if not workflow:
-        raise HTTPException(status_code=404, detail="Agent not found")
 
-    existing = await db_client.get_embed_tokens_by_workflow(
-        workflow_id, user.selected_organization_id, active_only=False
-    )
-    if existing:
-        token = existing[0]
+    A new link gets thirty minutes a day and thirty days; switching an old
+    one back on gives it a fresh thirty days and keeps whatever cap it had,
+    or the default if it never had one. Every call on the link is paid from
+    the owner's credits, and the link goes to strangers — the cap is what
+    keeps one forwarded message from being a balance gone overnight.
+    """
+    token = await _share_token(workflow_id, user)
+    fresh_expiry = datetime.now(UTC) + timedelta(days=share_links.DEFAULT_EXPIRY_DAYS)
+    if token is not None:
         if not token.is_active or (
             token.expires_at and token.expires_at < datetime.now(UTC)
         ):
@@ -217,7 +262,9 @@ async def create_share_link(
                 token.id,
                 user.selected_organization_id,
                 is_active=True,
-                expires_at=None,
+                expires_at=fresh_expiry,
+                daily_minutes_cap=token.daily_minutes_cap
+                or share_links.DEFAULT_DAILY_MINUTES,
             )
     else:
         token = await db_client.create_embed_token(
@@ -227,7 +274,8 @@ async def create_share_link(
             allowed_domains=[],
             settings=sanitize_client_settings(None, None),
             usage_limit=None,
-            expires_at=None,
+            expires_at=fresh_expiry,
+            daily_minutes_cap=share_links.DEFAULT_DAILY_MINUTES,
         )
 
     capture_event(
@@ -238,9 +286,61 @@ async def create_share_link(
             "organization_id": user.selected_organization_id,
         },
     )
-    return ShareLinkResponse(
-        url=f"{str(UI_APP_URL).rstrip('/')}/talk/{token.token}", token=token.token
+    return await _share_link_response(token)
+
+
+@router.get("/{workflow_id}/share-link")
+async def get_share_link(
+    workflow_id: int,
+    user: UserModel = Depends(get_user),
+) -> Optional[ShareLinkResponse]:
+    """The agent's link as it stands, or null if none was ever made."""
+    token = await _share_token(workflow_id, user)
+    return await _share_link_response(token) if token else None
+
+
+@router.put("/{workflow_id}/share-link")
+async def update_share_link(
+    workflow_id: int,
+    settings: ShareLinkSettings,
+    user: UserModel = Depends(get_user),
+) -> ShareLinkResponse:
+    """Change the link's daily minutes or expiry. Takes effect at once."""
+    token = await _share_token(workflow_id, user)
+    if token is None:
+        raise HTTPException(status_code=404, detail="This agent has no share link yet.")
+    changes: dict = {}
+    if settings.lift_cap:
+        changes["daily_minutes_cap"] = None
+    elif settings.daily_minutes_cap is not None:
+        changes["daily_minutes_cap"] = settings.daily_minutes_cap
+    if settings.never_expires:
+        changes["expires_at"] = None
+    elif settings.expires_in_days is not None:
+        changes["expires_at"] = datetime.now(UTC) + timedelta(
+            days=settings.expires_in_days
+        )
+    if changes:
+        token = await db_client.update_embed_token(
+            token.id, user.selected_organization_id, **changes
+        )
+    return await _share_link_response(token)
+
+
+@router.delete("/{workflow_id}/share-link")
+async def switch_off_share_link(
+    workflow_id: int,
+    user: UserModel = Depends(get_user),
+) -> ShareLinkResponse:
+    """The kill switch. The link stops at once; a call in progress ends when
+    its session does. Making the link again switches it back on."""
+    token = await _share_token(workflow_id, user)
+    if token is None:
+        raise HTTPException(status_code=404, detail="This agent has no share link yet.")
+    token = await db_client.update_embed_token(
+        token.id, user.selected_organization_id, is_active=False
     )
+    return await _share_link_response(token)
 
 
 @router.get("/{workflow_id}/embed-token")

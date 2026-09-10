@@ -32,10 +32,20 @@ export default function TalkPage() {
       try {
         const response = await fetch(`/api/v1/public/embed/config/${encodeURIComponent(token)}`);
         if (!response.ok) {
+          // A spent daily limit or a switched-off link comes back as a 403
+          // with a sentence the visitor can act on; show that one.
+          let detail: string | null = null;
+          try {
+            detail = ((await response.json()) as { detail?: unknown }).detail as string | null;
+          } catch {
+            detail = null;
+          }
           setError(
             response.status === 404
               ? "This link is not valid."
-              : "This agent is not available on this link right now.",
+              : typeof detail === "string" && detail.includes("minutes for today")
+                ? detail
+                : "This agent is not available on this link right now.",
           );
           return;
         }

@@ -1357,6 +1357,11 @@ class EmbedTokenModel(Base):
     usage_limit = Column(Integer, nullable=True)  # Optional usage limit
     usage_count = Column(Integer, default=0, nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=True)
+    # Minutes of calling this token may start per UTC day, summed across every
+    # session on it. Null is no cap, which is what a website widget keeps; a
+    # share link is minted with one, because a link forwarded to a stranger
+    # spends the owner's credits. See api/services/share_links.py.
+    daily_minutes_cap = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     created_by = Column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False

@@ -379,6 +379,10 @@ async def initialize_embed_session(
     if embed_token.usage_limit and embed_token.usage_count >= embed_token.usage_limit:
         raise HTTPException(status_code=403, detail="Embed token usage limit exceeded")
 
+    # A share link's minutes for the day. Checked before a run is made, so a
+    # spent link costs nothing further; the message names the remedy.
+    await _assert_link_has_minutes(embed_token)
+
     # Validate domain
     if not validate_origin(origin, embed_token.allowed_domains or []):
         logger.warning(
@@ -467,6 +471,22 @@ async def options_embed_config(token: str, request: Request):
     return await _config_preflight_response(token, request.headers.get("origin", ""))
 
 
+async def _assert_link_has_minutes(embed_token) -> None:
+    """403 with the reason when a capped token has spent its day."""
+    from api.services import share_links
+
+    cap = getattr(embed_token, "daily_minutes_cap", None)
+    if cap is None:
+        return
+    async with db_client.async_session() as session:
+        try:
+            await share_links.assert_within_cap(
+                session, embed_token_id=embed_token.id, cap_minutes=cap
+            )
+        except share_links.LinkCapReached as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
 @router.get("/config/{token}", response_model=EmbedConfigResponse)
 async def get_embed_config(token: str, request: Request, response: Response):
     """Get embed configuration without creating a session.
@@ -489,6 +509,11 @@ async def get_embed_config(token: str, request: Request, response: Response):
     # answering for a token that can no longer start a call.
     if embed_token.expires_at and embed_token.expires_at < datetime.now(UTC):
         raise HTTPException(status_code=403, detail="Embed token has expired")
+
+    # The same for a link that has spent its day: the talk page reads this
+    # before it mounts the widget, so the visitor sees a sentence, not a
+    # button that fails.
+    await _assert_link_has_minutes(embed_token)
 
     # Validate domain
     if not validate_origin(origin, embed_token.allowed_domains or []):
