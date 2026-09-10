@@ -60,6 +60,8 @@ import logger from "@/lib/logger";
 import { cn } from "@/lib/utils";
 import {
     type AmbientNoiseConfiguration,
+    BACKCHANNEL_DEFAULT_DELAY_SECS,
+    type BackchannelConfiguration,
     DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
     DEFAULT_TURN_START_MIN_WORDS,
     DEFAULT_USER_SPEECH_TIMEOUT,
@@ -282,6 +284,14 @@ function ReportSection({ workflowId }: { workflowId: number }) {
 
 const MAX_AMBIENT_NOISE_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+/** One phrase per line in a text box; trimmed, blanks dropped. */
+function linesToList(text: string): string[] {
+    return text
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+}
+
 function GeneralSection({
     workflowConfigurations,
     workflowName,
@@ -303,6 +313,23 @@ function GeneralSection({
                 level: NOISE_SUPPRESSION_MAX_LEVEL,
             },
         );
+    const [backchannelConfig, setBackchannelConfig] = useState<BackchannelConfiguration>(
+        workflowConfigurations.backchannel_configuration ?? {
+            enabled: false,
+            delay_secs: BACKCHANNEL_DEFAULT_DELAY_SECS,
+            phrases: [],
+        },
+    );
+    // One phrase per line in the box; an array on the wire.
+    const [backchannelPhrasesText, setBackchannelPhrasesText] = useState(
+        (workflowConfigurations.backchannel_configuration?.phrases ?? []).join("\n"),
+    );
+    const [endCallPhrasesText, setEndCallPhrasesText] = useState(
+        (workflowConfigurations.end_call_phrases ?? []).join("\n"),
+    );
+    const [endCallFarewell, setEndCallFarewell] = useState(
+        workflowConfigurations.end_call_farewell ?? "",
+    );
     const [recordingConfig, setRecordingConfig] = useState<RecordingConfiguration>(
         workflowConfigurations.recording_configuration ?? { enabled: true },
     );
@@ -387,6 +414,17 @@ function GeneralSection({
             JSON.stringify(noiseSuppressionConfig) !== JSON.stringify(initSuppression) ||
             recordingConfig.enabled !==
             (workflowConfigurations.recording_configuration?.enabled ?? true) ||
+            JSON.stringify({ ...backchannelConfig, phrases: linesToList(backchannelPhrasesText) }) !==
+            JSON.stringify(
+                workflowConfigurations.backchannel_configuration ?? {
+                    enabled: false,
+                    delay_secs: BACKCHANNEL_DEFAULT_DELAY_SECS,
+                    phrases: [],
+                },
+            ) ||
+            JSON.stringify(linesToList(endCallPhrasesText)) !==
+            JSON.stringify(workflowConfigurations.end_call_phrases ?? []) ||
+            endCallFarewell !== (workflowConfigurations.end_call_farewell ?? "") ||
             acceptKeypadInput !== (workflowConfigurations.accept_keypad_input ?? false) ||
             maxCallDuration !== workflowConfigurations.max_call_duration ||
             maxUserIdleTimeout !== workflowConfigurations.max_user_idle_timeout ||
@@ -403,7 +441,7 @@ function GeneralSection({
             includeTranscriptEndTimestamps !==
             (workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false)
         );
-    }, [name, workflowName, ambientNoiseConfig, noiseSuppressionConfig, recordingConfig, acceptKeypadInput, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, noiseSuppressionConfig, recordingConfig, backchannelConfig, backchannelPhrasesText, endCallPhrasesText, endCallFarewell, acceptKeypadInput, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -474,6 +512,12 @@ function GeneralSection({
                     ambient_noise_configuration: ambientNoiseConfig,
                     noise_suppression_configuration: noiseSuppressionConfig,
                     recording_configuration: recordingConfig,
+                    backchannel_configuration: {
+                        ...backchannelConfig,
+                        phrases: linesToList(backchannelPhrasesText),
+                    },
+                    end_call_phrases: linesToList(endCallPhrasesText),
+                    end_call_farewell: endCallFarewell.trim() || null,
                     accept_keypad_input: acceptKeypadInput,
                     max_call_duration: maxCallDuration,
                     max_user_idle_timeout: maxUserIdleTimeout,
@@ -534,6 +578,67 @@ function GeneralSection({
                     blurb="How the agent takes turns, and when a caller can cut in."
                     defaultOpen={true}
                 >
+                {/* Fillers. First in the group: a caller hears the wait
+                    before they hear anything about turn-taking. */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Fillers while thinking</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Say a short &ldquo;hmm&rdquo; or &ldquo;one moment&rdquo; when a reply
+                            is slow to start, so a lookup or a slow model does not sound
+                            like a dropped line. Once per turn, never added to the
+                            conversation. Write the phrases in the language the agent
+                            speaks.
+                        </p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="backchannel-enabled" className="text-sm">
+                            Fill silence while the agent thinks
+                        </Label>
+                        <Switch
+                            id="backchannel-enabled"
+                            checked={backchannelConfig.enabled}
+                            onCheckedChange={(checked) =>
+                                setBackchannelConfig({ ...backchannelConfig, enabled: checked })
+                            }
+                        />
+                    </div>
+                    {backchannelConfig.enabled && (
+                        <>
+                            <Slider
+                                id="backchannel-delay"
+                                label="Speak after"
+                                unit="s"
+                                min={0.5}
+                                max={5}
+                                step={0.1}
+                                value={backchannelConfig.delay_secs ?? BACKCHANNEL_DEFAULT_DELAY_SECS}
+                                onValueChange={(delay_secs) =>
+                                    setBackchannelConfig({ ...backchannelConfig, delay_secs })
+                                }
+                                hint="How long the caller waits in silence before hearing a filler. Default: 1.2"
+                            />
+                            <div className="space-y-2">
+                                <Label htmlFor="backchannel-phrases" className="text-xs">
+                                    Phrases, one per line
+                                </Label>
+                                <Textarea
+                                    id="backchannel-phrases"
+                                    rows={3}
+                                    value={backchannelPhrasesText}
+                                    onChange={(e) => setBackchannelPhrasesText(e.target.value)}
+                                    placeholder={"Hmm.\nOkay.\nOne moment."}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Rotated in order. Leave empty for the English defaults.
+                                </p>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                <Separator />
+
                 {/* Response Rate */}
                 <div className="space-y-4">
                     <div>
@@ -784,6 +889,50 @@ function GeneralSection({
                                 }}
                             />
                             <p className="text-xs text-muted-foreground">Default: 10 seconds</p>
+                        </div>
+                    </div>
+                </div>
+
+                <Separator />
+
+                {/* Hang up on goodbye. With the other ways a call ends. */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Hang up on goodbye</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            When the caller says one of these, the agent says its farewell
+                            and ends the call at once, with no reply in between. A short
+                            utterance that contains a phrase counts; a long sentence has
+                            to be the phrase. Empty means off.
+                        </p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label htmlFor="end-call-phrases" className="text-xs">
+                                Goodbye phrases, one per line
+                            </Label>
+                            <Textarea
+                                id="end-call-phrases"
+                                rows={4}
+                                value={endCallPhrasesText}
+                                onChange={(e) => setEndCallPhrasesText(e.target.value)}
+                                placeholder={"bye\nthat's all\nthank you bye\nசரி வைக்கிறேன்"}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="end-call-farewell" className="text-xs">
+                                Farewell the agent says first
+                            </Label>
+                            <Textarea
+                                id="end-call-farewell"
+                                rows={4}
+                                value={endCallFarewell}
+                                onChange={(e) => setEndCallFarewell(e.target.value)}
+                                placeholder="Thank you for calling. Goodbye!"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Leave empty to hang up without a word.
+                            </p>
                         </div>
                     </div>
                 </div>

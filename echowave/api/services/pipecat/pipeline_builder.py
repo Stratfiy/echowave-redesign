@@ -41,6 +41,8 @@ def build_pipeline(
     digit_normaliser=None,
     dtmf_collector=None,
     interruption_backoff=None,
+    end_call_phrase_watcher=None,
+    backchannel=None,
 ):
     """Build the main pipeline with all components.
 
@@ -94,6 +96,14 @@ def build_pipeline(
         logger.info("Adding DTMF collector to pipeline")
         processors.append(dtmf_collector)
 
+    # After everything that edits the caller's transcription and before the
+    # aggregator that would turn it into a model turn. On a match the engine
+    # is told before the frame moves on, so the aggregator sees a muted
+    # pipeline rather than a goodbye to answer.
+    if end_call_phrase_watcher:
+        logger.info("Adding end-call phrase watcher to pipeline")
+        processors.append(end_call_phrase_watcher)
+
     # Insert voicemail detector after STT if enabled
     # Note: We intentionally do NOT use voicemail_detector.gate() to allow TTS
     # frames to continue flowing during classification (non-blocking detection)
@@ -109,6 +119,11 @@ def build_pipeline(
     post_llm = [pipeline_engine_callback_processor]
     if recording_router:
         post_llm.append(recording_router)
+    # After the LLM so it sees the reply start; before TTS so its filler is
+    # spoken like any other line.
+    if backchannel:
+        logger.info("Adding backchannel filler to pipeline")
+        post_llm.append(backchannel)
 
     processors.append(user_context_aggregator)
 

@@ -967,6 +967,33 @@ class PipecatEngine:
         logger.info(f"Caller said nothing for {wait}s; the agent greets instead")
         await self._queue_start_opening()
 
+    async def end_call_on_phrase(self, phrase: str, farewell: Optional[str]) -> None:
+        """The caller said goodbye. Say ours, if any, and hang up.
+
+        No model turn: the point of the phrase list is that a caller who has
+        said "bye" is not waiting for a paragraph. The farewell is queued
+        before the end frame so it plays out; without one the call ends now.
+        """
+        if self._call_disposed:
+            return
+        self._gathered_context["call_disposition"] = "caller_said_goodbye"
+        tags = self._gathered_context.get("call_tags", [])
+        if "end_call_phrase" not in tags:
+            tags.append("end_call_phrase")
+        self._gathered_context["call_tags"] = tags
+        logger.info(f"Ending the call on end-call phrase {phrase!r}")
+        if farewell and self.task is not None:
+            await self.task.queue_frame(
+                TTSSpeakFrame(farewell, append_to_context=True, persist_to_logs=True)
+            )
+            await self.end_call_with_reason(
+                EndTaskReason.USER_HANGUP.value, abort_immediately=False
+            )
+        else:
+            await self.end_call_with_reason(
+                EndTaskReason.USER_HANGUP.value, abort_immediately=True
+            )
+
     async def handle_user_started_speaking(self) -> None:
         """The pipeline saw the caller start talking.
 
