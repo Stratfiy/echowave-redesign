@@ -53,6 +53,7 @@ from api.db.models import (
     WorkflowRunModel,
 )
 from api.enums import CreditLedgerKind
+from api.services.billing.internal_accounts import is_internal
 from api.services.billing.money import MPAISE_PER_PAISE, round_half_up_div
 
 REF_TYPE = "workflow_run"
@@ -247,6 +248,9 @@ async def has_credit(
         if held is not None:
             return True
 
+    if await is_internal(session, organization_id):
+        return True
+
     balance = await current_balance_paise(session, organization_id=organization_id)
     return balance >= MIN_BALANCE_PAISE
 
@@ -306,7 +310,12 @@ async def reserve(
     )
 
     balance = await current_balance_paise(session, organization_id=organization_id)
-    if balance < MIN_BALANCE_PAISE:
+    # Our own accounts are not customers. The balance there records what the
+    # providers cost us rather than money somebody paid in, so it may go
+    # negative and the floor does not apply — finding out mid-demo that the
+    # testing account is empty is the failure this prevents.
+    internal = await is_internal(session, organization_id)
+    if not internal and balance < MIN_BALANCE_PAISE:
         logger.info(
             "Refusing workflow run {} for org {}: balance is {} paise, floor is {}",
             workflow_run_id,
@@ -317,7 +326,11 @@ async def reserve(
         return None
 
     per_minute = await per_minute_paise(session, organization_id=organization_id, at=at)
-    amount = min(max(1, per_minute * RESERVATION_MINUTES), balance)
+    full_hold = max(1, per_minute * RESERVATION_MINUTES)
+    # A customer holds no more than they have; an internal account holds the
+    # whole estimate, because capping it at the balance is what would make the
+    # hold run out mid-call.
+    amount = full_hold if internal else min(full_hold, balance)
 
     entry = CreditLedgerModel(
         organization_id=organization_id,

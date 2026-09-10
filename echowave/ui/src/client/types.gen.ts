@@ -4978,6 +4978,16 @@ export type InitiateCallRequest = {
 };
 
 /**
+ * InternalBillingRequest
+ */
+export type InternalBillingRequest = {
+    /**
+     * Internal
+     */
+    internal: boolean;
+};
+
+/**
  * InviteRequest
  */
 export type InviteRequest = {
@@ -12018,6 +12028,54 @@ export type SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutRe
 };
 
 export type SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutResponse = SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutResponses[keyof SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutResponses];
+
+export type SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInternalBillingPutData = {
+    body: InternalBillingRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/accounts/{organization_id}/internal-billing';
+};
+
+export type SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInternalBillingPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInternalBillingPutError = SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInternalBillingPutErrors[keyof SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInternalBillingPutErrors];
+
+export type SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInternalBillingPutResponses = {
+    /**
+     * Response Set Account Internal Billing Api V1 Admin Billing Accounts  Organization Id  Internal Billing Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInternalBillingPutResponse = SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInternalBillingPutResponses[keyof SetAccountInternalBillingApiV1AdminBillingAccountsOrganizationIdInternalBillingPutResponses];
 
 export type AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostData = {
     body: CreditAdjustmentRequest;

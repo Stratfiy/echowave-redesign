@@ -110,14 +110,31 @@ def validate_markup_bps(markup_bps: object) -> int:
 
 
 async def resolve_markup_bps(
-    session: AsyncSession, *, at: datetime | None = None
+    session: AsyncSession,
+    *,
+    at: datetime | None = None,
+    organization_id: int | None = None,
 ) -> int:
     """The multiple in force, falling back to the environment.
 
     ``at`` reads the value as it stood at a moment, so re-costing an old call
     prices it against the markup that was actually applied rather than
     today's — the whole reason this is a history rather than a setting.
+
+    ``organization_id`` is only consulted to ask whether the account is one of
+    ours. An internal account is charged provider cost, so no markup applies to
+    it at any date — see services/billing/internal_accounts.py. Omit it, as
+    every operator screen asking for the list multiple does, and the answer is
+    the multiple customers pay.
     """
+    from api.services.billing.internal_accounts import (
+        COST_ONLY_MARKUP_BPS,
+        is_internal,
+    )
+
+    if await is_internal(session, organization_id):
+        return COST_ONLY_MARKUP_BPS
+
     moment = at or datetime.now(UTC)
     row = (
         await session.execute(

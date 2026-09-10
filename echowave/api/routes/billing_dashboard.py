@@ -317,6 +317,49 @@ async def set_account_own_keys(
     }
 
 
+class InternalBillingRequest(BaseModel):
+    internal: bool
+
+
+@router.put("/accounts/{organization_id}/internal-billing")
+async def set_account_internal_billing(
+    organization_id: int,
+    request: InternalBillingRequest,
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Mark this account as one of ours, or hand it back to customer billing.
+
+    An internal account pays provider cost: no platform fee, no markup, no
+    per-model override, and no balance floor, so it may run negative. All four
+    travel together deliberately — see services/billing/internal_accounts.py
+    for what each of them costs when it is missing.
+
+    Superadmin only, and one switch rather than a rate somebody could tune to
+    zero, because "this is not a customer" is a different statement from "this
+    customer gets a discount" and only the first should stop counting as
+    revenue.
+    """
+    async with db_client.async_session() as session:
+        organization = await session.get(OrganizationModel, organization_id)
+        if organization is None:
+            raise HTTPException(
+                status_code=404, detail=f"Organization {organization_id} not found"
+            )
+        organization.internal_billing = bool(request.internal)
+        await session.commit()
+
+    logger.info(
+        "Organization {} marked {} by staff user {}",
+        organization_id,
+        "internal (provider cost, no floor)" if request.internal else "a customer",
+        user.id,
+    )
+    return {
+        "organization_id": organization_id,
+        "internal_billing": bool(request.internal),
+    }
+
+
 class CreditAdjustmentRequest(BaseModel):
     delta_paise: int = Field(..., description="Positive credits, negative debits")
     note: str = Field(..., min_length=1, description="Required: why this was adjusted")
