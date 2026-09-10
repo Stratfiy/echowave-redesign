@@ -480,3 +480,48 @@ class TestTheSeededCatalogue:
                     f"{upstream.provider}/{upstream.model}, which is not in the "
                     "catalogue — a tier customers are already on must be on sale"
                 )
+
+
+class TestTheRealtimeSlotIsPricedToo:
+    @pytest.fixture(autouse=True)
+    def _blank(self, empty_catalogue):
+        """Each test here states its own catalogue."""
+
+    async def test_a_speech_to_speech_model_shows_a_price(
+        self, async_session, has_platform_key
+    ):
+        """The realtime picker showed models with no price against any of them.
+
+        A speech-to-speech session is metered as language-model usage under the
+        name derived from the running pipecat processor -- decibylopenairealtime,
+        not openai_realtime. Two places already translate that: the estimate, and
+        the catalogue's own sellability check. The bulk pricing loop behind the
+        picker did not, so CostComponent("realtime") raised and every model in
+        that slot came back with paise_per_minute None -- the one thing this
+        module's docstring says must never reach a customer.
+        """
+        from api.services.configuration.agent_options import catalogue_options
+
+        has_platform_key({"realtime": ["openai_realtime"]})
+        await model_catalogue.set_offered(
+            session=async_session,
+            component="realtime",
+            provider="openai_realtime",
+            models=["gpt-realtime-2"],
+        )
+        async_session.add(
+            _rate(
+                "decibylopenairealtime",
+                CostComponent.LLM,
+                RateUnit.THOUSAND_TOKENS,
+                341_652,
+            )
+        )
+        await async_session.flush()
+
+        catalogue = await catalogue_options(async_session, organization_id=None)
+
+        assert [option["model"] for option in catalogue["realtime"]] == [
+            "gpt-realtime-2"
+        ]
+        assert catalogue["realtime"][0]["paise_per_minute"] > 0
