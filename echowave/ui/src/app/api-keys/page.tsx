@@ -180,8 +180,8 @@ export default function APIKeysPage() {
             const response = await createApiKeyApiV1UserApiKeysPost({
                 body: {
                     name: newKeyName,
-                    environment: newKeyEnvironment,
-                } as { name: string; environment: string },
+                    environment: newKeyEnvironment as "production" | "sandbox",
+                },
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                 }

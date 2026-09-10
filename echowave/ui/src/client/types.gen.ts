@@ -21,6 +21,10 @@ export type ApiKeyResponse = {
      */
     key_prefix: string;
     /**
+     * Environment
+     */
+    environment?: string;
+    /**
      * Is Active
      */
     is_active: boolean;
@@ -522,6 +526,50 @@ export type AuthUserResponse = {
      * Organization Role
      */
     organization_role: string | null;
+};
+
+/**
+ * AutoTopupRequest
+ *
+ * What the customer is choosing. Amounts are net of GST, like every other
+ * amount a customer enters — the card is charged that plus tax, exactly as a
+ * manual top-up is.
+ */
+export type AutoTopupRequest = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Amount Paise
+     *
+     * Credit to buy each time, in paise, net of GST.
+     */
+    amount_paise: number;
+    /**
+     * Trigger Days
+     *
+     * Top up when this many days of credit remain, judged on recent spending. The debit runs a clear day after we notify you, so this needs to be more than one.
+     */
+    trigger_days?: number;
+    /**
+     * Trigger Paise
+     *
+     * Also top up below this balance outright, for when there is not enough recent spending to judge runway from.
+     */
+    trigger_paise?: number;
+    /**
+     * Monthly Cap Paise
+     *
+     * Never spend more than this in a calendar month. 0 is no money cap.
+     */
+    monthly_cap_paise?: number;
+    /**
+     * Max Per Month
+     *
+     * Never top up more than this many times in a calendar month.
+     */
+    max_per_month?: number;
 };
 
 /**
@@ -1103,6 +1151,16 @@ export type BodyUploadDocumentApiV1KycDocumentsPost = {
 };
 
 /**
+ * Body_upload_embed_logo_api_v1_workflow__workflow_id__embed_token_logo_post
+ */
+export type BodyUploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * Body_upload_numbers_api_v1_do_not_call_upload_post
  */
 export type BodyUploadNumbersApiV1DoNotCallUploadPost = {
@@ -1254,6 +1312,57 @@ export type CallDispositionCodes = {
      * Disposition Codes
      */
     disposition_codes?: Array<string>;
+};
+
+/**
+ * CallOutcome
+ *
+ * One label this agent's calls can be classified as afterwards.
+ *
+ * Distinct from ``call_disposition_codes`` on the workflow, which is not
+ * configuration at all: that column is a registry the pipeline appends to
+ * with every ``mapped_call_disposition`` it has actually seen, so the calls
+ * list can offer a dropdown of codes that occurred. This is the taxonomy a
+ * business *decides on* — the outcomes it wants sorted by, whether or not a
+ * call has produced one yet.
+ *
+ * Per workflow, because the outcomes are. A clinic books appointments, a
+ * lending agent gets a payment promise, an NDR agent confirms an address.
+ * Both Vapi and Bolna let you define the shape here rather than shipping a
+ * fixed set, and for the same reason: there isn't one.
+ */
+export type CallOutcome = {
+    /**
+     * Code
+     */
+    code?: string;
+    /**
+     * Label
+     */
+    label?: string;
+    /**
+     * When
+     */
+    when?: string;
+    [key: string]: unknown;
+};
+
+/**
+ * CallOutcomeResponse
+ */
+export type CallOutcomeResponse = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * When
+     */
+    when: string;
 };
 
 /**
@@ -2077,6 +2186,10 @@ export type CreateApiKeyRequest = {
      * Name
      */
     name: string;
+    /**
+     * Environment
+     */
+    environment?: 'production' | 'sandbox';
 };
 
 /**
@@ -2095,6 +2208,10 @@ export type CreateApiKeyResponse = {
      * Key Prefix
      */
     key_prefix: string;
+    /**
+     * Environment
+     */
+    environment?: string;
     /**
      * Api Key
      */
@@ -2169,6 +2286,53 @@ export type CreateFolderRequest = {
      * Name
      */
     name: string;
+};
+
+/**
+ * CreateFromTemplateRequest
+ *
+ * What is asked before the template becomes an agent.
+ *
+ * The template grid asks only the voice. The first-agent flow asks a little
+ * more — a name, the business facts the prompts have placeholders for, and
+ * the opening line — because a new account has nothing else to fall back on,
+ * and an agent that greets callers as "{{clinic_name}}" is not a first
+ * impression. Every field is optional so the grid's one-click path is
+ * unchanged.
+ */
+export type CreateFromTemplateRequest = {
+    /**
+     * Voice Gender
+     *
+     * Give the agent a male or female voice. Omit to inherit the organization's default.
+     */
+    voice_gender?: 'male' | 'female' | null;
+    /**
+     * Agent Name
+     *
+     * What the agent is called in the list. Omit to use the template's name.
+     */
+    agent_name?: string | null;
+    /**
+     * Variables
+     *
+     * Answers to the template's placeholders, e.g. clinic_name. Written into the prompts; anything unanswered stays a placeholder for the call to fill.
+     */
+    variables?: {
+        [key: string]: string;
+    };
+    /**
+     * Greeting
+     *
+     * Replace the template's opening line. Omit to keep it.
+     */
+    greeting?: string | null;
+    /**
+     * Source
+     *
+     * Which screen created it, for the funnel. Omit for the template grid.
+     */
+    source?: string | null;
 };
 
 /**
@@ -2422,6 +2586,10 @@ export type CreateWorkflowTemplateRequest = {
      * Llm Tier
      */
     llm_tier?: string;
+    /**
+     * Bundle Slug
+     */
+    bundle_slug?: string;
     /**
      * Welcome Message
      */
@@ -3436,6 +3604,10 @@ export type EmbedConfigResponse = {
      * Auto Start
      */
     auto_start: boolean;
+    /**
+     * Logo Url
+     */
+    logo_url?: string | null;
 };
 
 /**
@@ -4946,6 +5118,86 @@ export type LibraryOptions = {
 };
 
 /**
+ * LibraryTool
+ *
+ * One catalogue entry, and the `http_api` tool it seeds.
+ */
+export type LibraryTool = {
+    /**
+     * Key
+     *
+     * Stable id for this entry. Not stored on the tool.
+     */
+    key: string;
+    /**
+     * Vendor
+     *
+     * Section heading in the picker.
+     */
+    vendor: string;
+    /**
+     * Display Name
+     *
+     * What the picker lists it as.
+     */
+    display_name: string;
+    /**
+     * Summary
+     *
+     * One line on what it does during a call.
+     */
+    summary: string;
+    /**
+     * Tool Name
+     */
+    tool_name: string;
+    /**
+     * Tool Description
+     */
+    tool_description: string;
+    /**
+     * Method
+     */
+    method?: string;
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Parameters
+     */
+    parameters?: Array<LibraryToolParameter>;
+    /**
+     * Setup Note
+     */
+    setup_note?: string;
+};
+
+/**
+ * LibraryToolParameter
+ *
+ * One parameter the agent fills in, seeding a `ToolParameter`.
+ */
+export type LibraryToolParameter = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Type
+     */
+    type?: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Required
+     */
+    required?: boolean;
+};
+
+/**
  * ListResponse
  */
 export type ListResponse = {
@@ -5366,6 +5618,40 @@ export type MistralLlmConfiguration = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+};
+
+/**
+ * ModelPresetRequest
+ */
+export type ModelPresetRequest = {
+    /**
+     * Preset
+     */
+    preset: string;
+};
+
+/**
+ * ModelSlotRequest
+ *
+ * One tile's pencil: this slot, this managed model, this voice.
+ */
+export type ModelSlotRequest = {
+    /**
+     * Component
+     */
+    component: 'stt' | 'llm' | 'tts' | 'realtime';
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Model
+     */
+    model: string;
+    /**
+     * Voice
+     */
+    voice?: string | null;
 };
 
 /**
@@ -6711,7 +6997,7 @@ export type PropertySpec = {
  * Adding a value here requires a matching arm in the frontend
  * `<PropertyInput>` switch and (where relevant) the SDK codegen template.
  */
-export type PropertyType = 'string' | 'number' | 'boolean' | 'options' | 'multi_options' | 'fixed_collection' | 'json' | 'tool_refs' | 'document_refs' | 'recording_ref' | 'credential_ref' | 'mention_textarea' | 'url';
+export type PropertyType = 'string' | 'number' | 'boolean' | 'options' | 'multi_options' | 'fixed_collection' | 'json' | 'tool_refs' | 'document_refs' | 'recording_ref' | 'credential_ref' | 'agent_ref' | 'mention_textarea' | 'url';
 
 /**
  * ProviderRateRequest
@@ -8396,6 +8682,24 @@ export type TimeSlotResponse = {
 };
 
 /**
+ * ToolLibraryResponse
+ */
+export type ToolLibraryResponse = {
+    /**
+     * Catalog
+     */
+    catalog: string;
+    /**
+     * Vendors
+     */
+    vendors: Array<string>;
+    /**
+     * Tools
+     */
+    tools: Array<LibraryTool>;
+};
+
+/**
  * ToolParameter
  *
  * A parameter that the tool accepts from the model at call time.
@@ -9367,7 +9671,7 @@ export type VonageConfigurationResponse = {
  *
  * Webhook credential authentication types
  */
-export type WebhookCredentialType = 'none' | 'api_key' | 'bearer_token' | 'basic_auth' | 'custom_header';
+export type WebhookCredentialType = 'none' | 'api_key' | 'bearer_token' | 'basic_auth' | 'custom_header' | 'oauth2';
 
 /**
  * WorkerHealthResponse
@@ -9456,6 +9760,22 @@ export type WorkflowConfigurationDefaults = {
      * Fallback Stt
      */
     fallback_stt?: Array<FallbackServiceConfiguration>;
+    /**
+     * Call Outcomes
+     */
+    call_outcomes?: Array<CallOutcome>;
+    /**
+     * Follow Caller Language
+     */
+    follow_caller_language?: boolean;
+    /**
+     * Accept Keypad Input
+     */
+    accept_keypad_input?: boolean;
+    /**
+     * Speak Like Callers
+     */
+    speak_like_callers?: boolean;
     [key: string]: unknown;
 };
 
@@ -9937,6 +10257,10 @@ export type WorkflowRunUsageResponse = {
      */
     disposition?: string | null;
     /**
+     * Call Outcomes
+     */
+    call_outcomes?: Array<string> | null;
+    /**
      * Initial Context
      */
     initial_context?: {
@@ -9998,6 +10322,10 @@ export type WorkflowSummaryResponse = {
      * Name
      */
     name: string;
+    /**
+     * Workflow Uuid
+     */
+    workflow_uuid?: string | null;
 };
 
 /**
@@ -13314,6 +13642,57 @@ export type GetAgentTemplateApiV1AgentTemplatesTemplateIdGetResponses = {
 
 export type GetAgentTemplateApiV1AgentTemplatesTemplateIdGetResponse = GetAgentTemplateApiV1AgentTemplatesTemplateIdGetResponses[keyof GetAgentTemplateApiV1AgentTemplatesTemplateIdGetResponses];
 
+export type CreateFromTemplateApiV1AgentTemplatesTemplateIdCreatePostData = {
+    /**
+     * Request
+     */
+    body?: CreateFromTemplateRequest | null;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Template Id
+         */
+        template_id: string;
+    };
+    query?: never;
+    url: '/api/v1/agent-templates/{template_id}/create';
+};
+
+export type CreateFromTemplateApiV1AgentTemplatesTemplateIdCreatePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateFromTemplateApiV1AgentTemplatesTemplateIdCreatePostError = CreateFromTemplateApiV1AgentTemplatesTemplateIdCreatePostErrors[keyof CreateFromTemplateApiV1AgentTemplatesTemplateIdCreatePostErrors];
+
+export type CreateFromTemplateApiV1AgentTemplatesTemplateIdCreatePostResponses = {
+    /**
+     * Response Create From Template Api V1 Agent Templates  Template Id  Create Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateFromTemplateApiV1AgentTemplatesTemplateIdCreatePostResponse = CreateFromTemplateApiV1AgentTemplatesTemplateIdCreatePostResponses[keyof CreateFromTemplateApiV1AgentTemplatesTemplateIdCreatePostResponses];
+
 export type GetCarriageBasisApiV1AgentOptionsCarriageGetData = {
     body?: never;
     headers?: {
@@ -13370,7 +13749,14 @@ export type GetAgentOptionsApiV1AgentOptionsGetData = {
         'X-API-Key'?: string | null;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Workflow Id
+         *
+         * Read the selection of this agent rather than the account default. The options themselves are the same either way.
+         */
+        workflow_id?: number | null;
+    };
     url: '/api/v1/agent-options';
 };
 
@@ -13413,7 +13799,14 @@ export type SaveSelectionApiV1AgentOptionsSelectionPutData = {
         'X-API-Key'?: string | null;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Workflow Id
+         *
+         * Save the choice on this agent alone, as its model override. Omit to set the account default every agent without one inherits.
+         */
+        workflow_id?: number | null;
+    };
     url: '/api/v1/agent-options/selection';
 };
 
@@ -15462,6 +15855,49 @@ export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses = {
 
 export type SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponse = SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses[keyof SetProviderKeyActiveApiV1AdminProviderKeysActivePostResponses];
 
+export type RecheckProviderKeysApiV1AdminProviderKeysRecheckPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/provider-keys/recheck';
+};
+
+export type RecheckProviderKeysApiV1AdminProviderKeysRecheckPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecheckProviderKeysApiV1AdminProviderKeysRecheckPostError = RecheckProviderKeysApiV1AdminProviderKeysRecheckPostErrors[keyof RecheckProviderKeysApiV1AdminProviderKeysRecheckPostErrors];
+
+export type RecheckProviderKeysApiV1AdminProviderKeysRecheckPostResponses = {
+    /**
+     * Response Recheck Provider Keys Api V1 Admin Provider Keys Recheck Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RecheckProviderKeysApiV1AdminProviderKeysRecheckPostResponse = RecheckProviderKeysApiV1AdminProviderKeysRecheckPostResponses[keyof RecheckProviderKeysApiV1AdminProviderKeysRecheckPostResponses];
+
 export type DiscoverModelsApiV1AdminProviderKeysModelsGetData = {
     body?: never;
     headers?: {
@@ -16490,6 +16926,135 @@ export type CancelMandateApiV1BillingMandateCancelPostResponses = {
 
 export type CancelMandateApiV1BillingMandateCancelPostResponse = CancelMandateApiV1BillingMandateCancelPostResponses[keyof CancelMandateApiV1BillingMandateCancelPostResponses];
 
+export type GetAutoTopupApiV1BillingAutoTopupGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/auto-topup';
+};
+
+export type GetAutoTopupApiV1BillingAutoTopupGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAutoTopupApiV1BillingAutoTopupGetError = GetAutoTopupApiV1BillingAutoTopupGetErrors[keyof GetAutoTopupApiV1BillingAutoTopupGetErrors];
+
+export type GetAutoTopupApiV1BillingAutoTopupGetResponses = {
+    /**
+     * Response Get Auto Topup Api V1 Billing Auto Topup Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetAutoTopupApiV1BillingAutoTopupGetResponse = GetAutoTopupApiV1BillingAutoTopupGetResponses[keyof GetAutoTopupApiV1BillingAutoTopupGetResponses];
+
+export type SaveAutoTopupApiV1BillingAutoTopupPutData = {
+    body: AutoTopupRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/auto-topup';
+};
+
+export type SaveAutoTopupApiV1BillingAutoTopupPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveAutoTopupApiV1BillingAutoTopupPutError = SaveAutoTopupApiV1BillingAutoTopupPutErrors[keyof SaveAutoTopupApiV1BillingAutoTopupPutErrors];
+
+export type SaveAutoTopupApiV1BillingAutoTopupPutResponses = {
+    /**
+     * Response Save Auto Topup Api V1 Billing Auto Topup Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SaveAutoTopupApiV1BillingAutoTopupPutResponse = SaveAutoTopupApiV1BillingAutoTopupPutResponses[keyof SaveAutoTopupApiV1BillingAutoTopupPutResponses];
+
+export type CancelPendingAutoTopupApiV1BillingAutoTopupCancelPendingPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/billing/auto-topup/cancel-pending';
+};
+
+export type CancelPendingAutoTopupApiV1BillingAutoTopupCancelPendingPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelPendingAutoTopupApiV1BillingAutoTopupCancelPendingPostError = CancelPendingAutoTopupApiV1BillingAutoTopupCancelPendingPostErrors[keyof CancelPendingAutoTopupApiV1BillingAutoTopupCancelPendingPostErrors];
+
+export type CancelPendingAutoTopupApiV1BillingAutoTopupCancelPendingPostResponses = {
+    /**
+     * Response Cancel Pending Auto Topup Api V1 Billing Auto Topup Cancel Pending Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CancelPendingAutoTopupApiV1BillingAutoTopupCancelPendingPostResponse = CancelPendingAutoTopupApiV1BillingAutoTopupCancelPendingPostResponses[keyof CancelPendingAutoTopupApiV1BillingAutoTopupCancelPendingPostResponses];
+
 export type GetRetentionApiV1PrivacyRetentionGetData = {
     body?: never;
     headers?: {
@@ -17461,6 +18026,54 @@ export type RemoveApiV1VerifiedNumbersPhoneNumberDeleteResponses = {
 
 export type RemoveApiV1VerifiedNumbersPhoneNumberDeleteResponse = RemoveApiV1VerifiedNumbersPhoneNumberDeleteResponses[keyof RemoveApiV1VerifiedNumbersPhoneNumberDeleteResponses];
 
+export type WorkflowSetupProgressApiV1WorkflowWorkflowIdSetupProgressGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/setup-progress';
+};
+
+export type WorkflowSetupProgressApiV1WorkflowWorkflowIdSetupProgressGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WorkflowSetupProgressApiV1WorkflowWorkflowIdSetupProgressGetError = WorkflowSetupProgressApiV1WorkflowWorkflowIdSetupProgressGetErrors[keyof WorkflowSetupProgressApiV1WorkflowWorkflowIdSetupProgressGetErrors];
+
+export type WorkflowSetupProgressApiV1WorkflowWorkflowIdSetupProgressGetResponses = {
+    /**
+     * Response Workflow Setup Progress Api V1 Workflow  Workflow Id  Setup Progress Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type WorkflowSetupProgressApiV1WorkflowWorkflowIdSetupProgressGetResponse = WorkflowSetupProgressApiV1WorkflowWorkflowIdSetupProgressGetResponses[keyof WorkflowSetupProgressApiV1WorkflowWorkflowIdSetupProgressGetResponses];
+
 export type ValidateWorkflowApiV1WorkflowWorkflowIdValidatePostData = {
     body?: never;
     headers?: {
@@ -17758,6 +18371,150 @@ export type GetAgentSetupApiV1WorkflowWorkflowIdSetupGetResponses = {
 
 export type GetAgentSetupApiV1WorkflowWorkflowIdSetupGetResponse = GetAgentSetupApiV1WorkflowWorkflowIdSetupGetResponses[keyof GetAgentSetupApiV1WorkflowWorkflowIdSetupGetResponses];
 
+export type GetModelRowApiV1WorkflowWorkflowIdModelRowGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/model-row';
+};
+
+export type GetModelRowApiV1WorkflowWorkflowIdModelRowGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetModelRowApiV1WorkflowWorkflowIdModelRowGetError = GetModelRowApiV1WorkflowWorkflowIdModelRowGetErrors[keyof GetModelRowApiV1WorkflowWorkflowIdModelRowGetErrors];
+
+export type GetModelRowApiV1WorkflowWorkflowIdModelRowGetResponses = {
+    /**
+     * Response Get Model Row Api V1 Workflow  Workflow Id  Model Row Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetModelRowApiV1WorkflowWorkflowIdModelRowGetResponse = GetModelRowApiV1WorkflowWorkflowIdModelRowGetResponses[keyof GetModelRowApiV1WorkflowWorkflowIdModelRowGetResponses];
+
+export type ApplyModelPresetApiV1WorkflowWorkflowIdModelPresetPostData = {
+    body: ModelPresetRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/model-preset';
+};
+
+export type ApplyModelPresetApiV1WorkflowWorkflowIdModelPresetPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApplyModelPresetApiV1WorkflowWorkflowIdModelPresetPostError = ApplyModelPresetApiV1WorkflowWorkflowIdModelPresetPostErrors[keyof ApplyModelPresetApiV1WorkflowWorkflowIdModelPresetPostErrors];
+
+export type ApplyModelPresetApiV1WorkflowWorkflowIdModelPresetPostResponses = {
+    /**
+     * Response Apply Model Preset Api V1 Workflow  Workflow Id  Model Preset Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApplyModelPresetApiV1WorkflowWorkflowIdModelPresetPostResponse = ApplyModelPresetApiV1WorkflowWorkflowIdModelPresetPostResponses[keyof ApplyModelPresetApiV1WorkflowWorkflowIdModelPresetPostResponses];
+
+export type SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutData = {
+    body: ModelSlotRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/model-slot';
+};
+
+export type SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutError = SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutErrors[keyof SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutErrors];
+
+export type SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutResponses = {
+    /**
+     * Response Set Model Slot Api V1 Workflow  Workflow Id  Model Slot Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutResponse = SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutResponses[keyof SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutResponses];
+
 export type GetWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGetData = {
     body?: never;
     headers?: {
@@ -17946,6 +18703,47 @@ export type GetWorkflowsSummaryApiV1WorkflowSummaryGetResponses = {
 };
 
 export type GetWorkflowsSummaryApiV1WorkflowSummaryGetResponse = GetWorkflowsSummaryApiV1WorkflowSummaryGetResponses[keyof GetWorkflowsSummaryApiV1WorkflowSummaryGetResponses];
+
+export type GetCallOutcomesApiV1WorkflowCallOutcomesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/workflow/call-outcomes';
+};
+
+export type GetCallOutcomesApiV1WorkflowCallOutcomesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCallOutcomesApiV1WorkflowCallOutcomesGetError = GetCallOutcomesApiV1WorkflowCallOutcomesGetErrors[keyof GetCallOutcomesApiV1WorkflowCallOutcomesGetErrors];
+
+export type GetCallOutcomesApiV1WorkflowCallOutcomesGetResponses = {
+    /**
+     * Response Get Call Outcomes Api V1 Workflow Call Outcomes Get
+     *
+     * Successful Response
+     */
+    200: Array<CallOutcomeResponse>;
+};
+
+export type GetCallOutcomesApiV1WorkflowCallOutcomesGetResponse = GetCallOutcomesApiV1WorkflowCallOutcomesGetResponses[keyof GetCallOutcomesApiV1WorkflowCallOutcomesGetResponses];
 
 export type UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutData = {
     body: UpdateWorkflowStatusRequest;
@@ -22502,6 +23300,38 @@ export type OptionsEmbedConfigApiV1PublicEmbedConfigTokenOptionsResponses = {
     200: unknown;
 };
 
+export type GetEmbedLogoApiV1PublicEmbedLogoTokenGetData = {
+    body?: never;
+    path: {
+        /**
+         * Token
+         */
+        token: string;
+    };
+    query?: never;
+    url: '/api/v1/public/embed/logo/{token}';
+};
+
+export type GetEmbedLogoApiV1PublicEmbedLogoTokenGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetEmbedLogoApiV1PublicEmbedLogoTokenGetError = GetEmbedLogoApiV1PublicEmbedLogoTokenGetErrors[keyof GetEmbedLogoApiV1PublicEmbedLogoTokenGetErrors];
+
+export type GetEmbedLogoApiV1PublicEmbedLogoTokenGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type GetPublicTurnCredentialsApiV1PublicEmbedTurnCredentialsSessionTokenGetData = {
     body?: never;
     path: {
@@ -22942,6 +23772,94 @@ export type CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostRespons
 };
 
 export type CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostResponse = CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostResponses[keyof CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostResponses];
+
+export type DeleteEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/embed-token/logo';
+};
+
+export type DeleteEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoDeleteError = DeleteEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoDeleteErrors[keyof DeleteEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoDeleteErrors];
+
+export type DeleteEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmbedTokenResponse;
+};
+
+export type DeleteEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoDeleteResponse = DeleteEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoDeleteResponses[keyof DeleteEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoDeleteResponses];
+
+export type UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostData = {
+    body: BodyUploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPost;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/embed-token/logo';
+};
+
+export type UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostError = UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostErrors[keyof UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostErrors];
+
+export type UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmbedTokenResponse;
+};
+
+export type UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostResponse = UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostResponses[keyof UploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPostResponses];
 
 export type GetUploadUrlApiV1KnowledgeBaseUploadUrlPostData = {
     body: DocumentUploadRequestSchema;
@@ -24192,6 +25110,100 @@ export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponses = {
 };
 
 export type GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponse = GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponses[keyof GetExtractionLibraryApiV1ExtractionLibraryCatalogGetResponses];
+
+export type GetToolLibraryApiV1ToolLibraryGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/tool-library';
+};
+
+export type GetToolLibraryApiV1ToolLibraryGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetToolLibraryApiV1ToolLibraryGetError = GetToolLibraryApiV1ToolLibraryGetErrors[keyof GetToolLibraryApiV1ToolLibraryGetErrors];
+
+export type GetToolLibraryApiV1ToolLibraryGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ToolLibraryResponse;
+};
+
+export type GetToolLibraryApiV1ToolLibraryGetResponse = GetToolLibraryApiV1ToolLibraryGetResponses[keyof GetToolLibraryApiV1ToolLibraryGetResponses];
+
+export type GetToolLibraryDefinitionApiV1ToolLibraryKeyDefinitionGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Key
+         */
+        key: string;
+    };
+    query?: {
+        /**
+         * Credential Uuid
+         *
+         * The OAuth credential to attach. Optional here so the shape can be previewed before an account is connected.
+         */
+        credential_uuid?: string | null;
+    };
+    url: '/api/v1/tool-library/{key}/definition';
+};
+
+export type GetToolLibraryDefinitionApiV1ToolLibraryKeyDefinitionGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetToolLibraryDefinitionApiV1ToolLibraryKeyDefinitionGetError = GetToolLibraryDefinitionApiV1ToolLibraryKeyDefinitionGetErrors[keyof GetToolLibraryDefinitionApiV1ToolLibraryKeyDefinitionGetErrors];
+
+export type GetToolLibraryDefinitionApiV1ToolLibraryKeyDefinitionGetResponses = {
+    /**
+     * Response Get Tool Library Definition Api V1 Tool Library  Key  Definition Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetToolLibraryDefinitionApiV1ToolLibraryKeyDefinitionGetResponse = GetToolLibraryDefinitionApiV1ToolLibraryKeyDefinitionGetResponses[keyof GetToolLibraryDefinitionApiV1ToolLibraryKeyDefinitionGetResponses];
 
 export type ListContactListsApiV1ContactListsGetData = {
     body?: never;
