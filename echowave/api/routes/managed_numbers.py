@@ -19,10 +19,12 @@ from pydantic import BaseModel, Field
 
 from api.db import db_client
 from api.db.models import UserModel
+from api.enums import PostHogEvent
 from api.services.auth.depends import get_user, require_verified_email
 from api.services.billing.mandates import MandateNotAuthorised
 from api.services.compliance.agreements import AgreementsOutstanding
 from api.services.kyc.plivo_compliance import PlivoComplianceError
+from api.services.posthog_client import capture_event
 from api.services.telephony import number_lifecycle, provisioning
 
 router = APIRouter(prefix="/managed-numbers", tags=["managed-numbers"])
@@ -201,6 +203,17 @@ async def provision_number(
     except PlivoComplianceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    # Money-bearing, so from the backend: a number is rent every month.
+    capture_event(
+        distinct_id=str(user.provider_id),
+        event=PostHogEvent.NUMBER_PURCHASED,
+        properties={
+            "organization_id": organization_id,
+            "phone_number_id": result.phone_number_id,
+            "country_code": request.country_code,
+            "monthly_price_paise": result.monthly_price_paise,
+        },
+    )
     return {
         "phone_number_id": result.phone_number_id,
         "address": result.address,

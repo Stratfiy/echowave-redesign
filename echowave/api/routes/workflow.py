@@ -1311,6 +1311,25 @@ async def set_model_slot(
     }
     await db_client.save_workflow_draft(workflow_id, workflow_configurations=existing)
 
+    # Who trades which slot for what. Without the before and after there is
+    # no telling whether the rate card pushes people to cheaper voices.
+    before = base.get(request.component) if isinstance(base, dict) else None
+    before = before if isinstance(before, dict) else {}
+    capture_event(
+        distinct_id=str(user.provider_id),
+        event=PostHogEvent.MODEL_SLOT_CHANGED,
+        properties={
+            "organization_id": user.selected_organization_id,
+            "workflow_id": workflow_id,
+            "component": request.component,
+            "from_provider": before.get("provider"),
+            "from_model": before.get("model"),
+            "to_provider": request.provider,
+            "to_model": request.model,
+            "voice": request.voice,
+        },
+    )
+
     async with db_client.async_session() as session:
         return await model_row(
             session,

@@ -11582,6 +11582,54 @@ export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses = {
 
 export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponse = GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses[keyof GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses];
 
+export type GetAccountConsentApiV1AdminBillingAccountsOrganizationIdConsentGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/accounts/{organization_id}/consent';
+};
+
+export type GetAccountConsentApiV1AdminBillingAccountsOrganizationIdConsentGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAccountConsentApiV1AdminBillingAccountsOrganizationIdConsentGetError = GetAccountConsentApiV1AdminBillingAccountsOrganizationIdConsentGetErrors[keyof GetAccountConsentApiV1AdminBillingAccountsOrganizationIdConsentGetErrors];
+
+export type GetAccountConsentApiV1AdminBillingAccountsOrganizationIdConsentGetResponses = {
+    /**
+     * Response Get Account Consent Api V1 Admin Billing Accounts  Organization Id  Consent Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetAccountConsentApiV1AdminBillingAccountsOrganizationIdConsentGetResponse = GetAccountConsentApiV1AdminBillingAccountsOrganizationIdConsentGetResponses[keyof GetAccountConsentApiV1AdminBillingAccountsOrganizationIdConsentGetResponses];
+
 export type SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutData = {
     body: OwnKeysRequest;
     headers?: {
