@@ -16469,6 +16469,49 @@ export type RecheckProviderKeysApiV1AdminProviderKeysRecheckPostResponses = {
 
 export type RecheckProviderKeysApiV1AdminProviderKeysRecheckPostResponse = RecheckProviderKeysApiV1AdminProviderKeysRecheckPostResponses[keyof RecheckProviderKeysApiV1AdminProviderKeysRecheckPostResponses];
 
+export type ReadProviderBalancesApiV1AdminProviderKeysBalancesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/provider-keys/balances';
+};
+
+export type ReadProviderBalancesApiV1AdminProviderKeysBalancesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadProviderBalancesApiV1AdminProviderKeysBalancesGetError = ReadProviderBalancesApiV1AdminProviderKeysBalancesGetErrors[keyof ReadProviderBalancesApiV1AdminProviderKeysBalancesGetErrors];
+
+export type ReadProviderBalancesApiV1AdminProviderKeysBalancesGetResponses = {
+    /**
+     * Response Read Provider Balances Api V1 Admin Provider Keys Balances Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReadProviderBalancesApiV1AdminProviderKeysBalancesGetResponse = ReadProviderBalancesApiV1AdminProviderKeysBalancesGetResponses[keyof ReadProviderBalancesApiV1AdminProviderKeysBalancesGetResponses];
+
 export type DiscoverModelsApiV1AdminProviderKeysModelsGetData = {
     body?: never;
     headers?: {

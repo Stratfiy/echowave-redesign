@@ -213,3 +213,50 @@ class TestTransitions:
             _, results = await _sweep([row], outcome="unverified")
             assert results[0].changed is False
             assert row.last_check_ok is previous
+
+
+class TestTheRecheckEndpointCanCountTheResult:
+    """The sweep and its caller must agree on what comes back.
+
+    They did not. ``validate_stored_credentials`` once returned tuples, and the
+    ``/recheck`` endpoint counted them by unpacking three-wide. When the tuples
+    became :class:`CredentialCheck` records, that unpacking became a TypeError
+    on a non-iterable — so the button an operator presses after replacing a key
+    stopped answering at all, and nothing here noticed because nothing here
+    called it.
+    """
+
+    @pytest.mark.asyncio
+    async def test_it_reports_rejected_and_unverified_counts(self):
+        from api.routes import platform_credentials as route
+        from api.services.configuration.credential_validation import CredentialCheck
+
+        checks = [
+            CredentialCheck("llm", "openai", True),
+            CredentialCheck("tts", "elevenlabs", False),
+            CredentialCheck("stt", "deepgram", None),
+        ]
+
+        class _Session:
+            async def __aenter__(self):
+                return None
+
+            async def __aexit__(self, *exc):
+                return False
+
+        with (
+            patch.object(route.db_client, "async_session", _Session),
+            patch.object(
+                route.credential_validation,
+                "validate_stored_credentials",
+                AsyncMock(return_value=checks),
+            ),
+            patch.object(route.creds, "list_credentials", AsyncMock(return_value=[])),
+        ):
+            body = await route.recheck_provider_keys()
+
+        assert body["checked"] == 3
+        assert body["rejected"] == 1
+        # The vendor we could not ask is reported as exactly that, and never
+        # folded into the rejections.
+        assert body["unverified"] == 1

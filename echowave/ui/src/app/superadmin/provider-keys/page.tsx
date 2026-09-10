@@ -44,6 +44,7 @@ import {
     CatalogueSummary,
     ModelCatalogue,
 } from "@/components/billing/ModelCatalogue";
+import { ProviderBalances } from "@/components/ProviderBalances";
 import {
     COMPONENTS,
     type ComponentValue,
@@ -432,6 +433,8 @@ function ProviderKeysScreen() {
                         {notice.text}
                     </div>
                 )}
+
+                <ProviderBalances />
 
                 {catalogue.length > 0 && (
                     <section className="glass-panel mb-5 px-5 py-4">

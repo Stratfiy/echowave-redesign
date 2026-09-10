@@ -18,7 +18,11 @@ from pydantic import BaseModel, Field
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_superuser
-from api.services.configuration import credential_validation, key_validation
+from api.services.configuration import (
+    credential_validation,
+    key_validation,
+    provider_balance,
+)
 from api.services.configuration import platform_credentials as creds
 from api.services.configuration.registry import (
     components_for_provider,
@@ -225,12 +229,55 @@ async def recheck_provider_keys() -> dict[str, Any]:
     return {
         "credentials": [_view(c) for c in stored],
         "checked": len(results),
-        "rejected": sum(1 for _, _, ok in results if ok is False),
+        # validate_stored_credentials returns CredentialCheck records, not
+        # tuples. It used to return tuples, and this counted them by unpacking
+        # three-wide; the dataclass that replaced them is not iterable, so
+        # every call to this endpoint died on a TypeError before it reached
+        # the response — the recheck button appeared to do nothing but 500.
+        "rejected": sum(1 for c in results if c.ok is False),
         # Vendors we could not reach, and vendors we have no probe for. Neither
         # is a failure and neither changes a stored verdict — but an operator
         # who just replaced a key deserves to know we did not actually confirm
         # it rather than being shown a silent pass.
-        "unverified": sum(1 for _, _, ok in results if ok is None),
+        "unverified": sum(1 for c in results if c.ok is None),
+    }
+
+
+@router.get("/balances")
+async def read_provider_balances() -> dict[str, Any]:
+    """How much is left in the accounts our keys draw on.
+
+    Separate from ``/recheck`` because it answers a separate question. A key
+    can be perfectly valid and its account empty — that is not an edge case,
+    it is the normal way running out of credit looks, and every existing check
+    on this screen passes right through it.
+
+    Not on a schedule of its own here: this is the operator asking now. The
+    hourly sweep lives in ``tasks/provider_balances.py``.
+    """
+    async with db_client.async_session() as session:
+        balances = await provider_balance.read_all(session)
+    return {
+        "balances": [_balance_view(b) for b in balances],
+        # What an operator should act on today. Counted here rather than in the
+        # client so the "N accounts need attention" badge and the hourly alert
+        # cannot disagree about what counts.
+        "needs_attention": sum(1 for b in balances if b.needs_attention),
+    }
+
+
+def _balance_view(balance: provider_balance.ProviderBalance) -> dict[str, Any]:
+    return {
+        "provider": balance.provider,
+        "status": balance.status,
+        "kind": balance.kind,
+        "amount": balance.amount,
+        "currency": balance.currency,
+        "used": balance.used,
+        "limit": balance.limit,
+        "remaining": balance.remaining,
+        "renews_at": balance.renews_at,
+        "detail": balance.detail,
     }
 
 

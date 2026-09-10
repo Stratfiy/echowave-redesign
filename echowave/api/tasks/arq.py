@@ -59,6 +59,7 @@ from api.tasks.low_balance import notify_low_balances
 from api.tasks.margin_watch import watch_margins
 from api.tasks.missed_call_tasks import place_missed_call_callback
 from api.tasks.plan_expiry import expire_lapsed_plan_balance
+from api.tasks.provider_balances import check_provider_balances
 from api.tasks.rental_billing import (
     charge_recurring_rentals,
     reconcile_carrier_numbers,
@@ -85,6 +86,7 @@ class WorkerSettings:
         sweep_credit_reservations,
         sweep_uncosted_runs,
         check_platform_credentials,
+        check_provider_balances,
         issue_monthly_tax_invoices,
         purge_expired_call_data,
         run_database_backup,
@@ -172,6 +174,18 @@ class WorkerSettings:
             minute={7},
             second=0,
             run_at_startup=True,
+        ),
+        # Can the accounts behind those keys still pay? A different question: a
+        # key with an exhausted balance is a valid key, so the sweep above
+        # passes straight through the failure. Minute 37 keeps the two from
+        # hitting the same vendors together, and no startup run because a
+        # restart is not new information about a balance and a rolling deploy
+        # would look like a burst to accounts that rate-limit.
+        cron(
+            check_provider_balances,
+            minute={37},
+            second=0,
+            run_at_startup=False,
         ),
         # Tax invoices for the month just ended. 20:30 UTC on the 1st is 02:00
         # IST on the 2nd — a day and a half after the month closes in IST, so
