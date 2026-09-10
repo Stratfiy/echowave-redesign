@@ -7978,6 +7978,46 @@ export type ShareLinkResponse = {
      * Token
      */
     token: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Expires At
+     */
+    expires_at: string | null;
+    /**
+     * Daily Minutes Cap
+     */
+    daily_minutes_cap: number | null;
+    /**
+     * Minutes Used Today
+     */
+    minutes_used_today: number;
+};
+
+/**
+ * ShareLinkSettings
+ *
+ * What the owner may change about a link after making it.
+ */
+export type ShareLinkSettings = {
+    /**
+     * Daily Minutes Cap
+     */
+    daily_minutes_cap?: number | null;
+    /**
+     * Expires In Days
+     */
+    expires_in_days?: number | null;
+    /**
+     * Lift Cap
+     */
+    lift_cap?: boolean;
+    /**
+     * Never Expires
+     */
+    never_expires?: boolean;
 };
 
 /**
@@ -24407,6 +24447,96 @@ export type CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostRespons
 
 export type CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostResponse = CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostResponses[keyof CreateOrUpdateEmbedTokenApiV1WorkflowWorkflowIdEmbedTokenPostResponses];
 
+export type SwitchOffShareLinkApiV1WorkflowWorkflowIdShareLinkDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/share-link';
+};
+
+export type SwitchOffShareLinkApiV1WorkflowWorkflowIdShareLinkDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SwitchOffShareLinkApiV1WorkflowWorkflowIdShareLinkDeleteError = SwitchOffShareLinkApiV1WorkflowWorkflowIdShareLinkDeleteErrors[keyof SwitchOffShareLinkApiV1WorkflowWorkflowIdShareLinkDeleteErrors];
+
+export type SwitchOffShareLinkApiV1WorkflowWorkflowIdShareLinkDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: ShareLinkResponse;
+};
+
+export type SwitchOffShareLinkApiV1WorkflowWorkflowIdShareLinkDeleteResponse = SwitchOffShareLinkApiV1WorkflowWorkflowIdShareLinkDeleteResponses[keyof SwitchOffShareLinkApiV1WorkflowWorkflowIdShareLinkDeleteResponses];
+
+export type GetShareLinkApiV1WorkflowWorkflowIdShareLinkGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/share-link';
+};
+
+export type GetShareLinkApiV1WorkflowWorkflowIdShareLinkGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetShareLinkApiV1WorkflowWorkflowIdShareLinkGetError = GetShareLinkApiV1WorkflowWorkflowIdShareLinkGetErrors[keyof GetShareLinkApiV1WorkflowWorkflowIdShareLinkGetErrors];
+
+export type GetShareLinkApiV1WorkflowWorkflowIdShareLinkGetResponses = {
+    /**
+     * Response Get Share Link Api V1 Workflow  Workflow Id  Share Link Get
+     *
+     * Successful Response
+     */
+    200: ShareLinkResponse | null;
+};
+
+export type GetShareLinkApiV1WorkflowWorkflowIdShareLinkGetResponse = GetShareLinkApiV1WorkflowWorkflowIdShareLinkGetResponses[keyof GetShareLinkApiV1WorkflowWorkflowIdShareLinkGetResponses];
+
 export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostData = {
     body?: never;
     headers?: {
@@ -24450,6 +24580,50 @@ export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostResponses = {
 };
 
 export type CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostResponse = CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostResponses[keyof CreateShareLinkApiV1WorkflowWorkflowIdShareLinkPostResponses];
+
+export type UpdateShareLinkApiV1WorkflowWorkflowIdShareLinkPutData = {
+    body: ShareLinkSettings;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/share-link';
+};
+
+export type UpdateShareLinkApiV1WorkflowWorkflowIdShareLinkPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateShareLinkApiV1WorkflowWorkflowIdShareLinkPutError = UpdateShareLinkApiV1WorkflowWorkflowIdShareLinkPutErrors[keyof UpdateShareLinkApiV1WorkflowWorkflowIdShareLinkPutErrors];
+
+export type UpdateShareLinkApiV1WorkflowWorkflowIdShareLinkPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: ShareLinkResponse;
+};
+
+export type UpdateShareLinkApiV1WorkflowWorkflowIdShareLinkPutResponse = UpdateShareLinkApiV1WorkflowWorkflowIdShareLinkPutResponses[keyof UpdateShareLinkApiV1WorkflowWorkflowIdShareLinkPutResponses];
 
 export type DeleteEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoDeleteData = {
     body?: never;

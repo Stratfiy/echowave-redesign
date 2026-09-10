@@ -304,7 +304,7 @@ async def upload_document(
     # pointing at a deleted object shows a reviewer a document that will not
     # open, which is worse.
     for old in superseded:
-        removed_key = await db_client.delete_document(
+        removed_key = await db_client.delete_kyc_document(
             old.id, organization_id=organization_id
         )
         if removed_key is not None:
@@ -318,7 +318,7 @@ async def remove_document(*, organization_id: int, document_id: int) -> KycView:
     if record.status == KycStatus.CARRIER_APPROVED.value:
         raise KycTransitionError("Verification is complete; documents are locked.")
 
-    removed_key = await db_client.delete_document(
+    removed_key = await db_client.delete_kyc_document(
         document_id, organization_id=organization_id
     )
     if removed_key is not None:

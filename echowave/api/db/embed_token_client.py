@@ -24,6 +24,7 @@ class EmbedTokenClient(BaseDBClient):
         settings: Optional[dict] = None,
         usage_limit: Optional[int] = None,
         expires_at: Optional[datetime] = None,
+        daily_minutes_cap: Optional[int] = None,
     ) -> EmbedTokenModel:
         """Create a new embed token for a workflow.
 
@@ -56,6 +57,7 @@ class EmbedTokenClient(BaseDBClient):
                 settings=settings or {},
                 usage_limit=usage_limit,
                 expires_at=expires_at,
+                daily_minutes_cap=daily_minutes_cap,
                 is_active=True,
                 usage_count=0,
                 created_at=datetime.now(UTC),

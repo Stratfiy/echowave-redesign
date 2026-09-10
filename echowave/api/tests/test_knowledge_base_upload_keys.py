@@ -252,3 +252,16 @@ class TestTheRouteEnforcesIt:
         assert minted.status_code == 200, minted.text
         assert signed_for["key"].startswith(f"knowledge_base/{org.id}/")
         assert ".." not in signed_for["key"]
+
+
+def test_the_knowledge_base_delete_is_the_one_the_client_exposes():
+    """``DBClient`` composes many clients; the KYC one used to define a
+    ``delete_document`` too, ahead of the knowledge base's in the MRO, so the
+    knowledge-base route called KYC's signature and answered 500."""
+    import inspect
+
+    from api.db import db_client
+    from api.db.knowledge_base_client import KnowledgeBaseClient
+
+    assert db_client.delete_document.__func__ is KnowledgeBaseClient.delete_document
+    assert "document_uuid" in inspect.signature(db_client.delete_document).parameters

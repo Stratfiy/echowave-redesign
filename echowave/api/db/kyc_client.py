@@ -168,10 +168,15 @@ class KycClient(BaseDBClient):
                 query = query.where(KycDocumentModel.organization_id == organization_id)
             return await session.scalar(query)
 
-    async def delete_document(
+    async def delete_kyc_document(
         self, document_id: int, *, organization_id: int
     ) -> str | None:
-        """Remove a document row, scoped to its owner.
+        """Remove a KYC document row, scoped to its owner.
+
+        Named for its table. ``DBClient`` composes this client ahead of the
+        knowledge-base one, and a method here called ``delete_document``
+        shadowed the knowledge base's, so every "delete a document from my
+        knowledge base" raised a TypeError and answered 500.
 
         Returns the storage key so the caller can delete the stored object too.
         A key rather than the model, because the row is gone by the time the

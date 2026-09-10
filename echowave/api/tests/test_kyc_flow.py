@@ -273,7 +273,7 @@ class TestRecordsSurviveTheirSession:
         org_id = await _company_with_docs(async_session, "detach-delete")
         document_id = (await kyc_service.get_view(org_id)).documents[0]["id"]
 
-        key = await db_client.delete_document(document_id, organization_id=org_id)
+        key = await db_client.delete_kyc_document(document_id, organization_id=org_id)
         assert isinstance(key, str) and key
 
 
