@@ -10,6 +10,7 @@ from loguru import logger
 from api.db import db_client
 from api.utils.credential_auth import resolve_auth_header
 from api.utils.template_renderer import render_template
+from api.utils.url_security import validate_user_configured_service_url
 
 # Map tool parameter types to JSON schema types
 TYPE_MAP = {
@@ -289,6 +290,17 @@ async def execute_http_tool(
         body = resolved_arguments
     elif method in ("GET", "DELETE") and resolved_arguments:
         params = resolved_arguments
+
+    # An HTTP tool's URL is operator-configured, but "operator" is any customer
+    # on the platform, and this request leaves our network with the tool's
+    # credential attached. Block the private/loopback/link-local/metadata ranges
+    # so the tool cannot be turned into a server-side request forgery against
+    # our own infrastructure. Fail closed with an error the model reports.
+    try:
+        validate_user_configured_service_url(url, field_name="Tool URL")
+    except ValueError as error:
+        logger.warning(f"Custom tool '{tool.name}' URL refused: {error}")
+        return {"status": "error", "error": str(error)}
 
     logger.info(
         f"Executing custom tool '{tool.name}' ({tool.tool_uuid}): {method} {url}"

@@ -11,6 +11,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.utils.credential_auth import resolve_auth_header
+from api.utils.url_security import validate_user_configured_service_url
 
 PRE_CALL_FETCH_TIMEOUT_SECONDS = 10
 
@@ -85,6 +86,18 @@ async def execute_pre_call_fetch(
                 )
         except Exception as e:
             logger.error(f"Pre-call fetch: failed to resolve credential: {e}")
+
+    # The URL is chosen by whoever configured the agent, and this runs inside
+    # our own network with a resolved credential attached. Without this check it
+    # is a request-forgery primitive: point it at the cloud metadata endpoint or
+    # an internal service and the JSON reply is merged into the call context.
+    # Fail closed — a blocked URL yields no context, exactly like any other
+    # fetch failure the caller already tolerates.
+    try:
+        validate_user_configured_service_url(url, field_name="Pre-call fetch URL")
+    except ValueError as error:
+        logger.warning(f"Pre-call fetch: URL refused ({error}); skipping fetch")
+        return {}
 
     logger.info(f"Pre-call fetch: POST {url}")
 
