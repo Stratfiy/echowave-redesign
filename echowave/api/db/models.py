@@ -3086,6 +3086,17 @@ class ManagedBundleModel(Base):
     #: pipeline | realtime. Decides which tier columns below are meaningful and
     #: what the agent configuration is compiled into.
     architecture = Column(String(16), nullable=False)
+    #: One number a minute for this bundle, everything included. When set,
+    #: a call on the bundle is charged this flat rate (at the volume tier it
+    #: has earned) instead of platform fee plus marked-up vendor lines; vendor
+    #: cost is still measured underneath for margin. NULL keeps itemised
+    #: pricing.
+    list_paise_per_minute = Column(Integer, nullable=True)
+    #: [{"min_minutes": 5000, "paise_per_minute": 500}, ...]; the account's
+    #: billable minutes this calendar month decide which applies.
+    volume_tiers = Column(
+        JSON, nullable=False, default=list, server_default=text("'[]'::json")
+    )
     #: Pipeline bundles. ``llm_tier`` null means the customer picks the brain —
     #: which is what makes Everyday three variants rather than three bundles.
     stt_tier = Column(String(32), nullable=True)

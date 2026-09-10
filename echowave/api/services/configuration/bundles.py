@@ -272,3 +272,29 @@ async def upsert_bundle(
     _validate(row)
     await session.flush()
     return row
+
+
+def flat_rate_paise(row: ManagedBundleModel, *, period_minutes: int = 0) -> int | None:
+    """The one number a minute this bundle charges, at the tier earned.
+
+    None when the bundle is itemised. Tiers are
+    ``[{"min_minutes", "paise_per_minute"}]``; the highest ``min_minutes`` at or
+    under the account's minutes this month wins, and the list price is the
+    floor tier.
+    """
+    base = getattr(row, "list_paise_per_minute", None)
+    if base is None:
+        return None
+    rate = int(base)
+    best = -1
+    for tier in getattr(row, "volume_tiers", None) or []:
+        if not isinstance(tier, dict):
+            continue
+        try:
+            floor = int(tier.get("min_minutes", 0))
+            paise = int(tier.get("paise_per_minute"))
+        except (TypeError, ValueError):
+            continue
+        if floor <= period_minutes and floor > best:
+            best, rate = floor, paise
+    return max(0, rate)
