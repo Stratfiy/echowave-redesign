@@ -319,6 +319,24 @@ class TestAnObjectTooLargeToAccept:
     one oversized upload into a worker that cannot write anything at all.
     """
 
+    @pytest.fixture(autouse=True)
+    def _a_plan_at_the_deployment_ceiling(self, monkeypatch):
+        """The account here holds a plan whose per-file figure is the
+        deployment ceiling. An account with no plan gets the free tier's
+        smaller figure instead — see the last test — and would otherwise turn
+        these into tests of the free tier rather than of the ceiling."""
+        from api.services.billing import subscription_plans
+
+        async def _allowance(session, *, organization_id):
+            return subscription_plans.KnowledgeBaseAllowance(
+                total_bytes=10 * task_module.MAX_FILE_SIZE_BYTES,
+                max_file_bytes=task_module.MAX_FILE_SIZE_BYTES,
+            )
+
+        monkeypatch.setattr(
+            subscription_plans, "knowledge_base_allowance_for", _allowance
+        )
+
     async def test_an_oversized_object_is_never_downloaded(self, stubbed_ingestion):
         stubbed_ingestion.write_source(b"Refunds take fourteen days.")
         stubbed_ingestion.storage_reports_size(task_module.MAX_FILE_SIZE_BYTES + 1)
@@ -361,3 +379,25 @@ class TestAnObjectTooLargeToAccept:
         from api.constants import KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
 
         assert task_module.MAX_FILE_SIZE_BYTES == KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
+
+    async def test_an_account_with_no_plan_is_held_to_the_free_tier(
+        self, stubbed_ingestion, monkeypatch
+    ):
+        """The free tier is one small document. A larger object pushed
+        through a presigned URL is refused before it is downloaded, exactly
+        as an over-plan one is."""
+        from api.services.billing import subscription_plans
+
+        async def _free(session, *, organization_id):
+            return subscription_plans.FREE_KNOWLEDGE_BASE
+
+        monkeypatch.setattr(subscription_plans, "knowledge_base_allowance_for", _free)
+        stubbed_ingestion.write_source(b"Refunds take fourteen days.")
+        stubbed_ingestion.storage_reports_size(
+            subscription_plans.FREE_KNOWLEDGE_BASE.max_file_bytes + 1
+        )
+
+        await _run()
+
+        assert stubbed_ingestion.downloads == []
+        assert stubbed_ingestion.store.statuses[-1][0] == "failed"
