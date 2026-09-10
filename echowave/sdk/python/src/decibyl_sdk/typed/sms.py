@@ -45,8 +45,9 @@ class Sms(TypedNode):
 
     channel: Literal['sms', 'whatsapp'] = 'sms'
     """
-    SMS goes over the telephony configuration's carrier. WhatsApp requires a
-    Twilio WhatsApp Business sender.
+    SMS goes over the telephony configuration's carrier. WhatsApp goes out
+    on Decibyl's sender when one is set up, billed per message; otherwise it
+    needs a Twilio WhatsApp Business sender.
     """
 
     to: Optional[str] = None
@@ -65,6 +66,24 @@ class Sms(TypedNode):
     """
     Supports {{template_variables}} from the call — extracted values,
     campaign columns, trigger payload.
+    """
+
+    template_name: Optional[str] = None
+    """
+    Name of an approved WhatsApp template, for a message the customer has
+    not asked for (Meta allows free text only within 24 hours of their last
+    reply). Leave blank to send the message text as written.
+    """
+
+    template_language: str = 'en'
+    """
+    The template's language code, e.g. en, hi, ta.
+    """
+
+    template_params: Optional[str] = None
+    """
+    Comma-separated values for the template's {{1}}, {{2}}… placeholders, in
+    order. Each supports {{template_variables}}.
     """
 
     send_when_variable: Optional[str] = None

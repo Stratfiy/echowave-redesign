@@ -27,7 +27,7 @@ export interface Sms {
      */
     enabled?: boolean;
     /**
-     * SMS goes over the telephony configuration's carrier. WhatsApp requires a Twilio WhatsApp Business sender.
+     * SMS goes over the telephony configuration's carrier. WhatsApp goes out on Decibyl's sender when one is set up, billed per message; otherwise it needs a Twilio WhatsApp Business sender.
      */
     channel?: "sms" | "whatsapp";
     /**
@@ -42,6 +42,18 @@ export interface Sms {
      * Supports {{template_variables}} from the call — extracted values, campaign columns, trigger payload.
      */
     body?: string;
+    /**
+     * Name of an approved WhatsApp template, for a message the customer has not asked for (Meta allows free text only within 24 hours of their last reply). Leave blank to send the message text as written.
+     */
+    template_name?: string;
+    /**
+     * The template's language code, e.g. en, hi, ta.
+     */
+    template_language?: string;
+    /**
+     * Comma-separated values for the template's {{1}}, {{2}}… placeholders, in order. Each supports {{template_variables}}.
+     */
+    template_params?: string;
     /**
      * Leave blank to always send. Same shape as a branch rule.
      */
