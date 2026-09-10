@@ -73,6 +73,16 @@ export function formatCredits(paise: number | null | undefined): string {
     return integers.format(Math.round(paise / PAISE_PER_RUPEE));
 }
 
+/** A per-minute rate in credits, e.g. "8.5". One decimal, because these are
+ *  small numbers: a 1.28/min slot and a 2.07/min slot both round to whole
+ *  credits and stop being comparable, which is the whole point of showing the
+ *  rate. Balances keep the integer form above — nobody needs a tenth of a
+ *  credit in a wallet. */
+export function formatCreditsRate(paise: number | null | undefined): string {
+    if (paise === null || paise === undefined) return "—";
+    return (paise / PAISE_PER_RUPEE).toFixed(1);
+}
+
 /** With the unit spelled out, e.g. "1,250 credits". Use in running prose. */
 export function formatCreditsLabel(paise: number | null | undefined): string {
     if (paise === null || paise === undefined) return "— credits";

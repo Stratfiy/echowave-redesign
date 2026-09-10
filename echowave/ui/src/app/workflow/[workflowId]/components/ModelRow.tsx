@@ -29,10 +29,63 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
-import { formatPaise } from "@/lib/billing/format";
+import { formatCreditsRate } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
 import { type CatalogueOption, ModelSlotEditor, type SlotComponent } from "./ModelSlotEditor";
+
+/**
+ * The cost split as a ring. A ring rather than a bar because the three parts
+ * are shares of one number, and a circle reads as a whole being divided where
+ * a thin bar reads as a progress meter that is partly full.
+ */
+function CostDonut({
+    segments,
+    total,
+    size = 64,
+    stroke = 9,
+}: {
+    segments: { label: string; paise: number; colour: string }[];
+    total: number;
+    size?: number;
+    stroke?: number;
+}) {
+    const radius = (size - stroke) / 2;
+    const circumference = 2 * Math.PI * radius;
+    let consumed = 0;
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox={`0 0 ${size} ${size}`}
+            role="img"
+            aria-label={`Cost split: ${segments.map((s) => s.label).join(", ")}`}
+            className="shrink-0"
+        >
+            {/* Rotated so the first segment starts at twelve o'clock. */}
+            <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+                {segments.map((s) => {
+                    const length = total > 0 ? (s.paise / total) * circumference : 0;
+                    const node = (
+                        <circle
+                            key={s.label}
+                            cx={size / 2}
+                            cy={size / 2}
+                            r={radius}
+                            fill="none"
+                            stroke={s.colour}
+                            strokeWidth={stroke}
+                            strokeDasharray={`${length} ${circumference - length}`}
+                            strokeDashoffset={-consumed}
+                        />
+                    );
+                    consumed += length;
+                    return node;
+                })}
+            </g>
+        </svg>
+    );
+}
 
 type Slot = {
     component: "stt" | "llm" | "tts" | "realtime";
@@ -235,10 +288,13 @@ export function ModelRow({
 
     const { cost, latency, slots } = data;
     const presets = data.presets ?? [];
+    // Hex rather than Tailwind classes: the donut strokes these, and an SVG
+    // stroke cannot take a utility class. Same hues as the Advanced cost bar,
+    // so a segment means the same thing on both screens.
     const segments = [
-        { label: "Agent", paise: cost.agent_paise_per_minute, className: "bg-emerald-600" },
-        { label: "Telephony", paise: cost.telephony_paise_per_minute, className: "bg-orange-500" },
-        { label: "Platform", paise: cost.platform_paise_per_minute, className: "bg-blue-600" },
+        { label: "Agent", paise: cost.agent_paise_per_minute, colour: "#1baf7a" },
+        { label: "Telephony", paise: cost.telephony_paise_per_minute, colour: "#eb6834" },
+        { label: "Platform", paise: cost.platform_paise_per_minute, colour: "#2a78d6" },
     ].filter((s) => s.paise > 0);
     const barTotal = segments.reduce((sum, s) => sum + s.paise, 0);
 
@@ -250,34 +306,29 @@ export function ModelRow({
                         Cost
                     </p>
                     <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">
-                        {formatPaise(cost.total_paise_per_minute)}
+                        {formatCreditsRate(cost.total_paise_per_minute)}
                         <span className="ml-1 text-sm font-normal text-muted-foreground">
-                            /min
+                            credits/min
                         </span>
                     </p>
                     {barTotal > 0 && (
-                        <>
-                            <div className="mt-2 flex h-1.5 w-full min-w-[180px] max-w-xs gap-0.5 overflow-hidden rounded-full">
+                        <div className="mt-3 flex items-center gap-3">
+                            <CostDonut segments={segments} total={barTotal} />
+                            <div className="flex flex-col gap-1 text-[11px] text-muted-foreground">
                                 {segments.map((s) => (
-                                    <div
-                                        key={s.label}
-                                        className={s.className}
-                                        style={{ flex: s.paise }}
-                                        title={`${s.label} ${formatPaise(s.paise)}/min`}
-                                    />
-                                ))}
-                            </div>
-                            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                                {segments.map((s) => (
-                                    <span key={s.label} className="inline-flex items-center gap-1">
+                                    <span key={s.label} className="inline-flex items-center gap-1.5">
                                         <span
-                                            className={cn("h-2 w-2 rounded-full", s.className)}
+                                            className="h-2 w-2 rounded-full"
+                                            style={{ backgroundColor: s.colour }}
                                         />
                                         {s.label}
+                                        <span className="tabular-nums text-foreground">
+                                            {formatCreditsRate(s.paise)}
+                                        </span>
                                     </span>
                                 ))}
                             </div>
-                        </>
+                        </div>
                     )}
                 </div>
 
@@ -399,7 +450,7 @@ export function ModelRow({
                                         <p className="text-sm tabular-nums">
                                             {slot.paise_per_minute === null
                                                 ? "—"
-                                                : `${formatPaise(slot.paise_per_minute)}/min`}
+                                                : `${formatCreditsRate(slot.paise_per_minute)} credits/min`}
                                             {slot.approximate && (
                                                 <span
                                                     className="ml-1 text-muted-foreground"
