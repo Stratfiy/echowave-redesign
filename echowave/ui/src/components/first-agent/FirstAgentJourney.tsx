@@ -72,7 +72,65 @@ type Template = {
     languages: string[];
     variables?: { name: string; asks_for: string }[];
     greeting?: string | null;
+    suggested_voices?: SuggestedVoice[];
 };
+
+type SuggestedVoice = {
+    provider: string;
+    voice_id: string;
+    name: string;
+    gender: string;
+    language: string;
+    blurb?: string;
+    sample_url?: string | null;
+};
+
+const LANGUAGE_NAMES: Record<string, string> = { en: "English", hi: "Hindi", ta: "Tamil", kn: "Kannada", te: "Telugu" };
+
+/**
+ * "Hear it": one chip per suggested voice, a man and a woman in more than
+ * one language, with a clip when one has been recorded. A card that says
+ * "6 languages" is a claim; a play button is proof.
+ */
+function VoiceChips({ voices }: { voices: SuggestedVoice[] }) {
+    const [playing, setPlaying] = useState<string | null>(null);
+    const play = (voice: SuggestedVoice) => {
+        if (!voice.sample_url) return;
+        const key = `${voice.voice_id}-${voice.language}`;
+        const audio = new Audio(voice.sample_url);
+        setPlaying(key);
+        audio.onended = () => setPlaying(null);
+        void audio.play().catch(() => setPlaying(null));
+    };
+    if (voices.length === 0) return null;
+    return (
+        <span className="mt-2 flex flex-wrap gap-1.5" data-testid="voice-chips">
+            {voices.map((voice) => {
+                const key = `${voice.voice_id}-${voice.language}`;
+                return (
+                    <button
+                        key={key}
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            play(voice);
+                        }}
+                        disabled={!voice.sample_url}
+                        title={voice.blurb || voice.name}
+                        className={cn(
+                            "rounded-full border border-border px-2 py-0.5 text-[11px]",
+                            voice.sample_url ? "hover:bg-muted" : "opacity-60",
+                            playing === key && "border-[var(--accent-brand)] text-[var(--accent-brand)]",
+                        )}
+                    >
+                        {voice.gender === "female" ? "♀" : "♂"} {voice.name} · {LANGUAGE_NAMES[voice.language] ?? voice.language}
+                        {voice.sample_url ? " ▶" : ""}
+                    </button>
+                );
+            })}
+        </span>
+    );
+}
 
 /** Where the flow was, so a detour to verify a number comes back here. */
 type Saved = {
@@ -497,6 +555,7 @@ function PickStep({
                                     {t.direction === "inbound" ? "Answers calls" : "Makes calls"}
                                     {t.languages.length > 0 && ` · ${t.languages.length} languages`}
                                 </span>
+                                <VoiceChips voices={t.suggested_voices ?? []} />
                             </button>
                         );
                     })}

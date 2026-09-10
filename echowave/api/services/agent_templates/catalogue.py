@@ -34,6 +34,7 @@ from api.services.agent_templates._base import (
     CallDirection,
     CallShape,
     RecommendedStack,
+    SuggestedVoice,
     TemplateEdge,
     TemplateNode,
 )
@@ -968,7 +969,7 @@ def list_templates() -> tuple[AgentTemplate, ...]:
     first, because they are the smallest thing a new account can put live, and
     the highest-volume outbound campaigns last.
     """
-    return _all()
+    return tuple(with_suggested_voices(t) for t in _all())
 
 
 def get_template(template_id: str) -> AgentTemplate | None:
@@ -979,7 +980,7 @@ def get_template(template_id: str) -> AgentTemplate | None:
     """
     for template in _all():
         if template.id == template_id:
-            return template
+            return with_suggested_voices(template)
     return None
 
 
@@ -1012,3 +1013,66 @@ def find_templates(query: str) -> tuple[AgentTemplate, ...]:
 
     scored.sort(key=lambda pair: pair[0], reverse=True)
     return tuple(template for _, template in scored)
+
+
+# ---------------------------------------------------------------------------
+# Voices worth hearing on each template.
+#
+# ElevenLabs multilingual voices: one model speaks English, Hindi, Tamil,
+# Kannada and Telugu with the same voice, so a clinic can be a warm woman in
+# Tamil and a logistics desk a brisk man in Hindi without changing vendor.
+# The ids are ElevenLabs' premade voices; `scripts/generate_voice_samples.py`
+# records each in each language and the gallery plays the clip.
+# ---------------------------------------------------------------------------
+
+_ELEVEN = "elevenlabs"
+
+
+def _voice(
+    voice_id: str, name: str, gender: str, language: str, blurb: str = ""
+) -> SuggestedVoice:
+    return SuggestedVoice(
+        provider=_ELEVEN,
+        voice_id=voice_id,
+        name=name,
+        gender=gender,
+        language=language,
+        blurb=blurb,
+    )
+
+
+# Premade ElevenLabs voices, referred to by their public ids.
+_RACHEL = "21m00Tcm4TlvDq8ikWAM"  # female, calm
+_BELLA = "EXAVITQu4vr4xnSDxMaL"  # female, warm
+_ELLI = "MF3mGyEYCl7XYWbV9V6O"  # female, young
+_ADAM = "pNInz6obpgDQGcFmaJgB"  # male, deep
+_ANTONI = "ErXwobaYiN019PkySvjV"  # male, well-rounded
+_JOSH = "TxGEqnHWrfWFTfGW9XjX"  # male, young
+
+SUGGESTED_VOICES: dict[str, list[SuggestedVoice]] = {
+    "clinic_appointment": [
+        _voice(_BELLA, "Bella", "female", "ta", "Warm; the front desk in Tamil."),
+        _voice(_RACHEL, "Rachel", "female", "en", "Calm and clear in English."),
+        _voice(_ANTONI, "Antoni", "male", "hi", "Even-toned Hindi."),
+        _voice(_ELLI, "Elli", "female", "kn", "Bright; Kannada."),
+    ],
+}
+
+_DEFAULT_VOICES: list[SuggestedVoice] = [
+    _voice(_RACHEL, "Rachel", "female", "en", "Calm and clear in English."),
+    _voice(_BELLA, "Bella", "female", "hi", "Warm Hindi."),
+    _voice(_ADAM, "Adam", "male", "en", "Deep; reads as senior."),
+    _voice(_JOSH, "Josh", "male", "hi", "Younger, quicker Hindi."),
+    _voice(_ELLI, "Elli", "female", "te", "Bright; Telugu."),
+    _voice(_ANTONI, "Antoni", "male", "ta", "Even-toned Tamil."),
+]
+
+
+def with_suggested_voices(template: AgentTemplate) -> AgentTemplate:
+    if template.suggested_voices:
+        return template
+    return template.model_copy(
+        update={
+            "suggested_voices": list(SUGGESTED_VOICES.get(template.id, _DEFAULT_VOICES))
+        }
+    )

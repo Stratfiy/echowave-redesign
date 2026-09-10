@@ -114,6 +114,24 @@ class CallShape(BaseModel):
         return round(self.typical_call_seconds * self.typical_calls_per_month / 60)
 
 
+class SuggestedVoice(BaseModel):
+    """A voice worth hearing on this template: who it sounds like, in what.
+
+    A template card that says "6 languages" is a claim; a play button is
+    proof. Each suggestion is one vendor voice, a gender, and the language
+    its sample is spoken in, so a gallery can offer a man and a woman in
+    Tamil and Hindi side by side rather than one default.
+    """
+
+    provider: str
+    voice_id: str
+    name: str
+    gender: str
+    #: A language code the sample is recorded in: en, hi, ta, kn, te.
+    language: str
+    blurb: str = ""
+
+
 class AgentTemplate(BaseModel):
     """A vertical's starting agent: stack, flow, prompts and constraints."""
 
@@ -141,6 +159,7 @@ class AgentTemplate(BaseModel):
     #: Values the operator must supply before going live. Referenced in prompts
     #: as `{{name}}`, so an unfilled one is visible rather than silently spoken.
     template_variables: dict[str, str] = Field(default_factory=dict)
+    suggested_voices: list[SuggestedVoice] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="forbid")
 
