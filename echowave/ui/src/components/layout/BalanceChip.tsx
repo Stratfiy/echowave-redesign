@@ -34,6 +34,7 @@ export function BalanceChip() {
     const [paise, setPaise] = useState<number | null>(null);
     const [blocked, setBlocked] = useState(false);
     const [lowBalance, setLowBalance] = useState(false);
+    const [suggested, setSuggested] = useState<number | null>(null);
     const [failed, setFailed] = useState(false);
     const hasFetched = useRef(false);
 
@@ -51,6 +52,7 @@ export function BalanceChip() {
                   balance_paise?: number;
                   min_balance_paise?: number;
                   calling_blocked?: boolean;
+                  suggested_topup_paise?: number | null;
               }
             | undefined;
         if (typeof data?.balance_paise === "number") {
@@ -61,6 +63,7 @@ export function BalanceChip() {
             // that refuses a call all agree. "Running low" is a warning this
             // chip owns, and is a different question.
             setBlocked(data.calling_blocked === true);
+            setSuggested(typeof data.suggested_topup_paise === "number" ? data.suggested_topup_paise : null);
             const floor = data.min_balance_paise;
             setLowBalance(typeof floor === "number" && data.balance_paise <= floor * 5);
         }
@@ -89,7 +92,7 @@ export function BalanceChip() {
         <Tooltip>
             <TooltipTrigger asChild>
                 <Link
-                    href="/billing"
+                    href={suggested ? `/billing?amount=${Math.round(suggested / 100)}` : "/billing"}
                     aria-label={
                         failed
                             ? "Balance unavailable — open billing"
@@ -116,9 +119,9 @@ export function BalanceChip() {
                 {failed
                     ? "Could not read your balance. Open billing to check."
                     : blocked
-                      ? `Too low to place calls — ${formatCreditsLabel(paise)} left. Add credits to start calling again.`
+                      ? `Too low to place calls — ${formatCreditsLabel(paise)} left.${suggested ? ` Top up ${formatCreditsLabel(suggested)} to cover the next week.` : " Add credits to start calling again."}`
                       : lowBalance
-                        ? `Running low — ${formatCreditsLabel(paise)} left. Calls stop when this reaches the minimum.`
+                        ? `Running low — ${formatCreditsLabel(paise)} left.${suggested ? ` Top up ${formatCreditsLabel(suggested)} to cover the next week.` : " Calls stop when this reaches the minimum."}`
                         : `${formatCreditsLabel(paise)} of call credit.`}
             </TooltipContent>
         </Tooltip>

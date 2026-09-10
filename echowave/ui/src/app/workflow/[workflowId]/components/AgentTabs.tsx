@@ -29,6 +29,7 @@ import {
     BarChart3,
     Bot,
     Brain,
+    FlaskConical,
     Rocket,
     ScrollText,
     Settings,
@@ -54,6 +55,7 @@ export const AGENT_TABS = [
     { key: "models", label: "Models", icon: Brain, settingsTab: "models" },
     { key: "calling", label: "Calling", icon: Settings, settingsTab: "calling" },
     { key: "tools", label: "Tools", icon: Wrench },
+    { key: "evals", label: "Evals", icon: FlaskConical },
     { key: "analysis", label: "Analysis", icon: BarChart3, settingsTab: "analysis" },
     { key: "logs", label: "Logs", icon: ScrollText },
     { key: "deploy", label: "Deploy", icon: Rocket, settingsTab: "deploy" },
@@ -70,6 +72,8 @@ function hrefFor(tab: Tab, workflowId: number): string {
             return `${base}/runs`;
         case "tools":
             return `${base}/tools`;
+        case "evals":
+            return `${base}/evals`;
         default:
             return base;
     }
@@ -93,6 +97,7 @@ export function AgentTabs({
         if ("settingsTab" in tab) return settingsTab === tab.settingsTab;
         if (tab.key === "logs") return pathname.startsWith(`${base}/runs`);
         if (tab.key === "tools") return pathname.startsWith(`${base}/tools`);
+        if (tab.key === "evals") return pathname.startsWith(`${base}/evals`);
         // The canvas, and only the canvas. `startsWith` would light it on
         // every tab, since every one of these lives under the same base.
         return pathname === base;

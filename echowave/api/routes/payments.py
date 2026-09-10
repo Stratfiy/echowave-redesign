@@ -44,6 +44,7 @@ from api.services.billing import (
     document_email,
     documents,
     payments,
+    topup_nudge,
 )
 from api.services.billing.tax import TaxError
 from api.services.posthog_client import capture_event
@@ -115,8 +116,21 @@ async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         min_topup = await payments.minimum_topup_paise(
             session, organization_id=organization_id
         )
+    async with db_client.async_session() as session:
+        burn = await topup_nudge.daily_burn_paise(
+            session, organization_id=organization_id
+        )
+    suggested = topup_nudge.suggest(
+        balance_paise=balance,
+        daily_burn_paise=burn,
+        min_balance_paise=MIN_BALANCE_PAISE,
+    )
     return {
         "balance_paise": balance,
+        # What a week costs at recent burn, less what is left: the nudge the
+        # chip shows instead of "running low".
+        "daily_burn_paise": burn,
+        "suggested_topup_paise": suggested,
         "topups_enabled": payments.is_configured() and payments.webhook_is_configured(),
         "min_topup_paise": min_topup,
         "max_topup_paise": MAX_TOPUP_PAISE,

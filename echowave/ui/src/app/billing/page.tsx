@@ -27,6 +27,7 @@ import {
     Wallet,
     XCircle,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -182,7 +183,12 @@ export default function BillingPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
-    const [amountRupees, setAmountRupees] = useState("2000");
+    // Arrived from the balance chip's nudge: the amount that covers next week.
+    // Optional chaining: outside the app router (tests) the hook yields null.
+    const suggestedAmount = useSearchParams()?.get("amount") ?? null;
+    const [amountRupees, setAmountRupees] = useState(
+        suggestedAmount && /^\d+$/.test(suggestedAmount) ? suggestedAmount : "2000",
+    );
     const [starting, setStarting] = useState(false);
     const [awaitingCredit, setAwaitingCredit] = useState(false);
     const [profile, setProfile] = useState<BillingProfileFields>(EMPTY_PROFILE);

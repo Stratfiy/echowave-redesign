@@ -2999,6 +2999,61 @@ class InAppNotificationModel(Base):
     )
 
 
+class EvalCaseModel(Base):
+    """One scripted caller an agent has to handle, kept to rerun after edits.
+
+    A persona and a goal for a simulated caller, and what the agent must and
+    must not say. The point is the rerun: a prompt change that broke the
+    refund case shows up as a red row, not as a customer complaint.
+    """
+
+    __tablename__ = "eval_cases"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False
+    )
+    name = Column(String(120), nullable=False)
+    persona = Column(Text, nullable=False)
+    goal = Column(Text, nullable=False)
+    must_say = Column(JSON, nullable=False, default=list)
+    must_not_say = Column(JSON, nullable=False, default=list)
+    max_turns = Column(Integer, nullable=False, default=6)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (Index("ix_eval_cases_workflow", "workflow_id", "created_at"),)
+
+
+class EvalResultModel(Base):
+    """One run of one case: pass, fail, or could not run, with the transcript."""
+
+    __tablename__ = "eval_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(
+        Integer, ForeignKey("eval_cases.id", ondelete="CASCADE"), nullable=False
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id = Column(Integer, ForeignKey("workflows.id"), nullable=False)
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    #: queued | running | passed | failed | error
+    status = Column(String(16), nullable=False, default="queued")
+    verdict = Column(Text, nullable=True)
+    transcript = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (Index("ix_eval_results_case", "case_id", "created_at"),)
+
+
 class ManagedBundleModel(Base):
     """A named combination of tiers, as the Simple picker offers it.
 

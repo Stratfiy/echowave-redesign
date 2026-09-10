@@ -16,6 +16,7 @@ from api.routes.contacts import router as contacts_router
 from api.routes.cost_estimate import router as cost_estimate_router
 from api.routes.credentials import router as credentials_router
 from api.routes.do_not_call import router as do_not_call_router
+from api.routes.evals import router as evals_router
 from api.routes.extraction_library import router as extraction_library_router
 from api.routes.folder import router as folder_router
 from api.routes.knowledge_base import router as knowledge_base_router
@@ -79,6 +80,7 @@ router.include_router(provider_keys_router)
 router.include_router(payments_router)
 router.include_router(privacy_router)
 router.include_router(notifications_router)
+router.include_router(evals_router)
 router.include_router(do_not_call_router)
 router.include_router(missed_calls_router)
 router.include_router(verified_numbers_router)

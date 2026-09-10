@@ -205,6 +205,21 @@ async def get_account(
         }
 
 
+@router.get("/margin-watch")
+async def get_margin_watch(_: UserModel = Depends(get_superuser)) -> dict[str, Any]:
+    """Accounts under the margin floor over the last three days, thinnest first."""
+    from api.constants import MARGIN_FLOOR_BPS
+    from api.services.billing import margin_watch
+
+    async with db_client.async_session() as session:
+        thin = await margin_watch.thin_accounts(session)
+    return {
+        "floor_bps": MARGIN_FLOOR_BPS,
+        "window_days": margin_watch.WINDOW_DAYS,
+        "accounts": [a.as_dict() for a in thin],
+    }
+
+
 @router.get("/accounts/{organization_id}/consent")
 async def get_account_consent(
     organization_id: int, _: UserModel = Depends(get_superuser)
