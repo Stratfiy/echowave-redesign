@@ -31,6 +31,7 @@ from sqlalchemy.exc import IntegrityError
 from api.db import db_client
 from api.db.models import NotificationModel
 from api.services.messaging import email
+from api.services.notifications import inbox
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,9 @@ class Notice:
     #: Unique per notice within its kind. Two composes that produce the same
     #: key are the same notice and only one is sent.
     dedupe_key: str
+    #: Where the in-app row takes you. A path, not a URL: the email carries
+    #: the full link in its body already.
+    link: str | None = None
 
 
 async def recipients_for(organization_id: int) -> list[str]:
@@ -103,6 +107,16 @@ async def announce(
                 await session.rollback()
                 return False
 
+        # The same notice under the bell, for whoever is in the product
+        # rather than in their inbox. Deduplicated by the same key.
+        await inbox.post(
+            organization_id=organization_id,
+            kind=kind,
+            dedupe_key=notice.dedupe_key,
+            title=notice.subject,
+            body=notice.body,
+            link=notice.link,
+        )
         results = [
             await email.send_email(
                 sender=sender,

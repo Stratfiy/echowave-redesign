@@ -25,6 +25,7 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
 from api.services.compliance import agreements
+from api.services.messaging import announce
 from api.services.privacy import (
     access_log,
     erasure,
@@ -34,6 +35,7 @@ from api.services.privacy import (
     retention,
     subprocessors,
 )
+from api.services.privacy import notices as privacy_notices
 from api.services.readiness import as_dict
 
 router = APIRouter(prefix="/privacy", tags=["privacy"])
@@ -126,6 +128,19 @@ async def request_erasure(
         except erasure.ErasureError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         await session.commit()
+
+    # The acknowledgement, by mail and under the bell. After the commit and
+    # never raising: the erasure has happened whatever the mail server does.
+    await announce.announce(
+        organization_id=organization_id,
+        kind=privacy_notices.KIND,
+        notice=privacy_notices.completed(
+            request_id=result.request_id,
+            number_hint=privacy_notices.mask_number(request.phone_number),
+            calls_erased=result.runs_affected,
+            files_deleted=result.objects_deleted,
+        ),
+    )
 
     return {
         "request_id": result.request_id,

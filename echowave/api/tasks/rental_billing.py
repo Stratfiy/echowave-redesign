@@ -10,6 +10,7 @@ by period boundary, not by "today is the first".
 from loguru import logger
 
 from api.services.billing import rentals
+from api.services.notifications import inbox
 from api.services.telephony import number_lifecycle
 
 
@@ -138,6 +139,14 @@ async def notify_dunning(
                 await session.rollback()
                 return False
 
+        await inbox.post(
+            organization_id=organization_id,
+            kind="dunning",
+            dedupe_key=notice.dedupe_key,
+            title=notice.subject,
+            body=notice.body,
+            link="/billing",
+        )
         results = [
             await email.send_email(
                 sender="billing",

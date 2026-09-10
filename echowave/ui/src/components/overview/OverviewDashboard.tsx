@@ -21,12 +21,9 @@ import Link from "next/link";
 import posthog from "posthog-js";
 import { useEffect, useState } from "react";
 import {
-    Area,
-    AreaChart,
     Bar,
     CartesianGrid,
     ComposedChart,
-    Legend,
     Line,
     ResponsiveContainer,
     Tooltip as RTooltip,
@@ -46,7 +43,6 @@ import {
     ChartCard,
     ChartTooltip,
     gridStroke,
-    OrderedLegend,
     StatTile,
     useAuthReady,
     useChartMode,
@@ -204,9 +200,6 @@ export function OverviewDashboard({ firstName }: { firstName?: string }) {
     const byAgent = [...(calls?.by_agent ?? [])].sort((a, b) => b.calls - a.calls).slice(0, 5);
     const noCallsYet = !loading && !error && (totals?.calls ?? 0) === 0 && (spend?.spent_paise ?? 0) === 0;
     const daysRemaining = spend?.burn?.days_remaining ?? null;
-    const spendByComponent = COST_COMPONENTS.filter((c) =>
-        (spend?.series ?? []).some((row) => Number(row[c.key as keyof SpendRow] ?? 0) > 0),
-    );
 
     if (noCallsYet) {
         return (
@@ -331,10 +324,10 @@ export function OverviewDashboard({ firstName }: { firstName?: string }) {
                 </ChartCard>
 
                 <ChartCard
-                    title="Where the credits go"
-                    description="Daily spend by component"
+                    title="Credits used per day"
+                    description="What each day cost"
                     loading={loading && !spend}
-                    isEmpty={spendByComponent.length === 0}
+                    isEmpty={!daily.some((row) => row.charged_paise > 0)}
                     height={260}
                     className="lg:col-span-2"
                     action={
@@ -343,32 +336,19 @@ export function OverviewDashboard({ firstName }: { firstName?: string }) {
                         </Button>
                     }
                 >
+                    {/* One number a day, not a stack by component. The stack
+                        put the platform fee on the page as the tallest band,
+                        which reads as "look how much of this is fee" — a
+                        breakdown belongs on the Spend page, where somebody
+                        went looking for it. */}
                     <ResponsiveContainer width="100%" height={260}>
-                        <AreaChart data={spend?.series ?? []} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                        <ComposedChart data={daily} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                             <CartesianGrid stroke={gridStroke(mode)} vertical={false} />
                             <XAxis dataKey="day" tickFormatter={formatDateIST} {...axisProps(mode)} />
                             <YAxis width={44} tickFormatter={(v: number) => formatCredits(v)} {...axisProps(mode)} />
                             <RTooltip content={<ChartTooltip formatter={(v) => formatCreditsLabel(Number(v))} labelFormatter={formatDateIST} />} />
-                            <Legend
-                                content={
-                                    <OrderedLegend
-                                        items={spendByComponent.map((c) => ({ key: c.key, label: c.label, color: seriesColor(c.slot, mode) }))}
-                                    />
-                                }
-                            />
-                            {spendByComponent.map((c) => (
-                                <Area
-                                    key={c.key}
-                                    type="monotone"
-                                    dataKey={c.key}
-                                    name={c.label}
-                                    stackId="cost"
-                                    stroke={seriesColor(c.slot, mode)}
-                                    fill={seriesColor(c.slot, mode)}
-                                    fillOpacity={0.35}
-                                />
-                            ))}
-                        </AreaChart>
+                            <Bar dataKey="charged_paise" name="Credits" fill={seriesColor(0, mode)} radius={[3, 3, 0, 0]} />
+                        </ComposedChart>
                     </ResponsiveContainer>
                 </ChartCard>
             </div>

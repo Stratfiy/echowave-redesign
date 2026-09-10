@@ -17,6 +17,7 @@ import {
 } from '@/client/sdk.gen';
 import type { CampaignResponse } from '@/client/types.gen';
 import { CampaignSummaryCard } from '@/components/campaign/CampaignSummaryCard';
+import { ConsentAttestationDialog } from '@/components/campaign/ConsentAttestationDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -198,9 +199,15 @@ export default function CampaignDetailPage() {
         setReportEndTime('23:59');
     };
 
-    // Handle start campaign
-    const handleStart = async () => {
+    // Handle start campaign. The first start carries the calling-consent
+    // attestation; the campaign keeps it, so later starts go straight through.
+    const [consentOpen, setConsentOpen] = useState(false);
+    const handleStart = async (attested = false) => {
         if (!user) return;
+        if (!attested && !campaign?.consent_attested_at) {
+            setConsentOpen(true);
+            return;
+        }
         setIsExecutingAction(true);
         try {
             const accessToken = await getAccessToken();
@@ -208,6 +215,7 @@ export default function CampaignDetailPage() {
                 path: {
                     campaign_id: campaignId,
                 },
+                body: attested ? { consent_attested: true } : undefined,
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                 }
@@ -215,6 +223,7 @@ export default function CampaignDetailPage() {
 
             if (response.data) {
                 setCampaign(response.data);
+                setConsentOpen(false);
                 toast.success('Campaign started');
             } else if (response.error) {
                 // Extract error message from response
@@ -430,7 +439,7 @@ export default function CampaignDetailPage() {
                 return (
                     <div className="flex items-center gap-2">
                         {editButton}
-                        <Button onClick={handleStart} disabled={isExecutingAction}>
+                        <Button onClick={() => void handleStart()} disabled={isExecutingAction}>
                             <Play className="h-4 w-4 mr-2" />
                             Start Campaign
                         </Button>
@@ -603,6 +612,12 @@ export default function CampaignDetailPage() {
                     campaign wants to know how it is doing before they want to
                     know what happened on call 4,812. */}
                 <CampaignSummaryCard campaignId={campaignId} />
+                <ConsentAttestationDialog
+                    open={consentOpen}
+                    onOpenChange={setConsentOpen}
+                    onConfirm={() => handleStart(true)}
+                    busy={isExecutingAction}
+                />
 
                 {/* Campaign Details */}
                 <Card className="mb-6">
@@ -628,6 +643,14 @@ export default function CampaignDetailPage() {
                             <div>
                                 <dt className="text-sm font-medium">Source Type</dt>
                                 <dd className="mt-1 capitalize">{campaign.source_type.replace('-', ' ')}</dd>
+                            </div>
+                            <div>
+                                <dt className="text-sm font-medium">Calling consent</dt>
+                                <dd className="mt-1 text-sm">
+                                    {campaign.consent_attested_at
+                                        ? `Confirmed ${format(new Date(campaign.consent_attested_at), 'PP')}`
+                                        : 'Asked for when the campaign is first started'}
+                                </dd>
                             </div>
                             <div>
                                 <dt className="text-sm font-medium">

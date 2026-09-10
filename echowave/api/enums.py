@@ -265,6 +265,8 @@ class PostHogEvent(str, Enum):
     # drop-off had no location.
     EMAIL_VERIFIED = "email_verified"
     PASSWORD_RESET = "password_reset"
+    CAMPAIGN_STARTED = "campaign_started"
+    CAMPAIGN_COMPLETED = "campaign_completed"
     SIGNUP_BONUS_GRANTED = "signup_bonus_granted"
     PHONE_NUMBER_ATTACHED = "phone_number_attached"
 

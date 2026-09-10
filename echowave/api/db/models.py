@@ -1211,6 +1211,12 @@ class CampaignModel(Base):
     # Orchestrator tracking fields
     last_batch_scheduled_at = Column(DateTime(timezone=True), nullable=True)
     last_activity_at = Column(DateTime(timezone=True), nullable=True)
+
+    # The calling-consent attestation: who confirmed, and when, that the
+    # people on this list agreed to be called. Per campaign, because that is
+    # the unit a complaint arrives about; see services/campaign/consent.py.
+    consent_attested_at = Column(DateTime(timezone=True), nullable=True)
+    consent_attested_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     orchestrator_metadata = Column(
         JSON, nullable=False, default=dict, server_default=text("'{}'::json")
     )
@@ -1238,7 +1244,9 @@ class CampaignModel(Base):
     # Relationships
     organization = relationship("OrganizationModel")
     workflow = relationship("WorkflowModel")
-    created_by_user = relationship("UserModel")
+    # Two foreign keys point at users now (created_by and consent_attested_by),
+    # so the join has to be named.
+    created_by_user = relationship("UserModel", foreign_keys=[created_by])
 
     # Indexes
     __table_args__ = (
@@ -2956,6 +2964,38 @@ class NotificationModel(Base):
             name="uq_notification_dedupe",
         ),
         Index("ix_notifications_org", "organization_id", "created_at"),
+    )
+
+
+class InAppNotificationModel(Base):
+    """One thing the product wants the account to know, shown in the app.
+
+    Separate from :class:`NotificationModel`, which is the *email log* and
+    exists so a mail is not sent twice. This is the inbox: what a member sees
+    under the bell, whether or not a mail went out, and whether they have
+    read it. The same dedupe rule applies so a re-run job posts once.
+    """
+
+    __tablename__ = "in_app_notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    kind = Column(String(48), nullable=False)
+    dedupe_key = Column(String(128), nullable=False)
+    title = Column(Text, nullable=False)
+    body = Column(Text, nullable=True)
+    #: Where the bell row takes you: a path inside the app.
+    link = Column(String(256), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    read_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "kind", "dedupe_key", name="uq_in_app_notification"
+        ),
+        Index("ix_in_app_notifications_org", "organization_id", "created_at"),
     )
 
 

@@ -19,10 +19,11 @@ from zoneinfo import ZoneInfo
 import redis.asyncio as aioredis
 from loguru import logger
 
-from api.constants import REDIS_URL
+from api.constants import REDIS_URL, UI_APP_URL
 from api.db import db_client
 from api.db.models import CampaignModel, QueuedRunModel
-from api.enums import RedisChannel
+from api.enums import PostHogEvent, RedisChannel
+from api.services.campaign import notices
 from api.services.campaign.campaign_event_protocol import (
     BatchCompletedEvent,
     BatchFailedEvent,
@@ -33,6 +34,8 @@ from api.services.campaign.campaign_event_protocol import (
 )
 from api.services.campaign.campaign_event_publisher import CampaignEventPublisher
 from api.services.campaign.circuit_breaker import circuit_breaker
+from api.services.messaging import announce
+from api.services.posthog_client import capture_event
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
@@ -630,6 +633,33 @@ class CampaignOrchestrator:
                 processed_rows=campaign.processed_rows,
                 failed_rows=campaign.failed_rows,
                 duration_seconds=duration,
+            )
+
+            # Tell the account, by mail and under the bell: the person who
+            # started this closed the tab hours ago. Never raises.
+            await announce.announce(
+                organization_id=campaign.organization_id,
+                kind=notices.KIND,
+                notice=notices.completed(
+                    campaign_id=campaign_id,
+                    name=campaign.name,
+                    total_rows=campaign.total_rows or 0,
+                    processed_rows=campaign.processed_rows,
+                    failed_rows=campaign.failed_rows,
+                    app_url=UI_APP_URL,
+                ),
+            )
+            capture_event(
+                distinct_id=str(campaign.organization_id),
+                event=PostHogEvent.CAMPAIGN_COMPLETED,
+                properties={
+                    "organization_id": campaign.organization_id,
+                    "campaign_id": campaign_id,
+                    "total_rows": campaign.total_rows or 0,
+                    "processed_rows": campaign.processed_rows,
+                    "failed_rows": campaign.failed_rows,
+                    "duration_seconds": duration,
+                },
             )
 
             # Clean up in-memory state

@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -13,12 +13,14 @@ from api.constants import (
 )
 from api.db import db_client
 from api.db.models import UserModel
-from api.enums import OrganizationConfigurationKey
+from api.enums import OrganizationConfigurationKey, PostHogEvent
 from api.services.auth.depends import get_user
+from api.services.campaign import consent
 from api.services.campaign.runner import campaign_runner_service
 from api.services.campaign.source_sync import CampaignSourceSyncService
 from api.services.campaign.source_sync_factory import get_sync_service
 from api.services.kyc import service as kyc_service
+from api.services.posthog_client import capture_event
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.reports import campaign_summary, generate_campaign_report_csv
 from api.services.storage import storage_fs
@@ -211,6 +213,10 @@ class CampaignResponse(BaseModel):
     redialed_campaign_id: Optional[int] = None
     telephony_configuration_id: Optional[int] = None
     telephony_configuration_name: Optional[str] = None
+    #: Who confirmed the people on the list agreed to be called, and when.
+    #: None until the first start carries the attestation.
+    consent_attested_at: Optional[datetime] = None
+    consent_attested_by: Optional[int] = None
     logs: List[CampaignLogEntryResponse] = Field(default_factory=list)
 
 
@@ -314,6 +320,8 @@ def _build_campaign_response(
         redialed_campaign_id=redialed_campaign_id,
         telephony_configuration_id=campaign.telephony_configuration_id,
         telephony_configuration_name=telephony_configuration_name,
+        consent_attested_at=getattr(campaign, "consent_attested_at", None),
+        consent_attested_by=getattr(campaign, "consent_attested_by", None),
         logs=[
             CampaignLogEntryResponse(**entry)
             for entry in (campaign.logs or [])
@@ -530,9 +538,16 @@ async def get_campaign(
     )
 
 
+class StartCampaignRequest(BaseModel):
+    #: The calling-consent attestation — see services/campaign/consent.py.
+    #: Needed on the first start only; the campaign keeps it afterwards.
+    consent_attested: bool = False
+
+
 @router.post("/{campaign_id}/start")
 async def start_campaign(
     campaign_id: int,
+    request: StartCampaignRequest | None = Body(default=None),
     user: UserModel = Depends(get_user),
 ) -> CampaignResponse:
     """Start campaign execution"""
@@ -550,6 +565,18 @@ async def start_campaign(
     campaign = await db_client.get_campaign(campaign_id, user.selected_organization_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
+
+    # The people on the list agreed to be called: the customer's fact, asked
+    # for once and kept with the campaign. 428 rather than 400 so the screen
+    # can tell "you need to confirm" from "the campaign is broken".
+    try:
+        await consent.require_attested(
+            campaign=campaign,
+            user_id=user.id,
+            attested_now=bool(request and request.consent_attested),
+        )
+    except consent.ConsentNotAttested as exc:
+        raise HTTPException(status_code=428, detail=str(exc)) from exc
 
     # Check Decibyl quota before starting campaign (apply per-workflow
     # model_overrides so we evaluate the keys this campaign will use).
@@ -578,6 +605,19 @@ async def start_campaign(
         await campaign_runner_service.start_campaign(campaign_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # Money-bearing, so from the backend: a campaign that starts is vendor
+    # minutes committed, and the browser cannot be trusted to say so.
+    capture_event(
+        distinct_id=str(user.provider_id),
+        event=PostHogEvent.CAMPAIGN_STARTED,
+        properties={
+            "organization_id": user.selected_organization_id,
+            "campaign_id": campaign_id,
+            "total_rows": campaign.total_rows or 0,
+            "source_type": campaign.source_type,
+        },
+    )
 
     # Get updated campaign
     campaign = await db_client.get_campaign(campaign_id, user.selected_organization_id)
