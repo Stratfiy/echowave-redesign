@@ -49,9 +49,11 @@ class TestWhatTheInstructionHasToSay:
         assert "Numbers, dates, times" in CODE_MIXED_INSTRUCTIONS
 
     def test_says_which_script_to_write_a_mixed_sentence_in(self):
-        """Left open, a mixed sentence comes back in a script the voice reads
-        letter by letter."""
-        assert "Latin script" in CODE_MIXED_INSTRUCTIONS
+        """Each language in its own script. The earlier rule asked for Latin
+        script for the whole mixed sentence, and a Tamil sentence typed in
+        Latin letters is read by the voice as English — mangled."""
+        assert "own script" in CODE_MIXED_INSTRUCTIONS
+        assert "English words in\n  Latin script" in CODE_MIXED_INSTRUCTIONS
 
     def test_forbids_narrating_the_switch(self):
         """ "Shall I continue in Hindi?" is the tell that this is a machine."""

@@ -10,7 +10,9 @@ from api.services.configuration.ai_model_configuration import (
 
 
 class OrganizationModelServicesContext(BaseModel):
-    config_source: Literal["organization_v2", "legacy_user_v1", "empty"]
+    config_source: Literal[
+        "organization_v2", "legacy_user_v1", "managed_default", "empty"
+    ]
     has_model_configuration_v2: bool
     managed_service_version: Optional[int] = None
     uses_managed_service_v2: bool

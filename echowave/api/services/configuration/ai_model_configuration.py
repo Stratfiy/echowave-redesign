@@ -45,7 +45,9 @@ from api.services.configuration.registry import (
 )
 from api.services.configuration.resolve import resolve_effective_config
 
-AIModelConfigurationSource = Literal["organization_v2", "legacy_user_v1", "empty"]
+AIModelConfigurationSource = Literal[
+    "organization_v2", "legacy_user_v1", "managed_default", "empty"
+]
 WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY = "model_configuration_v2_override"
 
 
@@ -112,9 +114,24 @@ async def get_resolved_ai_model_configuration(
             organization_configuration=organization_configuration,
         )
 
+    # No stored configuration. This used to resolve to nothing at all, and
+    # every section then read as "API key is missing" on the first agent a
+    # new account tried to hear — the signup path builds a configuration by
+    # minting a key from an external service, and when that service is down
+    # the account is left with none. An account that has chosen nothing runs
+    # on the managed stack, which is what it would have been given.
+    default = managed_default_configuration()
     return ResolvedAIModelConfiguration(
-        effective=EffectiveAIModelConfiguration(),
-        source="empty",
+        effective=with_managed_embeddings(compile_ai_model_configuration_v2(default)),
+        source="managed_default",
+        organization_configuration=default,
+    )
+
+
+def managed_default_configuration() -> OrganizationAIModelConfigurationV2:
+    """What an account gets before it chooses: the managed stack, default tiers."""
+    return OrganizationAIModelConfigurationV2(
+        mode="decibyl", decibyl=DecibylManagedAIModelConfiguration()
     )
 
 
