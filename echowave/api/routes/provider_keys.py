@@ -25,6 +25,7 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationRole
 from api.services.auth.depends import get_user, require_organization_role
+from api.services.billing.staff_accounts import is_superadmin
 from api.services.configuration import key_validation
 from api.services.configuration import organization_credentials as creds
 from api.services.configuration.registry import (
@@ -157,7 +158,12 @@ async def set_provider_key(
     """
     organization_id = _organization_id(user)
 
-    if not (await get_organization_preferences(organization_id)).own_keys_allowed:
+    # Staff accounts have every feature; for anyone else this is a commercial
+    # arrangement switched on from the staff account page.
+    if not (
+        is_superadmin(user)
+        or (await get_organization_preferences(organization_id)).own_keys_allowed
+    ):
         raise HTTPException(
             status_code=403,
             detail=(

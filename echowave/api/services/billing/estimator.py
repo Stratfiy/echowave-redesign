@@ -148,6 +148,11 @@ _REALTIME_RATE_CARD_NAMES = {
 }
 
 
+def realtime_rate_card_name(provider: str) -> str:
+    """The name a speech-to-speech session's usage is recorded under."""
+    return _REALTIME_RATE_CARD_NAMES.get(provider, provider)
+
+
 def rate_card_provider(provider: str) -> str:
     """The name the rate card knows ``provider`` by.
 

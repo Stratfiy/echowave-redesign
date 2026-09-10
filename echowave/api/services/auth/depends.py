@@ -483,9 +483,11 @@ async def require_verified_email(user: UserModel = Depends(get_user)) -> UserMod
     be able to make them on a bonus.
     """
     from api.services.auth.email_verification import verification_is_enforceable
+    from api.services.billing.staff_accounts import is_superadmin
 
     if (
         verification_is_enforceable()
+        and not is_superadmin(user)
         and getattr(user, "email_verified_at", None) is None
     ):
         raise HTTPException(

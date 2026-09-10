@@ -122,15 +122,28 @@ async def _model_is_priced(
 
     billed = "llm" if component == managed_tiers.REALTIME_COMPONENT else component
     # The rate card is keyed by the name the pipeline records, which is derived
-    # from the service class rather than the configuration vocabulary.
-    rate = await resolve_provider_rate(
-        session,
-        provider=provider_from_processor(provider),
-        component=CostComponent(billed),
-        at=datetime.now(UTC),
-        model=model,
-    )
-    return rate is not None
+    # from the service class rather than the configuration vocabulary. A
+    # speech-to-speech session records under its Decibyl service class —
+    # ``decibylgeminilive``, not ``google_realtime`` — so that name is tried
+    # too, or the Natural tier reads as unpriced while every call on it costs.
+    from api.services.billing.estimator import realtime_rate_card_name
+
+    names = [provider_from_processor(provider)]
+    if component == managed_tiers.REALTIME_COMPONENT:
+        recorded = realtime_rate_card_name(provider)
+        if recorded not in names:
+            names.insert(0, recorded)
+    for name in names:
+        rate = await resolve_provider_rate(
+            session,
+            provider=name,
+            component=CostComponent(billed),
+            at=datetime.now(UTC),
+            model=model,
+        )
+        if rate is not None:
+            return True
+    return False
 
 
 def choices(component: str) -> list[dict]:

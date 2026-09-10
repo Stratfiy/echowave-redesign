@@ -37,3 +37,15 @@ def test_a_stale_form_cannot_switch_it_off():
 
 def test_the_seam_names_every_staff_field():
     assert STAFF_ONLY_FIELDS == ("own_keys_allowed",)
+
+
+def test_a_superadmin_is_entitled_without_the_switch():
+    """A staff account has every feature, own keys included; the switch is
+    for customers, where it is a commercial arrangement."""
+    from types import SimpleNamespace
+
+    from api.services.billing.staff_accounts import is_superadmin
+
+    assert is_superadmin(SimpleNamespace(staff_role="superadmin"))
+    assert not is_superadmin(SimpleNamespace(staff_role="support"))
+    assert not is_superadmin(SimpleNamespace(staff_role=None))

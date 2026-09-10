@@ -162,6 +162,23 @@ class Divergence:
         )
 
 
+#: How many recorded units one card unit holds. Usage is written in the
+#: pipeline's own units — seconds of speech, characters, tokens — while the
+#: card quotes a minute, a thousand characters, a thousand tokens. Comparing
+#: the two without this made every vendor read as 0.001x or 0.017x the card:
+#: not a discount, a unit.
+_UNITS_PER_CARD_UNIT = {
+    "minute": 60.0,
+    "1k_chars": 1000.0,
+    "1k_tokens": 1000.0,
+}
+
+
+def per_unit(card_rate_mpaise: float, unit: str | None) -> float:
+    """A card rate in millipaise per *recorded* unit, comparable to measured."""
+    return card_rate_mpaise / _UNITS_PER_CARD_UNIT.get(unit or "", 1.0)
+
+
 def divergence(
     realized: list[RealizedRate], configured: dict[tuple[str, str], float]
 ) -> list[Divergence]:

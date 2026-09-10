@@ -294,6 +294,22 @@ STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES = int(
     os.getenv("STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES", str(5 * 1024 * 1024))
 )
 STARTER_PLAN_PRICE_PAISE = int(os.getenv("STARTER_PLAN_PRICE_PAISE", "299900"))
+# What an account with no plan gets: a knowledge base small enough that a
+# free signup can try the feature on one real document and no larger, since
+# every document is embedded on our key and billed to nobody. Zero turns the
+# free tier off and brings back the "choose a plan" refusal.
+FREE_KNOWLEDGE_BASE_BYTES = int(
+    os.getenv("FREE_KNOWLEDGE_BASE_BYTES", str(3 * 1024 * 1024))
+)
+FREE_KNOWLEDGE_BASE_FILE_BYTES = int(
+    os.getenv("FREE_KNOWLEDGE_BASE_FILE_BYTES", str(3 * 1024 * 1024))
+)
+# What an account run by Decibyl staff gets. Not a plan: the company's own
+# accounts are where demos are built and bugs reproduced, and nothing on them
+# is for sale. See api/services/billing/staff_accounts.py.
+STAFF_KNOWLEDGE_BASE_BYTES = int(
+    os.getenv("STAFF_KNOWLEDGE_BASE_BYTES", str(2 * 1024 * 1024 * 1024))
+)
 
 # Pin the Razorpay plan, exactly as with the rental plan: a plan created lazily
 # per environment fragments the provider's own reporting into pieces that cannot
