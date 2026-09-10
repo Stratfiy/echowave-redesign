@@ -183,6 +183,8 @@ class PipecatEngine:
 
         # Cached organization ID (resolved lazily from workflow run)
         self._organization_id: Optional[int] = None
+        #: The business's own timezone, read once per call. See _get_timezone.
+        self._timezone: Optional[str] = None
 
         # Open MCP tool sessions for this call, keyed by tool_uuid
         self._mcp_sessions: Dict[str, McpToolSession] = {}
@@ -230,6 +232,37 @@ class PipecatEngine:
                 )
             )
         return self._organization_id
+
+    async def _get_timezone(self) -> Optional[str]:
+        """The zone this business keeps, for working out what "today" means.
+
+        Read from the organization's own preferences -- the field on the
+        Settings page -- rather than from the server's clock, because the
+        server's clock says nothing about where the caller and the clinic are.
+        Cached for the call: it cannot change mid-conversation, and this is
+        read on every node transition.
+
+        None when unset or unreadable, which the composer turns into the
+        deployment default. A booking agent has to be told what day it is one
+        way or another; an unset preference is not a reason to leave it
+        guessing.
+        """
+        if self._timezone is not None:
+            return self._timezone
+        try:
+            organization_id = await self._get_organization_id()
+            if organization_id is None:
+                return None
+            from api.services.organization_preferences import (
+                get_organization_preferences,
+            )
+
+            preferences = await get_organization_preferences(organization_id)
+            self._timezone = preferences.timezone or None
+        except Exception as exc:  # noqa: BLE001 - never fail a call over this
+            logger.warning(f"Could not read the organization timezone: {exc}")
+            return None
+        return self._timezone
 
     def _get_otel_context(self):
         """Extract the OTel Context from the task's TracingContext.
@@ -681,6 +714,7 @@ class PipecatEngine:
             has_recordings=self._has_recordings,
             code_mixed_speech=self._code_mixed_speech,
             opening_notes=self._opening_notes_for(node),
+            timezone=await self._get_timezone(),
         )
         functions = await compose_functions_for_node(
             node=node,

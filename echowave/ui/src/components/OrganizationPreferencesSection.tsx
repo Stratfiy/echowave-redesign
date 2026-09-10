@@ -233,6 +233,14 @@ export function OrganizationPreferencesSection() {
             onChange={setTimezone}
             styles={timezoneSelectStyles}
           />
+          {/* Said here because nothing else on the screen suggests this field
+              does any work. It decides what an agent means by "today" and
+              "tomorrow evening", so an agent that books appointments is
+              reading it on every call. */}
+          <p className="text-xs text-muted-foreground">
+            Your agents work out dates and times from this — &ldquo;tomorrow at
+            five&rdquo; is resolved in this zone. Set it if you take bookings.
+          </p>
         </div>
       </div>
       {/* Disabled with nothing to save, so the button answers "did that go
