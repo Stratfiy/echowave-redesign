@@ -4,8 +4,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import logger from '@/lib/logger';
 
-import type { AuthUser, LocalUser } from '../types';
 import { isPublicPath } from '../publicPaths';
+import type { AuthUser, LocalUser } from '../types';
 import { AuthContext } from './AuthProvider';
 
 export function LocalProviderWrapper({ children }: { children: React.ReactNode }) {

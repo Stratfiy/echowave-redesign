@@ -1,9 +1,8 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-import { isPublicPath } from '@/lib/auth/publicPaths';
-
 import { getServerBackendUrl } from '@/lib/apiClient';
+import { isPublicPath } from '@/lib/auth/publicPaths';
 
 const OSS_TOKEN_COOKIE = 'decibyl_auth_token';
 
