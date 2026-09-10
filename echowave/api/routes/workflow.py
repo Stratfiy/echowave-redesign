@@ -1208,6 +1208,118 @@ async def apply_model_preset(
     return {"preset": preset.slug, "label": preset.label}
 
 
+class ModelSlotRequest(BaseModel):
+    """One tile's pencil: this slot, this managed model, this voice."""
+
+    component: Literal["stt", "llm", "tts", "realtime"]
+    provider: str
+    model: str
+    voice: str | None = None
+
+
+@router.put("/{workflow_id}/model-slot")
+async def set_model_slot(
+    workflow_id: int,
+    request: ModelSlotRequest,
+    user: UserModel = Depends(get_user),
+) -> dict:
+    """Point one slot of this agent at a managed catalogue model.
+
+    The Advanced tiles' pencil. The rest of the stack is carried over
+    untouched — the agent's own override if it has one, else what it inherits
+    from the workspace — so changing the voice never changes the brain.
+    Only models on the sellable catalogue are accepted: anything else is what
+    the per-slot editor and the customer's own keys are for.
+    """
+    from api.services.configuration import model_catalogue
+    from api.services.configuration.agent_options import (
+        SelectionError,
+        model_row,
+        stack_from_configurations,
+        with_model_slot,
+    )
+    from api.services.configuration.ai_model_configuration import (
+        compile_workflow_model_configuration_override,
+        get_resolved_ai_model_configuration,
+    )
+    from api.services.configuration.resolve import resolve_effective_config
+
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    async with db_client.async_session() as session:
+        offered = await model_catalogue.sellable(session, component=request.component)
+    if not any(
+        e.provider == request.provider and e.model == request.model for e in offered
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"{request.provider} {request.model} is not on offer for this slot. "
+                "Use the per-slot editor to run a model on your own key."
+            ),
+        )
+
+    draft = await db_client.get_draft_version(workflow_id)
+    source = draft or workflow.released_definition
+    existing = dict((source.workflow_configurations if source else None) or {})
+    current_override = existing.get(WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY)
+
+    if isinstance(current_override, dict) and isinstance(
+        current_override.get("stack"), dict
+    ):
+        base = dict(current_override["stack"])
+    elif current_override:
+        base = stack_from_configurations(
+            compile_workflow_model_configuration_override(current_override)
+        )
+    else:
+        resolved = await get_resolved_ai_model_configuration(
+            organization_id=user.selected_organization_id
+        )
+        base = stack_from_configurations(
+            resolve_effective_config(
+                resolved.effective, existing.get("model_overrides")
+            )
+        )
+
+    try:
+        stack = with_model_slot(
+            base,
+            component=request.component,
+            provider=request.provider,
+            model=request.model,
+            voice=request.voice,
+        )
+    except SelectionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    # Compiled before it is stored: a stack that cannot run is refused here
+    # rather than on the first call.
+    try:
+        compile_workflow_model_configuration_override({"version": 3, "stack": stack})
+    except (ValueError, ValidationError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    existing.pop("model_overrides", None)
+    existing[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY] = {
+        "version": 3,
+        "stack": stack,
+    }
+    await db_client.save_workflow_draft(workflow_id, workflow_configurations=existing)
+
+    async with db_client.async_session() as session:
+        return await model_row(
+            session,
+            organization_id=user.selected_organization_id,
+            workflow_id=workflow_id,
+            workflow_configurations=existing,
+        )
+
+
 @router.get("/{workflow_id}/versions")
 async def get_workflow_versions(
     workflow_id: int,

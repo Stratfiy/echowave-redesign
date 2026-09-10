@@ -742,6 +742,112 @@ async def save_workflow_bundle_selection(
     return _selection_view(managed)
 
 
+# ---------------------------------------------------------------------------
+# One slot at a time.
+#
+# The Advanced view of an agent's Models tab is three tiles — transcriber,
+# brain, voice — or one for speech-to-speech, each with a pencil. Changing
+# one must not touch the others: somebody swapping the voice has not asked
+# for a different brain, and a preset that quietly did that is the mistake
+# `apply_model_preset` already refuses to make. So the write is a copy of the
+# stack with one section replaced.
+# ---------------------------------------------------------------------------
+
+STACK_SECTIONS = ("llm", "stt", "tts", "realtime", "embeddings")
+
+#: Every slot a cascade needs. A speech-to-speech stack drops stt and tts; a
+#: stack switched back to the cascade gets them again as managed defaults.
+_CASCADE_DEFAULTS = {
+    "stt": {
+        "provider": ServiceProviders.DECIBYL.value,
+        "model": "default",
+        "api_key": "",
+    },
+    "tts": {
+        "provider": ServiceProviders.DECIBYL.value,
+        "model": "default",
+        "api_key": "",
+    },
+}
+
+
+def stack_from_configurations(effective) -> dict:
+    """An effective configuration as the v3 stack shape an override stores.
+
+    Pre-resolution: sections still say "decibyl" or carry
+    ``use_platform_key``, which is what a stored override must say — a
+    resolved vendor key in a workflow's JSON would be a copy of a secret in
+    a second place. A section on the customer's own inline key keeps that
+    key, exactly as the per-slot editor already stores it.
+    """
+    stack: dict = {"architecture": "realtime" if effective.is_realtime else "pipeline"}
+    for name in STACK_SECTIONS:
+        section = getattr(effective, name, None)
+        if section is None:
+            continue
+        stack[name] = section.model_dump(mode="json", exclude_none=True)
+    if not effective.is_realtime:
+        stack.pop("realtime", None)
+    return stack
+
+
+def with_model_slot(
+    stack: dict,
+    *,
+    component: str,
+    provider: str,
+    model: str,
+    voice: str | None = None,
+) -> dict:
+    """The stack with one slot pointed at a managed catalogue model.
+
+    Pure, so it is testable without a database. Writes the direct managed
+    shape — a real vendor and model on ``use_platform_key`` — rather than a
+    tier, because the person chose this model by name and a tier would let
+    it move under them.
+
+    Choosing a speech-to-speech model switches the architecture and drops
+    the transcriber and voice, which that model replaces; choosing any
+    cascade slot on a realtime stack switches back and restores the two as
+    managed defaults, so the stack is always one that can run.
+    """
+    if component not in ("stt", "llm", "tts", "realtime"):
+        raise SelectionError(f"{component!r} is not a slot an agent has.")
+    next_stack = {k: (dict(v) if isinstance(v, dict) else v) for k, v in stack.items()}
+    section = dict(next_stack.get(component) or {})
+    # Vendor-specific fields (voice, language, speed) carry over only within
+    # the same vendor; another vendor's voice id names nothing here.
+    if section.get("provider") != provider:
+        section = {}
+    section.update(
+        {"provider": provider, "model": model, "api_key": "", "use_platform_key": True}
+    )
+    if component == "tts" and voice:
+        section["voice"] = voice
+    next_stack[component] = section
+
+    if component == "realtime":
+        next_stack["architecture"] = "realtime"
+        next_stack.pop("stt", None)
+        next_stack.pop("tts", None)
+        # The schema wants an llm under both architectures; the realtime
+        # model is the brain, so it stands in when none is recorded.
+        next_stack.setdefault("llm", dict(section))
+    else:
+        if next_stack.get("architecture") == "realtime":
+            next_stack["architecture"] = "pipeline"
+            next_stack.pop("realtime", None)
+        for name, default in _CASCADE_DEFAULTS.items():
+            next_stack.setdefault(name, dict(default))
+        if "llm" not in next_stack:
+            next_stack["llm"] = {
+                "provider": ServiceProviders.DECIBYL.value,
+                "model": "default",
+                "api_key": "",
+            }
+    return next_stack
+
+
 async def bundle_economics(
     session: AsyncSession, *, telephony_provider: str | None = None
 ) -> list[dict]:
@@ -1139,6 +1245,13 @@ async def model_row(
                 "paise_per_minute": line.paise_per_minute if line else None,
                 "approximate": bool(line and line.rate_is_provider_fallback),
                 "latency_ms": (latency or {}).get(stage_key[component]),
+                # The voice tile's pencil opens on the voice it has, not the
+                # first in the list. Only the voice slot carries one.
+                "voice": (
+                    getattr(effective.tts, "voice", None)
+                    if component == "tts"
+                    else None
+                ),
             }
         )
 

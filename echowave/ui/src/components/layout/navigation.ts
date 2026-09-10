@@ -127,13 +127,12 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
   {
     label: "BUILD",
     items: [
-      // Model configurations are no longer a sidebar destination: a voice, an
-      // LLM and a transcriber are properties of an agent, and the page is
-      // still reached from the agent editor. It highlights Agents while open.
+      // Models live on the agent — a voice, an LLM and a transcriber are
+      // properties of an agent, chosen on its Models tab. The workspace
+      // default is a setting, under Settings → Model defaults.
       {
         title: "Agents",
         url: "/workflow",
-        activePaths: ["/model-configurations"],
         icon: Bot,
         keywords: [
           "workflow",
@@ -362,7 +361,14 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "blocklist",
         ],
       },
-      { title: "Settings", url: "/settings", icon: Settings, keywords: ["account", "workspace", "preferences"] },
+      {
+        title: "Settings",
+        url: "/settings",
+        // The old models page redirects here; keep it lit while it does.
+        activePaths: ["/model-configurations"],
+        icon: Settings,
+        keywords: ["account", "workspace", "preferences", "model defaults", "llm", "stt", "tts", "voice", "provider", "byok"],
+      },
     ],
   },
 ];
