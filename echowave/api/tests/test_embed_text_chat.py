@@ -14,82 +14,122 @@ from api.routes import public_embed
 class TestVisibleMessages:
     """What the browser is allowed to see.
 
-    A whitelist rather than a filter. The session carries tool calls, node
-    names and the agent's own reasoning, and a blacklist is one new key away
-    from publishing how the agent works to anyone who opens the network tab.
+    The session stores the conversation as turns, each with the visitor's
+    user_message and the agent's assistant_message, alongside events, usage,
+    node transitions and the checkpoint. A whitelist rather than a filter:
+    exactly two text fields are copied out and nothing else on a turn is ever
+    forwarded, because a blacklist is one new key away from publishing how
+    the agent works to anyone who opens the network tab.
     """
 
-    def test_user_and_assistant_turns_come_through(self):
+    @staticmethod
+    def _turn(user=None, assistant=None, **extra):
+        turn = {
+            "id": "turn_x",
+            "status": "completed",
+            "created_at": "2026-09-10T16:30:11+00:00",
+            "user_message": {"text": user, "created_at": "t"}
+            if user is not None
+            else None,
+            "assistant_message": (
+                {"text": assistant, "created_at": "t"}
+                if assistant is not None
+                else None
+            ),
+            "events": [],
+            "usage": {},
+        }
+        turn.update(extra)
+        return turn
+
+    def test_user_and_assistant_turns_come_through_in_order(self):
         data = {
-            "messages": [
-                {"role": "user", "content": "do you do root canal"},
-                {"role": "assistant", "content": "Yes, we do."},
-            ]
+            "turns": [self._turn(user="do you do root canal", assistant="Yes, we do.")]
         }
         assert public_embed._visible_messages(data) == [
             {"role": "user", "content": "do you do root canal"},
             {"role": "assistant", "content": "Yes, we do."},
         ]
 
-    def test_system_prompts_never_reach_the_visitor(self):
-        """The system message is the agent's instructions. Returning it hands
-        a competitor the prompt and a caller the guardrails to talk around."""
+    def test_the_opening_greeting_has_no_user_side_and_still_shows(self):
+        """The agent greets first: the opening turn has user_message None and
+        only an assistant line. That line must reach the visitor, or the chat
+        opens on a blank bubble waiting for someone to speak."""
         data = {
-            "messages": [
-                {"role": "system", "content": "You are a clinic receptionist..."},
-                {"role": "assistant", "content": "Hello."},
+            "turns": [
+                self._turn(assistant="Hello, welcome to Elock support."),
+                self._turn(user="Hi", assistant="How can I help?"),
             ]
         }
         assert public_embed._visible_messages(data) == [
-            {"role": "assistant", "content": "Hello."}
+            {"role": "assistant", "content": "Hello, welcome to Elock support."},
+            {"role": "user", "content": "Hi"},
+            {"role": "assistant", "content": "How can I help?"},
         ]
 
-    def test_tool_calls_and_unknown_roles_are_dropped(self):
+    def test_a_pending_turn_shows_the_visitor_line_only(self):
+        """While the agent is still answering, the visitor's own message is
+        already on screen and nothing is invented for the reply."""
+        data = {"turns": [self._turn(user="my lock is stuck", status="pending")]}
+        assert public_embed._visible_messages(data) == [
+            {"role": "user", "content": "my lock is stuck"}
+        ]
+
+    def test_events_usage_and_node_names_never_reach_the_visitor(self):
+        """Events carry node transitions and tool activity; usage carries cost
+        and token counts; the checkpoint carries the agent's internal state.
+        Returning any of it hands a competitor the flow and a caller the
+        guardrails to talk around."""
         data = {
-            "messages": [
-                {"role": "tool", "content": "{'slots': [...]}"},
-                {"role": "developer", "content": "internal"},
-                {"role": "assistant", "content": "One moment."},
+            "turns": [
+                self._turn(
+                    assistant="One moment.",
+                    events=[
+                        {
+                            "type": "node_transition",
+                            "payload": {"node_name": "Escalate"},
+                        },
+                        {
+                            "type": "tool_call",
+                            "payload": {"name": "lookup", "args": {}},
+                        },
+                    ],
+                    usage={"llm": {"tokens": 512}, "cost_inr": 0.42},
+                    checkpoint_after_turn={"anchor_turn_id": "turn_x"},
+                )
             ]
         }
         assert public_embed._visible_messages(data) == [
             {"role": "assistant", "content": "One moment."}
         ]
 
-    def test_extra_keys_on_a_message_are_not_forwarded(self):
-        """Only role and content are copied. A message may also carry node ids,
-        latency, token counts and cost — none of which is the visitor's."""
-        data = {
-            "messages": [
-                {
-                    "role": "assistant",
-                    "content": "Hello.",
-                    "node_id": "agent-1",
-                    "cost_inr": 0.42,
-                }
-            ]
-        }
-        assert public_embed._visible_messages(data) == [
-            {"role": "assistant", "content": "Hello."}
-        ]
+    def test_only_role_and_content_are_copied(self):
+        """A message object carries created_at; a turn carries ids and status.
+        None of it is the visitor's."""
+        data = {"turns": [self._turn(user="ok", assistant="Sure.")]}
+        for message in public_embed._visible_messages(data):
+            assert set(message) == {"role", "content"}
 
-    def test_non_string_and_empty_content_is_skipped(self):
-        """A structured content block would reach the browser as an object the
+    def test_non_string_and_empty_text_is_skipped(self):
+        """A structured text block would reach the browser as an object the
         widget cannot render, and an empty one as a blank bubble."""
         data = {
-            "messages": [
-                {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
-                {"role": "assistant", "content": ""},
-                {"role": "assistant", "content": None},
-                {"role": "user", "content": "ok"},
+            "turns": [
+                {**self._turn(), "assistant_message": {"text": [{"type": "text"}]}},
+                {**self._turn(), "assistant_message": {"text": ""}},
+                {**self._turn(), "assistant_message": {"text": None}},
+                {**self._turn(), "assistant_message": "not a dict"},
+                self._turn(user="ok"),
             ]
         }
         assert public_embed._visible_messages(data) == [
             {"role": "user", "content": "ok"}
         ]
 
-    @pytest.mark.parametrize("data", [None, {}, {"messages": None}, {"messages": []}])
-    def test_an_empty_session_is_not_a_crash(self, data):
+    @pytest.mark.parametrize(
+        "data", [None, {}, {"turns": None}, {"turns": []}, {"turns": ["junk", 3]}]
+    )
+    def test_an_empty_or_malformed_session_is_not_a_crash(self, data):
         assert public_embed._visible_messages(data) == []
 
 
