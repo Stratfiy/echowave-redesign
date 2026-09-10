@@ -92,6 +92,7 @@ class WorkerSettings:
         record_worker_heartbeat,
         charge_recurring_rentals,
         reconcile_carrier_numbers,
+        send_weekly_digests,
     ]
     cron_jobs = [
         # Every minute, and at startup so a deployment is not indistinguishable
@@ -263,7 +264,6 @@ class WorkerSettings:
         # not the one it had before the rent came out.
         cron(
             notify_low_balances,
-            send_weekly_digests,
             hour={3},
             minute={30},
             second=0,
