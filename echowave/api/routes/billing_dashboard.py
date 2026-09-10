@@ -205,6 +205,68 @@ async def get_account(
         }
 
 
+@router.get("/accounts/{organization_id}/consent")
+async def get_account_consent(
+    organization_id: int, _: UserModel = Depends(get_superuser)
+) -> dict[str, Any]:
+    """Everything this account has agreed to, and who confirmed each list.
+
+    The audit view. A complaint about a call, or a regulator's question,
+    arrives months later; the answer is which version was accepted, by whom,
+    from where, and who confirmed the campaign's list — in one place, read
+    only.
+    """
+    from api.db.models import AgreementAcceptanceModel, CampaignModel
+    from api.services.compliance.agreements import CURRENT_TITLES, CURRENT_VERSIONS
+
+    async with db_client.async_session() as session:
+        acceptances = (
+            await session.execute(
+                select(AgreementAcceptanceModel, UserModel.email)
+                .join(UserModel, UserModel.id == AgreementAcceptanceModel.user_id)
+                .where(AgreementAcceptanceModel.organization_id == organization_id)
+                .order_by(AgreementAcceptanceModel.accepted_at.desc())
+            )
+        ).all()
+        attestations = (
+            await session.execute(
+                select(CampaignModel, UserModel.email)
+                .outerjoin(UserModel, UserModel.id == CampaignModel.consent_attested_by)
+                .where(
+                    CampaignModel.organization_id == organization_id,
+                    CampaignModel.consent_attested_at.isnot(None),
+                )
+                .order_by(CampaignModel.consent_attested_at.desc())
+            )
+        ).all()
+    return {
+        "agreements": [
+            {
+                "agreement": row.agreement,
+                "title": CURRENT_TITLES.get(row.agreement, row.agreement),
+                "version": row.version,
+                "current": CURRENT_VERSIONS.get(row.agreement) == row.version,
+                "user_id": row.user_id,
+                "user_email": email,
+                "accepted_at": row.accepted_at.isoformat() if row.accepted_at else None,
+                "ip_address": row.ip_address,
+                "user_agent": row.user_agent,
+            }
+            for row, email in acceptances
+        ],
+        "campaigns": [
+            {
+                "campaign_id": campaign.id,
+                "name": campaign.name,
+                "attested_at": campaign.consent_attested_at.isoformat(),
+                "attested_by": campaign.consent_attested_by,
+                "attested_by_email": email,
+            }
+            for campaign, email in attestations
+        ],
+    }
+
+
 class OwnKeysRequest(BaseModel):
     allowed: bool
 

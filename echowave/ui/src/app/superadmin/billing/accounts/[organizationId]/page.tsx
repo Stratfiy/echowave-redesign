@@ -341,6 +341,7 @@ export default function AccountDetailPage() {
                     allowed={Boolean(data?.own_keys_allowed)}
                     onChanged={load}
                 />
+                <ConsentAuditPanel organizationId={organizationId} />
                 <RateSettingsPanel
                     organizationId={organizationId}
                     currentRateMpaise={Number(account?.platform_rate_mpaise ?? 0)}
@@ -414,6 +415,119 @@ export default function AccountDetailPage() {
             <TelephonyPanel organizationId={organizationId} />
             <CommissionPanel organizationId={organizationId} />
         </div>
+    );
+}
+
+type ConsentAudit = {
+    agreements: Array<{
+        agreement: string;
+        title: string;
+        version: string;
+        current: boolean;
+        user_email: string | null;
+        accepted_at: string | null;
+        ip_address: string | null;
+    }>;
+    campaigns: Array<{
+        campaign_id: number;
+        name: string;
+        attested_at: string;
+        attested_by_email: string | null;
+    }>;
+};
+
+/**
+ * What this account agreed to, and who confirmed each campaign's list.
+ * Read-only: the record is the point, and a record staff can edit is not
+ * one.
+ */
+function ConsentAuditPanel({ organizationId }: { organizationId: number }) {
+    const [audit, setAudit] = useState<ConsentAudit | null>(null);
+    const [failure, setFailure] = useState<string | null>(null);
+
+    useEffect(() => {
+        void (async () => {
+            const result = await client.get({
+                url: `/api/v1/admin/billing/accounts/${organizationId}/consent`,
+            });
+            if (result.error || !result.data) {
+                setFailure(detailFromResult(result, "Could not load the consent record"));
+                return;
+            }
+            setAudit(result.data as unknown as ConsentAudit);
+        })();
+    }, [organizationId]);
+
+    const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-IN") : "—");
+
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Consent and agreements</CardTitle>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                    Which version was accepted, by whom, from where; and who confirmed each
+                    campaign&apos;s list agreed to be called.
+                </p>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+                {failure && <p className="text-xs text-destructive">{failure}</p>}
+                {audit && audit.agreements.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No agreement accepted yet.</p>
+                )}
+                {audit && audit.agreements.length > 0 && (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-xs" data-testid="consent-agreements">
+                            <thead className="text-left text-muted-foreground">
+                                <tr>
+                                    <th className="py-1 pr-3 font-medium">Document</th>
+                                    <th className="py-1 pr-3 font-medium">Version</th>
+                                    <th className="py-1 pr-3 font-medium">By</th>
+                                    <th className="py-1 pr-3 font-medium">When</th>
+                                    <th className="py-1 font-medium">From</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {audit.agreements.map((row, i) => (
+                                    <tr key={i} className="border-t border-border">
+                                        <td className="py-1.5 pr-3">{row.title}</td>
+                                        <td className="py-1.5 pr-3 tabular-nums">
+                                            {row.version}
+                                            {!row.current && (
+                                                <span className="ml-1 text-muted-foreground">(superseded)</span>
+                                            )}
+                                        </td>
+                                        <td className="py-1.5 pr-3">{row.user_email ?? "—"}</td>
+                                        <td className="py-1.5 pr-3 tabular-nums">{when(row.accepted_at)}</td>
+                                        <td className="py-1.5 font-mono">{row.ip_address ?? "—"}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+                {audit && (
+                    <div>
+                        <p className="mb-1 text-xs font-medium">Campaign calling consent</p>
+                        {audit.campaigns.length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No campaign confirmed yet.</p>
+                        ) : (
+                            <ul className="space-y-1 text-xs" data-testid="consent-campaigns">
+                                {audit.campaigns.map((c) => (
+                                    <li key={c.campaign_id} className="flex flex-wrap justify-between gap-2 border-t border-border py-1.5">
+                                        <span>
+                                            {c.name} <span className="text-muted-foreground">#{c.campaign_id}</span>
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                            {c.attested_by_email ?? "—"} · {when(c.attested_at)}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
     );
 }
 
