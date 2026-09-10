@@ -35,6 +35,14 @@ of the burn rate behind it is not evidence of anything, and a threshold guessed
 into existence would either cry wolf every hour or stay quiet through the
 outage it exists to catch.
 
+Which leaves Plivo, whose balance has no currency at all and is the one that
+stops calls — so it would sit on ``ok`` until the moment it hit zero, and the
+first warning would arrive after the outage. The way out is not to guess but
+to ask: ``PLATFORM_PLIVO_LOW_BALANCE`` is the operator's own low-water mark,
+in the account's own units, and the operator is the one person who knows what
+currency those units are. Until it is set the row says as much, so nobody
+reads a green pill as a balance somebody has vouched for.
+
 Nothing here raises. Every failure is a vendor being unreachable, and a report
 that one provider could not be read must still carry the other three.
 """
@@ -53,6 +61,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.constants import (
     PLATFORM_PLIVO_AUTH_ID,
     PLATFORM_PLIVO_AUTH_TOKEN,
+    PLATFORM_PLIVO_LOW_BALANCE,
     PLATFORM_TWILIO_ACCOUNT_SID,
     PLATFORM_TWILIO_AUTH_TOKEN,
 )
@@ -118,10 +127,19 @@ class ProviderBalance:
         return self.status in ("low", "empty")
 
 
-def _classify_money(amount: float, currency: str | None) -> Status:
+def _classify_money(
+    amount: float, currency: str | None, floor: float | None = None
+) -> Status:
+    """Where a balance sits, given whatever denominator we have.
+
+    ``floor`` is an operator's own low-water mark, in the account's units, and
+    takes precedence over the per-currency table — it is the only thing that
+    can judge a balance whose currency the vendor never states.
+    """
     if amount <= 0:
         return "empty"
-    floor = LOW_BALANCE.get((currency or "").strip().lower())
+    if floor is None:
+        floor = LOW_BALANCE.get((currency or "").strip().lower())
     if floor is not None and amount < floor:
         return "low"
     return "ok"
@@ -255,7 +273,14 @@ async def _plivo(
     Plivo does not name a currency on the account resource. Rather than assume
     one — an Indian account bills in INR, a US one in USD, and guessing wrong
     would put the threshold out by a factor of eighty — the row carries no
-    currency and is only ever ``ok`` or ``empty``.
+    currency, and the low-water mark comes from the operator instead:
+    ``PLATFORM_PLIVO_LOW_BALANCE``, in whatever units the account is in.
+
+    Without it this row is only ever ``ok`` or ``empty``, and ``empty`` is the
+    moment calls have already stopped — a warning that arrives after the
+    outage it was meant to prevent. So when no floor is set the row says so
+    in as many words, because a green "Healthy" pill on an account nobody has
+    given a threshold reads as reassurance it has not earned.
     """
     response = await client.get(
         f"https://api.plivo.com/v1/Account/{auth_id}/", auth=(auth_id, token)
@@ -268,13 +293,41 @@ async def _plivo(
         return ProviderBalance(
             "plivo", "unreachable", detail="Plivo answered without a credit figure."
         )
+
+    floor = plivo_floor()
+    notes = [payload.get("name") or None]
+    if floor is None:
+        notes.append(
+            "no low-balance threshold set — set PLATFORM_PLIVO_LOW_BALANCE "
+            "to be warned before this empties"
+        )
     return ProviderBalance(
         "plivo",
-        _classify_money(credits, None),
+        _classify_money(credits, None, floor),
         kind="money",
         amount=credits,
-        detail=payload.get("name") or None,
+        detail=" · ".join(note for note in notes if note) or None,
     )
+
+
+def plivo_floor() -> float | None:
+    """The operator's low-water mark for Decibyl's Plivo account.
+
+    Nonsense is treated as unset rather than as zero, and said out loud: a
+    typo'd threshold that silently became "warn below nothing" would leave the
+    account looking healthy all the way down, which is the exact failure the
+    setting exists to prevent.
+    """
+    if not PLATFORM_PLIVO_LOW_BALANCE:
+        return None
+    floor = _number(PLATFORM_PLIVO_LOW_BALANCE)
+    if floor is None:
+        logger.warning(
+            "PLATFORM_PLIVO_LOW_BALANCE is {!r}, which is not a number. No "
+            "low-balance threshold is being applied to the Plivo account.",
+            PLATFORM_PLIVO_LOW_BALANCE,
+        )
+    return floor
 
 
 async def _twilio(client: httpx.AsyncClient, sid: str, token: str) -> ProviderBalance:
