@@ -237,3 +237,14 @@ class TestWhatATierCanBePointedAt:
         one that was never offered."""
         for component in ("llm", "stt", "tts", "realtime", "embeddings"):
             assert tier_admin.choices(component), component
+
+
+def test_a_speech_to_speech_tier_is_priced_under_its_recorded_name():
+    """Gemini Live records usage as ``decibylgeminilive``; the tier is
+    configured as ``google_realtime``. Both names must be tried, or the
+    Natural tier reads as unpriced while every call on it costs money."""
+    from api.services.billing.estimator import realtime_rate_card_name
+
+    assert realtime_rate_card_name("google_realtime") == "decibylgeminilive"
+    assert realtime_rate_card_name("openai_realtime") == "decibylopenairealtime"
+    assert realtime_rate_card_name("sarvam") == "sarvam"

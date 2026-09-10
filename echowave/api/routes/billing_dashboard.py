@@ -685,7 +685,9 @@ async def get_rate_card() -> dict[str, Any]:
         realized = await realized_rates.measure(session)
 
     configured = {
-        (r["provider"], r["component"]): float(r["rate_mpaise"])
+        (r["provider"], r["component"]): realized_rates.per_unit(
+            float(r["rate_mpaise"]), r["unit"]
+        )
         for r in card.provider_rates
         # Provider-wide rows only: a model-specific rate cannot be compared
         # against a blend measured across every model from that vendor.

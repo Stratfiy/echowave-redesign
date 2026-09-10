@@ -15,6 +15,7 @@ from api.services.billing.realized_rates import (
     MIN_UNITS_FOR_SIGNIFICANCE,
     RealizedRate,
     divergence,
+    per_unit,
 )
 
 
@@ -239,3 +240,27 @@ class TestTheFeedAddress:
         """Named rather than inferred, so a future move is a deliberate edit
         with this incident in the blame rather than another silent 301."""
         assert fx_source.SOURCE_URL.startswith("https://api.frankfurter.dev/")
+
+
+class TestTheCardIsQuotedPerThousandAndPerMinute:
+    """Usage is recorded in seconds, characters and tokens; the card quotes a
+    minute, a thousand characters, a thousand tokens. Before this every vendor
+    read as paying 0.001x the card — a unit, reported as a discount."""
+
+    def test_a_minute_rate_becomes_per_second(self):
+        assert per_unit(50_000.0, "minute") == pytest.approx(833.333, rel=1e-3)
+
+    def test_a_thousand_characters_becomes_per_character(self):
+        assert per_unit(480_000.0, "1k_chars") == 480.0
+
+    def test_a_thousand_tokens_becomes_per_token(self):
+        assert per_unit(7_296.0, "1k_tokens") == pytest.approx(7.296)
+
+    def test_an_unknown_unit_is_left_alone(self):
+        assert per_unit(300.0, None) == 300.0
+
+    def test_sarvam_stt_at_its_card_rate_is_not_a_divergence(self):
+        # 1,901 seconds costing 1,589 paise is ₹0.50 a minute, the card's rate.
+        realized = [_rate(1_901, 1_589, provider="sarvam", component="stt")]
+        configured = {("sarvam", "stt"): per_unit(50_000.0, "minute")}
+        assert divergence(realized, configured) == []
