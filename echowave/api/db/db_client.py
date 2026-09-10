@@ -14,6 +14,7 @@ from api.db.missed_call_client import MissedCallClient
 from api.db.organization_client import OrganizationClient
 from api.db.organization_configuration_client import OrganizationConfigurationClient
 from api.db.organization_usage_client import OrganizationUsageClient
+from api.db.password_reset_client import PasswordResetClient
 from api.db.reports_client import ReportsClient
 from api.db.telephony_configuration_client import TelephonyConfigurationClient
 from api.db.telephony_phone_number_client import TelephonyPhoneNumberClient
@@ -35,6 +36,7 @@ class DBClient(
     ActivationClient,
     DoNotCallClient,
     EmailVerificationClient,
+    PasswordResetClient,
     VerifiedNumberClient,
     WorkflowClient,
     WorkflowRunClient,

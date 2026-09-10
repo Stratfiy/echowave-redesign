@@ -264,6 +264,7 @@ class PostHogEvent(str, Enum):
     # first (signed_up) and the last (call_started) and nothing between — so a
     # drop-off had no location.
     EMAIL_VERIFIED = "email_verified"
+    PASSWORD_RESET = "password_reset"
     SIGNUP_BONUS_GRANTED = "signup_bonus_granted"
     PHONE_NUMBER_ATTACHED = "phone_number_attached"
 

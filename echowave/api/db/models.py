@@ -4545,6 +4545,33 @@ class EmailVerificationChallengeModel(Base):
     __table_args__ = (UniqueConstraint("user_id", name="_email_verification_user_uc"),)
 
 
+class PasswordResetChallengeModel(Base):
+    """A live one-time code that lets somebody set a new password.
+
+    Its own table rather than a purpose column on the email-verification row:
+    a person can be mid-verification and forget their password in the same
+    ten minutes, and one row would make the second code destroy the first.
+    Same shape, same limits, same fate — destroyed on success.
+    """
+
+    __tablename__ = "password_reset_challenges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    email = Column(String, nullable=False)
+    code_hash = Column(String(64), nullable=False)
+    code_salt = Column(String(32), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    attempts = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    send_count = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    last_sent_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (UniqueConstraint("user_id", name="_password_reset_user_uc"),)
+
+
 class AutoTopupSettingModel(Base):
     """One account's standing instruction to top itself up.
 

@@ -3953,6 +3953,16 @@ export type FolderResponse = {
 };
 
 /**
+ * ForgotPasswordRequest
+ */
+export type ForgotPasswordRequest = {
+    /**
+     * Email
+     */
+    email: string;
+};
+
+/**
  * ForwardRequest
  */
 export type ForwardRequest = {
@@ -6264,6 +6274,12 @@ export type OrganizationPreferences = {
      */
     timezone?: string | null;
     /**
+     * Own Keys Allowed
+     *
+     * Staff-set. May this account store and run on its own vendor keys.
+     */
+    own_keys_allowed?: boolean;
+    /**
      * Byok Fallback To Managed
      *
      * When a slot is set to your own key and no usable key is stored, run the call on Decibyl's key and bill it at the published rate. Off means the call is refused instead.
@@ -6321,6 +6337,16 @@ export type OutcomesResponse = {
      * Cost By Outcome
      */
     cost_by_outcome: Array<CostByOutcomeItem>;
+};
+
+/**
+ * OwnKeysRequest
+ */
+export type OwnKeysRequest = {
+    /**
+     * Allowed
+     */
+    allowed: boolean;
 };
 
 /**
@@ -7372,6 +7398,24 @@ export type ReleaseRequest = {
      * Force
      */
     force?: boolean;
+};
+
+/**
+ * ResetPasswordRequest
+ */
+export type ResetPasswordRequest = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * New Password
+     */
+    new_password: string;
 };
 
 /**
@@ -11505,6 +11549,54 @@ export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses = {
 };
 
 export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponse = GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses[keyof GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses];
+
+export type SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutData = {
+    body: OwnKeysRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/accounts/{organization_id}/own-keys';
+};
+
+export type SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutError = SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutErrors[keyof SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutErrors];
+
+export type SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutResponses = {
+    /**
+     * Response Set Account Own Keys Api V1 Admin Billing Accounts  Organization Id  Own Keys Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutResponse = SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutResponses[keyof SetAccountOwnKeysApiV1AdminBillingAccountsOrganizationIdOwnKeysPutResponses];
 
 export type AdjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPostData = {
     body: CreditAdjustmentRequest;
@@ -24983,6 +25075,72 @@ export type ResendEmailVerificationApiV1AuthEmailResendPostResponses = {
 };
 
 export type ResendEmailVerificationApiV1AuthEmailResendPostResponse = ResendEmailVerificationApiV1AuthEmailResendPostResponses[keyof ResendEmailVerificationApiV1AuthEmailResendPostResponses];
+
+export type ForgotPasswordApiV1AuthPasswordForgotPostData = {
+    body: ForgotPasswordRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/password/forgot';
+};
+
+export type ForgotPasswordApiV1AuthPasswordForgotPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ForgotPasswordApiV1AuthPasswordForgotPostError = ForgotPasswordApiV1AuthPasswordForgotPostErrors[keyof ForgotPasswordApiV1AuthPasswordForgotPostErrors];
+
+export type ForgotPasswordApiV1AuthPasswordForgotPostResponses = {
+    /**
+     * Response Forgot Password Api V1 Auth Password Forgot Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ForgotPasswordApiV1AuthPasswordForgotPostResponse = ForgotPasswordApiV1AuthPasswordForgotPostResponses[keyof ForgotPasswordApiV1AuthPasswordForgotPostResponses];
+
+export type ResetPasswordApiV1AuthPasswordResetPostData = {
+    body: ResetPasswordRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/password/reset';
+};
+
+export type ResetPasswordApiV1AuthPasswordResetPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResetPasswordApiV1AuthPasswordResetPostError = ResetPasswordApiV1AuthPasswordResetPostErrors[keyof ResetPasswordApiV1AuthPasswordResetPostErrors];
+
+export type ResetPasswordApiV1AuthPasswordResetPostResponses = {
+    /**
+     * Response Reset Password Api V1 Auth Password Reset Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ResetPasswordApiV1AuthPasswordResetPostResponse = ResetPasswordApiV1AuthPasswordResetPostResponses[keyof ResetPasswordApiV1AuthPasswordResetPostResponses];
 
 export type ListNodeTypesApiV1NodeTypesGetData = {
     body?: never;

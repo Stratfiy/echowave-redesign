@@ -4,7 +4,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from api.constants import BACKEND_API_ENDPOINT, ENABLE_SIGNUP, UI_APP_URL
 from api.db import db_client
@@ -24,6 +24,8 @@ from api.services.auth import (
     email_verification_flow,
     google_oauth,
     mfa,
+    password_reset,
+    password_reset_flow,
 )
 from api.services.auth.depends import (
     get_user,
@@ -478,3 +480,51 @@ async def resend_email_verification(user: UserModel = Depends(get_user)) -> dict
     """
     sent = await email_verification_flow.issue_code(user.id, user.email or "")
     return {"sent": sent}
+
+
+# ---------------------------------------------------------------------------
+# Password reset
+#
+# One answer for every address. A form that says "no account with that email"
+# is a membership oracle; the mail is where the person finds out what
+# happened, and only the person with the inbox gets to read it.
+# ---------------------------------------------------------------------------
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    code: str = Field(..., max_length=12)
+    new_password: str = Field(..., max_length=256)
+
+
+@router.post("/password/forgot", dependencies=[Depends(require_local_auth)])
+async def forgot_password(request: ForgotPasswordRequest) -> dict:
+    """Send a reset code if this address has an account. Always answers the same."""
+    await password_reset_flow.issue_reset_code(request.email)
+    return {
+        "accepted": True,
+        "message": "If that address has an account, a code is on its way.",
+    }
+
+
+@router.post("/password/reset", dependencies=[Depends(require_local_auth)])
+async def reset_password(request: ResetPasswordRequest) -> dict:
+    try:
+        user_id = await password_reset.confirm_reset(
+            request.email, request.code, request.new_password
+        )
+    except password_reset.TooManyAttempts as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except password_reset.EmailVerificationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    capture_event(
+        distinct_id=str(user_id),
+        event=PostHogEvent.PASSWORD_RESET,
+        properties={},
+    )
+    return {"reset": True}
