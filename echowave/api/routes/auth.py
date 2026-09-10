@@ -30,6 +30,7 @@ from api.services.auth.depends import (
     require_local_auth,
 )
 from api.services.auth.provisioning import provision_new_account
+from api.services.billing.signup_bonus import grant_bonus_on_verification
 from api.services.posthog_client import capture_event
 from api.utils.auth import create_jwt_token, hash_password, verify_password
 
@@ -401,6 +402,8 @@ async def google_callback(
     # account permanently unverified.
     if getattr(user, "email_verified_at", None) is None:
         await db_client.mark_email_verified(user.id, verified_at=datetime.now(UTC))
+        # Provisioning above saw an unproved address and held the bonus back.
+        await grant_bonus_on_verification(organization.id)
 
     token = create_jwt_token(user.id, identity.email)
     capture_event(
@@ -449,6 +452,9 @@ async def verify_email(
     except email_verification.EmailVerificationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    # The proved address is what the free credit was waiting on.
+    granted_paise = await grant_bonus_on_verification(user.selected_organization_id)
+
     # The step between signing up and doing anything. Somebody who never gets
     # past it is not a customer who did not like the product — they are a
     # customer who never saw it — and those two look identical without this.
@@ -457,7 +463,7 @@ async def verify_email(
         event=PostHogEvent.EMAIL_VERIFIED,
         properties={"organization_id": user.selected_organization_id},
     )
-    return {"email_verified": True}
+    return {"email_verified": True, "bonus_granted_paise": granted_paise}
 
 
 @router.post("/email/resend", dependencies=[Depends(require_local_auth)])

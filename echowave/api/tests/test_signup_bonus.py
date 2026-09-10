@@ -13,7 +13,12 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import func, select
 
-from api.db.models import CreditLedgerModel, OrganizationModel, UsdInrRateHistoryModel
+from api.db.models import (
+    CreditLedgerModel,
+    OrganizationModel,
+    UsdInrRateHistoryModel,
+    UserModel,
+)
 from api.enums import CreditLedgerKind
 from api.services.billing import signup_bonus
 from api.services.billing.costing import current_balance_paise
@@ -229,3 +234,78 @@ class TestItIsNotASale:
             or 0
         )
         assert payments == 0
+
+
+@pytest.mark.asyncio
+class TestItWaitsForAProvedAddress:
+    """Free credit that lands on form submission is free vendor minutes for a
+    loop and a list of addresses. Where a code can be sent, the bonus waits for
+    it; where it cannot, waiting would be forever."""
+
+    async def _user(self, async_session, slug: str, *, verified: bool) -> UserModel:
+        user = UserModel(
+            provider_id=f"user-{slug}",
+            email_verified_at=datetime.now(UTC) if verified else None,
+        )
+        async_session.add(user)
+        await async_session.flush()
+        return user
+
+    async def test_an_unproved_address_gets_nothing_yet(
+        self, async_session, monkeypatch
+    ):
+        monkeypatch.setattr(signup_bonus, "verification_gates_the_bonus", lambda: True)
+        org = await _org(async_session, "waits")
+        user = await self._user(async_session, "waits", verified=False)
+
+        granted = await signup_bonus.grant_bonus_if_due(
+            async_session, organization_id=org.id, user=user
+        )
+
+        assert granted == 0
+        assert await _bonus_rows(async_session, org) == 0
+
+    async def test_a_proved_address_gets_it_at_creation(
+        self, async_session, monkeypatch
+    ):
+        monkeypatch.setattr(signup_bonus, "verification_gates_the_bonus", lambda: True)
+        org = await _org(async_session, "proved")
+        user = await self._user(async_session, "proved", verified=True)
+
+        granted = await signup_bonus.grant_bonus_if_due(
+            async_session, organization_id=org.id, user=user
+        )
+
+        assert granted > 0
+        assert await _bonus_rows(async_session, org) == 1
+
+    async def test_a_door_that_cannot_ask_does_not_wait(
+        self, async_session, monkeypatch
+    ):
+        """Stack and Google vouch for the address; a deployment without mail
+        has no code to send."""
+        monkeypatch.setattr(signup_bonus, "verification_gates_the_bonus", lambda: False)
+        org = await _org(async_session, "no-mail")
+        user = await self._user(async_session, "no-mail", verified=False)
+
+        assert (
+            await signup_bonus.grant_bonus_if_due(
+                async_session, organization_id=org.id, user=user
+            )
+            > 0
+        )
+
+    def test_only_local_auth_with_mail_gates_it(self, monkeypatch):
+        from api import constants
+        from api.services.messaging import email
+
+        monkeypatch.setattr(constants, "AUTH_PROVIDER", "local")
+        monkeypatch.setattr(email, "email_is_configured", lambda: True)
+        assert signup_bonus.verification_gates_the_bonus() is True
+
+        monkeypatch.setattr(email, "email_is_configured", lambda: False)
+        assert signup_bonus.verification_gates_the_bonus() is False
+
+        monkeypatch.setattr(email, "email_is_configured", lambda: True)
+        monkeypatch.setattr(constants, "AUTH_PROVIDER", "stack")
+        assert signup_bonus.verification_gates_the_bonus() is False

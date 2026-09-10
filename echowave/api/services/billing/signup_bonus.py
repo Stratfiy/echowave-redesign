@@ -18,6 +18,14 @@ the platform rate avoids by quoting in USD.
 Granted **once per organization**, enforced by a partial unique index on the
 ledger rather than by a check in application code. Two requests racing during
 signup would otherwise both find no bonus and both grant one.
+
+Granted **after the address is proved**, where proving it is possible. Free
+credit that lands the moment a form is submitted is free vendor minutes for
+anyone with a loop and a list of addresses; a code in the inbox is the cheapest
+thing that makes each bonus cost the claimant something. Google and Stack vouch
+for the address themselves, and a deployment with no mail server has no code
+to send, so on those the bonus still lands at creation — withholding it there
+would be withholding it forever.
 """
 
 from __future__ import annotations
@@ -57,6 +65,60 @@ async def bonus_paise(session: AsyncSession, *, at: datetime | None = None) -> i
     at = at or datetime.now(UTC)
     fx = await resolve_usd_inr(session, at=at)
     return round_half_up_div(SIGNUP_BONUS_MICROS_USD * fx.paise_per_usd, MICROS_PER_USD)
+
+
+def verification_gates_the_bonus() -> bool:
+    """Must a new account prove its address before the bonus lands?
+
+    Only where proof is possible: local email/password auth with mail
+    configured. Every other door either vouches for the address itself or has
+    no way to ask.
+    """
+    from api.constants import AUTH_PROVIDER
+    from api.services.messaging.email import email_is_configured
+
+    return AUTH_PROVIDER == "local" and email_is_configured()
+
+
+async def grant_bonus_if_due(
+    session: AsyncSession, *, organization_id: int, user
+) -> int:
+    """The bonus at account creation, unless it is waiting on a proved address."""
+    if (
+        verification_gates_the_bonus()
+        and getattr(user, "email_verified_at", None) is None
+    ):
+        logger.info(
+            "Signup bonus for org {} waits for email verification", organization_id
+        )
+        return 0
+    return await grant_signup_bonus(session, organization_id=organization_id)
+
+
+async def grant_bonus_on_verification(organization_id: int | None) -> int:
+    """The address is proved: give the organization its bonus if it has none.
+
+    Best effort and never raises. Verification has already succeeded by the
+    time this runs, and a ledger problem must not turn that into an error
+    the person sees; the once-only index means a retry is safe.
+    """
+    if organization_id is None:
+        return 0
+    from api.db import db_client
+
+    try:
+        async with db_client.async_session() as session:
+            granted = await grant_signup_bonus(session, organization_id=organization_id)
+            if granted:
+                await session.commit()
+            return granted
+    except Exception as exc:
+        logger.error(
+            "Could not grant the signup bonus to org {} on verification: {}",
+            organization_id,
+            exc,
+        )
+        return 0
 
 
 async def grant_signup_bonus(

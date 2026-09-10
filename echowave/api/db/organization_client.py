@@ -154,15 +154,19 @@ class OrganizationClient(BaseDBClient):
 
                     # Free credit, so a new account's first five minutes are not
                     # "prepaid account with no credit cannot make a call".
-                    # Committed separately and never allowed to propagate: a
-                    # failed bonus must not take down the signup that earned it.
+                    # Deferred until the address is proved where a code can be
+                    # sent (see services/billing/signup_bonus.py); the verify
+                    # route grants it then. Committed separately and never
+                    # allowed to propagate: a failed bonus must not take down
+                    # the signup that earned it.
                     try:
                         from api.services.billing.signup_bonus import (
-                            grant_signup_bonus,
+                            grant_bonus_if_due,
                         )
 
-                        granted = await grant_signup_bonus(
-                            session, organization_id=organization_id
+                        creator = await session.get(UserModel, user_id)
+                        granted = await grant_bonus_if_due(
+                            session, organization_id=organization_id, user=creator
                         )
                         if granted:
                             await session.commit()
