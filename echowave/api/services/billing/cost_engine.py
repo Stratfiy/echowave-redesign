@@ -306,19 +306,19 @@ def compute_call_cost(
                     provider_cost_paise=0,
                 )
             )
-    return CallCost(
-        line_items=tuple(lines),
-        billable_minutes=minutes,
-        platform_rate_mpaise=flat_rate_mpaise,
-        platform_fee_paise=flat_fee,
-        platform_fee_waived=platform_fee_waived,
-        addon_fee_paise=0,
-        total_provider_cost_paise=provider_total,
-        total_charged_paise=sum(line.cost_paise for line in lines),
-        pulse_seconds=pulse_seconds,
-        billed_seconds=billed,
-        uncosted=tuple(uncosted),
-    )
+        return CallCost(
+            line_items=tuple(lines),
+            billable_minutes=minutes,
+            platform_rate_mpaise=flat_rate_mpaise,
+            platform_fee_paise=flat_fee,
+            platform_fee_waived=platform_fee_waived,
+            addon_fee_paise=0,
+            total_provider_cost_paise=provider_total,
+            total_charged_paise=sum(line.cost_paise for line in lines),
+            pulse_seconds=pulse_seconds,
+            billed_seconds=billed,
+            uncosted=tuple(uncosted),
+        )
 
     # The rate is quoted per minute and the quantity is in seconds, which is
     # exactly the contract cost_paise already implements for a per-minute rate.
