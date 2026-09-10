@@ -44,6 +44,8 @@ import { LANGUAGE_DISPLAY_NAMES } from "@/constants/languages";
 import { useUnsavedChanges } from "@/context/UnsavedChangesContext";
 import { useUserConfig } from "@/context/UserConfigContext";
 import { pricedStack } from "@/lib/billing/pricedStack";
+import type { RangeSchema } from "@/lib/schemaRange";
+import { sliderRangeFor } from "@/lib/schemaRange";
 import type { ModelOverrides } from "@/types/workflow-configurations";
 
 export type ServiceSegment = "llm" | "tts" | "stt" | "embeddings" | "realtime";
@@ -1541,54 +1543,39 @@ export function ServiceConfigurationForm({
         // A number the schema has bounded is a range, so show it as one. The
         // provider classes carry the real limits, so this needs no per-provider
         // knowledge here: ElevenLabs stability, Cartesia speed and Sarvam speed
-        // all arrive with their own min, max and default already attached.
-        const lower = actualSchema?.minimum ?? actualSchema?.exclusiveMinimum;
-        const upper = actualSchema?.maximum ?? actualSchema?.exclusiveMaximum;
-        // A bounded number is a slider only while dragging is the easier way to
-        // set it. max_tokens runs 16-4096: as a track that is four thousand
-        // indistinguishable positions, and nobody wants "about 250" — they want
-        // 250. Wide ranges stay a box, which is what Vapi shows for that field
-        // and a slider for temperature, for the same reason.
-        const sliderStops = typeof lower === "number" && typeof upper === "number"
-            ? upper - lower
-            : 0;
-        if (
-            actualSchema?.type === "number"
-            && typeof lower === "number"
-            && typeof upper === "number"
-            && sliderStops <= 100
-        ) {
+        // all arrive with their own min, max and default already attached — and
+        // so does temperature, including on the providers that declare it
+        // `float | None`, whose bounds sit inside an anyOf. See sliderRangeFor,
+        // which also holds the rule about which ranges are worth dragging.
+        const range = sliderRangeFor(actualSchema as RangeSchema | undefined);
+        if (range) {
             const fieldKey = `${service}_${field}`;
-            const span = upper - lower;
-            // Integer-looking ranges step by 1; everything else gets a tidy
-            // 0.1/0.05/0.01 rather than an arbitrary fraction of the span.
-            const step = Number.isInteger(lower)
-                && Number.isInteger(upper)
-                && Number.isInteger(actualSchema.default ?? 0)
-                && span >= 4
-                ? 1
-                : span > 5 ? 0.1 : span >= 1 ? 0.05 : 0.01;
-            // An exclusive bound excludes its own value, so start one step in:
-            // a slider that can be dragged to a number the server rejects is
-            // worse than one that cannot reach it.
-            const min = actualSchema.minimum === undefined ? lower + step : lower;
-            const max = actualSchema.maximum === undefined ? upper - step : upper;
-            const fallback = typeof actualSchema.default === "number"
-                ? actualSchema.default
-                : min;
-            const current = Number(watch(fieldKey) ?? fallback);
+            const stored = watch(fieldKey);
+            const isUnset = stored === undefined || stored === null || stored === "";
+            const current = Number(isUnset ? range.fallback : stored);
 
             return (
-                <Slider
-                    id={fieldKey}
-                    min={min}
-                    max={max}
-                    step={step}
-                    value={Number.isFinite(current) ? current : fallback}
-                    onValueChange={(next) =>
-                        setValue(fieldKey, next, { shouldDirty: true })
-                    }
-                />
+                <div className="space-y-1">
+                    <Slider
+                        id={fieldKey}
+                        min={range.min}
+                        max={range.max}
+                        step={range.step}
+                        value={Number.isFinite(current) ? current : range.fallback}
+                        onValueChange={(next) =>
+                            setValue(fieldKey, next, { shouldDirty: true })
+                        }
+                    />
+                    {range.optional && isUnset && (
+                        // The handle has to sit somewhere, and a position that
+                        // looks like a chosen value when nothing was chosen is
+                        // the one thing it must not imply. Nothing is sent for
+                        // this field until the slider is moved.
+                        <p className="text-xs text-muted-foreground">
+                            Not set — the provider&apos;s own default applies until you move this.
+                        </p>
+                    )}
+                </div>
             );
         }
 
