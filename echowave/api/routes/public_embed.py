@@ -750,16 +750,25 @@ async def _start_text_session(run_id: int) -> None:
 def _visible_messages(session_data: dict) -> list[dict]:
     """The transcript, stripped to what a visitor may see.
 
-    Whitelisted rather than filtered: the session carries tool calls, node
-    names and internal reasoning, and a blacklist is one new key away from
-    leaking how the agent works to anyone who opens the network tab.
+    The session stores the conversation as ``turns``: each turn carries the
+    visitor's ``user_message`` (None on the opening turn, where the agent
+    greets first) and the agent's ``assistant_message``, plus events, usage,
+    node transitions and the checkpoint — none of which is the visitor's.
+
+    Whitelisted rather than filtered: exactly two text fields are copied out,
+    in order, and nothing else on a turn is ever forwarded. A blacklist is one
+    new key away from publishing how the agent works to anyone who opens the
+    network tab.
     """
-    out = []
-    for message in (session_data or {}).get("messages", []) or []:
-        role = message.get("role")
-        content = message.get("content")
-        if role in ("user", "assistant") and isinstance(content, str) and content:
-            out.append({"role": role, "content": content})
+    out: list[dict] = []
+    for turn in (session_data or {}).get("turns") or []:
+        if not isinstance(turn, dict):
+            continue
+        for role, key in (("user", "user_message"), ("assistant", "assistant_message")):
+            message = turn.get(key)
+            text = message.get("text") if isinstance(message, dict) else None
+            if isinstance(text, str) and text:
+                out.append({"role": role, "content": text})
     return out
 
 
