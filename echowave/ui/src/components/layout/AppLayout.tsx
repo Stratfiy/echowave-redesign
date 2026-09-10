@@ -2,11 +2,11 @@
 
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { usePathname } from "next/navigation";
-import React, { ReactNode } from "react";
+import React, { ReactNode,useEffect } from "react";
 
 import { VerifyEmailBanner } from "@/components/auth/VerifyEmailBanner";
 import { Button } from "@/components/ui/button";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { useAppConfig } from "@/context/AppConfigContext";
 import { LeadFormsProvider } from "@/context/LeadFormsContext";
 
@@ -57,6 +57,27 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
+/**
+ * The rail remembers whether it was collapsed on this device.
+ *
+ * The sidebar writes a cookie on every toggle and nothing read it back, so
+ * every page load opened the rail again. Read after mount rather than at
+ * render: the server has no cookie, and a first render that disagreed with
+ * it would be a hydration mismatch on every page.
+ */
+function SidebarStateRestorer() {
+  const { setOpen } = useSidebar();
+  useEffect(() => {
+    try {
+      const match = document.cookie.match(/(?:^|; )sidebar_state=(true|false)/);
+      if (match) setOpen(match[1] === "true");
+    } catch {
+      // No cookie access: the rail stays open, which is the safe default.
+    }
+  }, [setOpen]);
+  return null;
+}
+
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const pathname = usePathname();
 
@@ -77,6 +98,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   // across route changes (avoids React hooks ordering violations during navigation).
   return (
     <SidebarProvider defaultOpen className="app-shell">
+      <SidebarStateRestorer />
       {shouldShowSidebar ? (
         <LeadFormsProvider>
           <div className="flex min-h-screen w-full">

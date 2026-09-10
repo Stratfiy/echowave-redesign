@@ -18,7 +18,7 @@
 
 import { ArrowLeft, ArrowRightLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
 import { useEffect, useRef, useState } from "react";
 
@@ -57,7 +57,9 @@ export default function NewSquadPage() {
     const [persona, setPersona] = useState(
         "Warm and brief. One question per turn. Follow the caller's language and switch if they do.",
     );
-    const [members, setMembers] = useState<Member[]>([{ agentUuid: "", when: "" }]);
+    // Arrived from an agent's "Add to a squad": that agent is the first member.
+    const preselected = useSearchParams().get("agent") ?? "";
+    const [members, setMembers] = useState<Member[]>([{ agentUuid: preselected, when: "" }]);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const hasFetched = useRef(false);

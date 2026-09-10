@@ -8,7 +8,9 @@ import {
     Inbox,
     Pencil,
     RotateCcw,
+    Users,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -297,6 +299,27 @@ export function WorkflowTable({
                                                     ))}
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
+                                        )}
+                                        {/* A squad starts from something that
+                                            already works, not from an empty
+                                            form. */}
+                                        {(workflow as { workflow_uuid?: string | null }).workflow_uuid && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                asChild
+                                                className="flex items-center gap-2"
+                                            >
+                                                <Link
+                                                    href={`/workflow/squads/new?agent=${encodeURIComponent(
+                                                        (workflow as { workflow_uuid?: string | null }).workflow_uuid as string,
+                                                    )}`}
+                                                    data-testid={`add-to-squad-${workflow.id}`}
+                                                >
+                                                    <Users size={16} />
+                                                    Add to a squad
+                                                </Link>
+                                            </Button>
                                         )}
                                         <Button
                                             variant={showArchived ? "default" : "outline"}
