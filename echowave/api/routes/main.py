@@ -24,6 +24,7 @@ from api.routes.kyc_admin import router as kyc_admin_router
 from api.routes.managed_numbers import router as managed_numbers_router
 from api.routes.missed_calls import router as missed_calls_router
 from api.routes.node_types import router as node_types_router
+from api.routes.notifications import router as notifications_router
 from api.routes.organization import router as organization_router
 from api.routes.organization_members import router as organization_members_router
 from api.routes.organization_usage import router as organization_usage_router
@@ -77,6 +78,7 @@ router.include_router(platform_credentials_router)
 router.include_router(provider_keys_router)
 router.include_router(payments_router)
 router.include_router(privacy_router)
+router.include_router(notifications_router)
 router.include_router(do_not_call_router)
 router.include_router(missed_calls_router)
 router.include_router(verified_numbers_router)

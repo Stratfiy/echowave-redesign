@@ -37,6 +37,7 @@ from api.enums import RecurringChargeStatus
 from api.services.billing import low_balance
 from api.services.billing.costing import current_balance_paise
 from api.services.messaging import email
+from api.services.notifications import inbox
 
 #: How much history the burn rate is averaged over. Long enough that one busy
 #: Tuesday does not produce a panic email, short enough to notice a campaign
@@ -216,6 +217,16 @@ async def _notify_one(
             counters["skipped"] += 1
             return
 
+    # Under the bell too, for whoever is in the product right now: a low
+    # balance is the one warning that should not wait for an inbox.
+    await inbox.post(
+        organization_id=organization_id,
+        kind=low_balance.KIND,
+        dedupe_key=key,
+        title=subject,
+        body=body,
+        link="/billing",
+    )
     # One message per recipient. The shared sender takes a single `to`, and a
     # billing notice has no reason to publish one member's address to another.
     results = [

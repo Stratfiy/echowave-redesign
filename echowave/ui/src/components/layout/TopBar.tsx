@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { BalanceChip } from "./BalanceChip";
 import { CurrentOrganization } from "./CurrentOrganization";
 import { getVisibleNavSections, type SidebarNavItem } from "./navigation";
+import { NotificationBell } from "./NotificationBell";
 
 /**
  * Global search over the app's own destinations.
@@ -219,6 +220,11 @@ export function TopBar() {
             acting as is context for everything on the page, not a setting you
             occasionally open a menu to check. */}
         <CurrentOrganization />
+
+        {/* Notices about the account — low credit, a charge, credits landing
+            — where the person is, not only in an inbox they check twice a
+            day. */}
+        <NotificationBell />
 
         {/* A menu rather than a link straight to the docs. Docs answer "how
             does this work"; most people who reach for the question mark have

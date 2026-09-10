@@ -5256,6 +5256,16 @@ export type MarkPaidRequest = {
 };
 
 /**
+ * MarkReadRequest
+ */
+export type MarkReadRequest = {
+    /**
+     * Ids
+     */
+    ids?: Array<number> | null;
+};
+
+/**
  * MarkupChangeRequest
  */
 export type MarkupChangeRequest = {
@@ -17691,6 +17701,97 @@ export type AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponses = {
 };
 
 export type AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponse = AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponses[keyof AcceptAgreementApiV1PrivacyAgreementsAcceptPostResponses];
+
+export type ListNotificationsApiV1NotificationsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/notifications';
+};
+
+export type ListNotificationsApiV1NotificationsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListNotificationsApiV1NotificationsGetError = ListNotificationsApiV1NotificationsGetErrors[keyof ListNotificationsApiV1NotificationsGetErrors];
+
+export type ListNotificationsApiV1NotificationsGetResponses = {
+    /**
+     * Response List Notifications Api V1 Notifications Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListNotificationsApiV1NotificationsGetResponse = ListNotificationsApiV1NotificationsGetResponses[keyof ListNotificationsApiV1NotificationsGetResponses];
+
+export type MarkNotificationsReadApiV1NotificationsReadPostData = {
+    body: MarkReadRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/notifications/read';
+};
+
+export type MarkNotificationsReadApiV1NotificationsReadPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MarkNotificationsReadApiV1NotificationsReadPostError = MarkNotificationsReadApiV1NotificationsReadPostErrors[keyof MarkNotificationsReadApiV1NotificationsReadPostErrors];
+
+export type MarkNotificationsReadApiV1NotificationsReadPostResponses = {
+    /**
+     * Response Mark Notifications Read Api V1 Notifications Read Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type MarkNotificationsReadApiV1NotificationsReadPostResponse = MarkNotificationsReadApiV1NotificationsReadPostResponses[keyof MarkNotificationsReadApiV1NotificationsReadPostResponses];
 
 export type ListNumbersApiV1DoNotCallGetData = {
     body?: never;

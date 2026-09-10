@@ -41,6 +41,7 @@ from api.services.billing import auto_topup, payments
 from api.services.billing.billing_profile import get_profile
 from api.services.billing.tax import TaxError
 from api.services.messaging import email
+from api.services.notifications import inbox
 
 SCHEDULED = "scheduled"
 CHARGING = "charging"
@@ -218,6 +219,14 @@ async def _notify(
         f"the amount before then:\n"
         f"  {UI_APP_URL}/billing\n\n"
         f"Nothing is charged until that date."
+    )
+    await inbox.post(
+        organization_id=org.id,
+        kind="auto_topup_scheduled",
+        dedupe_key=f"{charge_after.date().isoformat()}:{amount_paise}",
+        title=subject,
+        body=body,
+        link="/billing",
     )
     for address in recipients:
         await email.send_email(

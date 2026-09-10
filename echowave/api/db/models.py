@@ -2959,6 +2959,38 @@ class NotificationModel(Base):
     )
 
 
+class InAppNotificationModel(Base):
+    """One thing the product wants the account to know, shown in the app.
+
+    Separate from :class:`NotificationModel`, which is the *email log* and
+    exists so a mail is not sent twice. This is the inbox: what a member sees
+    under the bell, whether or not a mail went out, and whether they have
+    read it. The same dedupe rule applies so a re-run job posts once.
+    """
+
+    __tablename__ = "in_app_notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    kind = Column(String(48), nullable=False)
+    dedupe_key = Column(String(128), nullable=False)
+    title = Column(Text, nullable=False)
+    body = Column(Text, nullable=True)
+    #: Where the bell row takes you: a path inside the app.
+    link = Column(String(256), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    read_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "kind", "dedupe_key", name="uq_in_app_notification"
+        ),
+        Index("ix_in_app_notifications_org", "organization_id", "created_at"),
+    )
+
+
 class ManagedBundleModel(Base):
     """A named combination of tiers, as the Simple picker offers it.
 

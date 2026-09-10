@@ -182,6 +182,19 @@ async def grant_signup_bonus(
     # After the flush, so this only fires for the request that actually won the
     # race and wrote the row — the loser returns above having granted nothing,
     # and counting it here would report twice as much given away as we gave.
+    from api.services.notifications import inbox
+
+    await inbox.post(
+        organization_id=organization_id,
+        kind="signup_bonus",
+        dedupe_key=str(organization_id),
+        title="Your free credits are in",
+        body=(
+            "Enough for your first conversations. Build an agent and hear it "
+            "in the browser; every call is paid from these until you top up."
+        ),
+        link="/start",
+    )
     capture_event(
         distinct_id=str(organization_id),
         event=PostHogEvent.SIGNUP_BONUS_GRANTED,
