@@ -36,6 +36,11 @@ from api.services.workflow.tools.custom_tool import (
     execute_http_tool,
     tool_to_function_schema,
 )
+from api.services.workflow.tools.rate_table import (
+    RateLookupError,
+    get_rate_table_tools,
+    lookup_rate,
+)
 from api.services.workflow.tools.transfer_resolver import (
     TransferResolutionError,
     resolve_transfer_config,
@@ -221,6 +226,23 @@ class CustomToolManager:
 
             schemas: list[FunctionSchema] = []
             for tool in tools:
+                if tool.category == ToolCategory.RATE_TABLE.value:
+                    # Built-in rate card: the schema is shaped by the operator's
+                    # own card, so the model is asked for a destination and a
+                    # weight in the words their business uses.
+                    config = (tool.definition or {}).get("config", {}) or {}
+                    for tool_def in get_rate_table_tools(config):
+                        func = tool_def["function"]
+                        schemas.append(
+                            get_function_schema(
+                                func["name"],
+                                func["description"],
+                                properties=func["parameters"]["properties"],
+                                required=func["parameters"]["required"],
+                            )
+                        )
+                    continue
+
                 if tool.category == ToolCategory.CALCULATOR.value:
                     # Built-in calculator: return pre-defined schemas
                     for tool_def in get_calculator_tools():
@@ -315,6 +337,14 @@ class CustomToolManager:
             tools = await self._load_tools(tool_uuids, organization_id)
 
             for tool in tools:
+                if tool.category == ToolCategory.RATE_TABLE.value:
+                    self._register_rate_table_handler(tool)
+                    logger.debug(
+                        f"Registered rate table tool handler "
+                        f"(tool_uuid: {tool.tool_uuid})"
+                    )
+                    continue
+
                 if tool.category == ToolCategory.CALCULATOR.value:
                     self._register_calculator_handler()
                     logger.debug(
@@ -454,6 +484,46 @@ class CustomToolManager:
                 await function_call_params.result_callback({"error": str(e)})
 
         self._engine.llm.register_function("safe_calculator", calculate_func)
+
+    def _register_rate_table_handler(self, tool: Any) -> None:
+        """Register the built-in rate-card lookup with the LLM.
+
+        The result callback carries either one figure or one refusal. A miss is
+        reported as a refusal the model can read out -- "that destination is not
+        on the card" -- rather than as an empty result, because an empty result
+        is what a model fills in from the tables in its prompt, which is the
+        behaviour this tool exists to stop.
+        """
+        config = (tool.definition or {}).get("config", {}) or {}
+        function_name = str(
+            (config.get("labels") or {}).get("function_name") or "lookup_rate"
+        )
+
+        async def rate_lookup_func(function_call_params: FunctionCallParams) -> None:
+            args = function_call_params.arguments or {}
+            logger.info(f"LLM Function Call EXECUTED: {function_name} args={args}")
+            try:
+                result = lookup_rate(
+                    config,
+                    destination=args.get("destination", ""),
+                    band=args.get("band"),
+                    variant=args.get("variant"),
+                )
+                await function_call_params.result_callback(result.as_dict())
+            except RateLookupError as exc:
+                await function_call_params.result_callback(
+                    {"error": str(exc), "quotable": False}
+                )
+            except Exception as exc:  # noqa: BLE001 - never take the call down
+                logger.exception(f"Rate lookup failed: {exc}")
+                await function_call_params.result_callback(
+                    {
+                        "error": "The rate card could not be read just now.",
+                        "quotable": False,
+                    }
+                )
+
+        self._engine.llm.register_function(function_name, rate_lookup_func)
 
     def _create_http_tool_handler(self, tool: Any, function_name: str):
         """Create a handler function for an HTTP API tool.
