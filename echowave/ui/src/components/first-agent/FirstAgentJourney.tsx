@@ -54,6 +54,7 @@ import { SETUP_CALL_URL } from "@/constants/setupCall";
 import { WORKFLOW_RUN_MODES } from "@/constants/workflowRunModes";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { announceBalanceChanged } from "@/lib/billing/balanceEvents";
 import logger from "@/lib/logger";
 import { cn, getRandomId } from "@/lib/utils";
 
@@ -807,7 +808,10 @@ function HearStep({
         [workflowId, startedAt, onDone],
     );
 
-    const onBrowserCompleted = useCallback(() => complete("browser"), [complete]);
+    const onBrowserCompleted = useCallback(() => {
+        announceBalanceChanged();
+        complete("browser");
+    }, [complete]);
 
     if (browserRunId !== null && accessToken) {
         return (

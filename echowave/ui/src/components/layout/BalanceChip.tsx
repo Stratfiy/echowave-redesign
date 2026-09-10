@@ -22,6 +22,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getBalanceApiV1BillingBalanceGet } from "@/client/sdk.gen";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/lib/auth";
+import { BALANCE_CHANGED_EVENT } from "@/lib/billing/balanceEvents";
 import { formatCredits, formatCreditsLabel } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
@@ -70,7 +71,14 @@ export function BalanceChip() {
         hasFetched.current = true;
         void load();
         const timer = setInterval(() => void load(), REFRESH_MS);
-        return () => clearInterval(timer);
+        // A call ending or credits landing is not a minute away; see
+        // lib/billing/balanceEvents.ts.
+        const onChanged = () => void load();
+        window.addEventListener(BALANCE_CHANGED_EVENT, onChanged);
+        return () => {
+            clearInterval(timer);
+            window.removeEventListener(BALANCE_CHANGED_EVENT, onChanged);
+        };
     }, [authLoading, user, load]);
 
     // Nothing to say yet, and a skeleton in the header is more distracting

@@ -267,6 +267,7 @@ class PostHogEvent(str, Enum):
     PASSWORD_RESET = "password_reset"
     CAMPAIGN_STARTED = "campaign_started"
     CAMPAIGN_COMPLETED = "campaign_completed"
+    CALL_CAPPED_BY_CREDIT = "call_capped_by_credit"
     SIGNUP_BONUS_GRANTED = "signup_bonus_granted"
     PHONE_NUMBER_ATTACHED = "phone_number_attached"
 

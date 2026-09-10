@@ -472,6 +472,32 @@ async def create_user_configuration_with_mps_key(
             )
 
 
+async def require_verified_email(user: UserModel = Depends(get_user)) -> UserModel:
+    """The two actions that commit money on our side — buying a number, starting
+    a campaign — wait for a proved address where proof is possible.
+
+    Nothing else is gated: every account that predates verification has
+    ``email_verified_at`` NULL, and locking those people out of what they
+    already do would be an outage dressed as a control. Buying and dialling
+    are new commitments, and a stranger with a throwaway address should not
+    be able to make them on a bonus.
+    """
+    from api.services.auth.email_verification import verification_is_enforceable
+
+    if (
+        verification_is_enforceable()
+        and getattr(user, "email_verified_at", None) is None
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Verify your email address first — enter the code we sent you "
+                "from the banner at the top of the page."
+            ),
+        )
+    return user
+
+
 def _require_staff_role(minimum: StaffRole):
     """Build a dependency that requires at least ``minimum`` staff tier.
 

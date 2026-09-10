@@ -233,6 +233,15 @@ async def cost_workflow_run(
             len(uncosted_labels),
             ", ".join(uncosted_labels),
         )
+        # And somebody is told, once a day per model. A warning in a worker
+        # log is not an alarm; a superadmin's inbox is.
+        from api.services.billing import uncosted_alert
+
+        await uncosted_alert.notify(
+            organization_id=organization_id,
+            workflow_run_id=workflow_run_id,
+            labels=uncosted_labels,
+        )
 
     # Recosting replaces the old receipt rather than appending to it.
     await session.execute(

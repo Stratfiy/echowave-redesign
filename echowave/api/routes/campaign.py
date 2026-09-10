@@ -14,7 +14,7 @@ from api.constants import (
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import OrganizationConfigurationKey, PostHogEvent
-from api.services.auth.depends import get_user
+from api.services.auth.depends import get_user, require_verified_email
 from api.services.campaign import consent
 from api.services.campaign.runner import campaign_runner_service
 from api.services.campaign.source_sync import CampaignSourceSyncService
@@ -548,7 +548,7 @@ class StartCampaignRequest(BaseModel):
 async def start_campaign(
     campaign_id: int,
     request: StartCampaignRequest | None = Body(default=None),
-    user: UserModel = Depends(get_user),
+    user: UserModel = Depends(require_verified_email),
 ) -> CampaignResponse:
     """Start campaign execution"""
     # Block start if the org has no telephony configuration at all.

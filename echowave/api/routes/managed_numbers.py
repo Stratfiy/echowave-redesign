@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from api.db import db_client
 from api.db.models import UserModel
-from api.services.auth.depends import get_user
+from api.services.auth.depends import get_user, require_verified_email
 from api.services.billing.mandates import MandateNotAuthorised
 from api.services.compliance.agreements import AgreementsOutstanding
 from api.services.kyc.plivo_compliance import PlivoComplianceError
@@ -152,7 +152,7 @@ async def search_numbers(
 
 @router.post("")
 async def provision_number(
-    request: ProvisionRequest, user: UserModel = Depends(get_user)
+    request: ProvisionRequest, user: UserModel = Depends(require_verified_email)
 ) -> dict[str, Any]:
     """Buy a number and start its monthly rental."""
     organization_id = _organization_id(user)

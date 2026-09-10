@@ -74,10 +74,9 @@ def verification_gates_the_bonus() -> bool:
     configured. Every other door either vouches for the address itself or has
     no way to ask.
     """
-    from api.constants import AUTH_PROVIDER
-    from api.services.messaging.email import email_is_configured
+    from api.services.auth.email_verification import verification_is_enforceable
 
-    return AUTH_PROVIDER == "local" and email_is_configured()
+    return verification_is_enforceable()
 
 
 async def grant_bonus_if_due(

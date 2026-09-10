@@ -28,7 +28,7 @@ export function EmptyState({
 }: {
     icon: ReactNode;
     title: string;
-    description: string;
+    description: React.ReactNode;
     action?: ReactNode;
 }) {
     return (
