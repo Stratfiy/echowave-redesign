@@ -46,6 +46,7 @@ from api.services.billing import (
     payments,
     topup_nudge,
 )
+from api.services.billing.internal_accounts import is_internal
 from api.services.billing.tax import TaxError
 from api.services.posthog_client import capture_event
 
