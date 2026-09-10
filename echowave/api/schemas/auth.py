@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class SignupRequest(BaseModel):
@@ -10,6 +10,9 @@ class SignupRequest(BaseModel):
     #: rather than refusing the signup, because the person signing up did not
     #: choose the code and cannot fix it.
     referral_code: str | None = None
+    #: The agreements ticked on the form, by key. The server decides which are
+    #: needed; the form cannot accept on the customer's behalf by omission.
+    accepted_agreements: list[str] = Field(default_factory=list)
 
     @field_validator("password")
     @classmethod

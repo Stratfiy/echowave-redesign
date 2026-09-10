@@ -7924,6 +7924,10 @@ export type SignupRequest = {
      * Referral Code
      */
     referral_code?: string | null;
+    /**
+     * Accepted Agreements
+     */
+    accepted_agreements?: Array<string>;
 };
 
 /**

@@ -262,3 +262,15 @@ class TestRequiringThemBeforeBuying:
             await agreements.require_accepted(async_session, organization_id=org.id)
 
         assert caught.value.keys == ("terms",)
+
+
+class TestTheSignupClickWrap:
+    def test_signup_asks_for_the_terms_and_the_privacy_policy(self):
+        assert set(agreements.SIGNUP_AGREEMENTS) == {"terms", "privacy"}
+        for key in agreements.SIGNUP_AGREEMENTS:
+            assert key in agreements.CURRENT_VERSIONS
+
+    def test_the_privacy_policy_does_not_gate_campaigns(self):
+        """Accounts that predate it must not be stopped from calling."""
+        privacy = next(a for a in agreements.AGREEMENTS if a.key == "privacy")
+        assert privacy.required is False

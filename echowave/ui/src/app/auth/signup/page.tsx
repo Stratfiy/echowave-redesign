@@ -11,6 +11,7 @@ import { AuthEnterpriseCTA } from "@/components/auth/AuthEnterpriseCTA";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PostHogEvent } from "@/constants/posthog-events";
@@ -25,6 +26,9 @@ function SignupForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  // The click-wrap. One tick, two named documents each with its own link,
+  // and the server checks the same list — the form cannot accept by omission.
+  const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,6 +44,11 @@ function SignupForm() {
       return;
     }
 
+    if (!agreed) {
+      toast.error("Please accept the Terms of Service and Privacy Policy.");
+      return;
+    }
+
     setLoading(true);
     // Before the request, so a sign-up that never returns still counts as an
     // attempt. The email is not sent: the user is identified once signed in.
@@ -47,7 +56,12 @@ function SignupForm() {
 
     try {
       const res = await signupApiV1AuthSignupPost({
-        body: { email, password, referral_code: referralCode },
+        body: {
+          email,
+          password,
+          referral_code: referralCode,
+          accepted_agreements: ["terms", "privacy"],
+        },
       });
 
       if (res.error || !res.data) {
@@ -82,6 +96,9 @@ function SignupForm() {
       </div>
 
       <GoogleSignInButton label="Sign up with Google" referralCode={referralCode} />
+      <p className="text-center text-xs text-muted-foreground" data-testid="signup-google-notice">
+        Continuing with Google means you agree to the <LegalLinks />.
+      </p>
 
       <form onSubmit={handleSubmit} className="space-y-4" data-testid="signup-form">
         <div className="space-y-2">
@@ -122,10 +139,22 @@ function SignupForm() {
             data-testid="signup-confirm-password-input"
           />
         </div>
+        <label className="flex items-start gap-2.5 text-sm" htmlFor="agree">
+          <Checkbox
+            id="agree"
+            checked={agreed}
+            onCheckedChange={(value) => setAgreed(value === true)}
+            className="mt-0.5"
+            data-testid="signup-agree-checkbox"
+          />
+          <span className="text-muted-foreground">
+            I agree to the <LegalLinks />.
+          </span>
+        </label>
         <Button
           type="submit"
           className="w-full bg-primary text-primary-foreground shadow-[var(--shadow-subtle)] hover:bg-[var(--primary-pressed)]"
-          disabled={loading}
+          disabled={loading || !agreed}
           data-testid="signup-submit-btn"
         >
           {loading ? "Creating account..." : "Create account →"}
@@ -151,5 +180,30 @@ export default function SignupPage() {
     <Suspense fallback={null}>
       <SignupForm />
     </Suspense>
+  );
+}
+
+/** The two documents, each its own link, so "I agree" names what it means. */
+function LegalLinks() {
+  return (
+    <>
+      <a
+        href="https://decibyl.ai/legal/terms"
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium text-foreground underline-offset-4 hover:underline"
+      >
+        Terms of Service
+      </a>{" "}
+      and{" "}
+      <a
+        href="https://decibyl.ai/privacy"
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium text-foreground underline-offset-4 hover:underline"
+      >
+        Privacy Policy
+      </a>
+    </>
   );
 }

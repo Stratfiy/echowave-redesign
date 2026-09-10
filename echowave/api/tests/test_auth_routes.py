@@ -81,3 +81,31 @@ def test_stack_mode_keeps_current_user_route_available(monkeypatch):
         "provider_id": "stack-user-1",
         "mfa_enabled": False,
     }
+
+
+def test_signup_without_the_click_wrap_creates_nothing(monkeypatch):
+    """The tick is checked before any lookup or insert, so a form that skipped
+    it fails fast and names what was missing."""
+    monkeypatch.setattr(auth_routes, "ENABLE_SIGNUP", True)
+    client = TestClient(_make_test_app())
+
+    response = client.post(
+        "/auth/signup",
+        json={"email": "user@example.com", "password": "password123"},
+    )
+
+    assert response.status_code == 400
+    assert "Terms of Service" in response.json()["detail"]
+    assert "Privacy Policy" in response.json()["detail"]
+
+    response = client.post(
+        "/auth/signup",
+        json={
+            "email": "user@example.com",
+            "password": "password123",
+            "accepted_agreements": ["terms"],
+        },
+    )
+    assert response.status_code == 400
+    assert "Privacy Policy" in response.json()["detail"]
+    assert "Terms of Service" not in response.json()["detail"]
