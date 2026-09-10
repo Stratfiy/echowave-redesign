@@ -31,9 +31,13 @@ SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech"
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 ELEVENLABS_MODEL = "eleven_multilingual_v2"
 
-#: The tier the picker offers. Sampling a model nobody is served by would put
-#: a voice in front of a customer that their calls will not use.
-SAMPLE_MODEL = "bulbul:v2"
+#: The tiers the picker offers. v2 and v3 have entirely different speaker
+#: names (anushka/karun on v2, shubh/aditya on v3), and an agent on either can
+#: reach the picker — so both are sampled, or half the voices show no play
+#: button. Sampling a model nobody is served by would put a voice in front of a
+#: customer their calls will not use, so this is exactly the served tiers, no
+#: more.
+SAMPLE_MODELS = ("bulbul:v2", "bulbul:v3")
 
 _LANGUAGE_CODES = {
     "en": "en-IN",
@@ -45,7 +49,7 @@ _LANGUAGE_CODES = {
 
 
 async def _synthesise(
-    client: httpx.AsyncClient, *, api_key: str, voice: str, language: str
+    client: httpx.AsyncClient, *, api_key: str, voice: str, language: str, model: str
 ) -> bytes:
     """One sentence, one voice, as WAV bytes."""
     response = await client.post(
@@ -55,7 +59,7 @@ async def _synthesise(
             "text": voice_samples.SAMPLE_LINES[language],
             "target_language_code": _LANGUAGE_CODES[language],
             "speaker": voice,
-            "model": SAMPLE_MODEL,
+            "model": model,
         },
         timeout=60.0,
     )
@@ -123,6 +127,24 @@ async def _elevenlabs_samples(force: bool) -> tuple[int, int, int]:
     return written, skipped, failed
 
 
+def _sarvam_voices_to_sample() -> list[tuple[str, str]]:
+    """(voice_id, model) for every Sarvam voice the picker can show, once each.
+
+    Deduped by voice_id: the sample path is keyed by voice alone, so a name
+    shared across tiers needs only one recording, taken under the first tier
+    that lists it.
+    """
+    seen: set[str] = set()
+    out: list[tuple[str, str]] = []
+    for model in SAMPLE_MODELS:
+        for voice in voice_catalogue.for_provider("sarvam", model=model).voices:
+            if voice.voice_id in seen:
+                continue
+            seen.add(voice.voice_id)
+            out.append((voice.voice_id, model))
+    return out
+
+
 async def main(force: bool) -> int:
     eleven_written, eleven_skipped, eleven_failed = await _elevenlabs_samples(force)
     logger.info(
@@ -134,16 +156,16 @@ async def main(force: bool) -> int:
         return 1 if eleven_failed and not eleven_written else 0
 
     storage = get_storage()
-    catalogue = voice_catalogue.for_provider("sarvam", model=SAMPLE_MODEL)
-    if not catalogue.voices:
+    voices = _sarvam_voices_to_sample()
+    if not voices:
         logger.error("The voice catalogue is empty; nothing to sample.")
         return 1
 
     written = skipped = failed = 0
     async with httpx.AsyncClient() as client:
-        for voice in catalogue.voices:
+        for voice_id, model in voices:
             for language in voice_samples.SAMPLE_LANGUAGES:
-                path = voice_samples.sample_path(voice.voice_id, language)
+                path = voice_samples.sample_path(voice_id, language)
 
                 if not force and await storage.aget_file_metadata(path) is not None:
                     logger.info(f"exists, skipping: {path}")
@@ -154,8 +176,9 @@ async def main(force: bool) -> int:
                     audio = await _synthesise(
                         client,
                         api_key=api_key,
-                        voice=voice.voice_id,
+                        voice=voice_id,
                         language=language,
+                        model=model,
                     )
                     await storage.acreate_file_from_bytes(path, audio)
                     logger.info(f"wrote {path} ({len(audio)} bytes)")
@@ -164,7 +187,7 @@ async def main(force: bool) -> int:
                     # One bad voice must not abandon the rest — a partial set
                     # is a picker with some play buttons, which is strictly
                     # better than none.
-                    logger.error(f"failed {voice.voice_id}/{language}: {exc}")
+                    logger.error(f"failed {voice_id}/{language}: {exc}")
                     failed += 1
 
     logger.info(f"done: {written} written, {skipped} skipped, {failed} failed")

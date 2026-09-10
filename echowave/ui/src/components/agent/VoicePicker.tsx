@@ -26,6 +26,10 @@ export type VoiceOption = {
     is_default: boolean;
     sample_url: string | null;
     sample_url_hi: string | null;
+    // Some providers (ElevenLabs) host their own preview and return it here
+    // with sample_url null; without this the picker showed no play button for
+    // any of them.
+    preview_url?: string | null;
 };
 
 /**
@@ -57,7 +61,7 @@ export function VoicePicker({
         // English first, Hindi as the fallback: a sample in a language the
         // listener does not speak still conveys the voice, and no sample at
         // all conveys nothing.
-        const url = option.sample_url ?? option.sample_url_hi;
+        const url = option.sample_url ?? option.sample_url_hi ?? option.preview_url;
         if (!url) return;
         const player = playerRef.current ?? new Audio();
         playerRef.current = player;
@@ -83,7 +87,9 @@ export function VoicePicker({
                             {group.map((option) => {
                                 const isSelected = selected === option.voice_id;
                                 const hasSample =
-                                    option.sample_url || option.sample_url_hi;
+                                    option.sample_url ||
+                                    option.sample_url_hi ||
+                                    option.preview_url;
                                 return (
                                     <span
                                         key={option.voice_id}
