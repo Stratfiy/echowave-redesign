@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { createWorkflowRunApiV1WorkflowWorkflowIdRunsPost } from "@/client/sdk.gen";
+import { EstimatedRate } from "@/components/agent/EstimatedRate";
 import { OnboardingTooltip } from "@/components/onboarding/OnboardingTooltip";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,6 +15,7 @@ import { PostHogEvent } from "@/constants/posthog-events";
 import { WORKFLOW_RUN_MODES } from "@/constants/workflowRunModes";
 import { useOnboarding } from "@/context/OnboardingContext";
 import { useAuth } from "@/lib/auth";
+import { announceBalanceChanged } from "@/lib/billing/balanceEvents";
 import { cn, getRandomId } from "@/lib/utils";
 
 import { AiSimulatorPlaceholder } from "./workflow-tester/AiSimulatorPlaceholder";
@@ -193,6 +195,7 @@ export function WorkflowTesterPanel({
                                 accessToken={accessToken}
                                 onReset={() => setVoiceRunId(null)}
                                 onNodeTransition={onRuntimeNodeTransition}
+                                onCompleted={announceBalanceChanged}
                             />
                         ) : (
                             <>
@@ -200,7 +203,14 @@ export function WorkflowTesterPanel({
                                 <EmptyState
                                     icon={<Phone className="h-7 w-7" />}
                                     title="Call this agent in the browser"
-                                    description="Test the agent over a voice call. The call is recorded and transcribed, and paid from your credits like any call. Some telephony-only tools, like call transfer, are not yet supported here."
+                                    description={
+                                        <>
+                                            Test the agent over a voice call. The call is recorded and transcribed, and paid
+                                            from your credits like any call
+                                            <EstimatedRate workflowId={workflowId} />. Some telephony-only tools, like call
+                                            transfer, are not yet supported here.
+                                        </>
+                                    }
                                     action={
                                         <Button
                                             ref={runTestButtonRef}

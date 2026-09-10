@@ -74,6 +74,19 @@ class StartedVerification:
     expires_at: datetime
 
 
+def verification_is_enforceable() -> bool:
+    """Can this deployment ask an account to prove its address at all?
+
+    Only local email/password auth with mail configured. Google and Stack
+    vouch for the address themselves; a deployment with no mail server has no
+    code to send, and gating on a proof nobody can give is an outage.
+    """
+    from api.constants import AUTH_PROVIDER
+    from api.services.messaging.email import email_is_configured
+
+    return AUTH_PROVIDER == "local" and email_is_configured()
+
+
 def subject() -> str:
     return "Verify your Decibyl email"
 

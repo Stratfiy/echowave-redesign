@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from loguru import logger
 
 from api.db import db_client
-from api.enums import WorkflowRunMode
+from api.enums import PostHogEvent, WorkflowRunMode
 from api.schemas.workflow_configurations import (
     DEFAULT_INTERRUPTION_BACKOFF_SECS,
     DEFAULT_MAX_CALL_DURATION_SECONDS,
@@ -83,6 +83,7 @@ from api.services.pipecat.transcript_log_coordinator import TranscriptLogCoordin
 from api.services.pipecat.transport_setup import create_webrtc_transport
 from api.services.pipecat.worker_runner import run_pipeline_worker
 from api.services.pipecat.ws_sender_registry import get_ws_sender
+from api.services.posthog_client import capture_event
 from api.services.telephony import registry as telephony_registry
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.pipecat_engine import PipecatEngine
@@ -687,6 +688,59 @@ async def _run_pipeline(
             unregister_worker_active_call(workflow_run_id)
 
 
+#: Below this a cap is not a call; the balance gate at start has already
+#: passed, so the account had at least the floor, and cutting at a few
+#: seconds would only produce a confusing hang-up. The call runs to the
+#: configured maximum and settles what it settles.
+MIN_CREDIT_CAP_SECONDS = 20
+
+
+async def _cap_at_credit(
+    configured_seconds: int, *, organization_id: int, workflow_run_id: int | None
+) -> int:
+    """The configured maximum, or less when the balance covers less.
+
+    Never raises: a billing read failing here must not stop a call the
+    balance gate already allowed. Reported to PostHog when it bites, because
+    a call cut short by credit is a top-up we should have asked for sooner.
+    """
+    try:
+        from api.services.billing import reservations
+
+        async with db_client.async_session() as session:
+            budget = await reservations.call_budget_seconds(
+                session,
+                organization_id=organization_id,
+                workflow_run_id=workflow_run_id,
+            )
+    except Exception as exc:  # noqa: BLE001 — reported, never propagated
+        logger.warning(
+            "Could not size the credit cap for run {}: {}", workflow_run_id, exc
+        )
+        return configured_seconds
+    if budget is None or budget >= configured_seconds:
+        return configured_seconds
+    capped = max(budget, MIN_CREDIT_CAP_SECONDS)
+    logger.info(
+        "Run {} on org {} capped at {}s by credit (configured {}s)",
+        workflow_run_id,
+        organization_id,
+        capped,
+        configured_seconds,
+    )
+    capture_event(
+        distinct_id=str(organization_id),
+        event=PostHogEvent.CALL_CAPPED_BY_CREDIT,
+        properties={
+            "organization_id": organization_id,
+            "workflow_run_id": workflow_run_id,
+            "capped_seconds": capped,
+            "configured_seconds": configured_seconds,
+        },
+    )
+    return capped
+
+
 def _clamped_call_duration(raw: object) -> int:
     """The stored per-call duration, held to the platform ceiling.
 
@@ -821,6 +875,17 @@ async def _run_pipeline_impl(
                 keyterms = [
                     term.strip() for term in dictionary.split(",") if term.strip()
                 ]
+
+    # The hard stop. A call's cost is not known until it ends, and the hold
+    # taken at start is an estimate, so without this a long call on a thin
+    # balance settles into the negative and we have given the minutes away.
+    # Capped at what the balance covers at this account's cost per minute;
+    # the configured maximum still applies when it is shorter.
+    max_call_duration_seconds = await _cap_at_credit(
+        max_call_duration_seconds,
+        organization_id=workflow.organization_id,
+        workflow_run_id=workflow_run.id,
+    )
 
     # Resolve model overrides from the version onto global org config (skip
     # when the caller already resolved it).

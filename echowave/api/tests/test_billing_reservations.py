@@ -635,3 +635,62 @@ class TestReAuthorizingALiveCall:
         assert not await reservations.has_credit(
             async_session, organization_id=org.id, workflow_run_id=other.id
         )
+
+
+class TestWhatTheBalanceCovers:
+    """The hard stop: a call may run only as long as the balance pays for."""
+
+    def test_it_rounds_down_and_never_goes_negative(self):
+        assert reservations.seconds_covered(1000, 600) == 100
+        assert reservations.seconds_covered(599, 600) == 59
+        assert reservations.seconds_covered(0, 600) == 0
+        assert reservations.seconds_covered(-50, 600) == 0
+        assert reservations.seconds_covered(1000, 0) == 0
+
+    @pytest.mark.asyncio
+    async def test_the_budget_adds_this_calls_own_hold_back(
+        self, async_session, db_session, monkeypatch
+    ):
+        """The balance has the hold subtracted; the call may spend what the
+        account had, not what was left after guessing."""
+        org = await _org(async_session, "budget", balance_paise=6000)
+        run = await _run(async_session, org)
+
+        async def _per_minute(session, *, organization_id, at=None):
+            return 600
+
+        monkeypatch.setattr(reservations, "per_minute_paise", _per_minute)
+        held = await reservations.reserve(
+            async_session, organization_id=org.id, workflow_run_id=run.id
+        )
+        assert held is not None
+        assert held.covers_seconds == 600
+
+        budget = await reservations.call_budget_seconds(
+            async_session, organization_id=org.id, workflow_run_id=run.id
+        )
+        assert budget == 600
+
+    @pytest.mark.asyncio
+    async def test_other_calls_holds_stay_subtracted(
+        self, async_session, db_session, monkeypatch
+    ):
+        org = await _org(async_session, "budget-shared", balance_paise=6000)
+        first = await _run(async_session, org, name="first")
+        second = await _run(async_session, org, name="second")
+
+        async def _per_minute(session, *, organization_id, at=None):
+            return 600
+
+        monkeypatch.setattr(reservations, "per_minute_paise", _per_minute)
+        await reservations.reserve(
+            async_session, organization_id=org.id, workflow_run_id=first.id
+        )
+        await reservations.reserve(
+            async_session, organization_id=org.id, workflow_run_id=second.id
+        )
+        # 6000 - first's hold (600 * RESERVATION_MINUTES, or all of it).
+        budget = await reservations.call_budget_seconds(
+            async_session, organization_id=org.id, workflow_run_id=second.id
+        )
+        assert budget is not None and budget < 600

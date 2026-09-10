@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { announceBalanceChanged } from "@/lib/billing/balanceEvents";
 
 /**
  * The prompt to finish email verification.
@@ -69,6 +70,7 @@ export function VerifyEmailBanner() {
     toast.success(
       granted ? "Email verified. Your free credits are in." : "Email verified."
     );
+    if (granted) announceBalanceChanged();
     setNeeded(false);
   };
 

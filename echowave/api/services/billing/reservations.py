@@ -77,6 +77,10 @@ class Reservation:
     ledger_id: int
     amount_paise: int
     balance_after_paise: int
+    #: How long the balance at the moment of the hold could pay for, at this
+    #: account's measured or assumed cost per minute. None when the cost per
+    #: minute could not be worked out. The pipeline caps the call at it.
+    covers_seconds: int | None = None
 
 
 async def current_balance_paise(session: AsyncSession, *, organization_id: int) -> int:
@@ -123,20 +127,12 @@ async def _cost_per_minute_paise(
     return round_half_up_div(charged_paise * 60, billable_seconds)
 
 
-async def estimate_paise(
+async def per_minute_paise(
     session: AsyncSession, *, organization_id: int, at: datetime | None = None
 ) -> int:
-    """What to hold for one call.
-
-    Deliberately an estimate of a *typical* call rather than a worst case. A
-    reservation sized for the longest call anyone might make would stop an
-    account with real credit from running the calls it is paying for, which is
-    a worse failure than briefly under-holding on an unusually long one — the
-    ledger still ends up exact either way, because the reservation is released
-    and the true cost debited.
-    """
+    """What a minute costs this account: measured where there is history,
+    assumed from its platform rate where there is not."""
     at = at or datetime.now(UTC)
-
     per_minute = await _cost_per_minute_paise(
         session, organization_id=organization_id, at=at
     )
@@ -153,7 +149,59 @@ async def estimate_paise(
             platform.rate_mpaise, MPAISE_PER_PAISE
         )
         per_minute = platform_paise_per_minute * NO_HISTORY_MULTIPLIER
+    return max(1, per_minute)
 
+
+def seconds_covered(balance_paise: int, per_minute: int) -> int:
+    """How long ``balance_paise`` pays for at ``per_minute``, rounded down.
+
+    Rounded down and never negative: a call that runs to the last second of
+    what the balance covers ends at or above zero, which is the whole point.
+    """
+    if per_minute <= 0 or balance_paise <= 0:
+        return 0
+    return (balance_paise * 60) // per_minute
+
+
+async def call_budget_seconds(
+    session: AsyncSession, *, organization_id: int, workflow_run_id: int | None
+) -> int | None:
+    """The most seconds this call may run without taking the account below zero.
+
+    The balance already has this call's own hold subtracted, so the hold is
+    added back: what the call may spend is what the account had when it
+    started, not what is left after guessing. Other calls' holds stay
+    subtracted, because they will spend theirs.
+
+    None when enforcement is off. The pipeline treats None as "no cap beyond
+    the configured maximum".
+    """
+    if not BALANCE_ENFORCEMENT_ENABLED:
+        return None
+    balance = await current_balance_paise(session, organization_id=organization_id)
+    if workflow_run_id is not None:
+        held = await _existing_reservation(
+            session, organization_id=organization_id, workflow_run_id=workflow_run_id
+        )
+        if held is not None:
+            balance += -int(held.delta_paise)
+    per_minute = await per_minute_paise(session, organization_id=organization_id)
+    return seconds_covered(balance, per_minute)
+
+
+async def estimate_paise(
+    session: AsyncSession, *, organization_id: int, at: datetime | None = None
+) -> int:
+    """What to hold for one call.
+
+    Deliberately an estimate of a *typical* call rather than a worst case. A
+    reservation sized for the longest call anyone might make would stop an
+    account with real credit from running the calls it is paying for, which is
+    a worse failure than briefly under-holding on an unusually long one — the
+    ledger still ends up exact either way, because the reservation is released
+    and the true cost debited.
+    """
+    per_minute = await per_minute_paise(session, organization_id=organization_id, at=at)
     return max(1, per_minute * RESERVATION_MINUTES)
 
 
@@ -268,10 +316,8 @@ async def reserve(
         )
         return None
 
-    amount = min(
-        await estimate_paise(session, organization_id=organization_id, at=at),
-        balance,
-    )
+    per_minute = await per_minute_paise(session, organization_id=organization_id, at=at)
+    amount = min(max(1, per_minute * RESERVATION_MINUTES), balance)
 
     entry = CreditLedgerModel(
         organization_id=organization_id,
@@ -296,6 +342,7 @@ async def reserve(
         ledger_id=entry.id,
         amount_paise=amount,
         balance_after_paise=balance - amount,
+        covers_seconds=seconds_covered(balance, per_minute),
     )
 
 

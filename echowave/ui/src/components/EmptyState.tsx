@@ -26,7 +26,7 @@ export function EmptyState({
     /** What is true, in a few words. Not "No data". */
     title: string;
     /** Why it is worth doing, or what to change. One sentence. */
-    description?: string;
+    description?: React.ReactNode;
     /** The next step, when there is one worth naming. */
     action?: ReactNode;
 }) {
