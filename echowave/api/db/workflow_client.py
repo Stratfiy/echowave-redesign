@@ -8,6 +8,7 @@ from sqlalchemy.orm import load_only, selectinload
 
 from api.db.base_client import BaseDBClient
 from api.db.models import WorkflowDefinitionModel, WorkflowModel, WorkflowRunModel
+from api.schemas.workflow_configurations import new_agent_workflow_configurations
 
 
 class WorkflowClient(BaseDBClient):
@@ -36,7 +37,17 @@ class WorkflowClient(BaseDBClient):
                     workflow_definition=workflow_definition,  # Keep for backwards compatibility
                     user_id=user_id,
                     organization_id=organization_id,
-                    workflow_configurations=workflow_configurations or {},
+                    # An agent created today starts opinionated, where an
+                    # agent already running keeps the conservative field
+                    # defaults — see new_agent_workflow_configurations. A
+                    # caller-supplied configuration wins outright, so
+                    # duplicating an agent still copies the original's
+                    # settings rather than picking up today's.
+                    workflow_configurations=(
+                        workflow_configurations
+                        if workflow_configurations is not None
+                        else new_agent_workflow_configurations()
+                    ),
                 )
                 session.add(new_workflow)
                 await session.flush()  # Flush to get the workflow ID
