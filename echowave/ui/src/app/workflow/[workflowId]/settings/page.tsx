@@ -2356,7 +2356,7 @@ function WorkflowSettingsInner({
                                 pronunciations. */}
                             <CallerLanguageSection
                                 follow={workflowConfigurations?.follow_caller_language ?? false}
-                                codeMixed={workflowConfigurations?.speak_like_callers ?? false}
+                                codeMixed={workflowConfigurations?.speak_like_callers ?? true}
                                 onSave={saveLanguageSettings}
                             />
                             </div>

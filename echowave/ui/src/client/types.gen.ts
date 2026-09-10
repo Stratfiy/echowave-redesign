@@ -2320,6 +2320,12 @@ export type CreateFolderRequest = {
  */
 export type CreateFromTemplateRequest = {
     /**
+     * Voice Id
+     *
+     * A suggested voice's id.
+     */
+    voice_id?: string | null;
+    /**
      * Voice Gender
      *
      * Give the agent a male or female voice. Omit to inherit the organization's default.

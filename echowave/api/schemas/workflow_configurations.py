@@ -224,7 +224,10 @@ class WorkflowConfigurationDefaults(BaseModel):
     #
     # Off by default because the instruction is appended to the operator's own
     # prompt, and somebody who wrote "reply only in formal Hindi" meant it.
-    speak_like_callers: bool = False
+    # On: Tamil words in Tamil, English words in English, the way people
+    # talk on the phone. An operator who wants formal, single-language
+    # speech switches it off.
+    speak_like_callers: bool = True
 
 
 def get_default_workflow_configurations() -> WorkflowConfigurationDefaults:

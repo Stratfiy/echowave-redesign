@@ -92,7 +92,15 @@ const LANGUAGE_NAMES: Record<string, string> = { en: "English", hi: "Hindi", ta:
  * one language, with a clip when one has been recorded. A card that says
  * "6 languages" is a claim; a play button is proof.
  */
-function VoiceChips({ voices }: { voices: SuggestedVoice[] }) {
+function VoiceChips({
+    voices,
+    selected,
+    onSelect,
+}: {
+    voices: SuggestedVoice[];
+    selected?: string | null;
+    onSelect?: (voice: SuggestedVoice) => void;
+}) {
     const [playing, setPlaying] = useState<string | null>(null);
     const play = (voice: SuggestedVoice) => {
         if (!voice.sample_url) return;
@@ -113,14 +121,17 @@ function VoiceChips({ voices }: { voices: SuggestedVoice[] }) {
                         type="button"
                         onClick={(e) => {
                             e.stopPropagation();
+                            onSelect?.(voice);
                             play(voice);
                         }}
-                        disabled={!voice.sample_url}
+                        aria-pressed={selected === voice.voice_id}
                         title={voice.blurb || voice.name}
                         className={cn(
-                            "rounded-full border border-border px-2 py-0.5 text-[11px]",
-                            voice.sample_url ? "hover:bg-muted" : "opacity-60",
-                            playing === key && "border-[var(--accent-brand)] text-[var(--accent-brand)]",
+                            "rounded-full border px-2 py-0.5 text-[11px] hover:bg-muted",
+                            selected === voice.voice_id
+                                ? "border-[var(--accent-brand)] bg-[var(--accent-brand-soft)] font-medium"
+                                : "border-border",
+                            playing === key && "text-[var(--accent-brand)]",
                         )}
                     >
                         {voice.gender === "female" ? "♀" : "♂"} {voice.name} · {LANGUAGE_NAMES[voice.language] ?? voice.language}
@@ -182,6 +193,9 @@ export function FirstAgentJourney() {
     const [templates, setTemplates] = useState<Template[] | null>(null);
     const [templateId, setTemplateId] = useState<string | null>(null);
     const [voice, setVoice] = useState<VoiceGender | null>(null);
+    // The exact suggested voice pressed on the card, so the first agent
+    // answers in the voice that was just heard rather than a gender's default.
+    const [voiceId, setVoiceId] = useState<string | null>(null);
     const [agentName, setAgentName] = useState("");
     const [answers, setAnswers] = useState<Record<string, string>>({});
     const [greeting, setGreeting] = useState("");
@@ -255,7 +269,17 @@ export function FirstAgentJourney() {
 
     const pickVoice = (next: VoiceGender | null) => {
         setVoice(next);
+        setVoiceId(null);
         posthog.capture(PostHogEvent.FIRST_AGENT_VOICE_PICKED, { voice_gender: next });
+    };
+
+    const pickSuggestedVoice = (suggested: SuggestedVoice) => {
+        setVoice(suggested.gender === "male" ? "male" : "female");
+        setVoiceId(suggested.voice_id);
+        posthog.capture(PostHogEvent.FIRST_AGENT_VOICE_PICKED, {
+            voice_gender: suggested.gender,
+            voice_id: suggested.voice_id,
+        });
     };
 
     const back = (from: Step, to: Step) => {
@@ -283,6 +307,7 @@ export function FirstAgentJourney() {
             url: `/api/v1/agent-templates/${template.id}/create`,
             body: {
                 voice_gender: voice ?? undefined,
+                voice_id: voiceId ?? undefined,
                 agent_name: agentName.trim() || undefined,
                 variables,
                 greeting: greetingTouched ? greeting.trim() : undefined,
@@ -347,8 +372,10 @@ export function FirstAgentJourney() {
                             templates={templates}
                             selected={templateId}
                             voice={voice}
+                            voiceId={voiceId}
                             onPick={pick}
                             onVoice={pickVoice}
+                            onSuggestedVoice={pickSuggestedVoice}
                             onContinue={() => setStep("name")}
                             onScratch={startFromScratch}
                         />
@@ -483,16 +510,20 @@ function PickStep({
     templates,
     selected,
     voice,
+    voiceId,
     onPick,
     onVoice,
+    onSuggestedVoice,
     onContinue,
     onScratch,
 }: {
     templates: Template[] | null;
     selected: string | null;
     voice: VoiceGender | null;
+    voiceId: string | null;
     onPick: (template: Template) => void;
     onVoice: (voice: VoiceGender | null) => void;
+    onSuggestedVoice: (voice: SuggestedVoice) => void;
     onContinue: () => void;
     onScratch: () => void;
 }) {
@@ -555,7 +586,14 @@ function PickStep({
                                     {t.direction === "inbound" ? "Answers calls" : "Makes calls"}
                                     {t.languages.length > 0 && ` · ${t.languages.length} languages`}
                                 </span>
-                                <VoiceChips voices={t.suggested_voices ?? []} />
+                                <VoiceChips
+                                    voices={t.suggested_voices ?? []}
+                                    selected={selected === t.id ? voiceId : null}
+                                    onSelect={(v) => {
+                                        if (selected !== t.id) onPick(t);
+                                        onSuggestedVoice(v);
+                                    }}
+                                />
                             </button>
                         );
                     })}
@@ -588,7 +626,11 @@ function PickStep({
                     })}
                 </div>
                 <span className="text-xs text-muted-foreground">
-                    {voice ? "Change it on the agent whenever you like." : "Unset uses Decibyl's default."}
+                    {voiceId
+                        ? "Your agent will answer in the voice you just heard."
+                        : voice
+                          ? "Change it on the agent whenever you like."
+                          : "Press a voice on a card to hear it and choose it."}
                 </span>
             </div>
 

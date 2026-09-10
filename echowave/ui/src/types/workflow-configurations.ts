@@ -311,7 +311,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     call_outcomes: [],
     follow_caller_language: false,
     accept_keypad_input: false,
-    speak_like_callers: false,
+    speak_like_callers: true,
     dynamic_greeting_configuration: { enabled: false, url: "" },
     max_call_duration: 300,
     max_user_idle_timeout: 10,  // 10 seconds
