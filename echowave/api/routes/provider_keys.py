@@ -32,6 +32,7 @@ from api.services.configuration.registry import (
     known_providers,
     realtime_provider_for,
 )
+from api.services.organization_preferences import get_organization_preferences
 
 router = APIRouter(prefix="/provider-keys", tags=["provider-keys"])
 
@@ -155,6 +156,16 @@ async def set_provider_key(
     vendor's outage should not stop a customer configuring their account.
     """
     organization_id = _organization_id(user)
+
+    if not (await get_organization_preferences(organization_id)).own_keys_allowed:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Bringing your own vendor keys is not switched on for this account "
+                "yet. Every model runs on Decibyl's keys at the published rate; ask "
+                "us to enable your own."
+            ),
+        )
 
     validation = (
         await key_validation.validate_key(request.provider, request.api_key)

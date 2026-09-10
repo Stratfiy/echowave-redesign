@@ -62,7 +62,13 @@ export function VerifyEmailBanner() {
       toast.error(detailFromResult(response, "That code was not accepted."));
       return;
     }
-    toast.success("Email verified.");
+    // The free credit waits for a proved address, so the moment it lands is
+    // worth a sentence: the balance chip catches up on the next page load.
+    const granted = (response.data as { bonus_granted_paise?: number } | undefined)
+      ?.bonus_granted_paise;
+    toast.success(
+      granted ? "Email verified. Your free credits are in." : "Email verified."
+    );
     setNeeded(false);
   };
 
@@ -89,7 +95,7 @@ export function VerifyEmailBanner() {
       <MailCheck className="h-4 w-4 shrink-0 text-foreground/70" />
       <span className="min-w-0">
         Verify {address ? <strong className="font-medium">{address}</strong> : "your email"} —
-        enter the six-digit code we sent you.
+        enter the six-digit code we sent you, and your free credits land.
       </span>
       <div className="flex items-center gap-2">
         <Input

@@ -374,11 +374,41 @@ class TestWhatTheAdminTierActuallyGates:
 
         assert response.status_code == 403
 
+    async def test_an_admin_without_the_entitlement_is_refused(
+        self, async_session, db_session, test_client_factory
+    ):
+        """Own keys are switched on per account by staff. Until then even an
+        admin is told so, rather than storing a key no call will use."""
+        user, _org = await _org_with_member(
+            async_session, "admin-byok-off", role=OrganizationRole.ADMIN.value
+        )
+
+        async with test_client_factory(user) as client:
+            response = await client.put(
+                "/api/v1/provider-keys",
+                json={
+                    "component": "llm",
+                    "provider": "openai",
+                    "api_key": "sk-not-a-real-key",
+                },
+            )
+
+        assert response.status_code == 403
+        assert "not switched on" in response.json()["detail"]
+
     async def test_an_admin_can_install_a_provider_key(
         self, async_session, db_session, test_client_factory
     ):
-        user, _org = await _org_with_member(
+        from api.schemas.organization_preferences import OrganizationPreferences
+        from api.services.organization_preferences import (
+            upsert_organization_preferences,
+        )
+
+        user, org = await _org_with_member(
             async_session, "admin-byok", role=OrganizationRole.ADMIN.value
+        )
+        await upsert_organization_preferences(
+            org.id, OrganizationPreferences(own_keys_allowed=True)
         )
 
         async with test_client_factory(user) as client:
@@ -517,8 +547,17 @@ class TestWhatTheAdminTierActuallyGates:
         """The ranking is 'at least this role', so this is a property of the
         comparison rather than of each route — but a regression here would be
         an owner locked out of their own account."""
-        user, _org = await _org_with_member(
+        from api.schemas.organization_preferences import OrganizationPreferences
+        from api.services.organization_preferences import (
+            upsert_organization_preferences,
+        )
+
+        user, org = await _org_with_member(
             async_session, "owner-inherits", role=OrganizationRole.OWNER.value
+        )
+        # Own keys are a per-account entitlement, orthogonal to role.
+        await upsert_organization_preferences(
+            org.id, OrganizationPreferences(own_keys_allowed=True)
         )
 
         async with test_client_factory(user) as client:

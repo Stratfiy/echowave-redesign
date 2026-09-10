@@ -47,6 +47,10 @@ from api.services.billing.costing import current_balance_paise
 from api.services.billing.rate_card import RateCardError
 from api.services.billing.rollup import IST
 from api.services.messaging.email import send_email
+from api.services.organization_preferences import (
+    get_organization_preferences,
+    upsert_organization_preferences,
+)
 from api.services.readiness import as_dict
 
 router = APIRouter(
@@ -194,7 +198,46 @@ async def get_account(
             "credit_ledger": await dash.credit_ledger(
                 session, organization_id=organization_id
             ),
+            # Staff-set entitlements, shown and switched on this page.
+            "own_keys_allowed": (
+                await get_organization_preferences(organization_id)
+            ).own_keys_allowed,
         }
+
+
+class OwnKeysRequest(BaseModel):
+    allowed: bool
+
+
+@router.put("/accounts/{organization_id}/own-keys")
+async def set_account_own_keys(
+    organization_id: int,
+    request: OwnKeysRequest,
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """Let this account bring its own vendor keys, or stop it.
+
+    Off for every account until switched on here. A customer's own key moves
+    that slot off our rate card — we stop earning the managed markup on it
+    and they are billed by the vendor — so it is a commercial decision made
+    per account, not a preference. Existing keys stay stored when it is
+    switched off; they simply cannot be added to, and the screen is hidden.
+    """
+    existing = await get_organization_preferences(organization_id)
+    saved = await upsert_organization_preferences(
+        organization_id,
+        existing.model_copy(update={"own_keys_allowed": request.allowed}),
+    )
+    logger.info(
+        "Own keys {} for organization {} by staff user {}",
+        "allowed" if request.allowed else "disallowed",
+        organization_id,
+        user.id,
+    )
+    return {
+        "organization_id": organization_id,
+        "own_keys_allowed": saved.own_keys_allowed,
+    }
 
 
 class CreditAdjustmentRequest(BaseModel):

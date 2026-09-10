@@ -18,6 +18,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useOwnKeysAllowed } from "@/hooks/useOwnKeysAllowed";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -30,6 +31,7 @@ const TABS = [
 
 export function IntegrationsTabs() {
     const pathname = usePathname();
+    const ownKeysAllowed = useOwnKeysAllowed();
 
     return (
         <nav
@@ -37,7 +39,7 @@ export function IntegrationsTabs() {
             className="w-full overflow-x-auto border-b border-border px-6"
         >
             <ul className="flex min-w-max gap-1">
-                {TABS.map((tab) => {
+                {TABS.filter((tab) => tab.href !== "/integrations" || ownKeysAllowed).map((tab) => {
                     // Exact match on /integrations, or the Apps sub-route
                     // would light both it and Providers.
                     const active =
