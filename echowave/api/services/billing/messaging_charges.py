@@ -85,4 +85,7 @@ async def debit_message(
             created_at=datetime.now(UTC),
         )
     )
+    # Flushed at once so a second call in the same transaction sees the row
+    # and debits nothing, which is the whole point of keying on the id.
+    await session.flush()
     return charge
