@@ -180,8 +180,11 @@ class TestPipecatEngineToolCalls:
             "LLM generation should have happened 2 times"
         )
 
-        # Assert that the context was updated with END_CALL_SYSTEM_PROMPT
-        assert llm._settings.system_instruction == END_CALL_SYSTEM_PROMPT
+        # Ends with, not equals: every composed prompt is now prefixed with
+        # today's date (see compose_system_prompt_for_node). What this test is
+        # about is that the node's own prompt reached the model, so it asserts
+        # that and lets the prefix be tested where it is defined.
+        assert llm._settings.system_instruction.endswith(END_CALL_SYSTEM_PROMPT)
         assert llm._functions["end_call"].is_node_transition is True
 
     @pytest.mark.asyncio
@@ -228,8 +231,11 @@ class TestPipecatEngineToolCalls:
             "LLM generation should have happened 2 times"
         )
 
-        # Assert that the context was updated with END_CALL_SYSTEM_PROMPT
-        assert llm._settings.system_instruction == END_CALL_SYSTEM_PROMPT
+        # Ends with, not equals: every composed prompt is now prefixed with
+        # today's date (see compose_system_prompt_for_node). What this test is
+        # about is that the node's own prompt reached the model, so it asserts
+        # that and lets the prefix be tested where it is defined.
+        assert llm._settings.system_instruction.endswith(END_CALL_SYSTEM_PROMPT)
 
     @pytest.mark.asyncio
     async def test_parallel_builtin_and_transition_calls_through_engine_with_text(
@@ -276,8 +282,11 @@ class TestPipecatEngineToolCalls:
             "LLM generation should have happened 2 times"
         )
 
-        # Assert that the context was updated with END_CALL_SYSTEM_PROMPT
-        assert llm._settings.system_instruction == END_CALL_SYSTEM_PROMPT
+        # Ends with, not equals: every composed prompt is now prefixed with
+        # today's date (see compose_system_prompt_for_node). What this test is
+        # about is that the node's own prompt reached the model, so it asserts
+        # that and lets the prefix be tested where it is defined.
+        assert llm._settings.system_instruction.endswith(END_CALL_SYSTEM_PROMPT)
 
     @pytest.mark.asyncio
     async def test_single_transition_call_through_engine(
@@ -310,5 +319,8 @@ class TestPipecatEngineToolCalls:
             "LLM generation should have happened 2 times"
         )
 
-        # Assert that the context was updated with END_CALL_SYSTEM_PROMPT
-        assert llm._settings.system_instruction == END_CALL_SYSTEM_PROMPT
+        # Ends with, not equals: every composed prompt is now prefixed with
+        # today's date (see compose_system_prompt_for_node). What this test is
+        # about is that the node's own prompt reached the model, so it asserts
+        # that and lets the prefix be tested where it is defined.
+        assert llm._settings.system_instruction.endswith(END_CALL_SYSTEM_PROMPT)

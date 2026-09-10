@@ -4,12 +4,15 @@ Extracts prompt and function composition logic from PipecatEngine into
 reusable functions. Defines recording response mode markers and instructions.
 """
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Callable, Optional
+from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
     from api.services.workflow.pipecat_engine_custom_tools import CustomToolManager
     from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
+from api.constants import DEFAULT_ORGANIZATION_TIMEZONE
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
 from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
 from api.services.workflow.tools.knowledge_base import get_knowledge_base_tool
@@ -47,6 +50,37 @@ RULES:
 - *NEVER* mix modes in a single response, since we rely on the markers to decide whether to play using TTS or Pre-recorded audio."""
 
 
+def compose_today_line(timezone: str | None = None) -> str:
+    """What day it is, for a model whose idea of "today" is its training cutoff.
+
+    Asked the date, an agent here answered "June 13, 2024" — off by more than
+    two years, and stated with the same confidence as everything else it says.
+    That is harmless until something depends on it, and then it is not: every
+    booking works from a date, so "tomorrow at five" resolves against a year
+    that has already been and gone, and "next Tuesday" lands on the wrong day
+    of the week as well.
+
+    Nothing in the composed prompt carried a date, so there was nothing for the
+    model to correct itself against. One line at the top fixes it for every
+    agent at once, which is the right level: an operator should not have to
+    know their agent needs telling what day it is.
+
+    The weekday is spelled out because callers speak in weekdays, and the time
+    because opening hours and "this evening" both depend on it.
+    """
+    zone = timezone or DEFAULT_ORGANIZATION_TIMEZONE
+    try:
+        now = datetime.now(ZoneInfo(zone))
+    except Exception:  # noqa: BLE001 - an unknown zone must not stop a call
+        now = datetime.now(ZoneInfo(DEFAULT_ORGANIZATION_TIMEZONE))
+        zone = DEFAULT_ORGANIZATION_TIMEZONE
+    return (
+        f"Right now it is {now:%A, %d %B %Y}, {now:%H:%M} ({zone}). "
+        "Work every date and time out from this, and never from anything you "
+        "remember. When you need a calendar date, count it from today."
+    )
+
+
 def compose_system_prompt_for_node(
     *,
     node: "Node",
@@ -55,6 +89,7 @@ def compose_system_prompt_for_node(
     has_recordings: bool,
     code_mixed_speech: bool = False,
     opening_notes: str | None = None,
+    today_line: str | None = None,
 ) -> str:
     """Compose the full system prompt text for a workflow node.
 
@@ -73,6 +108,10 @@ def compose_system_prompt_for_node(
         opening_notes: Extra instructions about how this node opens, for a
             start node that lets the caller speak first. Appended after the
             operator's prompts so they read as the latest instruction.
+        today_line: What day and time it is, worked out once for the whole
+            call by the engine so the prompt stays byte-identical across node
+            transitions and therefore stays cacheable. Composed here from the
+            deployment default when a caller does not supply it.
 
     Returns:
         The composed system prompt text.
@@ -84,7 +123,11 @@ def compose_system_prompt_for_node(
 
     formatted_node_prompt = format_prompt(node.prompt)
 
-    parts = [p for p in (global_prompt, formatted_node_prompt) if p]
+    # First, before the operator's own words: everything after it may depend on
+    # what day it is, and a model that has already read "book them in for
+    # Tuesday" has started reasoning from the wrong year.
+    dated = today_line if today_line is not None else compose_today_line()
+    parts = [p for p in (dated, global_prompt, formatted_node_prompt) if p]
 
     # After the operator's own prompts, so it reads as the most recent
     # instruction, and before the recording block, which is a response *format*

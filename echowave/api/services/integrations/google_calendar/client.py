@@ -102,18 +102,52 @@ def google_calendar_function_schema(tool: Any) -> Dict[str, Any]:
     }
 
 
-def _localize(naive_iso: str) -> str:
+async def booking_timezone(organization_id: Optional[int]) -> str:
+    """The zone an appointment is booked in: the organization's own.
+
+    The agent works dates out in the organization's timezone -- the field on
+    the Settings page, read into every prompt. If the event were stamped with
+    the deployment's zone instead, an agent saying "tomorrow at five" and the
+    calendar entry it creates would mean two different moments for any account
+    that is not in the deployment's own zone, and nothing in the transcript
+    would show it.
+
+    Falls back to the calendar default when the organization has set nothing or
+    the read fails, which is also what the prompt falls back to, so the two stay
+    in step either way.
+    """
+    if organization_id is None:
+        return GOOGLE_CALENDAR_DEFAULT_TIMEZONE
+    try:
+        from api.services.organization_preferences import get_organization_preferences
+
+        preferences = await get_organization_preferences(organization_id)
+        return preferences.timezone or GOOGLE_CALENDAR_DEFAULT_TIMEZONE
+    except Exception as exc:  # noqa: BLE001 - a booking must not fail over this
+        logger.warning("Could not read the organization timezone: {}", exc)
+        return GOOGLE_CALENDAR_DEFAULT_TIMEZONE
+
+
+def _localize(naive_iso: str, timezone: str = GOOGLE_CALENDAR_DEFAULT_TIMEZONE) -> str:
     """Attach the deployment's calendar timezone to a ``_combine_start_end``
     ISO string, so it carries the explicit UTC offset Google's ``events.list``
     requires for ``timeMin``/``timeMax``. Event creation itself sends a naive
     ``dateTime`` alongside a separate ``timeZone`` field, which Google accepts
     on its own -- this is only for the availability-check query below."""
     naive = datetime.fromisoformat(naive_iso)
-    return naive.replace(tzinfo=ZoneInfo(GOOGLE_CALENDAR_DEFAULT_TIMEZONE)).isoformat()
+    try:
+        zone = ZoneInfo(timezone)
+    except Exception:  # noqa: BLE001 - an unknown zone must not stop a booking
+        zone = ZoneInfo(GOOGLE_CALENDAR_DEFAULT_TIMEZONE)
+    return naive.replace(tzinfo=zone).isoformat()
 
 
 async def _find_conflicting_event(
-    access_token: str, calendar_id: str, start_iso: str, end_iso: str
+    access_token: str,
+    calendar_id: str,
+    start_iso: str,
+    end_iso: str,
+    timezone: str = GOOGLE_CALENDAR_DEFAULT_TIMEZONE,
 ) -> Optional[Dict[str, Any]]:
     """The first non-cancelled event already on the calendar that overlaps
     [start_iso, end_iso), or None if the slot is free.
@@ -131,8 +165,8 @@ async def _find_conflicting_event(
                 url,
                 headers={"Authorization": f"Bearer {access_token}"},
                 params={
-                    "timeMin": _localize(start_iso),
-                    "timeMax": _localize(end_iso),
+                    "timeMin": _localize(start_iso, timezone),
+                    "timeMax": _localize(end_iso, timezone),
                     "singleEvents": "true",
                     "orderBy": "startTime",
                     "maxResults": 5,
@@ -200,14 +234,19 @@ async def execute_google_calendar_tool(
         description = (arguments or {}).get("description") or ""
         attendee_email = (arguments or {}).get("attendee_email") or None
 
+        # The same zone the agent reasoned in, so the window checked for
+        # clashes and the entry created are the same moment as the one it read
+        # back to the caller.
+        event_timezone = await booking_timezone(organization_id)
+
         event_body: Dict[str, Any] = {
             "summary": summary,
             "description": description,
             "start": {
                 "dateTime": start_iso,
-                "timeZone": GOOGLE_CALENDAR_DEFAULT_TIMEZONE,
+                "timeZone": event_timezone,
             },
-            "end": {"dateTime": end_iso, "timeZone": GOOGLE_CALENDAR_DEFAULT_TIMEZONE},
+            "end": {"dateTime": end_iso, "timeZone": event_timezone},
         }
         if attendee_email:
             event_body["attendees"] = [{"email": attendee_email}]
@@ -236,7 +275,7 @@ async def execute_google_calendar_tool(
             calendar_id = status.calendar_id or "primary"
 
         conflict = await _find_conflicting_event(
-            access_token, calendar_id, start_iso, end_iso
+            access_token, calendar_id, start_iso, end_iso, event_timezone
         )
         if conflict:
             conflict_summary = conflict.get("summary") or "an existing event"

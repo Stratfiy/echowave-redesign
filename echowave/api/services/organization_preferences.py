@@ -40,10 +40,25 @@ STAFF_ONLY_FIELDS = ("own_keys_allowed",)
 def with_staff_fields(
     incoming: OrganizationPreferences, existing: OrganizationPreferences
 ) -> OrganizationPreferences:
-    """The customer's preferences with the staff-only fields kept as stored."""
-    return incoming.model_copy(
-        update={name: getattr(existing, name) for name in STAFF_ONLY_FIELDS}
-    )
+    """The stored preferences with whatever this request actually asked to change.
+
+    A PUT here is a whole object, so every field the caller leaves out arrives
+    carrying its schema default -- and the save then wrote that default over
+    what was stored. The Settings form sends two fields, so saving a timezone
+    from that screen silently switched ``byok_fallback_to_managed`` off, which
+    decides whether a call with no usable customer key runs on Decibyl's key or
+    is refused outright. Nothing on the screen mentions the field, and nothing
+    told the operator it had changed.
+
+    ``model_fields_set`` is the difference between "sent as false" and "not
+    sent", which the parsed model alone cannot express. Only the fields a
+    request names are applied; everything else keeps its stored value, and the
+    staff-only fields keep theirs whatever the request says -- otherwise a
+    stale form would quietly switch an entitlement off, or a crafted one switch
+    it on.
+    """
+    named = incoming.model_fields_set - set(STAFF_ONLY_FIELDS)
+    return existing.model_copy(update={name: getattr(incoming, name) for name in named})
 
 
 async def upsert_organization_preferences(
