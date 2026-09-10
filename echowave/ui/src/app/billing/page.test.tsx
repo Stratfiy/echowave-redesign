@@ -67,9 +67,9 @@ describe("billing confirmation", () => {
     api.balance.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     await mount();
     expect(screen.getByRole("alert").textContent).toContain("Could not load billing");
-    expect(screen.queryByText("Available credit")).toBeNull();
+    expect(screen.queryByText("Available credits")).toBeNull();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Retry loading billing" })); });
-    expect(screen.getByText("Available credit")).toBeTruthy();
+    expect(screen.getByText("Available credits")).toBeTruthy();
   });
   it("reports missing documents instead of calling them an empty history", async () => {
     api.documents.mockResolvedValueOnce({ error: { detail: "Document service unavailable" } });

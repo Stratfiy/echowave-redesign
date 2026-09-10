@@ -36,7 +36,7 @@ export function TelephonyTabs() {
   return (
     <nav
       aria-label="Telephony"
-      className="w-full overflow-x-auto border-b border-border px-6"
+      className="w-full overflow-x-auto border-b border-border/70 px-6"
     >
       <ul className="flex min-w-max gap-1">
         {TABS.map((tab) => {

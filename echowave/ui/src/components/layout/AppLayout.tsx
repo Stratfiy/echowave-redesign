@@ -62,7 +62,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
   // Check if current route should have sidebar
   // Hide sidebar for root (/), /handler routes (Stack Auth routes), and /auth routes
-  const shouldShowSidebar = pathname !== "/" && !pathname.startsWith("/handler") && !pathname.startsWith("/auth");
+  // /start is the first-agent journey: one job, no navigation to wander off
+  // into. It draws its own step rail instead.
+  const shouldShowSidebar =
+    pathname !== "/" &&
+    !pathname.startsWith("/handler") &&
+    !pathname.startsWith("/auth") &&
+    !pathname.startsWith("/start");
 
   // Only match the exact editor page /workflow/<id>, not sub-routes like /workflow/<id>/runs
   const isWorkflowEditor = /^\/workflow\/\d+$/.test(pathname);

@@ -50,8 +50,9 @@ export default async function AfterSignInPage() {
                 logger.debug('[AfterSignInPage] Redirecting to /workflow - user has workflows');
                 redirect('/workflow');
             } else {
-                logger.debug('[AfterSignInPage] Redirecting to /workflow/create - no workflows found');
-                redirect('/workflow/create');
+                // No agent yet: the first-agent journey, not the wizard.
+                logger.debug('[AfterSignInPage] Redirecting to /start - no workflows found');
+                redirect('/start');
             }
         }
     } catch (error) {
@@ -62,6 +63,6 @@ export default async function AfterSignInPage() {
     }
 
     // Default fallback
-    logger.debug('[AfterSignInPage] Final fallback redirect to /workflow/create');
-    redirect('/workflow/create');
+    logger.debug('[AfterSignInPage] Final fallback redirect to /start');
+    redirect('/start');
 }

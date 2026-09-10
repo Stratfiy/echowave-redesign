@@ -73,6 +73,13 @@ export function formatCredits(paise: number | null | undefined): string {
     return integers.format(Math.round(paise / PAISE_PER_RUPEE));
 }
 
+/** With the unit spelled out, e.g. "1,250 credits". Use in running prose. */
+export function formatCreditsLabel(paise: number | null | undefined): string {
+    if (paise === null || paise === undefined) return "— credits";
+    const rounded = Math.round(paise / PAISE_PER_RUPEE);
+    return `${integers.format(rounded)} ${rounded === 1 ? "credit" : "credits"}`;
+}
+
 /** Abbreviated, e.g. ₹1.2L. Use on stat tiles and axis ticks where space is tight. */
 export function formatPaiseCompact(paise: number | null | undefined): string {
     if (paise === null || paise === undefined) return "—";

@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
-import { formatPaise } from "@/lib/billing/format";
+import { formatCreditsLabel, formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
 type Plan = {
@@ -231,8 +231,8 @@ export function PlanSection({
                             <li className="flex items-start gap-2">
                                 <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
                                 <span>
-                                    {formatPaise(plan.balance_paise)} of call balance
-                                    each month
+                                    {formatCreditsLabel(plan.balance_paise)} of call
+                                    balance each month
                                     {/* Stated at the point of purchase, which is
                                         the only place stating it counts. Balance
                                         that expires is what makes a plan worth

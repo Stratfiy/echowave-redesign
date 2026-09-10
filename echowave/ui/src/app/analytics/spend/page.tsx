@@ -51,7 +51,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { detailFromResult } from "@/lib/apiError";
-import { formatDateIST, formatPaise, formatPaiseCompact } from "@/lib/billing/format";
+import { formatCredits, formatDateIST, formatPaise, formatPaiseCompact } from "@/lib/billing/format";
 
 type CompositionRow = {
     day: string;
@@ -135,7 +135,7 @@ export default function CustomerSpendPage() {
                     value={formatPaise(spent)}
                     sub={`Last ${days} days`}
                 />
-                <StatTile label="Balance" value={formatPaise(balance)} />
+                <StatTile label="Balance" value={`${formatCredits(balance)} credits`} />
                 <StatTile
                     label="Daily average"
                     value={formatPaise(data?.burn?.daily_average_paise ?? 0)}
