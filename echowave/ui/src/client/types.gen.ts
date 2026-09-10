@@ -5834,6 +5834,27 @@ export type NodeTypesResponse = {
 };
 
 /**
+ * NoiseSuppressionConfigurationDefaults
+ *
+ * Noise off the caller's audio before the agent hears it.
+ *
+ * On by default: the people who call an Indian business are on a road, in a
+ * shop, on a bus. ``level`` is the share of the denoised signal in the blend
+ * the agent hears, 20 to 100 — see services/pipecat/noise_suppression.py.
+ */
+export type NoiseSuppressionConfigurationDefaults = {
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+    /**
+     * Level
+     */
+    level?: number;
+    [key: string]: unknown;
+};
+
+/**
  * NumberInputOptions
  *
  * Renderer hints for numeric inputs.
@@ -9892,6 +9913,7 @@ export type WorkerHealthResponse = {
  */
 export type WorkflowConfigurationDefaults = {
     ambient_noise_configuration?: AmbientNoiseConfigurationDefaults;
+    noise_suppression_configuration?: NoiseSuppressionConfigurationDefaults;
     /**
      * Max Call Duration
      */
