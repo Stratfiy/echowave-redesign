@@ -95,13 +95,14 @@ class EmbedConfigResponse(BaseModel):
 
 
 def is_platform_origin(origin: str) -> bool:
-    """Is this our own app? Compared by host, so a port or scheme difference
-    between environments does not turn the share page into a 403."""
+    """Is this our own app? Host and port both, because on a developer's
+    machine every port is a different site and a token that let any
+    localhost port through would be the widget's own whitelist undone."""
     if not origin or not UI_APP_URL:
         return False
-    ours, _ = _parse_origin_host_port(str(UI_APP_URL))
-    theirs, _ = _parse_origin_host_port(origin)
-    return bool(ours) and ours == theirs
+    ours, our_port = _parse_origin_host_port(str(UI_APP_URL))
+    theirs, their_port = _parse_origin_host_port(origin)
+    return bool(ours) and ours == theirs and (our_port or None) == (their_port or None)
 
 
 def validate_origin(origin: str, allowed_domains: list) -> bool:

@@ -17,6 +17,14 @@ def test_other_origins_still_need_the_whitelist(monkeypatch):
     assert public_embed.validate_origin("", []) is False
 
 
+def test_another_port_on_our_host_is_not_us(monkeypatch):
+    """A developer's other localhost app must still need the whitelist."""
+    monkeypatch.setattr(public_embed, "UI_APP_URL", "http://localhost:3000")
+    assert public_embed.is_platform_origin("http://localhost:3000") is True
+    assert public_embed.is_platform_origin("http://localhost:3021") is False
+    assert public_embed.validate_origin("http://localhost:3021", []) is False
+
+
 def test_no_app_url_means_no_platform_origin(monkeypatch):
     monkeypatch.setattr(public_embed, "UI_APP_URL", "")
     assert public_embed.is_platform_origin("https://app.decibyl.ai") is False
