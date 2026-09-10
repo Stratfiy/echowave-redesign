@@ -154,3 +154,48 @@ class TestPreflight:
             "/api/v1/workflow/1", "https://clinic.example", "POST"
         )
         assert res is None
+
+
+class TestTextMessageIsTenantScoped:
+    """The session loader takes a keyword-only organization_id. The embed
+    route once called it with the run id alone, which raised a TypeError
+    before the route's own error handling — a bare 500 with an empty body
+    on every message a visitor sent. The token is the only proof of which
+    tenant the visitor may talk to, so it is the org the lookup is scoped to.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_session_lookup_is_scoped_to_the_tokens_organization(
+        self, monkeypatch
+    ):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+
+        from fastapi import Response
+
+        embed_session = SimpleNamespace(workflow_run_id=42, embed_token_id=7)
+        embed_token = SimpleNamespace(
+            id=7, workflow_id=17, organization_id=99, allowed_domains=[]
+        )
+
+        async def resolve(session_token, request, response):
+            return embed_session, embed_token
+
+        monkeypatch.setattr(public_embed, "_resolve_embed_session", resolve)
+
+        loader = AsyncMock(return_value=None)  # 404 path: enough to prove the call
+        monkeypatch.setattr(
+            public_embed.db_client, "get_workflow_run_text_session", loader
+        )
+
+        request = MagicMock()
+        with pytest.raises(public_embed.HTTPException) as excinfo:
+            await public_embed.post_embed_text_message(
+                "emb_session_x",
+                public_embed.EmbedTextMessageRequest(text="Hi"),
+                request,
+                Response(),
+            )
+        assert excinfo.value.status_code == 404  # reached the handler, no TypeError
+
+        loader.assert_awaited_once_with(42, organization_id=99)
