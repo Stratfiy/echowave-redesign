@@ -50,7 +50,10 @@ from api.services.pipecat.event_handlers import (
 )
 from api.services.pipecat.in_memory_buffers import InMemoryLogsBuffer
 from api.services.pipecat.interruption_backoff import InterruptionBackoff
-from api.services.pipecat.language_following import should_follow_caller_language
+from api.services.pipecat.language_following import (
+    allowed_languages,
+    should_follow_caller_language,
+)
 from api.services.pipecat.pipeline_builder import (
     build_pipeline,
     build_realtime_pipeline,
@@ -1489,7 +1492,8 @@ async def _run_pipeline_impl(
         language_follower = LanguageFollower(
             initial_language=configured_language(
                 getattr(user_config, "tts", None), getattr(user_config, "stt", None)
-            )
+            ),
+            allowed=allowed_languages(run_configs),
         )
 
     # Build the pipeline

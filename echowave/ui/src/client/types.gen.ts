@@ -10146,6 +10146,10 @@ export type WorkflowConfigurationDefaults = {
      * Speak Like Callers
      */
     speak_like_callers?: boolean;
+    /**
+     * Agent Languages
+     */
+    agent_languages?: Array<string>;
     [key: string]: unknown;
 };
 

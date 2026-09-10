@@ -153,6 +153,11 @@ class LanguageFollower(FrameProcessor):
     Args:
         initial_language: What the agent was configured to speak. A first turn
             in this language is not a change.
+        allowed: Languages this agent is permitted to speak, as primary subtags.
+            A detection outside this set is ignored entirely: it does not
+            switch, and it does not even count towards a switch. None allows
+            any language, which is how every agent behaved before operators
+            could declare a set.
         voice_for_language: Optional map of primary subtag to voice id. Some
             providers ship genuinely multilingual voices (ElevenLabs multilingual,
             Sarvam's Bulbul) where only the language needs to change and the
@@ -168,11 +173,16 @@ class LanguageFollower(FrameProcessor):
         *,
         initial_language: str | None = None,
         voice_for_language: dict[str, str] | None = None,
+        allowed: frozenset[str] | None = None,
         on_switch: Callable[[str | None, str], Awaitable[None]] | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self._current = primary_subtag(initial_language)
+        #: Languages this agent may answer in, or None for any. A detection
+        #: outside the set is noise, not a language change -- see
+        #: language_following.allowed_languages for what that cost.
+        self._allowed = allowed
         self._voices = {
             primary_subtag(k) or k: v for k, v in (voice_for_language or {}).items()
         }
@@ -208,6 +218,18 @@ class LanguageFollower(FrameProcessor):
 
         if detected not in self.languages_heard:
             self.languages_heard.append(detected)
+
+        if self._allowed is not None and detected not in self._allowed:
+            # Recorded above, because "what did recognition think it heard" is
+            # worth knowing when a caller complains. Not acted on: an agent
+            # whose operator listed Tamil, Kannada, English and Hindi must not
+            # be talked into Telugu by one bad guess on a short utterance.
+            logger.debug(
+                "Ignoring detected language {} — not one this agent speaks ({})",
+                detected,
+                ", ".join(sorted(self._allowed)),
+            )
+            return
 
         text = (getattr(frame, "text", "") or "").strip()
         if len(text) < MIN_CHARS_FOR_DETECTION:

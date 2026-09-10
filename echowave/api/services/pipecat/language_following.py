@@ -23,6 +23,9 @@ from typing import Any
 #: The per-agent key in ``workflow_configurations``.
 CONFIG_KEY = "follow_caller_language"
 
+#: The per-agent key listing which languages this agent may speak at all.
+LANGUAGES_KEY = "agent_languages"
+
 
 def should_follow_caller_language(
     run_configs: Any,
@@ -42,3 +45,39 @@ def should_follow_caller_language(
     if not isinstance(run_configs, dict):
         return False
     return bool(run_configs.get(CONFIG_KEY))
+
+
+def allowed_languages(run_configs: Any) -> frozenset[str] | None:
+    """The languages this agent is allowed to answer in, or None for any.
+
+    Speech recognition guesses the language of every utterance, and on a short
+    one in a noisy room it guesses wrong. That was survivable while a wrong
+    guess only changed the voice. It stopped being survivable once the model
+    was told as well: a clinic in Hosur whose prompt lists Tamil, Kannada,
+    English and Hindi was handed "the caller has switched to Telugu, reply only
+    in Telugu" -- a later and more specific instruction than the operator's own
+    list, so it won, and the agent answered a Tamil speaker in Telugu and then
+    in Punjabi.
+
+    An operator naming the languages their line actually serves is the thing
+    that makes the guess safe: anything outside the list is treated as noise
+    rather than as a language change. Most businesses serve two or three, and
+    the ones they serve are not a secret.
+
+    None when nothing is declared, which keeps every existing agent behaving
+    exactly as it does today.
+    """
+    if not isinstance(run_configs, dict):
+        return None
+    declared = run_configs.get(LANGUAGES_KEY)
+    if not isinstance(declared, (list, tuple, set, frozenset)):
+        return None
+
+    tags = {
+        str(entry).strip().lower().split("-")[0]
+        for entry in declared
+        if str(entry or "").strip()
+    }
+    # An empty or all-blank list says nothing, and must not be read as
+    # "this agent may speak no languages at all".
+    return frozenset(tags) or None

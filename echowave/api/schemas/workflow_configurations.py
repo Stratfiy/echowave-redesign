@@ -271,6 +271,16 @@ class WorkflowConfigurationDefaults(BaseModel):
     # talk on the phone. An operator who wants formal, single-language
     # speech switches it off.
     speak_like_callers: bool = True
+    # Which languages this agent may answer in at all, as BCP-47 tags or bare
+    # subtags ("ta", "ta-IN", "en"). Empty means no restriction, which is how
+    # every agent behaved before this existed.
+    #
+    # It exists because speech recognition guesses the language of every
+    # utterance and gets short ones wrong. That was survivable while a wrong
+    # guess only changed the voice; once the model is told too, one bad guess
+    # answers a Tamil caller in Telugu. Naming the two or three languages a
+    # line actually serves turns a wrong guess back into noise.
+    agent_languages: list[str] = Field(default_factory=list)
 
 
 def get_default_workflow_configurations() -> WorkflowConfigurationDefaults:
