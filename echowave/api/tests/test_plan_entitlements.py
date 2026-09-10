@@ -28,8 +28,14 @@ from api.constants import (
     STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES,
     TOPUP_INCREMENT_PAISE,
 )
-from api.db.models import CreditLedgerModel, OrganizationModel, PaymentMandateModel
-from api.enums import CreditLedgerKind, MandateStatus
+from api.db.models import (
+    CreditLedgerModel,
+    OrganizationMembershipModel,
+    OrganizationModel,
+    PaymentMandateModel,
+    UserModel,
+)
+from api.enums import CreditLedgerKind, MandateStatus, StaffRole
 from api.services.billing import mandates as mandate_service
 from api.services.billing import payments, subscription_plans
 
@@ -74,16 +80,55 @@ async def _topup_row(session, org, *, kind=CreditLedgerKind.TOPUP):
 
 
 class TestTheKnowledgeBaseIsSomethingAPlanBuys:
-    async def test_no_plan_means_no_allowance(self, async_session):
-        """The value the whole column exists for. Nothing is not an edge case
-        here — it is what stops an unsubscribed account having a corpus
-        embedded on our key and billed to nobody."""
+    async def test_no_plan_means_the_small_free_allowance(self, async_session):
+        """One small document's worth, not a wall. This is what stops an
+        unsubscribed account having a corpus embedded on our key and billed
+        to nobody, while still letting a signup see the feature work."""
         org = await _org(async_session, "kb-none")
         allowance = await subscription_plans.knowledge_base_allowance_for(
             async_session, organization_id=org.id
         )
-        assert allowance == subscription_plans.NO_KNOWLEDGE_BASE
-        assert not allowance.includes_a_knowledge_base
+        assert allowance == subscription_plans.FREE_KNOWLEDGE_BASE
+        assert allowance.includes_a_knowledge_base
+        assert 0 < allowance.total_bytes <= 5 * MB
+        assert allowance.max_file_bytes <= allowance.total_bytes
+        assert allowance.total_bytes < STARTER_PLAN_KNOWLEDGE_BASE_BYTES
+
+    async def test_a_staff_account_has_everything(self, async_session):
+        """An account with a superadmin member is the company's own: nothing
+        on it is for sale, so nothing is withheld from it."""
+        org = await _org(async_session, "kb-staff")
+        staff = UserModel(provider_id="staff-kb", staff_role=StaffRole.SUPERADMIN.value)
+        async_session.add(staff)
+        await async_session.flush()
+        async_session.add(
+            OrganizationMembershipModel(user_id=staff.id, organization_id=org.id)
+        )
+        await async_session.flush()
+
+        allowance = await subscription_plans.knowledge_base_allowance_for(
+            async_session, organization_id=org.id
+        )
+        assert allowance == subscription_plans.STAFF_KNOWLEDGE_BASE
+        assert allowance.total_bytes > STARTER_PLAN_KNOWLEDGE_BASE_BYTES
+
+    async def test_a_support_member_is_not_a_staff_account(self, async_session):
+        org = await _org(async_session, "kb-support")
+        support = UserModel(
+            provider_id="support-kb", staff_role=StaffRole.SUPPORT.value
+        )
+        async_session.add(support)
+        await async_session.flush()
+        async_session.add(
+            OrganizationMembershipModel(user_id=support.id, organization_id=org.id)
+        )
+        await async_session.flush()
+        assert (
+            await subscription_plans.knowledge_base_allowance_for(
+                async_session, organization_id=org.id
+            )
+            == subscription_plans.FREE_KNOWLEDGE_BASE
+        )
 
     async def test_an_authorised_plan_grants_its_own_figures(self, async_session):
         org = await _org(async_session, "kb-active")
@@ -96,11 +141,11 @@ class TestTheKnowledgeBaseIsSomethingAPlanBuys:
         assert allowance.total_bytes == STARTER_PLAN_KNOWLEDGE_BASE_BYTES
         assert allowance.max_file_bytes == STARTER_PLAN_KNOWLEDGE_BASE_FILE_BYTES
 
-    async def test_a_started_but_unauthorised_mandate_grants_nothing(
+    async def test_a_started_but_unauthorised_mandate_grants_only_the_free_tier(
         self, async_session
     ):
         """Beginning checkout is not paying for it. Entitling on an instruction
-        the bank has not confirmed hands the feature to anyone who opens the
+        the bank has not confirmed hands the plan to anyone who opens the
         payment sheet and closes it."""
         org = await _org(async_session, "kb-pending")
         await subscription_plans.ensure_seeded(async_session)
@@ -110,7 +155,7 @@ class TestTheKnowledgeBaseIsSomethingAPlanBuys:
             await subscription_plans.knowledge_base_allowance_for(
                 async_session, organization_id=org.id
             )
-            == subscription_plans.NO_KNOWLEDGE_BASE
+            == subscription_plans.FREE_KNOWLEDGE_BASE
         )
 
     async def test_both_figures_follow_the_plan_not_the_deployment(self, async_session):

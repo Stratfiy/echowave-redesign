@@ -76,7 +76,7 @@ async def _assert_room_to_ingest(organization_id: int):
             detail=(
                 "Your knowledge base is full "
                 f"({_mb(used)} of {_mb(allowance.total_bytes)} MB used). "
-                "Delete a document to make room, or move to a larger plan."
+                "Delete a document to make room, or choose a plan for a larger one."
             ),
         )
     return allowance

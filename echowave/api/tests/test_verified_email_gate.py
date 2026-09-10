@@ -36,3 +36,11 @@ async def test_a_door_that_cannot_ask_does_not_gate(monkeypatch):
     )
     user = SimpleNamespace(email_verified_at=None)
     assert await depends.require_verified_email(user) is user
+
+
+@pytest.mark.asyncio
+async def test_staff_are_not_asked(monkeypatch):
+    """A staff account has every feature; the gate is for strangers on a bonus."""
+    monkeypatch.setattr(email_verification, "verification_is_enforceable", lambda: True)
+    user = SimpleNamespace(email_verified_at=None, staff_role="superadmin")
+    assert await depends.require_verified_email(user) is user

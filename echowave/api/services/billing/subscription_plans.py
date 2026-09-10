@@ -187,10 +187,29 @@ class KnowledgeBaseAllowance:
         return self.total_bytes > 0
 
 
-#: What an account with no plan gets. Named rather than written as a bare pair
-#: of zeros at each return, because "no knowledge base at all" is a decision
-#: this module makes and not an absence of one.
+#: No knowledge base at all. Named rather than written as a bare pair of
+#: zeros, because it is a decision this module makes and not an absence of
+#: one: it is what the free tier collapses to when an operator sets it to zero.
 NO_KNOWLEDGE_BASE = KnowledgeBaseAllowance(total_bytes=0, max_file_bytes=0)
+
+#: What an account with no plan gets: room for one small document, so a free
+#: signup can see the feature work before paying for it. A ceiling rather
+#: than a refusal, because a wall at the first upload is where a clinic or a
+#: gym that would have paid ₹3,000 a month stops evaluating.
+FREE_KNOWLEDGE_BASE = KnowledgeBaseAllowance(
+    total_bytes=constants.FREE_KNOWLEDGE_BASE_BYTES,
+    max_file_bytes=min(
+        constants.FREE_KNOWLEDGE_BASE_FILE_BYTES, constants.FREE_KNOWLEDGE_BASE_BYTES
+    ),
+)
+
+#: What an account run by Decibyl staff gets, whatever it has paid. The
+#: per-file figure is the deployment ceiling: it is what the worker can
+#: actually hold in memory, and staff are not exempt from physics.
+STAFF_KNOWLEDGE_BASE = KnowledgeBaseAllowance(
+    total_bytes=constants.STAFF_KNOWLEDGE_BASE_BYTES,
+    max_file_bytes=constants.KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES,
+)
 
 
 async def knowledge_base_allowance_for(
@@ -198,17 +217,17 @@ async def knowledge_base_allowance_for(
 ) -> KnowledgeBaseAllowance:
     """How much knowledge base this account's plan buys it.
 
-    Nothing for an account with no authorised plan, and that is the point of
-    the function rather than an edge case in it. Ingestion embeds every document
-    on our own model key, and embeddings have no rate anywhere — so an
-    unsubscribed account uploading a corpus spends our money and bills nothing.
-    Returning nothing is what makes the knowledge base a thing a subscription
-    buys.
+    Everything for an account run by staff; the small free allowance for an
+    account with no authorised plan. Ingestion embeds every document on our
+    own model key, and embeddings have no rate anywhere — so an unsubscribed
+    account uploading a corpus spends our money and bills nothing. The free
+    tier is sized for one document, which is what makes the knowledge base a
+    thing a subscription buys while still letting a signup see it work.
 
-    A mandate that exists but is not yet authorised also resolves to nothing.
-    The account has started subscribing and not finished; entitling it on the
-    strength of an instruction the bank has not confirmed would hand out the
-    feature to anyone who begins checkout and abandons it.
+    A mandate that exists but is not yet authorised resolves to the free tier
+    too. The account has started subscribing and not finished; entitling it
+    on the strength of an instruction the bank has not confirmed would hand
+    out the plan to anyone who begins checkout and abandons it.
 
     Imported lazily because ``mandates`` imports this module for
     :func:`resolve`, and the cycle is only benign at call time.
@@ -218,15 +237,18 @@ async def knowledge_base_allowance_for(
         get_mandate,
         is_authorised,
     )
+    from api.services.billing.staff_accounts import is_staff_account
 
+    if await is_staff_account(session, organization_id=organization_id):
+        return STAFF_KNOWLEDGE_BASE
     mandate = await get_mandate(
         session, organization_id=organization_id, purpose=PURPOSE_STARTER_PLAN
     )
     if not is_authorised(mandate):
-        return NO_KNOWLEDGE_BASE
+        return FREE_KNOWLEDGE_BASE
     plan = await resolve(session, code=mandate.plan_code)
     if plan is None or plan.knowledge_base_bytes <= 0:
-        return NO_KNOWLEDGE_BASE
+        return FREE_KNOWLEDGE_BASE
     return KnowledgeBaseAllowance(
         total_bytes=plan.knowledge_base_bytes,
         max_file_bytes=plan.knowledge_base_max_file_bytes,
