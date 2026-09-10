@@ -44,6 +44,7 @@ import {
     listNumbersApiV1VerifiedNumbersGet,
 } from "@/client/sdk.gen";
 import type { VerifiedNumber } from "@/client/types.gen";
+import { PostCallSummary } from "@/components/agent/PostCallSummary";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1009,6 +1010,7 @@ function ReadyStep({
                     {runId !== null && " The recording and transcript are saved with the call."}
                 </p>
             </header>
+            {runId !== null && <PostCallSummary workflowId={workflowId} runId={runId} />}
 
             <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-xl border border-border p-4">

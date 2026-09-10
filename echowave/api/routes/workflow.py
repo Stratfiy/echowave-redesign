@@ -2073,6 +2073,10 @@ async def get_workflow_run(
         ),
         "public_access_token": public_access_token,
         "cost_info": format_public_cost_info(run.cost_info, run.usage_info),
+        # What the call cost the account, once settled. Their own bill, so
+        # nothing here is private to us; null until costing has run.
+        "charged_paise": getattr(run, "total_charged_paise", None),
+        "billable_seconds": getattr(run, "billable_seconds", None),
         "usage_info": format_public_usage_info(run.usage_info),
         "created_at": run.created_at,
         "definition_id": run.definition_id,
