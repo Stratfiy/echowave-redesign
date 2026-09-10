@@ -137,9 +137,12 @@
      rail lift off it on colour alone — no shadow needed. */
   --background: #f3efe8;
   --foreground: #171717;
-  --card: #ffffff;
+  /* Surfaces are warm and slightly see-through, so a card sits *in* the ivory
+     rather than as a white sticker on it. The wash behind shows faintly
+     through; text contrast is unchanged because the fill is near-white. */
+  --card: rgba(255, 253, 249, 0.72);
   --card-foreground: #171717;
-  --popover: #ffffff;
+  --popover: #fdfcf9;
   --popover-foreground: #171717;
 
   /* The committed action. Deep coral, white text, 5.55:1 — this is the button
@@ -161,16 +164,16 @@
   /* Gradient end only — see the note above. Never a fill behind text. */
   --brand-pink: #ED2287;
 
-  --secondary: #f5f5f5;
+  --secondary: #f1ece3;
   --secondary-foreground: #171717;
-  --muted: #f5f5f5;
+  --muted: #f1ece3;
   /* Fog is 4.74:1 on white but only 4.35:1 on the paper surface. Muted text
      sitting on #f5f5f5 uses steel instead — see --muted-foreground-on-paper. */
   --muted-foreground: #737373;
   --muted-foreground-on-paper: #525252;
   /* Hover and selected rows. Neutral, not coral: something you merely hovered
      must not look like the thing you chose. */
-  --accent: #f5f5f5;
+  --accent: #f1ece3;
   --accent-foreground: #171717;
 
   /* Destructive stays a true red, well clear of the coral in both lightness
@@ -183,11 +186,11 @@
   --success: #16a34a;
 
   /* The structural line. Used more than any other value in the system. */
-  --border: #e5e5e5;
+  --border: #e3ddd1;
   /* Inputs carry a stronger edge than cards do — the reference makes this a
      signature: a field should look like something you are meant to fill in,
      not like a container that happens to be empty. */
-  --input: #d4d4d4;
+  --input: #d5cec1;
   --ring: #e15b35;
 
   /* --brand-* are consumed by call sites written when the brand was blue. They
@@ -207,13 +210,13 @@
      --primary (ink). What remains on it is link text and tints. */
   --brand-blue-soft: rgba(225, 91, 83, 0.10);
   --brand-blue-glow: rgba(225, 91, 83, 0.14);
-  --brand-panel: #ffffff;
+  --brand-panel: #fdfcf9;
   --brand-heading: #171717;
   --brand-body: #737373;
-  --brand-chip: #f5f5f5;
+  --brand-chip: #f1ece3;
   --brand-chip-border: #e5e5e5;
   --brand-chip-fg: #171717;
-  --brand-card: #ffffff;
+  --brand-card: #fdfcf9;
   --brand-amber: #ea580c;
 
   /* Supporting accents, for pill tags and small feature marks. One accent per
@@ -238,13 +241,13 @@
 
   /* Sidebar is white like the canvas; the hairline is what separates them.
      That is the border-first philosophy applied to the shell itself. */
-  --sidebar: #ffffff;
+  --sidebar: rgba(255, 253, 249, 0.72);
   --sidebar-foreground: #171717;
   --sidebar-primary: #171717;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f5f5f5;
+  --sidebar-accent: #f1ece3;
   --sidebar-accent-foreground: #171717;
-  --sidebar-border: #e5e5e5;
+  --sidebar-border: #e3ddd1;
   --sidebar-ring: #e15b35;
 
   /* --cta predates --primary and is used on a handful of CTAs. Both point at
@@ -293,9 +296,9 @@
   /* Retired treatments, kept as aliases so their call sites degrade to flat
      white rather than breaking. */
   --brand-imprint: none;
-  --glass-fill: #ffffff;
-  --glass-fill-strong: #ffffff;
-  --glass-edge: #e5e5e5;
+  --glass-fill: rgba(255, 253, 249, 0.72);
+  --glass-fill-strong: #fdfcf9;
+  --glass-edge: #e3ddd1;
   --glass-glow-blue: transparent;
   --glass-glow-amber: transparent;
   --glass-glow-deep: transparent;
@@ -582,6 +585,8 @@
   border-radius: var(--radius-large);
   border: 1px solid var(--sidebar-border);
   background-color: var(--sidebar);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
   box-shadow: none;
   overflow: hidden;
 }
