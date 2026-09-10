@@ -807,7 +807,12 @@ async def post_embed_text_message(
     )
     run_id = embed_session.workflow_run_id
 
-    text_session = await db_client.get_workflow_run_text_session(run_id)
+    # Scoped to the token's organization, like every other caller: the loader
+    # refuses a run from another tenant, and the embed token is the only proof
+    # of which tenant this visitor may talk to.
+    text_session = await db_client.get_workflow_run_text_session(
+        run_id, organization_id=embed_token.organization_id
+    )
     if not text_session:
         raise HTTPException(status_code=404, detail="Chat session not found")
 
