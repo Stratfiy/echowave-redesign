@@ -58,11 +58,15 @@ HOW TO SPEAK:
 
 
 def wants_code_mixed_speech(run_configs: Any) -> bool:
-    """Has this agent been asked to speak the way its callers do?
+    """Does this agent speak the way its callers do? On unless switched off.
 
-    Off unless turned on: this text is appended to the operator's own prompt,
-    and an operator who wrote "reply only in formal Hindi" meant that.
+    It shipped off, and the agents people made spoke news-bulletin Hindi and
+    textbook Tamil until somebody found the switch. Tamil words in Tamil,
+    English words in English is how a phone call in India sounds, so it is
+    the default; an operator who wrote "reply only in formal Hindi" switches
+    it off, and the instruction sits after their prompt so a switched-off
+    agent never hears it.
     """
     if not isinstance(run_configs, dict):
-        return False
-    return bool(run_configs.get(CONFIG_KEY))
+        return True
+    return run_configs.get(CONFIG_KEY) is not False

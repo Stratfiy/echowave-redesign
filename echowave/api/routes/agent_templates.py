@@ -28,6 +28,7 @@ from api.services.agent_templates.materialise import (
 from api.services.auth.depends import get_user
 from api.services.configuration.agent_options import managed_stack_override
 from api.services.configuration.ai_model_configuration import (
+    WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
     get_organization_ai_model_configuration_v2,
 )
 from api.services.posthog_client import capture_event
@@ -121,6 +122,12 @@ class CreateFromTemplateRequest(BaseModel):
     unchanged.
     """
 
+    #: One of the template's suggested voices, by vendor voice id. The first
+    #: agent an account hears runs on this exact voice rather than on a
+    #: gender resolved against a managed tier — see _voice_override.
+    voice_id: str | None = Field(
+        default=None, max_length=128, description="A suggested voice's id."
+    )
     voice_gender: Literal["male", "female"] | None = Field(
         default=None,
         description=(
@@ -202,7 +209,7 @@ async def create_from_template(
         # voice at pipeline build, against whichever vendor the tier is on that
         # day, so this keeps working when the tier moves.
         workflow_configurations=await _voice_override(
-            request, organization_id=user.selected_organization_id
+            request, organization_id=user.selected_organization_id, template=template
         ),
     )
 
@@ -257,8 +264,38 @@ def _personalise(
     return definition
 
 
+#: What the first agent an account hears speaks with. The template gallery
+#: suggests ElevenLabs voices, so the voice somebody just pressed play on is
+#: the voice their agent answers in; anything else is a bait and switch. The
+#: multilingual model rather than Flash: it costs more a character and a few
+#: hundred milliseconds, and it pronounces Tamil and Hindi properly, which is
+#: what the first impression is for. The account can move to a bundle after.
+FIRST_AGENT_VOICE_PROVIDER = "elevenlabs"
+FIRST_AGENT_VOICE_MODEL = "eleven_multilingual_v2"
+
+
+def suggested_voice_for(template, request: CreateFromTemplateRequest | None):
+    """The suggested voice this request names, or the first for its gender."""
+    voices = list(getattr(template, "suggested_voices", None) or [])
+    if not voices:
+        return None
+    wanted = (request.voice_id or "").strip() if request else ""
+    if wanted:
+        for voice in voices:
+            if voice.voice_id == wanted:
+                return voice
+    gender = request.voice_gender if request else None
+    for voice in voices:
+        if not gender or voice.gender == gender:
+            return voice
+    return None
+
+
 async def _voice_override(
-    request: CreateFromTemplateRequest | None, *, organization_id: int
+    request: CreateFromTemplateRequest | None,
+    *,
+    organization_id: int,
+    template=None,
 ) -> dict | None:
     """The agent-level override carrying the chosen voice, or nothing.
 
@@ -279,7 +316,10 @@ async def _voice_override(
     asked for.
     """
     gender = request.voice_gender if request else None
-    if not gender:
+    first_agent = bool(
+        request and (request.source == "first_agent" or request.voice_id)
+    )
+    if not gender and not first_agent:
         return None
 
     configuration = await get_organization_ai_model_configuration_v2(organization_id)
@@ -307,9 +347,25 @@ async def _voice_override(
         return None
 
     override = managed_stack_override(
-        voice=gender,
+        voice=gender or "female",
         llm_tier=managed.llm_tier or "default",
         stt_tier=managed.stt_tier or "default",
         tts_tier=managed.tts_tier or "default",
     )
-    return override or None
+    if not override:
+        return None
+
+    if first_agent:
+        voice = suggested_voice_for(template, request)
+        if voice is not None and voice.provider == FIRST_AGENT_VOICE_PROVIDER:
+            # The voice they pressed play on, on our ElevenLabs key. Every
+            # other slot stays a managed tier, so the brain and the ears keep
+            # moving with the tiers; only the voice is pinned, deliberately.
+            override[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY]["stack"]["tts"] = {
+                "provider": FIRST_AGENT_VOICE_PROVIDER,
+                "model": FIRST_AGENT_VOICE_MODEL,
+                "voice": voice.voice_id,
+                "api_key": "",
+                "use_platform_key": True,
+            }
+    return override

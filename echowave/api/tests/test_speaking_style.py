@@ -15,21 +15,20 @@ from api.services.workflow.speaking_style import (
 
 
 class TestOnlyWhenAskedFor:
-    def test_on_when_turned_on(self):
-        assert wants_code_mixed_speech({CONFIG_KEY: True}) is True
+    @pytest.mark.parametrize("configs", [{CONFIG_KEY: True}, {}, {CONFIG_KEY: None}])
+    def test_on_by_default(self, configs):
+        """Tamil words in Tamil, English words in English is how a phone call
+        in India sounds. Agents made before the switch was found spoke
+        textbook Tamil; the default is on now."""
+        assert wants_code_mixed_speech(configs) is True
 
-    @pytest.mark.parametrize("configs", [{}, {CONFIG_KEY: False}, {CONFIG_KEY: None}])
-    def test_off_by_default(self, configs):
-        """It is appended to the operator's prompt.
-
-        Somebody who wrote "reply only in formal Hindi" meant it, and this
-        would quietly argue with them on every turn.
-        """
-        assert wants_code_mixed_speech(configs) is False
+    def test_off_when_switched_off(self):
+        """Somebody who wrote "reply only in formal Hindi" meant it."""
+        assert wants_code_mixed_speech({CONFIG_KEY: False}) is False
 
     @pytest.mark.parametrize("configs", [None, "nonsense", 7, []])
-    def test_unreadable_configuration_is_off(self, configs):
-        assert wants_code_mixed_speech(configs) is False
+    def test_unreadable_configuration_is_on(self, configs):
+        assert wants_code_mixed_speech(configs) is True
 
 
 class TestWhatTheInstructionHasToSay:
