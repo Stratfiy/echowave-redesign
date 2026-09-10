@@ -159,7 +159,8 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
         category: "Calendars",
         blurb: "Read free slots and book the appointment during the call",
         connect: "oauth",
-        href: "/integrations",
+        // Connects on its own card; the href is only a fallback.
+        href: "/integrations/apps",
     },
     {
         id: "calcom",

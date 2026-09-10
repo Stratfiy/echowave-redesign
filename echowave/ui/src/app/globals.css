@@ -541,10 +541,17 @@
      coral from the top-right, tangerine from the bottom-left. Light enough
      that cards and text sit on it untouched; it is atmosphere, not a panel. */
   .app-surface {
+    background: transparent;
+  }
+  /* On the shell, which spans the whole document, rather than on <main>:
+     main ends where the page's content ends, and on a short page the wash
+     stopped in a hard rectangle above the fold. Two soft washes — coral
+     from the top-right, tangerine from the bottom-left. */
+  .app-shell {
     background-color: var(--background);
     background-image:
-      radial-gradient(55% 45% at 100% 0%, rgba(225, 91, 53, 0.14), transparent 70%),
-      radial-gradient(45% 35% at 0% 100%, rgba(240, 138, 75, 0.10), transparent 70%);
+      radial-gradient(55% 40vh at 100% 0%, rgba(225, 91, 53, 0.14), transparent 70%),
+      radial-gradient(45% 35vh at 0% 100%, rgba(240, 138, 75, 0.10), transparent 70%);
     background-repeat: no-repeat;
   }
 
@@ -584,9 +591,10 @@
 .app-sidebar-dock [data-slot="sidebar-inner"] {
   border-radius: var(--radius-large);
   border: 1px solid var(--sidebar-border);
-  background-color: var(--sidebar);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  /* Opaque, and no backdrop blur: WebKit stops honouring position: fixed
+     on the rail once a blurred descendant is inside it, so on an iPad the
+     rail scrolled away with the page. Warm near-white does the blending. */
+  background-color: #fdfcf9;
   box-shadow: none;
   overflow: hidden;
 }

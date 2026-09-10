@@ -133,6 +133,8 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       {
         title: "Agents",
         url: "/workflow",
+        // The old models page redirects here; keep it lit while it does.
+        activePaths: ["/model-configurations"],
         icon: Bot,
         keywords: [
           "workflow",
@@ -361,14 +363,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
           "blocklist",
         ],
       },
-      {
-        title: "Settings",
-        url: "/settings",
-        // The old models page redirects here; keep it lit while it does.
-        activePaths: ["/model-configurations"],
-        icon: Settings,
-        keywords: ["account", "workspace", "preferences", "model defaults", "llm", "stt", "tts", "voice", "provider", "byok"],
-      },
+      { title: "Settings", url: "/settings", icon: Settings, keywords: ["account", "workspace", "preferences"] },
     ],
   },
 ];
