@@ -96,3 +96,65 @@ class TestWhereItSits:
         assert composed.index("Right now it is") < composed.index(
             "OPERATOR PROMPT MARKER"
         )
+
+
+class TestTheCalendarBooksInTheSameZone:
+    """The agent and the calendar have to mean the same moment.
+
+    The prompt now works dates out in the organization's timezone. If the event
+    were still stamped with the deployment's zone, an agent saying "tomorrow at
+    five" and the entry it creates would differ for any account outside the
+    deployment's own zone -- and nothing in the transcript would show it.
+    """
+
+    async def test_the_organizations_zone_is_used(self, monkeypatch):
+        from api.services.integrations.google_calendar import client as gcal
+
+        class _Preferences:
+            timezone = "Europe/London"
+
+        async def fake_preferences(organization_id):
+            return _Preferences()
+
+        monkeypatch.setattr(
+            "api.services.organization_preferences.get_organization_preferences",
+            fake_preferences,
+        )
+
+        assert await gcal.booking_timezone(1) == "Europe/London"
+
+    async def test_an_unset_preference_falls_back(self, monkeypatch):
+        from api.constants import GOOGLE_CALENDAR_DEFAULT_TIMEZONE
+        from api.services.integrations.google_calendar import client as gcal
+
+        class _Preferences:
+            timezone = None
+
+        async def fake_preferences(organization_id):
+            return _Preferences()
+
+        monkeypatch.setattr(
+            "api.services.organization_preferences.get_organization_preferences",
+            fake_preferences,
+        )
+
+        assert await gcal.booking_timezone(1) == GOOGLE_CALENDAR_DEFAULT_TIMEZONE
+
+    async def test_a_failed_read_never_blocks_a_booking(self, monkeypatch):
+        from api.constants import GOOGLE_CALENDAR_DEFAULT_TIMEZONE
+        from api.services.integrations.google_calendar import client as gcal
+
+        async def boom(organization_id):
+            raise RuntimeError("database is having a moment")
+
+        monkeypatch.setattr(
+            "api.services.organization_preferences.get_organization_preferences", boom
+        )
+
+        assert await gcal.booking_timezone(1) == GOOGLE_CALENDAR_DEFAULT_TIMEZONE
+
+    async def test_no_organization_falls_back(self):
+        from api.constants import GOOGLE_CALENDAR_DEFAULT_TIMEZONE
+        from api.services.integrations.google_calendar import client as gcal
+
+        assert await gcal.booking_timezone(None) == GOOGLE_CALENDAR_DEFAULT_TIMEZONE
