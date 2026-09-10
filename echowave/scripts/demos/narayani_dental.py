@@ -390,7 +390,34 @@ def definition(tool_ids: dict[str, str]) -> dict[str, Any]:
         ),
         _edge("agent-escalate", "end-1", "transferred", "The transfer has been made."),
     ]
+    nodes.append(whatsapp_step())
     return {"nodes": nodes, "edges": edges}
+
+
+def whatsapp_step() -> dict:
+    """The artefact the caller keeps: one WhatsApp message after the call.
+
+    Detached from the conversation — no edges — it fires when the run ends,
+    to the number that was on the call, on Decibyl's WhatsApp sender. The
+    text is what a receptionist would send by hand; the clinic's own
+    reference and time come in once the booking tool returns them.
+    """
+    return {
+        "id": "whatsapp-1",
+        "type": "sms",
+        "position": {"x": -360, "y": 400},
+        "data": {
+            "name": "WhatsApp confirmation",
+            "enabled": True,
+            "channel": "whatsapp",
+            "body": (
+                "Thank you for calling {clinic_name}, {city}. Our reception "
+                "will confirm your appointment on this number shortly. Please "
+                "arrive ten minutes early and bring any earlier X-rays or "
+                "reports."
+            ).format(**CLINIC),
+        },
+    }
 
 
 def _post(base_url: str, api_key: str, path: str, body: dict) -> dict:

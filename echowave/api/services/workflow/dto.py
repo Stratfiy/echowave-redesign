@@ -1531,6 +1531,9 @@ class HandoffNodeData(BaseNodeData):
         "to",
         "from_number",
         "body",
+        "template_name",
+        "template_language",
+        "template_params",
         "send_when_variable",
         "send_when_operator",
         "send_when_value",
@@ -1544,11 +1547,32 @@ class HandoffNodeData(BaseNodeData):
             "display_name": "Enabled",
             "description": "When false, nothing is sent.",
         },
+        "template_name": {
+            "display_name": "WhatsApp template",
+            "description": (
+                "Name of an approved WhatsApp template, for a message the "
+                "customer has not asked for (Meta allows free text only within "
+                "24 hours of their last reply). Leave blank to send the "
+                "message text as written."
+            ),
+        },
+        "template_language": {
+            "display_name": "Template language",
+            "description": "The template's language code, e.g. en, hi, ta.",
+        },
+        "template_params": {
+            "display_name": "Template values",
+            "description": (
+                "Comma-separated values for the template's {{1}}, {{2}}… "
+                "placeholders, in order. Each supports {{template_variables}}."
+            ),
+        },
         "channel": {
             "display_name": "Channel",
             "description": (
                 "SMS goes over the telephony configuration's carrier. WhatsApp "
-                "requires a Twilio WhatsApp Business sender."
+                "goes out on Decibyl's sender when one is set up, billed per "
+                "message; otherwise it needs a Twilio WhatsApp Business sender."
             ),
             "options": [
                 PropertyOption(value="sms", label="SMS"),
@@ -1607,6 +1631,13 @@ class SmsNodeData(BaseNodeData):
     to: Optional[str] = spec_field(default=None, ui_type=PropertyType.string)
     from_number: Optional[str] = spec_field(default=None, ui_type=PropertyType.string)
     body: str = spec_field(default="", ui_type=PropertyType.string)
+    template_name: Optional[str] = spec_field(default=None, ui_type=PropertyType.string)
+    template_language: Optional[str] = spec_field(
+        default="en", ui_type=PropertyType.string
+    )
+    template_params: Optional[str] = spec_field(
+        default=None, ui_type=PropertyType.string
+    )
     send_when_variable: Optional[str] = spec_field(
         default=None, ui_type=PropertyType.string
     )

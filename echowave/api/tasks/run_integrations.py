@@ -522,6 +522,34 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
         raise
 
 
+async def _charge_platform_message(
+    *, organization_id: int, workflow_run_id: int, node_name: str, message_id: str
+) -> int:
+    """Debit the account for one message on the platform sender. Never raises:
+    a charge that fails is logged and the message, already sent, stands."""
+    from api.services.billing import messaging_charges
+
+    try:
+        async with db_client.async_session() as session:
+            charged = await messaging_charges.debit_message(
+                session,
+                organization_id=organization_id,
+                message_id=message_id,
+                workflow_run_id=workflow_run_id,
+                node_name=node_name,
+            )
+            await session.commit()
+            return charged
+    except Exception as exc:  # noqa: BLE001 — a charge failing must not fail the run
+        logger.error(
+            "Could not charge WhatsApp message {} on org {}: {}",
+            message_id,
+            organization_id,
+            exc,
+        )
+        return 0
+
+
 async def _send_follow_up_messages(
     sms_nodes: list[dict],
     *,
@@ -537,31 +565,44 @@ async def _send_follow_up_messages(
     and losing any of that because a carrier rate-limited us would be a bad
     trade. Every failure is written down and the loop continues.
     """
-    from api.services.messaging import follow_up
+    from api.services.messaging import follow_up, platform_whatsapp
+
+    # A WhatsApp step goes out on Decibyl's own sender when one is set up,
+    # with no carrier configuration needed and one line billed per message.
+    # Everything else — SMS, or WhatsApp with no platform sender — rides the
+    # account's carrier credentials as before.
+    use_platform_whatsapp = platform_whatsapp.is_configured()
+
+    def _on_platform(node: dict) -> bool:
+        channel = str((node.get("data") or {}).get("channel") or "sms").lower()
+        return use_platform_whatsapp and channel == "whatsapp"
 
     telephony_config = None
-    config_id = getattr(workflow_run, "telephony_configuration_id", None)
-    if config_id:
-        telephony_config = await db_client.get_telephony_configuration_for_org(
-            config_id, organization_id
-        )
-    if telephony_config is None:
-        telephony_config = await db_client.get_default_telephony_configuration(
-            organization_id
-        )
-
-    if telephony_config is None:
-        logger.warning(
-            "Workflow run {} has message nodes but the organisation has no "
-            "telephony configuration, so there are no carrier credentials to "
-            "send with.",
-            workflow_run_id,
-        )
-        return
-
-    credentials = credential_encryption.decrypt(
-        telephony_config.provider, telephony_config.credentials
-    )
+    credentials: dict = {}
+    if any(not _on_platform(n) for n in sms_nodes):
+        config_id = getattr(workflow_run, "telephony_configuration_id", None)
+        if config_id:
+            telephony_config = await db_client.get_telephony_configuration_for_org(
+                config_id, organization_id
+            )
+        if telephony_config is None:
+            telephony_config = await db_client.get_default_telephony_configuration(
+                organization_id
+            )
+        if telephony_config is None:
+            logger.warning(
+                "Workflow run {} has message nodes but the organisation has no "
+                "telephony configuration, so there are no carrier credentials "
+                "to send with.",
+                workflow_run_id,
+            )
+            sms_nodes = [n for n in sms_nodes if _on_platform(n)]
+            if not sms_nodes:
+                return
+        else:
+            credentials = credential_encryption.decrypt(
+                telephony_config.provider, telephony_config.credentials
+            )
 
     # `from_numbers` is the shape every provider in this codebase stores —
     # Twilio, Plivo, Telnyx, Vonage, Vobiz, Cloudonix and ARI all read
@@ -569,7 +610,7 @@ async def _send_follow_up_messages(
     # string into a list. Guessing at `caller_id` / `from_number` matched none
     # of them, which left every message with no sender and a "No sender number"
     # failure that looked like the node's fault rather than a lookup bug.
-    from_numbers = credentials.get("from_numbers") or []
+    from_numbers = (credentials or {}).get("from_numbers") or []
     if isinstance(from_numbers, str):
         from_numbers = [from_numbers]
     default_from = next(
@@ -586,12 +627,17 @@ async def _send_follow_up_messages(
             logger.warning(f"Message node #{node_id} failed validation, skipping: {e}")
             continue
 
+        on_platform = _on_platform(node)
         try:
             result = await follow_up.deliver(
                 sms_node.data,
                 variables=render_context,
-                provider=telephony_config.provider,
-                credentials=credentials,
+                provider=platform_whatsapp.PROVIDER
+                if on_platform
+                else telephony_config.provider,
+                credentials=platform_whatsapp.credentials()
+                if on_platform
+                else credentials,
                 default_from=str(default_from),
             )
         except Exception as e:  # noqa: BLE001 - see the docstring
@@ -602,7 +648,15 @@ async def _send_follow_up_messages(
             continue
 
         if result is not None:
-            results.append({"node": sms_node.data.name, **result.as_dict()})
+            entry = {"node": sms_node.data.name, **result.as_dict()}
+            if on_platform and result.ok and result.message_id:
+                entry["charged_paise"] = await _charge_platform_message(
+                    organization_id=organization_id,
+                    workflow_run_id=workflow_run_id,
+                    node_name=sms_node.data.name,
+                    message_id=result.message_id,
+                )
+            results.append(entry)
 
     if results:
         # Merged into annotations the same way QA and integration results are.

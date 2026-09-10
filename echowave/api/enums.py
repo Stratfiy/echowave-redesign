@@ -373,6 +373,10 @@ class CreditLedgerKind(str, Enum):
     # real and reportable, even while the customer-facing surface combines it
     # into a broader bucket.
     EMBEDDING_INGEST = "embedding_ingest"
+    # One WhatsApp message sent from the platform sender after a call. Its own
+    # kind for the same reason as RENTAL: it is not a call receipt, and a
+    # statement should be able to say "messages" as one line.
+    MESSAGE = "message"
 
 
 class BillingAuditAction(str, Enum):

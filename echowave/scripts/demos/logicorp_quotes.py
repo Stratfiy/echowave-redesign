@@ -606,7 +606,29 @@ def definition(
         ),
         _edge("agent-escalate", "end-1", "transferred", "The transfer has been made."),
     ]
+    nodes.append(whatsapp_step())
     return {"nodes": nodes, "edges": edges}
+
+
+def whatsapp_step() -> dict:
+    """One WhatsApp message after the call, on Decibyl's sender: the written
+    quote is on its way, and where to track. Detached — no edges — it fires
+    when the run ends, to the number that was on the call."""
+    return {
+        "id": "whatsapp-1",
+        "type": "sms",
+        "position": {"x": -360, "y": 400},
+        "data": {
+            "name": "WhatsApp quote follow-up",
+            "enabled": True,
+            "channel": "whatsapp",
+            "body": (
+                "Thanks for calling {company_name}. Your written quote is on "
+                "its way from our team within the hour on working days. Track "
+                "and book at logicorp.in."
+            ).format(**COMPANY),
+        },
+    }
 
 
 def _request(

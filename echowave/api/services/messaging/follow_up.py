@@ -17,6 +17,7 @@ from typing import Any, Mapping
 from loguru import logger
 
 from api.services.messaging.send import (
+    META_WHATSAPP,
     MessagingError,
     SendResult,
     send_message,
@@ -69,11 +70,43 @@ def resolve_recipient(node_data, variables: Mapping[str, Any]) -> str:
     if explicit:
         return render_template(explicit, dict(variables))
 
-    for key in CALLER_NUMBER_KEYS:
-        value = variables.get(key)
-        if value and str(value).strip():
-            return str(value).strip()
+    # The number arrives at the top level from a campaign row or a trigger,
+    # and nested under the run's own contexts on a phone call — the post-call
+    # render context keeps ``initial_context`` and ``gathered_context`` as
+    # sections. Both are searched, or a real call texts nobody.
+    sections: list[Mapping[str, Any]] = [variables]
+    for section in ("gathered_context", "initial_context"):
+        nested = variables.get(section)
+        if isinstance(nested, Mapping):
+            sections.append(nested)
+    for candidate in sections:
+        for key in CALLER_NUMBER_KEYS:
+            value = candidate.get(key)
+            if value and str(value).strip():
+                return str(value).strip()
     return ""
+
+
+def resolve_template(node_data, variables: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The approved WhatsApp template the node names, with its values filled.
+
+    ``template_params`` is a comma-separated list, each entry rendered from
+    the call's variables, in the order of the template's placeholders.
+    """
+    name = (getattr(node_data, "template_name", None) or "").strip()
+    if not name:
+        return None
+    raw = getattr(node_data, "template_params", None) or ""
+    params = [
+        render_template(part.strip(), dict(variables))
+        for part in raw.split(",")
+        if part.strip()
+    ]
+    return {
+        "name": name,
+        "language": (getattr(node_data, "template_language", None) or "en").strip(),
+        "params": params,
+    }
 
 
 async def deliver(
@@ -110,10 +143,15 @@ async def deliver(
     )
     body = render_template(getattr(node_data, "body", "") or "", variables)
 
-    # WhatsApp is Twilio's Business API, so the channel picks the transport
-    # while the carrier configuration still supplies the credentials.
+    # A WhatsApp step goes out on the platform sender when the caller hands
+    # one in (provider ``meta_whatsapp``); otherwise WhatsApp is Twilio's
+    # Business API, so the channel picks the transport while the carrier
+    # configuration still supplies the credentials.
     channel = (getattr(node_data, "channel", "sms") or "sms").strip().lower()
-    effective_provider = "whatsapp" if channel == "whatsapp" else provider
+    if provider == META_WHATSAPP:
+        effective_provider = META_WHATSAPP
+    else:
+        effective_provider = "whatsapp" if channel == "whatsapp" else provider
 
     try:
         return await send_message(
@@ -122,6 +160,9 @@ async def deliver(
             to=to,
             from_=from_,
             body=body,
+            template=resolve_template(node_data, variables)
+            if effective_provider == META_WHATSAPP
+            else None,
         )
     except MessagingError as exc:
         # A configuration mistake — unsupported carrier, missing credential,
