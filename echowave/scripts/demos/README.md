@@ -80,3 +80,13 @@ The lead URL can point at a mock returning `{"captured": true, "reference":
 document that is already in the knowledge base. Every rupee figure the agent
 may say is in `NON_DOC_RATES`, `DOC_RATES`, `MULTIPLIER_RATES` and `SURCHARGES`
 at the top of the script; update those when DHL publishes a new guide.
+
+## WhatsApp after the call
+
+Narayani and Logicorp each carry a detached "Send Message" step on the
+WhatsApp channel. It fires when the run ends, to the number that was on the
+call, on Decibyl's own WhatsApp sender (set `WHATSAPP_ACCESS_TOKEN` and
+`WHATSAPP_PHONE_NUMBER_ID` on the API), and is billed to the account at one
+line per message. With no platform sender the step needs the account's own
+Twilio WhatsApp sender. A browser test call has no phone number, so the step
+does nothing there; it runs on a real call.

@@ -25,7 +25,14 @@ from loguru import logger
 #: to the same account as voice, so a customer who can place a call can already
 #: send a message. WhatsApp is Twilio's Business API, which is why it shares the
 #: credential shape and differs only in the address prefix.
-PROVIDERS: tuple[str, ...] = ("twilio", "plivo", "whatsapp")
+PROVIDERS: tuple[str, ...] = ("twilio", "plivo", "whatsapp", "meta_whatsapp")
+
+#: The platform's own WhatsApp sender, on Meta's Cloud API. Unlike the three
+#: carriers above it needs no sender number from the customer — the sender is
+#: the business phone number id in the credentials — and outside a 24-hour
+#: reply window it may only send a pre-approved template, so a message on it
+#: usually carries one. See platform_whatsapp.py.
+META_WHATSAPP = "meta_whatsapp"
 
 #: How long to wait on the carrier. Short on purpose: this runs after the call
 #: has ended, and a task that hangs for a minute holds a worker slot that other
@@ -194,6 +201,74 @@ async def _send_plivo(
     )
 
 
+async def _send_meta_whatsapp(
+    client: httpx.AsyncClient,
+    credentials: Mapping[str, Any],
+    *,
+    to: str,
+    body: str,
+    template: Mapping[str, Any] | None = None,
+) -> SendResult:
+    """One message on Meta's Cloud API, as a template or as free text.
+
+    A template is what a business may send unprompted: the name of an approved
+    template, its language, and the values for its numbered placeholders.
+    Free text is accepted by Meta only inside the 24 hours after the customer
+    last wrote, so a node with no template works for a reply and fails, with
+    Meta's own words, for a first contact.
+    """
+    token = credentials.get("access_token")
+    phone_number_id = credentials.get("phone_number_id")
+    if not token or not phone_number_id:
+        raise MessagingError(
+            "The platform WhatsApp sender has no access token or phone number id."
+        )
+    version = credentials.get("graph_version") or "v21.0"
+    payload: dict[str, Any] = {
+        "messaging_product": "whatsapp",
+        "to": to.lstrip("+"),
+    }
+    name = (template or {}).get("name") if template else None
+    if name:
+        params = [str(v) for v in (template or {}).get("params") or []]
+        component: dict[str, Any] = {
+            "name": name,
+            "language": {"code": (template or {}).get("language") or "en"},
+        }
+        if params:
+            component["components"] = [
+                {
+                    "type": "body",
+                    "parameters": [{"type": "text", "text": v} for v in params],
+                }
+            ]
+        payload.update({"type": "template", "template": component})
+    else:
+        payload.update({"type": "text", "text": {"body": body}})
+
+    response = await client.post(
+        f"https://graph.facebook.com/{version}/{phone_number_id}/messages",
+        headers={"Authorization": f"Bearer {token}"},
+        json=payload,
+    )
+    if response.status_code >= 400:
+        return SendResult(
+            ok=False,
+            provider=META_WHATSAPP,
+            to=to,
+            error=_carrier_error(response),
+            status_code=response.status_code,
+        )
+    messages = (response.json() or {}).get("messages") or []
+    return SendResult(
+        ok=True,
+        provider=META_WHATSAPP,
+        to=to,
+        message_id=(messages[0] or {}).get("id") if messages else None,
+        status_code=response.status_code,
+    )
+
+
 def _carrier_error(response: httpx.Response) -> str:
     """The carrier's own words, which are usually the useful ones.
 
@@ -206,6 +281,10 @@ def _carrier_error(response: httpx.Response) -> str:
         return (response.text or "").strip()[:300] or f"HTTP {response.status_code}"
 
     if isinstance(payload, dict):
+        # Meta nests it: {"error": {"message": "...", "code": 131047}}.
+        nested = payload.get("error")
+        if isinstance(nested, dict) and isinstance(nested.get("message"), str):
+            return nested["message"].strip()[:300]
         for key in ("message", "error", "error_message", "detail"):
             value = payload.get(key)
             if isinstance(value, str) and value.strip():
@@ -220,6 +299,7 @@ async def send_message(
     to: str,
     from_: str,
     body: str,
+    template: Mapping[str, Any] | None = None,
 ) -> SendResult:
     """Send one message and report what happened.
 
@@ -237,7 +317,7 @@ async def send_message(
     _validate(to, body)
     to = _normalise_number(to)
     from_ = _normalise_number(from_)
-    if not from_:
+    if not from_ and provider != META_WHATSAPP:
         raise MessagingError(
             "No sender number. Set one on the node, or a default caller ID on "
             "the telephony configuration."
@@ -245,7 +325,11 @@ async def send_message(
 
     async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
         try:
-            if provider == "plivo":
+            if provider == META_WHATSAPP:
+                result = await _send_meta_whatsapp(
+                    client, credentials, to=to, body=body, template=template
+                )
+            elif provider == "plivo":
                 result = await _send_plivo(
                     client, credentials, to=to, from_=from_, body=body
                 )

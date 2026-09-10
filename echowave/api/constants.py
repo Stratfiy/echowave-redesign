@@ -390,6 +390,20 @@ ADDON_KNOWLEDGE_BASE_MICROS_USD = int(
 )
 ADDON_CALL_QA_MICROS_USD = int(os.getenv("ADDON_CALL_QA_MICROS_USD", "20000"))
 
+# Decibyl's own WhatsApp sender, on Meta's Cloud API. One business account
+# serves every customer's agents, the way managed phone numbers do, so a
+# clinic gets a confirmation on WhatsApp without registering with Meta.
+# Empty means no platform sender: a WhatsApp step then needs the account's
+# own Twilio WhatsApp sender, as before.
+WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+WHATSAPP_GRAPH_VERSION = os.getenv("WHATSAPP_GRAPH_VERSION", "v21.0")
+# One line on the invoice: a message sent from the platform sender costs the
+# account this much, and Meta charges us roughly the second figure for an
+# Indian utility message. Both in paise.
+WHATSAPP_MESSAGE_PRICE_PAISE = int(os.getenv("WHATSAPP_MESSAGE_PRICE_PAISE", "100"))
+WHATSAPP_MESSAGE_COST_PAISE = int(os.getenv("WHATSAPP_MESSAGE_COST_PAISE", "12"))
+
 # Whether the two charges above are applied at all. Off by default: they change
 # what existing accounts pay, so they are a commercial decision that should be
 # taken deliberately rather than inherited by upgrading.
