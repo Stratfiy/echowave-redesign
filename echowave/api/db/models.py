@@ -1244,7 +1244,9 @@ class CampaignModel(Base):
     # Relationships
     organization = relationship("OrganizationModel")
     workflow = relationship("WorkflowModel")
-    created_by_user = relationship("UserModel")
+    # Two foreign keys point at users now (created_by and consent_attested_by),
+    # so the join has to be named.
+    created_by_user = relationship("UserModel", foreign_keys=[created_by])
 
     # Indexes
     __table_args__ = (
