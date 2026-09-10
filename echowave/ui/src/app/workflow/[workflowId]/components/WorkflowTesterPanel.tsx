@@ -200,7 +200,7 @@ export function WorkflowTesterPanel({
                                 <EmptyState
                                     icon={<Phone className="h-7 w-7" />}
                                     title="Call this agent in the browser"
-                                    description="Test the agent over a voice call. Some telephony-only tools, like call transfer, are not yet supported here."
+                                    description="Test the agent over a voice call. The call is recorded and transcribed, and paid from your credits like any call. Some telephony-only tools, like call transfer, are not yet supported here."
                                     action={
                                         <Button
                                             ref={runTestButtonRef}

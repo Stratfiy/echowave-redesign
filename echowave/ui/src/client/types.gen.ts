@@ -1593,6 +1593,14 @@ export type CampaignResponse = {
      */
     telephony_configuration_name?: string | null;
     /**
+     * Consent Attested At
+     */
+    consent_attested_at?: string | null;
+    /**
+     * Consent Attested By
+     */
+    consent_attested_by?: number | null;
+    /**
      * Logs
      */
     logs?: Array<CampaignLogEntryResponse>;
@@ -8188,6 +8196,16 @@ export type SpeechmaticsSttConfiguration = {
      * ISO 639-1 language code.
      */
     language?: string;
+};
+
+/**
+ * StartCampaignRequest
+ */
+export type StartCampaignRequest = {
+    /**
+     * Consent Attested
+     */
+    consent_attested?: boolean;
 };
 
 /**
@@ -20346,7 +20364,10 @@ export type UpdateCampaignApiV1CampaignCampaignIdPatchResponses = {
 export type UpdateCampaignApiV1CampaignCampaignIdPatchResponse = UpdateCampaignApiV1CampaignCampaignIdPatchResponses[keyof UpdateCampaignApiV1CampaignCampaignIdPatchResponses];
 
 export type StartCampaignApiV1CampaignCampaignIdStartPostData = {
-    body?: never;
+    /**
+     * Request
+     */
+    body?: StartCampaignRequest | null;
     headers?: {
         /**
          * Authorization

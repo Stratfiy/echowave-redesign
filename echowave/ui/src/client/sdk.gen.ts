@@ -2742,7 +2742,14 @@ export const updateCampaignApiV1CampaignCampaignIdPatch = <ThrowOnError extends 
  *
  * Start campaign execution
  */
-export const startCampaignApiV1CampaignCampaignIdStartPost = <ThrowOnError extends boolean = false>(options: Options<StartCampaignApiV1CampaignCampaignIdStartPostData, ThrowOnError>): RequestResult<StartCampaignApiV1CampaignCampaignIdStartPostResponses, StartCampaignApiV1CampaignCampaignIdStartPostErrors, ThrowOnError> => (options.client ?? client).post<StartCampaignApiV1CampaignCampaignIdStartPostResponses, StartCampaignApiV1CampaignCampaignIdStartPostErrors, ThrowOnError>({ url: '/api/v1/campaign/{campaign_id}/start', ...options });
+export const startCampaignApiV1CampaignCampaignIdStartPost = <ThrowOnError extends boolean = false>(options: Options<StartCampaignApiV1CampaignCampaignIdStartPostData, ThrowOnError>): RequestResult<StartCampaignApiV1CampaignCampaignIdStartPostResponses, StartCampaignApiV1CampaignCampaignIdStartPostErrors, ThrowOnError> => (options.client ?? client).post<StartCampaignApiV1CampaignCampaignIdStartPostResponses, StartCampaignApiV1CampaignCampaignIdStartPostErrors, ThrowOnError>({
+    url: '/api/v1/campaign/{campaign_id}/start',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Pause Campaign

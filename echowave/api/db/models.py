@@ -1211,6 +1211,12 @@ class CampaignModel(Base):
     # Orchestrator tracking fields
     last_batch_scheduled_at = Column(DateTime(timezone=True), nullable=True)
     last_activity_at = Column(DateTime(timezone=True), nullable=True)
+
+    # The calling-consent attestation: who confirmed, and when, that the
+    # people on this list agreed to be called. Per campaign, because that is
+    # the unit a complaint arrives about; see services/campaign/consent.py.
+    consent_attested_at = Column(DateTime(timezone=True), nullable=True)
+    consent_attested_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     orchestrator_metadata = Column(
         JSON, nullable=False, default=dict, server_default=text("'{}'::json")
     )
