@@ -51,6 +51,7 @@ from api.tasks.credential_health import check_platform_credentials
 from api.tasks.credit_reservations import sweep_credit_reservations
 from api.tasks.data_retention import purge_expired_call_data
 from api.tasks.email_tax_document import email_tax_document
+from api.tasks.evals import run_eval_case
 from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
@@ -93,6 +94,7 @@ class WorkerSettings:
         charge_recurring_rentals,
         reconcile_carrier_numbers,
         send_weekly_digests,
+        run_eval_case,
     ]
     cron_jobs = [
         # Every minute, and at startup so a deployment is not indistinguishable

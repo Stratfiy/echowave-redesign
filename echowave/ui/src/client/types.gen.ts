@@ -3795,6 +3795,36 @@ export type ErasureRequest = {
 };
 
 /**
+ * EvalCaseRequest
+ */
+export type EvalCaseRequest = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Persona
+     */
+    persona: string;
+    /**
+     * Goal
+     */
+    goal: string;
+    /**
+     * Must Say
+     */
+    must_say?: Array<string>;
+    /**
+     * Must Not Say
+     */
+    must_not_say?: Array<string>;
+    /**
+     * Max Turns
+     */
+    max_turns?: number;
+};
+
+/**
  * ExchangeRateRequest
  */
 export type ExchangeRateRequest = {
@@ -7620,6 +7650,16 @@ export type RumikTtsConfiguration = {
      * Silk speaks Hindi and English only, including code-mixed.
      */
     language?: string;
+};
+
+/**
+ * RunRequest
+ */
+export type RunRequest = {
+    /**
+     * Case Ids
+     */
+    case_ids?: Array<number> | null;
 };
 
 /**
@@ -17876,6 +17916,205 @@ export type MarkNotificationsReadApiV1NotificationsReadPostResponses = {
 };
 
 export type MarkNotificationsReadApiV1NotificationsReadPostResponse = MarkNotificationsReadApiV1NotificationsReadPostResponses[keyof MarkNotificationsReadApiV1NotificationsReadPostResponses];
+
+export type ListCasesApiV1WorkflowWorkflowIdEvalsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/evals';
+};
+
+export type ListCasesApiV1WorkflowWorkflowIdEvalsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCasesApiV1WorkflowWorkflowIdEvalsGetError = ListCasesApiV1WorkflowWorkflowIdEvalsGetErrors[keyof ListCasesApiV1WorkflowWorkflowIdEvalsGetErrors];
+
+export type ListCasesApiV1WorkflowWorkflowIdEvalsGetResponses = {
+    /**
+     * Response List Cases Api V1 Workflow  Workflow Id  Evals Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListCasesApiV1WorkflowWorkflowIdEvalsGetResponse = ListCasesApiV1WorkflowWorkflowIdEvalsGetResponses[keyof ListCasesApiV1WorkflowWorkflowIdEvalsGetResponses];
+
+export type CreateCaseApiV1WorkflowWorkflowIdEvalsPostData = {
+    body: EvalCaseRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/evals';
+};
+
+export type CreateCaseApiV1WorkflowWorkflowIdEvalsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateCaseApiV1WorkflowWorkflowIdEvalsPostError = CreateCaseApiV1WorkflowWorkflowIdEvalsPostErrors[keyof CreateCaseApiV1WorkflowWorkflowIdEvalsPostErrors];
+
+export type CreateCaseApiV1WorkflowWorkflowIdEvalsPostResponses = {
+    /**
+     * Response Create Case Api V1 Workflow  Workflow Id  Evals Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateCaseApiV1WorkflowWorkflowIdEvalsPostResponse = CreateCaseApiV1WorkflowWorkflowIdEvalsPostResponses[keyof CreateCaseApiV1WorkflowWorkflowIdEvalsPostResponses];
+
+export type DeleteCaseApiV1WorkflowWorkflowIdEvalsCaseIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Case Id
+         */
+        case_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/evals/{case_id}';
+};
+
+export type DeleteCaseApiV1WorkflowWorkflowIdEvalsCaseIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteCaseApiV1WorkflowWorkflowIdEvalsCaseIdDeleteError = DeleteCaseApiV1WorkflowWorkflowIdEvalsCaseIdDeleteErrors[keyof DeleteCaseApiV1WorkflowWorkflowIdEvalsCaseIdDeleteErrors];
+
+export type DeleteCaseApiV1WorkflowWorkflowIdEvalsCaseIdDeleteResponses = {
+    /**
+     * Response Delete Case Api V1 Workflow  Workflow Id  Evals  Case Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DeleteCaseApiV1WorkflowWorkflowIdEvalsCaseIdDeleteResponse = DeleteCaseApiV1WorkflowWorkflowIdEvalsCaseIdDeleteResponses[keyof DeleteCaseApiV1WorkflowWorkflowIdEvalsCaseIdDeleteResponses];
+
+export type RunCasesApiV1WorkflowWorkflowIdEvalsRunPostData = {
+    /**
+     * Request
+     */
+    body?: RunRequest | null;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/evals/run';
+};
+
+export type RunCasesApiV1WorkflowWorkflowIdEvalsRunPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RunCasesApiV1WorkflowWorkflowIdEvalsRunPostError = RunCasesApiV1WorkflowWorkflowIdEvalsRunPostErrors[keyof RunCasesApiV1WorkflowWorkflowIdEvalsRunPostErrors];
+
+export type RunCasesApiV1WorkflowWorkflowIdEvalsRunPostResponses = {
+    /**
+     * Response Run Cases Api V1 Workflow  Workflow Id  Evals Run Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RunCasesApiV1WorkflowWorkflowIdEvalsRunPostResponse = RunCasesApiV1WorkflowWorkflowIdEvalsRunPostResponses[keyof RunCasesApiV1WorkflowWorkflowIdEvalsRunPostResponses];
 
 export type ListNumbersApiV1DoNotCallGetData = {
     body?: never;

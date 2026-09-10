@@ -271,6 +271,8 @@ class PostHogEvent(str, Enum):
     NUMBER_PURCHASED = "number_purchased"
     MODEL_SLOT_CHANGED = "model_slot_changed"
     AGENT_SHARED = "agent_shared"
+    EVAL_CASE_CREATED = "eval_case_created"
+    EVAL_RUN_STARTED = "eval_run_started"
     SIGNUP_BONUS_GRANTED = "signup_bonus_granted"
     PHONE_NUMBER_ATTACHED = "phone_number_attached"
 
