@@ -547,8 +547,17 @@ class TestWhatTheAdminTierActuallyGates:
         """The ranking is 'at least this role', so this is a property of the
         comparison rather than of each route — but a regression here would be
         an owner locked out of their own account."""
-        user, _org = await _org_with_member(
+        from api.schemas.organization_preferences import OrganizationPreferences
+        from api.services.organization_preferences import (
+            upsert_organization_preferences,
+        )
+
+        user, org = await _org_with_member(
             async_session, "owner-inherits", role=OrganizationRole.OWNER.value
+        )
+        # Own keys are a per-account entitlement, orthogonal to role.
+        await upsert_organization_preferences(
+            org.id, OrganizationPreferences(own_keys_allowed=True)
         )
 
         async with test_client_factory(user) as client:
