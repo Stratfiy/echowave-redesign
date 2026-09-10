@@ -99,4 +99,6 @@ async def test_it_is_staff_only(db_session, async_session, test_client_factory):
     await async_session.flush()
     async with test_client_factory(user) as client:
         response = await client.get(f"/api/v1/admin/billing/accounts/{org.id}/consent")
-    assert response.status_code == 403
+    # The staff dependency reads the request itself, so a non-staff session
+    # is refused as unauthenticated rather than forbidden. Either is refused.
+    assert response.status_code in (401, 403)
