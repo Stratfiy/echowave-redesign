@@ -260,7 +260,15 @@ function PriceSummary({
 
 export function SimpleModelPicker({
     onChange,
+    workflowId,
 }: {
+    /**
+     * Read and save the choice on this one agent rather than the account.
+     * The agent's own override is what a call resolves first, so this is the
+     * picker an agent's Models tab shows; the account default is the fallback
+     * for agents that have not chosen.
+     */
+    workflowId?: number;
     /** Fires whenever the choice changes, so a parent can save it. */
     onChange?: (choice: {
         bundle: string;
@@ -303,7 +311,10 @@ export function SimpleModelPicker({
         void (async () => {
             // Not in the generated SDK yet; the route is newer than the last
             // client generation.
-            const response = await client.get({ url: "/api/v1/agent-options" });
+            const response = await client.get({
+                url: "/api/v1/agent-options",
+                query: workflowId !== undefined ? { workflow_id: workflowId } : undefined,
+            });
             if (cancelled) return;
             if (response.error) {
                 setError("Could not load the options. Refresh to try again.");
@@ -345,7 +356,7 @@ export function SimpleModelPicker({
         return () => {
             cancelled = true;
         };
-    }, [authLoading, user]);
+    }, [authLoading, user, workflowId]);
 
     const bundle = useMemo(
         () => options?.bundles.find((b) => b.slug === bundleSlug) ?? null,
@@ -381,6 +392,7 @@ export function SimpleModelPicker({
         };
         const result = await client.put({
             url: "/api/v1/agent-options/selection",
+            query: workflowId !== undefined ? { workflow_id: workflowId } : undefined,
             body,
         });
         setSaving(false);
@@ -392,7 +404,7 @@ export function SimpleModelPicker({
         // realtime bundle actually speaks in, and echoing back what we sent
         // would show a saved state that is not what was stored.
         setSaved((result.data as Selection) ?? body);
-    }, [bundle, variant, voice]);
+    }, [bundle, variant, voice, workflowId]);
 
     /**
      * Whether pressing Save would change anything. The voice is only part of

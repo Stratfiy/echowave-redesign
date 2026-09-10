@@ -33,6 +33,7 @@ import type { WorkflowRuntimeNodeTransition } from './components/workflow-tester
 import { WorkflowEditorHeader } from "./components/WorkflowEditorHeader";
 import { WorkflowTesterPanel } from './components/WorkflowTesterPanel';
 import { WorkflowProvider } from "./contexts/WorkflowContext";
+import { FlowAgentEditor } from './FlowAgentEditor';
 import { useWorkflowState } from "./hooks/useWorkflowState";
 import { SimpleAgentEditor } from './SimpleAgentEditor';
 import { layoutNodes } from './utils/layoutNodes';
@@ -143,6 +144,11 @@ function RenderWorkflow({
     );
     const [showCanvas, setShowCanvas] = useState(false);
     const useSimpleView = graphIsSimple && !showCanvas;
+    /* Everything else opens on its prompts too. A template makes a four-step
+     * agent, and until now every one of them opened on the canvas — the one
+     * screen a first-time author cannot read. Vapi and Bolna open on the
+     * prompts and keep the graph a click away; so does this. */
+    const useFormView = !showCanvas;
 
     const handleSimpleNodesChange = useCallback(
         (next: FlowNode[]) => {
@@ -542,7 +548,16 @@ function RenderWorkflow({
                 <div className="flex-1 min-h-0">
                     <div className="flex h-full min-w-0">
                         <div className="relative min-w-0 flex-1 overflow-auto">
-                        {useSimpleView ? (
+                        {useFormView && !useSimpleView ? (
+                            <FlowAgentEditor
+                                nodes={nodes as FlowNode[]}
+                                edges={edges as FlowEdge[]}
+                                onNodesChange={handleSimpleNodesChange}
+                                onOpenCanvas={() => setShowCanvas(true)}
+                                readOnly={isViewingHistoricalVersion}
+                                header={<ModelRow workflowId={workflowId} />}
+                            />
+                        ) : useSimpleView ? (
                             <SimpleAgentEditor
                                 nodes={nodes as FlowNode[]}
                                 onNodesChange={handleSimpleNodesChange}
@@ -656,19 +671,17 @@ function RenderWorkflow({
                                 or a second agent and this disappears, because
                                 there would be nothing honest for the form to
                                 show. */}
-                            {graphIsSimple && (
-                                <div className="absolute right-6 top-4 z-10">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setShowCanvas(false)}
-                                        className="bg-white shadow-sm hover:shadow-md"
-                                    >
-                                        <PanelsTopLeft className="mr-2 h-4 w-4" />
-                                        Simple view
-                                    </Button>
-                                </div>
-                            )}
+                            <div className="absolute right-6 top-4 z-10">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowCanvas(false)}
+                                    className="bg-white shadow-sm hover:shadow-md"
+                                >
+                                    <PanelsTopLeft className="mr-2 h-4 w-4" />
+                                    {graphIsSimple ? "Simple view" : "Prompts view"}
+                                </Button>
+                            </div>
 
                             <div className="absolute bottom-12 left-8 z-10 flex gap-2">
                                 <TooltipProvider>

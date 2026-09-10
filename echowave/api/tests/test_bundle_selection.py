@@ -370,3 +370,68 @@ class TestReadingBackWhatIsInForce:
         selection = await agent_options.selected_bundle(organization_id=org.id)
         assert selection["bundle"] == row.slug
         assert selection["tier"] == row.realtime_tier
+
+
+class TestAnAgentsOwnChoice:
+    """The same choice, saved on one agent as its override.
+
+    Pure-function tests: the database parts of the per-agent path are two
+    reads and one draft save that other tests already cover, and what can go
+    wrong is in the shaping — which override key is written, what is dropped,
+    and what an existing override is read back as.
+    """
+
+    def _configuration(self, **managed):
+        from api.schemas.ai_model_configuration import (
+            DecibylManagedAIModelConfiguration,
+            OrganizationAIModelConfigurationV2,
+        )
+
+        return OrganizationAIModelConfigurationV2(
+            version=2,
+            mode="decibyl",
+            decibyl=DecibylManagedAIModelConfiguration(
+                bundle="everyday", llm_tier="accurate", voice="anushka", **managed
+            ),
+        )
+
+    def test_the_choice_is_written_as_the_v2_override(self):
+        out = agent_options.with_bundle_override(
+            {"max_duration": 300}, self._configuration()
+        )
+        assert out["max_duration"] == 300
+        override = out["model_configuration_v2_override"]
+        assert override["mode"] == "decibyl"
+        assert override["decibyl"]["bundle"] == "everyday"
+
+    def test_the_legacy_per_slot_override_is_dropped(self):
+        out = agent_options.with_bundle_override(
+            {"model_overrides": {"llm": {"provider": "openai"}}}, self._configuration()
+        )
+        assert "model_overrides" not in out
+
+    def test_it_reads_back_as_the_same_choice(self):
+        out = agent_options.with_bundle_override({}, self._configuration())
+        assert agent_options.selected_bundle_from_configurations(out) == {
+            "bundle": "everyday",
+            "tier": "accurate",
+            "voice": "anushka",
+        }
+
+    def test_a_speech_to_speech_override_reports_its_realtime_tier(self):
+        out = agent_options.with_bundle_override(
+            {}, self._configuration(realtime_tier="natural")
+        )
+        assert (
+            agent_options.selected_bundle_from_configurations(out)["tier"] == "natural"
+        )
+
+    def test_no_override_means_no_own_choice(self):
+        assert agent_options.selected_bundle_from_configurations({}) is None
+        assert agent_options.selected_bundle_from_configurations(None) is None
+
+    def test_a_template_voice_override_is_not_mistaken_for_a_bundle(self):
+        """The template grid writes a v3 stack under the same key. It names a
+        voice, not a bundle, so the picker must not claim one for it."""
+        stack = agent_options.managed_stack_override(voice="female", llm_tier="default")
+        assert agent_options.selected_bundle_from_configurations(stack) is None

@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Optional
 
 from loguru import logger
-from sqlalchemy import func, update
+from sqlalchemy import func, or_, update
 from sqlalchemy.future import select
 from sqlalchemy.orm import load_only, selectinload
 
@@ -284,6 +284,50 @@ class WorkflowClient(BaseDBClient):
                 raise e
             await session.refresh(draft)
         return draft
+
+    async def get_squad_workflow_ids(self, *, organization_id: int | None) -> set[int]:
+        """Ids of the organisation's agents that hand the call to another.
+
+        Reads the version that is current for each agent — its draft if it has
+        one, else the release — the same source every other screen shows. The
+        listing query deliberately leaves definitions unloaded, so this is a
+        second, narrow read of the JSON rather than a wider first one.
+        """
+        from api.services.workflow.squad import has_handoffs
+
+        if organization_id is None:
+            return set()
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(
+                    WorkflowDefinitionModel.workflow_id,
+                    WorkflowDefinitionModel.status,
+                    WorkflowDefinitionModel.workflow_json,
+                )
+                .join(
+                    WorkflowModel,
+                    WorkflowModel.id == WorkflowDefinitionModel.workflow_id,
+                )
+                .where(
+                    WorkflowModel.organization_id == organization_id,
+                    or_(
+                        WorkflowDefinitionModel.status == "draft",
+                        WorkflowDefinitionModel.id
+                        == WorkflowModel.released_definition_id,
+                    ),
+                )
+            )
+            rows = result.all()
+        # A draft outranks the release it will replace.
+        chosen: dict[int, tuple[str, object]] = {}
+        for workflow_id, status, workflow_json in rows:
+            if workflow_id not in chosen or status == "draft":
+                chosen[workflow_id] = (status, workflow_json)
+        return {
+            workflow_id
+            for workflow_id, (_, workflow_json) in chosen.items()
+            if has_handoffs(workflow_json)
+        }
 
     async def get_draft_version(
         self,

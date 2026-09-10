@@ -1,8 +1,11 @@
+import { ArrowRightLeft } from 'lucide-react';
+import Link from 'next/link';
 import { Suspense } from 'react';
 
 import { getWorkflowsApiV1WorkflowFetchGet, listFoldersApiV1FolderGet } from '@/client/sdk.gen';
 import type { FolderResponse, WorkflowListResponse } from '@/client/types.gen';
 import { PageBody, PageHeader } from '@/components/layout/PageHeader';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CreateWorkflowButton } from "@/components/workflow/CreateWorkflowButton";
 import { AgentFolderView } from '@/components/workflow/folders/AgentFolderView';
@@ -10,6 +13,7 @@ import { CreateFolderButton } from '@/components/workflow/folders/CreateFolderBu
 import { FolderSection } from '@/components/workflow/folders/FolderSection';
 import { StartFromTemplate } from '@/components/workflow/StartFromTemplate';
 import { UploadWorkflowButton } from '@/components/workflow/UploadWorkflowButton';
+import { WorkflowTable } from '@/components/workflow/WorkflowTable';
 import { getServerAccessToken, getServerAuthProvider } from '@/lib/auth/server';
 import logger from '@/lib/logger';
 
@@ -49,9 +53,15 @@ async function WorkflowList() {
 
         const allWorkflowData = response.data ? (Array.isArray(response.data) ? response.data : [response.data]) : [];
 
+        // Squads apart from single agents: a different thing to build and
+        // to test, and until now there was no screen that said they existed.
+        const squads = allWorkflowData
+            .filter((w: WorkflowListResponse) => w.status === 'active' && w.is_squad)
+            .sort((a: WorkflowListResponse, b: WorkflowListResponse) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
         // Separate active and archived workflows
         const activeWorkflows = allWorkflowData
-            .filter((w: WorkflowListResponse) => w.status === 'active')
+            .filter((w: WorkflowListResponse) => w.status === 'active' && !w.is_squad)
             .sort((a: WorkflowListResponse, b: WorkflowListResponse) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
         const archivedWorkflows = allWorkflowData
@@ -89,6 +99,35 @@ async function WorkflowList() {
                                     the API before this screen did and were
                                     never offered anywhere. */}
                                 <StartFromTemplate />
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
+
+                <div className="mb-8">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 className="text-xl font-semibold">Squads</h2>
+                            <p className="text-sm text-muted-foreground">
+                                One front desk that hands the call to the right agent.
+                            </p>
+                        </div>
+                        <Button asChild variant="outline" size="sm">
+                            <Link href="/workflow/squads/new">
+                                <ArrowRightLeft className="h-4 w-4" />
+                                New squad
+                            </Link>
+                        </Button>
+                    </div>
+                    {squads.length > 0 ? (
+                        <WorkflowTable workflows={squads} showArchived={false} />
+                    ) : (
+                        <Card>
+                            <CardContent className="p-6">
+                                <p className="text-sm text-muted-foreground">
+                                    No squads yet. Build two or more agents, then put a front desk
+                                    in front of them.
+                                </p>
                             </CardContent>
                         </Card>
                     )}

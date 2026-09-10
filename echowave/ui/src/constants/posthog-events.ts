@@ -43,4 +43,7 @@ export const PostHogEvent = {
   FIRST_AGENT_VERIFY_NUMBER_CLICKED: "first_agent_verify_number_clicked",
   FIRST_AGENT_HELP_CLICKED: "first_agent_help_clicked",
   FIRST_AGENT_FINISHED: "first_agent_finished",
+  // Squads: one front desk handing the call to member agents.
+  SQUAD_CREATED: "squad_created",
+  SQUAD_CREATE_FAILED: "squad_create_failed",
 } as const;

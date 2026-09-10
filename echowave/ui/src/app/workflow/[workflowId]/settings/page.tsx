@@ -19,6 +19,7 @@ import type {
     OrganizationAiModelConfigurationV2,
     WorkflowResponse,
 } from "@/client/types.gen";
+import { SimpleModelPicker } from "@/components/agent/SimpleModelPicker";
 import {
     AIModelConfigurationV2Editor,
     type ModelConfigurationDefaultsV2,
@@ -1844,6 +1845,7 @@ function withoutModelConfigurationOverrides(configurations: WorkflowConfiguratio
 }
 
 function WorkflowModelOverridesSection({
+    workflowId,
     workflowConfigurations,
     workflowName,
     onSave,
@@ -1852,6 +1854,7 @@ function WorkflowModelOverridesSection({
     modelConfigurationLoading,
     modelConfigurationError,
 }: {
+    workflowId: number;
     workflowConfigurations: WorkflowConfigurations;
     workflowName: string;
     onSave: (configurations: WorkflowConfigurations, workflowName: string) => Promise<void>;
@@ -1897,12 +1900,28 @@ function WorkflowModelOverridesSection({
                     Models
                 </CardTitle>
                 <CardDescription>
-                    This agent runs on the organization&apos;s models unless you give it its
-                    own. Each model can be provided by Decibyl or run on your own key.{" "}
+                    How this agent sounds and thinks, and what a minute costs. Each agent
+                    picks its own; one that has not picked runs on the workspace default.{" "}
                     <a href={SETTINGS_DOCUMENTATION_URLS.modelOverrides} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">Learn more <ExternalLink className="h-3 w-3" /></a>
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+                {/* The agent's own choice, first. Vapi and Bolna both put the
+                    model on the assistant rather than the account, and that is
+                    what a customer expects: the receptionist on the fast cheap
+                    brain, the collections agent on the careful one. The
+                    per-slot editor below is for the account that wants to name
+                    vendors, and it stays behind a fold. */}
+                <SimpleModelPicker workflowId={workflowId} />
+
+                <Collapsible>
+                    <CollapsibleTrigger asChild>
+                        <Button type="button" variant="ghost" size="sm" className="group -ml-2">
+                            <ChevronRight className="mr-1 h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
+                            Advanced: choose each model, or use your own keys
+                        </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-4 pt-4">
                 {modelConfigurationLoading && (
                     <div className="flex items-center gap-2 rounded-md border p-4 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -2000,6 +2019,8 @@ function WorkflowModelOverridesSection({
                         )}
                     </>
                 )}
+                    </CollapsibleContent>
+                </Collapsible>
             </CardContent>
         </Card>
     );
@@ -2243,6 +2264,7 @@ function WorkflowSettingsInner({
                                 className={cn("space-y-8", activeTab !== "models" && "hidden")}
                             >
                             <WorkflowModelOverridesSection
+                                workflowId={workflowId}
                                 workflowConfigurations={resolvedWorkflowConfigurationsForRender}
                                 workflowName={workflowName}
                                 onSave={saveWorkflowConfigurations}

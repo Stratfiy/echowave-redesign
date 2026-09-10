@@ -349,6 +349,10 @@ class WorkflowListResponse(BaseModel):
     total_runs: int
     folder_id: int | None = None
     workflow_uuid: str | None = None
+    # Hands the call to other agents — a squad, in Vapi's word. Listed apart
+    # from single agents because it is a different thing to build and to
+    # test: its members are agents in their own right.
+    is_squad: bool = False
 
 
 class MoveWorkflowToFolderRequest(BaseModel):
@@ -919,6 +923,9 @@ async def get_workflows(
     # Get run counts for all workflows in a single query
     workflow_ids = [workflow.id for workflow in workflows]
     run_counts = await db_client.get_workflow_run_counts(workflow_ids)
+    squads = await db_client.get_squad_workflow_ids(
+        organization_id=user.selected_organization_id
+    )
 
     return [
         WorkflowListResponse(
@@ -930,6 +937,7 @@ async def get_workflows(
             total_runs=run_counts.get(workflow.id, 0),
             folder_id=workflow.folder_id,
             workflow_uuid=workflow.workflow_uuid,
+            is_squad=workflow.id in squads,
         )
         for workflow in workflows
     ]

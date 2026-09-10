@@ -390,3 +390,24 @@ class TestPersonalising:
             )
             == original
         )
+
+
+def test_a_workflow_with_a_handoff_counts_as_a_squad():
+    """What the agent list's `is_squad` flag is derived from."""
+    from api.services.workflow.squad import has_handoffs
+
+    plain = to_workflow_definition(get_template("clinic_appointment"))
+    assert not has_handoffs(plain)
+    squad = {
+        **plain,
+        "nodes": [
+            *plain["nodes"],
+            {
+                "id": "h1",
+                "type": "handoff",
+                "position": {"x": 0, "y": 0},
+                "data": {"name": "Billing", "agent_uuid": "abc"},
+            },
+        ],
+    }
+    assert has_handoffs(squad)

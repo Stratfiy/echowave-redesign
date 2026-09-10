@@ -471,15 +471,19 @@ async def selected_bundle(*, organization_id: int | None) -> dict | None:
     }
 
 
-async def save_bundle_selection(
+async def _bundle_configuration(
     session: AsyncSession,
     *,
     organization_id: int,
     bundle_slug: str,
     tier: str,
     voice: str,
-) -> dict:
-    """Store a Simple choice as this account's default managed stack.
+):
+    """A Simple choice, resolved and compiled, ready to be stored anywhere.
+
+    Shared by the account default and the per-agent choice so the two cannot
+    drift: both go through the same bundle lookup, the same tier check, the
+    same compile. Returns the v2 configuration and its managed section.
 
     Everything the customer chose is resolved here from the bundle row rather
     than taken from the request: the client sends a slug, a tier and a voice,
@@ -577,12 +581,166 @@ async def save_bundle_selection(
     except ValueError as exc:
         raise SelectionError(str(exc)) from exc
 
-    await upsert_organization_ai_model_configuration_v2(organization_id, configuration)
+    return configuration, managed
+
+
+def _selection_view(managed) -> dict:
     return {
         "bundle": managed.bundle,
         "tier": (managed.realtime_tier or "").strip() or managed.llm_tier,
         "voice": managed.voice,
     }
+
+
+async def save_bundle_selection(
+    session: AsyncSession,
+    *,
+    organization_id: int,
+    bundle_slug: str,
+    tier: str,
+    voice: str,
+) -> dict:
+    """Store a Simple choice as this account's default managed stack.
+
+    Writes the same v2 managed shape the Advanced tab writes, so the two tabs
+    remain two vocabularies for one stored answer rather than two stores.
+    """
+    from api.services.configuration.ai_model_configuration import (
+        upsert_organization_ai_model_configuration_v2,
+    )
+
+    configuration, managed = await _bundle_configuration(
+        session,
+        organization_id=organization_id,
+        bundle_slug=bundle_slug,
+        tier=tier,
+        voice=voice,
+    )
+    await upsert_organization_ai_model_configuration_v2(organization_id, configuration)
+    return _selection_view(managed)
+
+
+# ---------------------------------------------------------------------------
+# The same choice, on one agent.
+#
+# Vapi and Bolna put the model on the assistant, not the account, and that is
+# what a customer expects: the receptionist runs on the cheap fast brain, the
+# collections agent on the careful one. The account default stays as the
+# fallback for an agent that has not chosen, so nothing built before this
+# existed changes behaviour.
+# ---------------------------------------------------------------------------
+
+
+def with_bundle_override(configurations: dict | None, configuration) -> dict:
+    """The agent's configurations with this bundle as its model override.
+
+    Pure, so it can be tested without a database. The legacy per-slot
+    ``model_overrides`` is dropped: it and the v2 override are two answers to
+    one question, and the settings screen already removes one when it writes
+    the other.
+    """
+    from api.services.configuration.ai_model_configuration import (
+        WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
+    )
+
+    next_configurations = dict(configurations or {})
+    next_configurations.pop("model_overrides", None)
+    next_configurations[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY] = (
+        configuration.model_dump()
+        if hasattr(configuration, "model_dump")
+        else dict(configuration)
+    )
+    return next_configurations
+
+
+def selected_bundle_from_configurations(configurations: dict | None) -> dict | None:
+    """The Simple choice an agent's own override expresses, or ``None``.
+
+    ``None`` for an agent with no override, for a BYOK override, and for an
+    override written in the v3 stack shape (the template voice choice) — that
+    shape records a voice, not a bundle, and claiming a bundle for it would
+    show a card the agent is not on.
+    """
+    from api.services.configuration.ai_model_configuration import (
+        WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
+    )
+
+    override = (configurations or {}).get(WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY)
+    if not isinstance(override, dict) or override.get("mode") != "decibyl":
+        return None
+    managed = override.get("decibyl")
+    if not isinstance(managed, dict):
+        return None
+    realtime_tier = (managed.get("realtime_tier") or "").strip()
+    return {
+        "bundle": managed.get("bundle") or "",
+        "tier": realtime_tier or managed.get("llm_tier") or "",
+        "voice": managed.get("voice") or "",
+    }
+
+
+async def _workflow_configurations(workflow_id: int, organization_id: int) -> dict:
+    """What the agent runs on now: its draft if it has one, else the release."""
+    from api.db import db_client
+
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        raise SelectionError("Agent not found.")
+    draft = await db_client.get_draft_version(workflow_id)
+    source = draft or workflow.released_definition
+    if source is not None and source.workflow_configurations is not None:
+        return dict(source.workflow_configurations)
+    return dict(workflow.workflow_configurations or {})
+
+
+async def selected_bundle_for_workflow(
+    *, workflow_id: int, organization_id: int
+) -> dict | None:
+    """The agent's own Simple choice, falling back to the account's."""
+    own = selected_bundle_from_configurations(
+        await _workflow_configurations(workflow_id, organization_id)
+    )
+    if own is not None:
+        return own
+    return await selected_bundle(organization_id=organization_id)
+
+
+async def save_workflow_bundle_selection(
+    session: AsyncSession,
+    *,
+    workflow_id: int,
+    organization_id: int,
+    bundle_slug: str,
+    tier: str,
+    voice: str,
+) -> dict:
+    """Make this bundle the agent's own stack.
+
+    Saved as a draft of the agent, the same way every other agent setting is,
+    so it goes live when the agent is next published and nothing changes on a
+    call that is already running.
+    """
+    from api.db import db_client
+
+    configuration, managed = await _bundle_configuration(
+        session,
+        organization_id=organization_id,
+        bundle_slug=bundle_slug,
+        tier=tier,
+        voice=voice,
+    )
+    current = await _workflow_configurations(workflow_id, organization_id)
+    await db_client.update_workflow(
+        workflow_id,
+        name=None,
+        workflow_definition=None,
+        template_context_variables=None,
+        workflow_configurations=with_bundle_override(current, configuration),
+        organization_id=organization_id,
+    )
+    return _selection_view(managed)
 
 
 async def bundle_economics(

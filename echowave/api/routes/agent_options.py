@@ -51,7 +51,16 @@ async def get_carriage_basis(user: UserModel = Depends(get_user)) -> dict[str, A
 
 
 @router.get("")
-async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+async def get_agent_options(
+    workflow_id: int | None = Query(
+        default=None,
+        description=(
+            "Read the selection of this agent rather than the account default. "
+            "The options themselves are the same either way."
+        ),
+    ),
+    user: UserModel = Depends(get_user),
+) -> dict[str, Any]:
     """Voices and brains, each with what it costs a minute.
 
     Priced per brain rather than per combination: every managed voice resolves
@@ -136,7 +145,15 @@ async def get_agent_options(user: UserModel = Depends(get_user)) -> dict[str, An
     # choice rather than on the first card every time. Without it the screen
     # showed a selection it had invented, and pressing Save on what looked like
     # the current state silently changed it.
-    selected = await agent_options.selected_bundle(organization_id=organization_id)
+    if workflow_id is not None:
+        try:
+            selected = await agent_options.selected_bundle_for_workflow(
+                workflow_id=workflow_id, organization_id=organization_id
+            )
+        except agent_options.SelectionError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+    else:
+        selected = await agent_options.selected_bundle(organization_id=organization_id)
 
     return {
         "brains": priced,
@@ -166,9 +183,17 @@ class BundleSelection(BaseModel):
 
 @router.put("/selection")
 async def save_selection(
-    selection: BundleSelection, user: UserModel = Depends(get_user)
+    selection: BundleSelection,
+    workflow_id: int | None = Query(
+        default=None,
+        description=(
+            "Save the choice on this agent alone, as its model override. Omit "
+            "to set the account default every agent without one inherits."
+        ),
+    ),
+    user: UserModel = Depends(get_user),
 ) -> dict[str, Any]:
-    """Make this bundle the account's default stack.
+    """Make this bundle the account's default stack — or one agent's own.
 
     The Simple tab's Save. It writes the same stored configuration the Advanced
     tab writes — one account default, expressed in whichever vocabulary the
@@ -181,6 +206,15 @@ async def save_selection(
 
     async with db_client.async_session() as session:
         try:
+            if workflow_id is not None:
+                return await agent_options.save_workflow_bundle_selection(
+                    session,
+                    workflow_id=workflow_id,
+                    organization_id=organization_id,
+                    bundle_slug=selection.bundle,
+                    tier=selection.tier,
+                    voice=selection.voice,
+                )
             return await agent_options.save_bundle_selection(
                 session,
                 organization_id=organization_id,

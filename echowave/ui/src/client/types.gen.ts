@@ -9536,6 +9536,10 @@ export type WorkflowListResponse = {
      * Workflow Uuid
      */
     workflow_uuid?: string | null;
+    /**
+     * Is Squad
+     */
+    is_squad?: boolean;
 };
 
 /**
