@@ -30,6 +30,22 @@ async def get_organization_preferences(
     return _parse_preferences(row.value if row is not None else None, organization_id)
 
 
+#: Fields only staff may change. A customer's save carries whatever the
+#: screen last read, so these are taken from what is stored, never from the
+#: request — otherwise a stale form would quietly switch an entitlement off,
+#: or a crafted one switch it on.
+STAFF_ONLY_FIELDS = ("own_keys_allowed",)
+
+
+def with_staff_fields(
+    incoming: OrganizationPreferences, existing: OrganizationPreferences
+) -> OrganizationPreferences:
+    """The customer's preferences with the staff-only fields kept as stored."""
+    return incoming.model_copy(
+        update={name: getattr(existing, name) for name in STAFF_ONLY_FIELDS}
+    )
+
+
 async def upsert_organization_preferences(
     organization_id: int,
     preferences: OrganizationPreferences,

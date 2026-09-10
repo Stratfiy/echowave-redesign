@@ -1001,7 +1001,7 @@ function ReadyStep({
                 </span>
                 <h2 className="mt-3 text-2xl font-semibold tracking-tight">{displayName} took its first call.</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                    Cost of this call: 0 credits — on us.
+                    Paid from your credits — the first ones came free with the account.
                     {runId !== null && " The recording and transcript are saved with the call."}
                 </p>
             </header>

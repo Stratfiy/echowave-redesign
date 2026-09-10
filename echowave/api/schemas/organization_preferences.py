@@ -18,6 +18,15 @@ class OrganizationPreferences(BaseModel):
     #: Neither option is silence. Before this existed the section kept its
     #: vendor and an empty key, the call connected, and the caller heard nothing
     #: for its duration while we paid the carrier for the minutes.
+    #: Whether this account may bring its own vendor keys at all. Off for
+    #: every account until Decibyl switches it on, from the staff account
+    #: page: a customer's own key changes what a call costs us and who is
+    #: billed for it, and that is a commercial arrangement, not a setting a
+    #: customer flips. Ignored on the customer's own preferences save.
+    own_keys_allowed: bool = Field(
+        default=False,
+        description="Staff-set. May this account store and run on its own vendor keys.",
+    )
     byok_fallback_to_managed: bool = Field(
         default=False,
         description=(

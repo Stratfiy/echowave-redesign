@@ -38,6 +38,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { UnlockedModels } from "@/components/UnlockedModels";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
+import { useOwnKeysAllowed } from "@/hooks/useOwnKeysAllowed";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
@@ -86,6 +87,7 @@ interface ProviderRow {
 
 function IntegrationsScreen() {
     const auth = useAuth();
+    const ownKeysAllowed = useOwnKeysAllowed();
     const hasFetched = useRef(false);
     // Presentation only — the server refuses these three regardless. This
     // stops a member being handed a button whose only possible answer is 403.
@@ -392,6 +394,23 @@ function IntegrationsScreen() {
                     <Skeleton className="h-10 w-72" />
                     <Skeleton className="h-48 w-full" />
                     <Skeleton className="h-48 w-full" />
+                </div>
+            </>
+        );
+    }
+
+    if (ownKeysAllowed === false) {
+        return (
+            <>
+                <IntegrationsTabs />
+                <div className="container mx-auto max-w-4xl px-4 py-8">
+                    <h1 className="text-3xl font-bold">Provider keys</h1>
+                    <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                        Every model runs on Decibyl&apos;s keys at the published rate, so there is
+                        nothing to connect. Bringing your own vendor keys is switched on per
+                        account — if you have an agreement with a vendor you would rather bill
+                        through, ask us and we will enable it here.
+                    </p>
                 </div>
             </>
         );

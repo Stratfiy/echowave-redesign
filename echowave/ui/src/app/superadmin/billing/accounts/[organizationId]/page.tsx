@@ -19,6 +19,7 @@ import {
     YAxis,
 } from "recharts";
 
+import { client } from "@/client/client.gen";
 import {
     adjustCreditApiV1AdminBillingAccountsOrganizationIdCreditPost,
     getAccountApiV1AdminBillingAccountsOrganizationIdGet,
@@ -52,6 +53,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
     Table,
     TableBody,
@@ -334,6 +336,11 @@ export default function AccountDetailPage() {
                     </ResponsiveContainer>
                 </ChartCard>
 
+                <OwnKeysPanel
+                    organizationId={organizationId}
+                    allowed={Boolean(data?.own_keys_allowed)}
+                    onChanged={load}
+                />
                 <RateSettingsPanel
                     organizationId={organizationId}
                     currentRateMpaise={Number(account?.platform_rate_mpaise ?? 0)}
@@ -407,6 +414,61 @@ export default function AccountDetailPage() {
             <TelephonyPanel organizationId={organizationId} />
             <CommissionPanel organizationId={organizationId} />
         </div>
+    );
+}
+
+function OwnKeysPanel({
+    organizationId,
+    allowed,
+    onChanged,
+}: {
+    organizationId: number;
+    allowed: boolean;
+    onChanged: () => Promise<void>;
+}) {
+    const [saving, setSaving] = useState(false);
+    const [failure, setFailure] = useState<string | null>(null);
+
+    const set = async (next: boolean) => {
+        setSaving(true);
+        setFailure(null);
+        // Not in the generated client yet; the route is newer than the last
+        // generation.
+        const result = await client.put({
+            url: `/api/v1/admin/billing/accounts/${organizationId}/own-keys`,
+            body: { allowed: next },
+        });
+        if (result.error) setFailure(detailFromResult(result, "Could not change this"));
+        else await onChanged();
+        setSaving(false);
+    };
+
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Own vendor keys</CardTitle>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                    A customer&apos;s own key takes that slot off our rate card: no managed
+                    markup, the vendor bills them. Off for every account until agreed.
+                </p>
+            </CardHeader>
+            <CardContent>
+                <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+                    <div>
+                        <Label htmlFor="own-keys" className="text-sm font-medium">
+                            {allowed ? "Allowed" : "Not allowed"}
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                            {allowed
+                                ? "The account sees Provider keys and can store its own."
+                                : "Provider keys is hidden; storing a key is refused."}
+                        </p>
+                    </div>
+                    <Switch id="own-keys" checked={allowed} disabled={saving} onCheckedChange={(v) => void set(v)} />
+                </div>
+                {failure && <p className="mt-2 text-xs text-destructive">{failure}</p>}
+            </CardContent>
+        </Card>
     );
 }
 

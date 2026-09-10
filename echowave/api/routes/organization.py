@@ -79,6 +79,7 @@ from api.services.organization_context import (
 from api.services.organization_preferences import (
     get_organization_preferences,
     upsert_organization_preferences,
+    with_staff_fields,
 )
 from api.services.posthog_client import capture_event
 from api.services.telephony import credential_encryption
@@ -511,9 +512,11 @@ async def save_preferences(
     user: UserModel = Depends(get_user_with_selected_organization),
 ):
     organization_id = user.selected_organization_id
+    # Staff-only fields stay as stored, whatever the request says.
+    existing = await get_organization_preferences(organization_id)
     return await upsert_organization_preferences(
         organization_id,
-        request,
+        with_staff_fields(request, existing),
     )
 
 
