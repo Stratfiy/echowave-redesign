@@ -943,6 +943,10 @@ class BundleRequest(BaseModel):
     realtime_tier: str | None = None
     display_order: int | None = None
     is_enabled: bool | None = None
+    #: One price a minute, everything included; null returns to itemised.
+    list_paise_per_minute: int | None = None
+    #: [{"min_minutes": 5000, "paise_per_minute": 500}], highest floor wins.
+    volume_tiers: list[dict] | None = None
 
 
 class ProviderRatesRequest(BaseModel):
@@ -1076,6 +1080,10 @@ async def list_bundles(user: UserModel = Depends(get_superuser)) -> dict[str, An
                     "realtime_tier": row.realtime_tier,
                     "display_order": row.display_order,
                     "is_enabled": row.is_enabled,
+                    "list_paise_per_minute": getattr(
+                        row, "list_paise_per_minute", None
+                    ),
+                    "volume_tiers": list(getattr(row, "volume_tiers", None) or []),
                     "slots": bundle_service.resolved_slots(row),
                     # Computed from the tiers this bundle resolves to right
                     # now, never stored. Move a tier abroad and the badge goes
@@ -1136,6 +1144,8 @@ async def upsert_bundle(
             "label": row.label,
             "architecture": row.architecture,
             "is_enabled": row.is_enabled,
+            "list_paise_per_minute": getattr(row, "list_paise_per_minute", None),
+            "volume_tiers": list(getattr(row, "volume_tiers", None) or []),
         }
         await session.commit()
         return payload

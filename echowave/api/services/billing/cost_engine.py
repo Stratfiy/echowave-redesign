@@ -160,8 +160,15 @@ def compute_call_cost(
     addon_rates: Mapping[str, int] | None = None,
     markup_overrides: Mapping[tuple[str, str, str], int] | None = None,
     platform_fee_waived: bool = False,
+    flat_rate_mpaise: int | None = None,
 ) -> CallCost:
     """Cost one call. Pure — no I/O, no clock, no database.
+
+    ``flat_rate_mpaise`` is the one-number-a-minute price of a bundle. When
+    given, the customer is charged that rate on pulse-rounded time and
+    nothing else: vendor lines are still costed for what they cost *us* and
+    reported at zero charge, and add-ons are folded in. The receipt is one
+    line, which is the point of a flat price.
 
     ``provider_rates`` is keyed by ``(component, provider, model)`` — the model
     included, because rates differ by more than an order of magnitude between
@@ -265,6 +272,53 @@ def compute_call_cost(
         )
 
     provider_total = sum(line.provider_cost_paise for line in lines)
+
+    if flat_rate_mpaise is not None:
+        # One line. Vendor lines stay on the receipt at zero charge so margin
+        # by account still knows what the call cost us.
+        lines = [
+            CostLine(
+                component=line.component,
+                provider=line.provider,
+                model=line.model,
+                units=line.units,
+                unit_rate_mpaise=line.unit_rate_mpaise,
+                cost_paise=0,
+                provider_cost_paise=line.provider_cost_paise,
+            )
+            for line in lines
+        ]
+        flat_fee = (
+            0
+            if platform_fee_waived
+            else cost_paise(
+                quantity=billed, rate_mpaise=flat_rate_mpaise, unit=RateUnit.MINUTE
+            )
+        )
+        if not platform_fee_waived:
+            lines.append(
+                CostLine(
+                    component=CostComponent.PLATFORM.value,
+                    provider="bundle",
+                    units=billed,
+                    unit_rate_mpaise=flat_rate_mpaise,
+                    cost_paise=flat_fee,
+                    provider_cost_paise=0,
+                )
+            )
+    return CallCost(
+        line_items=tuple(lines),
+        billable_minutes=minutes,
+        platform_rate_mpaise=flat_rate_mpaise,
+        platform_fee_paise=flat_fee,
+        platform_fee_waived=platform_fee_waived,
+        addon_fee_paise=0,
+        total_provider_cost_paise=provider_total,
+        total_charged_paise=sum(line.cost_paise for line in lines),
+        pulse_seconds=pulse_seconds,
+        billed_seconds=billed,
+        uncosted=tuple(uncosted),
+    )
 
     # The rate is quoted per minute and the quantity is in seconds, which is
     # exactly the contract cost_paise already implements for a per-minute rate.

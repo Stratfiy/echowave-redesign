@@ -343,6 +343,10 @@ async def bundle_options(
 
     for row in rows:
         variants: list[dict] = []
+        # One price a minute, everything included, when the bundle has one.
+        # The estimate is still computed for the economics screen; the
+        # customer sees the number on the tag.
+        list_price = bundle_service.flat_rate_paise(row)
 
         if row.architecture == bundle_service.REALTIME:
             estimate = await realtime_estimate(
@@ -357,9 +361,15 @@ async def bundle_options(
                     "label": row.label,
                     "blurb": "",
                     "paise_per_minute": (
-                        None if estimate is None else estimate.total_paise_per_minute
+                        list_price
+                        if list_price is not None
+                        else None
+                        if estimate is None
+                        else estimate.total_paise_per_minute
                     ),
-                    "breakdown": _breakdown(estimate),
+                    "breakdown": None
+                    if list_price is not None
+                    else _breakdown(estimate),
                     "india_only": assess(
                         architecture="realtime", realtime_tier=row.realtime_tier
                     ).india_only,
@@ -390,11 +400,15 @@ async def bundle_options(
                         "label": label,
                         "blurb": blurb,
                         "paise_per_minute": (
-                            None
+                            list_price
+                            if list_price is not None
+                            else None
                             if estimate is None
                             else estimate.total_paise_per_minute
                         ),
-                        "breakdown": _breakdown(estimate),
+                        "breakdown": None
+                        if list_price is not None
+                        else _breakdown(estimate),
                         "india_only": assess(
                             architecture="pipeline",
                             llm_tier=tier,

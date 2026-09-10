@@ -38,6 +38,51 @@ from api.services.billing.usage import (
 from api.services.posthog_client import capture_event
 
 
+async def _bundle_flat_rate_mpaise(
+    session: AsyncSession,
+    *,
+    run: WorkflowRunModel,
+    organization_id: int,
+    period_minutes: int,
+) -> int | None:
+    """The flat rate of the bundle this run's agent is on, or None.
+
+    The agent's own Simple choice on the definition the run was pinned to,
+    falling back to the account's; a bundle with no list price means the
+    call is itemised as before. Never raises: a pricing lookup that fails
+    must not stop a call being costed at all.
+    """
+    try:
+        from api.db.models import ManagedBundleModel, WorkflowDefinitionModel
+        from api.services.configuration import agent_options, bundles
+
+        configurations = None
+        if run.definition_id is not None:
+            definition = await session.get(WorkflowDefinitionModel, run.definition_id)
+            if definition is not None:
+                configurations = definition.workflow_configurations
+        selected = agent_options.selected_bundle_from_configurations(configurations)
+        if selected is None:
+            selected = await agent_options.selected_bundle(
+                organization_id=organization_id
+            )
+        slug = (selected or {}).get("bundle") if isinstance(selected, dict) else None
+        if not slug:
+            return None
+        row = await session.scalar(
+            select(ManagedBundleModel).where(ManagedBundleModel.slug == slug)
+        )
+        if row is None:
+            return None
+        paise = bundles.flat_rate_paise(row, period_minutes=period_minutes)
+        return None if paise is None else paise * MPAISE_PER_PAISE
+    except Exception as exc:  # noqa: BLE001 - itemised pricing is the safe fallback
+        logger.warning(
+            "Could not resolve a bundle flat rate for run {}: {}", run.id, exc
+        )
+        return None
+
+
 async def _period_minutes(
     session: AsyncSession, *, organization_id: int, at: datetime
 ) -> int:
@@ -198,9 +243,20 @@ async def cost_workflow_run(
             workflow_run_id,
         )
 
+    # One price a minute, when the bundle the agent runs on has one. The
+    # itemised rates above are still resolved so vendor cost is measured.
+    flat_rate_mpaise = await _bundle_flat_rate_mpaise(
+        session,
+        run=run,
+        organization_id=organization_id,
+        period_minutes=await _period_minutes(
+            session, organization_id=organization_id, at=at
+        ),
+    )
     cost = compute_call_cost(
         billable_seconds=billable_seconds,
         platform_fee_waived=fee_waived,
+        flat_rate_mpaise=flat_rate_mpaise,
         platform_rate_mpaise=platform_rate_mpaise,
         pulse_seconds=platform.pulse_seconds,
         usage=usage,

@@ -78,6 +78,8 @@ type Bundle = {
     realtime_tier: string | null;
     display_order: number;
     is_enabled: boolean;
+    list_paise_per_minute?: number | null;
+    volume_tiers?: Array<{ min_minutes: number; paise_per_minute: number }>;
     slots: Slot[];
     residency: { india_only: boolean; reason: string };
 };
@@ -268,6 +270,8 @@ function BundleCard({
                     {bundle.is_enabled ? "Offered" : "Hidden"}
                 </label>
             </div>
+
+            <ListPriceEditor bundle={bundle} onSaved={onSaved} />
 
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <div className="space-y-2">
@@ -504,6 +508,88 @@ function SlotRow({ slot, onSaved }: { slot: Slot; onSaved: () => Promise<void> }
                     )}
                 </div>
             )}
+        </div>
+    );
+}
+
+/**
+ * One price a minute, everything included, and the tiers it steps down to.
+ *
+ * When set, a call on this bundle is charged this number on pulse-rounded
+ * time and nothing else; vendor cost is still measured underneath for the
+ * economics table. Clearing it returns the bundle to itemised pricing.
+ * Tiers are one per line as "minutes:price", e.g. 5000:5.00.
+ */
+function ListPriceEditor({ bundle, onSaved }: { bundle: Bundle; onSaved: () => Promise<void> }) {
+    const [rupees, setRupees] = useState(
+        bundle.list_paise_per_minute != null ? (bundle.list_paise_per_minute / 100).toFixed(2) : "",
+    );
+    const [tiers, setTiers] = useState(
+        (bundle.volume_tiers ?? []).map((t) => `${t.min_minutes}:${(t.paise_per_minute / 100).toFixed(2)}`).join("\n"),
+    );
+    const [busy, setBusy] = useState(false);
+    const [failure, setFailure] = useState<string | null>(null);
+
+    const save = async () => {
+        setBusy(true);
+        setFailure(null);
+        const parsedTiers = tiers
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((line) => {
+                const [minutes, price] = line.split(":");
+                return { min_minutes: Number(minutes), paise_per_minute: Math.round(Number(price) * 100) };
+            });
+        if (parsedTiers.some((t) => !Number.isFinite(t.min_minutes) || !Number.isFinite(t.paise_per_minute))) {
+            setFailure("Tiers are one per line as minutes:price, for example 5000:5.00");
+            setBusy(false);
+            return;
+        }
+        const result = await upsertBundleApiV1AdminBillingBundlesPut({
+            body: {
+                slug: bundle.slug,
+                list_paise_per_minute: rupees.trim() ? Math.round(Number(rupees) * 100) : null,
+                volume_tiers: parsedTiers,
+            } as never,
+        });
+        if (result.error) setFailure(detailFromResult(result, "Could not save the price"));
+        else await onSaved();
+        setBusy(false);
+    };
+
+    return (
+        <div className="mt-4 rounded-lg border border-border bg-muted/30 p-3" data-testid={`list-price-${bundle.slug}`}>
+            <div className="flex flex-wrap items-end gap-3">
+                <label className="text-xs">
+                    <span className="mb-1 block font-medium">List price, ₹ a minute (everything included)</span>
+                    <input
+                        className="h-8 w-32 rounded-md border border-border bg-background px-2 text-sm tabular-nums"
+                        value={rupees}
+                        onChange={(e) => setRupees(e.target.value)}
+                        placeholder="itemised"
+                        inputMode="decimal"
+                    />
+                </label>
+                <label className="text-xs">
+                    <span className="mb-1 block font-medium">Volume tiers (minutes:price per line)</span>
+                    <textarea
+                        className="h-16 w-56 rounded-md border border-border bg-background px-2 py-1 text-sm tabular-nums"
+                        value={tiers}
+                        onChange={(e) => setTiers(e.target.value)}
+                        placeholder={"5000:5.00\n20000:4.50"}
+                    />
+                </label>
+                <Button size="sm" onClick={() => void save()} disabled={busy}>
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Save price
+                </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+                With a list price, a call on this bundle is charged that number and nothing else; the
+                economics table still shows what it costs us. Leave empty for itemised pricing.
+            </p>
+            {failure && <p className="mt-1 text-xs text-destructive">{failure}</p>}
         </div>
     );
 }

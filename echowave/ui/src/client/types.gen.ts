@@ -1220,6 +1220,16 @@ export type BundleRequest = {
      * Is Enabled
      */
     is_enabled?: boolean | null;
+    /**
+     * List Paise Per Minute
+     */
+    list_paise_per_minute?: number | null;
+    /**
+     * Volume Tiers
+     */
+    volume_tiers?: Array<{
+        [key: string]: unknown;
+    }> | null;
 };
 
 /**
