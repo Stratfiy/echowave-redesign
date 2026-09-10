@@ -32,6 +32,9 @@ vi.mock("@/lib/auth", () => ({
 }));
 vi.mock("@/client/client.gen", () => ({ client: { get: api.get, post: api.post } }));
 vi.mock("@/client/sdk.gen", () => ({
+    // The post-call card polls the run after a browser call; the journey
+    // test never reaches a real run, so it answers with nothing.
+    getWorkflowRunApiV1WorkflowWorkflowIdRunsRunIdGet: vi.fn(async () => ({ data: null, error: undefined })),
     createWorkflowRunApiV1WorkflowWorkflowIdRunsPost: api.createRun,
     listNumbersApiV1VerifiedNumbersGet: api.listNumbers,
     initiateCallApiV1TelephonyInitiateCallPost: api.initiateCall,
