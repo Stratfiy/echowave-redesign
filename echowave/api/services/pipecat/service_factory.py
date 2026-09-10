@@ -726,6 +726,15 @@ _REQUEST_BASED_TTS_PROVIDERS = frozenset(
 )
 
 
+#: Sarvam's own defaults for its provider-side text buffer (min 30-200,
+#: default 50; max chunk 50-500, default 150). Shipped at 30/80 for latency,
+#: which chunked Indic sentences into fragments and cost pronunciation. With
+#: sentence aggregation upstream these mostly govern how a long sentence is
+#: split, so the vendor's defaults are the right ones.
+SARVAM_MIN_BUFFER_SIZE = 50
+SARVAM_MAX_CHUNK_LENGTH = 150
+
+
 def _create_tts_service_instance(provider, service, /, **kwargs):
     """Build a TTS service, applying everything TTS_POLICY decides.
 
@@ -1058,8 +1067,8 @@ def _create_tts_service(
         settings_kwargs = {
             "model": user_config.tts.model,
             "language": pipecat_language,
-            "min_buffer_size": 30,
-            "max_chunk_length": 80,
+            "min_buffer_size": SARVAM_MIN_BUFFER_SIZE,
+            "max_chunk_length": SARVAM_MAX_CHUNK_LENGTH,
         }
         # "male" and "female" are sentinels of the same kind as "default": a
         # managed slot must not store "anushka", because that is a Sarvam name
@@ -1095,6 +1104,15 @@ def _create_tts_service(
             SarvamTTSService,
             api_key=user_config.tts.api_key,
             settings=SarvamTTSSettings(**settings_kwargs),
+            # Whole sentences, not tokens. Token feeding with a 30-character
+            # buffer handed Sarvam two or three Tamil words at a time with no
+            # context, and it was heard: the words came out clipped and
+            # mispronounced in every language, which is what the latency work
+            # traded away without anyone listening. A sentence costs a few
+            # hundred milliseconds on the first word and the turns are two
+            # sentences long now; clarity is the product, latency is a
+            # number.
+            text_aggregation_mode=TextAggregationMode.SENTENCE,
         )
     elif user_config.tts.provider == ServiceProviders.RUMIK.value:
         # Rumik ships its own pipecat service, so there is no client to write

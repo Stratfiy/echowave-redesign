@@ -142,6 +142,9 @@ class TestSarvamSTTServiceFactory:
 class TestTTSLatencyPolicy:
     @pytest.mark.parametrize("provider", sorted(_LOW_LATENCY_STREAMING_TTS_PROVIDERS))
     def test_streaming_providers_receive_tokens_immediately(self, provider):
+        """The policy default. Sarvam's own call site overrides it to whole
+        sentences — see TestSarvamTTSServiceFactory — because an explicit
+        value wins and fragments cost it pronunciation."""
         service = Mock()
 
         result = _create_tts_service_instance(provider, service, api_key="test-key")
@@ -210,9 +213,11 @@ class TestSarvamTTSServiceFactory:
         assert kwargs["settings"].voice == "anushka"
         assert kwargs["settings"].language == Language.HI
         assert kwargs["settings"].pace == 1.25
-        assert kwargs["settings"].min_buffer_size == 30
-        assert kwargs["settings"].max_chunk_length == 80
-        assert kwargs["text_aggregation_mode"] == TextAggregationMode.TOKEN
+        assert kwargs["settings"].min_buffer_size == 50
+        assert kwargs["settings"].max_chunk_length == 150
+        # Whole sentences for Sarvam. Token feeding chunked Indic sentences
+        # into two-word fragments and the pronunciation went with it.
+        assert kwargs["text_aggregation_mode"] == TextAggregationMode.SENTENCE
 
     def test_create_sarvam_tts_service_normalizes_custom_voice_id(self):
         user_config = SimpleNamespace(
