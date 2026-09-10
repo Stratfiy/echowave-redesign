@@ -50,6 +50,7 @@ export function UnlockedModels({
     const [data, setData] = useState<Unlocked | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [notCovered, setNotCovered] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -59,7 +60,17 @@ export function UnlockedModels({
         });
         setLoading(false);
         if (result.error) {
-            setError(detailFromResult(result, "Could not list models"));
+            const detail = detailFromResult(result, "Could not list models");
+            // A key stored for one component is asked about every component
+            // the vendor serves. "No key for this one" is not a problem with
+            // the key, it is the answer — say nothing rather than warn on a
+            // vendor that is connected and working.
+            if (/^No .* key is stored/.test(detail)) {
+                setError(null);
+                setNotCovered(true);
+                return;
+            }
+            setError(detail);
             return;
         }
         setData(result.data as Unlocked);
@@ -69,6 +80,8 @@ export function UnlockedModels({
     useEffect(() => {
         void load();
     }, [load]);
+
+    if (notCovered) return null;
 
     if (loading && !data) {
         return (

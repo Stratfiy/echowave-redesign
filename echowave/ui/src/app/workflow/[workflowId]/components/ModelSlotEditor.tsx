@@ -169,10 +169,7 @@ export function ModelSlotEditor({
                     </div>
                 )}
                 {error && <p className="px-4 pb-2 text-xs text-destructive">{error}</p>}
-                <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
-                    <a href="#model-editor" onClick={() => setOpen(false)} className="text-xs text-muted-foreground underline-offset-2 hover:underline">
-                        Use my own key
-                    </a>
+                <div className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
                     <Button size="sm" onClick={() => void save()} disabled={!dirty || saving}>
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                         Save

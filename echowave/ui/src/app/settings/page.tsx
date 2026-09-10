@@ -8,7 +8,6 @@ import { MCPSection } from "@/components/MCPSection";
 import { MfaSection } from "@/components/MfaSection";
 import { OrganizationMembersSection } from "@/components/OrganizationMembersSection";
 import { OrganizationPreferencesSection } from "@/components/OrganizationPreferencesSection";
-import { ModelDefaultsSection } from "@/components/settings/ModelDefaultsSection";
 import { TelemetrySection } from "@/components/TelemetrySection";
 import {
   Card,
@@ -17,7 +16,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { SETTINGS_DOCUMENTATION_URLS } from "@/constants/documentation";
 import { UnsavedChangesProvider } from "@/context/UnsavedChangesContext";
 
 export default function SettingsPage() {
@@ -35,30 +33,6 @@ export default function SettingsPage() {
           670px stack of cards in the middle of a 1190px content area and left
           the rest empty; the cards are short and independent, so they tile. */}
       <PageBody className="grid items-start gap-6 lg:grid-cols-2">
-        {/* Full width: the pickers inside are wide. First, because it is the
-            setting with a price on it. What an agent runs on until it picks
-            its own — the agent's own choice is on its Models tab. */}
-        <Card id="model-defaults" className="scroll-mt-20 lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Model defaults</CardTitle>
-            <CardDescription>
-              What an agent runs on until it picks its own. Each agent chooses
-              its models on its Models tab, and that choice wins for that
-              agent.{" "}
-              <a
-                href={SETTINGS_DOCUMENTATION_URLS.modelOverrides}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-0.5 underline"
-              >
-                Learn more <ExternalLink className="h-3 w-3" />
-              </a>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ModelDefaultsSection />
-          </CardContent>
-        </Card>
         <Card>
           <CardHeader>
             <CardTitle>Preferences</CardTitle>

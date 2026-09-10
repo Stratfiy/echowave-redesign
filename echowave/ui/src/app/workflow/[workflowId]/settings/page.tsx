@@ -1947,7 +1947,10 @@ function WorkflowModelOverridesSection({
                     <ModelRow workflowId={workflowId} editable />
                 )}
 
-                <Collapsible id="model-editor" className={cn(modelView !== "advanced" && "hidden")}>
+                {/* Own keys are switched on per account by staff for now; until
+                    then the per-slot editor stays out of sight so nobody is
+                    invited to paste a key that will not be honoured. */}
+                <Collapsible id="model-editor" className="hidden">
                     <CollapsibleTrigger asChild>
                         <Button type="button" variant="ghost" size="sm" className="group -ml-2">
                             <ChevronRight className="mr-1 h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />

@@ -18,6 +18,7 @@ import { ArrowRight, Search } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { GoogleCalendarConnect } from "@/components/integrations/GoogleCalendarConnect";
 import { IntegrationsTabs } from "@/components/integrations/IntegrationsTabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,10 @@ function EntryCard({ entry }: { entry: CatalogueEntry }) {
                 <p className="text-xs text-muted-foreground">
                     {CONNECT_HINTS[entry.connect]}
                 </p>
-                {requested ? (
+                {entry.id === "google-calendar" ? (
+                    // Connects right here: a Google sign-in, not a key to paste.
+                    <GoogleCalendarConnect />
+                ) : requested ? (
                     // The setup call, not a form that files an email nobody
                     // reads. Both ask for the same thing and only one of them
                     // ends with somebody's agent connected.

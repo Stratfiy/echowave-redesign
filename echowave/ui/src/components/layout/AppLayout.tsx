@@ -76,7 +76,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   // Always render SidebarProvider to keep the component tree shape consistent
   // across route changes (avoids React hooks ordering violations during navigation).
   return (
-    <SidebarProvider defaultOpen>
+    <SidebarProvider defaultOpen className="app-shell">
       {shouldShowSidebar ? (
         <LeadFormsProvider>
           <div className="flex min-h-screen w-full">
