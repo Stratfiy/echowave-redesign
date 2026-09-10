@@ -502,7 +502,6 @@ async def _bundle_configuration(
     from api.services.configuration import bundles as bundle_service
     from api.services.configuration.ai_model_configuration import (
         get_organization_ai_model_configuration_v2,
-        upsert_organization_ai_model_configuration_v2,
     )
 
     # The account's model gateway service key, carried forward rather than
