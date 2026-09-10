@@ -87,6 +87,22 @@ class AmbientNoiseConfigurationDefaults(BaseModel):
     volume: float = 0.3
 
 
+class RecordingConfigurationDefaults(BaseModel):
+    """Whether the call's audio is kept.
+
+    On by default: the recording is what a call review, a QA grade and a
+    dispute are settled with. Off means no audio is buffered or uploaded for
+    the call — the transcript, the usage and the outcome are still kept, and
+    the agent stops telling the caller the call is recorded, because it isn't.
+    For the clinic or the lender whose compliance team says "no voice data at
+    rest".
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool = True
+
+
 class NoiseSuppressionConfigurationDefaults(BaseModel):
     """Noise off the caller's audio before the agent hears it.
 
@@ -146,6 +162,9 @@ class WorkflowConfigurationDefaults(BaseModel):
     )
     noise_suppression_configuration: NoiseSuppressionConfigurationDefaults = Field(
         default_factory=NoiseSuppressionConfigurationDefaults
+    )
+    recording_configuration: RecordingConfigurationDefaults = Field(
+        default_factory=RecordingConfigurationDefaults
     )
     max_call_duration: int = Field(
         default=DEFAULT_MAX_CALL_DURATION_SECONDS,

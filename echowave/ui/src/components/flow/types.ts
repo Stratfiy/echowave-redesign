@@ -26,6 +26,11 @@ export type FlowNodeData = {
     greeting?: string;
     greeting_type?: 'text' | 'audio';
     greeting_recording_id?: string;
+    // Who opens the call (StartCall only). "caller" keeps the agent quiet
+    // until the person speaks, with the greeting as a fallback after
+    // speaks_first_wait_secs of silence.
+    speaks_first?: 'agent' | 'caller';
+    speaks_first_wait_secs?: number;
     delayed_start?: boolean;
     delayed_start_duration?: number;
     // Pre-call data fetch (StartCall only)

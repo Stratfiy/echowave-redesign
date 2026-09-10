@@ -74,6 +74,7 @@ import {
     NOISE_SUPPRESSION_MIN_LEVEL,
     type NoiseSuppressionConfiguration,
     type PronunciationEntry,
+    type RecordingConfiguration,
     resolveWorkflowConfigurations,
     TURN_START_STRATEGY_OPTIONS,
     type TurnStartStrategy,
@@ -302,6 +303,9 @@ function GeneralSection({
                 level: NOISE_SUPPRESSION_MAX_LEVEL,
             },
         );
+    const [recordingConfig, setRecordingConfig] = useState<RecordingConfiguration>(
+        workflowConfigurations.recording_configuration ?? { enabled: true },
+    );
     const [ambientNoiseConfig, setAmbientNoiseConfig] = useState<AmbientNoiseConfiguration>(
         workflowConfigurations.ambient_noise_configuration,
     );
@@ -381,6 +385,8 @@ function GeneralSection({
             name !== workflowName ||
             JSON.stringify(ambientNoiseConfig) !== JSON.stringify(initAmbient) ||
             JSON.stringify(noiseSuppressionConfig) !== JSON.stringify(initSuppression) ||
+            recordingConfig.enabled !==
+            (workflowConfigurations.recording_configuration?.enabled ?? true) ||
             acceptKeypadInput !== (workflowConfigurations.accept_keypad_input ?? false) ||
             maxCallDuration !== workflowConfigurations.max_call_duration ||
             maxUserIdleTimeout !== workflowConfigurations.max_user_idle_timeout ||
@@ -397,7 +403,7 @@ function GeneralSection({
             includeTranscriptEndTimestamps !==
             (workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false)
         );
-    }, [name, workflowName, ambientNoiseConfig, noiseSuppressionConfig, acceptKeypadInput, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, noiseSuppressionConfig, recordingConfig, acceptKeypadInput, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -467,6 +473,7 @@ function GeneralSection({
                     ...workflowConfigurations,
                     ambient_noise_configuration: ambientNoiseConfig,
                     noise_suppression_configuration: noiseSuppressionConfig,
+                    recording_configuration: recordingConfig,
                     accept_keypad_input: acceptKeypadInput,
                     max_call_duration: maxCallDuration,
                     max_user_idle_timeout: maxUserIdleTimeout,
@@ -784,9 +791,42 @@ function GeneralSection({
                 <Separator />
                 <SettingsGroup
                     title="Audio"
-                    blurb="What the caller hears behind the agent."
+                    blurb="What the caller hears behind the agent, and what is kept."
                     defaultOpen={true}
                 >
+                {/* Call recording. First in the group because it decides
+                    whether there is any audio to talk about at all. */}
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Call recording</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Keep the audio of every call for review and QA. Switch
+                            it off for a line where no voice data may be stored:
+                            the transcript, outcome and usage are still kept, and
+                            the agent stops telling callers the call is recorded.
+                        </p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="recording-enabled" className="text-sm">
+                            Record calls
+                        </Label>
+                        <Switch
+                            id="recording-enabled"
+                            checked={recordingConfig.enabled}
+                            onCheckedChange={(checked) =>
+                                setRecordingConfig({ ...recordingConfig, enabled: checked })
+                            }
+                        />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        {recordingConfig.enabled
+                            ? "On. Recordings follow the retention period set on the Privacy page."
+                            : "Off. No audio is written for this agent's calls, so call review has the transcript only."}
+                    </p>
+                </div>
+
+                <Separator />
+
                 {/* Noise suppression.
                     Immediately above Ambient Noise deliberately: they are
                     opposite operations on opposite legs — this takes hiss off

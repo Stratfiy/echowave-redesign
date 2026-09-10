@@ -73,6 +73,19 @@ class StartCall(TypedNode):
     Pre-recorded audio file played at the start of the call.
     """
 
+    speaks_first: Literal['agent', 'caller'] = 'agent'
+    """
+    Agent: the greeting plays as soon as the call connects. Caller: the
+    agent waits for the person to speak and answers them; if they stay
+    silent it falls back to the greeting.
+    """
+
+    speaks_first_wait_secs: Optional[float] = None
+    """
+    How long to stay quiet for the caller before falling back to the
+    greeting. Default: 3.
+    """
+
     recording_disclosure_enabled: Optional[bool] = None
     """
     Speak a short disclosure before the greeting. Required for two-party-

@@ -54,6 +54,7 @@ def compose_system_prompt_for_node(
     format_prompt: Callable[[str], str],
     has_recordings: bool,
     code_mixed_speech: bool = False,
+    opening_notes: str | None = None,
 ) -> str:
     """Compose the full system prompt text for a workflow node.
 
@@ -69,6 +70,9 @@ def compose_system_prompt_for_node(
         code_mixed_speech: Whether to tell the model to speak the way callers
             here actually do — mixing English into the local language — rather
             than in the formal register it reaches for by default.
+        opening_notes: Extra instructions about how this node opens, for a
+            start node that lets the caller speak first. Appended after the
+            operator's prompts so they read as the latest instruction.
 
     Returns:
         The composed system prompt text.
@@ -87,6 +91,9 @@ def compose_system_prompt_for_node(
     # and has to be the last thing the model is told.
     if code_mixed_speech:
         parts.append(CODE_MIXED_INSTRUCTIONS)
+
+    if opening_notes:
+        parts.append(opening_notes)
 
     if has_recordings and "RECORDING_ID:" in formatted_node_prompt:
         parts.append(RECORDING_RESPONSE_MODE_INSTRUCTIONS)

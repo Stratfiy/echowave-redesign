@@ -31,6 +31,7 @@ from api.services.pipecat.active_calls import (
     unregister_active_call as unregister_worker_active_call,
 )
 from api.services.pipecat.audio_config import AudioConfig, create_audio_config
+from api.services.pipecat.call_recording import recording_enabled
 from api.services.pipecat.dynamic_greeting import (
     fetch_greeting as fetch_dynamic_greeting,
 )
@@ -155,6 +156,26 @@ def _create_interruption_backoff(run_configs: dict):
     if seconds <= 0:
         return None
     return InterruptionBackoff(seconds=seconds)
+
+
+def _create_user_mute_strategies(engine, *, caller_speaks_first: bool) -> list:
+    """The user-mute strategies for this run.
+
+    The pipeline normally mutes the caller until the agent has finished its
+    first line, so the greeting is not clipped by a "hello?". When the caller
+    is meant to speak first that mute would wait for a line the agent is not
+    going to say, and the caller would talk into a wall — so it is left out.
+    """
+    strategies = []
+    if not caller_speaks_first:
+        strategies.append(MuteUntilFirstBotCompleteUserMuteStrategy())
+    strategies.extend(
+        [
+            FunctionCallUserMuteStrategy(),
+            CallbackUserMuteStrategy(should_mute_callback=engine.should_mute_user),
+        ]
+    )
+    return strategies
 
 
 def _resolve_turn_start_min_words(run_configs: dict) -> int:
@@ -1108,6 +1129,12 @@ async def _run_pipeline_impl(
     context_compaction_enabled = (workflow.workflow_configurations or {}).get(
         "context_compaction_enabled", False
     )
+    keep_recording = recording_enabled(run_configs)
+    if not keep_recording:
+        logger.info(
+            f"Workflow run {workflow_run_id}: call recording is off for this agent; "
+            "no audio will be kept"
+        )
     # Context compaction doesn't apply in realtime mode: the speech-to-speech
     # service manages its own conversation state server-side.
     if is_realtime and context_compaction_enabled:
@@ -1130,6 +1157,7 @@ async def _run_pipeline_impl(
         has_recordings=has_recordings,
         code_mixed_speech=wants_code_mixed_speech(run_configs),
         context_compaction_enabled=context_compaction_enabled,
+        call_recorded=keep_recording,
     )
 
     # Create pipeline components
@@ -1155,11 +1183,9 @@ async def _run_pipeline_impl(
         correct_aggregation_callback=engine.create_aggregation_correction_callback(),
     )
 
-    user_mute_strategies = [
-        MuteUntilFirstBotCompleteUserMuteStrategy(),
-        FunctionCallUserMuteStrategy(),
-        CallbackUserMuteStrategy(should_mute_callback=engine.should_mute_user),
-    ]
+    user_mute_strategies = _create_user_mute_strategies(
+        engine, caller_speaks_first=engine.caller_speaks_first()
+    )
     user_vad_analyzer = SileroVADAnalyzer(params=VADParams(stop_secs=0.2))
 
     # Configure turn strategies based on STT provider, model, and workflow configuration
@@ -1222,6 +1248,7 @@ async def _run_pipeline_impl(
         max_duration_end_task_callback=engine.create_max_duration_callback(),
         generation_started_callback=engine.create_generation_started_callback(),
         llm_text_frame_callback=engine.handle_llm_text_frame,
+        user_started_speaking_callback=engine.handle_user_started_speaking,
     )
 
     pipeline_metrics_aggregator = PipelineMetricsAggregator()
@@ -1574,9 +1601,13 @@ async def _run_pipeline_impl(
         user_provider_id=user_provider_id,
         integration_runtime_sessions=integration_runtime_sessions,
         include_transcript_end_timestamps=include_transcript_end_timestamps,
+        keep_recording=keep_recording,
     )
 
-    register_audio_data_handler(audio_buffer, workflow_run_id, in_memory_audio_buffer)
+    if keep_recording:
+        register_audio_data_handler(
+            audio_buffer, workflow_run_id, in_memory_audio_buffer
+        )
 
     try:
         # Run the pipeline
