@@ -50,7 +50,7 @@ RULES:
 - *NEVER* mix modes in a single response, since we rely on the markers to decide whether to play using TTS or Pre-recorded audio."""
 
 
-def today_line(timezone: str | None = None) -> str:
+def compose_today_line(timezone: str | None = None) -> str:
     """What day it is, for a model whose idea of "today" is its training cutoff.
 
     Asked the date, an agent here answered "June 13, 2024" — off by more than
@@ -89,7 +89,7 @@ def compose_system_prompt_for_node(
     has_recordings: bool,
     code_mixed_speech: bool = False,
     opening_notes: str | None = None,
-    timezone: str | None = None,
+    today_line: str | None = None,
 ) -> str:
     """Compose the full system prompt text for a workflow node.
 
@@ -108,9 +108,10 @@ def compose_system_prompt_for_node(
         opening_notes: Extra instructions about how this node opens, for a
             start node that lets the caller speak first. Appended after the
             operator's prompts so they read as the latest instruction.
-        timezone: IANA zone the caller and the business are in. Decides what
-            "today" and "this evening" mean; falls back to the deployment
-            default.
+        today_line: What day and time it is, worked out once for the whole
+            call by the engine so the prompt stays byte-identical across node
+            transitions and therefore stays cacheable. Composed here from the
+            deployment default when a caller does not supply it.
 
     Returns:
         The composed system prompt text.
@@ -125,9 +126,8 @@ def compose_system_prompt_for_node(
     # First, before the operator's own words: everything after it may depend on
     # what day it is, and a model that has already read "book them in for
     # Tuesday" has started reasoning from the wrong year.
-    parts = [
-        p for p in (today_line(timezone), global_prompt, formatted_node_prompt) if p
-    ]
+    dated = today_line if today_line is not None else compose_today_line()
+    parts = [p for p in (dated, global_prompt, formatted_node_prompt) if p]
 
     # After the operator's own prompts, so it reads as the most recent
     # instruction, and before the recording block, which is a response *format*

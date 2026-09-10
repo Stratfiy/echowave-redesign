@@ -18,12 +18,12 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from api.constants import DEFAULT_ORGANIZATION_TIMEZONE
-from api.services.workflow.pipecat_engine_context_composer import today_line
+from api.services.workflow.pipecat_engine_context_composer import compose_today_line
 
 
 class TestItSaysWhatDayItIs:
     def test_the_real_date_in_the_business_timezone(self):
-        line = today_line("Asia/Kolkata")
+        line = compose_today_line("Asia/Kolkata")
         now = datetime.now(ZoneInfo("Asia/Kolkata"))
 
         assert f"{now:%d %B %Y}" in line
@@ -41,30 +41,30 @@ class TestItSaysWhatDayItIs:
             "Sunday",
         )
 
-        assert any(day in today_line("Asia/Kolkata") for day in weekdays)
+        assert any(day in compose_today_line("Asia/Kolkata") for day in weekdays)
 
     def test_the_time_is_there_too(self):
         """Opening hours and "this evening" both depend on it."""
         now = datetime.now(ZoneInfo("Asia/Kolkata"))
 
-        assert f"{now:%H:%M}" in today_line("Asia/Kolkata")
+        assert f"{now:%H:%M}" in compose_today_line("Asia/Kolkata")
 
     def test_it_tells_the_model_not_to_use_its_own_memory(self):
-        assert "never from anything you remember" in today_line("Asia/Kolkata")
+        assert "never from anything you remember" in compose_today_line("Asia/Kolkata")
 
 
 class TestTheTimezoneItUses:
     def test_a_named_zone_is_honoured(self):
-        assert "Asia/Tokyo" in today_line("Asia/Tokyo")
+        assert "Asia/Tokyo" in compose_today_line("Asia/Tokyo")
 
     def test_no_zone_falls_back_to_the_deployment_default(self):
-        assert DEFAULT_ORGANIZATION_TIMEZONE in today_line(None)
+        assert DEFAULT_ORGANIZATION_TIMEZONE in compose_today_line(None)
 
     @pytest.mark.parametrize("bad", ["Mars/Olympus", "", "not a zone"])
     def test_a_zone_nobody_recognises_does_not_take_the_call_down(self, bad):
         """An operator typing a bad timezone should get the wrong offset at
         worst, never a call that fails to start."""
-        line = today_line(bad)
+        line = compose_today_line(bad)
 
         assert DEFAULT_ORGANIZATION_TIMEZONE in line
 
@@ -158,3 +158,68 @@ class TestTheCalendarBooksInTheSameZone:
         from api.services.integrations.google_calendar import client as gcal
 
         assert await gcal.booking_timezone(None) == GOOGLE_CALENDAR_DEFAULT_TIMEZONE
+
+
+class TestNowIsFixedForTheCall:
+    """The prompt must not change between node transitions.
+
+    The system prompt is re-sent every turn and is the part providers cache. A
+    clock reading recomposed at each node makes the prefix differ every minute,
+    which throws that cache away -- on a real call here, 9,088 of 9,608 prompt
+    tokens were cache reads, so most of the bill rides on the prefix holding
+    still. An agent whose sense of "now" jumps mid-call also answers "how long
+    until my appointment" differently depending on which step it is on.
+    """
+
+    def test_a_supplied_line_is_used_verbatim(self):
+        from api.services.workflow.pipecat_engine_context_composer import (
+            compose_system_prompt_for_node,
+        )
+
+        class _Node:
+            prompt = "NODE PROMPT"
+            add_global_prompt = False
+            document_uuids = None
+
+        class _Workflow:
+            global_node_id = None
+            nodes: dict = {}
+
+        composed = compose_system_prompt_for_node(
+            node=_Node(),
+            workflow=_Workflow(),
+            format_prompt=lambda text: text,
+            has_recordings=False,
+            today_line="FIXED MOMENT",
+        )
+
+        assert composed.startswith("FIXED MOMENT")
+
+    def test_two_nodes_given_the_same_line_produce_the_same_prefix(self):
+        """What caching actually needs: byte-identical, not merely similar."""
+        from api.services.workflow.pipecat_engine_context_composer import (
+            compose_system_prompt_for_node,
+        )
+
+        class _Workflow:
+            global_node_id = None
+            nodes: dict = {}
+
+        def _compose(prompt):
+            class _Node:
+                add_global_prompt = False
+                document_uuids = None
+
+            _Node.prompt = prompt
+            return compose_system_prompt_for_node(
+                node=_Node(),
+                workflow=_Workflow(),
+                format_prompt=lambda text: text,
+                has_recordings=False,
+                today_line="FIXED MOMENT",
+            )
+
+        first = _compose("FIRST NODE")
+        second = _compose("SECOND NODE")
+
+        assert first.split("\n\n")[0] == second.split("\n\n")[0]
