@@ -159,6 +159,7 @@ async def test_mcp_create_tool_schema_includes_validation_and_llm_hints():
         "integration",
         "mcp",
         "google_calendar",
+        "rate_table",
     ]
     assert http_config["properties"]["method"]["enum"] == [
         "GET",
