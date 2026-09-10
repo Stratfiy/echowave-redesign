@@ -306,13 +306,18 @@ async def process_knowledge_base_document(
         if retrieval_mode == "chunked":
             from api.services.configuration.ai_model_configuration import (
                 apply_managed_embeddings_base_url,
-                get_resolved_ai_model_configuration,
+                get_effective_ai_model_configuration_for_workflow,
             )
 
-            resolved_config = await get_resolved_ai_model_configuration(
+            # The same resolver a call uses, so a managed or platform-keyed
+            # embeddings section arrives here with a real vendor and our key.
+            # Reading the stored configuration directly left ``api_key`` empty
+            # for every account on the platform key, and ingestion failed
+            # asking the customer for a key they were never meant to hold.
+            effective_config = await get_effective_ai_model_configuration_for_workflow(
                 organization_id=document.organization_id,
+                workflow_configurations=None,
             )
-            effective_config = resolved_config.effective
             if effective_config.embeddings:
                 embeddings_provider = getattr(
                     effective_config.embeddings, "provider", None

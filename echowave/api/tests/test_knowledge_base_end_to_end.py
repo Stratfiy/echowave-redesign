@@ -156,6 +156,17 @@ def ingestion(monkeypatch, tmp_path):
         "get_resolved_ai_model_configuration",
         resolved_configuration,
     )
+
+    # Ingestion resolves the configuration the way a call does (managed and
+    # platform-keyed sections filled in); hand it the same effective section.
+    async def effective_configuration(**kwargs):
+        return (await resolved_configuration(**kwargs)).effective
+
+    monkeypatch.setattr(
+        "api.services.configuration.ai_model_configuration."
+        "get_effective_ai_model_configuration_for_workflow",
+        effective_configuration,
+    )
     monkeypatch.setattr(
         "api.services.configuration.ai_model_configuration."
         "apply_managed_embeddings_base_url",
