@@ -180,9 +180,17 @@ def _zone_lines() -> str:
 
 
 def _rate_lines(table: dict[str, list[int]]) -> str:
+    """One line per zone, weights across.
+
+    By zone rather than by weight because that is the order a quote is worked
+    out in: the country gives the zone first, and then only one line has to
+    be read. A weight-first table asks the model to find a column, which is
+    where a smaller model read a neighbouring cell.
+    """
     return "\n".join(
-        f"  {kg} kg: " + ", ".join(f"Z{i + 1} {r:,}" for i, r in enumerate(rates))
-        for kg, rates in table.items()
+        f"  Zone {zone + 1}: "
+        + "; ".join(f"{kg} kg = {rates[zone]:,}" for kg, rates in table.items())
+        for zone in range(10)
     )
 
 
@@ -205,8 +213,9 @@ RULES = (
     "- Work out the zone and the rate silently and say only the answer. Never "
     "think aloud, never say 'wait' or 'let me check', never read the table "
     "back to the caller.\n"
-    "- Say rupee amounts in words a person would use: 'about two thousand three "
-    "hundred rupees', never digit strings. Round to the nearest ten.\n"
+    "- Quote the exact figure from the table for the zone and weight, then say "
+    "it in words a person would use: 'one thousand eight hundred and ninety-one "
+    "rupees'. Never round, estimate or add anything to the table figure.\n"
     "- Every figure you state comes from the rate guide in these rules or the "
     "uploaded DHL document. If a destination, weight band or charge is not "
     "there, say so and offer a callback rather than guessing.\n"
@@ -223,8 +232,8 @@ RULES = (
     "\n"
     "DESTINATION ZONES\n{zones}\n"
     "\n"
-    "NON-DOCUMENT RATES, INR per shipment (Z = zone)\n{non_doc}\n"
-    "For weights between two rows, quote the next higher row.\n"
+    "NON-DOCUMENT RATES, INR per shipment, by zone then chargeable weight\n{non_doc}\n"
+    "For a weight between two listed weights, quote the next higher one.\n"
     "\n"
     "DOCUMENT RATES, INR per shipment, up to 2 kg\n{docs}\n"
     "\n"

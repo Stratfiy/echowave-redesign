@@ -54,7 +54,7 @@ def test_the_rate_guide_is_in_the_rules():
     for table in (NON_DOC_RATES, DOC_RATES):
         for rates in table.values():
             assert len(rates) == 10
-    assert "Z8 1,885" in RULES
+    assert "1 kg = 1,885" in RULES
     assert "divided by 5000" in RULES
     assert "fuel surcharge and gst" in RULES.lower()
 
