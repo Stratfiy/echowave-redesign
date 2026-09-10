@@ -326,7 +326,10 @@ export function resolveWorkflowConfigurations(
 ): WorkflowConfigurations {
     return {
         ...FALLBACK_WORKFLOW_CONFIGURATIONS,
-        ...defaults,
+        // The generated defaults type leaves every CallOutcome field optional
+        // (FastAPI's schema has no required-fields list for it); the app's own
+        // type is strict. The server always sends all three.
+        ...(defaults as Partial<WorkflowConfigurations> | null | undefined),
         ...configurations,
         ambient_noise_configuration: {
             ...FALLBACK_WORKFLOW_CONFIGURATIONS.ambient_noise_configuration,

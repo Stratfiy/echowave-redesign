@@ -56,23 +56,6 @@ export interface PropertyInputProps {
  * mounting them.
  */
 export function PropertyInput({ spec, value, onChange, context }: PropertyInputProps) {
-    // Ahead of the switch rather than inside it. `agent_ref` is not in the
-    // generated `PropertyType` union yet — the client is regenerated against a
-    // running backend, and this node type is not deployed — and adding a case
-    // for a member the union does not have would mean widening the
-    // discriminant, which is what makes the `never` check below load-bearing.
-    // Delete this once the generated union carries it.
-    if ((spec.type as string) === "agent_ref") {
-        return (
-            <AgentRefWidget
-                spec={spec}
-                value={value}
-                onChange={onChange}
-                selfUuid={context.workflowUuid}
-            />
-        );
-    }
-
     switch (spec.type) {
         case "string":
             return <StringWidget spec={spec} value={value} onChange={onChange} />;
@@ -139,6 +122,15 @@ export function PropertyInput({ spec, value, onChange, context }: PropertyInputP
             );
         case "credential_ref":
             return <CredentialRefWidget spec={spec} value={value} onChange={onChange} />;
+        case "agent_ref":
+            return (
+                <AgentRefWidget
+                    spec={spec}
+                    value={value}
+                    onChange={onChange}
+                    selfUuid={context.workflowUuid}
+                />
+            );
         default: {
             const exhaustiveCheck: never = spec.type;
             return (
