@@ -1,28 +1,20 @@
-// Decibyl auth shell. LEFT: brand and value panel. RIGHT: the auth form card.
-// Mobile collapses to a single column.
+// Decibyl auth shell: one centred column, the form card in the middle.
 //
-// The copy here is the first thing anyone reads, so it has to agree with what
-// we actually sell. It used to say "open, self-hostable" and "BYOK · any
-// model", which is the developer-tool pitch — and it told every visitor the
-// opposite of the pricing: we hold the provider keys, the markup is where the
-// margin is, and BYOK is an enterprise arrangement rather than the headline.
-// A prospect who arrives expecting to bring their own OpenAI key and finds a
-// managed rate card has been mis-sold before they reach the form.
+// Near-white canvas, ink text, one accent — Decibyl coral — and a single
+// gradient orb doing the work a hero illustration usually does. The old
+// two-column split put the form off to one side and filled the other half
+// with chips and a sales block; a visitor's eye went everywhere except the
+// thing they came to do. Now the card is the centre of the page, the brand
+// sits above it, and the enterprise line is a quiet footer for the few who
+// need it.
 //
-// It now says what the product does for the person buying it: answer the
-// phone. Self-hosting and BYOK are still true, still available, and belong in
-// the enterprise block below rather than in the first sentence.
+// The copy still says what the product does for the buyer — answer the
+// phone — rather than the developer-tool pitch. Self-hosting and BYOK stay
+// true and stay in the enterprise line, not the first sentence.
 
 import type { ReactNode } from "react";
 
 import { BrandLogo } from "@/components/BrandLogo";
-
-const HIGHLIGHTS = [
-  "11 Indian languages",
-  "Answers in one ring",
-  "Live in 10 minutes",
-  "No setup fee",
-];
 
 export function AuthShell({
   children,
@@ -32,82 +24,62 @@ export function AuthShell({
   enterpriseSlot?: ReactNode;
 }) {
   return (
-    <div className="grid min-h-screen w-full bg-background lg:grid-cols-[52%_48%]">
-      {/* Brand / value panel (LEFT) — hidden on mobile */}
-      <aside className="relative hidden flex-col justify-between overflow-hidden bg-brand-panel p-10 lg:flex xl:p-14">
-        {/* Soft radial glow anchoring the brand color */}
+    <div className="relative flex min-h-screen w-full flex-col items-center overflow-x-hidden bg-background px-6 py-10 text-foreground sm:py-14">
+      {/* The orb. One soft coral sphere, sitting behind the top of the page.
+          Decorative only: it is the sole chromatic element on an otherwise
+          achromatic canvas, so it must never compete with the form. */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-0 flex justify-center">
         <div
-          aria-hidden
-          className="pointer-events-none absolute -left-24 top-1/4 size-[32rem] rounded-full opacity-40 blur-3xl"
-          style={{ background: "radial-gradient(circle, var(--brand-blue-soft), transparent 65%)" }}
+          className="mt-[-9rem] size-[26rem] rounded-full opacity-[0.55] blur-3xl sm:size-[34rem]"
+          style={{ background: "var(--brand-gradient)" }}
         />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-16 bottom-0 size-[24rem] rounded-full opacity-30 blur-3xl"
-          style={{ background: "radial-gradient(circle, var(--brand-blue-glow), transparent 70%)" }}
-        />
+      </div>
 
-        <div className="relative flex items-center justify-between">
-          <BrandLogo className="h-9" />
-          <span className="rounded-full border border-brand-blue/25 bg-brand-blue/10 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-brand-blue">
-            by nAutomation Labs
-          </span>
+      {/* Brand */}
+      <header className="relative z-10 flex flex-col items-center gap-3">
+        <BrandLogo className="h-9" />
+        <span
+          className="rounded-full border px-3 py-1 text-[11px] font-medium uppercase tracking-wider"
+          style={{
+            borderColor: "var(--accent-brand-soft)",
+            background: "var(--accent-brand-tint)",
+            color: "var(--accent-brand)",
+          }}
+        >
+          by nAutomation Labs
+        </span>
+      </header>
+
+      {/* Headline. 400 weight, tight leading, one accented phrase. */}
+      <div className="relative z-10 mt-8 max-w-xl text-center">
+        <h1 className="text-[28px] font-normal leading-[1.1] tracking-[-0.01em] text-brand-heading sm:text-[34px]">
+          Every missed call{" "}
+          <span style={{ color: "var(--accent-brand)" }}>is a customer</span>{" "}
+          who rang someone else.
+        </h1>
+        <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-brand-body">
+          Decibyl answers your phone in Hindi, Tamil, Telugu and eight more —
+          books the appointment, qualifies the lead, and hands anything real to
+          a person. Set one up yourself in ten minutes.
+        </p>
+      </div>
+
+      {/* The card: dead centre, the reason the page exists. */}
+      <main className="auth-imprint relative z-10 mt-8 w-full max-w-md">
+        <div className="space-y-6 rounded-[var(--radius-large)] border border-border bg-card p-6 shadow-[var(--shadow-subtle)] sm:p-8">
+          {children}
         </div>
 
-        <div className="relative max-w-lg space-y-7">
-          <h1 className="text-4xl font-medium leading-[1.05] tracking-tight text-brand-heading xl:text-[44px]">
-            Every missed call
-            <br />
-            <span className="text-brand-blue">is a customer</span>
-            <br />
-            who rang someone else.
-          </h1>
-          <p className="max-w-md text-[15px] leading-relaxed text-brand-body">
-            Decibyl answers your phone in Hindi, Tamil, Telugu and eight more —
-            books the appointment, qualifies the lead, and hands anything real
-            to a person. Set one up yourself in ten minutes.
-          </p>
-          <ul className="flex flex-wrap gap-2">
-            {HIGHLIGHTS.map((point) => (
-              <li
-                key={point}
-                className="rounded-full border border-brand-chip-border bg-brand-chip px-3 py-1 text-xs font-medium text-brand-chip-fg"
-              >
-                {point}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Enterprise CTA block */}
-        <div className="relative max-w-md space-y-3 rounded-[var(--radius-large)] border border-brand-chip-border bg-brand-card p-5">
-          <h2 className="text-sm font-semibold text-brand-heading">
-            Need on-prem, data residency &amp; a data perimeter?
-          </h2>
-          <p className="text-sm text-brand-body">
-            We deploy Decibyl inside your environment for regulated and
-            high-scale teams.
-          </p>
-          {enterpriseSlot}
-        </div>
-      </aside>
-
-      {/* Form column (RIGHT) — scrolls and stays centered so tall forms never
-          clip. The theme toggle that sat in the top-right corner is gone with
-          the dark theme: under forcedTheme="light" it rendered a control that
-          changed nothing, which is worse than no control. */}
-      <main className="auth-imprint relative flex min-h-screen flex-col overflow-y-auto">
-        <div className="flex min-h-full items-center justify-center p-6 sm:p-10">
-          <div className="w-full max-w-md space-y-6">
-            {/* Mobile-only wordmark (brand panel is hidden) */}
-            <div className="mb-2 lg:hidden">
-              <BrandLogo className="h-8" />
-            </div>
-            <div className="space-y-6 rounded-[var(--radius-large)] border border-border bg-card p-6 sm:p-8">
-              {children}
-            </div>
+        {/* Enterprise: a footer line, not a competing block. */}
+        {enterpriseSlot && (
+          <div className="mt-6 flex flex-col items-center gap-3 text-center">
+            <p className="text-sm text-brand-body">
+              Need on-prem, data residency or a data perimeter? We deploy
+              Decibyl inside your environment.
+            </p>
+            <div className="w-full max-w-xs">{enterpriseSlot}</div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );
