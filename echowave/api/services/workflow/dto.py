@@ -228,6 +228,8 @@ class _ToolDocumentRefsMixin(BaseModel):
         "greeting_type",
         "greeting",
         "greeting_recording_id",
+        "speaks_first",
+        "speaks_first_wait_secs",
         "recording_disclosure_enabled",
         "recording_disclosure",
         "prompt",
@@ -370,6 +372,37 @@ class StartCallNodeData(
     )
     greeting_recording_id: Optional[str] = spec_field(
         default=None, ui_type=PropertyType.recording_ref
+    )
+    # Who opens the call. "agent" plays the greeting the moment the line is
+    # up. "caller" keeps the agent quiet and lets the person speak first —
+    # the shape of an inbound line where people call in already talking, and
+    # of an outbound call answered by someone who says "hello?" before they
+    # have registered a voice. If the caller says nothing for
+    # ``speaks_first_wait_secs`` the agent falls back to its greeting, so a
+    # silent line never turns into two parties waiting for each other.
+    speaks_first: Literal["agent", "caller"] = spec_field(
+        default="agent",
+        display_name="Who speaks first",
+        description=(
+            "Agent: the greeting plays as soon as the call connects. Caller: the "
+            "agent waits for the person to speak and answers them; if they stay "
+            "silent it falls back to the greeting."
+        ),
+        spec_default="agent",
+        options=[
+            PropertyOption(value="agent", label="Agent greets first"),
+            PropertyOption(value="caller", label="Wait for the caller"),
+        ],
+    )
+    speaks_first_wait_secs: Optional[float] = spec_field(
+        default=None,
+        ui_type=PropertyType.number,
+        display_name="Wait for the caller (seconds)",
+        description=(
+            "How long to stay quiet for the caller before falling back to the "
+            "greeting. Default: 3."
+        ),
+        display_options=DisplayOptions(show={"speaks_first": ["caller"]}),
     )
     # Recording disclosure. Twelve US states require two-party consent to record
     # a call, Indian telecom rules expect disclosure, and DPDP treats a call

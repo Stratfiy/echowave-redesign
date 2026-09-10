@@ -50,6 +50,15 @@ export type DynamicGreetingConfiguration = {
     timeout_ms?: number;
 };
 
+/**
+ * Whether the call's audio is kept. Off: nothing is buffered or uploaded,
+ * the transcript and outcome still are, and the agent stops announcing a
+ * recording that does not exist.
+ */
+export type RecordingConfiguration = {
+    enabled: boolean;
+};
+
 export type NoiseSuppressionConfiguration = {
     enabled: boolean;
     /** Share of the denoised signal in what the agent hears, 20 to 100. */
@@ -250,6 +259,7 @@ type WorkflowConfigurationBase = Omit<
 export type WorkflowConfigurations = WorkflowConfigurationBase & {
     ambient_noise_configuration: AmbientNoiseConfiguration;
     noise_suppression_configuration?: NoiseSuppressionConfiguration;
+    recording_configuration?: RecordingConfiguration;
     pronunciation_lexicon?: PronunciationEntry[];
     /**
      * What a finished call is classified as. Empty means the platform default
@@ -307,6 +317,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
         enabled: true,
         level: NOISE_SUPPRESSION_MAX_LEVEL
     },
+    recording_configuration: { enabled: true },
     pronunciation_lexicon: [],
     call_outcomes: [],
     follow_caller_language: false,

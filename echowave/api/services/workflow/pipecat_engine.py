@@ -20,6 +20,12 @@ from api.constants import (
     RECORDING_DISCLOSURE_ENABLED,
     RECORDING_DISCLOSURE_TEXT,
 )
+
+# Caller-first opening: how long the agent stays quiet for the caller before
+# it gives up waiting and greets. Three seconds is the gap a person tolerates
+# on a line before they say "hello?" a second time; longer and they hang up.
+CALLER_FIRST_DEFAULT_WAIT_SECS = 3.0
+CALLER_FIRST_MAX_WAIT_SECS = 15.0
 from api.db import db_client
 from api.enums import ToolCategory
 from api.services.pipecat.audio_playback import play_audio
@@ -105,6 +111,7 @@ class PipecatEngine:
         code_mixed_speech: bool = False,
         context_compaction_enabled: bool = False,
         is_voice: bool = True,
+        call_recorded: bool = True,
     ):
         self.task = task
         self.llm = llm
@@ -131,6 +138,13 @@ class PipecatEngine:
         # discloses in the interface it is embedded in, where there is a page to
         # put it on. Defaults to True so a caller that forgets still discloses.
         self._is_voice = is_voice
+        # Whether this run keeps its audio. Off means the pipeline writes no
+        # recording, and so the agent must not tell the caller that it does.
+        self._call_recorded = call_recorded
+        # Who-speaks-first bookkeeping. See open_call.
+        self._caller_has_spoken = False
+        self._opening_queued = False
+        self._caller_first_wait_task: Optional[asyncio.Task] = None
         self._initialized = False
         self._call_disposed = False
         self._current_node: Optional[Node] = None
@@ -666,6 +680,7 @@ class PipecatEngine:
             format_prompt=self._format_prompt,
             has_recordings=self._has_recordings,
             code_mixed_speech=self._code_mixed_speech,
+            opening_notes=self._opening_notes_for(node),
         )
         functions = await compose_functions_for_node(
             node=node,
@@ -812,6 +827,12 @@ class PipecatEngine:
         if not self._is_voice:
             return None
 
+        # An agent with recording switched off makes no recording, and saying
+        # "this call is recorded" over a line that is not would be the one
+        # thing worse than forgetting to say it over one that is.
+        if not self._call_recorded:
+            return None
+
         node = self.workflow.nodes.get(node_id)
         if not node:
             return None
@@ -855,6 +876,112 @@ class PipecatEngine:
         logger.debug("Speaking recording disclosure before the opening")
         await self.task.queue_frame(TTSSpeakFrame(text, append_to_context=True))
         return True
+
+    # ----- Who speaks first -------------------------------------------------
+
+    def caller_speaks_first(self) -> bool:
+        """Does the start node wait for the caller before saying anything?
+
+        Only a voice call has a caller to wait for; a text chat opens with
+        the greeting whatever the node says, because a chat window with
+        nothing in it is a page that looks broken.
+        """
+        if not self._is_voice:
+            return False
+        node = self.workflow.nodes.get(self.workflow.start_node_id)
+        return getattr(node, "speaks_first", "agent") == "caller"
+
+    def caller_first_wait_secs(self) -> float:
+        """How long the agent stays quiet for the caller before greeting."""
+        node = self.workflow.nodes.get(self.workflow.start_node_id)
+        configured = getattr(node, "speaks_first_wait_secs", None)
+        try:
+            wait = float(configured) if configured is not None else None
+        except (TypeError, ValueError):
+            wait = None
+        if wait is None or wait <= 0:
+            return CALLER_FIRST_DEFAULT_WAIT_SECS
+        return min(wait, CALLER_FIRST_MAX_WAIT_SECS)
+
+    def _opening_notes_for(self, node: Node) -> Optional[str]:
+        """Prompt text for a start node that lets the caller open the call.
+
+        When the caller speaks first there is no greeting in the context for
+        the model to anchor on, so it is told what happened and, when the
+        call is recorded, to make the disclosure itself in its first line.
+        The note applies only on the start node and only while nothing has
+        been said; once the fallback greeting has played, the greeting and
+        the spoken disclosure are in the context and the note is moot.
+        """
+        if node.id != self.workflow.start_node_id or not self.caller_speaks_first():
+            return None
+        lines = [
+            "OPENING: This agent lets the caller speak first. If the caller has "
+            "spoken and you have not yet said anything, do not play a scripted "
+            "greeting — answer what they said, then introduce yourself in one "
+            "short line."
+        ]
+        disclosure = self.resolve_recording_disclosure(node.id)
+        if disclosure:
+            lines.append(
+                "Your very first reply must begin with this disclosure, said "
+                f'once and never repeated: "{disclosure}"'
+            )
+        return "\n".join(lines)
+
+    async def open_call(self) -> None:
+        """Start the conversation once the line is up and the start node is set.
+
+        Agent first: the opening (disclosure, greeting or first generation)
+        is queued immediately. Caller first: nothing is said; a timer greets
+        the caller if they stay silent for ``caller_first_wait_secs``, and a
+        caller who speaks sooner cancels it and gets an answer instead.
+        """
+        if not self.caller_speaks_first():
+            await self._queue_start_opening()
+            return
+        if self._caller_has_spoken:
+            logger.debug("Caller spoke before the line settled; no greeting needed")
+            return
+        wait = self.caller_first_wait_secs()
+        logger.info(f"Waiting up to {wait}s for the caller to speak first")
+        self._caller_first_wait_task = asyncio.create_task(
+            self._greet_if_caller_stays_silent(wait)
+        )
+
+    async def _queue_start_opening(self) -> None:
+        self._opening_queued = True
+        await self.queue_node_opening(
+            node_id=self.workflow.start_node_id,
+            previous_node_id=None,
+            generate_if_no_greeting=True,
+        )
+
+    async def _greet_if_caller_stays_silent(self, wait: float) -> None:
+        try:
+            await asyncio.sleep(wait)
+        except asyncio.CancelledError:
+            return
+        if self._caller_has_spoken or self._call_disposed or self._opening_queued:
+            return
+        logger.info(f"Caller said nothing for {wait}s; the agent greets instead")
+        await self._queue_start_opening()
+
+    async def handle_user_started_speaking(self) -> None:
+        """The pipeline saw the caller start talking.
+
+        The first time this fires it settles who spoke first: a pending
+        wait-for-the-caller timer is cancelled so the greeting never lands
+        on top of the caller's opening line.
+        """
+        if self._caller_has_spoken:
+            return
+        self._caller_has_spoken = True
+        task = self._caller_first_wait_task
+        if task is not None and not task.done():
+            task.cancel()
+            self._caller_first_wait_task = None
+            logger.info("Caller spoke first; greeting withheld")
 
     async def queue_node_opening(
         self,
@@ -1412,6 +1539,8 @@ class PipecatEngine:
             and not self._user_response_timeout_task.done()
         ):
             self._user_response_timeout_task.cancel()
+        if self._caller_first_wait_task and not self._caller_first_wait_task.done():
+            self._caller_first_wait_task.cancel()
 
         # Cancel any in-flight background summarization.
         if self._context_summarization_manager:

@@ -11,6 +11,7 @@ from pipecat.frames.frames import (
     LLMTextFrame,
     StartFrame,
     TTSSpeakFrame,
+    UserStartedSpeakingFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
@@ -28,8 +29,10 @@ class PipelineEngineCallbacksProcessor(FrameProcessor):
         max_duration_end_task_callback: Optional[Callable[[], Awaitable[None]]] = None,
         generation_started_callback: Optional[Callable[[], Awaitable[None]]] = None,
         llm_text_frame_callback: Optional[Callable[[str], Awaitable[None]]] = None,
+        user_started_speaking_callback: Optional[Callable[[], Awaitable[None]]] = None,
     ):
         super().__init__()
+        self._user_started_speaking_callback = user_started_speaking_callback
         self._start_time = None
         self._max_call_duration_seconds = max_call_duration_seconds
         self._max_duration_end_task_callback = max_duration_end_task_callback
@@ -46,6 +49,9 @@ class PipelineEngineCallbacksProcessor(FrameProcessor):
             await self._check_call_duration()
         elif isinstance(frame, LLMFullResponseStartFrame):
             await self._generation_started()
+        elif isinstance(frame, UserStartedSpeakingFrame):
+            if self._user_started_speaking_callback:
+                await self._user_started_speaking_callback()
         elif (
             isinstance(frame, (LLMTextFrame, TTSSpeakFrame))
             and self._llm_text_frame_callback

@@ -84,6 +84,7 @@ def register_event_handlers(
     user_provider_id: str | None = None,
     integration_runtime_sessions: list[IntegrationRuntimeSession] | None = None,
     include_transcript_end_timestamps: bool = False,
+    keep_recording: bool = True,
 ):
     """Register all event handlers for transport and task events.
 
@@ -273,16 +274,15 @@ def register_event_handlers(
             # Set the start node now (after pre-call fetch data is merged)
             # so that render_template() has the complete _call_context_vars.
             await engine.set_node(engine.workflow.start_node_id)
-            await engine.queue_node_opening(
-                node_id=engine.workflow.start_node_id,
-                previous_node_id=None,
-                generate_if_no_greeting=True,
-            )
+            await engine.open_call()
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(_transport, _participant):
         logger.debug("In on_client_connected callback handler")
-        await audio_buffer.start_recording()
+        # An agent with recording off never starts the buffer, so no audio
+        # accumulates in memory for a file nobody is going to write.
+        if keep_recording:
+            await audio_buffer.start_recording()
         ready_state["client_connected"] = True
         await maybe_trigger_initial_response()
 

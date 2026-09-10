@@ -89,6 +89,8 @@ class Node:
         self.greeting = getattr(data, "greeting", None)
         self.greeting_type = getattr(data, "greeting_type", None)
         self.greeting_recording_id = getattr(data, "greeting_recording_id", None)
+        self.speaks_first = getattr(data, "speaks_first", None) or "agent"
+        self.speaks_first_wait_secs = getattr(data, "speaks_first_wait_secs", None)
         # None rather than a boolean default: the engine distinguishes "this
         # workflow chose to switch the disclosure off" from "this workflow has
         # never been told about it", and only the first is an opt-out.

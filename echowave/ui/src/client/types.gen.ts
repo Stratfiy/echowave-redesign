@@ -7275,6 +7275,26 @@ export type RealtimeEstimateRequest = {
 };
 
 /**
+ * RecordingConfigurationDefaults
+ *
+ * Whether the call's audio is kept.
+ *
+ * On by default: the recording is what a call review, a QA grade and a
+ * dispute are settled with. Off means no audio is buffered or uploaded for
+ * the call — the transcript, the usage and the outcome are still kept, and
+ * the agent stops telling the caller the call is recorded, because it isn't.
+ * For the clinic or the lender whose compliance team says "no voice data at
+ * rest".
+ */
+export type RecordingConfigurationDefaults = {
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+    [key: string]: unknown;
+};
+
+/**
  * RecordingCreateRequestSchema
  *
  * Request schema for creating a recording record after upload.
@@ -9920,6 +9940,7 @@ export type WorkerHealthResponse = {
 export type WorkflowConfigurationDefaults = {
     ambient_noise_configuration?: AmbientNoiseConfigurationDefaults;
     noise_suppression_configuration?: NoiseSuppressionConfigurationDefaults;
+    recording_configuration?: RecordingConfigurationDefaults;
     /**
      * Max Call Duration
      */

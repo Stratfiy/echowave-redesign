@@ -221,6 +221,8 @@ def test_all_registered_node_models_inherit_base_node_data():
                 "greeting_type",
                 "greeting",
                 "greeting_recording_id",
+                "speaks_first",
+                "speaks_first_wait_secs",
                 "recording_disclosure_enabled",
                 "recording_disclosure",
                 "prompt",

@@ -48,6 +48,14 @@ export interface StartCall {
      */
     greeting_recording_id?: string;
     /**
+     * Agent: the greeting plays as soon as the call connects. Caller: the agent waits for the person to speak and answers them; if they stay silent it falls back to the greeting.
+     */
+    speaks_first?: "agent" | "caller";
+    /**
+     * How long to stay quiet for the caller before falling back to the greeting. Default: 3.
+     */
+    speaks_first_wait_secs?: number;
+    /**
      * Speak a short disclosure before the greeting. Required for two-party-consent jurisdictions and expected under DPDP. Leave unset to follow the platform default (on).
      */
     recording_disclosure_enabled?: boolean;
