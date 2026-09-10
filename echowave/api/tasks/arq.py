@@ -65,6 +65,7 @@ from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
 from api.tasks.webhook_delivery import deliver_webhook, sweep_webhook_deliveries
+from api.tasks.weekly_digest import send_weekly_digests
 from api.tasks.workflow_completion import process_workflow_completion
 
 
@@ -262,8 +263,19 @@ class WorkerSettings:
         # not the one it had before the rent came out.
         cron(
             notify_low_balances,
+            send_weekly_digests,
             hour={3},
             minute={30},
+            second=0,
+            run_at_startup=False,
+        ),
+        # Monday 04:00 UTC is 09:30 IST: the week's digest lands with the
+        # first coffee, after the low-balance run so the two do not collide.
+        cron(
+            send_weekly_digests,
+            weekday={0},
+            hour={4},
+            minute={0},
             second=0,
             run_at_startup=False,
         ),
