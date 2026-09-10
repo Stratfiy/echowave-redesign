@@ -13,13 +13,14 @@ from api.constants import (
 )
 from api.db import db_client
 from api.db.models import UserModel
-from api.enums import OrganizationConfigurationKey
+from api.enums import OrganizationConfigurationKey, PostHogEvent
 from api.services.auth.depends import get_user
 from api.services.campaign import consent
 from api.services.campaign.runner import campaign_runner_service
 from api.services.campaign.source_sync import CampaignSourceSyncService
 from api.services.campaign.source_sync_factory import get_sync_service
 from api.services.kyc import service as kyc_service
+from api.services.posthog_client import capture_event
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.reports import campaign_summary, generate_campaign_report_csv
 from api.services.storage import storage_fs
@@ -604,6 +605,19 @@ async def start_campaign(
         await campaign_runner_service.start_campaign(campaign_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # Money-bearing, so from the backend: a campaign that starts is vendor
+    # minutes committed, and the browser cannot be trusted to say so.
+    capture_event(
+        distinct_id=str(user.provider_id),
+        event=PostHogEvent.CAMPAIGN_STARTED,
+        properties={
+            "organization_id": user.selected_organization_id,
+            "campaign_id": campaign_id,
+            "total_rows": campaign.total_rows or 0,
+            "source_type": campaign.source_type,
+        },
+    )
 
     # Get updated campaign
     campaign = await db_client.get_campaign(campaign_id, user.selected_organization_id)
