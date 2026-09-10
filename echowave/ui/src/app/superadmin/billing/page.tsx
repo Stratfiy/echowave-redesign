@@ -19,6 +19,7 @@ import {
     YAxis,
 } from "recharts";
 
+import { client } from "@/client/client.gen";
 import { getOverviewApiV1AdminBillingOverviewGet } from "@/client/sdk.gen";
 import { COST_COMPONENTS, LATENCY_TARGET_MS, seriesColor } from "@/components/charts/chartTheme";
 import {
@@ -142,6 +143,11 @@ export default function BillingOverviewPage() {
                     sub="in flight now"
                 />
             </section>
+
+            {/* The alarm the margin tile does not ring: accounts that left us
+                under the floor over the last three days. Staff are mailed
+                once per account per day by the worker; this is the list. */}
+            <MarginWatchPanel />
 
             <div className="grid gap-4 lg:grid-cols-2">
                 <ChartCard
@@ -409,5 +415,47 @@ export default function BillingOverviewPage() {
                 </ChartCard>
             </div>
         </div>
+    );
+}
+
+type ThinAccount = {
+    organization_id: number;
+    name: string;
+    charged_paise: number;
+    provider_cost_paise: number;
+    margin_bps: number;
+};
+
+function MarginWatchPanel() {
+    const [data, setData] = useState<{ floor_bps: number; window_days: number; accounts: ThinAccount[] } | null>(null);
+    useEffect(() => {
+        void (async () => {
+            const result = await client.get({ url: "/api/v1/admin/billing/margin-watch" });
+            if (!result.error && result.data) setData(result.data as unknown as typeof data);
+        })();
+    }, []);
+    if (!data || data.accounts.length === 0) return null;
+    return (
+        <section
+            className="rounded-xl border border-amber-300/60 bg-amber-50/60 p-4"
+            aria-label="Accounts under the margin floor"
+            data-testid="margin-watch"
+        >
+            <p className="text-sm font-medium">
+                {data.accounts.length} account{data.accounts.length === 1 ? "" : "s"} under the {data.floor_bps / 100}% margin floor over {data.window_days} days
+            </p>
+            <ul className="mt-2 divide-y divide-amber-200/70 text-sm">
+                {data.accounts.map((a) => (
+                    <li key={a.organization_id} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
+                        <Link href={`/superadmin/billing/accounts/${a.organization_id}`} className="font-medium underline-offset-4 hover:underline">
+                            {a.name}
+                        </Link>
+                        <span className="tabular-nums text-muted-foreground">
+                            {(a.margin_bps / 100).toFixed(0)}% margin · charged {formatPaise(a.charged_paise)} · cost {formatPaise(a.provider_cost_paise)}
+                        </span>
+                    </li>
+                ))}
+            </ul>
+        </section>
     );
 }

@@ -56,6 +56,7 @@ from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.low_balance import notify_low_balances
+from api.tasks.margin_watch import watch_margins
 from api.tasks.missed_call_tasks import place_missed_call_callback
 from api.tasks.plan_expiry import expire_lapsed_plan_balance
 from api.tasks.rental_billing import (
@@ -94,6 +95,7 @@ class WorkerSettings:
         charge_recurring_rentals,
         reconcile_carrier_numbers,
         send_weekly_digests,
+        watch_margins,
         run_eval_case,
     ]
     cron_jobs = [
@@ -273,6 +275,15 @@ class WorkerSettings:
         ),
         # Monday 04:00 UTC is 09:30 IST: the week's digest lands with the
         # first coffee, after the low-balance run so the two do not collide.
+        # 04:15 UTC, after the low-balance run: which accounts left us under
+        # the margin floor over the last three days.
+        cron(
+            watch_margins,
+            hour={4},
+            minute={15},
+            second=0,
+            run_at_startup=False,
+        ),
         cron(
             send_weekly_digests,
             weekday={0},

@@ -325,6 +325,13 @@ RAZORPAY_STARTER_PLAN_ID = os.getenv("RAZORPAY_STARTER_PLAN_ID") or None
 # value are meant to be the same number; when the markup is next raised
 # through the OTP flow, raise this to match.
 MANAGED_PROVIDER_MARKUP_BPS = int(os.getenv("MANAGED_PROVIDER_MARKUP_BPS", "17000"))
+#: Below this share of what we charged, over three days, staff are told.
+#: 40%: under it there is no room for a person on the account.
+MARGIN_FLOOR_BPS = int(os.getenv("MARGIN_FLOOR_BPS", "4000"))
+#: Three-day spend below this is noise, not a margin problem. Rs 200.
+MARGIN_WATCH_MIN_CHARGED_PAISE = int(
+    os.getenv("MARGIN_WATCH_MIN_CHARGED_PAISE", "20000")
+)
 
 # What the platform fee rises to when the customer brings their own keys, in
 # micro-dollars per billable minute *on top of* whatever rate resolved for the

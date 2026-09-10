@@ -11640,6 +11640,49 @@ export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses = {
 
 export type GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponse = GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses[keyof GetAccountApiV1AdminBillingAccountsOrganizationIdGetResponses];
 
+export type GetMarginWatchApiV1AdminBillingMarginWatchGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/billing/margin-watch';
+};
+
+export type GetMarginWatchApiV1AdminBillingMarginWatchGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetMarginWatchApiV1AdminBillingMarginWatchGetError = GetMarginWatchApiV1AdminBillingMarginWatchGetErrors[keyof GetMarginWatchApiV1AdminBillingMarginWatchGetErrors];
+
+export type GetMarginWatchApiV1AdminBillingMarginWatchGetResponses = {
+    /**
+     * Response Get Margin Watch Api V1 Admin Billing Margin Watch Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetMarginWatchApiV1AdminBillingMarginWatchGetResponse = GetMarginWatchApiV1AdminBillingMarginWatchGetResponses[keyof GetMarginWatchApiV1AdminBillingMarginWatchGetResponses];
+
 export type GetAccountConsentApiV1AdminBillingAccountsOrganizationIdConsentGetData = {
     body?: never;
     headers?: {
