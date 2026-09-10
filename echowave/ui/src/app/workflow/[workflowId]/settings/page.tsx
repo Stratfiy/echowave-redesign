@@ -70,6 +70,8 @@ import {
     matchLatencyPreset,
     MAX_USER_SPEECH_TIMEOUT,
     MIN_USER_SPEECH_TIMEOUT,
+    NOISE_SUPPRESSION_MAX_LEVEL,
+    NOISE_SUPPRESSION_MIN_LEVEL,
     type NoiseSuppressionConfiguration,
     type PronunciationEntry,
     resolveWorkflowConfigurations,
@@ -296,7 +298,8 @@ function GeneralSection({
     const [noiseSuppressionConfig, setNoiseSuppressionConfig] =
         useState<NoiseSuppressionConfiguration>(
             workflowConfigurations.noise_suppression_configuration ?? {
-                enabled: false,
+                enabled: true,
+                level: NOISE_SUPPRESSION_MAX_LEVEL,
             },
         );
     const [ambientNoiseConfig, setAmbientNoiseConfig] = useState<AmbientNoiseConfiguration>(
@@ -371,7 +374,8 @@ function GeneralSection({
     const isDirty = useMemo(() => {
         const initAmbient = workflowConfigurations.ambient_noise_configuration;
         const initSuppression = workflowConfigurations.noise_suppression_configuration ?? {
-            enabled: false,
+            enabled: true,
+            level: NOISE_SUPPRESSION_MAX_LEVEL,
         };
         return (
             name !== workflowName ||
@@ -794,8 +798,9 @@ function GeneralSection({
                         <h3 className="text-sm font-medium">Noise suppression</h3>
                         <p className="text-xs text-muted-foreground mt-0.5">
                             Strip background noise out of what the caller sends,
-                            before the agent hears it. Worth it on a mobile call
-                            from a shop floor or a roadside.
+                            before the agent hears it. On for every agent, because
+                            callers are on roads and in shops; switch it off for a
+                            quiet office line.
                         </p>
                     </div>
                     <div className="flex items-center justify-between">
@@ -806,15 +811,33 @@ function GeneralSection({
                             id="noise-suppression-enabled"
                             checked={noiseSuppressionConfig.enabled}
                             onCheckedChange={(checked) =>
-                                setNoiseSuppressionConfig({ enabled: checked })
+                                setNoiseSuppressionConfig({
+                                    ...noiseSuppressionConfig,
+                                    enabled: checked,
+                                })
                             }
                         />
                     </div>
+                    {noiseSuppressionConfig.enabled && (
+                        <Slider
+                            id="noise-suppression-level"
+                            label="Suppression level"
+                            unit="%"
+                            min={NOISE_SUPPRESSION_MIN_LEVEL}
+                            max={NOISE_SUPPRESSION_MAX_LEVEL}
+                            step={5}
+                            value={noiseSuppressionConfig.level ?? NOISE_SUPPRESSION_MAX_LEVEL}
+                            onValueChange={(level) =>
+                                setNoiseSuppressionConfig({ ...noiseSuppressionConfig, level })
+                            }
+                            hint="100 removes the most noise. Lower it if speech starts to sound thin: the original is blended back in at the remaining share. Default: 100"
+                        />
+                    )}
                     {/* The cost is stated because it is the only reason not to
-                        turn this on, and latency is what we compete on. */}
+                        leave this on, and latency is what we compete on. */}
                     <p className="text-xs text-muted-foreground">
                         {noiseSuppressionConfig.enabled
-                            ? "Adds about 20ms to each turn. On a quiet line it buys nothing, so leave it off unless callers are somewhere noisy."
+                            ? "Adds about 20ms to each turn."
                             : "Off. Calls are passed through as the carrier sends them."}
                     </p>
                 </div>

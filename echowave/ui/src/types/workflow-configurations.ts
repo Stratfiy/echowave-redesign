@@ -52,7 +52,12 @@ export type DynamicGreetingConfiguration = {
 
 export type NoiseSuppressionConfiguration = {
     enabled: boolean;
+    /** Share of the denoised signal in what the agent hears, 20 to 100. */
+    level?: number;
 };
+
+export const NOISE_SUPPRESSION_MIN_LEVEL = 20;
+export const NOISE_SUPPRESSION_MAX_LEVEL = 100;
 
 export type AmbientNoiseConfiguration = Omit<
     AmbientNoiseConfigurationDefaults,
@@ -296,9 +301,11 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
         enabled: false,
         volume: 0.3
     },
-    // Off: it costs 20 ms on every call and buys nothing on a quiet line.
+    // On: callers are on roads and in shops. 20 ms a turn, and a quiet
+    // office line switches it off.
     noise_suppression_configuration: {
-        enabled: false
+        enabled: true,
+        level: NOISE_SUPPRESSION_MAX_LEVEL
     },
     pronunciation_lexicon: [],
     call_outcomes: [],

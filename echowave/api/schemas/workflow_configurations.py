@@ -87,6 +87,20 @@ class AmbientNoiseConfigurationDefaults(BaseModel):
     volume: float = 0.3
 
 
+class NoiseSuppressionConfigurationDefaults(BaseModel):
+    """Noise off the caller's audio before the agent hears it.
+
+    On by default: the people who call an Indian business are on a road, in a
+    shop, on a bus. ``level`` is the share of the denoised signal in the blend
+    the agent hears, 20 to 100 — see services/pipecat/noise_suppression.py.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    enabled: bool = True
+    level: int = Field(default=100, ge=20, le=100)
+
+
 class CallOutcome(BaseModel):
     """One label this agent's calls can be classified as afterwards.
 
@@ -129,6 +143,9 @@ class WorkflowConfigurationDefaults(BaseModel):
 
     ambient_noise_configuration: AmbientNoiseConfigurationDefaults = Field(
         default_factory=AmbientNoiseConfigurationDefaults
+    )
+    noise_suppression_configuration: NoiseSuppressionConfigurationDefaults = Field(
+        default_factory=NoiseSuppressionConfigurationDefaults
     )
     max_call_duration: int = Field(
         default=DEFAULT_MAX_CALL_DURATION_SECONDS,
