@@ -204,6 +204,7 @@ class ToolCategory(Enum):
     NATIVE = "native"  # Built-in integrations (future: dtmf_input)
     INTEGRATION = "integration"  # Reserved: third-party integrations with no dedicated category yet
     MCP = "mcp"  # Customer-provided MCP server exposing a tool catalog
+    RATE_TABLE = "rate_table"  # Built-in lookup against an operator's rate card
     GOOGLE_CALENDAR = (
         "google_calendar"  # Create events on a connected Google Calendar (implemented)
     )

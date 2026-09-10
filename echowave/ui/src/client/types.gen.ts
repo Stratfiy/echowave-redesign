@@ -2470,7 +2470,7 @@ export type CreateToolRequest = {
      *
      * Tool category. Must match definition.type.
      */
-    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'google_calendar';
+    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp' | 'google_calendar' | 'rate_table';
     /**
      * Icon
      *
@@ -2497,6 +2497,8 @@ export type CreateToolRequest = {
     } & TransferCallToolDefinition) | ({
         type: 'calculator';
     } & CalculatorToolDefinition) | ({
+        type: 'rate_table';
+    } & RateTableToolDefinition) | ({
         type: 'mcp';
     } & McpToolDefinition) | ({
         type: 'google_calendar';
@@ -7271,6 +7273,104 @@ export type ProvisionRequest = {
 };
 
 /**
+ * RateTableConfig
+ *
+ * An operator's rate card: grids, the rules around them, and its wording.
+ *
+ * Loosely typed on purpose below the top level. A card is the operator's own
+ * data and its shape varies -- two grids or seven, half-kilo bands or whole
+ * ones -- so the schema fixes the parts the lookup depends on and leaves the
+ * numbers alone. What it will not accept is a card with no grids, because
+ * that one produces a tool that refuses every question at call time instead
+ * of failing here, where somebody is looking.
+ */
+export type RateTableConfig = {
+    /**
+     * Currency
+     *
+     * Currency the amounts are in.
+     */
+    currency?: string;
+    /**
+     * Grids
+     *
+     * The card itself: variant -> band -> series -> amount. For a courier that reads kind -> weight -> zone -> price.
+     */
+    grids: {
+        [key: string]: {
+            [key: string]: {
+                [key: string]: number;
+            };
+        };
+    };
+    /**
+     * Default Variant
+     *
+     * Grid to use when the model does not name one.
+     */
+    default_variant?: string | null;
+    /**
+     * Crossovers
+     *
+     * Rules of the form {variant: {above_band: N, use: other_variant}}, for cards where one kind starts pricing as another past a size.
+     */
+    crossovers?: {
+        [key: string]: {
+            [key: string]: unknown;
+        };
+    };
+    /**
+     * Overflow
+     *
+     * Per-unit metering past the last band: {from: N, tiers: [{upto: N|null, per_unit: {series: rate}}]}.
+     */
+    overflow?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Aliases
+     *
+     * What a caller might say, mapped to a column of the card. Matching ignores case and punctuation.
+     */
+    aliases?: {
+        [key: string]: string;
+    };
+    /**
+     * Labels
+     *
+     * How the tool is described to the agent: function_name, description, destination, band, variant.
+     */
+    labels?: {
+        [key: string]: string;
+    };
+    [key: string]: unknown;
+};
+
+/**
+ * RateTableToolDefinition
+ *
+ * Tool definition for a rate-card lookup.
+ */
+export type RateTableToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'rate_table';
+    /**
+     * The operator's rate card.
+     */
+    config: RateTableConfig;
+};
+
+/**
  * RealtimeEstimateRequest
  *
  * The call to price. Defaults describe a typical Indian outbound call —
@@ -9389,6 +9489,8 @@ export type UpdateToolRequest = {
     } & TransferCallToolDefinition) | ({
         type: 'calculator';
     } & CalculatorToolDefinition) | ({
+        type: 'rate_table';
+    } & RateTableToolDefinition) | ({
         type: 'mcp';
     } & McpToolDefinition) | ({
         type: 'google_calendar';

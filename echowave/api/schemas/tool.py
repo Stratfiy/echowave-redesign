@@ -29,6 +29,7 @@ ToolCategoryValue = Literal[
     "integration",
     "mcp",
     "google_calendar",
+    "rate_table",
 ]
 
 
@@ -366,6 +367,91 @@ class CalculatorToolDefinition(BaseModel):
     type: Literal["calculator"] = Field(description="Tool type.")
 
 
+class RateTableConfig(BaseModel):
+    """An operator's rate card: grids, the rules around them, and its wording.
+
+    Loosely typed on purpose below the top level. A card is the operator's own
+    data and its shape varies -- two grids or seven, half-kilo bands or whole
+    ones -- so the schema fixes the parts the lookup depends on and leaves the
+    numbers alone. What it will not accept is a card with no grids, because
+    that one produces a tool that refuses every question at call time instead
+    of failing here, where somebody is looking.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    currency: str = Field(
+        default="", max_length=16, description="Currency the amounts are in."
+    )
+    grids: Dict[str, Dict[str, Dict[str, float]]] = Field(
+        description=(
+            "The card itself: variant -> band -> series -> amount. For a "
+            "courier that reads kind -> weight -> zone -> price."
+        )
+    )
+    default_variant: Optional[str] = Field(
+        default=None,
+        description="Grid to use when the model does not name one.",
+    )
+    crossovers: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description=(
+            "Rules of the form {variant: {above_band: N, use: other_variant}}, "
+            "for cards where one kind starts pricing as another past a size."
+        ),
+    )
+    overflow: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Per-unit metering past the last band: "
+            "{from: N, tiers: [{upto: N|null, per_unit: {series: rate}}]}."
+        ),
+    )
+    aliases: Dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "What a caller might say, mapped to a column of the card. "
+            "Matching ignores case and punctuation."
+        ),
+    )
+    labels: Dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "How the tool is described to the agent: function_name, "
+            "description, destination, band, variant."
+        ),
+    )
+
+    @field_validator("grids")
+    @classmethod
+    def validate_grids(
+        cls, v: Dict[str, Dict[str, Dict[str, float]]]
+    ) -> Dict[str, Dict[str, Dict[str, float]]]:
+        if not v:
+            raise ValueError("config.grids must contain at least one grid")
+        for variant, grid in v.items():
+            if not grid:
+                raise ValueError(f"config.grids['{variant}'] is empty")
+            for band in grid:
+                try:
+                    float(band)
+                except (TypeError, ValueError):
+                    raise ValueError(
+                        f"config.grids['{variant}'] has a non-numeric band "
+                        f"'{band}'; bands are the numbers down the side of the "
+                        "card and have to sort"
+                    ) from None
+        return v
+
+
+class RateTableToolDefinition(BaseModel):
+    """Tool definition for a rate-card lookup."""
+
+    schema_version: int = Field(default=1, description="Schema version.")
+    type: Literal["rate_table"] = Field(description="Tool type.")
+    config: RateTableConfig = Field(description="The operator's rate card.")
+
+
 class McpToolDefinition(BaseModel):
     """Persisted MCP tool definition."""
 
@@ -392,6 +478,7 @@ ToolDefinition = Annotated[
         EndCallToolDefinition,
         TransferCallToolDefinition,
         CalculatorToolDefinition,
+        RateTableToolDefinition,
         McpToolDefinition,
         GoogleCalendarToolDefinition,
     ],
