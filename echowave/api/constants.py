@@ -102,6 +102,15 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 REDIS_URL = os.environ["REDIS_URL"]
 
 DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "oss")
+
+# Coarse HTTP request gate (see services/rate_limit.py). Per-client, per-minute
+# ceilings by route class. On by default; a self-hoster who fronts the app with
+# their own gateway can set RATE_LIMIT_ENABLED=false. Limits are generous — this
+# stops brute force and cost-DoS, not normal bursty use — and tunable per deploy.
+RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+RATE_LIMIT_AUTH_PER_MINUTE = int(os.getenv("RATE_LIMIT_AUTH_PER_MINUTE", "20"))
+RATE_LIMIT_EMBED_PER_MINUTE = int(os.getenv("RATE_LIMIT_EMBED_PER_MINUTE", "60"))
+RATE_LIMIT_DEFAULT_PER_MINUTE = int(os.getenv("RATE_LIMIT_DEFAULT_PER_MINUTE", "600"))
 CORS_ALLOWED_ORIGINS = [
     o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()
 ]

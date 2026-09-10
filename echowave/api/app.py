@@ -197,6 +197,17 @@ def _add_public_embed_cors_middleware() -> None:
 
 _add_public_embed_cors_middleware()
 
+
+def _add_rate_limit_middleware() -> None:
+    # Added last so it wraps outermost: a rejected request is counted and
+    # refused before it reaches routing, auth or a database session.
+    from api.middleware_rate_limit import RateLimitMiddleware
+
+    app.add_middleware(RateLimitMiddleware)
+
+
+_add_rate_limit_middleware()
+
 api_router = APIRouter()
 
 # include subrouters here
