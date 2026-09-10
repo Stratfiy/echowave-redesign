@@ -125,3 +125,138 @@ class TestWhatANewAgentStartsAs:
         )
 
         assert workflow.workflow_configurations[CONFIG_KEY] is False
+
+
+class TestOnlyTheLanguagesThisAgentSpeaks:
+    """One bad guess must not talk an agent out of its own language list.
+
+    Recognition guesses the language of every utterance and gets short ones
+    wrong. That was survivable while a wrong guess only changed the voice. Once
+    the model is told as well, a clinic whose prompt lists Tamil, Kannada,
+    English and Hindi got handed "the caller has switched to Telugu, reply only
+    in Telugu" — later and more specific than the operator's own list, so it
+    won. The caller was speaking Tamil.
+    """
+
+    @staticmethod
+    def _switch_frames(follower):
+        """Everything the follower pushes to act on a switch, voice and model."""
+        from pipecat.frames.frames import (
+            LLMMessagesAppendFrame,
+            TTSUpdateSettingsFrame,
+        )
+
+        return [
+            call.args[0]
+            for call in follower.push_frame.await_args_list
+            if isinstance(
+                call.args[0], (TTSUpdateSettingsFrame, LLMMessagesAppendFrame)
+            )
+        ]
+
+    def _follower(self, allowed):
+        from unittest.mock import AsyncMock
+
+        from api.services.pipecat.language_follower import LanguageFollower
+
+        follower = LanguageFollower(initial_language="ta", allowed=allowed)
+        follower.push_frame = AsyncMock()
+        return follower
+
+    async def _hear(self, follower, language, times):
+        from pipecat.frames.frames import TranscriptionFrame
+        from pipecat.processors.frame_processor import FrameDirection
+
+        from api.services.pipecat.language_follower import (
+            CONFIRMATIONS_BEFORE_SWITCH,  # noqa: F401  (documents the count)
+        )
+
+        text = "a sentence long enough to clear the short-utterance floor"
+        for _ in range(times):
+            await follower.process_frame(
+                TranscriptionFrame(
+                    text=text, user_id="caller", timestamp="", language=language
+                ),
+                FrameDirection.DOWNSTREAM,
+            )
+
+    async def test_a_language_the_agent_does_not_speak_is_ignored(self):
+        from api.services.pipecat.language_follower import CONFIRMATIONS_BEFORE_SWITCH
+
+        follower = self._follower(frozenset({"ta", "kn", "en", "hi"}))
+
+        await self._hear(follower, "te", CONFIRMATIONS_BEFORE_SWITCH + 2)
+
+        # The transcription itself is always forwarded — this processor
+        # observes, and must never be the reason a turn fails to reach the
+        # model. What must not appear is a switch.
+        assert self._switch_frames(follower) == []
+        assert follower.current_language == "ta"
+
+    async def test_it_is_still_recorded_as_heard(self):
+        """Worth knowing when a caller complains, even though it is not acted
+        on: it says recognition thought it heard Telugu."""
+        follower = self._follower(frozenset({"ta", "en"}))
+
+        await self._hear(follower, "te", 3)
+
+        assert "te" in follower.languages_heard
+
+    async def test_a_language_the_agent_does_speak_still_switches(self):
+        from api.services.pipecat.language_follower import CONFIRMATIONS_BEFORE_SWITCH
+
+        follower = self._follower(frozenset({"ta", "kn", "en", "hi"}))
+
+        await self._hear(follower, "kn", CONFIRMATIONS_BEFORE_SWITCH)
+
+        assert follower.current_language == "kn"
+
+    async def test_noise_between_real_turns_does_not_derail_a_switch(self):
+        """The ignored detection must not count towards anything, or a caller
+        alternating between a real language and a mis-detection would never
+        reach the confirmations a genuine switch needs."""
+        from api.services.pipecat.language_follower import CONFIRMATIONS_BEFORE_SWITCH
+
+        follower = self._follower(frozenset({"ta", "hi"}))
+
+        for _ in range(CONFIRMATIONS_BEFORE_SWITCH):
+            await self._hear(follower, "hi", 1)
+            await self._hear(follower, "te", 1)
+
+        assert follower.current_language == "hi"
+
+    async def test_declaring_nothing_allows_anything(self):
+        """Every agent that has not declared a set behaves exactly as before."""
+        from api.services.pipecat.language_follower import CONFIRMATIONS_BEFORE_SWITCH
+
+        follower = self._follower(None)
+
+        await self._hear(follower, "te", CONFIRMATIONS_BEFORE_SWITCH)
+
+        assert follower.current_language == "te"
+
+
+class TestReadingTheDeclaredList:
+    def test_tags_are_reduced_to_the_language(self):
+        from api.services.pipecat.language_following import allowed_languages
+
+        assert allowed_languages({"agent_languages": ["ta-IN", "en-US", "hi"]}) == (
+            frozenset({"ta", "en", "hi"})
+        )
+
+    @pytest.mark.parametrize(
+        "configs",
+        [
+            {},
+            None,
+            "nonsense",
+            {"agent_languages": []},
+            {"agent_languages": ["", "  "]},
+        ],
+    )
+    def test_nothing_declared_means_no_restriction(self, configs):
+        """An empty list must never read as "this agent may speak nothing",
+        which would leave it unable to follow anyone."""
+        from api.services.pipecat.language_following import allowed_languages
+
+        assert allowed_languages(configs) is None
