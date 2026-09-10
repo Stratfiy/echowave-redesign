@@ -70,6 +70,18 @@ async def post(
     """Put one item in the account's inbox. Returns whether it was new."""
     try:
         async with db_client.async_session() as session:
+            # Checked first, as the signup bonus does: the unique index is for
+            # the race, not the ordinary repeat. A rollback is also the one
+            # thing a shared test connection cannot absorb quietly.
+            existing = await session.scalar(
+                select(InAppNotificationModel.id).where(
+                    InAppNotificationModel.organization_id == organization_id,
+                    InAppNotificationModel.kind == kind,
+                    InAppNotificationModel.dedupe_key == dedupe_key[:128],
+                )
+            )
+            if existing is not None:
+                return False
             session.add(
                 InAppNotificationModel(
                     organization_id=organization_id,
