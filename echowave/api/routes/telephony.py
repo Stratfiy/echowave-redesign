@@ -39,6 +39,9 @@ from api.services.call_concurrency import (
 from api.services.compliance import dnd
 from api.services.configuration import key_readiness
 from api.services.kyc import service as kyc_service
+from api.services.organization_preferences import (
+    get_organization_preferences,
+)
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.telephony import (
     inbound_guard,
@@ -1228,7 +1231,14 @@ async def handle_inbound_run(request: Request):
             released_configurations = await db_client.get_released_configurations(
                 workflow
             )
-            schedule = (released_configurations or {}).get(agent_hours.CONFIG_KEY)
+            preferences = await get_organization_preferences(config.organization_id)
+            organization_hours = getattr(preferences, "business_hours", None)
+            schedule = agent_hours.effective_schedule(
+                (released_configurations or {}).get(agent_hours.CONFIG_KEY),
+                organization_hours.model_dump()
+                if hasattr(organization_hours, "model_dump")
+                else organization_hours,
+            )
         except Exception as exc:  # noqa: BLE001 - fail open, as below
             # A configuration read that fails must never refuse a call. Same
             # posture as the contact lookup below: the worst outcome here is

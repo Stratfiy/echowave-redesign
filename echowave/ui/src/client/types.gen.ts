@@ -6519,6 +6519,7 @@ export type OrganizationPreferences = {
      * Timezone
      */
     timezone?: string | null;
+    business_hours?: AgentSchedule | null;
     /**
      * Own Keys Allowed
      *

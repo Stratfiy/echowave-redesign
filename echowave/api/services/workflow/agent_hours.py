@@ -149,3 +149,21 @@ def describe(schedule: Any) -> str:
         return "always open"
     slots = schedule.get("slots") or []
     return f"{len(slots)} window(s), {schedule.get('timezone') or 'Asia/Kolkata'}"
+
+
+def effective_schedule(agent_schedule: Any, organization_hours: Any = None) -> Any:
+    """Which schedule applies to this agent.
+
+    The agent's own when it has one, the organization's otherwise. Most
+    businesses keep one set of hours and every agent should inherit them
+    without being asked again -- asking twice is how the two answers start to
+    disagree, and a clinic whose phone says one thing and whose agent keeps
+    another is worse off than one that was never asked.
+
+    An agent that must answer when the business is shut -- an after-hours
+    emergency line -- says so by keeping its own schedule, not by switching
+    the organization's off. "All day" is one window of 00:00 to 24:00.
+    """
+    if isinstance(agent_schedule, Mapping) and agent_schedule.get("enabled", False):
+        return agent_schedule
+    return organization_hours

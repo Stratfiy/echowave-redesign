@@ -147,3 +147,52 @@ class TestDescribing:
 
     def test_it_counts_the_windows(self):
         assert "12 window(s)" in describe(_clinic())
+
+
+class TestInheritingTheBusinessHours:
+    """Most businesses keep one set of hours. Asking every agent again is how
+    the two answers start to disagree — and a clinic whose phone says one
+    thing while its agent keeps another is worse off than one never asked."""
+
+    def _org(self):
+        return {
+            "enabled": True,
+            "timezone": "Asia/Kolkata",
+            "slots": [
+                {"day_of_week": d, "start_time": "09:00", "end_time": "18:00"}
+                for d in range(5)
+            ],
+        }
+
+    def test_an_agent_with_no_hours_keeps_the_business_hours(self):
+        from api.services.workflow.agent_hours import effective_schedule
+
+        applied = effective_schedule({"enabled": False, "slots": []}, self._org())
+        assert is_open(applied, _at(0, "10:00")) is True
+        assert is_open(applied, _at(0, "22:00")) is False
+
+    def test_an_agent_that_has_never_been_configured_keeps_them_too(self):
+        from api.services.workflow.agent_hours import effective_schedule
+
+        assert is_open(effective_schedule(None, self._org()), _at(0, "22:00")) is False
+
+    def test_an_agent_with_its_own_hours_ignores_the_business_hours(self):
+        """The after-hours emergency line. It says so by keeping its own
+        schedule rather than by switching the organization's off."""
+        from api.services.workflow.agent_hours import effective_schedule
+
+        always = {
+            "enabled": True,
+            "slots": [
+                {"day_of_week": d, "start_time": "00:00", "end_time": "24:00"}
+                for d in range(7)
+            ],
+        }
+        applied = effective_schedule(always, self._org())
+        assert is_open(applied, _at(0, "22:00")) is True
+        assert is_open(applied, _at(6, "03:00")) is True
+
+    def test_neither_set_means_always_open(self):
+        from api.services.workflow.agent_hours import effective_schedule
+
+        assert is_open(effective_schedule(None, None), _at(6, "03:00")) is True

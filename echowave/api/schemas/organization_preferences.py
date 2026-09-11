@@ -1,9 +1,23 @@
 from pydantic import BaseModel, Field
 
+from api.schemas.workflow_configurations import AgentSchedule
+
 
 class OrganizationPreferences(BaseModel):
     test_phone_number: str | None = None
     timezone: str | None = None
+
+    #: The hours this business keeps, for the agents that do not set their own.
+    #:
+    #: Optional, and ``None`` means the account has never been asked -- most
+    #: businesses have one set of opening hours and answering the question
+    #: twice is how the two answers start to disagree.
+    #:
+    #: An agent with its own enabled schedule ignores this entirely. An agent
+    #: that wants to answer when the business is shut -- an after-hours
+    #: emergency line -- says so by keeping its own schedule rather than by
+    #: switching this off, and "all day" is one window of 00:00 to 24:00.
+    business_hours: AgentSchedule | None = None
 
     #: What to do when a slot is set to the account's own key and no usable key
     #: is stored for it — the key was never added, was paused while rotating at
