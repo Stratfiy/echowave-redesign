@@ -249,6 +249,10 @@ class UserConfigurationValidator:
         if provider in (
             ServiceProviders.OPENAI.value,
             ServiceProviders.OPENAI_REALTIME.value,
+            # ElevenLabs needs the configuration too: the key can be perfectly
+            # valid while the model or the voice is not one this account may
+            # use, and that combination is what fails as a 403 mid-call.
+            ServiceProviders.ELEVENLABS.value,
         ):
             return validator(provider, api_key, service_config)
         return validator(provider, api_key)
@@ -367,8 +371,127 @@ class UserConfigurationValidator:
                 "You can verify your keys at https://console.groq.com/keys."
             )
 
-    def _validate_elevenlabs_api_key(self, model: str, api_key: str) -> bool:
+    #: ElevenLabs endpoints used below, relative to the account's base URL.
+    _ELEVENLABS_MODELS_PATH = "/v1/models"
+    _ELEVENLABS_VOICE_PATH = "/v1/voices/{voice_id}"
+
+    def _validate_elevenlabs_api_key(
+        self,
+        model: str,
+        api_key: str,
+        service_config: ServiceConfig | None = None,
+    ) -> bool:
+        """Check the key, and that this account can actually use the model and voice.
+
+        This used to be ``return True``. The consequence was not theoretical: a
+        model the account has no entitlement to is selectable in the editor,
+        saves without complaint, reports ``last_check_ok``, and then refuses the
+        websocket with a bare ``HTTP 403`` on the first real call. On a live
+        clinic that is an outage, discovered by a patient, with nothing in the
+        interface that explains it.
+
+        So three questions, in order of how cheaply they can be answered:
+
+        1. Does the key work at all?
+        2. Is the configured model in the list this key is allowed to use?
+        3. Does the configured voice exist for this account?
+
+        **Only a definitive no fails.** A timeout, a connection error, or a
+        response whose shape we do not recognise all pass. The rule the
+        OpenAI-compatible check already states applies here too: a validator
+        that guesses wrong blames the customer for our mistake, and there is
+        nothing they can do about it. Silence from the vendor is not evidence
+        against the customer.
+
+        ``service_config`` is absent on the platform credential sweep, which
+        has a key but no agent. There, only question one is asked -- which is
+        still strictly more than this function used to do.
+        """
+        if not (api_key and api_key.strip()):
+            raise ValueError(
+                "No ElevenLabs API key was provided. Add one in Model "
+                "Configurations, or choose a managed voice tier."
+            )
+
+        base_url = (
+            getattr(service_config, "base_url", None) or "https://api.elevenlabs.io"
+        ).rstrip("/")
+        headers = {"xi-api-key": api_key}
+
+        try:
+            response = httpx.get(
+                f"{base_url}{self._ELEVENLABS_MODELS_PATH}",
+                headers=headers,
+                timeout=10.0,
+            )
+        except Exception:
+            # The vendor did not answer. That says nothing about the key.
+            return True
+
+        if response.status_code in (401, 403):
+            raise ValueError(
+                "Invalid ElevenLabs API key. The key was rejected by "
+                "ElevenLabs. Check that it is correct and active at "
+                "https://elevenlabs.io/app/settings/api-keys."
+            )
+        if response.status_code != 200:
+            return True
+
+        try:
+            available = {
+                entry.get("model_id")
+                for entry in response.json().get("models", [])
+                if isinstance(entry, dict)
+            }
+        except Exception:
+            return True
+
+        configured_model = getattr(service_config, "model", None)
+        if configured_model and available and configured_model not in available:
+            raise ValueError(
+                f"Your ElevenLabs plan cannot use the model "
+                f"'{configured_model}'. The models available to this key are: "
+                f"{', '.join(sorted(m for m in available if m))}. Pick one of "
+                f"those, or upgrade the plan at https://elevenlabs.io/pricing."
+            )
+
+        self._check_elevenlabs_voice(base_url, headers, service_config)
         return True
+
+    def _check_elevenlabs_voice(
+        self,
+        base_url: str,
+        headers: dict,
+        service_config: ServiceConfig | None,
+    ) -> None:
+        """Fail only if ElevenLabs says outright that the voice is not there.
+
+        A voice picked from the public library but never added to the account
+        is the other half of the 403, and it looks identical to a plan problem
+        from inside a call.
+        """
+        voice = getattr(service_config, "voice", None)
+        if not voice:
+            return
+        # Older configurations stored "Name - voice_id".
+        voice_id = voice.split(" - ")[-1].strip()
+        if not voice_id:
+            return
+        try:
+            response = httpx.get(
+                f"{base_url}{self._ELEVENLABS_VOICE_PATH.format(voice_id=voice_id)}",
+                headers=headers,
+                timeout=10.0,
+            )
+        except Exception:
+            return
+        if response.status_code == 404:
+            raise ValueError(
+                f"The ElevenLabs voice '{voice_id}' is not in this account. "
+                "Add it to your voice library at "
+                "https://elevenlabs.io/app/voice-library, or choose a voice "
+                "you already have."
+            )
 
     def _check_google_api_key(self, model: str, api_key: str) -> bool:
         return True
