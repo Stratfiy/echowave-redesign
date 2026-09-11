@@ -302,7 +302,5 @@ class TestSmallestCanBeHeardAtLast:
         )
 
         assert voice_synthesis.SMALLEST_LANGUAGES <= set(SMALLEST_TTS_LANGUAGES)
-        assert voice_synthesis.SMALLEST_LANGUAGES <= set(
-            voice_samples.SAMPLE_LANGUAGES
-        )
+        assert voice_synthesis.SMALLEST_LANGUAGES <= set(voice_samples.SAMPLE_LANGUAGES)
         assert "ta" in voice_synthesis.SMALLEST_LANGUAGES
