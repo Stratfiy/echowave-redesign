@@ -35,6 +35,7 @@ import type { WorkflowConfigurations } from "@/types/workflow-configurations";
 
 import { type CatalogueOption, ModelSlotEditor, type SlotComponent } from "./ModelSlotEditor";
 import type { SlotTuning } from "./SlotSettings";
+import { vendorName } from "./vendors";
 
 /**
  * The cost split as a ring. A ring rather than a bar because the three parts
@@ -153,26 +154,6 @@ const ICONS = {
     tts: Volume2,
     realtime: Radio,
 } as const;
-
-/** Vendor ids are lowercase machine strings; nobody wants to read `openai_realtime`. */
-const VENDOR_NAMES: Record<string, string> = {
-    openai: "OpenAI",
-    openai_realtime: "OpenAI",
-    google: "Google",
-    google_realtime: "Google",
-    google_vertex: "Google Vertex",
-    sarvam: "Sarvam",
-    deepgram: "Deepgram",
-    elevenlabs: "ElevenLabs",
-    anthropic: "Anthropic",
-    cartesia: "Cartesia",
-    azure: "Azure",
-    groq: "Groq",
-};
-
-function vendorName(provider: string): string {
-    return VENDOR_NAMES[provider] ?? provider;
-}
 
 function ms(value: number | null): string {
     return value === null ? "—" : `${Math.round(value)}ms`;

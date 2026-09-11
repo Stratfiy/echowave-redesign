@@ -4,13 +4,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type CatalogueOption, ModelSlotEditor } from "../ModelSlotEditor";
 
-const api = { put: vi.fn() };
-vi.mock("@/client/client.gen", () => ({ client: { put: (...args: unknown[]) => api.put(...args) } }));
+const api = { put: vi.fn(), get: vi.fn() };
+vi.mock("@/client/client.gen", () => ({
+    client: {
+        put: (...args: unknown[]) => api.put(...args),
+        get: (...args: unknown[]) => api.get(...args),
+    },
+}));
 
 const OPTIONS: CatalogueOption[] = [
     { provider: "sarvam", model: "saarika:v2.5", label: "Saarika", paise_per_minute: 50, approximate: false },
+    { provider: "sarvam", model: "saaras:v3", label: "Saaras", paise_per_minute: 60, approximate: false },
     { provider: "deepgram", model: "nova-3", label: "Nova 3", paise_per_minute: 90, approximate: true },
 ];
+
+/** The two dropdowns, by their labels. */
+function providerSelect() {
+    return screen.getByLabelText("Provider") as HTMLSelectElement;
+}
+function modelSelect() {
+    return screen.getByLabelText("Model") as HTMLSelectElement;
+}
+function modelsOffered() {
+    return Array.from(modelSelect().options).map((option) => option.value);
+}
 
 function editor(overrides: Partial<React.ComponentProps<typeof ModelSlotEditor>> = {}) {
     return (
@@ -26,9 +43,33 @@ function editor(overrides: Partial<React.ComponentProps<typeof ModelSlotEditor>>
     );
 }
 
+const BULBUL_VOICES = [
+    { voice_id: "anushka", name: "Anushka", gender: "female", description: null, is_default: true, sample_url: null, sample_url_hi: null },
+    { voice_id: "abhilash", name: "Abhilash", gender: "male", description: null, is_default: false, sample_url: null, sample_url_hi: null },
+];
+const ELEVEN_VOICES = [
+    { voice_id: "rachel", name: "Rachel", gender: "female", description: null, is_default: true, sample_url: null, sample_url_hi: null },
+];
+
+function voiceSlot(overrides: Partial<React.ComponentProps<typeof ModelSlotEditor>> = {}) {
+    return {
+        component: "tts" as const,
+        current: { provider: "sarvam", model: "bulbul:v3" },
+        options: [
+            { provider: "sarvam", model: "bulbul:v3", label: "Bulbul", paise_per_minute: 40, approximate: false },
+            { provider: "elevenlabs", model: "eleven_flash_v2_5", label: "Flash", paise_per_minute: 300, approximate: false },
+        ],
+        currentVoice: "anushka",
+        voices: BULBUL_VOICES,
+        ...overrides,
+    };
+}
+
 beforeEach(() => {
     api.put.mockReset();
     api.put.mockResolvedValue({ data: {}, error: undefined });
+    api.get.mockReset();
+    api.get.mockResolvedValue({ data: { voices: [] }, error: undefined });
     // jsdom has no ResizeObserver; Radix's dialog asks for one.
     vi.stubGlobal(
         "ResizeObserver",
@@ -60,16 +101,48 @@ describe("ModelSlotEditor", () => {
         render(editor());
         fireEvent.click(screen.getByRole("button", { name: "Change transcriber" }));
 
-        const current = screen.getByRole("radio", { name: /Saarika/ });
-        expect(current.getAttribute("aria-checked")).toBe("true");
+        expect(providerSelect().value).toBe("sarvam");
+        expect(modelSelect().value).toBe("sarvam:saarika:v2.5");
         expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it("offers only the chosen vendor's models", () => {
+        render(editor());
+        fireEvent.click(screen.getByRole("button", { name: "Change transcriber" }));
+
+        expect(modelsOffered()).toEqual(["sarvam:saarika:v2.5", "sarvam:saaras:v3"]);
+
+        fireEvent.change(providerSelect(), { target: { value: "deepgram" } });
+
+        expect(modelsOffered()).toEqual(["deepgram:nova-3"]);
+    });
+
+    it("moves to a vendor's first model when the vendor changes", () => {
+        // Otherwise the pair of dropdowns can name a model the chosen vendor
+        // does not have, and Save would send it.
+        render(editor());
+        fireEvent.click(screen.getByRole("button", { name: "Change transcriber" }));
+
+        fireEvent.change(providerSelect(), { target: { value: "deepgram" } });
+
+        expect(modelSelect().value).toBe("deepgram:nova-3");
+    });
+
+    it("names what the chosen model adds to a minute", () => {
+        render(editor());
+        fireEvent.click(screen.getByRole("button", { name: "Change transcriber" }));
+
+        fireEvent.change(providerSelect(), { target: { value: "deepgram" } });
+
+        // Approximate, so it says so rather than quoting a figure flatly.
+        expect(screen.getByText(/a minute \(about\)/)).toBeTruthy();
     });
 
     it("writes only this slot and closes when the save lands", async () => {
         const onSaved = vi.fn();
         render(editor({ onSaved }));
         fireEvent.click(screen.getByRole("button", { name: "Change transcriber" }));
-        fireEvent.click(screen.getByRole("radio", { name: /Nova 3/ }));
+        fireEvent.change(providerSelect(), { target: { value: "deepgram" } });
         fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
         await waitFor(() => expect(onSaved).toHaveBeenCalled());
@@ -84,7 +157,7 @@ describe("ModelSlotEditor", () => {
         api.put.mockResolvedValue({ data: undefined, error: { detail: "That model is not on offer." } });
         render(editor());
         fireEvent.click(screen.getByRole("button", { name: "Change transcriber" }));
-        fireEvent.click(screen.getByRole("radio", { name: /Nova 3/ }));
+        fireEvent.change(providerSelect(), { target: { value: "deepgram" } });
         fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
         expect(await screen.findByText("That model is not on offer.")).toBeTruthy();
@@ -93,23 +166,11 @@ describe("ModelSlotEditor", () => {
 
     it("sends the chosen voice with the voice slot", async () => {
         const onSaved = vi.fn();
-        render(
-            editor({
-                component: "tts",
-                current: { provider: "sarvam", model: "bulbul:v3" },
-                options: [
-                    { provider: "sarvam", model: "bulbul:v3", label: "Bulbul", paise_per_minute: 40, approximate: false },
-                ],
-                currentVoice: "anushka",
-                voices: [
-                    { voice_id: "anushka", name: "Anushka", gender: "female", description: null, is_default: true, sample_url: null, sample_url_hi: null },
-                    { voice_id: "abhilash", name: "Abhilash", gender: "male", description: null, is_default: false, sample_url: null, sample_url_hi: null },
-                ],
-                onSaved,
-            }),
-        );
+        api.get.mockResolvedValue({ data: { voices: BULBUL_VOICES }, error: undefined });
+        render(editor(voiceSlot({ onSaved })));
         fireEvent.click(screen.getByRole("button", { name: "Change voice" }));
-        fireEvent.click(screen.getByText("Abhilash"));
+
+        fireEvent.click(await screen.findByText("Abhilash"));
         fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
         await waitFor(() => expect(onSaved).toHaveBeenCalled());
@@ -119,6 +180,59 @@ describe("ModelSlotEditor", () => {
             model: "bulbul:v3",
             voice: "abhilash",
         });
+    });
+});
+
+describe("the voices follow the model", () => {
+    it("asks for the chosen model's own voices", async () => {
+        api.get.mockResolvedValue({ data: { voices: BULBUL_VOICES }, error: undefined });
+        render(editor(voiceSlot()));
+        fireEvent.click(screen.getByRole("button", { name: "Change voice" }));
+
+        await waitFor(() =>
+            expect(api.get).toHaveBeenCalledWith({
+                url: "/api/v1/configurations/voices/sarvam",
+                query: { model: "bulbul:v3" },
+            }),
+        );
+    });
+
+    it("re-asks when the model changes, and drops a voice that model cannot speak", async () => {
+        // Bulbul's speakers are not ElevenLabs'. Keeping the old selection
+        // would save a voice the new model has never heard of.
+        api.get.mockResolvedValue({ data: { voices: BULBUL_VOICES }, error: undefined });
+        render(editor(voiceSlot()));
+        fireEvent.click(screen.getByRole("button", { name: "Change voice" }));
+        expect(await screen.findByText("Abhilash")).toBeTruthy();
+
+        api.get.mockResolvedValue({ data: { voices: ELEVEN_VOICES }, error: undefined });
+        fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "elevenlabs" } });
+
+        expect(await screen.findByText(/Rachel/)).toBeTruthy();
+        expect(screen.queryByText("Abhilash")).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+        await waitFor(() => expect(api.put).toHaveBeenCalled());
+        expect(api.put.mock.calls[0][0].body.voice).toBe("rachel");
+    });
+
+    it("keeps the voices it was handed when the lookup fails", async () => {
+        // A vendor being down is not a reason to show an empty picker for a
+        // model whose voices we already had.
+        api.get.mockResolvedValue({ data: undefined, error: { detail: "down" } });
+        render(editor(voiceSlot()));
+        fireEvent.click(screen.getByRole("button", { name: "Change voice" }));
+
+        expect(await screen.findByText(/Anushka/)).toBeTruthy();
+    });
+
+    it("says so plainly for a model with no named voices", async () => {
+        // Rumik's muga takes none — it is directed by the text itself — so an
+        // empty list is an answer, not a failure.
+        api.get.mockResolvedValue({ data: { voices: [] }, error: undefined });
+        render(editor(voiceSlot()));
+        fireEvent.click(screen.getByRole("button", { name: "Change voice" }));
+
+        expect(await screen.findByText(/takes no named voice/)).toBeTruthy();
     });
 });
 
