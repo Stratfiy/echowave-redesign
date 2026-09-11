@@ -182,14 +182,28 @@ export function ModelCatalogue({
                     return (
                         <div
                             key={model.id}
+                            data-testid={`model-row-${model.id}`}
                             className={cn(
-                                "flex items-center gap-2 rounded-md px-2 py-1.5",
+                                // Wraps, because the row has to survive a card
+                                // in a two-column grid on a tablet. It used to
+                                // be one unwrapping line, and the name field's
+                                // fixed 176px squeezed the model id — the only
+                                // thing identifying the row — down to nothing:
+                                // an operator saw five identical rows reading
+                                // "integrated" with no way to tell which model
+                                // each one was.
+                                "flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md px-2 py-1.5",
                                 on && "bg-primary/5",
                             )}
                         >
                             <button
                                 type="button"
                                 aria-pressed={on}
+                                // Named after the model it sells. Without this
+                                // the tick box is an unlabelled button, and a
+                                // screen reader reads a column of them as
+                                // "button, pressed" with nothing to say which.
+                                aria-label={model.id}
                                 onClick={() => toggle(model.id)}
                                 className={cn(
                                     "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
@@ -200,28 +214,39 @@ export function ModelCatalogue({
                             >
                                 {on && <Check className="h-3 w-3" />}
                             </button>
-                            <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                            {/* The id is what the row *is*. It wraps rather
+                                than truncating: two Claude models differ in
+                                their last word, and clipping loses exactly the
+                                part that tells them apart. */}
+                            <span
+                                className="min-w-0 flex-1 break-all font-mono text-xs"
+                                title={model.id}
+                            >
                                 {model.id}
                             </span>
                             {model.suggested && (
                                 <span
-                                    className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                                    className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
                                     title="This codebase already integrates this model for this slot"
                                 >
                                     integrated
                                 </span>
                             )}
+                            {/* Its own line, always. It is optional — an
+                                unnamed model shows its id — so it must never
+                                be the reason the id cannot be read. */}
                             {on && (
                                 <Input
                                     value={labels[model.id] ?? ""}
                                     placeholder="Name customers see"
+                                    aria-label={`Name customers see for ${model.id}`}
                                     onChange={(e) =>
                                         setLabels({
                                             ...labels,
                                             [model.id]: e.target.value,
                                         })
                                     }
-                                    className="h-7 w-44 text-xs"
+                                    className="h-7 w-full basis-full text-xs"
                                 />
                             )}
                         </div>
