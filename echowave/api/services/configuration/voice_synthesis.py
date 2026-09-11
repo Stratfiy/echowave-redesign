@@ -28,6 +28,18 @@ SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech"
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 ELEVENLABS_MODEL = "eleven_multilingual_v2"
 RUMIK_TTS_PATH = "/v1/tts"
+SMALLEST_TTS_URL = "https://api.smallest.ai/waves/v1/tts"
+
+#: The model a sample is recorded on when the caller names none. Lightning
+#: v3.1 is the cheaper rung and the one a customer lands on by default, so it
+#: is the honest thing to hear first.
+SMALLEST_SAMPLE_MODEL = "lightning_v3.1"
+
+#: Smallest speaks every language a sample line is written in. Confirmed
+#: against its own documented Indic list (hi, mr, gu, pa, bn, or, ta, te, kn,
+#: ml) rather than against pipecat's client, whose map omits Telugu and only
+#: works there because it falls back to the bare code.
+SMALLEST_LANGUAGES = frozenset({"en", "hi", "ta", "kn", "te"})
 
 #: The Rumik model with preset speakers. ``muga`` takes none -- it is directed
 #: by tone tags in the text -- so there is nothing to name and nothing to
@@ -155,6 +167,46 @@ def extension_for(provider: str) -> str:
     return "mp3" if provider == ServiceProviders.ELEVENLABS.value else "wav"
 
 
+async def synthesise_smallest(
+    client: httpx.AsyncClient,
+    *,
+    api_key: str,
+    voice: str,
+    language: str,
+    model: str | None = None,
+) -> bytes:
+    """One sentence, one Waves voice, as WAV bytes.
+
+    The field names are the ones pipecat's own ``SmallestTTSService`` puts on
+    the wire for a live call -- ``voice_id``, ``model``, ``language``,
+    ``sample_rate`` -- so a sample is recorded through the same contract that
+    will speak on the phone. Only the transport differs: one HTTP request here
+    against the websocket the call path holds open.
+
+    ``language`` is the bare ISO code rather than the region-qualified tag
+    Sarvam wants, which is why this does not go through ``LANGUAGE_CODES``.
+    """
+    response = await client.post(
+        SMALLEST_TTS_URL,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "audio/wav",
+        },
+        json={
+            "text": voice_samples.SAMPLE_LINES[language],
+            "voice_id": voice,
+            "model": (model or "").strip() or SMALLEST_SAMPLE_MODEL,
+            "language": language,
+            "sample_rate": 24000,
+            "output_format": "wav",
+        },
+        timeout=60.0,
+    )
+    response.raise_for_status()
+    return response.content
+
+
 async def synthesise(
     *, provider: str, model: str, voice: str, language: str, api_key: str
 ) -> bytes:
@@ -177,6 +229,19 @@ async def synthesise(
                 client,
                 api_key=api_key,
                 voice_id=voice,
+                language=language,
+                model=model,
+            )
+        if provider == ServiceProviders.SMALLEST.value:
+            if language not in SMALLEST_LANGUAGES:
+                raise UnsupportedVoice(
+                    f"Smallest does not speak {language!r}; a sample would be a "
+                    "confident mispronunciation."
+                )
+            return await synthesise_smallest(
+                client,
+                api_key=api_key,
+                voice=voice,
                 language=language,
                 model=model,
             )
