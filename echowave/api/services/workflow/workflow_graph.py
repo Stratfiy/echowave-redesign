@@ -39,6 +39,47 @@ def extract_template_variables(text: str) -> Set[str]:
     return variables
 
 
+# A tool name has to satisfy the provider before it has to mean anything:
+# OpenAI accepts ^[a-zA-Z0-9_-]{1,64}$ and rejects the request otherwise.
+TOOL_NAME_MAX_CHARS = 64
+
+
+def slugify_tool_name(label: str | None) -> str:
+    """The ASCII part of a label, as a tool name. Empty when there is none.
+
+    An empty return is the normal case, not an error: a label written in Tamil
+    or Hindi has no ASCII in it at all. The caller supplies the fallback.
+    """
+    slug = re.sub(r"[^a-z0-9]+", "_", (label or "").lower()).strip("_")
+    return slug[:TOOL_NAME_MAX_CHARS].strip("_")
+
+
+def _assign_transition_function_names(edges: List["Edge"]) -> None:
+    """Give every edge out of one node a distinct, valid tool name.
+
+    The name used to be the label with every character outside [a-z0-9]
+    replaced by an underscore. For an English label that reads well. For a
+    label in an Indian script it replaces *every* character, so two edges
+    labelled differently in Tamil arrived at the model as the same row of
+    underscores — one tool silently shadowing the other, and the flow behind it
+    unreachable. Nothing errored; the agent simply never went there.
+
+    So a label that cannot be a name does not become a bad one. It falls back
+    to its position, and the label itself is given to the model in the tool's
+    description instead, where the script it is written in does not matter.
+    """
+    used: set[str] = set()
+    for index, edge in enumerate(edges, start=1):
+        base = slugify_tool_name(edge.label) or f"option_{index}"
+        name, attempt = base, 2
+        while name in used:
+            suffix = f"_{attempt}"
+            name = base[: TOOL_NAME_MAX_CHARS - len(suffix)].strip("_") + suffix
+            attempt += 1
+        used.add(name)
+        edge.function_name = name
+
+
 class Edge:
     def __init__(self, source: str, target: str, data: EdgeDataDTO):
         self.source = source
@@ -48,10 +89,22 @@ class Edge:
         self.condition = data.condition
         self.transition_speech = data.transition_speech
 
+        # Provisional. The graph overwrites this with a name that is unique
+        # among the source node's outgoing edges — see get_function_name.
+        self.function_name = slugify_tool_name(self.label) or "option"
+
         self.data = data
 
     def get_function_name(self):
-        return re.sub(r"[^a-z0-9]", "_", self.label.lower())
+        """The name the model sees for the tool that takes this edge.
+
+        Assigned by the graph rather than computed here, because uniqueness is
+        a property of a node's whole set of outgoing edges and an edge cannot
+        see its siblings. The value set in ``__init__`` is a usable default for
+        an edge built outside a graph; ``_assign_transition_function_names``
+        replaces it with one guaranteed distinct.
+        """
+        return self.function_name
 
     def __eq__(self, other):
         if not isinstance(other, Edge):
@@ -220,6 +273,11 @@ class WorkflowGraph:
 
             # Set up the node references for backward compatibility
             source_node.out[target_node.id] = target_node
+
+        # Named once the node's whole edge set is known, because a name is only
+        # correct relative to its siblings.
+        for node in self.nodes.values():
+            _assign_transition_function_names(node.out_edges)
 
         self._validate_graph(skip_instance_constraints_for or set())
 
