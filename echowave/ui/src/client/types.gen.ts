@@ -179,6 +179,12 @@ export type AwsBedrockLlmConfiguration = {
      */
     max_tokens?: number | null;
     /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
+    /**
      * Aws Access Key
      *
      * AWS access key ID with bedrock:InvokeModel permission.
@@ -419,6 +425,12 @@ export type AnthropicLlmConfiguration = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
 };
 
 /**
@@ -608,6 +620,12 @@ export type AzureLlmService = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
     /**
      * Endpoint
      *
@@ -1753,6 +1771,12 @@ export type CerebrasLlmConfiguration = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
 };
 
 /**
@@ -2719,6 +2743,12 @@ export type CustomLlmConfiguration = {
      */
     max_tokens?: number | null;
     /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
+    /**
      * Base Url
      *
      * Base URL of the OpenAI-compatible endpoint, including the version segment (e.g. https://your-gateway.example.com/v1).
@@ -3085,6 +3115,12 @@ export type DeepSeekLlmConfiguration = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
 };
 
 /**
@@ -3932,6 +3968,12 @@ export type FireworksLlmConfiguration = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
 };
 
 /**
@@ -4083,6 +4125,12 @@ export type GoogleLlmService = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
 };
 
 /**
@@ -4266,6 +4314,12 @@ export type GoogleVertexLlmConfiguration = {
      */
     max_tokens?: number | null;
     /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
+    /**
      * Project Id
      *
      * Google Cloud project ID for Vertex AI.
@@ -4443,6 +4497,12 @@ export type GroqLlmService = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
 };
 
 /**
@@ -4703,6 +4763,12 @@ export type HuggingFaceLlmConfiguration = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
     /**
      * Base Url
      *
@@ -5527,6 +5593,12 @@ export type MiniMaxLlmConfiguration = {
      */
     max_tokens?: number | null;
     /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
+    /**
      * Base Url
      *
      * MiniMax OpenAI-compatible API endpoint.
@@ -5656,6 +5728,12 @@ export type MistralLlmConfiguration = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
 };
 
 /**
@@ -6041,6 +6119,12 @@ export type OpenAillmService = {
      */
     max_tokens?: number | null;
     /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
+    /**
      * Base Url
      *
      * Override only if using an OpenAI-compatible API (e.g. local LLM, proxy).
@@ -6218,6 +6302,12 @@ export type OpenRouterLlmConfiguration = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
     /**
      * Base Url
      *
@@ -7848,6 +7938,12 @@ export type SarvamLlmConfiguration = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
 };
 
 /**
@@ -8302,6 +8398,12 @@ export type SpeachesLlmConfiguration = {
      * Ceiling on the reply length for one turn. On a phone call this is a latency control as much as a cost one -- without streaming the caller waits for the whole reply to generate. Too low truncates mid-sentence, which sounds like the agent hung up.
      */
     max_tokens?: number | null;
+    /**
+     * Reasoning Effort
+     *
+     * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
+     */
+    reasoning_effort?: string | null;
     /**
      * Base Url
      *

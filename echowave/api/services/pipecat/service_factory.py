@@ -120,7 +120,10 @@ from pipecat.utils.text.xml_function_tag_filter import XMLFunctionTagFilter
 
 if TYPE_CHECKING:
     from api.services.pipecat.audio_config import AudioConfig
-
+from api.services.pipecat.reasoning_effort import (
+    resolve as resolve_reasoning_effort,
+)
+from api.services.pipecat.reasoning_effort import takes_reasoning_effort
 
 DEEPGRAM_FLUX_LANGUAGE_HINTS = {
     "de": Language.DE,
@@ -1522,6 +1525,7 @@ def create_llm_service_from_provider(
     credentials: str | None = None,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    reasoning_effort: str | None = None,
     bill_to: str | None = None,
 ):
     """Create an LLM service from explicit provider/model/api_key.
@@ -1534,12 +1538,22 @@ def create_llm_service_from_provider(
         if base_url:
             _validate_runtime_service_url(base_url, "base_url")
             kwargs["base_url"] = base_url
-        if "gpt-5" in model:
+        if takes_reasoning_effort(model):
+            # How long it may think is now the agent's decision, not a literal
+            # frozen into this branch. It used to be "minimal" for every gpt-5
+            # model with nothing able to change it, and the bill came due
+            # somewhere nobody was looking: a model that does not deliberate
+            # answers in words where it should have called a tool, and in a
+            # workflow every step change *is* a tool call. Two of two measured
+            # calls never left their first node. See reasoning_effort.py.
             return OpenAILLMService(
                 api_key=api_key,
                 settings=OpenAILLMSettings(
                     model=model,
-                    extra={"reasoning_effort": "minimal", "verbosity": "low"},
+                    extra={
+                        "reasoning_effort": resolve_reasoning_effort(reasoning_effort),
+                        "verbosity": "low",
+                    },
                     # No temperature, configured or otherwise: the reasoning
                     # models this branch exists for reject the parameter.
                     **_llm_tuning(None, max_tokens),
@@ -2025,7 +2039,7 @@ def create_llm_service(user_config, correlation_id: str | None = None):
     # tier class carries neither, and _carry omits what is absent. Done once
     # after the branches rather than per provider, so a new provider gets the
     # generation controls by declaring the fields and nothing else.
-    _carry(kwargs, user_config.llm, "temperature", "max_tokens")
+    _carry(kwargs, user_config.llm, "temperature", "max_tokens", "reasoning_effort")
 
     return create_llm_service_from_provider(
         provider,

@@ -132,24 +132,26 @@ class TestTheReasoningModelsAreLeftAlone:
         Passing a configured value there would turn a slider into a failed call.
         """
         branch = re.search(
-            r'if "gpt-5" in model:(?P<body>.*?)\n        return OpenAILLMService',
+            r"if takes_reasoning_effort\(model\):(?P<body>.*?)"
+            r"\n        return OpenAILLMService",
             LLM_FACTORY_SOURCE,
             re.DOTALL,
         )
-        assert branch, "The gpt-5 branch has moved; re-check this guard."
+        assert branch, "The reasoning-model branch has moved; re-check this guard."
         assert "_llm_tuning(None, max_tokens)" in branch.group("body"), (
-            "The gpt-5 branch must pass max_tokens but never a temperature."
+            "The reasoning-model branch must pass max_tokens but never a temperature."
         )
 
 
 class TestTheControlsReachTheCall:
     def test_they_are_carried_for_every_provider_not_just_two(self):
         assert re.search(
-            r'_carry\(kwargs, user_config\.llm, "temperature", "max_tokens"\)',
+            r'_carry\(\s*kwargs,\s*user_config\.llm,\s*"temperature",\s*'
+            r'"max_tokens",\s*"reasoning_effort",?\s*\)',
             SOURCE,
         ), (
-            "Both must be carried once after the provider branches, so a new "
-            "provider gets them by declaring the fields and nothing else."
+            "All three must be carried once after the provider branches, so a "
+            "new provider gets them by declaring the fields and nothing else."
         )
 
     def test_the_declaration_lives_on_the_pipeline_classes_only(self):
@@ -157,7 +159,7 @@ class TestTheControlsReachTheCall:
 
         for name in ("OpenAILLMService", "GroqLLMService", "SarvamLLMConfiguration"):
             fields = set(getattr(R, name).model_fields)
-            assert {"temperature", "max_tokens"} <= fields, name
+            assert {"temperature", "max_tokens", "reasoning_effort"} <= fields, name
 
         # Realtime is a different path; neither control reaches it this way.
         for name in (
