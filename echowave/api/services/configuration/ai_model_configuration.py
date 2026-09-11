@@ -325,6 +325,45 @@ async def get_effective_ai_model_configuration_for_workflow(
     return effective
 
 
+async def get_effective_ai_model_configuration_for_organization(
+    organization_id: int | None,
+):
+    """The account's configuration with its keys actually in it.
+
+    The org-level twin of
+    :func:`get_effective_ai_model_configuration_for_workflow`, and it exists
+    because there wasn't one. Callers outside a workflow reached for
+    :func:`get_resolved_ai_model_configuration` instead — which compiles the
+    configuration and stops there. Every managed section comes back naming a
+    vendor and carrying no key, because loading platform keys is what
+    ``managed_resolution.apply`` does and nothing had called it.
+
+    That is not a theoretical gap. ``POST /knowledge-base/search`` resolved this
+    way, read ``embeddings.api_key`` as the empty string it always was, handed
+    that to the embedding factory, and answered 500 to every search on every
+    account running managed embeddings — which is most of them. The documents
+    were fine, the vault was fine, the call path was fine; only this one route
+    asked for a configuration nobody had put the keys into.
+
+    Same two steps as the workflow path, in the same order and for the same
+    reason: BYOK first, because after managed resolution a managed section also
+    names a vendor, and running it second would send it to the customer's vault
+    for a key they were never asked for.
+    """
+    resolved = await get_resolved_ai_model_configuration(
+        organization_id=organization_id,
+    )
+    effective = resolved.effective
+    allow_managed_fallback = await _managed_fallback_allowed(organization_id)
+    await byok_resolution.apply(
+        effective,
+        organization_id=organization_id,
+        allow_managed_fallback=allow_managed_fallback,
+    )
+    await managed_resolution.apply(effective)
+    return effective
+
+
 async def _managed_fallback_allowed(organization_id: int | None) -> bool:
     """Whether this account has opted into running on Decibyl's keys.
 
