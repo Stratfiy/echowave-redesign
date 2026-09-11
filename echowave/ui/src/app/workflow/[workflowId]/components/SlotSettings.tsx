@@ -222,6 +222,33 @@ export function TranscriberPanel({ config, onChange }: PanelProps) {
             </Setting>
 
             <Setting
+                title="Where the caller is"
+                blurb="How loud and how clearly a sound must be speech before the agent treats it as the caller starting to talk. On a crowded line this stops the next table interrupting the agent mid-sentence."
+                control={
+                    <Select
+                        value={config.caller_environment ?? "normal"}
+                        onValueChange={(v) =>
+                            onChange({
+                                caller_environment: v as "quiet" | "normal" | "noisy",
+                            })
+                        }
+                    >
+                        <SelectTrigger
+                            className="h-8 w-[150px] text-xs"
+                            aria-label="Where the caller is"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="quiet">Somewhere quiet</SelectItem>
+                            <SelectItem value="normal">Normal</SelectItem>
+                            <SelectItem value="noisy">Somewhere noisy</SelectItem>
+                        </SelectContent>
+                    </Select>
+                }
+            />
+
+            <Setting
                 title="Turn-taking"
                 blurb={
                     stopStrategy === "turn_analyzer"

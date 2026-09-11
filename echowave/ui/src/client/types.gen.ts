@@ -10064,6 +10064,10 @@ export type WorkflowConfigurationDefaults = {
      */
     user_speech_timeout?: number;
     /**
+     * Caller Environment
+     */
+    caller_environment?: 'quiet' | 'normal' | 'noisy';
+    /**
      * Dictionary
      */
     dictionary?: string;

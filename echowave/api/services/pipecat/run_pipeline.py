@@ -24,6 +24,7 @@ from api.services.integrations import (
     IntegrationRuntimeContext,
     create_runtime_sessions,
 )
+from api.services.pipecat import vad_sensitivity
 from api.services.pipecat.active_calls import (
     register_active_call as register_worker_active_call,
 )
@@ -103,7 +104,6 @@ from api.services.workflow.workflow_graph import WorkflowGraph
 from pipecat.audio.turn.smart_turn.base_smart_turn import SmartTurnParams
 from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
 from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.extensions.voicemail.voicemail_detector import VoicemailDetector
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
@@ -335,7 +335,7 @@ def _create_non_realtime_user_turn_stop_strategies(
     ]
 
 
-def _create_realtime_user_turn_config(provider: str):
+def _create_realtime_user_turn_config(provider: str, run_configs: dict):
     """Return user turn strategies and optional local VAD for realtime providers."""
 
     def external_provider_turn_config():
@@ -355,7 +355,7 @@ def _create_realtime_user_turn_config(provider: str):
                 ],
                 stop=[SpeechTimeoutUserTurnStopStrategy(wait_for_transcript=False)],
             ),
-            SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
+            SileroVADAnalyzer(params=vad_sensitivity.params(run_configs)),
         )
 
     if provider in {
@@ -1195,7 +1195,9 @@ async def _run_pipeline_impl(
     user_mute_strategies = _create_user_mute_strategies(
         engine, caller_speaks_first=engine.caller_speaks_first()
     )
-    user_vad_analyzer = SileroVADAnalyzer(params=VADParams(stop_secs=0.2))
+    # Thresholds follow the agent's stated surroundings: a caller in a crowd
+    # needs a higher bar before the next table counts as them speaking.
+    user_vad_analyzer = SileroVADAnalyzer(params=vad_sensitivity.params(run_configs))
 
     # Configure turn strategies based on STT provider, model, and workflow configuration
     if is_realtime:
@@ -1203,7 +1205,7 @@ async def _run_pipeline_impl(
         # Realtime services still need user-turn tracking even when the model
         # itself owns speech generation and interruption behavior.
         user_turn_strategies, user_vad_analyzer = _create_realtime_user_turn_config(
-            user_config.realtime.provider
+            user_config.realtime.provider, run_configs
         )
     else:
         # Some STT services emit their own turn boundaries, so the aggregator
