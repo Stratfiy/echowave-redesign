@@ -115,8 +115,10 @@ def configured_language(tts_config, stt_config) -> str | None:
 
     Reads TTS first and falls back to STT, because the two disagree about where
     the setting lives and the disagreement covers the common cases rather than
-    the exotic ones: ElevenLabs' TTS config has no language field at all, and
-    the Decibyl-managed path carries the operator's choice on STT. Neither
+    the exotic ones: ElevenLabs' TTS language is optional and usually unset --
+    it was added only so the vendor could be told, and defaults to nothing
+    rather than to English -- and the Decibyl-managed path carries the
+    operator's choice on STT. Neither
     carrying one is a normal state, not a misconfiguration — it means nothing
     was pinned, so the caller decides and the first turn heard is the baseline.
     """

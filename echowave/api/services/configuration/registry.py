@@ -1,6 +1,6 @@
 import random
 from enum import Enum, auto
-from typing import Annotated, ClassVar, Dict, Literal, Type, TypeVar, Union
+from typing import Annotated, ClassVar, Dict, Literal, Optional, Type, TypeVar, Union
 
 from pydantic import (
     BaseModel,
@@ -1424,6 +1424,20 @@ class ElevenlabsTTSConfiguration(BaseServiceConfiguration):
             "unless a voice actually needs it."
         ),
     )
+    language: Optional[str] = Field(
+        default=None,
+        description=(
+            "Language code for synthesis, e.g. 'ta' for Tamil or 'hi' for "
+            "Hindi. Applied on eleven_flash_v2_5 and eleven_turbo_v2_5, which "
+            "are the models ElevenLabs accepts a language code on; other "
+            "models take the language from the voice itself. Leave empty to "
+            "let the voice decide."
+        ),
+        json_schema_extra={
+            "examples": ["en", "hi", "ta", "te", "kn", "ml", "mr", "bn"],
+            "allow_custom_input": True,
+        },
+    )
     model: str = Field(
         default="eleven_flash_v2_5",
         description="ElevenLabs TTS model.",
@@ -1805,6 +1819,18 @@ class MiniMaxTTSConfiguration(BaseTTSConfiguration):
     )
     speed: float = Field(
         default=1.0, ge=0.5, le=2.0, description="Speech speed (0.5 to 2.0)."
+    )
+    language: Optional[str] = Field(
+        default=None,
+        description=(
+            "Language code for synthesis, e.g. 'ta' for Tamil. Sent to MiniMax "
+            "as language_boost. Leave empty to let MiniMax infer it from the "
+            "text."
+        ),
+        json_schema_extra={
+            "examples": ["en", "hi", "ta", "te", "kn", "ml", "mr", "bn"],
+            "allow_custom_input": True,
+        },
     )
     group_id: str = Field(
         description="MiniMax Group ID (found in your MiniMax dashboard under Account → Group).",
