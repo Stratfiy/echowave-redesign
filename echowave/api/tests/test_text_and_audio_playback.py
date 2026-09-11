@@ -26,6 +26,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMAssistantAggregatorParams,
     LLMContextAggregatorPair,
 )
+from pipecat.tests import MockLLMService, MockTTSService
 from pipecat.tests.mock_transport import MockTransport
 from pipecat.transports.base_transport import TransportParams
 
@@ -43,7 +44,6 @@ from api.services.workflow.dto import (
 from api.services.workflow.pipecat_engine import PipecatEngine
 from api.services.workflow.pipecat_engine_custom_tools import CustomToolManager
 from api.services.workflow.workflow_graph import WorkflowGraph
-from pipecat.tests import MockLLMService, MockTTSService
 
 # ─── Constants ──────────────────────────────────────────────────
 
@@ -405,7 +405,14 @@ class TestStartGreeting:
         llm.queue_frame.assert_not_awaited()
         queued_frame = task.queue_frame.await_args.args[0]
         assert isinstance(queued_frame, TTSSpeakFrame)
-        assert queued_frame.text == TEXT_GREETING
+        # Ends with the greeting rather than equalling it: on the opening node
+        # of a recorded call the disclosure rides in front, in the same frame,
+        # so the two are one utterance with no pause between them for the
+        # caller to speak into. See test_recording_disclosure's
+        # TestItLeavesNoGapToSpeakInto. What this test is about is that the
+        # greeting reaches TTS whole and the LLM bootstrap is skipped, and
+        # both still hold.
+        assert queued_frame.text.endswith(TEXT_GREETING)
         assert queued_frame.append_to_context is True
 
     @pytest.mark.asyncio
