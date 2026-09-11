@@ -125,3 +125,67 @@ class TestNeverClaimingWhatYouDidNotDo:
         )
         assert "unless a tool has just" in text
         assert "cannot end the call" not in text
+
+
+class TestNeverInventingTheDetails:
+    """Run 316, in front of a customer.
+
+        caller  RCT
+        agent   So that's root canal? What day and time do you prefer?
+        caller  Monday 11 AM
+        agent   So the name Nithish Kalyan and mobile 1234567890 — correct?
+
+    Neither was ever said. 1234567890 is a placeholder the model completed.
+    The action rule stops an agent claiming it *did* something; nothing
+    stopped it inventing what it had been asked to collect.
+    """
+
+    def test_it_forbids_details_the_caller_did_not_give(self):
+        from api.services.workflow.step_instructions import FACT_HONESTY
+
+        assert "has not given you" in FACT_HONESTY
+
+    def test_it_names_the_kinds_of_detail_that_get_invented(self):
+        from api.services.workflow.step_instructions import FACT_HONESTY
+
+        for detail in ("name", "phone number", "date", "time", "amount"):
+            assert detail in FACT_HONESTY
+
+    def test_it_forbids_the_placeholder_specifically(self):
+        """The exact move: offering a likely-looking value to confirm. A
+        made-up detail read back as a question invites a distracted yes."""
+        from api.services.workflow.step_instructions import FACT_HONESTY
+
+        assert "placeholder" in FACT_HONESTY
+
+    def test_a_value_a_tool_returned_is_allowed(self):
+        """Otherwise the agent could not read back an order number it
+        looked up, which is most of what a lookup agent is for."""
+        from api.services.workflow.step_instructions import FACT_HONESTY
+
+        assert "tool has not returned" in FACT_HONESTY
+
+    def test_both_rules_reach_every_node_including_the_last(self):
+        from api.services.workflow.pipecat_engine_context_composer import (
+            compose_system_prompt_for_node,
+        )
+
+        class _N:
+            is_end = True
+            out_edges: list = []
+            prompt = "Say goodbye."
+            add_global_prompt = False
+
+        class _W:
+            global_node_id = None
+            nodes: dict = {}
+
+        text = compose_system_prompt_for_node(
+            node=_N(),
+            workflow=_W(),
+            format_prompt=lambda p: p,
+            has_recordings=False,
+            today_line="Today is Friday.",
+        )
+        assert "unless a tool has just" in text
+        assert "has not given you" in text

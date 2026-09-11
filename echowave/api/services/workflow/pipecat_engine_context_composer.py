@@ -19,6 +19,7 @@ from api.services.workflow.pipecat_engine_custom_tools import get_function_schem
 from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
 from api.services.workflow.step_instructions import (
     action_honesty_instructions,
+    fact_honesty_instructions,
     moving_on_instructions,
 )
 from api.services.workflow.tools.knowledge_base import get_knowledge_base_tool
@@ -162,6 +163,7 @@ def compose_system_prompt_for_node(
     # tools. Unconditional: an operator may choose whether their agent can hang
     # up, but not whether it may tell a caller something happened that did not.
     parts.append(action_honesty_instructions())
+    parts.append(fact_honesty_instructions())
 
     if has_recordings and "RECORDING_ID:" in formatted_node_prompt:
         parts.append(RECORDING_RESPONSE_MODE_INSTRUCTIONS)
