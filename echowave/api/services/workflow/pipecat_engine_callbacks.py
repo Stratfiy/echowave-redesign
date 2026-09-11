@@ -83,8 +83,8 @@ class UserIdleHandler:
         "Press 6# on the controller and tell me whether the GPS light is
         blinking" is the second kind, and the default timeout assumes the
         first — that a quiet caller is a caller thinking. Someone walking to a
-        vehicle is not thinking, and prompting them twice and hanging up is
-        exactly the wrong response to a person doing what we asked.
+        vehicle is not thinking, and prompting them repeatedly and hanging up
+        is exactly the wrong response to a person doing what we asked.
 
         None on the node means the agent's default, which is the behaviour
         every existing workflow already has.
@@ -95,10 +95,11 @@ class UserIdleHandler:
     async def handle_idle(self, aggregator):
         """Handle user idle event with escalating prompts.
 
-        The contract is two strikes: the first asks whether the caller is
-        still there, the second disconnects. Only the second may end the call
-        — see the instruction on the first message for why that has to be said
-        out loud.
+        The contract is `NUDGES_BEFORE_HANGING_UP` asks and then goodbye: the
+        first silence asks whether the caller is still there, the second asks
+        again in different words, and the one after the last nudge
+        disconnects. Only that last one may end the call — see the instruction
+        on the nudge messages for why that has to be said out loud.
 
         Before either, a step may ask for more rope. The idle event fires on
         the pipeline's own timer, so patience is spent in whole ticks of it:

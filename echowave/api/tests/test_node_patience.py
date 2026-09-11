@@ -1,10 +1,11 @@
 """Some steps send the caller away, and must not hang up while they are gone.
 
 The idle handler assumes a quiet caller is a caller thinking, and on that
-assumption two strikes and a disconnect is right. It is wrong for the step that
-says "press 6# on the controller and tell me whether the GPS light is
-blinking" — that caller is walking to a vehicle, and the shipped default gives
-them ten seconds before the agent starts asking if they are still there.
+assumption a couple of nudges and a disconnect is right. It is wrong for the
+step that says "press 6# on the controller and tell me whether the GPS light
+is blinking" — that caller is walking to a vehicle, and the shipped default
+gives them ten seconds before the agent starts asking if they are still
+there.
 
 So a step can ask for more rope. While the silence it has absorbed is under its
 budget the agent says nothing at all: not a softer prompt, nothing. "Are you
@@ -17,7 +18,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from api.services.workflow.pipecat_engine_callbacks import UserIdleHandler
+from api.services.workflow.pipecat_engine_callbacks import (
+    NUDGES_BEFORE_HANGING_UP,
+    UserIdleHandler,
+)
 
 
 def _engine(patience=None, tick=10.0):
@@ -46,12 +50,27 @@ class TestWithoutPatience:
         assert handler._retry_count == 1
 
     @pytest.mark.asyncio
-    async def test_the_second_ends_the_call(self):
+    async def test_the_second_asks_again_rather_than_hanging_up(self):
+        """Deliberately changed: one nudge and goodbye was too few.
+
+        Run 307 ended on a caller who had not spoken yet, on a greeting that
+        names five languages. A quiet caller now gets asked twice.
+        """
         engine = _engine(patience=None)
         handler = UserIdleHandler(engine)
         aggregator = _aggregator()
         await handler.handle_idle(aggregator)
         await handler.handle_idle(aggregator)
+        engine.end_call_with_reason.assert_not_awaited()
+        assert aggregator.push_frame.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_the_silence_after_the_last_nudge_ends_the_call(self):
+        engine = _engine(patience=None)
+        handler = UserIdleHandler(engine)
+        aggregator = _aggregator()
+        for _ in range(NUDGES_BEFORE_HANGING_UP + 1):
+            await handler.handle_idle(aggregator)
         engine.end_call_with_reason.assert_awaited_once()
 
     @pytest.mark.asyncio
