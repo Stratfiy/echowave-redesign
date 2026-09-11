@@ -149,13 +149,21 @@ class EmbedTokenClient(BaseDBClient):
             if not embed_token:
                 return None
 
-            # Update allowed fields
+            # Update allowed fields.
+            #
+            # ``daily_minutes_cap`` belongs here and was missing, which made
+            # the share link's cap unsettable: the route accepted the change,
+            # answered 200, and dropped it on the floor, so the only link
+            # anyone could actually make was an uncapped one. That is the
+            # cap the route's own docstring calls the thing standing between
+            # a forwarded link and a balance gone overnight.
             allowed_fields = {
                 "allowed_domains",
                 "settings",
                 "is_active",
                 "usage_limit",
                 "expires_at",
+                "daily_minutes_cap",
             }
 
             for field, value in kwargs.items():

@@ -31,7 +31,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.schemas.ai_model_configuration import (
     DECIBYL_DEFAULT_VOICE,
-    DECIBYL_GENDER_VOICES,
 )
 from api.services.billing.addons import DEFAULT_AGENT_ADDONS
 from api.services.billing.estimator import estimate_cost_per_minute
@@ -81,13 +80,16 @@ def brains() -> list[BrainOption]:
     ]
 
 
-def voices() -> list[VoiceOption]:
+def voices(tier: str | None = None) -> list[VoiceOption]:
     """Managed voices, as the catalogue serves them.
 
     Resolved through the managed tier, so this is what a managed customer will
     really get rather than a list we maintain separately and forget to update.
+    ``tier`` is the voice tier to list for; the default tier when omitted. A
+    preset names its own voice tier, and the picker under it has to show that
+    tier's voices or the sample somebody plays is not the voice they get.
     """
-    catalogue = voice_catalogue.for_provider("decibyl", model=None)
+    catalogue = voice_catalogue.for_provider("decibyl", model=tier or None)
     return [
         VoiceOption(
             voice_id=voice.voice_id,
@@ -142,9 +144,9 @@ async def pipeline_estimate(
     to that number. One estimate serves both.
 
     ``stt_tier`` and ``tts_tier`` are parameters rather than the constant
-    ``"default"`` they used to be. A bundle names its own speech tiers, and
-    hardcoding them here priced every bundle as though it ran the default pair
-    — correct only for as long as every pipeline bundle happened to.
+    ``"default"`` they used to be. A preset names its own speech tiers, and
+    hardcoding them here would price every preset as though it ran the
+    default pair — wrong for Basic and Global, the two that exist to differ.
     """
     llm = managed_tiers.resolve("llm", brain)
     stt = managed_tiers.resolve("stt", stt_tier or "default")
@@ -311,153 +313,17 @@ def _breakdown(estimate) -> dict | None:
     }
 
 
-async def bundle_options(
-    session: AsyncSession,
-    *,
-    organization_id: int | None,
-    telephony_provider: str | None = None,
-) -> list[dict]:
-    """The Simple picker's cards, priced, with the residency badge on each.
-
-    Every bundle carries **variants**, even when there is only one. A pipeline
-    bundle has three — the brain is the customer's choice and it is the
-    component that moves both the price and the badge — while a
-    speech-to-speech bundle has exactly one. Making that uniform means the
-    screen renders one shape instead of branching on architecture, and adding a
-    fourth bundle later needs no new case.
-
-    Priced through the same estimator the receipt reconciles against, never a
-    second calculation. Every pricing bug found this week came from a parallel
-    sum drifting from the first one.
-    """
-    from api.services.configuration import bundles as bundle_service
-    from api.services.configuration import managed_resolution
-    from api.services.configuration.residency import assess
-
-    rows = await bundle_service.list_bundles(session, enabled_only=True)
-    # Per tier, not per section. A bundle names one specific tier, and a tier
-    # resolving to a vendor we hold no key for is a call that fails after it
-    # connects -- so the card has to say so before it is bought, not after.
-    keyed = await managed_resolution.tier_availability(session)
-    out: list[dict] = []
-
-    for row in rows:
-        variants: list[dict] = []
-        # One price a minute, everything included, when the bundle has one.
-        # The estimate is still computed for the economics screen; the
-        # customer sees the number on the tag.
-        list_price = bundle_service.flat_rate_paise(row)
-
-        if row.architecture == bundle_service.REALTIME:
-            estimate = await realtime_estimate(
-                session,
-                organization_id=organization_id,
-                realtime_tier=row.realtime_tier,
-                telephony_provider=telephony_provider,
-            )
-            variants.append(
-                {
-                    "tier": row.realtime_tier,
-                    "label": row.label,
-                    "blurb": "",
-                    "paise_per_minute": (
-                        list_price
-                        if list_price is not None
-                        else None
-                        if estimate is None
-                        else estimate.total_paise_per_minute
-                    ),
-                    "breakdown": None
-                    if list_price is not None
-                    else _breakdown(estimate),
-                    "india_only": assess(
-                        architecture="realtime", realtime_tier=row.realtime_tier
-                    ).india_only,
-                    "available": keyed.get("realtime", {}).get(
-                        row.realtime_tier or "default", False
-                    ),
-                }
-            )
-        else:
-            # ``llm_tier`` pinned on the row means the bundle chose the brain;
-            # null means the customer does, which is the Everyday case.
-            tiers = [row.llm_tier] if row.llm_tier else list(managed_tiers.LLM_TIERS)
-            for tier in tiers:
-                label, blurb = managed_tiers.LLM_TIER_LABELS.get(
-                    tier, (tier.title(), "")
-                )
-                estimate = await pipeline_estimate(
-                    session,
-                    organization_id=organization_id,
-                    brain=tier,
-                    stt_tier=row.stt_tier or "default",
-                    tts_tier=row.tts_tier or "default",
-                    telephony_provider=telephony_provider,
-                )
-                variants.append(
-                    {
-                        "tier": tier,
-                        "label": label,
-                        "blurb": blurb,
-                        "paise_per_minute": (
-                            list_price
-                            if list_price is not None
-                            else None
-                            if estimate is None
-                            else estimate.total_paise_per_minute
-                        ),
-                        "breakdown": None
-                        if list_price is not None
-                        else _breakdown(estimate),
-                        "india_only": assess(
-                            architecture="pipeline",
-                            llm_tier=tier,
-                            stt_tier=row.stt_tier,
-                            tts_tier=row.tts_tier,
-                        ).india_only,
-                        # All three, because a pipeline call needs ears, a
-                        # brain and a voice. One missing key is one silent
-                        # failure.
-                        "available": (
-                            keyed.get("llm", {}).get(tier, False)
-                            and keyed.get("stt", {}).get(
-                                row.stt_tier or "default", False
-                            )
-                            and keyed.get("tts", {}).get(
-                                row.tts_tier or "default", False
-                            )
-                        ),
-                    }
-                )
-
-        out.append(
-            {
-                "slug": row.slug,
-                "label": row.label,
-                "blurb": row.blurb,
-                "architecture": row.architecture,
-                # A voice is only chosen on the pipeline path: a
-                # speech-to-speech model brings its own and there is nothing to
-                # pick. The screen reads this rather than re-deriving it from
-                # the architecture string.
-                "picks_voice": row.architecture == bundle_service.PIPELINE,
-                # The bundle is buyable if any of its variants is. A bundle
-                # whose every variant is unservable is shown disabled rather
-                # than hidden -- see managed_availability on why unavailable
-                # beats absent.
-                "available": any(v.get("available") for v in variants),
-                "variants": variants,
-            }
-        )
-    return out
-
-
 class SelectionError(ValueError):
-    """A bundle choice that could not be saved as asked for."""
+    """A model choice that could not be saved as asked for."""
 
 
 async def selected_bundle(*, organization_id: int | None) -> dict | None:
-    """The Simple choice currently in force, or ``None`` if there is not one.
+    """The bundle an account's stored configuration still names, or ``None``.
+
+    Bundles are gone from the product; this and
+    :func:`selected_bundle_from_configurations` remain because
+    ``billing/costing`` reads them to keep the flat rate an agent built on a
+    bundle was promised. Nothing writes the field any more.
 
     Read from the account's stored managed configuration rather than kept in a
     second table. There is one answer to "what does this account run on" and it
@@ -485,187 +351,6 @@ async def selected_bundle(*, organization_id: int | None) -> dict | None:
     }
 
 
-async def _bundle_configuration(
-    session: AsyncSession,
-    *,
-    organization_id: int,
-    bundle_slug: str,
-    tier: str,
-    voice: str,
-):
-    """A Simple choice, resolved and compiled, ready to be stored anywhere.
-
-    Shared by the account default and the per-agent choice so the two cannot
-    drift: both go through the same bundle lookup, the same tier check, the
-    same compile. Returns the v2 configuration and its managed section.
-
-    Everything the customer chose is resolved here from the bundle row rather
-    than taken from the request: the client sends a slug, a tier and a voice,
-    and the speech tiers behind them are looked up. A client that could name
-    its own STT tier could name one nobody has priced, and the first anyone
-    would know is a call billed against a rate that does not exist.
-
-    Writes the same v2 managed shape the Advanced tab writes, so the two tabs
-    remain two vocabularies for one stored answer rather than two stores.
-    """
-    from api.schemas.ai_model_configuration import (
-        DecibylManagedAIModelConfiguration,
-        OrganizationAIModelConfigurationV2,
-        compile_ai_model_configuration_v2,
-    )
-    from api.services.configuration import bundles as bundle_service
-    from api.services.configuration.ai_model_configuration import (
-        get_organization_ai_model_configuration_v2,
-    )
-
-    # The account's model gateway service key, carried forward rather than
-    # rewritten. It is minted once per organization at signup and is the only
-    # copy: nothing here can mint another, so writing a configuration without
-    # it does not "clear a field", it destroys the credential.
-    #
-    # This is not hypothetical. Saving a bundle used to build a fresh managed
-    # configuration and let ``api_key`` take its empty default, which passed
-    # every validator — an empty key is the ordinary case for a managed slot —
-    # and then refused every call the account made with "You have invalid keys
-    # in your model configuration". The stack was right, the tiers were right,
-    # and the credential the gateway authenticates with was gone.
-    #
-    # ``merge_ai_model_configuration_v2_secrets`` does not cover this. It
-    # restores a key the client sent back *masked*; a key that is simply absent
-    # reads as a deliberate empty value and is written as one.
-    existing = await get_organization_ai_model_configuration_v2(organization_id)
-    service_key = ""
-    if existing is not None and existing.decibyl is not None:
-        service_key = existing.decibyl.api_key or ""
-
-    rows = await bundle_service.list_bundles(session, enabled_only=True)
-    row = next((r for r in rows if r.slug == bundle_slug), None)
-    if row is None:
-        raise SelectionError(f"{bundle_slug!r} is not a bundle on offer.")
-
-    chosen = (tier or "").strip()
-    if row.architecture == bundle_service.REALTIME:
-        # One model hears and speaks, so there is exactly one tier it can be
-        # and the request does not get to name a different one.
-        if chosen and chosen != row.realtime_tier:
-            raise SelectionError(f"{row.label} does not offer a {chosen!r} option.")
-        managed = DecibylManagedAIModelConfiguration(
-            api_key=service_key,
-            bundle=row.slug,
-            realtime_tier=row.realtime_tier,
-            # Carried so a later switch back to a pipeline bundle does not land
-            # on a tier nobody chose. It is not read while realtime_tier is set.
-            llm_tier="default",
-            voice=voice or DECIBYL_DEFAULT_VOICE,
-        )
-    else:
-        offered = [row.llm_tier] if row.llm_tier else list(managed_tiers.LLM_TIERS)
-        if chosen not in offered:
-            raise SelectionError(f"{row.label} does not offer a {chosen!r} brain.")
-        # The gender sentinels are not catalogue entries and must not be
-        # checked against one: they name what to resolve at pipeline build,
-        # from whichever vendor the tier is on then. Validating them here
-        # against today's voice list is how "male" becomes unsaveable.
-        if (
-            voice
-            and voice not in DECIBYL_GENDER_VOICES
-            and voice not in {v.voice_id for v in voices()}
-        ):
-            raise SelectionError(f"{voice!r} is not a voice we offer.")
-        managed = DecibylManagedAIModelConfiguration(
-            api_key=service_key,
-            bundle=row.slug,
-            llm_tier=chosen,
-            stt_tier=row.stt_tier or "default",
-            tts_tier=row.tts_tier or "default",
-            voice=voice or DECIBYL_DEFAULT_VOICE,
-        )
-
-    configuration = OrganizationAIModelConfigurationV2(
-        version=2, mode="decibyl", decibyl=managed
-    )
-    # Compiled before it is stored, not after. Everything above is built from a
-    # bundle row an operator owns, so a combination that cannot be flattened
-    # into a runnable stack is a misconfigured bundle — and the place to find
-    # that out is here, as a refused save, rather than on the first call the
-    # account makes.
-    try:
-        compile_ai_model_configuration_v2(configuration)
-    except ValueError as exc:
-        raise SelectionError(str(exc)) from exc
-
-    return configuration, managed
-
-
-def _selection_view(managed) -> dict:
-    return {
-        "bundle": managed.bundle,
-        "tier": (managed.realtime_tier or "").strip() or managed.llm_tier,
-        "voice": managed.voice,
-    }
-
-
-async def save_bundle_selection(
-    session: AsyncSession,
-    *,
-    organization_id: int,
-    bundle_slug: str,
-    tier: str,
-    voice: str,
-) -> dict:
-    """Store a Simple choice as this account's default managed stack.
-
-    Writes the same v2 managed shape the Advanced tab writes, so the two tabs
-    remain two vocabularies for one stored answer rather than two stores.
-    """
-    from api.services.configuration.ai_model_configuration import (
-        upsert_organization_ai_model_configuration_v2,
-    )
-
-    configuration, managed = await _bundle_configuration(
-        session,
-        organization_id=organization_id,
-        bundle_slug=bundle_slug,
-        tier=tier,
-        voice=voice,
-    )
-    await upsert_organization_ai_model_configuration_v2(organization_id, configuration)
-    return _selection_view(managed)
-
-
-# ---------------------------------------------------------------------------
-# The same choice, on one agent.
-#
-# Vapi and Bolna put the model on the assistant, not the account, and that is
-# what a customer expects: the receptionist runs on the cheap fast brain, the
-# collections agent on the careful one. The account default stays as the
-# fallback for an agent that has not chosen, so nothing built before this
-# existed changes behaviour.
-# ---------------------------------------------------------------------------
-
-
-def with_bundle_override(configurations: dict | None, configuration) -> dict:
-    """The agent's configurations with this bundle as its model override.
-
-    Pure, so it can be tested without a database. The legacy per-slot
-    ``model_overrides`` is dropped: it and the v2 override are two answers to
-    one question, and the settings screen already removes one when it writes
-    the other.
-    """
-    from api.services.configuration.ai_model_configuration import (
-        WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
-    )
-
-    next_configurations = dict(configurations or {})
-    next_configurations.pop("model_overrides", None)
-    next_configurations[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY] = (
-        configuration.model_dump()
-        if hasattr(configuration, "model_dump")
-        else dict(configuration)
-    )
-    return next_configurations
-
-
 def selected_bundle_from_configurations(configurations: dict | None) -> dict | None:
     """The Simple choice an agent's own override expresses, or ``None``.
 
@@ -691,81 +376,6 @@ def selected_bundle_from_configurations(configurations: dict | None) -> dict | N
         "voice": managed.get("voice") or "",
     }
 
-
-async def _workflow_configurations(workflow_id: int, organization_id: int) -> dict:
-    """What the agent runs on now: its draft if it has one, else the release."""
-    from api.db import db_client
-
-    workflow = await db_client.get_workflow(
-        workflow_id, organization_id=organization_id
-    )
-    if workflow is None:
-        raise SelectionError("Agent not found.")
-    draft = await db_client.get_draft_version(workflow_id)
-    source = draft or workflow.released_definition
-    if source is not None and source.workflow_configurations is not None:
-        return dict(source.workflow_configurations)
-    return dict(workflow.workflow_configurations or {})
-
-
-async def selected_bundle_for_workflow(
-    *, workflow_id: int, organization_id: int
-) -> dict | None:
-    """The agent's own Simple choice, falling back to the account's."""
-    own = selected_bundle_from_configurations(
-        await _workflow_configurations(workflow_id, organization_id)
-    )
-    if own is not None:
-        return own
-    return await selected_bundle(organization_id=organization_id)
-
-
-async def save_workflow_bundle_selection(
-    session: AsyncSession,
-    *,
-    workflow_id: int,
-    organization_id: int,
-    bundle_slug: str,
-    tier: str,
-    voice: str,
-) -> dict:
-    """Make this bundle the agent's own stack.
-
-    Saved as a draft of the agent, the same way every other agent setting is,
-    so it goes live when the agent is next published and nothing changes on a
-    call that is already running.
-    """
-    from api.db import db_client
-
-    configuration, managed = await _bundle_configuration(
-        session,
-        organization_id=organization_id,
-        bundle_slug=bundle_slug,
-        tier=tier,
-        voice=voice,
-    )
-    current = await _workflow_configurations(workflow_id, organization_id)
-    await db_client.update_workflow(
-        workflow_id,
-        name=None,
-        workflow_definition=None,
-        template_context_variables=None,
-        workflow_configurations=with_bundle_override(current, configuration),
-        organization_id=organization_id,
-    )
-    return _selection_view(managed)
-
-
-# ---------------------------------------------------------------------------
-# One slot at a time.
-#
-# The Advanced view of an agent's Models tab is three tiles — transcriber,
-# brain, voice — or one for speech-to-speech, each with a pencil. Changing
-# one must not touch the others: somebody swapping the voice has not asked
-# for a different brain, and a preset that quietly did that is the mistake
-# `apply_model_preset` already refuses to make. So the write is a copy of the
-# stack with one section replaced.
-# ---------------------------------------------------------------------------
 
 STACK_SECTIONS = ("llm", "stt", "tts", "realtime", "embeddings")
 
@@ -805,6 +415,35 @@ def stack_from_configurations(effective) -> dict:
     return stack
 
 
+#: What a slot's settings panel may tune besides the model itself, per slot.
+#: Temperature and reply length are the two knobs Vapi puts under a model;
+#: speed and language are what a voice has. Anything else a vendor accepts
+#: is the per-slot editor's business, not the pencil's.
+SLOT_TUNING: dict[str, tuple[str, ...]] = {
+    "stt": ("language",),
+    "llm": ("temperature", "max_tokens"),
+    "tts": ("speed", "language"),
+    "realtime": (),
+}
+
+
+def slot_tuning(component: str, section) -> dict:
+    """The tunable values a section currently carries, for the panel to open on.
+
+    Only the keys the panel can write, and only where the section has them:
+    a vendor class without ``temperature`` contributes nothing rather than
+    ``None``, so the panel shows the vendor's own default as blank.
+    """
+    if section is None:
+        return {}
+    out = {}
+    for key in SLOT_TUNING.get(component, ()):
+        value = getattr(section, key, None)
+        if value is not None:
+            out[key] = value
+    return out
+
+
 def with_model_slot(
     stack: dict,
     *,
@@ -812,6 +451,7 @@ def with_model_slot(
     provider: str,
     model: str,
     voice: str | None = None,
+    tuning: dict | None = None,
 ) -> dict:
     """The stack with one slot pointed at a managed catalogue model.
 
@@ -819,6 +459,11 @@ def with_model_slot(
     shape — a real vendor and model on ``use_platform_key`` — rather than a
     tier, because the person chose this model by name and a tier would let
     it move under them.
+
+    ``tuning`` carries the slot's own knobs (see ``SLOT_TUNING``). A value
+    given is written; a key absent or ``None`` leaves what the section has,
+    so the panel can change the speed without restating the language. Keys
+    the slot does not tune are ignored rather than stored.
 
     Choosing a speech-to-speech model switches the architecture and drops
     the transcriber and voice, which that model replaces; choosing any
@@ -838,6 +483,10 @@ def with_model_slot(
     )
     if component == "tts" and voice:
         section["voice"] = voice
+    for key in SLOT_TUNING[component]:
+        value = (tuning or {}).get(key)
+        if value is not None:
+            section[key] = value
     next_stack[component] = section
 
     if component == "realtime":
@@ -860,91 +509,6 @@ def with_model_slot(
                 "api_key": "",
             }
     return next_stack
-
-
-async def bundle_economics(
-    session: AsyncSession, *, telephony_provider: str | None = None
-) -> list[dict]:
-    """The same bundles, with what each one earns.
-
-    The operator's version of :func:`bundle_options`. It asks the estimator the
-    same question twice — once with the managed markup and once without — so
-    ``price`` is exactly the number quoted to a customer and ``cost`` is
-    exactly the vendor bill behind it. The margin is their difference, not a
-    third calculation: a margin computed independently is a margin that drifts,
-    and the drift only shows up in a month-end reconciliation.
-
-    Priced at the **list** rate, with no account attached. Pricing a bundle
-    against whichever account happened to be at hand would quote one
-    customer's negotiated contract as though it were everybody's.
-
-    Returned per variant rather than per bundle because on a pipeline bundle
-    the brain is the customer's choice, and Lite and Smart do not earn the
-    same thing.
-    """
-    from api.services.configuration import bundles as bundle_service
-
-    priced = await bundle_options(
-        session, organization_id=None, telephony_provider=telephony_provider
-    )
-    # The speech tiers each bundle runs on, which the customer-facing payload
-    # above deliberately does not carry. The cost side has to price the same
-    # stack the price side did, or the margin is the difference between two
-    # different bundles.
-    speech = {
-        row.slug: (row.stt_tier or "default", row.tts_tier or "default")
-        for row in await bundle_service.list_bundles(session, enabled_only=True)
-    }
-    out: list[dict] = []
-
-    for bundle in priced:
-        variants: list[dict] = []
-        for variant in bundle["variants"]:
-            price = variant["paise_per_minute"]
-            if bundle["architecture"] == "realtime":
-                cost = await realtime_price_per_minute(
-                    session,
-                    organization_id=None,
-                    realtime_tier=variant["tier"],
-                    telephony_provider=telephony_provider,
-                    marked_up=False,
-                )
-            else:
-                stt_tier, tts_tier = speech.get(bundle["slug"], ("default", "default"))
-                cost = await price_per_minute(
-                    session,
-                    organization_id=None,
-                    brain=variant["tier"],
-                    stt_tier=stt_tier,
-                    tts_tier=tts_tier,
-                    telephony_provider=telephony_provider,
-                    marked_up=False,
-                )
-            # Either half missing means there is no margin to state. Both come
-            # from the same estimator and the same rate card, so in practice
-            # they are missing together — but subtracting a present cost from
-            # an absent price is exactly how a bundle nobody can price would
-            # have reported a margin anyway.
-            priced = price is not None and cost is not None
-            variants.append(
-                {
-                    **variant,
-                    "cost_paise_per_minute": cost,
-                    "margin_paise_per_minute": (price - cost) if priced else None,
-                    # Expressed against the price rather than the cost, because
-                    # that is the margin an investor and a discount both read.
-                    # Null rather than zero when nothing is priced yet: a bundle
-                    # with no rate card behind it has no margin, and 0% would
-                    # read as one we chose.
-                    "margin_pct": (
-                        round((price - cost) / price * 100, 1)
-                        if priced and price
-                        else None
-                    ),
-                }
-            )
-        out.append({**bundle, "variants": variants})
-    return out
 
 
 def approximate_minutes(balance_paise: int, paise_per_minute: int | None) -> int | None:
@@ -974,7 +538,7 @@ def managed_stack_override(
     stt_tier: str = "default",
     tts_tier: str = "default",
 ) -> dict:
-    """A bundle choice, as an agent-level model override.
+    """A preset choice, as an agent-level model override.
 
     Written as a v3 stack with every slot still saying ``decibyl``. That
     matters: a slot naming a tier is resolved to a vendor at call time by
@@ -1037,6 +601,70 @@ def managed_stack_override(
     return {
         WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY: {"version": 3, "stack": stack}
     }
+
+
+async def preset_options(
+    session: AsyncSession,
+    *,
+    organization_id: int | None,
+    telephony_provider: str | None = None,
+    requirement=None,
+) -> list[dict]:
+    """The preset chips, each priced and marked available or not.
+
+    One price a minute per preset, everything included, from the same
+    estimator the receipt uses, so a chip and an invoice cannot tell
+    different stories. A preset that resolves to a vendor we hold no key for
+    is offered disabled rather than sold. When ``requirement`` is given, the
+    rung :func:`model_presets.recommend` picks is marked, with its reason.
+    """
+    from api.services.configuration import managed_resolution, model_presets
+
+    keyed = await managed_resolution.tier_availability(session)
+    cards: list[dict] = []
+    for preset in model_presets.MODEL_PRESETS:
+        available = model_presets.is_available(preset, keyed)
+        if preset.realtime_tier:
+            paise = await realtime_price_per_minute(
+                session,
+                organization_id=organization_id,
+                realtime_tier=preset.realtime_tier,
+                telephony_provider=telephony_provider,
+            )
+        else:
+            paise = await price_per_minute(
+                session,
+                organization_id=organization_id,
+                brain=preset.llm_tier,
+                stt_tier=preset.stt_tier,
+                tts_tier=preset.tts_tier,
+                telephony_provider=telephony_provider,
+            )
+        cards.append(
+            {
+                "slug": preset.slug,
+                "label": preset.label,
+                "blurb": preset.blurb,
+                "stt_tier": preset.stt_tier,
+                "tts_tier": preset.tts_tier,
+                "llm_tier": preset.llm_tier,
+                "realtime_tier": preset.realtime_tier,
+                "available": available,
+                "paise_per_minute": paise,
+                "recommended": False,
+                "reason": None,
+            }
+        )
+
+    if requirement is not None:
+        pick = model_presets.recommend(
+            requirement, available={c["slug"]: c["available"] for c in cards}
+        )
+        for card in cards:
+            if card["slug"] == pick.slug:
+                card["recommended"] = True
+                card["reason"] = pick.reason
+    return cards
 
 
 async def catalogue_options(
@@ -1107,6 +735,7 @@ async def model_row(
     organization_id: int | None,
     workflow_id: int,
     workflow_configurations: dict | None,
+    requirement=None,
 ) -> dict:
     """What this agent runs on, what each part costs, and how long each takes.
 
@@ -1128,11 +757,7 @@ async def model_row(
     """
     from api.db.workflow_latency_client import stage_latency
     from api.services.billing.estimator import price_components
-    from api.services.configuration import (
-        managed_resolution,
-        managed_tiers,
-        model_presets,
-    )
+    from api.services.configuration import managed_tiers, model_presets
     from api.services.configuration.ai_model_configuration import (
         get_effective_ai_model_configuration_for_workflow,
     )
@@ -1179,6 +804,7 @@ async def model_row(
             ("tts", "Voice", effective.tts),
         ]
 
+    section_by_component = {component: section for component, _title, section in wanted}
     resolved: list[tuple[str, str, str, str]] = []
     for component, title, section in wanted:
         pair = resolve(component, section)
@@ -1245,6 +871,27 @@ async def model_row(
         "realtime": "total_ms",
     }
 
+    # The voices the voice tile's pencil may pick from: the ones published
+    # for what the agent's voice slot actually resolves to. Sarvam's list
+    # under a Rumik agent is a picker full of names the call will not use.
+    tts_pair = by_component.get("tts")
+    voice_options = (
+        [
+            {
+                "voice_id": v.voice_id,
+                "name": v.name,
+                "gender": v.gender,
+                "description": v.description,
+                "is_default": i == 0,
+            }
+            for i, v in enumerate(
+                voice_catalogue.for_provider(tts_pair[0], model=tts_pair[1]).voices
+            )
+        ]
+        if tts_pair
+        else []
+    )
+
     slots = []
     for component, title, provider, model in resolved:
         line = priced.get((_rate_component(component), provider, model))
@@ -1266,27 +913,28 @@ async def model_row(
                     if component == "tts"
                     else None
                 ),
+                # What the slot's panel can tune, as it stands, so the
+                # sliders open where the agent is rather than at a default.
+                "tuning": slot_tuning(component, section_by_component.get(component)),
             }
         )
 
-    # Which named stack this is, and which of them we can serve. Derived from
-    # the tiers the stack names rather than stored, so an agent tuned by hand
-    # reads as custom instead of mislabelling itself -- the same rule
+    # Which named stack this is, and which of them we can serve, each with
+    # its price and the one the agent's own requirement points at. Derived
+    # from the tiers the stack names rather than stored, so an agent tuned by
+    # hand reads as custom instead of mislabelling itself -- the same rule
     # LATENCY_PRESETS follows for turn timings.
-    keyed = await managed_resolution.tier_availability(session)
-    presets = [
-        {
-            "slug": preset.slug,
-            "label": preset.label,
-            "blurb": preset.blurb,
-            "available": model_presets.is_available(preset, keyed),
-        }
-        for preset in model_presets.MODEL_PRESETS
-    ]
+    presets = await preset_options(
+        session,
+        organization_id=organization_id,
+        telephony_provider=basis.provider,
+        requirement=requirement,
+    )
 
     return {
         "is_realtime": effective.is_realtime,
         "slots": slots,
+        "voices": voice_options,
         "presets": presets,
         "active_preset": model_presets.match(effective),
         # The same three segments the wizard's bar and the receipt use, so a

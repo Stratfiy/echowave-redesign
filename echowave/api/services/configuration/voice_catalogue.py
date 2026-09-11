@@ -8,10 +8,13 @@ an agent with no voice cannot place a call.
 The registry already holds the voice catalogue for the providers whose voices
 are a fixed list rather than an account-specific one. Serving from there removes
 a network call from a config screen, works offline, and cannot fail because a
-third party is down. It is also honest about its limits: ElevenLabs and Cartesia
-let a customer clone voices into their own account, so their real catalogue is
-only knowable by asking them with that customer's key. Those return empty with a
-reason rather than a misleading partial list.
+third party is down. It is also honest about its limits: Cartesia lets a
+customer clone voices into their own account, so its real catalogue is only
+knowable by asking with that customer's key, and it returns empty with a reason
+rather than a misleading partial list. ElevenLabs is the same for *cloned*
+voices, but its premade voices share one public id across every account, so
+those six are listed -- they are what the managed "global" voice tier speaks
+in, and a tier with no voices to pick from is a picker with nothing to play.
 
 ``decibyl`` resolves through the managed tier to whichever provider actually
 serves it, so a managed customer sees the voices they will really get.
@@ -23,6 +26,7 @@ from dataclasses import dataclass
 
 from api.enums import CostComponent
 from api.services.configuration import managed_tiers
+from api.services.configuration.options.elevenlabs import ELEVENLABS_PREMADE_VOICES
 from api.services.configuration.options.google import GOOGLE_TTS_VOICES
 from api.services.configuration.options.rumik import (
     RUMIK_FEMALE_VOICES,
@@ -156,10 +160,24 @@ def _rumik(model: str | None) -> list[Voice]:
     ]
 
 
+def _elevenlabs(_model: str | None) -> list[Voice]:
+    """ElevenLabs' premade voices -- public ids, the same on every account.
+
+    A customer's own cloned voices are not here and cannot be: they live in
+    that customer's workspace. The registry keeps the field open to custom
+    input for exactly that case.
+    """
+    return [
+        Voice(voice_id=voice_id, name=name, gender=gender, language="en")
+        for voice_id, name, gender in ELEVENLABS_PREMADE_VOICES
+    ]
+
+
 #: Providers whose catalogue is fixed and therefore knowable without asking.
 _LOCAL = {
     ServiceProviders.SARVAM.value: _sarvam,
     ServiceProviders.RUMIK.value: _rumik,
+    ServiceProviders.ELEVENLABS.value: _elevenlabs,
     ServiceProviders.SMALLEST.value: lambda model: [
         Voice(voice_id=v, name=v.title())
         for v in (
@@ -174,10 +192,6 @@ _LOCAL = {
 #: Providers whose catalogue is per-account — cloned and custom voices live in
 #: the customer's own workspace, so only they can enumerate it.
 _ACCOUNT_SPECIFIC = {
-    ServiceProviders.ELEVENLABS.value: (
-        "ElevenLabs voices are specific to your account, including any you have "
-        "cloned. Paste a voice ID from your ElevenLabs dashboard."
-    ),
     ServiceProviders.CARTESIA.value: (
         "Cartesia voices are specific to your account. Paste a voice ID from "
         "your Cartesia dashboard."

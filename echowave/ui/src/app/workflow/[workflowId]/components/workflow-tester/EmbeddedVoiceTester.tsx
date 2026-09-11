@@ -163,7 +163,7 @@ export function EmbeddedVoiceTester({
                 error={apiKeyError}
                 errorCode={apiKeyErrorCode}
                 onNavigateToDevelopers={() => router.push("/api-keys")}
-                onNavigateToModelConfig={() => router.push(`/workflow/${workflowId}/settings?tab=models`)}
+                onNavigateToModelConfig={() => router.push(`/workflow/${workflowId}`)}
             />
 
             <WorkflowConfigErrorDialog

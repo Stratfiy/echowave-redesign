@@ -197,7 +197,7 @@ export default function TalkPage() {
 
   if (error) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-background px-6 py-16 text-foreground">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background px-6 pt-16 pb-40 text-foreground">
         <div className="w-full max-w-md text-center">
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Voice agent</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight" data-testid="talk-title">
@@ -211,7 +211,7 @@ export default function TalkPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-6 py-16 text-foreground">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-6 pt-16 pb-40 text-foreground">
       <div className="w-full max-w-md text-center">
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Voice agent</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight" data-testid="talk-title">
@@ -285,6 +285,11 @@ export default function TalkPage() {
             </div>
           )}
 
+          {/* The widget draws its own call pill at `position: fixed`, bottom
+              of the viewport, z-index 999999 — it is the control that ends
+              the call, so it stays. On a phone it landed straight on top of
+              this link, which is why `pb-40` is on the page: the last thing
+              in the flow has to clear a button this page does not lay out. */}
           {!chatOpen && (
             <button
               type="button"

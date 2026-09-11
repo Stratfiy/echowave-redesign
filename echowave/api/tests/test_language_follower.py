@@ -30,6 +30,7 @@ from api.services.configuration.registry import (
     SarvamTTSConfiguration,
 )
 from api.services.pipecat.language_follower import (
+    CONFIRMATIONS_BEFORE_ASKING,
     CONFIRMATIONS_BEFORE_SWITCH,
     LanguageFollower,
     configured_language,
@@ -198,7 +199,10 @@ class TestItDoesNotSwitchWhenItShouldNot:
 
         await _hear(follower, LONG, "en")
         await _hear(follower, "hmm", "hi")  # too short to count either way
-        await _hear(follower, LONG, "en")
+        # The rest of the run the interjection must not have broken. Counted
+        # off the constant rather than written out, so raising the threshold
+        # again cannot leave this silently testing something smaller.
+        await _hear(follower, LONG, "en", times=CONFIRMATIONS_BEFORE_SWITCH - 1)
 
         assert len(_switches(follower)) == 1
 
@@ -311,12 +315,21 @@ class TestItTellsTheModelToo:
             if isinstance(call.args[0], LLMMessagesAppendFrame)
         ]
 
+    def _switch_instructions(self, follower):
+        """Only the ones that commit. A full run also carries the question
+        that precedes them — see TestItAsksBeforeItSwitches."""
+        return [
+            frame
+            for frame in self._instructions(follower)
+            if "Reply only in" in frame.messages[0]["content"]
+        ]
+
     async def test_a_switch_puts_the_new_language_in_the_context(self):
         follower = _follower(initial_language="hi")
 
         await _hear(follower, LONG_TA, "ta", times=CONFIRMATIONS_BEFORE_SWITCH)
 
-        appended = self._instructions(follower)
+        appended = self._switch_instructions(follower)
         assert len(appended) == 1
         message = appended[0].messages[0]
         assert message["role"] == "system"
@@ -332,7 +345,10 @@ class TestItTellsTheModelToo:
 
         await _hear(follower, LONG_TA, "ta", times=CONFIRMATIONS_BEFORE_SWITCH)
 
-        assert self._instructions(follower)[0].run_llm is False
+        # Every instruction, the question included: none of them is the model's
+        # cue to speak on its own.
+        assert self._instructions(follower)
+        assert all(frame.run_llm is False for frame in self._instructions(follower))
 
     async def test_not_switching_says_nothing_to_the_model(self):
         """The whole feature is about when *not* to act. A model given a
@@ -351,9 +367,91 @@ class TestItTellsTheModelToo:
         await _hear(follower, LONG_TA, "ta", times=CONFIRMATIONS_BEFORE_SWITCH)
 
         assert len(_switches(follower)) == 1
-        assert len(self._instructions(follower)) == 1
+        assert len(self._switch_instructions(follower)) == 1
 
     def test_an_unlisted_tag_still_produces_an_instruction(self):
         """A tag with no name is still a better instruction than none."""
         assert "Tamil" in switch_instruction("ta")
         assert "xx" in switch_instruction("xx")
+
+
+class TestItAsksBeforeItSwitches:
+    """Two turns raises the question; it does not answer it.
+
+    A tester reported an agent that asked which language the caller wanted,
+    was told, and then drifted into Hindi mid-call anyway. The cause was this
+    processor: at two turns it pushed "the caller has switched to Hindi,
+    reply only in Hindi" — a later and more specific instruction than the
+    operator's own "change language only if the caller asks you to, in
+    words", so it won. The agent overrode its own prompt on a guess.
+
+    Now two turns puts the question and changes nothing else.
+    """
+
+    async def _asked_for(self, follower):
+        """The languages the follower asked about, from the frames it pushed."""
+        out = []
+        for call in follower.push_frame.await_args_list:
+            frame = call.args[0]
+            if isinstance(frame, LLMMessagesAppendFrame):
+                content = frame.messages[0]["content"]
+                if "would like to continue" in content:
+                    out.append(content)
+        return out
+
+    def _switched(self, follower):
+        return [
+            call.args[0]
+            for call in follower.push_frame.await_args_list
+            if isinstance(call.args[0], TTSUpdateSettingsFrame)
+        ]
+
+    async def test_two_turns_ask_and_do_not_switch(self):
+        follower = _follower(initial_language="hi")
+        await _hear(follower, LONG, "en", times=CONFIRMATIONS_BEFORE_ASKING)
+
+        assert len(await self._asked_for(follower)) == 1
+        assert self._switched(follower) == [], "asking is not switching"
+        assert follower.current_language == "hi"
+
+    async def test_the_question_is_put_in_the_language_being_offered(self):
+        follower = _follower(initial_language="hi")
+        await _hear(follower, LONG, "en", times=CONFIRMATIONS_BEFORE_ASKING)
+
+        asked = (await self._asked_for(follower))[0]
+        assert "ask them in English" in asked
+        # And it keeps speaking the language it was, until told otherwise.
+        assert "Keep answering in Hindi" in asked
+
+    async def test_staying_in_the_new_language_after_the_question_switches(self):
+        follower = _follower(initial_language="hi")
+        await _hear(follower, LONG, "en", times=CONFIRMATIONS_BEFORE_SWITCH)
+
+        assert self._switched(follower), "a caller who stayed has answered"
+        assert follower.current_language == "en"
+
+    async def test_answering_in_the_old_language_switches_nothing(self):
+        """ "No, Hindi is fine" is said in Hindi, which resets the run."""
+        follower = _follower(initial_language="hi")
+        await _hear(follower, LONG, "en", times=CONFIRMATIONS_BEFORE_ASKING)
+        await _hear(follower, LONG_HI, "hi")
+        await _hear(follower, LONG, "en")
+
+        assert self._switched(follower) == []
+        assert follower.current_language == "hi"
+
+    async def test_the_question_is_asked_once_per_language(self):
+        """A caller who declined once is not asked again every two turns."""
+        follower = _follower(initial_language="hi")
+        await _hear(follower, LONG, "en", times=CONFIRMATIONS_BEFORE_ASKING)
+        await _hear(follower, LONG_HI, "hi")
+        await _hear(follower, LONG, "en", times=CONFIRMATIONS_BEFORE_ASKING)
+
+        assert len(await self._asked_for(follower)) == 1
+
+    async def test_a_language_the_agent_does_not_speak_is_never_asked_about(self):
+        follower = _follower(initial_language="hi", allowed=frozenset({"hi", "en"}))
+        await _hear(follower, LONG_TA, "ta", times=CONFIRMATIONS_BEFORE_SWITCH)
+
+        assert await self._asked_for(follower) == []
+        assert self._switched(follower) == []

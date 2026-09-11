@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { BookA, Brain, CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, Languages, Loader2, Mic, Pause, PhoneOff, Play, Plus, Rocket, Settings, Tags, Trash2, Trash2Icon, Upload, Variable, Volume2, X } from "lucide-react";
+import { CalendarIcon, ChevronRight, Clipboard, Download, ExternalLink, FileDown, Fingerprint, FlaskConical, Mic, PhoneOff, Plus, Rocket, Settings, Share2, Tags, Trash2, Trash2Icon, Variable } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -9,23 +9,16 @@ import { toast } from "sonner";
 
 import {
     downloadWorkflowReportApiV1WorkflowWorkflowIdReportGet,
-    getAmbientNoiseUploadUrlApiV1WorkflowAmbientNoiseUploadUrlPost,
-    getModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2Get,
     getModelConfigurationV2DefaultsApiV1OrganizationsModelConfigurationsV2DefaultsGet,
     getWorkflowApiV1WorkflowFetchWorkflowIdGet,
 } from "@/client/sdk.gen";
 import type {
-    OrganizationAiModelConfigurationResponse,
-    OrganizationAiModelConfigurationV2,
     WorkflowResponse,
 } from "@/client/types.gen";
 import { ShareAgentDialog } from "@/components/agent/ShareAgentDialog";
-import { SimpleModelPicker } from "@/components/agent/SimpleModelPicker";
 import {
-    AIModelConfigurationV2Editor,
     type ModelConfigurationDefaultsV2,
 } from "@/components/AIModelConfigurationV2Editor";
-import { CostPerMinuteBar } from "@/components/CostPerMinuteBar";
 import { FallbackChain } from "@/components/FallbackChain";
 import { FlowEdge, FlowNode } from "@/components/flow/types";
 import { LLMConfigSelector } from "@/components/LLMConfigSelector";
@@ -37,9 +30,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -52,42 +43,20 @@ import {
 } from "@/constants/callOutcomes";
 import { SETTINGS_DOCUMENTATION_URLS } from "@/constants/documentation";
 import { UnsavedChangesProvider, useUnsavedChanges, useUnsavedChangesContext } from "@/context/UnsavedChangesContext";
-import { useAudioPlayback } from "@/hooks/useAudioPlayback";
-import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
-import { priceableFromV2, pricedStack } from "@/lib/billing/pricedStack";
 import logger from "@/lib/logger";
 import { cn } from "@/lib/utils";
 import {
-    type AmbientNoiseConfiguration,
-    BACKCHANNEL_DEFAULT_DELAY_SECS,
-    type BackchannelConfiguration,
-    DEFAULT_PROVISIONAL_VAD_PAUSE_SECS,
-    DEFAULT_TURN_START_MIN_WORDS,
-    DEFAULT_USER_SPEECH_TIMEOUT,
     DEFAULT_VOICEMAIL_DETECTION_CONFIGURATION,
     type FallbackService,
-    LATENCY_PRESETS,
-    type LatencyPreset,
-    matchLatencyPreset,
-    MAX_USER_SPEECH_TIMEOUT,
-    MIN_USER_SPEECH_TIMEOUT,
-    NOISE_SUPPRESSION_MAX_LEVEL,
-    NOISE_SUPPRESSION_MIN_LEVEL,
-    type NoiseSuppressionConfiguration,
-    type PronunciationEntry,
     type RecordingConfiguration,
     resolveWorkflowConfigurations,
-    TURN_START_STRATEGY_OPTIONS,
-    type TurnStartStrategy,
-    type TurnStopStrategy,
     type VoicemailDetectionConfiguration,
     type WorkflowConfigurations,
 } from "@/types/workflow-configurations";
 
 import { AgentHeader } from "../components/AgentHeader";
 import { AgentTabs } from "../components/AgentTabs";
-import { ModelRow } from "../components/ModelRow";
 import { QaCard } from "../components/QaCard";
 import { useWorkflowState } from "../hooks/useWorkflowState";
 import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
@@ -282,8 +251,6 @@ function ReportSection({ workflowId }: { workflowId: number }) {
 // Section: General
 // ---------------------------------------------------------------------------
 
-const MAX_AMBIENT_NOISE_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
 /** One phrase per line in a text box; trimmed, blanks dropped. */
 function linesToList(text: string): string[] {
     return text
@@ -295,35 +262,15 @@ function linesToList(text: string): string[] {
 function GeneralSection({
     workflowConfigurations,
     workflowName,
-    workflowId,
     onSave,
     modelConfigurationDefaults,
 }: {
     workflowConfigurations: WorkflowConfigurations;
     workflowName: string;
-    workflowId: number;
     onSave: (configurations: WorkflowConfigurations, workflowName: string) => Promise<void>;
     modelConfigurationDefaults: ModelConfigurationDefaultsV2 | null;
 }) {
     const [name, setName] = useState(workflowName);
-    const [noiseSuppressionConfig, setNoiseSuppressionConfig] =
-        useState<NoiseSuppressionConfiguration>(
-            workflowConfigurations.noise_suppression_configuration ?? {
-                enabled: true,
-                level: NOISE_SUPPRESSION_MAX_LEVEL,
-            },
-        );
-    const [backchannelConfig, setBackchannelConfig] = useState<BackchannelConfiguration>(
-        workflowConfigurations.backchannel_configuration ?? {
-            enabled: false,
-            delay_secs: BACKCHANNEL_DEFAULT_DELAY_SECS,
-            phrases: [],
-        },
-    );
-    // One phrase per line in the box; an array on the wire.
-    const [backchannelPhrasesText, setBackchannelPhrasesText] = useState(
-        (workflowConfigurations.backchannel_configuration?.phrases ?? []).join("\n"),
-    );
     const [endCallPhrasesText, setEndCallPhrasesText] = useState(
         (workflowConfigurations.end_call_phrases ?? []).join("\n"),
     );
@@ -333,38 +280,10 @@ function GeneralSection({
     const [recordingConfig, setRecordingConfig] = useState<RecordingConfiguration>(
         workflowConfigurations.recording_configuration ?? { enabled: true },
     );
-    const [ambientNoiseConfig, setAmbientNoiseConfig] = useState<AmbientNoiseConfiguration>(
-        workflowConfigurations.ambient_noise_configuration,
-    );
-    const [acceptKeypadInput, setAcceptKeypadInput] = useState(
-        workflowConfigurations.accept_keypad_input ?? false,
-    );
     const [maxCallDuration, setMaxCallDuration] = useState(workflowConfigurations.max_call_duration);
     const [maxUserIdleTimeout, setMaxUserIdleTimeout] = useState(workflowConfigurations.max_user_idle_timeout);
-    const [smartTurnStopSecs, setSmartTurnStopSecs] = useState(workflowConfigurations.smart_turn_stop_secs);
-    const [turnStartStrategy, setTurnStartStrategy] = useState<TurnStartStrategy>(
-        workflowConfigurations.turn_start_strategy,
-    );
-    const [turnStartMinWords, setTurnStartMinWords] = useState(
-        workflowConfigurations.turn_start_min_words,
-    );
-    const [provisionalVadPauseSecs, setProvisionalVadPauseSecs] = useState(
-        workflowConfigurations.provisional_vad_pause_secs,
-    );
-    const [turnStopStrategy, setTurnStopStrategy] = useState<TurnStopStrategy>(
-        workflowConfigurations.turn_stop_strategy,
-    );
-    const [userSpeechTimeout, setUserSpeechTimeout] = useState(
-        workflowConfigurations.user_speech_timeout,
-    );
-    const [contextCompactionEnabled, setContextCompactionEnabled] = useState(
-        workflowConfigurations.context_compaction_enabled,
-    );
     const [includeTranscriptEndTimestamps, setIncludeTranscriptEndTimestamps] = useState(
         workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false,
-    );
-    const [interruptionBackoffSecs, setInterruptionBackoffSecs] = useState(
-        workflowConfigurations.interruption_backoff_secs,
     );
     const [fallbackTts, setFallbackTts] = useState<FallbackService[]>(
         workflowConfigurations.fallback_tts ?? [],
@@ -373,164 +292,46 @@ function GeneralSection({
         workflowConfigurations.fallback_stt ?? [],
     );
     // Advanced starts open only when it already holds something non-default,
-    // so nothing a person set is hidden behind a closed group. Both default to
-    // false server-side: context compaction enabled, transcript end timestamps.
-    const advancedTouched = contextCompactionEnabled || includeTranscriptEndTimestamps;
+    // so nothing a person set is hidden behind a closed group.
+    const advancedTouched = includeTranscriptEndTimestamps;
 
     const [isSaving, setIsSaving] = useState(false);
-    const [isUploadingAudio, setIsUploadingAudio] = useState(false);
-
-    // Derived, never stored: the preset is a reading of the three numbers, so
-    // a workflow tuned by hand keeps its values and simply reads as Custom.
-    const activePreset = matchLatencyPreset({
-        user_speech_timeout: userSpeechTimeout,
-        smart_turn_stop_secs: smartTurnStopSecs,
-        turn_start_min_words: turnStartMinWords,
-    });
-
-    const applyLatencyPreset = (preset: LatencyPreset) => {
-        const { user_speech_timeout, smart_turn_stop_secs, turn_start_min_words } =
-            LATENCY_PRESETS[preset].values;
-        setUserSpeechTimeout(user_speech_timeout);
-        setSmartTurnStopSecs(smart_turn_stop_secs);
-        setTurnStartMinWords(turn_start_min_words);
-    };
-    const [audioUploadError, setAudioUploadError] = useState<string | null>(null);
-    const ambientFileInputRef = useRef<HTMLInputElement>(null);
-    const { playingId, toggle: togglePlayback } = useAudioPlayback();
-    const selectedTurnStartStrategy = TURN_START_STRATEGY_OPTIONS.find(
-        (option) => option.value === turnStartStrategy,
-    );
 
     const isDirty = useMemo(() => {
-        const initAmbient = workflowConfigurations.ambient_noise_configuration;
-        const initSuppression = workflowConfigurations.noise_suppression_configuration ?? {
-            enabled: true,
-            level: NOISE_SUPPRESSION_MAX_LEVEL,
-        };
         return (
             name !== workflowName ||
-            JSON.stringify(ambientNoiseConfig) !== JSON.stringify(initAmbient) ||
-            JSON.stringify(noiseSuppressionConfig) !== JSON.stringify(initSuppression) ||
             recordingConfig.enabled !==
             (workflowConfigurations.recording_configuration?.enabled ?? true) ||
-            JSON.stringify({ ...backchannelConfig, phrases: linesToList(backchannelPhrasesText) }) !==
-            JSON.stringify(
-                workflowConfigurations.backchannel_configuration ?? {
-                    enabled: false,
-                    delay_secs: BACKCHANNEL_DEFAULT_DELAY_SECS,
-                    phrases: [],
-                },
-            ) ||
             JSON.stringify(linesToList(endCallPhrasesText)) !==
             JSON.stringify(workflowConfigurations.end_call_phrases ?? []) ||
             endCallFarewell !== (workflowConfigurations.end_call_farewell ?? "") ||
-            acceptKeypadInput !== (workflowConfigurations.accept_keypad_input ?? false) ||
             maxCallDuration !== workflowConfigurations.max_call_duration ||
             maxUserIdleTimeout !== workflowConfigurations.max_user_idle_timeout ||
-            smartTurnStopSecs !== workflowConfigurations.smart_turn_stop_secs ||
-            turnStartStrategy !== workflowConfigurations.turn_start_strategy ||
-            turnStartMinWords !== workflowConfigurations.turn_start_min_words ||
-            provisionalVadPauseSecs !== workflowConfigurations.provisional_vad_pause_secs ||
-            turnStopStrategy !== workflowConfigurations.turn_stop_strategy ||
-            userSpeechTimeout !== workflowConfigurations.user_speech_timeout ||
-            interruptionBackoffSecs !== workflowConfigurations.interruption_backoff_secs ||
             JSON.stringify(fallbackTts) !== JSON.stringify(workflowConfigurations.fallback_tts ?? []) ||
             JSON.stringify(fallbackStt) !== JSON.stringify(workflowConfigurations.fallback_stt ?? []) ||
-            contextCompactionEnabled !== workflowConfigurations.context_compaction_enabled ||
             includeTranscriptEndTimestamps !==
             (workflowConfigurations.transcript_configuration?.include_end_timestamps ?? false)
         );
-    }, [name, workflowName, ambientNoiseConfig, noiseSuppressionConfig, recordingConfig, backchannelConfig, backchannelPhrasesText, endCallPhrasesText, endCallFarewell, acceptKeypadInput, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, provisionalVadPauseSecs, turnStopStrategy, userSpeechTimeout, interruptionBackoffSecs, fallbackTts, fallbackStt, contextCompactionEnabled, includeTranscriptEndTimestamps, workflowConfigurations]);
+    }, [name, workflowName, recordingConfig, endCallPhrasesText, endCallFarewell, maxCallDuration, maxUserIdleTimeout, fallbackTts, fallbackStt, includeTranscriptEndTimestamps, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
-
-    const handleAmbientFileUpload = async (file: File) => {
-        if (file.size > MAX_AMBIENT_NOISE_FILE_SIZE) {
-            setAudioUploadError(`File too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum is 10MB.`);
-            return;
-        }
-
-        setIsUploadingAudio(true);
-        setAudioUploadError(null);
-
-        try {
-            // 1. Get presigned upload URL
-            const res = await getAmbientNoiseUploadUrlApiV1WorkflowAmbientNoiseUploadUrlPost({
-                body: {
-                    workflow_id: Number(workflowId),
-                    filename: file.name,
-                    mime_type: file.type || "audio/wav",
-                    file_size: file.size,
-                },
-            });
-
-            if (res.error || !res.data?.upload_url) {
-                throw new Error("Failed to get upload URL");
-            }
-
-            const data = res.data;
-
-            // 2. Upload file to storage
-            const uploadRes = await fetch(data.upload_url, {
-                method: "PUT",
-                body: file,
-                headers: { "Content-Type": file.type || "audio/wav" },
-            });
-            if (!uploadRes.ok) {
-                throw new Error("File upload failed");
-            }
-
-            // 3. Update config with storage reference
-            setAmbientNoiseConfig((prev) => ({
-                ...prev,
-                storage_key: data.storage_key,
-                storage_backend: data.storage_backend,
-                original_filename: file.name,
-            }));
-        } catch (err) {
-            setAudioUploadError(err instanceof Error ? err.message : "Upload failed");
-        } finally {
-            setIsUploadingAudio(false);
-            if (ambientFileInputRef.current) ambientFileInputRef.current.value = "";
-        }
-    };
-
-    const handleRemoveCustomAudio = () => {
-        setAmbientNoiseConfig((prev) => ({
-            enabled: prev.enabled,
-            volume: prev.volume,
-        }));
-    };
 
     const handleSave = async () => {
         setIsSaving(true);
         try {
+            // Spread first: the turn-taking, fillers, noise and keypad
+            // settings live behind the model tiles now and are saved from
+            // there, so this card must carry them through untouched.
             await onSave(
                 {
                     ...workflowConfigurations,
-                    ambient_noise_configuration: ambientNoiseConfig,
-                    noise_suppression_configuration: noiseSuppressionConfig,
                     recording_configuration: recordingConfig,
-                    backchannel_configuration: {
-                        ...backchannelConfig,
-                        phrases: linesToList(backchannelPhrasesText),
-                    },
                     end_call_phrases: linesToList(endCallPhrasesText),
                     end_call_farewell: endCallFarewell.trim() || null,
-                    accept_keypad_input: acceptKeypadInput,
                     max_call_duration: maxCallDuration,
                     max_user_idle_timeout: maxUserIdleTimeout,
-                    smart_turn_stop_secs: smartTurnStopSecs,
-                    turn_start_strategy: turnStartStrategy,
-                    turn_start_min_words: turnStartMinWords,
-                    provisional_vad_pause_secs: provisionalVadPauseSecs,
-                    turn_stop_strategy: turnStopStrategy,
-                    user_speech_timeout: userSpeechTimeout,
-                    interruption_backoff_secs: interruptionBackoffSecs,
                     fallback_tts: fallbackTts,
                     fallback_stt: fallbackStt,
-                    context_compaction_enabled: contextCompactionEnabled,
                     transcript_configuration: {
                         ...(workflowConfigurations.transcript_configuration ?? {}),
                         include_end_timestamps: includeTranscriptEndTimestamps,
@@ -550,20 +351,16 @@ function GeneralSection({
             <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                     <Settings className="h-4 w-4" />
-                    General
+                    Calls
                 </CardTitle>
-                <CardDescription>Agent name, call behavior, and turn detection.{" "}
+                <CardDescription>The agent&apos;s name, what happens when a provider fails, and when a call ends. How it listens, thinks and speaks is behind the pencil on each tile of the Assistant tab.{" "}
                     <a href={SETTINGS_DOCUMENTATION_URLS.general} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">Learn more <ExternalLink className="h-3 w-3" /></a>
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 {/* Agent Name */}
                 <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                        <Label htmlFor="workflow_name" className="text-sm font-medium">Agent Name</Label>
-                        {/* The demo you text a prospect: one link, no account. */}
-                        <ShareAgentDialog workflowId={workflowId} />
-                    </div>
+                    <Label htmlFor="workflow_name" className="text-sm font-medium">Agent Name</Label>
                     <Input
                         id="workflow_name"
                         value={name}
@@ -572,247 +369,6 @@ function GeneralSection({
                     />
                 </div>
 
-                <Separator />
-                <SettingsGroup
-                    title="Conversation"
-                    blurb="How the agent takes turns, and when a caller can cut in."
-                    defaultOpen={true}
-                >
-                {/* Fillers. First in the group: a caller hears the wait
-                    before they hear anything about turn-taking. */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Fillers while thinking</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Say a short &ldquo;hmm&rdquo; or &ldquo;one moment&rdquo; when a reply
-                            is slow to start, so a lookup or a slow model does not sound
-                            like a dropped line. Once per turn, never added to the
-                            conversation. Write the phrases in the language the agent
-                            speaks.
-                        </p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <Label htmlFor="backchannel-enabled" className="text-sm">
-                            Fill silence while the agent thinks
-                        </Label>
-                        <Switch
-                            id="backchannel-enabled"
-                            checked={backchannelConfig.enabled}
-                            onCheckedChange={(checked) =>
-                                setBackchannelConfig({ ...backchannelConfig, enabled: checked })
-                            }
-                        />
-                    </div>
-                    {backchannelConfig.enabled && (
-                        <>
-                            <Slider
-                                id="backchannel-delay"
-                                label="Speak after"
-                                unit="s"
-                                min={0.5}
-                                max={5}
-                                step={0.1}
-                                value={backchannelConfig.delay_secs ?? BACKCHANNEL_DEFAULT_DELAY_SECS}
-                                onValueChange={(delay_secs) =>
-                                    setBackchannelConfig({ ...backchannelConfig, delay_secs })
-                                }
-                                hint="How long the caller waits in silence before hearing a filler. Default: 1.2"
-                            />
-                            <div className="space-y-2">
-                                <Label htmlFor="backchannel-phrases" className="text-xs">
-                                    Phrases, one per line
-                                </Label>
-                                <Textarea
-                                    id="backchannel-phrases"
-                                    rows={3}
-                                    value={backchannelPhrasesText}
-                                    onChange={(e) => setBackchannelPhrasesText(e.target.value)}
-                                    placeholder={"Hmm.\nOkay.\nOne moment."}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Rotated in order. Leave empty for the English defaults.
-                                </p>
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                <Separator />
-
-                {/* Response Rate */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Response Rate</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            How quickly the agent takes its turn. Writes the three
-                            timings marked <span className="rounded border px-1 py-px text-[10px] leading-4">Response Rate</span> below;
-                            which of them are shown depends on the strategies you pick.
-                        </p>
-                    </div>
-                    <div className="space-y-2">
-                        <Select
-                            value={activePreset}
-                            onValueChange={(value) => {
-                                if (value !== "custom") applyLatencyPreset(value as LatencyPreset);
-                            }}
-                        >
-                            <SelectTrigger id="latency_preset">
-                                <SelectValue placeholder="Select a response rate" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {(Object.keys(LATENCY_PRESETS) as LatencyPreset[]).map((key) => (
-                                    <SelectItem key={key} value={key}>
-                                        {LATENCY_PRESETS[key].label}
-                                        {key === "balanced" ? " (Recommended)" : ""}
-                                    </SelectItem>
-                                ))}
-                                {/* Only reachable by moving a slider, so it is
-                                    shown rather than offered. */}
-                                {activePreset === "custom" && (
-                                    <SelectItem value="custom">Custom</SelectItem>
-                                )}
-                            </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                            {activePreset === "custom"
-                                ? "Your own combination of the timings below. Pick a preset to reset them."
-                                : LATENCY_PRESETS[activePreset].blurb}
-                        </p>
-                    </div>
-                </div>
-
-                        <Separator />
-                {/* Turn Detection */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Turn Detection</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Configure how the agent detects when the user has finished speaking.
-                        </p>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="turn_stop_strategy" className="text-xs">Detection Strategy</Label>
-                        <Select
-                            value={turnStopStrategy}
-                            onValueChange={(value: TurnStopStrategy) => setTurnStopStrategy(value)}
-                        >
-                            <SelectTrigger id="turn_stop_strategy">
-                                <SelectValue placeholder="Select strategy" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="turn_analyzer">
-                                    Smart Turn Analyzer (Recommended)
-                                </SelectItem>
-                                <SelectItem value="transcription">Silence timeout</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                            {turnStopStrategy === "transcription"
-                                ? "Waits a fixed silence after every turn, whether or not the caller had obviously finished. Predictable, but that wait is paid even on a one-word answer."
-                                : "A local model judges whether the sentence sounds finished, and only waits out the silence below when it is unsure. Quick on a finished sentence, patient on an ambiguous one — about 12ms to decide."}
-                        </p>
-                    </div>
-                    {turnStopStrategy === "turn_analyzer" && (
-                        <Slider
-                            id="smart_turn_stop_secs"
-                            presetOf="Response Rate"
-                            label="Incomplete Turn Timeout"
-                            unit="s"
-                            min={0.5}
-                            max={10}
-                            step={0.5}
-                            value={smartTurnStopSecs}
-                            onValueChange={setSmartTurnStopSecs}
-                            hint="How long to wait when the analyzer is unsure the caller has finished. Only reached on an ambiguous turn. Default: 2s"
-                        />
-                    )}
-                    {turnStopStrategy === "transcription" && (
-                        <Slider
-                            id="user_speech_timeout"
-                            presetOf="Response Rate"
-                            label="Endpointing Delay"
-                            unit="s"
-                            min={MIN_USER_SPEECH_TIMEOUT}
-                            max={MAX_USER_SPEECH_TIMEOUT}
-                            step={0.05}
-                            value={userSpeechTimeout}
-                            onValueChange={setUserSpeechTimeout}
-                            hint={`Silence to wait after the caller stops, on top of the VAD's own 0.2s, before the turn ends. Paid on every turn, so it sets a floor under response time that no faster model can recover. Below ${MIN_USER_SPEECH_TIMEOUT}s it starts cutting people off mid-sentence. Ignored when the transcriber reports its own turn boundaries. Default: ${DEFAULT_USER_SPEECH_TIMEOUT}s`}
-                        />
-                    )}
-                </div>
-
-                        <Separator />
-                {/* Interruption */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Interruption</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Configure when user speech should interrupt the agent while it is speaking.
-                        </p>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="turn_start_strategy" className="text-xs">Interruption Strategy</Label>
-                        <Select
-                            value={turnStartStrategy}
-                            onValueChange={(value: TurnStartStrategy) => setTurnStartStrategy(value)}
-                        >
-                            <SelectTrigger id="turn_start_strategy">
-                                <SelectValue placeholder="Select strategy" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {TURN_START_STRATEGY_OPTIONS.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                        {option.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                            {selectedTurnStartStrategy?.description}
-                        </p>
-                    </div>
-                    {turnStartStrategy === "min_words" && (
-                        <Slider
-                            id="turn_start_min_words"
-                            presetOf="Response Rate"
-                            label="Minimum Words Before Interruption"
-                            unit=" words"
-                            min={1}
-                            max={10}
-                            step={1}
-                            value={turnStartMinWords}
-                            onValueChange={setTurnStartMinWords}
-                            hint={`Transcribed words needed to interrupt the agent. Raise it so a cough, a "mhm" or background speech no longer cuts the agent off mid-sentence. Default: ${DEFAULT_TURN_START_MIN_WORDS}`}
-                        />
-                    )}
-                    <Slider
-                        id="interruption_backoff_secs"
-                        label="Pause After Being Interrupted"
-                        unit="s"
-                        min={0}
-                        max={3}
-                        step={0.1}
-                        value={interruptionBackoffSecs}
-                        onValueChange={setInterruptionBackoffSecs}
-                        hint="How long to wait before the agent speaks again after the caller cuts in, so a short interruption is not answered before they have finished. Usually costs nothing: the caller finishing, the turn being detected and the reply being generated normally take longer than this. 0 turns it off entirely."
-                    />
-                    {turnStartStrategy === "provisional_vad" && (
-                        <Slider
-                            id="provisional_vad_pause_secs"
-                            label="Provisional Pause"
-                            unit="s"
-                            min={0.1}
-                            max={5}
-                            step={0.1}
-                            value={provisionalVadPauseSecs}
-                            onValueChange={setProvisionalVadPauseSecs}
-                            hint={`How long to pause the agent's audio while waiting for the transcript to confirm the caller really spoke. Default: ${DEFAULT_PROVISIONAL_VAD_PAUSE_SECS}s`}
-                        />
-                    )}
-                </div>
-
-                </SettingsGroup>
                 <Separator />
                 <SettingsGroup
                     title="Reliability and limits"
@@ -940,7 +496,7 @@ function GeneralSection({
                 <Separator />
                 <SettingsGroup
                     title="Audio"
-                    blurb="What the caller hears behind the agent, and what is kept."
+                    blurb="Whether the call's audio is kept."
                     defaultOpen={true}
                 >
                 {/* Call recording. First in the group because it decides
@@ -974,225 +530,11 @@ function GeneralSection({
                     </p>
                 </div>
 
-                <Separator />
-
-                {/* Noise suppression.
-                    Immediately above Ambient Noise deliberately: they are
-                    opposite operations on opposite legs — this takes hiss off
-                    what the agent hears, that adds room tone to what the
-                    caller hears — and side by side is the only arrangement
-                    where nobody mistakes one for the other. */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Noise suppression</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Strip background noise out of what the caller sends,
-                            before the agent hears it. On for every agent, because
-                            callers are on roads and in shops; switch it off for a
-                            quiet office line.
-                        </p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <Label htmlFor="noise-suppression-enabled" className="text-sm">
-                            Suppress background noise
-                        </Label>
-                        <Switch
-                            id="noise-suppression-enabled"
-                            checked={noiseSuppressionConfig.enabled}
-                            onCheckedChange={(checked) =>
-                                setNoiseSuppressionConfig({
-                                    ...noiseSuppressionConfig,
-                                    enabled: checked,
-                                })
-                            }
-                        />
-                    </div>
-                    {noiseSuppressionConfig.enabled && (
-                        <Slider
-                            id="noise-suppression-level"
-                            label="Suppression level"
-                            unit="%"
-                            min={NOISE_SUPPRESSION_MIN_LEVEL}
-                            max={NOISE_SUPPRESSION_MAX_LEVEL}
-                            step={5}
-                            value={noiseSuppressionConfig.level ?? NOISE_SUPPRESSION_MAX_LEVEL}
-                            onValueChange={(level) =>
-                                setNoiseSuppressionConfig({ ...noiseSuppressionConfig, level })
-                            }
-                            hint="100 removes the most noise. Lower it if speech starts to sound thin: the original is blended back in at the remaining share. Default: 100"
-                        />
-                    )}
-                    {/* The cost is stated because it is the only reason not to
-                        leave this on, and latency is what we compete on. */}
-                    <p className="text-xs text-muted-foreground">
-                        {noiseSuppressionConfig.enabled
-                            ? "Adds about 20ms to each turn."
-                            : "Off. Calls are passed through as the carrier sends them."}
-                    </p>
-                </div>
-
-                <Separator />
-
-                {/* Keypad. Beside noise suppression rather than with the
-                    models: both are about what reaches the agent from the
-                    caller's end of the line. */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Keypad</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Let the caller type a number instead of saying it &mdash;
-                            a mobile number, an order id, an OTP, or a menu choice.
-                            Worth turning on wherever the agent asks for digits.
-                        </p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <Label htmlFor="accept-keypad-input" className="text-sm">
-                            Accept keypad input
-                        </Label>
-                        <Switch
-                            id="accept-keypad-input"
-                            checked={acceptKeypadInput}
-                            onCheckedChange={setAcceptKeypadInput}
-                        />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                        {acceptKeypadInput
-                            ? "Digits arrive as one entry when the caller presses # or stops typing, so the agent answers the whole number rather than each key. Tell it in the prompt that callers may type — an agent that does not expect it answers badly."
-                            : "Off. Keypresses are ignored, and a caller who types gets no response to it."}
-                    </p>
-                </div>
-
-                <Separator />
-
-                {/* Ambient Noise */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Ambient Noise</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Add background ambient noise to make the conversation sound more natural.
-                        </p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <Label htmlFor="ambient-noise-enabled" className="text-sm">Use Ambient Noise</Label>
-                        <Switch
-                            id="ambient-noise-enabled"
-                            checked={ambientNoiseConfig.enabled}
-                            onCheckedChange={(checked) =>
-                                setAmbientNoiseConfig((prev) => ({ ...prev, enabled: checked }))
-                            }
-                        />
-                    </div>
-                    {ambientNoiseConfig.enabled && (
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="ambient-volume" className="text-xs">Volume</Label>
-                                <Input
-                                    id="ambient-volume"
-                                    type="number"
-                                    step="0.1"
-                                    min="0"
-                                    max="1"
-                                    value={ambientNoiseConfig.volume}
-                                    onChange={(e) => {
-                                        const value = parseFloat(e.target.value);
-                                        if (!isNaN(value)) setAmbientNoiseConfig((prev) => ({ ...prev, volume: value }));
-                                    }}
-                                />
-                            </div>
-
-                            {/* Custom Audio File */}
-                            <div className="space-y-2">
-                                <Label className="text-xs">Custom Audio File</Label>
-                                <p className="text-xs text-muted-foreground">
-                                    Upload your own audio file or use the default office ambience.
-                                </p>
-
-                                {ambientNoiseConfig.storage_key ? (
-                                    <div className="flex items-center gap-2 rounded-md border p-2 bg-muted/10">
-                                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono truncate flex-1">
-                                            {ambientNoiseConfig.original_filename || "Custom audio"}
-                                        </code>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-6 w-6 p-0 shrink-0"
-                                            onClick={async () => {
-                                                try {
-                                                    await togglePlayback(
-                                                        "ambient-noise",
-                                                        ambientNoiseConfig.storage_key!,
-                                                        ambientNoiseConfig.storage_backend,
-                                                    );
-                                                } catch {
-                                                    setAudioUploadError("Failed to play audio");
-                                                }
-                                            }}
-                                        >
-                                            {playingId === "ambient-noise" ? (
-                                                <Pause className="w-3.5 h-3.5" />
-                                            ) : (
-                                                <Play className="w-3.5 h-3.5" />
-                                            )}
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-6 w-6 p-0 shrink-0"
-                                            onClick={handleRemoveCustomAudio}
-                                        >
-                                            <X className="w-3.5 h-3.5" />
-                                        </Button>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <input
-                                            ref={ambientFileInputRef}
-                                            type="file"
-                                            accept="audio/*"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) handleAmbientFileUpload(file);
-                                            }}
-                                            className="hidden"
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            className="text-sm font-normal"
-                                            onClick={() => ambientFileInputRef.current?.click()}
-                                            disabled={isUploadingAudio}
-                                        >
-                                            {isUploadingAudio ? (
-                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                            ) : (
-                                                <Upload className="w-4 h-4 mr-2" />
-                                            )}
-                                            {isUploadingAudio ? "Uploading..." : "Upload audio file (max 10MB)"}
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {audioUploadError && (
-                                    <p className="text-xs text-destructive">{audioUploadError}</p>
-                                )}
-
-                                {!ambientNoiseConfig.storage_key && (
-                                    <p className="text-xs text-muted-foreground italic">
-                                        Using default office ambience
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
                 </SettingsGroup>
                 <Separator />
                 <SettingsGroup
                     title="Advanced"
-                    blurb="Transcript detail and how a long conversation is kept in context."
+                    blurb="Transcript detail."
                     defaultOpen={advancedTouched}
                 >
                 {/* Transcript */}
@@ -1221,33 +563,12 @@ function GeneralSection({
                     </div>
                 </div>
 
-                        <Separator />
-                {/* Context Compaction */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Context Compaction</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Automatically summarize conversation context when transitioning between nodes. Not applicable in Realtime mode - the speech-to-speech service manages its own conversation state and this setting is ignored.
-                        </p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <Label htmlFor="context-compaction-enabled" className="text-sm">
-                            Enable Context Compaction
-                        </Label>
-                        <Switch
-                            id="context-compaction-enabled"
-                            checked={contextCompactionEnabled}
-                            onCheckedChange={setContextCompactionEnabled}
-                        />
-                    </div>
-                </div>
-
                 </SettingsGroup>
             </CardContent>
             <CardFooter className="justify-end gap-3 border-t pt-6">
                 {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
                 <Button onClick={handleSave} disabled={isSaving || !isDirty}>
-                    {isSaving ? "Saving..." : "Save General Settings"}
+                    {isSaving ? "Saving..." : "Save Call Settings"}
                 </Button>
             </CardFooter>
         </Card>
@@ -1410,275 +731,6 @@ function TemplateVariablesSection({
                 {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
                 <Button onClick={handleSave} disabled={isSaving || !isDirty}>
                     {isSaving ? "Saving..." : "Save Variables"}
-                </Button>
-            </CardFooter>
-        </Card>
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Section: Dictionary
-// ---------------------------------------------------------------------------
-
-function DictionarySection({
-    dictionary,
-    onSave,
-}: {
-    dictionary: string;
-    onSave: (dictionary: string) => Promise<void>;
-}) {
-    const [dictionaryValue, setDictionaryValue] = useState(dictionary);
-    const [isSaving, setIsSaving] = useState(false);
-
-    const isDirty = dictionaryValue !== dictionary;
-
-    useUnsavedChanges("dictionary", isDirty);
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        try {
-            await onSave(dictionaryValue);
-        } catch (error) {
-            console.error("Failed to save dictionary:", error);
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    return (
-        <Card id="dictionary">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                    <BookA className="h-4 w-4" />
-                    Dictionary
-                </CardTitle>
-                <CardDescription>
-                    Add words the agent should actively listen for &mdash; company jargon, names,
-                    industry terms. May incur extra cost depending on provider.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Textarea
-                    placeholder="Enter words separated by comma (e.g. billing department, tretinoin)"
-                    value={dictionaryValue}
-                    onChange={(e) => setDictionaryValue(e.target.value)}
-                    rows={4}
-                    className="resize-none"
-                />
-            </CardContent>
-            <CardFooter className="justify-end gap-3 border-t pt-6">
-                {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
-                <Button onClick={handleSave} disabled={isSaving || !isDirty}>
-                    {isSaving ? "Saving..." : "Save Dictionary"}
-                </Button>
-            </CardFooter>
-        </Card>
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Section: Pronunciation
-// ---------------------------------------------------------------------------
-
-function PronunciationSection({
-    entries,
-    onSave,
-}: {
-    entries: PronunciationEntry[];
-    onSave: (entries: PronunciationEntry[]) => Promise<void>;
-}) {
-    const [rows, setRows] = useState<PronunciationEntry[]>(entries);
-    const [isSaving, setIsSaving] = useState(false);
-
-    const isDirty = JSON.stringify(rows) !== JSON.stringify(entries);
-    useUnsavedChanges("pronunciation", isDirty);
-
-    const update = (index: number, field: keyof PronunciationEntry, value: string) =>
-        setRows((prev) =>
-            prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
-        );
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        try {
-            // Blank rows are how somebody leaves the editor, not something to
-            // store and later apply as an empty find-and-replace.
-            await onSave(rows.filter((row) => row.find.trim() && row.say.trim()));
-        } catch (error) {
-            console.error("Failed to save pronunciation:", error);
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    return (
-        <Card id="pronunciation">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                    <Volume2 className="h-4 w-4" />
-                    Pronunciation
-                </CardTitle>
-                <CardDescription>
-                    Fix any word the voice says wrong &mdash; your business name, a
-                    doctor&apos;s name, a locality. Write it how it should sound, the
-                    way you would for a new receptionist.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-                {rows.length > 0 && (
-                    <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-xs text-muted-foreground">
-                        <span>Word</span>
-                        <span>Say it like</span>
-                        <span className="w-8" />
-                    </div>
-                )}
-                {rows.map((row, index) => (
-                    <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2">
-                        <Input
-                            value={row.find}
-                            onChange={(e) => update(index, "find", e.target.value)}
-                            placeholder="Chinnaswamy"
-                        />
-                        <Input
-                            value={row.say}
-                            onChange={(e) => update(index, "say", e.target.value)}
-                            placeholder="Chinna-swaamy"
-                        />
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Remove ${row.find || "entry"}`}
-                            onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))}
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
-                    </div>
-                ))}
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setRows((prev) => [...prev, { find: "", say: "" }])}
-                >
-                    <Plus className="mr-1 h-4 w-4" />
-                    Add a word
-                </Button>
-                {rows.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                        Nothing set. The voice says every word its own way.
-                    </p>
-                )}
-            </CardContent>
-            <CardFooter className="justify-end gap-3 border-t pt-6">
-                {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
-                <Button onClick={handleSave} disabled={isSaving || !isDirty}>
-                    {isSaving ? "Saving..." : "Save Pronunciation"}
-                </Button>
-            </CardFooter>
-        </Card>
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Section: Caller's language
-// ---------------------------------------------------------------------------
-
-/**
- * Does the agent move when the caller does?
- *
- * A caller in India frequently opens in English, switches to Hindi when the
- * conversation gets substantive, and mixes both in a sentence. An agent fixed
- * to one language answers the whole call in it, which is the most common
- * reason a voice agent here gets hung up on.
- *
- * Per agent rather than per install, which is what this replaced. The same
- * account wants it on a clinic line and off on a compliance line reading a
- * disclosure that was approved in one language.
- */
-function CallerLanguageSection({
-    follow,
-    codeMixed,
-    onSave,
-}: {
-    follow: boolean;
-    codeMixed: boolean;
-    onSave: (settings: { follow: boolean; codeMixed: boolean }) => Promise<void>;
-}) {
-    const [value, setValue] = useState(follow);
-    const [mixed, setMixed] = useState(codeMixed);
-    const [isSaving, setIsSaving] = useState(false);
-
-    const isDirty = value !== follow || mixed !== codeMixed;
-    useUnsavedChanges("language", isDirty);
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        try {
-            await onSave({ follow: value, codeMixed: mixed });
-        } catch (error) {
-            console.error("Failed to save language settings:", error);
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    return (
-        <Card id="language">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                    <Languages className="h-4 w-4" />
-                    Caller&apos;s language
-                </CardTitle>
-                <CardDescription>
-                    How the agent handles the language a caller actually speaks
-                    &mdash; which is rarely one language, spoken formally.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                    <Label htmlFor="follow-caller-language" className="text-sm">
-                        Follow the caller
-                    </Label>
-                    <Switch
-                        id="follow-caller-language"
-                        checked={value}
-                        onCheckedChange={setValue}
-                    />
-                </div>
-                {/* What it costs is the only reason not to, so it is stated
-                    rather than discovered on a live call. */}
-                <p className="text-xs text-muted-foreground">
-                    {value
-                        ? "Switches after two turns in the new language, so one mis-heard word cannot flip the voice. Needs a transcriber in multilingual mode; speech-to-speech models already do this themselves and ignore the setting."
-                        : "Off. The agent answers in its configured language for the whole call, whatever the caller does."}
-                </p>
-
-                <Separator />
-
-                {/* The other half of the same complaint. Following the caller
-                    into Hindi is no use if what comes back is news-bulletin
-                    Hindi nobody speaks. */}
-                <div className="flex items-center justify-between">
-                    <Label htmlFor="speak-like-callers" className="text-sm">
-                        Speak the way callers do
-                    </Label>
-                    <Switch
-                        id="speak-like-callers"
-                        checked={mixed}
-                        onCheckedChange={setMixed}
-                    />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                    {mixed
-                        ? "Mixes English into the local language the way people actually do — “aapka appointment book ho gaya hai”, not a formal translation nobody says. Added after your own prompt, so an instruction of yours about language still wins."
-                        : "Off. Told to speak Hindi, the model uses the formal register it defaults to — which is understood less, not more."}
-                </p>
-            </CardContent>
-            <CardFooter className="justify-end gap-3 border-t pt-6">
-                {isDirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
-                <Button onClick={handleSave} disabled={isSaving || !isDirty}>
-                    {isSaving ? "Saving..." : "Save Language"}
                 </Button>
             </CardFooter>
         </Card>
@@ -2054,236 +1106,6 @@ function AgentUuidSection({ workflowUuid }: { workflowUuid: string }) {
 // ---------------------------------------------------------------------------
 // Section: Model Overrides
 // ---------------------------------------------------------------------------
-
-function withoutModelConfigurationOverrides(configurations: WorkflowConfigurations): WorkflowConfigurations {
-    const next = { ...configurations };
-    delete next.model_overrides;
-    delete next.model_configuration_v2_override;
-    return next;
-}
-
-function WorkflowModelOverridesSection({
-    workflowId,
-    workflowConfigurations,
-    workflowName,
-    onSave,
-    modelConfigurationDefaults,
-    organizationModelConfiguration,
-    modelConfigurationLoading,
-    modelConfigurationError,
-}: {
-    workflowId: number;
-    workflowConfigurations: WorkflowConfigurations;
-    workflowName: string;
-    onSave: (configurations: WorkflowConfigurations, workflowName: string) => Promise<void>;
-    modelConfigurationDefaults: ModelConfigurationDefaultsV2 | null;
-    organizationModelConfiguration: OrganizationAiModelConfigurationResponse | null;
-    modelConfigurationLoading: boolean;
-    modelConfigurationError: string | null;
-}) {
-    const savedV2Override = workflowConfigurations.model_configuration_v2_override;
-    const hasSavedModelOverride = Boolean(savedV2Override || workflowConfigurations.model_overrides);
-    const [overrideEnabled, setOverrideEnabled] = useState(Boolean(savedV2Override));
-    const [modelView, setModelView] = useState<"simple" | "advanced">("simple");
-    const [isRemovingOverride, setIsRemovingOverride] = useState(false);
-
-    useEffect(() => {
-        setOverrideEnabled(Boolean(workflowConfigurations.model_configuration_v2_override));
-    }, [workflowConfigurations.model_configuration_v2_override]);
-
-    const hasOrgConfiguration = organizationModelConfiguration?.source === "organization_v2";
-
-    const saveV2Override = async (configuration: OrganizationAiModelConfigurationV2) => {
-        const nextConfigurations = withoutModelConfigurationOverrides(workflowConfigurations);
-        nextConfigurations.model_configuration_v2_override = configuration;
-        await onSave(nextConfigurations, workflowName);
-        toast.success("Model override saved");
-    };
-
-    const removeV2Override = async () => {
-        setIsRemovingOverride(true);
-        try {
-            await onSave(withoutModelConfigurationOverrides(workflowConfigurations), workflowName);
-            setOverrideEnabled(false);
-            toast.success("Using organization model configuration");
-        } finally {
-            setIsRemovingOverride(false);
-        }
-    };
-
-    return (
-        <Card id="models">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                    <Brain className="h-4 w-4" />
-                    Models
-                </CardTitle>
-                <CardDescription>
-                    How this agent sounds and thinks, and what a minute costs. Each agent
-                    picks its own; one that has not picked runs on the workspace default.{" "}
-                    <a href={SETTINGS_DOCUMENTATION_URLS.modelOverrides} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">Learn more <ExternalLink className="h-3 w-3" /></a>
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                {/* Two vocabularies for one agent. Simple is a bundle — how it
-                    should sound and think, one price a minute. Advanced is the
-                    stack as tiles: transcriber, brain, voice (or one
-                    speech-to-speech model), each with its cost and measured
-                    reply time and a pencil to change just that one. Below the
-                    tiles, behind a fold, the per-slot editor for naming a model
-                    on your own key. Vapi and Bolna both put this on the
-                    assistant rather than the account; so does this. */}
-                <div className="flex flex-wrap items-center gap-3">
-                    <div role="tablist" aria-label="How much detail to show" className="inline-flex rounded-full border border-border p-1">
-                        {(["simple", "advanced"] as const).map((key) => (
-                            <button
-                                key={key}
-                                role="tab"
-                                type="button"
-                                aria-selected={modelView === key}
-                                onClick={() => setModelView(key)}
-                                className={cn(
-                                    "rounded-full px-4 py-1 text-sm capitalize transition-colors",
-                                    modelView === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                                )}
-                            >
-                                {key}
-                            </button>
-                        ))}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                        {modelView === "simple"
-                            ? "Pick how it should sound and think, and see what a minute costs."
-                            : "Each part of the call, with its cost and measured reply time. Change one at a time."}
-                    </p>
-                </div>
-
-                {modelView === "simple" ? (
-                    <SimpleModelPicker workflowId={workflowId} />
-                ) : (
-                    <ModelRow workflowId={workflowId} editable />
-                )}
-
-                {/* Own keys are switched on per account by staff for now; until
-                    then the per-slot editor stays out of sight so nobody is
-                    invited to paste a key that will not be honoured. */}
-                <Collapsible id="model-editor" className="hidden">
-                    <CollapsibleTrigger asChild>
-                        <Button type="button" variant="ghost" size="sm" className="group -ml-2">
-                            <ChevronRight className="mr-1 h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
-                            Use your own keys, or name a model that is not on the list
-                        </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="space-y-4 pt-4">
-                {modelConfigurationLoading && (
-                    <div className="flex items-center gap-2 rounded-md border p-4 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Loading model configuration
-                    </div>
-                )}
-
-                {modelConfigurationError && (
-                    <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                        {modelConfigurationError}
-                    </div>
-                )}
-
-                {!modelConfigurationLoading && !modelConfigurationError && !hasOrgConfiguration && (
-                    <div className="flex flex-col gap-3 rounded-md border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-sm text-muted-foreground">
-                            Set up your organization model configuration before overriding it per workflow.
-                        </p>
-                        <Button type="button" variant="outline" size="sm" asChild>
-                            <Link href="/settings#model-defaults">Set model defaults</Link>
-                        </Button>
-                    </div>
-                )}
-
-                {!modelConfigurationLoading && !modelConfigurationError && hasOrgConfiguration && modelConfigurationDefaults && organizationModelConfiguration && (
-                    <>
-                        {/* What a minute of this agent costs, before anyone dials it.
-                            Priced from the stack the agent will actually run: its own
-                            override where it has one, the organization default where it
-                            does not. Telephony is left out deliberately -- the carrier
-                            is chosen per call, not per agent, so a number here would be
-                            a guess presented as a rate. */}
-                        <CostPerMinuteBar
-                            carriageNote="Telephony is not included: the carrier is chosen when the call is placed."
-                            stack={pricedStack(
-                                savedV2Override
-                                    ? priceableFromV2(savedV2Override)
-                                    : (organizationModelConfiguration.effective_configuration as
-                                          | Parameters<typeof pricedStack>[0]
-                                          | null),
-                                modelConfigurationDefaults.decibyl?.upstream,
-                            )}
-                        />
-
-                        <div className="flex items-center justify-between rounded-md border p-4">
-                            <div className="space-y-0.5">
-                                <Label htmlFor="workflow-model-v2-override" className="text-sm font-medium">
-                                    Give this agent its own models
-                                </Label>
-                                <p className="text-xs text-muted-foreground">
-                                    {overrideEnabled
-                                        ? "This agent has its own stack. Changes to the organization default no longer reach it."
-                                        : "Inheriting the organization default. Turn this on to pick models for this agent alone."}
-                                </p>
-                            </div>
-                            <Switch
-                                id="workflow-model-v2-override"
-                                checked={overrideEnabled}
-                                onCheckedChange={setOverrideEnabled}
-                            />
-                        </div>
-
-                        {overrideEnabled ? (
-                            <AIModelConfigurationV2Editor
-                                defaults={modelConfigurationDefaults}
-                                configuration={
-                                    (savedV2Override as OrganizationAiModelConfigurationV2 | undefined)
-                                    || (organizationModelConfiguration.configuration as OrganizationAiModelConfigurationV2 | null)
-                                }
-                                effectiveConfiguration={
-                                    savedV2Override
-                                        ? null
-                                        : organizationModelConfiguration.effective_configuration
-                                }
-                                submitLabel="Save Model Override"
-                                onSave={saveV2Override}
-                            />
-                        ) : (
-                            <div className="rounded-md border bg-muted/20 p-4">
-                                <p className="text-sm text-muted-foreground">
-                                    Using organization model configuration.
-                                </p>
-                                {hasSavedModelOverride && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        className="mt-3"
-                                        onClick={removeV2Override}
-                                        disabled={isRemovingOverride}
-                                    >
-                                        {isRemovingOverride ? "Saving..." : "Save Organization Configuration"}
-                                    </Button>
-                                )}
-                            </div>
-                        )}
-                    </>
-                )}
-                    </CollapsibleContent>
-                </Collapsible>
-            </CardContent>
-        </Card>
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Main Page
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // Page wrapper — handles auth & data fetching, then mounts the content
 // component only when everything is loaded. This avoids useWorkflowState
 // running with empty initial values and overwriting the Zustand store.
@@ -2384,10 +1206,9 @@ function WorkflowSettingsInner({
     // and the docs both rely on.
     const requestedTab = useSearchParams().get("tab");
     const activeTab: TabId = isTabId(requestedTab) ? requestedTab : DEFAULT_TAB;
+    // Only the fallback chains read this now: the schemas say which vendors
+    // a backup voice or transcriber can name.
     const [modelConfigurationDefaults, setModelConfigurationDefaults] = useState<ModelConfigurationDefaultsV2 | null>(null);
-    const [organizationModelConfiguration, setOrganizationModelConfiguration] = useState<OrganizationAiModelConfigurationResponse | null>(null);
-    const [modelConfigurationLoading, setModelConfigurationLoading] = useState(true);
-    const [modelConfigurationError, setModelConfigurationError] = useState<string | null>(null);
     const hasFetchedModelConfiguration = useRef(false);
 
     const workflowId = workflow.id;
@@ -2419,13 +1240,9 @@ function WorkflowSettingsInner({
         workflowName,
         workflowConfigurations,
         templateContextVariables,
-        dictionary,
         saveWorkflowConfigurations,
         saveTemplateContextVariables,
-        saveDictionary,
-        savePronunciationLexicon,
         saveCallOutcomes,
-        saveLanguageSettings,
     } = useWorkflowState({
         initialWorkflowName: workflow.name,
         workflowId,
@@ -2443,27 +1260,13 @@ function WorkflowSettingsInner({
         hasFetchedModelConfiguration.current = true;
 
         const loadModelConfiguration = async () => {
-            setModelConfigurationLoading(true);
-            setModelConfigurationError(null);
-            const [defaultsResult, configurationResult] = await Promise.all([
-                getModelConfigurationV2DefaultsApiV1OrganizationsModelConfigurationsV2DefaultsGet(),
-                getModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2Get(),
-            ]);
-
+            const defaultsResult =
+                await getModelConfigurationV2DefaultsApiV1OrganizationsModelConfigurationsV2DefaultsGet();
             if (defaultsResult.error) {
-                setModelConfigurationError(detailFromResult(defaultsResult, "Failed to load model configuration defaults"));
-                setModelConfigurationLoading(false);
+                logger.error("Failed to load model configuration defaults");
                 return;
             }
-            if (configurationResult.error) {
-                setModelConfigurationError(detailFromResult(configurationResult, "Failed to load model configuration"));
-                setModelConfigurationLoading(false);
-                return;
-            }
-
             setModelConfigurationDefaults(defaultsResult.data as ModelConfigurationDefaultsV2);
-            setOrganizationModelConfiguration(configurationResult.data || null);
-            setModelConfigurationLoading(false);
         };
 
         loadModelConfiguration();
@@ -2493,63 +1296,6 @@ function WorkflowSettingsInner({
                 <div className="min-w-0 space-y-8">
                     {resolvedWorkflowConfigurationsForRender && (
                         <>
-                            <div
-                                className={cn("space-y-8", activeTab !== "calling" && "hidden")}
-                            >
-                            {/* General */}
-                            <GeneralSection
-                                workflowConfigurations={resolvedWorkflowConfigurationsForRender}
-                                workflowName={workflowName || workflow.name}
-                                workflowId={workflowId}
-                                onSave={saveWorkflowConfigurations}
-                                modelConfigurationDefaults={modelConfigurationDefaults}
-                            />
-
-                            {/* Voicemail Detection */}
-                            <VoicemailSection
-                                workflowConfigurations={resolvedWorkflowConfigurationsForRender}
-                                workflowName={workflowName}
-                                onSave={saveWorkflowConfigurations}
-                            />
-                            </div>
-
-                            <div
-                                className={cn("space-y-8", activeTab !== "models" && "hidden")}
-                            >
-                            <WorkflowModelOverridesSection
-                                workflowId={workflowId}
-                                workflowConfigurations={resolvedWorkflowConfigurationsForRender}
-                                workflowName={workflowName}
-                                onSave={saveWorkflowConfigurations}
-                                modelConfigurationDefaults={modelConfigurationDefaults}
-                                organizationModelConfiguration={organizationModelConfiguration}
-                                modelConfigurationLoading={modelConfigurationLoading}
-                                modelConfigurationError={modelConfigurationError}
-                            />
-
-                            {/* Dictionary sits with Models rather than alone:
-                                it is words the transcriber should listen for,
-                                which is a property of the ears, not a topic. */}
-                            <DictionarySection dictionary={dictionary} onSave={saveDictionary} />
-                            {/* Directly under Dictionary: the two halves of
-                                the same complaint. Dictionary tells the
-                                transcriber what to listen for; this tells the
-                                voice how to say it back. */}
-                            <PronunciationSection
-                                entries={workflowConfigurations?.pronunciation_lexicon ?? []}
-                                onSave={savePronunciationLexicon}
-                            />
-                            {/* With the voice, not on Calling: this decides
-                                which voice speaks, and it is edited in the
-                                same sitting as the dictionary and the
-                                pronunciations. */}
-                            <CallerLanguageSection
-                                follow={workflowConfigurations?.follow_caller_language ?? false}
-                                codeMixed={workflowConfigurations?.speak_like_callers ?? true}
-                                onSave={saveLanguageSettings}
-                            />
-                            </div>
-
                             <div
                                 className={cn("space-y-8", activeTab !== "analysis" && "hidden")}
                             >
@@ -2597,17 +1343,58 @@ function WorkflowSettingsInner({
 
                             {/* Report */}
                             <ReportSection workflowId={workflowId} />
+
+                            {/* Evals have their own screen; this is the way
+                                to it now that the tab strip is Vapi's five
+                                and Share. Under Analysis because that is
+                                what an eval is: a judgement on calls. */}
+                            <Card id="evals">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-base">
+                                        <FlaskConical className="h-4 w-4" />
+                                        Evals
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Scripted conversations this agent is graded against, run before a change goes live.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardFooter className="border-t pt-6">
+                                    <Button variant="outline" asChild>
+                                        <Link href={`/workflow/${workflowId}/evals`}>
+                                            Open Evals
+                                            <ExternalLink className="ml-2 h-4 w-4" />
+                                        </Link>
+                                    </Button>
+                                </CardFooter>
+                            </Card>
                             </div>
 
                             <div
-                                className={cn("space-y-8", activeTab !== "deploy" && "hidden")}
+                                className={cn("space-y-8", activeTab !== "share" && "hidden")}
                             >
-                            {/* Deployment (dialog trigger) */}
+                            {/* The two ways this agent reaches people who are
+                                not in this account: a link to text a prospect,
+                                and a widget for the website. */}
+                            <Card id="share">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-base">
+                                        <Share2 className="h-4 w-4" />
+                                        Shareable link
+                                    </CardTitle>
+                                    <CardDescription>
+                                        One link, no account: whoever opens it talks to this agent in the browser, with live captions.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardFooter className="border-t pt-6">
+                                    <ShareAgentDialog workflowId={workflowId} />
+                                </CardFooter>
+                            </Card>
+
                             <Card id="deployment">
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2 text-base">
                                         <Rocket className="h-4 w-4" />
-                                        Add to Website
+                                        Add to website
                                     </CardTitle>
                                     <CardDescription>
                                         Configure a widget to add this voice agent to your website.{" "}
@@ -2633,6 +1420,22 @@ function WorkflowSettingsInner({
                             <div
                                 className={cn("space-y-8", activeTab !== "advanced" && "hidden")}
                             >
+                            {/* Calls: name, fallbacks, limits, recording. The
+                                turn-taking and audio settings that used to sit
+                                here are behind the model tiles now. */}
+                            <GeneralSection
+                                workflowConfigurations={resolvedWorkflowConfigurationsForRender}
+                                workflowName={workflowName || workflow.name}
+                                onSave={saveWorkflowConfigurations}
+                                modelConfigurationDefaults={modelConfigurationDefaults}
+                            />
+
+                            <VoicemailSection
+                                workflowConfigurations={resolvedWorkflowConfigurationsForRender}
+                                workflowName={workflowName}
+                                onSave={saveWorkflowConfigurations}
+                            />
+
                             {/* Template Variables */}
                             <TemplateVariablesSection
                                 templateContextVariables={templateContextVariables}

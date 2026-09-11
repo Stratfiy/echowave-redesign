@@ -1499,7 +1499,7 @@ class OpenAITTSService(BaseTTSConfiguration):
     )
 
 
-DECIBYL_TTS_MODELS = ["default"]
+DECIBYL_TTS_MODELS = ["default", "basic", "global"]
 
 
 @register_tts

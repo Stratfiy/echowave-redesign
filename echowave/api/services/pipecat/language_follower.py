@@ -28,6 +28,16 @@ one is far worse than one that never changes at all. Three rules do the work:
   two in a row is a conversation that moved. This is the parameter that decides
   whether the feature is usable, and it is deliberately not configurable per
   call — an operator tuning it in production is a sign it is wrong here.
+* **Ask before committing.** Two turns is enough to raise the question and not
+  enough to answer it. At two the agent *asks*, in the new language, whether to
+  continue in it, and goes on answering in the old one; only a caller who
+  stays in the new language after being asked moves it. A caller who wanted
+  English says so — in English — which resets the run and no switch happens.
+  Silently switching on a guess is what this used to do, and it fought the
+  operator's own prompt: every one of these agents says "change language only
+  if the caller asks you to, in words", and the switch instruction was later
+  and more specific, so it won. The agent drifted into Hindi mid-call against
+  its own instructions, which is exactly what a tester reported.
 * **Ignore short utterances entirely.** They are both the least reliable
   detections and the most frequent, so they dominate the error rate while
   carrying almost no information.
@@ -54,10 +64,16 @@ from pipecat.frames.frames import (
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.services.settings import TTSSettings
 
-#: Consecutive turns in a new language before the voice follows. One is noise —
-#: a single "yes" mis-detected as English inside a Hindi call must not flip the
-#: agent. Two in a row is a conversation that actually moved.
-CONFIRMATIONS_BEFORE_SWITCH = 2
+#: Consecutive turns in a new language before the agent *asks* whether to
+#: change. One is noise — a single "yes" mis-detected as English inside a Hindi
+#: call must not flip the agent. Two in a row is worth a question.
+CONFIRMATIONS_BEFORE_ASKING = 2
+
+#: Consecutive turns before the voice actually follows. One more than the ask,
+#: so the caller has heard the question and stayed in the new language anyway.
+#: A caller who did not want to change answers in the language they were
+#: already speaking, which resets the run and switches nothing.
+CONFIRMATIONS_BEFORE_SWITCH = 3
 
 #: Utterances shorter than this are ignored for detection. Backchannel — "hmm",
 #: "ok", "achha" — is where language detection is least reliable and most
@@ -131,6 +147,25 @@ def language_name(tag: str) -> str:
     return LANGUAGE_NAMES.get(tag, tag)
 
 
+def ask_instruction(current: str | None, language: str) -> str:
+    """What the model is told when the caller *may* have changed language.
+
+    It asks and keeps answering in the language it was already speaking. Both
+    halves matter: an agent that asks the question in the old language is
+    asking somebody who may not understand it, and an agent that switches
+    while asking has not really asked.
+    """
+    name = language_name(language)
+    staying = language_name(current) if current else None
+    keep = f" Keep answering in {staying} until they say yes." if staying else ""
+    return (
+        f"The caller may have moved to {name}. In your next turn, before "
+        f"anything else, ask them in {name} — one short sentence — whether "
+        f"they would like to continue in {name}. Ask once and do not repeat "
+        f"the question later in the call.{keep}"
+    )
+
+
 def switch_instruction(language: str) -> str:
     """What the model is told when the caller changes language.
 
@@ -195,6 +230,12 @@ class LanguageFollower(FrameProcessor):
         self._candidate: str | None = None
         self._agreements = 0
 
+        #: Languages the caller has already been asked about, so the question
+        #: is put once per call and not on every run of two turns. A caller
+        #: who said no to Hindi and drifts back into it is not asked again;
+        #: they can still ask in words, which the prompt already honours.
+        self._asked: set[str] = set()
+
         #: Every language heard, in order of first appearance. Read at teardown:
         #: "which languages did this call actually involve" is not answerable
         #: from a single column, and it is the question asked when a campaign
@@ -254,10 +295,42 @@ class LanguageFollower(FrameProcessor):
             self._candidate = detected
             self._agreements = 1
 
+        if self._agreements == CONFIRMATIONS_BEFORE_ASKING:
+            await self._ask_about(detected)
+            return
+
         if self._agreements < CONFIRMATIONS_BEFORE_SWITCH:
             return
 
         await self._switch_to(detected)
+
+    async def _ask_about(self, language: str) -> None:
+        """Put the question, once, and go on speaking as before.
+
+        No TTS change: the agent is still answering in the language it was,
+        and the question rides in that voice. The only thing pushed is an
+        instruction to the model.
+        """
+        if language in self._asked:
+            return
+        self._asked.add(language)
+        logger.info(
+            "Caller may have moved {} → {}; asking before following",
+            self._current,
+            language,
+        )
+        await self.push_frame(
+            LLMMessagesAppendFrame(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": ask_instruction(self._current, language),
+                    }
+                ],
+                run_llm=False,
+            ),
+            FrameDirection.DOWNSTREAM,
+        )
 
     async def _switch_to(self, language: str) -> None:
         previous = self._current

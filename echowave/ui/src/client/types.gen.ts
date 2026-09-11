@@ -1197,92 +1197,6 @@ export type BodyUploadNumbersApiV1DoNotCallUploadPost = {
 };
 
 /**
- * BundleRequest
- *
- * Create or update a bundle.
- *
- * Every field except ``slug`` is optional and omitting one leaves it. Sending
- * an explicit null clears it, which is how a bundle is switched between
- * pipeline and speech-to-speech — the tiers that no longer apply have to go.
- */
-export type BundleRequest = {
-    /**
-     * Slug
-     */
-    slug: string;
-    /**
-     * Label
-     */
-    label?: string | null;
-    /**
-     * Blurb
-     */
-    blurb?: string | null;
-    /**
-     * Architecture
-     */
-    architecture?: string | null;
-    /**
-     * Stt Tier
-     */
-    stt_tier?: string | null;
-    /**
-     * Tts Tier
-     */
-    tts_tier?: string | null;
-    /**
-     * Llm Tier
-     */
-    llm_tier?: string | null;
-    /**
-     * Realtime Tier
-     */
-    realtime_tier?: string | null;
-    /**
-     * Display Order
-     */
-    display_order?: number | null;
-    /**
-     * Is Enabled
-     */
-    is_enabled?: boolean | null;
-    /**
-     * List Paise Per Minute
-     */
-    list_paise_per_minute?: number | null;
-    /**
-     * Volume Tiers
-     */
-    volume_tiers?: Array<{
-        [key: string]: unknown;
-    }> | null;
-};
-
-/**
- * BundleSelection
- *
- * A Simple-tab choice, as the client is allowed to express it.
- *
- * Three fields and no tiers beyond the brain: everything else about the stack
- * is looked up from the bundle server-side. See
- * ``agent_options.save_bundle_selection`` for why that matters.
- */
-export type BundleSelection = {
-    /**
-     * Bundle
-     */
-    bundle: string;
-    /**
-     * Tier
-     */
-    tier?: string;
-    /**
-     * Voice
-     */
-    voice?: string;
-};
-
-/**
  * BusinessDetailsRequest
  */
 export type BusinessDetailsRequest = {
@@ -2635,13 +2549,13 @@ export type CreateWorkflowTemplateRequest = {
      */
     voice?: string;
     /**
+     * Preset
+     */
+    preset?: string;
+    /**
      * Llm Tier
      */
     llm_tier?: string;
-    /**
-     * Bundle Slug
-     */
-    bundle_slug?: string;
     /**
      * Welcome Message
      */
@@ -5750,6 +5664,11 @@ export type ModelPresetRequest = {
  * ModelSlotRequest
  *
  * One tile's pencil: this slot, this managed model, this voice.
+ *
+ * The four below are the slot's own knobs, as the panel behind the pencil
+ * shows them. Each is optional and, left out, leaves the stored value
+ * alone; the ranges match what the vendor classes accept, so a value the
+ * stack cannot run is refused here rather than on the first call.
  */
 export type ModelSlotRequest = {
     /**
@@ -5768,6 +5687,22 @@ export type ModelSlotRequest = {
      * Voice
      */
     voice?: string | null;
+    /**
+     * Temperature
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     */
+    max_tokens?: number | null;
+    /**
+     * Speed
+     */
+    speed?: number | null;
+    /**
+     * Language
+     */
+    language?: string | null;
 };
 
 /**
@@ -13127,135 +13062,6 @@ export type SetProviderRatesApiV1AdminBillingProvidersRatesPutResponses = {
 
 export type SetProviderRatesApiV1AdminBillingProvidersRatesPutResponse = SetProviderRatesApiV1AdminBillingProvidersRatesPutResponses[keyof SetProviderRatesApiV1AdminBillingProvidersRatesPutResponses];
 
-export type ListBundlesApiV1AdminBillingBundlesGetData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/v1/admin/billing/bundles';
-};
-
-export type ListBundlesApiV1AdminBillingBundlesGetErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListBundlesApiV1AdminBillingBundlesGetError = ListBundlesApiV1AdminBillingBundlesGetErrors[keyof ListBundlesApiV1AdminBillingBundlesGetErrors];
-
-export type ListBundlesApiV1AdminBillingBundlesGetResponses = {
-    /**
-     * Response List Bundles Api V1 Admin Billing Bundles Get
-     *
-     * Successful Response
-     */
-    200: {
-        [key: string]: unknown;
-    };
-};
-
-export type ListBundlesApiV1AdminBillingBundlesGetResponse = ListBundlesApiV1AdminBillingBundlesGetResponses[keyof ListBundlesApiV1AdminBillingBundlesGetResponses];
-
-export type UpsertBundleApiV1AdminBillingBundlesPutData = {
-    body: BundleRequest;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/v1/admin/billing/bundles';
-};
-
-export type UpsertBundleApiV1AdminBillingBundlesPutErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpsertBundleApiV1AdminBillingBundlesPutError = UpsertBundleApiV1AdminBillingBundlesPutErrors[keyof UpsertBundleApiV1AdminBillingBundlesPutErrors];
-
-export type UpsertBundleApiV1AdminBillingBundlesPutResponses = {
-    /**
-     * Response Upsert Bundle Api V1 Admin Billing Bundles Put
-     *
-     * Successful Response
-     */
-    200: {
-        [key: string]: unknown;
-    };
-};
-
-export type UpsertBundleApiV1AdminBillingBundlesPutResponse = UpsertBundleApiV1AdminBillingBundlesPutResponses[keyof UpsertBundleApiV1AdminBillingBundlesPutResponses];
-
-export type BundleEconomicsApiV1AdminBillingBundlesEconomicsGetData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/v1/admin/billing/bundles/economics';
-};
-
-export type BundleEconomicsApiV1AdminBillingBundlesEconomicsGetErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type BundleEconomicsApiV1AdminBillingBundlesEconomicsGetError = BundleEconomicsApiV1AdminBillingBundlesEconomicsGetErrors[keyof BundleEconomicsApiV1AdminBillingBundlesEconomicsGetErrors];
-
-export type BundleEconomicsApiV1AdminBillingBundlesEconomicsGetResponses = {
-    /**
-     * Response Bundle Economics Api V1 Admin Billing Bundles Economics Get
-     *
-     * Successful Response
-     */
-    200: {
-        [key: string]: unknown;
-    };
-};
-
-export type BundleEconomicsApiV1AdminBillingBundlesEconomicsGetResponse = BundleEconomicsApiV1AdminBillingBundlesEconomicsGetResponses[keyof BundleEconomicsApiV1AdminBillingBundlesEconomicsGetResponses];
-
 export type ManagedTierChoicesApiV1AdminBillingManagedTiersChoicesGetData = {
     body?: never;
     headers?: {
@@ -14322,11 +14128,17 @@ export type GetAgentOptionsApiV1AgentOptionsGetData = {
     path?: never;
     query?: {
         /**
-         * Workflow Id
+         * Languages
          *
-         * Read the selection of this agent rather than the account default. The options themselves are the same either way.
+         * Languages the agent will serve, by name or subtag. Used to mark the preset that fits; the options themselves do not change.
          */
-        workflow_id?: number | null;
+        languages?: Array<string> | null;
+        /**
+         * Uses Tools
+         *
+         * Whether the agent will call tools or read documents.
+         */
+        uses_tools?: boolean;
     };
     url: '/api/v1/agent-options';
 };
@@ -14356,56 +14168,6 @@ export type GetAgentOptionsApiV1AgentOptionsGetResponses = {
 };
 
 export type GetAgentOptionsApiV1AgentOptionsGetResponse = GetAgentOptionsApiV1AgentOptionsGetResponses[keyof GetAgentOptionsApiV1AgentOptionsGetResponses];
-
-export type SaveSelectionApiV1AgentOptionsSelectionPutData = {
-    body: BundleSelection;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path?: never;
-    query?: {
-        /**
-         * Workflow Id
-         *
-         * Save the choice on this agent alone, as its model override. Omit to set the account default every agent without one inherits.
-         */
-        workflow_id?: number | null;
-    };
-    url: '/api/v1/agent-options/selection';
-};
-
-export type SaveSelectionApiV1AgentOptionsSelectionPutErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type SaveSelectionApiV1AgentOptionsSelectionPutError = SaveSelectionApiV1AgentOptionsSelectionPutErrors[keyof SaveSelectionApiV1AgentOptionsSelectionPutErrors];
-
-export type SaveSelectionApiV1AgentOptionsSelectionPutResponses = {
-    /**
-     * Response Save Selection Api V1 Agent Options Selection Put
-     *
-     * Successful Response
-     */
-    200: {
-        [key: string]: unknown;
-    };
-};
-
-export type SaveSelectionApiV1AgentOptionsSelectionPutResponse = SaveSelectionApiV1AgentOptionsSelectionPutResponses[keyof SaveSelectionApiV1AgentOptionsSelectionPutResponses];
 
 export type GetApproximateMinutesApiV1AgentOptionsMinutesGetData = {
     body?: never;

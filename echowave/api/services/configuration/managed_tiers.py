@@ -99,7 +99,29 @@ STT_TIER_LABELS: dict[str, tuple[str, str]] = {
     ),
 }
 STT_TIERS = ("default", "instant")
-TTS_TIERS = ("default",)
+#: Three voices, and they are the rungs of the preset ladder rather than a
+#: quality scale: ``basic`` is the cheapest synthesis on the card and speaks
+#: Hindi and English; ``default`` speaks every Indian language; ``global`` is
+#: the international voice for an English-first caller.
+TTS_TIERS = ("default", "basic", "global")
+
+#: What the customer reads, the same discipline as the brain tiers: what the
+#: choice does, not who serves it. The language limit belongs on the screen --
+#: it is the entire reason Basic is cheaper.
+TTS_TIER_LABELS: dict[str, tuple[str, str]] = {
+    "basic": (
+        "Basic",
+        "Hindi and English, mixed the way callers speak. The cheapest voice.",
+    ),
+    "default": (
+        "Every language",
+        "Speaks every Indian language, switching mid-sentence.",
+    ),
+    "global": (
+        "Global",
+        "The international voice. Best for English-first callers.",
+    ),
+}
 EMBEDDINGS_TIERS = ("default",)
 #: Speech-to-speech tiers. Two, because the two vendors are not a quality
 #: ladder — they are a price cliff. Gemini Live runs about Rs4.72 a minute and
@@ -249,6 +271,13 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # — the two things a caller notices are being understood and not being
         # kept waiting.
         ("tts", "default"): _tier("tts", "default", "sarvam", "bulbul:v3"),
+        # Rumik Mulberry: a third of Bulbul per character, Hindi and English
+        # only, with twelve preset voices the picker can play. The bottom rung
+        # of the preset ladder, and the reason there is a ladder at all.
+        ("tts", "basic"): _tier("tts", "basic", "rumik", "mulberry"),
+        # ElevenLabs Flash: the international voice. Dearer than Sarvam, and
+        # its premade voices are what the template gallery already plays.
+        ("tts", "global"): _tier("tts", "global", "elevenlabs", "eleven_flash_v2_5"),
         # --- Speech-to-speech ----------------------------------------------
         # A single model that hears and speaks, replacing the STT and TTS pair.
         # Deliberately *not* Sarvam: no Indic speech-to-speech model is good

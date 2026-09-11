@@ -31,8 +31,6 @@ STAFF_GETS = [
     "/api/v1/admin/billing/rate-card",
     "/api/v1/admin/billing/plans",
     "/api/v1/admin/billing/providers",
-    "/api/v1/admin/billing/bundles",
-    "/api/v1/admin/billing/bundles/economics",
     "/api/v1/admin/billing/managed-tiers",
     "/api/v1/admin/billing/managed-tiers/choices",
     "/api/v1/admin/billing/pricing-inputs",

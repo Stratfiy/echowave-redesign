@@ -38,6 +38,7 @@ from api.services.agent_templates._base import (
     TemplateEdge,
     TemplateNode,
 )
+from api.services.configuration.options.elevenlabs import ELEVENLABS_PREMADE_VOICES
 
 # The managed Indic stack. Cheapest priced rows in the card and the best
 # handling of Indian languages — see PROVIDER-PRICING.md. Bulbul v2 rather than
@@ -1041,13 +1042,16 @@ def _voice(
     )
 
 
-# Premade ElevenLabs voices, referred to by their public ids.
-_RACHEL = "21m00Tcm4TlvDq8ikWAM"  # female, calm
-_BELLA = "EXAVITQu4vr4xnSDxMaL"  # female, warm
-_ELLI = "MF3mGyEYCl7XYWbV9V6O"  # female, young
-_ADAM = "pNInz6obpgDQGcFmaJgB"  # male, deep
-_ANTONI = "ErXwobaYiN019PkySvjV"  # male, well-rounded
-_JOSH = "TxGEqnHWrfWFTfGW9XjX"  # male, young
+# Premade ElevenLabs voices, referred to by their public ids. Declared once
+# in the options package, because the managed "global" voice tier lists the
+# same six and two copies of a voice id is how one of them goes stale.
+_PREMADE = {name: voice_id for voice_id, name, _gender in ELEVENLABS_PREMADE_VOICES}
+_RACHEL = _PREMADE["Rachel"]  # female, calm
+_BELLA = _PREMADE["Bella"]  # female, warm
+_ELLI = _PREMADE["Elli"]  # female, young
+_ADAM = _PREMADE["Adam"]  # male, deep
+_ANTONI = _PREMADE["Antoni"]  # male, well-rounded
+_JOSH = _PREMADE["Josh"]  # male, young
 
 SUGGESTED_VOICES: dict[str, list[SuggestedVoice]] = {
     "clinic_appointment": [

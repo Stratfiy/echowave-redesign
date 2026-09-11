@@ -206,3 +206,50 @@ class TestWhatCountsAgainstToday:
             async_session, embed_token_id=999_999, cap_minutes=None
         )
         assert usage.remaining_seconds is None
+
+
+class TestTheCapCanActuallyBeSet:
+    """The write path, which silently dropped the cap.
+
+    ``update_embed_token`` filters its kwargs against an allow-list, and
+    ``daily_minutes_cap`` was not on it. Every path that sets a cap goes
+    through there: the owner lowering it on the share dialog, and
+    ``create_share_link`` restoring a default when it reactivates a switched
+    off link. All of them returned 200 and changed nothing, so the only link
+    anybody could make was an uncapped one -- the exact thing the cap exists
+    to prevent, shipped as the default.
+
+    Asserted against the allow-list itself rather than through a live update:
+    the defect is entirely in that set, and a test of the set fails for the
+    one reason it should.
+    """
+
+    def _allowed(self) -> set[str]:
+        import ast
+        import inspect
+
+        from api.db.embed_token_client import EmbedTokenClient
+
+        tree = ast.parse(
+            inspect.getsource(EmbedTokenClient.update_embed_token).lstrip()
+        )
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and any(
+                getattr(t, "id", "") == "allowed_fields" for t in node.targets
+            ):
+                return {ast.literal_eval(e) for e in node.value.elts}
+        raise AssertionError("update_embed_token no longer has an allow-list")
+
+    def test_the_cap_is_writable(self):
+        assert "daily_minutes_cap" in self._allowed()
+
+    def test_the_other_settings_the_dialog_writes_are_too(self):
+        allowed = self._allowed()
+        for field in ("is_active", "expires_at", "allowed_domains", "settings"):
+            assert field in allowed, field
+
+    def test_nothing_a_caller_must_not_move_is_writable(self):
+        """The token string and its owner are identity, not settings."""
+        allowed = self._allowed()
+        for field in ("token", "organization_id", "workflow_id", "created_by"):
+            assert field not in allowed, field
