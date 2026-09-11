@@ -26,9 +26,15 @@ function readVoiceStatus(): VoiceStatus | null {
   return match ? (match[1] as VoiceStatus) : null;
 }
 
+type Caption = { role: "user" | "bot"; text: string; final: boolean };
+
 declare global {
   interface Window {
-    DecibylWidget?: { start: () => void; stop: () => void };
+    DecibylWidget?: {
+      start: () => void;
+      stop: () => void;
+      onTranscript?: (callback: (captions: Caption[]) => void) => void;
+    };
   }
 }
 
@@ -43,6 +49,9 @@ export default function TalkPage() {
   // caption used to flip to "Listening" the moment the orb was tapped, which
   // told a visitor to speak into a call that had not connected.
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>("idle");
+  // Live captions, straight off the widget. The server has always sent these
+  // down the signalling socket; nothing on this page was listening.
+  const [captions, setCaptions] = useState<Caption[]>([]);
 
   // Text chat
   const [chatOpen, setChatOpen] = useState(false);
@@ -120,6 +129,13 @@ export default function TalkPage() {
       attributeFilter: ["class"],
     });
     return () => observer.disconnect();
+  }, [widgetLoaded]);
+
+  // Captions arrive as the whole list rather than a delta, because an interim
+  // line is edited in place rather than appended — see the widget's own note.
+  useEffect(() => {
+    if (!widgetLoaded) return;
+    window.DecibylWidget?.onTranscript?.((next) => setCaptions(next));
   }, [widgetLoaded]);
 
   const name = config?.agent_name?.trim() || "this agent";
@@ -241,6 +257,33 @@ export default function TalkPage() {
                     ? "Couldn't connect — try the chat below"
                     : "Tap to talk"}
           </p>
+
+          {/* Live captions. Only while there is something to show: an empty
+              panel under the orb on an idle page is furniture, and it pushes
+              the "Type instead" link below the fold on a phone. */}
+          {captions.length > 0 && (
+            <div
+              className="mt-5 w-full max-w-md space-y-2 text-left"
+              data-testid="voice-captions"
+              aria-live="polite"
+            >
+              {captions.map((caption, index) => (
+                <p
+                  key={`${index}-${caption.role}`}
+                  className={
+                    caption.role === "user"
+                      ? `text-sm text-foreground${caption.final ? "" : " opacity-60"}`
+                      : `text-sm font-medium text-primary${caption.final ? "" : " opacity-80"}`
+                  }
+                >
+                  <span className="mr-1.5 text-[0.7rem] uppercase tracking-wide text-muted-foreground">
+                    {caption.role === "user" ? "You" : name}
+                  </span>
+                  {caption.text}
+                </p>
+              ))}
+            </div>
+          )}
 
           {!chatOpen && (
             <button
