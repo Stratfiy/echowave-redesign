@@ -146,15 +146,47 @@ class TestVoiceSamples:
     def test_the_path_is_derived_and_normalised(self):
         from api.services.configuration.voice_samples import sample_path
 
-        assert sample_path("Anushka", "hi") == "voice-samples/anushka-hi.wav"
-        assert sample_path("  KARUN  ", "en") == "voice-samples/karun-en.wav"
+        assert (
+            sample_path("Anushka", "hi", "wav", "bulbul:v3")
+            == "voice-samples/anushka-bulbul-v3-hi.wav"
+        )
+        assert (
+            sample_path("  KARUN  ", "en", "wav", "bulbul:v2")
+            == "voice-samples/karun-bulbul-v2-en.wav"
+        )
+
+    def test_two_models_of_one_voice_do_not_share_a_recording(self):
+        """The bug this key shape exists for. Asking for the same ElevenLabs
+        voice on two models returned byte-identical audio -- checked by
+        checksum on a live account -- so the product could compare speakers
+        and never models, which is the comparison behind the price."""
+        from api.services.configuration.voice_samples import sample_path
+
+        flash = sample_path("EXAVITQu4vr4xnSDxMaL", "ta", "mp3", "eleven_flash_v2_5")
+        rich = sample_path(
+            "EXAVITQu4vr4xnSDxMaL", "ta", "mp3", "eleven_multilingual_v2"
+        )
+
+        assert flash != rich
+
+    def test_a_missing_model_still_yields_a_usable_key(self):
+        """Callers that genuinely have no model must not produce a path with
+        an empty segment in the middle of it."""
+        from api.services.configuration.voice_samples import sample_path
+
+        assert sample_path("anushka", "en") == "voice-samples/anushka-default-en.wav"
+        assert sample_path("anushka", "en", "wav", "  ") == (
+            "voice-samples/anushka-default-en.wav"
+        )
 
     def test_samples_live_apart_from_call_audio(self):
         # Product assets, not customer data — a retention sweep over call
         # recordings must never reach them.
         from api.services.configuration.voice_samples import SAMPLE_PREFIX, sample_path
 
-        assert sample_path("anushka", "en").startswith(f"{SAMPLE_PREFIX}/")
+        assert sample_path("anushka", "en", "wav", "bulbul:v3").startswith(
+            f"{SAMPLE_PREFIX}/"
+        )
 
     async def test_an_unknown_language_has_no_sample(self):
         from api.services.configuration.voice_samples import sample_url

@@ -27,6 +27,8 @@ quiet 404 on an audio element rather than a broken page.
 
 from __future__ import annotations
 
+import re
+
 from loguru import logger
 
 from api.services.storage import get_storage
@@ -55,12 +57,37 @@ SAMPLE_LINES: dict[str, str] = {
 SAMPLE_LANGUAGES = ("en", "hi", "ta", "kn", "te")
 
 
-def sample_path(voice_id: str, language: str, ext: str = "wav") -> str:
-    """Storage key for one voice in one language. Derived, never stored."""
-    return f"{SAMPLE_PREFIX}/{voice_id.strip().lower()}-{language}.{ext}"
+def model_slug(model: str | None) -> str:
+    """A model name reduced to something that can sit in a storage key.
+
+    ``bulbul:v3`` and ``eleven_flash_v2_5`` are both model names and only one
+    of them is already safe in a path.
+    """
+    cleaned = re.sub(r"[^a-z0-9]+", "-", (model or "").strip().lower()).strip("-")
+    return cleaned or "default"
 
 
-async def sample_url(voice_id: str, language: str = "en") -> str | None:
+def sample_path(
+    voice_id: str, language: str, ext: str = "wav", model: str | None = None
+) -> str:
+    """Storage key for one voice, in one language, **on one model**.
+
+    The model is part of the key because it is part of what is being heard.
+    Without it the first model to record a voice owned that voice's sample
+    for good: asking for Bulbul v3 and Bulbul v2, or ElevenLabs Flash and
+    Multilingual, returned the same bytes, so the picker could compare
+    speakers but never models. Measured, not supposed -- two models of one
+    ElevenLabs voice came back with identical checksums.
+    """
+    return (
+        f"{SAMPLE_PREFIX}/{voice_id.strip().lower()}"
+        f"-{model_slug(model)}-{language}.{ext}"
+    )
+
+
+async def sample_url(
+    voice_id: str, language: str = "en", model: str | None = None
+) -> str | None:
     """A URL the browser can play, or ``None`` when there is no sample yet.
 
     Returning ``None`` rather than a URL that 404s keeps the decision in one
@@ -73,7 +100,7 @@ async def sample_url(voice_id: str, language: str = "en") -> str | None:
     storage = get_storage()
     # WAV from Sarvam, MP3 from ElevenLabs; the browser plays either.
     for ext in ("wav", "mp3"):
-        path = sample_path(voice_id, language, ext)
+        path = sample_path(voice_id, language, ext, model)
         try:
             if await storage.aget_file_metadata(path) is None:
                 continue
@@ -123,7 +150,7 @@ async def ensure_sample_url(
     """
     from api.services.configuration import voice_synthesis
 
-    cached = await sample_url(voice_id, language)
+    cached = await sample_url(voice_id, language, model)
     if cached:
         return cached
 
@@ -152,7 +179,9 @@ async def ensure_sample_url(
         logger.warning("Could not record {} {}: {}", provider, voice_id, exc)
         return None
 
-    path = sample_path(voice_id, language, voice_synthesis.extension_for(provider))
+    path = sample_path(
+        voice_id, language, voice_synthesis.extension_for(provider), model
+    )
     try:
         storage = get_storage()
         await storage.acreate_file_from_bytes(path, audio)

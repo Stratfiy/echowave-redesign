@@ -26,9 +26,14 @@ def test_every_sample_language_has_a_line_to_record():
         assert voice_samples.SAMPLE_LINES[language].strip()
 
 
-def test_sample_paths_keep_their_old_shape_and_learn_mp3():
-    assert voice_samples.sample_path("Anushka", "hi") == "voice-samples/anushka-hi.wav"
+def test_sample_paths_carry_voice_model_and_language():
     assert (
-        voice_samples.sample_path("21m00Tcm4TlvDq8ikWAM", "ta", "mp3")
-        == "voice-samples/21m00tcm4tlvdq8ikwam-ta.mp3"
+        voice_samples.sample_path("Anushka", "hi", "wav", "bulbul:v3")
+        == "voice-samples/anushka-bulbul-v3-hi.wav"
+    )
+    assert (
+        voice_samples.sample_path(
+            "21m00Tcm4TlvDq8ikWAM", "ta", "mp3", "eleven_multilingual_v2"
+        )
+        == "voice-samples/21m00tcm4tlvdq8ikwam-eleven-multilingual-v2-ta.mp3"
     )
