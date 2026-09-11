@@ -1,3 +1,4 @@
+from .call_intent import intent_breakdown
 from .campaign_summary import campaign_summary
 from .daily_report import DailyReportService
 from .org_metrics import answer_seizure_ratio, cost_by_outcome
@@ -9,6 +10,7 @@ from .run_report import (
 )
 
 __all__ = [
+    "intent_breakdown",
     "DailyReportService",
     "answer_seizure_ratio",
     "build_run_report_csv",

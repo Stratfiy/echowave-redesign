@@ -14,6 +14,7 @@ from api.services.reports import (
     answer_seizure_ratio,
     cost_by_outcome,
     generate_usage_runs_report_csv,
+    intent_breakdown,
 )
 from api.utils.artifacts import artifact_url
 from api.utils.recording_artifacts import has_recording_track
@@ -148,6 +149,51 @@ async def get_usage_outcomes(
     return OutcomesResponse(
         answer_seizure_ratio=AnswerSeizureRatioResponse(**asr),
         cost_by_outcome=[CostByOutcomeItem(**o) for o in outcomes],
+    )
+
+
+class CallIntentItem(BaseModel):
+    intent: str
+    calls: int
+    #: None rather than 0.0 when nothing was measured, matching the
+    #: convention in campaign_summary.py and org_metrics.py.
+    share: Optional[float] = None
+
+
+class CallIntentsResponse(BaseModel):
+    intents: List[CallIntentItem]
+    total_calls: int
+
+
+@router.get("/usage/call-intents", response_model=CallIntentsResponse)
+async def get_call_intents(
+    days: int = Query(1, ge=1, le=90, description="Number of IST days to include"),
+    workflow_id: Optional[int] = Query(None, description="Limit to one agent"),
+    user: UserModel = Depends(get_user),
+):
+    """What callers rang about, taken from the path each call took.
+
+    Not the disposition list next door: that reports how a call *ended*
+    (`user_hangup`, `unknown`) and on this deployment the commercial
+    dispositions are empty. The step a caller was routed to is what they
+    wanted, it is recorded on every call already, and it needs no model.
+
+    Defaults to one day because the question is "what came in today".
+    """
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    async with db_client.async_session() as session:
+        rows = await intent_breakdown(
+            session,
+            organization_id=user.selected_organization_id,
+            days=days,
+            workflow_id=workflow_id,
+        )
+
+    return CallIntentsResponse(
+        intents=[CallIntentItem(**row) for row in rows],
+        total_calls=sum(row["calls"] for row in rows),
     )
 
 

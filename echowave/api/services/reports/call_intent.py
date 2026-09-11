@@ -83,7 +83,9 @@ def summarise(
 ) -> list[dict[str, Any]]:
     """Count calls by intent, commonest first.
 
-    ``runs`` is (workflow_id, nodes_visited) pairs. Counting happens here
+    ``runs`` is (key, nodes_visited) pairs, where the key says whose routing
+    nodes apply -- a workflow id, or the id of the definition a run was pinned
+    to. Counting happens here
     rather than in SQL because the intent is the *first qualifying element of
     a JSON array*, which no database expresses without being told each
     workflow's routing nodes -- and a day of calls is small.
@@ -108,3 +110,63 @@ def summarise(
     # requests and make a dashboard look alive when nothing has changed.
     rows.sort(key=lambda r: (-r["calls"], r["intent"]))
     return rows
+
+
+async def intent_breakdown(
+    session: AsyncSession,
+    *,
+    organization_id: int,
+    days: int,
+    workflow_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """What this organization's callers wanted over the last ``days`` IST days.
+
+    The whole ``gathered_context`` is selected rather than one JSON key out of
+    it: the shape wanted here is an array, JSON element access differs by
+    dialect, and a day of calls is small enough that the difference is not
+    worth a dialect-specific expression that only one database understands.
+
+    Routing nodes come from the definition each run was *pinned to*, not the
+    workflow's current one, so renaming a branch tomorrow does not change what
+    yesterday's calls are reported as.
+    """
+    start_utc, end_utc = ist_day_bounds_utc(days)
+
+    conditions = [
+        WorkflowModel.organization_id == organization_id,
+        WorkflowRunModel.created_at >= start_utc,
+        WorkflowRunModel.created_at < end_utc,
+    ]
+    if workflow_id is not None:
+        conditions.append(WorkflowRunModel.workflow_id == workflow_id)
+
+    rows = (
+        await session.execute(
+            select(
+                WorkflowRunModel.definition_id,
+                WorkflowRunModel.gathered_context,
+            )
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(*conditions)
+        )
+    ).all()
+
+    runs = [
+        (row.definition_id, (row.gathered_context or {}).get("nodes_visited"))
+        for row in rows
+    ]
+
+    definition_ids = {d for d, _ in runs if d is not None}
+    passthrough: dict[Any, set[str]] = {}
+    if definition_ids:
+        definitions = (
+            await session.execute(
+                select(
+                    WorkflowDefinitionModel.id,
+                    WorkflowDefinitionModel.workflow_json,
+                ).where(WorkflowDefinitionModel.id.in_(definition_ids))
+            )
+        ).all()
+        passthrough = {d.id: passthrough_names(d.workflow_json) for d in definitions}
+
+    return summarise(runs, passthrough)

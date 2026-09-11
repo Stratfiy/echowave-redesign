@@ -33,9 +33,11 @@ import {
 
 import {
     getCallAnalyticsApiV1OrganizationsUsageCallsGet,
+    getCallIntentsApiV1OrganizationsUsageCallIntentsGet,
     getDailyRunsDetailApiV1OrganizationsReportsDailyRunsGet,
     getSpendBreakdownApiV1OrganizationsUsageSpendGet,
 } from "@/client/sdk.gen";
+import type { CallIntentsResponse } from "@/client/types.gen";
 import { AgentBuilderPanel } from "@/components/agent-builder/AgentBuilderPanel";
 import { COST_COMPONENTS, seriesColor } from "@/components/charts/chartTheme";
 import {
@@ -101,12 +103,17 @@ function downloadCsv(filename: string, headers: string[], rows: string[][]) {
     URL.revokeObjectURL(url);
 }
 
+/** What the backend calls a run that never got past the greeting.
+ *  Mirrors NO_INTENT in api/services/reports/call_intent.py. */
+const NO_INTENT = "Didn't get that far";
+
 export function OverviewDashboard({ firstName }: { firstName?: string }) {
     const mode = useChartMode();
     const authReady = useAuthReady();
     const [days, setDays] = useState<(typeof WINDOWS)[number]>(30);
     const [calls, setCalls] = useState<Calls | null>(null);
     const [spend, setSpend] = useState<Spend | null>(null);
+    const [intents, setIntents] = useState<CallIntentsResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [exporting, setExporting] = useState<"calls" | "spend" | null>(null);
@@ -117,9 +124,10 @@ export function OverviewDashboard({ firstName }: { firstName?: string }) {
         let cancelled = false;
         void (async () => {
             setLoading(true);
-            const [callsResult, spendResult] = await Promise.all([
+            const [callsResult, spendResult, intentsResult] = await Promise.all([
                 getCallAnalyticsApiV1OrganizationsUsageCallsGet({ query: { days } }),
                 getSpendBreakdownApiV1OrganizationsUsageSpendGet({ query: { days } }),
+                getCallIntentsApiV1OrganizationsUsageCallIntentsGet({ query: { days } }),
             ]);
             if (cancelled) return;
             if (callsResult.error) {
@@ -129,6 +137,10 @@ export function OverviewDashboard({ firstName }: { firstName?: string }) {
                 setError(null);
             }
             if (!spendResult.error) setSpend((spendResult.data as unknown as Spend) ?? null);
+            // A failure here dims one card rather than the page: what callers
+            // wanted is context, and the call and spend numbers stand without it.
+            if (!intentsResult.error)
+                setIntents((intentsResult.data as unknown as CallIntentsResponse) ?? null);
             setLoading(false);
         })();
         return () => {
@@ -296,6 +308,60 @@ export function OverviewDashboard({ firstName }: { firstName?: string }) {
                     tone={daysRemaining !== null && daysRemaining <= 7 ? "critical" : daysRemaining !== null && daysRemaining <= 21 ? "warning" : undefined}
                 />
             </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">What callers wanted</CardTitle>
+                    <CardDescription>
+                        The step each call was routed to, over the last {days} days
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {!intents || intents.intents.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No calls in this period.</p>
+                    ) : (
+                        <ul className="space-y-3">
+                            {intents.intents.map((row) => {
+                                const share = row.share ?? 0;
+                                // The bucket for calls that never got past the
+                                // greeting is muted rather than hidden. It is
+                                // usually the largest row, and it is the agent
+                                // failing rather than a thing anybody wanted --
+                                // so it has to be visible and has to read
+                                // differently from a real intent.
+                                const unreached = row.intent === NO_INTENT;
+                                return (
+                                    <li key={row.intent}>
+                                        <div className="flex items-baseline justify-between gap-3">
+                                            <span
+                                                className={cn(
+                                                    "truncate text-sm",
+                                                    unreached ? "italic text-muted-foreground" : "font-medium",
+                                                )}
+                                            >
+                                                {row.intent}
+                                            </span>
+                                            <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+                                                {formatNumber(row.calls)}
+                                                <span className="ml-2">{(share * 100).toFixed(0)}%</span>
+                                            </span>
+                                        </div>
+                                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                                            <div
+                                                className={cn(
+                                                    "h-full rounded-full",
+                                                    unreached ? "bg-muted-foreground/40" : "bg-primary",
+                                                )}
+                                                style={{ width: `${Math.max(share * 100, 1)}%` }}
+                                            />
+                                        </div>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                </CardContent>
+            </Card>
 
             <div className="grid gap-6 lg:grid-cols-5">
                 <ChartCard
