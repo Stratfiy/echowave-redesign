@@ -22,12 +22,38 @@ from api.services.configuration.options.rumik import (
     RUMIK_GATEWAY_URL,
     RUMIK_LANGUAGES,
 )
+from api.services.configuration.options.smallest import SMALLEST_TTS_LANGUAGES
 from api.services.configuration.registry import ServiceProviders
 
 SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech"
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 ELEVENLABS_MODEL = "eleven_multilingual_v2"
 RUMIK_TTS_PATH = "/v1/tts"
+SMALLEST_TTS_URL = "https://api.smallest.ai/waves/v1/tts"
+
+#: The model a sample is recorded on when the caller names none. Lightning
+#: v3.1 is the cheaper rung and the one a customer lands on by default, so it
+#: is the honest thing to hear first.
+SMALLEST_SAMPLE_MODEL = "lightning_v3.1"
+
+#: Which languages a Smallest sample may be recorded in: the ones this
+#: repository already claims the vendor speaks, narrowed to the ones a sample
+#: line exists for.
+#:
+#: Derived rather than written out, and that is the point. Smallest's current
+#: documentation lists ten Indic languages including Telugu; this repository's
+#: own ``SMALLEST_TTS_LANGUAGES`` does not have Telugu, and neither does
+#: pipecat's map. Hardcoding the documentation here would have let a Telugu
+#: sample through on the strength of one page read once, against two sources
+#: in the tree saying otherwise -- and a sample in a language a vendor cannot
+#: speak is the confident mispronunciation this guard exists to prevent.
+#:
+#: So the vendor's language support stays declared in one place. If Telugu is
+#: genuinely supported, adding it to ``SMALLEST_TTS_LANGUAGES`` is the change,
+#: and every caller gets it rather than just this one.
+SMALLEST_LANGUAGES = frozenset(SMALLEST_TTS_LANGUAGES) & frozenset(
+    voice_samples.SAMPLE_LANGUAGES
+)
 
 #: The Rumik model with preset speakers. ``muga`` takes none -- it is directed
 #: by tone tags in the text -- so there is nothing to name and nothing to
@@ -155,6 +181,46 @@ def extension_for(provider: str) -> str:
     return "mp3" if provider == ServiceProviders.ELEVENLABS.value else "wav"
 
 
+async def synthesise_smallest(
+    client: httpx.AsyncClient,
+    *,
+    api_key: str,
+    voice: str,
+    language: str,
+    model: str | None = None,
+) -> bytes:
+    """One sentence, one Waves voice, as WAV bytes.
+
+    The field names are the ones pipecat's own ``SmallestTTSService`` puts on
+    the wire for a live call -- ``voice_id``, ``model``, ``language``,
+    ``sample_rate`` -- so a sample is recorded through the same contract that
+    will speak on the phone. Only the transport differs: one HTTP request here
+    against the websocket the call path holds open.
+
+    ``language`` is the bare ISO code rather than the region-qualified tag
+    Sarvam wants, which is why this does not go through ``LANGUAGE_CODES``.
+    """
+    response = await client.post(
+        SMALLEST_TTS_URL,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "audio/wav",
+        },
+        json={
+            "text": voice_samples.SAMPLE_LINES[language],
+            "voice_id": voice,
+            "model": (model or "").strip() or SMALLEST_SAMPLE_MODEL,
+            "language": language,
+            "sample_rate": 24000,
+            "output_format": "wav",
+        },
+        timeout=60.0,
+    )
+    response.raise_for_status()
+    return response.content
+
+
 async def synthesise(
     *, provider: str, model: str, voice: str, language: str, api_key: str
 ) -> bytes:
@@ -177,6 +243,19 @@ async def synthesise(
                 client,
                 api_key=api_key,
                 voice_id=voice,
+                language=language,
+                model=model,
+            )
+        if provider == ServiceProviders.SMALLEST.value:
+            if language not in SMALLEST_LANGUAGES:
+                raise UnsupportedVoice(
+                    f"Smallest does not speak {language!r}; a sample would be a "
+                    "confident mispronunciation."
+                )
+            return await synthesise_smallest(
+                client,
+                api_key=api_key,
+                voice=voice,
                 language=language,
                 model=model,
             )

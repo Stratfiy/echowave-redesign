@@ -212,3 +212,95 @@ class TestWhatThereIsNoHonestSampleFor:
 
     def test_rumik_languages_are_only_the_ones_it_speaks(self):
         assert set(voice_synthesis.rumik_languages()) <= {"hi", "en"}
+
+
+class TestSmallestCanBeHeardAtLast:
+    """Smallest ships 21 voices and, until now, no way to hear any of them:
+    the recorder handled Sarvam, ElevenLabs and Rumik and fell through to
+    "no sample" for everything else. A picker that cannot play a voice is a
+    list of names, which is the problem samples exist to solve."""
+
+    async def test_it_posts_the_contract_the_call_path_uses(self):
+        """Same field names pipecat's own Smallest client puts on the wire, so
+        the sample is recorded through what will actually speak."""
+        captured = {}
+
+        class _Response:
+            content = b"RIFFwav"
+
+            def raise_for_status(self):
+                return None
+
+        class _Client:
+            async def post(self, url, **kwargs):
+                captured["url"] = url
+                captured.update(kwargs)
+                return _Response()
+
+        audio = await voice_synthesis.synthesise_smallest(
+            _Client(), api_key="k", voice="niharika", language="ta"
+        )
+
+        assert audio == b"RIFFwav"
+        assert captured["url"] == voice_synthesis.SMALLEST_TTS_URL
+        assert captured["headers"]["Authorization"] == "Bearer k"
+        body = captured["json"]
+        assert body["voice_id"] == "niharika"
+        assert body["language"] == "ta"
+        assert body["output_format"] == "wav"
+        assert body["text"] == voice_samples.SAMPLE_LINES["ta"]
+
+    async def test_the_model_is_carried_through_not_fixed(self):
+        """The whole point of the key change: Lightning and Lightning Pro are
+        two prices and must be two recordings."""
+        seen = []
+
+        class _Response:
+            content = b"RIFFwav"
+
+            def raise_for_status(self):
+                return None
+
+        class _Client:
+            async def post(self, url, **kwargs):
+                seen.append(kwargs["json"]["model"])
+                return _Response()
+
+        await voice_synthesis.synthesise_smallest(
+            _Client(),
+            api_key="k",
+            voice="meher",
+            language="hi",
+            model="lightning_v3.1_pro",
+        )
+        await voice_synthesis.synthesise_smallest(
+            _Client(), api_key="k", voice="meher", language="hi"
+        )
+
+        assert seen == ["lightning_v3.1_pro", voice_synthesis.SMALLEST_SAMPLE_MODEL]
+
+    async def test_a_language_it_does_not_speak_is_declined_not_guessed(self):
+        """Telugu, specifically. The vendor's current page says it speaks ten
+        Indic languages including Telugu; this repository's own language list
+        and pipecat's map both say it does not. One page read once does not
+        outvote two sources in the tree, and the cost of being wrong is a
+        stored recording of a confident mispronunciation."""
+        with pytest.raises(voice_synthesis.UnsupportedVoice):
+            await voice_synthesis.synthesise(
+                provider="smallest",
+                model="lightning_v3.1",
+                voice="arjun",
+                language="te",
+                api_key="k",
+            )
+
+    def test_the_language_set_is_derived_not_retyped(self):
+        """If the vendor's support changes, it changes in one place and every
+        caller follows. A hardcoded copy here is how the two drift apart."""
+        from api.services.configuration.options.smallest import (
+            SMALLEST_TTS_LANGUAGES,
+        )
+
+        assert voice_synthesis.SMALLEST_LANGUAGES <= set(SMALLEST_TTS_LANGUAGES)
+        assert voice_synthesis.SMALLEST_LANGUAGES <= set(voice_samples.SAMPLE_LANGUAGES)
+        assert "ta" in voice_synthesis.SMALLEST_LANGUAGES
