@@ -175,6 +175,22 @@ class InMemoryLogsBuffer:
                 return True
         return False
 
+    def count_user_turns(self) -> int:
+        """How many times the caller finished saying something.
+
+        Final transcriptions with text in them, which is the same test
+        :meth:`contains_user_speech` makes, counted rather than short-
+        circuited. Used to tell a call that went nowhere from a call that
+        barely happened -- see ``stuck_agent.py``.
+        """
+        return sum(
+            1
+            for event in self._events
+            if event.get("type") == RealtimeFeedbackType.USER_TRANSCRIPTION.value
+            and event.get("payload", {}).get("final") is True
+            and event.get("payload", {}).get("text")
+        )
+
     def contains_bot_speech(self) -> bool:
         """Return True if the agent ever produced a line of speech.
 

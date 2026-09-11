@@ -67,6 +67,7 @@ from api.services.configuration.options import (
     SPEECHMATICS_STT_LANGUAGES,
 )
 from api.services.configuration.options.google import GOOGLE_VERTEX_MODELS
+from api.services.pipecat.reasoning_effort import LEVELS as REASONING_EFFORT_LEVELS
 
 
 class ServiceType(Enum):
@@ -647,6 +648,18 @@ class PipelineLLMTuning(BaseModel):
             "caller waits for the whole reply to generate. Too low truncates "
             "mid-sentence, which sounds like the agent hung up."
         ),
+    )
+    reasoning_effort: str | None = Field(
+        default=None,
+        description=(
+            "How long a reasoning model may think before answering. Only "
+            "models that accept it are sent it. Thinking time is dead air on a "
+            "phone call, but too little of it and the model answers in words "
+            "where it should have called a tool -- which, in a workflow, means "
+            "never moving off the first step. One of: minimal, low, medium, "
+            "high."
+        ),
+        json_schema_extra={"examples": list(REASONING_EFFORT_LEVELS)},
     )
 
 
