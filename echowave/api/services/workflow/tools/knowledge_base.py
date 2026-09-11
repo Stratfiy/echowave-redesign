@@ -27,6 +27,7 @@ reads it; the model gets a sentence written for a caller's ears.
 """
 
 import json
+import os
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
@@ -42,6 +43,41 @@ STATUS_OK = "ok"
 STATUS_NO_MATCH = "no_match"
 #: The search could not be performed. Says nothing about what we know.
 STATUS_UNAVAILABLE = "unavailable"
+#: The search ran, and everything it found was too far from the question to
+#: answer from. Distinct from :data:`STATUS_NO_MATCH` only for the operator's
+#: benefit — the model is told the same thing either way — because "the caller
+#: asked about something we nearly have" is worth seeing in a log.
+STATUS_WEAK_MATCH = "weak_match"
+
+#: Cosine similarity below which a chunk is not an answer to the question.
+#:
+#: Vector search always returns the nearest chunks, however far away they are.
+#: There is no such thing as "no results" while any document exists, so without
+#: a floor the model receives the nearest paragraph to every question and reads
+#: it as context worth answering from.
+#:
+#: Measured rather than picked, on the live knowledge base (a DHL rate guide,
+#: 117 chunks, text-embedding-3-small), ten queries:
+#:
+#:     on topic  ("what is the fuel surcharge?")     0.478 - 0.719
+#:     off topic ("what is the capital of Mongolia?") 0.143 - 0.322
+#:
+#: 0.40 is the middle of that gap, leaving about 0.08 either side. Before it
+#: existed, "what is the capital of Mongolia?" returned the rate guide at 0.316
+#: with status ok, and the agent would have answered from it.
+#:
+#: It is one corpus and one embedding model, so this is evidence and not a law
+#: — hence the environment variable. Raise it and the agent starts saying it
+#: does not know things it does know; lower it and it starts making things up
+#: from whatever was nearest. The second failure is the worse one.
+WEAK_MATCH_BELOW = float(os.getenv("KNOWLEDGE_BASE_MIN_SIMILARITY") or 0.40)
+
+WEAK_MATCH_INSTRUCTION = (
+    "The knowledge base was searched successfully and nothing close enough to "
+    "the question was found. Do NOT answer from memory or from anything that "
+    "looks related — there is no source for it here. Tell the caller you do "
+    "not have that information, and offer to have someone follow up."
+)
 
 NO_MATCH_INSTRUCTION = (
     "The knowledge base was searched successfully and nothing relevant was "
@@ -394,6 +430,36 @@ async def _perform_retrieval(
                     "chunk_index": result.get("chunk_index"),
                 }
                 chunks.append(chunk_info)
+
+            # Drop what is too far away to be an answer. Full-document matches
+            # carry similarity 1.0 and are unaffected; this is only about
+            # vector search, which returns the nearest chunk whether or not
+            # anything near exists.
+            near_enough = [
+                chunk
+                for chunk in chunks
+                if float(chunk.get("similarity") or 0) >= WEAK_MATCH_BELOW
+            ]
+            if chunks and not near_enough:
+                best = max(float(c.get("similarity") or 0) for c in chunks)
+                logger.info(
+                    "Knowledge base weak match: query='{}', best={:.4f} < {:.2f}",
+                    query,
+                    best,
+                    WEAK_MATCH_BELOW,
+                )
+                return {
+                    "status": STATUS_WEAK_MATCH,
+                    "instruction": WEAK_MATCH_INSTRUCTION,
+                    "chunks": [],
+                    "query": query,
+                    "total_results": 0,
+                    # For the operator reading a run, not for the model: it
+                    # says how close the near miss was, which is the number
+                    # that tells you whether the floor is set right.
+                    "best_similarity": round(best, 4),
+                }
+            chunks = near_enough
 
         logger.info(
             f"Knowledge base retrieval: query='{query}', "

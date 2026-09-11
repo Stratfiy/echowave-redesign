@@ -139,6 +139,14 @@ PLATFORM_PLIVO_AUTH_TOKEN=
 # have stopped. For a USD account, 50 is roughly a week's notice.
 PLATFORM_PLIVO_LOW_BALANCE=
 
+# How close a knowledge base chunk must be to the question before the agent may
+# answer from it (cosine similarity, 0-1). Default 0.40, measured on a real
+# corpus: on-topic questions scored 0.478-0.719 and off-topic ones 0.143-0.322,
+# so 0.40 sits in the gap. Raise it and the agent says it does not know things
+# it does know; lower it and it answers from whatever was nearest. The second
+# failure is the worse one.
+KNOWLEDGE_BASE_MIN_SIMILARITY=
+
 # Or Twilio instead. Having both is about carrier choice — it is NOT a way
 # around DLT, which attaches to the sending entity and the Indian destination.
 PLATFORM_TWILIO_ACCOUNT_SID=
