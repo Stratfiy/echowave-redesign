@@ -88,14 +88,24 @@ async def synthesise_sarvam(
 
 
 async def synthesise_elevenlabs(
-    client: httpx.AsyncClient, *, api_key: str, voice_id: str, language: str
+    client: httpx.AsyncClient,
+    *,
+    api_key: str,
+    voice_id: str,
+    language: str,
+    model: str | None = None,
 ) -> bytes:
-    """One sentence, one ElevenLabs voice, as MP3 bytes.
+    """One sentence, one ElevenLabs voice, on one model, as MP3 bytes.
 
-    Multilingual v2 speaks every sample language with the same voice, so the
-    model is fixed here rather than taken from the agent's stack: the point is
-    to hear the *speaker*, and swapping the model between samples would change
-    what is being compared.
+    The model used to be fixed at Multilingual v2 so that browsing a list of
+    speakers compared speakers and nothing else. That is right for the list
+    and wrong for the decision *behind* the list: ElevenLabs ships three
+    models here at two prices, they do not sound alike on Tamil, and with the
+    model fixed there was nowhere in the product to hear the difference.
+
+    Comparing speakers is preserved, because the sample is now keyed by model
+    as well: a picker showing one model still varies only the voice. What
+    changes is that switching the model switches the recording too.
     """
     response = await client.post(
         ELEVENLABS_TTS_URL.format(voice_id=voice_id),
@@ -103,7 +113,7 @@ async def synthesise_elevenlabs(
         headers={"xi-api-key": api_key, "Accept": "audio/mpeg"},
         json={
             "text": voice_samples.SAMPLE_LINES[language],
-            "model_id": ELEVENLABS_MODEL,
+            "model_id": (model or "").strip() or ELEVENLABS_MODEL,
         },
         timeout=60.0,
     )
@@ -164,7 +174,11 @@ async def synthesise(
             )
         if provider == ServiceProviders.ELEVENLABS.value:
             return await synthesise_elevenlabs(
-                client, api_key=api_key, voice_id=voice, language=language
+                client,
+                api_key=api_key,
+                voice_id=voice,
+                language=language,
+                model=model,
             )
         if provider == ServiceProviders.RUMIK.value:
             if (model or RUMIK_SAMPLE_MODEL).strip().lower() == "muga":

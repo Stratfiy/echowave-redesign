@@ -229,7 +229,9 @@ async def _rumik_samples(force: bool) -> tuple[int, int, int]:
                 )
                 continue
             for language in languages:
-                path = voice_samples.sample_path(voice, language)
+                path = voice_samples.sample_path(
+                    voice, language, "wav", RUMIK_SAMPLE_MODEL
+                )
                 if not force and await storage.aget_file_metadata(path) is not None:
                     skipped += 1
                     continue
@@ -269,7 +271,9 @@ async def _elevenlabs_samples(force: bool) -> tuple[int, int, int]:
     written = skipped = failed = 0
     async with httpx.AsyncClient() as client:
         for voice_id, language in sorted(wanted):
-            path = voice_samples.sample_path(voice_id, language, "mp3")
+            path = voice_samples.sample_path(
+                voice_id, language, "mp3", ELEVENLABS_MODEL
+            )
             if not force and await storage.aget_file_metadata(path) is not None:
                 skipped += 1
                 continue
@@ -289,17 +293,19 @@ async def _elevenlabs_samples(force: bool) -> tuple[int, int, int]:
 def _sarvam_voices_to_sample() -> list[tuple[str, str]]:
     """(voice_id, model) for every Sarvam voice the picker can show, once each.
 
-    Deduped by voice_id: the sample path is keyed by voice alone, so a name
-    shared across tiers needs only one recording, taken under the first tier
-    that lists it.
+    Deduped by voice_id, and only across tiers that resolve to the same
+    model: the sample path is keyed by voice *and* model, so a name shared
+    between two tiers on one model needs a single recording, while the same
+    name on two models needs one each -- they do not sound alike, which is
+    the whole reason the model is in the key.
     """
-    seen: set[str] = set()
+    seen: set[tuple[str, str]] = set()
     out: list[tuple[str, str]] = []
     for model in SAMPLE_MODELS:
         for voice in voice_catalogue.for_provider("sarvam", model=model).voices:
-            if voice.voice_id in seen:
+            if (voice.voice_id, model) in seen:
                 continue
-            seen.add(voice.voice_id)
+            seen.add((voice.voice_id, model))
             out.append((voice.voice_id, model))
     return out
 
@@ -342,7 +348,7 @@ async def main(force: bool) -> int:
     async with httpx.AsyncClient() as client:
         for voice_id, model in voices:
             for language in voice_samples.SAMPLE_LANGUAGES:
-                path = voice_samples.sample_path(voice_id, language)
+                path = voice_samples.sample_path(voice_id, language, "wav", model)
 
                 if not force and await storage.aget_file_metadata(path) is not None:
                     logger.info(f"exists, skipping: {path}")

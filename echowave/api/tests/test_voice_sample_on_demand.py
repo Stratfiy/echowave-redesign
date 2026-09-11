@@ -56,7 +56,11 @@ class TestPressingPlayRecordsItOnce:
         assert url == "https://s/ritu-en.wav"
         synth.assert_awaited_once()
         fs.acreate_file_from_bytes.assert_awaited_once()
-        assert fs.acreate_file_from_bytes.await_args.args[0].endswith("ritu-en.wav")
+        # The model is in the key, so Ritu on Bulbul v3 and Ritu on Bulbul v2
+        # are two recordings rather than whichever one was asked for first.
+        assert fs.acreate_file_from_bytes.await_args.args[0].endswith(
+            "ritu-bulbul-v3-en.wav"
+        )
 
     async def test_an_already_recorded_voice_calls_no_vendor(self):
         """The whole point of storing it: the second listener, and every

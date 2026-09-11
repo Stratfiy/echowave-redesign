@@ -76,7 +76,7 @@ async def list_agent_templates(
             {
                 **voice.model_dump(),
                 "sample_url": await voice_samples.sample_url(
-                    voice.voice_id, voice.language
+                    voice.voice_id, voice.language, voice.model
                 ),
             }
             for voice in template.suggested_voices

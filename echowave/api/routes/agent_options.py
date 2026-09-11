@@ -117,6 +117,10 @@ async def get_agent_options(
     # Basic are not the voices under Standard. ``voices`` stays as the default
     # tier's list for callers that ask no further.
     async def _voice_list(tier: str) -> list[dict[str, Any]]:
+        # Samples are stored per model, so the tier has to be resolved to the
+        # model that will actually speak. Looking one up by tier name would
+        # miss every recording and show a list with no play buttons.
+        upstream = managed_tiers.resolve(CostComponent.TTS, tier or None)
         out = []
         for voice in agent_options.voices(tier):
             out.append(
@@ -126,9 +130,11 @@ async def get_agent_options(
                     "gender": voice.gender,
                     "description": voice.description,
                     "is_default": voice.is_default,
-                    "sample_url": await voice_samples.sample_url(voice.voice_id, "en"),
+                    "sample_url": await voice_samples.sample_url(
+                        voice.voice_id, "en", upstream.model
+                    ),
                     "sample_url_hi": await voice_samples.sample_url(
-                        voice.voice_id, "hi"
+                        voice.voice_id, "hi", upstream.model
                     ),
                 }
             )

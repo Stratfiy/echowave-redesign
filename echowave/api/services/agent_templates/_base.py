@@ -129,6 +129,10 @@ class SuggestedVoice(BaseModel):
     gender: str
     #: A language code the sample is recorded in: en, hi, ta, kn, te.
     language: str
+    #: The model the sample is recorded on. Part of the identity of a sample,
+    #: not a detail of it: the same speaker on two ElevenLabs models does not
+    #: sound the same, and the gallery has to ask for the one it recorded.
+    model: str = "eleven_multilingual_v2"
     blurb: str = ""
 
 
