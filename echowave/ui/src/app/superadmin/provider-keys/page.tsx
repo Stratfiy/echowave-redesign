@@ -102,6 +102,14 @@ export default function ProviderKeysPage() {
     return <ProviderKeysScreen />;
 }
 
+/** Connected first, then everything still to add — as two headed sections
+ *  rather than one sorted grid, so "what can I add" is a heading you can see
+ *  rather than a scroll past every vendor already in use. */
+const SECTIONS = [
+    { key: "connected", heading: "Connected", wanted: true },
+    { key: "available", heading: "Available to connect", wanted: false },
+] as const;
+
 function ProviderKeysScreen() {
     const { user, loading: authLoading } = useAuth();
     const authReady = !authLoading && Boolean(user);
@@ -472,8 +480,23 @@ function ProviderKeysScreen() {
                     </span>
                 </div>
 
+                {/* Two sections, not one long sort. Connected cards carry their
+                    whole model catalogue, so six of them is a screen and a half
+                    of ticking boxes — and every Connect button used to sit
+                    underneath all of it. An operator on a tablet reported the
+                    obvious conclusion: "how to add, I have no option". */}
+                {SECTIONS.map(({ key, heading, wanted }) => {
+                    const rows = visibleProviders.filter(
+                        (row) => row.stored.length > 0 === wanted,
+                    );
+                    if (rows.length === 0) return null;
+                    return (
+                        <section key={key} className="mb-6">
+                            <h2 className="mb-2 text-sm font-medium text-muted-foreground">
+                                {heading} ({rows.length})
+                            </h2>
                 <div className="grid gap-3 sm:grid-cols-2">
-                    {visibleProviders.map((row) => {
+                    {rows.map((row) => {
                         const connected = row.stored.length > 0;
                         const paused = connected && row.stored.every((c) => !c.is_active);
                         // Only an explicit false. A key we have never managed to
@@ -574,7 +597,20 @@ function ProviderKeysScreen() {
                                                 it covers, ready to tick immediately rather than
                                                 behind a chip to click first. */}
                                             {!paused && (
-                                                <div className="space-y-4 border-t pt-3">
+                                                <details className="border-t pt-3 [&>summary]:list-none">
+                                                    <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground hover:text-foreground">
+                                                        Models on sale —{" "}
+                                                        {
+                                                            catalogue.filter(
+                                                                (c) =>
+                                                                    c.provider === row.provider ||
+                                                                    c.provider ===
+                                                                        realtimeProviders[row.provider],
+                                                            ).length
+                                                        }{" "}
+                                                        offered. Tap to choose.
+                                                    </summary>
+                                                <div className="mt-3 space-y-4">
                                                     {row.stored.map((credential) => (
                                                         <ModelCatalogue
                                                             key={credential.component}
@@ -598,6 +634,7 @@ function ProviderKeysScreen() {
                                                             />
                                                         )}
                                                 </div>
+                                                </details>
                                             )}
                                         </>
                                     ) : (
@@ -621,6 +658,9 @@ function ProviderKeysScreen() {
                         );
                     })}
                 </div>
+                        </section>
+                    );
+                })}
 
                 <p className="mt-6 flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
                     <KeyRound className="mt-0.5 h-3 w-3 shrink-0" />
