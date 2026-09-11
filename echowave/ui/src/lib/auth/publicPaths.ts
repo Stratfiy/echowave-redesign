@@ -13,6 +13,12 @@ export const PUBLIC_PATHS = [
   "/auth/forgot",
   // The public share page: a prospect talks to an agent, no account.
   "/talk",
+  // The embed widget's own script. It is loaded by the share page and by
+  // every customer site that pastes the snippet, so it is never behind a
+  // session. Guarded, the redirect to /auth/login answered with HTML under
+  // `nosniff`, the browser refused to run it, and the script's `onload`
+  // never fired — the share page sat on "Preparing…" forever.
+  "/embed",
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {
