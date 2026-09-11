@@ -26,10 +26,13 @@ handler to test, per app, forever. A template is data: adding HubSpot is an
 entry in this file, and it runs down the HTTP path that is already the most
 exercised one in the codebase.
 
-**No secret is in here.** Every entry expects an `oauth2` credential the
-operator connected themselves, referenced by `credential_uuid` — see
-`services/integrations/oauth2.py`. The templates carry the shape; the account
-is theirs.
+**No secret is in here.** Every entry expects a credential the operator
+connected themselves, referenced by `credential_uuid`. Zoho and HubSpot use
+`oauth2` — see `services/integrations/oauth2.py`. Shopify uses `api_key` with
+its header name set to `X-Shopify-Access-Token`, which is what a Shopify custom
+app issues; `utils/credential_auth.py` already lets an api_key credential name
+its own header, so no app here needs a special case. The templates carry the
+shape; the account is theirs.
 
 Adding an app is adding entries to `_LIBRARY`. Vendors are free-form strings,
 ordered by first appearance, so a new app needs no registration anywhere.
@@ -83,6 +86,7 @@ class ToolLibraryResponse(BaseModel):
 
 _ZOHO = "Zoho CRM"
 _HUBSPOT = "HubSpot"
+_SHOPIFY = "Shopify"
 
 #: Repeated on every Zoho entry rather than said once, because the datacentre
 #: is the single most common way a Zoho integration fails and it fails with
@@ -90,6 +94,21 @@ _HUBSPOT = "HubSpot"
 _ZOHO_DC = (
     "Change .in to your account's datacentre (.com, .eu, .com.au) — the wrong "
     "one returns invalid_client and looks like a bad credential."
+)
+
+
+#: Repeated on every Shopify entry rather than said once. Two things are
+#: wrong by default and both fail at call time rather than at setup: the URL
+#: names a shop that is not theirs, and an API version ages out. 2026-07 is the
+#: stable version at the time of writing; Shopify ships one a quarter and
+#: supports each for at least twelve months.
+_SHOPIFY_SETUP = (
+    "Replace your-store in the URL with the shop's own myshopify.com domain, "
+    "and keep the API version current (2026-07 at the time of writing). "
+    "Connect an api_key credential whose header name is X-Shopify-Access-Token "
+    "and whose value is the Admin API access token from a custom app with "
+    "read_orders — and read_all_orders too if the shop needs orders older than "
+    "60 days, which Shopify withholds without it."
 )
 
 
@@ -279,6 +298,93 @@ _LIBRARY: tuple[LibraryTool, ...] = (
             ),
         ],
         setup_note="Needs the crm.objects.calls.write scope.",
+    ),
+    # -------------------------------------------------------------- Shopify
+    #
+    # Four verbs, not forty. The catalogue rule at the top of this file
+    # matters more here than anywhere else: Shopify's Admin API is enormous,
+    # and a model handed it whole picks worse rather than better. These are
+    # the four things a caller actually rings a shop about.
+    LibraryTool(
+        key="shopify_find_order_by_number",
+        vendor=_SHOPIFY,
+        display_name="Find an order by its number",
+        summary="The caller has their order number and wants to know where it is.",
+        tool_name="find_order",
+        tool_description=(
+            "Look up an order by the number the customer reads out. Call this "
+            "as soon as they give it. The number on their confirmation email "
+            "usually starts with a # -- send it either way, with or without."
+        ),
+        method="GET",
+        url="https://your-store.myshopify.com/admin/api/2026-07/orders.json?status=any",
+        parameters=[
+            LibraryToolParameter(
+                name="name",
+                description=(
+                    "The order number as the customer says it, for example "
+                    "1001 or #1001."
+                ),
+            )
+        ],
+        setup_note=_SHOPIFY_SETUP,
+    ),
+    LibraryTool(
+        key="shopify_find_orders_by_phone",
+        vendor=_SHOPIFY,
+        display_name="Find the caller's recent orders",
+        summary="They have not got their order number, which is most people.",
+        tool_name="find_orders_for_caller",
+        tool_description=(
+            "Find recent orders belonging to the person calling, by their "
+            "phone number. Call this when they cannot find their order number "
+            "-- most callers cannot. If it returns more than one, ask which "
+            "they mean by what was in it, not by its number."
+        ),
+        method="GET",
+        url="https://your-store.myshopify.com/admin/api/2026-07/customers/search.json",
+        parameters=[
+            LibraryToolParameter(
+                name="query",
+                description=(
+                    "Shopify's customer search term. For a caller this is "
+                    "their number with the field named in front of it, like "
+                    "phone:+919876543210."
+                ),
+            )
+        ],
+        setup_note=(
+            _SHOPIFY_SETUP
+            + " This returns the customer, not their orders: follow it with "
+            "Find an order, or add read_customers to the app's scopes. A shop "
+            "that stores numbers without the country code will not match a "
+            "caller ID that has one."
+        ),
+    ),
+    LibraryTool(
+        key="shopify_order_fulfillments",
+        vendor=_SHOPIFY,
+        display_name="Where is it now",
+        summary="The tracking number and carrier for an order already found.",
+        tool_name="get_tracking",
+        tool_description=(
+            "Get the shipment and tracking details for an order you have "
+            "already found. Call this once the caller has confirmed which "
+            "order they mean. Read the courier and the tracking number back "
+            "slowly, one digit at a time."
+        ),
+        method="GET",
+        url="https://your-store.myshopify.com/admin/api/2026-07/orders/{order_id}/fulfillments.json",
+        parameters=[
+            LibraryToolParameter(
+                name="order_id",
+                description=(
+                    "The order's numeric id from the lookup, not the order "
+                    "number the customer reads out."
+                ),
+            )
+        ],
+        setup_note=_SHOPIFY_SETUP,
     ),
 )
 

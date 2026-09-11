@@ -14,6 +14,7 @@ import posthog from "posthog-js";
 import React, { useEffect, useRef, useState } from "react";
 
 import { BrandLogo } from "@/components/BrandLogo";
+import { OrganizationSwitcher } from "@/components/layout/OrganizationSwitcher";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,7 +63,10 @@ export function AppSidebar() {
     vonageMissingSignatureSecretCount > 0;
   const isCollapsed = !isMobile && state === "collapsed";
 
-  // Version info from app config context
+  // Read for the self-hosted update check below, not for display. The
+  // version used to sit beside the logo, where the first thing a customer
+  // saw was a build number that means nothing to them and reads as stale
+  // the moment it is a release behind.
   const versionInfo = config ? { ui: config.uiVersion, api: config.apiVersion } : null;
 
   // Check for updates only on self-hosted (OSS) deployments — cloud is managed for the user.
@@ -249,15 +253,10 @@ export function AppSidebar() {
               translate="no"
             >
               <BrandLogo mark className="h-6" />
-              {versionInfo && (
-                <span
-                  className="notranslate text-xs font-normal text-muted-foreground"
-                  translate="no"
-                >
-                  v{versionInfo.ui}
-                </span>
-              )}
             </Link>
+            {/* Which account you are looking at, where the build number used
+                to be. A customer needs the first far more than the second. */}
+            <OrganizationSwitcher collapsed={isCollapsed} />
             {isBehind && latestRelease && (
               <Tooltip>
                 <TooltipTrigger asChild>

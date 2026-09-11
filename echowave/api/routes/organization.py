@@ -153,6 +153,68 @@ class TelephonyConfigWarningsResponse(BaseModel):
     vonage_missing_signature_secret_count: int
 
 
+class UserOrganizationResponse(BaseModel):
+    id: int
+    name: str
+    role: str
+    is_selected: bool
+
+
+class SwitchOrganizationRequest(BaseModel):
+    organization_id: int
+
+
+@router.get("/mine", response_model=List[UserOrganizationResponse])
+async def list_my_organizations(user: UserModel = Depends(get_user)):
+    """The organizations this user belongs to, for the switcher.
+
+    Not "all organizations" -- membership is the filter, and it is applied in
+    the query rather than after it.
+    """
+    rows = await db_client.list_user_organizations(user.id)
+    return [
+        UserOrganizationResponse(
+            id=row[0],
+            name=row[1] or f"Organization {row[0]}",
+            role=str(getattr(row[2], "value", row[2])),
+            is_selected=row[0] == user.selected_organization_id,
+        )
+        for row in rows
+    ]
+
+
+@router.put("/selected", response_model=UserOrganizationResponse)
+async def switch_organization(
+    request: SwitchOrganizationRequest,
+    user: UserModel = Depends(get_user),
+):
+    """Point this user at one of their organizations.
+
+    Membership is checked in the database rather than taken from the request:
+    this one call decides which account's calls, recordings and balance every
+    later request sees, so an id somebody typed is not enough.
+    """
+    switched = await db_client.set_selected_organization(
+        user.id, request.organization_id
+    )
+    if not switched:
+        # Not 403: telling a caller that an organization exists but is not
+        # theirs is itself an answer. A non-member and a non-existent
+        # organization look the same from here.
+        raise HTTPException(status_code=404, detail="No such organization")
+
+    rows = await db_client.list_user_organizations(user.id)
+    for row in rows:
+        if row[0] == request.organization_id:
+            return UserOrganizationResponse(
+                id=row[0],
+                name=row[1] or f"Organization {row[0]}",
+                role=str(getattr(row[2], "value", row[2])),
+                is_selected=True,
+            )
+    raise HTTPException(status_code=404, detail="No such organization")
+
+
 @router.get("/context", response_model=OrganizationContextResponse)
 async def get_current_organization_context(user: UserModel = Depends(get_user)):
     """Return organization-scoped configuration signals owned by Decibyl."""

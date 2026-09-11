@@ -3,6 +3,7 @@
 import json
 import re
 from typing import Any, Dict, Optional
+from urllib.parse import quote
 
 import httpx
 from loguru import logger
@@ -220,6 +221,50 @@ def _resolve_preset_parameters(
     return resolved
 
 
+#: `{order_id}` in a tool's URL, and nothing else. Deliberately narrow: a REST
+#: path segment is a name, and anything cleverer here becomes a template
+#: language an operator has to learn.
+_URL_PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def fill_url_placeholders(
+    url: str, arguments: Dict[str, Any]
+) -> tuple[str, Dict[str, Any], Optional[str]]:
+    """Put arguments into a URL's path, and say which ones were spent.
+
+    Most REST APIs address a thing by path -- Shopify's
+    ``/orders/{order_id}/fulfillments.json``, and nearly every other
+    ``/resource/{id}`` there is. Without this an operator can only reach the
+    endpoints whose arguments fit in a query string or a body, which is a small
+    fraction of them, and a URL written the natural way is sent with a literal
+    brace in it.
+
+    Returns the filled URL, the arguments that were *not* consumed (so a path
+    argument is not also sent as a query parameter or in a body), and an error
+    when a placeholder has no argument -- reported rather than requested,
+    because an unfilled brace reaches somebody else's server and 404s in a way
+    nobody can read.
+
+    Every value is percent-encoded with nothing left safe, so a model that
+    supplies ``../../admin`` produces one nonsense path segment rather than a
+    traversal. The filled URL is still SSRF-checked afterwards.
+    """
+    names = _URL_PLACEHOLDER.findall(url)
+    if not names:
+        return url, arguments, None
+
+    remaining = dict(arguments)
+    for name in names:
+        if remaining.get(name) is None:
+            return (
+                url,
+                arguments,
+                f"The tool's URL needs {name} and it was not supplied.",
+            )
+        url = url.replace("{" + name + "}", quote(str(remaining.pop(name)), safe=""))
+    return url, remaining, None
+
+
 async def execute_http_tool(
     tool: Any,
     arguments: Dict[str, Any],
@@ -309,6 +354,15 @@ async def execute_http_tool(
             "mocked": True,
             "data": mock_response,
         }
+
+    # Path arguments first: they are spent on the URL and must not be sent
+    # again as a query parameter or in the body.
+    url, resolved_arguments, placeholder_error = fill_url_placeholders(
+        url, resolved_arguments
+    )
+    if placeholder_error:
+        logger.warning(f"Custom tool '{tool.name}': {placeholder_error}")
+        return {"status": "error", "error": placeholder_error}
 
     # Build request: JSON body for POST/PUT/PATCH, query params for GET/DELETE
     body = None

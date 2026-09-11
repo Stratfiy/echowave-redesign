@@ -22,7 +22,7 @@ from api.services.integrations import tool_library
 
 class TestTheCatalogue:
     def test_it_is_grouped_by_vendor_in_first_appearance_order(self):
-        assert tool_library.vendors() == ["Zoho CRM", "HubSpot"]
+        assert tool_library.vendors() == ["Zoho CRM", "HubSpot", "Shopify"]
 
     def test_every_key_is_unique(self):
         """Keys address an entry from the UI; two the same silently shadow."""

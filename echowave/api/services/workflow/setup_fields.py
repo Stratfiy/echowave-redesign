@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 
 _PLACEHOLDER = re.compile(r"\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}")
 
@@ -54,6 +54,21 @@ class SetupField:
     #: person filling this in has never seen the prompt that uses it.
     hint: str
     required: bool = True
+    #: What the answer *is*, so an answer the platform can act on is collected
+    #: as one rather than as prose it would have to parse back out later.
+    #:
+    #: "hours" is the whole reason this exists. Opening hours were asked for
+    #: as a sentence and rendered into the prompt, so the agent could recite
+    #: the clinic's hours and the platform could not keep them -- a call at
+    #: eleven at night was answered and a slot agreed that nobody would
+    #: honour. Collected as a week of windows instead, the same answer fills
+    #: the agent's schedule *and* writes the sentence the prompt reads.
+    #:
+    #: The direction matters: structure is the source and the sentence is
+    #: derived. Going the other way -- parsing prose the operator typed --
+    #: means a misreading silently closes a number, which is the failure this
+    #: platform guards against everywhere else.
+    kind: str = "text"
 
 
 #: Wording for the fields we know about. A placeholder with no entry still
@@ -69,7 +84,9 @@ KNOWN_FIELDS: dict[str, SetupField] = {
     "opening_hours": SetupField(
         "opening_hours",
         "Opening hours",
-        "Plain words, e.g. 'Monday to Saturday, 10am to 7pm. Closed Sunday.'",
+        "The days and times you answer. The agent says these out loud, and "
+        "outside them it does not take the call at all.",
+        kind="hours",
     ),
     "services": SetupField(
         "services",
@@ -144,3 +161,88 @@ def missing_required(
         for field in setup_fields_for(definition)
         if field.required and not str(provided.get(field.name, "")).strip()
     ]
+
+
+#: Monday first, because a week here starts where datetime.weekday() starts.
+_DAY_NAMES = (
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+)
+
+
+def _spoken_time(value: str) -> str:
+    """ "09:30" as a person says it. "9:30 am", "1 pm", "midnight"."""
+    hours, _, minutes = value.partition(":")
+    hour, minute = int(hours), int(minutes or 0)
+    if hour in (0, 24) and minute == 0:
+        return "midnight"
+    if hour == 12 and minute == 0:
+        return "noon"
+    suffix = "am" if hour < 12 else "pm"
+    display = hour % 12 or 12
+    return f"{display} {suffix}" if minute == 0 else f"{display}:{minute:02d} {suffix}"
+
+
+def hours_sentence(schedule: Any) -> str:
+    """The opening hours as a line the agent can read out.
+
+    Derived from the schedule rather than typed beside it, so the hours the
+    agent recites and the hours the platform keeps cannot drift apart -- which
+    they would, the first time somebody edited one and not the other.
+
+    Days that keep identical windows are grouped, because "Monday to Saturday"
+    is what a person says and six identical sentences is not.
+    """
+    if not isinstance(schedule, Mapping) or not schedule.get("enabled", False):
+        return ""
+
+    windows: dict[int, tuple] = {}
+    for slot in schedule.get("slots") or []:
+        if not isinstance(slot, Mapping):
+            continue
+        day = slot.get("day_of_week")
+        start, end = slot.get("start_time"), slot.get("end_time")
+        if not isinstance(day, int) or not (0 <= day <= 6):
+            continue
+        if not isinstance(start, str) or not isinstance(end, str):
+            continue
+        windows.setdefault(day, ())
+        windows[day] = windows[day] + ((start, end),)
+
+    if not windows:
+        return ""
+
+    # Group consecutive days that keep the same hours.
+    parts: list[str] = []
+    run_start = None
+    previous = None
+    for day in range(7):
+        today = tuple(sorted(windows.get(day, ())))
+        if today != previous:
+            if previous:
+                parts.append(_phrase(run_start, day - 1, previous))
+            run_start = day if today else None
+            previous = today or None
+        elif not today:
+            previous = None
+    if previous:
+        parts.append(_phrase(run_start, 6, previous))
+
+    return ". ".join(parts) + "." if parts else ""
+
+
+def _phrase(first: int, last: int, windows: tuple) -> str:
+    days = (
+        _DAY_NAMES[first]
+        if first == last
+        else f"{_DAY_NAMES[first]} to {_DAY_NAMES[last]}"
+    )
+    times = " and ".join(
+        f"{_spoken_time(start)} to {_spoken_time(end)}" for start, end in windows
+    )
+    return f"{days}, {times}"

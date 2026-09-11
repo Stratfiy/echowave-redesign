@@ -289,6 +289,60 @@ export type AddNumbersResponse = {
 };
 
 /**
+ * AgentSchedule
+ *
+ * The hours an agent keeps, as something the platform can enforce.
+ *
+ * Narayani's opening hours live in its prompt -- "9:30 to 1:00 is when the
+ * clinic is open" -- so the agent can *say* them and the platform cannot
+ * *keep* them. A call at eleven at night is answered, a slot is agreed, and
+ * nobody at the clinic will honour it.
+ *
+ * Off by default, and off means always open: an agent nobody has scheduled
+ * behaves exactly as it does today. Everything ambiguous resolves to open as
+ * well -- see services/workflow/agent_hours.py -- because taking a number off
+ * the air is a worse failure than answering a call out of hours.
+ */
+export type AgentSchedule = {
+    /**
+     * Enabled
+     */
+    enabled?: boolean;
+    /**
+     * Timezone
+     */
+    timezone?: string;
+    /**
+     * Slots
+     */
+    slots?: Array<AgentScheduleSlot>;
+};
+
+/**
+ * AgentScheduleSlot
+ *
+ * One window in an agent's week.
+ *
+ * Shaped like the campaign scheduler's slot on purpose: an operator who has
+ * set calling windows on a campaign should not meet a second, differently
+ * shaped idea of a week on the agent.
+ */
+export type AgentScheduleSlot = {
+    /**
+     * Day Of Week
+     */
+    day_of_week: number;
+    /**
+     * Start Time
+     */
+    start_time: string;
+    /**
+     * End Time
+     */
+    end_time: string;
+};
+
+/**
  * AgentSetupResponse
  *
  * What still has to be answered before this agent can take a call.
@@ -6465,6 +6519,7 @@ export type OrganizationPreferences = {
      * Timezone
      */
     timezone?: string | null;
+    business_hours?: AgentSchedule | null;
     /**
      * Own Keys Allowed
      *
@@ -8734,6 +8789,16 @@ export type SuperuserWorkflowRunsListResponse = {
 };
 
 /**
+ * SwitchOrganizationRequest
+ */
+export type SwitchOrganizationRequest = {
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+};
+
+/**
  * TelephonyConfigWarningsResponse
  *
  * Aggregated telephony-configuration warning counts for the user's org.
@@ -9720,6 +9785,28 @@ export type UserConfigurationRequestResponseSchema = {
 };
 
 /**
+ * UserOrganizationResponse
+ */
+export type UserOrganizationResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Role
+     */
+    role: string;
+    /**
+     * Is Selected
+     */
+    is_selected: boolean;
+};
+
+/**
  * UserResponse
  */
 export type UserResponse = {
@@ -10209,6 +10296,7 @@ export type WorkflowConfigurationDefaults = {
      * Dictionary
      */
     dictionary?: string;
+    agent_schedule?: AgentSchedule;
     /**
      * Interruption Backoff Secs
      */
@@ -21993,6 +22081,86 @@ export type UnarchiveToolApiV1ToolsToolUuidUnarchivePostResponses = {
 };
 
 export type UnarchiveToolApiV1ToolsToolUuidUnarchivePostResponse = UnarchiveToolApiV1ToolsToolUuidUnarchivePostResponses[keyof UnarchiveToolApiV1ToolsToolUuidUnarchivePostResponses];
+
+export type ListMyOrganizationsApiV1OrganizationsMineGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/mine';
+};
+
+export type ListMyOrganizationsApiV1OrganizationsMineGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListMyOrganizationsApiV1OrganizationsMineGetError = ListMyOrganizationsApiV1OrganizationsMineGetErrors[keyof ListMyOrganizationsApiV1OrganizationsMineGetErrors];
+
+export type ListMyOrganizationsApiV1OrganizationsMineGetResponses = {
+    /**
+     * Response List My Organizations Api V1 Organizations Mine Get
+     *
+     * Successful Response
+     */
+    200: Array<UserOrganizationResponse>;
+};
+
+export type ListMyOrganizationsApiV1OrganizationsMineGetResponse = ListMyOrganizationsApiV1OrganizationsMineGetResponses[keyof ListMyOrganizationsApiV1OrganizationsMineGetResponses];
+
+export type SwitchOrganizationApiV1OrganizationsSelectedPutData = {
+    body: SwitchOrganizationRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/selected';
+};
+
+export type SwitchOrganizationApiV1OrganizationsSelectedPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SwitchOrganizationApiV1OrganizationsSelectedPutError = SwitchOrganizationApiV1OrganizationsSelectedPutErrors[keyof SwitchOrganizationApiV1OrganizationsSelectedPutErrors];
+
+export type SwitchOrganizationApiV1OrganizationsSelectedPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOrganizationResponse;
+};
+
+export type SwitchOrganizationApiV1OrganizationsSelectedPutResponse = SwitchOrganizationApiV1OrganizationsSelectedPutResponses[keyof SwitchOrganizationApiV1OrganizationsSelectedPutResponses];
 
 export type GetCurrentOrganizationContextApiV1OrganizationsContextGetData = {
     body?: never;

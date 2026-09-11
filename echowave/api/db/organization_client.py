@@ -71,6 +71,53 @@ class OrganizationClient(BaseDBClient):
             ).all()
             return [OrganizationMember(user=user, role=role) for user, role in rows]
 
+    async def list_user_organizations(self, user_id: int) -> list[tuple]:
+        """Every organization this user belongs to, with their role in each.
+
+        Ordered by name so a switcher does not reshuffle between page loads --
+        a list that moves under the cursor is one people mis-click.
+        """
+        async with self.async_session() as session:
+            rows = await session.execute(
+                select(
+                    OrganizationModel.id,
+                    OrganizationModel.name,
+                    OrganizationMembershipModel.role,
+                )
+                .join(
+                    OrganizationMembershipModel,
+                    OrganizationMembershipModel.organization_id == OrganizationModel.id,
+                )
+                .where(OrganizationMembershipModel.user_id == user_id)
+                .order_by(OrganizationModel.name)
+            )
+            return list(rows.all())
+
+    async def set_selected_organization(
+        self, user_id: int, organization_id: int
+    ) -> bool:
+        """Point a user at one of their organizations. False if they are not in it.
+
+        Membership is re-checked here rather than trusted from the request:
+        this is the one call that decides which account's calls, recordings and
+        balance the next request sees.
+        """
+        async with self.async_session() as session:
+            membership = await session.scalar(
+                select(OrganizationMembershipModel).where(
+                    OrganizationMembershipModel.user_id == user_id,
+                    OrganizationMembershipModel.organization_id == organization_id,
+                )
+            )
+            if membership is None:
+                return False
+            user = await session.get(UserModel, user_id)
+            if user is None:
+                return False
+            user.selected_organization_id = organization_id
+            await session.commit()
+            return True
+
     async def get_membership(
         self, user_id: int, organization_id: int
     ) -> Optional[OrganizationMembershipModel]:

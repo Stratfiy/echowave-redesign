@@ -489,6 +489,22 @@ class WorkflowClient(BaseDBClient):
             )
             return result.scalar_one_or_none()
 
+    async def get_released_configurations(self, workflow) -> dict:
+        """The published definition's configurations, or an empty dict.
+
+        Read at the moment an inbound call arrives, so the answer is the one
+        the operator actually published rather than whatever their draft says.
+        Empty on anything missing: the callers of this decide whether to
+        answer a call, and none of them should refuse one because a lookup
+        came back thin.
+        """
+        definition_id = getattr(workflow, "released_definition_id", None)
+        if not definition_id:
+            return {}
+        async with self.async_session() as session:
+            definition = await session.get(WorkflowDefinitionModel, definition_id)
+        return getattr(definition, "workflow_configurations", None) or {}
+
     async def get_workflow(
         self,
         workflow_id: int,
