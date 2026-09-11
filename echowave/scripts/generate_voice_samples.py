@@ -9,8 +9,11 @@ so it is safe to run late, re-run, or skip.
     python -m scripts.generate_voice_samples            # only what is missing
     python -m scripts.generate_voice_samples --force    # re-record everything
 
-Uses the platform's own Sarvam key when one is stored, so a deployment does not
-need a second credential just to record seven sentences.
+Uses the platform's own stored key when the environment does not carry one, so
+a deployment does not need a second credential just to record seven sentences.
+It exits non-zero when there are voices to sample and no key to sample them
+with — it used to exit 0, which is how a deployment came to have a voice picker
+with no play buttons and no sign anything was wrong.
 """
 
 from __future__ import annotations
@@ -46,6 +49,43 @@ _LANGUAGE_CODES = {
     "kn": "kn-IN",
     "te": "te-IN",
 }
+
+
+async def _vendor_key(env_name: str, provider: str) -> str | None:
+    """The vendor key to record with: the environment first, then the vault.
+
+    This file's own instructions have always said it "uses the platform's own
+    Sarvam key when one is stored, so a deployment does not need a second
+    credential just to record seven sentences". It did not. Both keys were read
+    from the environment and nowhere else, so on a deployment that holds its
+    Sarvam key in the platform vault — which is every managed deployment — the
+    script found nothing, said so at INFO, and exited 0. A provisioning script
+    that succeeds silently while doing nothing is worse than one that fails:
+    the samples were never recorded and nobody had a reason to look.
+
+    The environment still wins, so recording against a scratch key without
+    touching the vault keeps working.
+    """
+    from_env = os.getenv(env_name)
+    if from_env:
+        return from_env
+
+    try:
+        from api.db import db_client
+        from api.enums import CostComponent
+        from api.services.configuration import platform_credentials
+
+        async with db_client.async_session() as session:
+            key = await platform_credentials.resolve_api_key(
+                session, component=CostComponent.TTS, provider=provider
+            )
+    except Exception as exc:  # noqa: BLE001 - a script, and the caller reports it
+        logger.warning("Could not read the platform {} key: {}", provider, exc)
+        return None
+
+    if key:
+        logger.info("Using the platform's stored {} key.", provider)
+    return key
 
 
 async def _synthesise(
@@ -94,9 +134,12 @@ async def _synthesise_elevenlabs(
 
 async def _elevenlabs_samples(force: bool) -> tuple[int, int, int]:
     """The template gallery's suggested voices, each in its own language."""
-    api_key = os.getenv("ELEVENLABS_API_KEY")
+    api_key = await _vendor_key("ELEVENLABS_API_KEY", "elevenlabs")
     if not api_key:
-        logger.info("ELEVENLABS_API_KEY is not set; skipping the gallery voices.")
+        logger.info(
+            "No ElevenLabs key in the environment or the platform vault; "
+            "skipping the gallery voices."
+        )
         return 0, 0, 0
     from api.services.agent_templates import list_templates
 
@@ -150,13 +193,24 @@ async def main(force: bool) -> int:
     logger.info(
         f"elevenlabs: {eleven_written} written, {eleven_skipped} skipped, {eleven_failed} failed"
     )
-    api_key = os.getenv("SARVAM_API_KEY")
+    api_key = await _vendor_key("SARVAM_API_KEY", "sarvam")
+    voices = _sarvam_voices_to_sample()
+
     if not api_key:
-        logger.info("SARVAM_API_KEY is not set; the managed voices were not sampled.")
+        if voices:
+            # There is work to do and no way to do it. This used to return 0,
+            # so the run looked clean and the picker stayed silent.
+            logger.error(
+                "No Sarvam key in the environment or the platform vault, and "
+                "{} managed voice(s) have no sample. Set SARVAM_API_KEY or "
+                "store the key under Provider keys, then run this again.",
+                len(voices),
+            )
+            return 1
+        logger.info("No Sarvam key and no managed voices to sample.")
         return 1 if eleven_failed and not eleven_written else 0
 
     storage = get_storage()
-    voices = _sarvam_voices_to_sample()
     if not voices:
         logger.error("The voice catalogue is empty; nothing to sample.")
         return 1
