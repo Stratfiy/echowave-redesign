@@ -73,6 +73,137 @@ _DIGIT_WORDS: dict[str, str] = {
     "no": "9",
 }
 
+#: Digit words written in an Indic script, which is what a transcriber running
+#: in Tamil, Telugu, Kannada or Hindi returns when the caller says a number.
+#:
+#: This was the hole. The list above is English plus *Latin-transliterated*
+#: Hindi, so a caller speaking Tamil who says "seven zero seven five" -- in
+#: English, as almost everyone here reads a phone number -- came back as
+#: ``செவன் ஜீரோ செவன் ஃபைவ்`` and matched nothing. Measured on run 303: the
+#: agent read that back as "0705", losing a digit and reordering the rest, and
+#: the caller spent the next minute correcting it. A misheard phone number is
+#: not a degraded call, it is a failed one.
+#:
+#: Two registers per script, because callers use both in one breath -- run 303
+#: has ``செவன், ஏழு`` (the English word, then the Tamil one, for the same
+#: digit):
+#:
+#: * English digit words spelt phonetically in the local script.
+#: * The language's own numerals.
+#:
+#: Entries marked *observed* are copied from real transcriber output on this
+#: account; the rest follow the same spelling pattern and are inferred. An
+#: inferred spelling that is wrong simply never matches, which is why guessing
+#: is safe here in a way it would not be elsewhere -- and why a wrong guess is
+#: invisible rather than harmful.
+_INDIC_DIGIT_WORDS: dict[str, str] = {
+    # ---- Tamil: English digits in Tamil script (ஜீரோ/ஃபைவ்/செவன் observed)
+    "ஜீரோ": "0",
+    "ஒன்": "1",
+    "டூ": "2",
+    "த்ரீ": "3",
+    "ஃபோர்": "4",
+    "ஃபைவ்": "5",
+    "சிக்ஸ்": "6",
+    "செவன்": "7",
+    "எயிட்": "8",
+    "நைன்": "9",
+    # ---- Tamil numerals (ஏழு observed)
+    "பூஜ்யம்": "0",
+    "சுழியம்": "0",
+    "ஒன்று": "1",
+    "இரண்டு": "2",
+    "மூன்று": "3",
+    "நான்கு": "4",
+    "ஐந்து": "5",
+    "ஆறு": "6",
+    "ஏழு": "7",
+    "எட்டு": "8",
+    "ஒன்பது": "9",
+    # ---- Telugu: English digits in Telugu script -- all ten observed in one
+    # utterance on run 302, "వన్ టూ త్రీ ఫోర్ ఫైవ్ సిక్స్ సెవెన్ ఎయిట్ నైన్ జీరో"
+    "జీరో": "0",
+    "వన్": "1",
+    "టూ": "2",
+    "త్రీ": "3",
+    "ఫోర్": "4",
+    "ఫైవ్": "5",
+    "సిక్స్": "6",
+    "సెవెన్": "7",
+    "ఎయిట్": "8",
+    "నైన్": "9",
+    # ---- Telugu numerals (సున్నా, రెండు, నాలుగు observed)
+    "సున్నా": "0",
+    "ఒకటి": "1",
+    "రెండు": "2",
+    "మూడు": "3",
+    "నాలుగు": "4",
+    "ఐదు": "5",
+    "ఆరు": "6",
+    "ఏడు": "7",
+    "ఎనిమిది": "8",
+    "తొమ్మిది": "9",
+    # ---- Kannada: English digits in Kannada script
+    "ಜೀರೋ": "0",
+    "ಒನ್": "1",
+    "ಟೂ": "2",
+    "ತ್ರೀ": "3",
+    "ಫೋರ್": "4",
+    "ಫೈವ್": "5",
+    "ಸಿಕ್ಸ್": "6",
+    "ಸೆವೆನ್": "7",
+    "ಎಯ್ಟ್": "8",
+    "ನೈನ್": "9",
+    # ---- Kannada numerals
+    "ಸೊನ್ನೆ": "0",
+    "ಒಂದು": "1",
+    "ಎರಡು": "2",
+    "ಮೂರು": "3",
+    "ನಾಲ್ಕು": "4",
+    "ಐದು": "5",
+    "ಆರು": "6",
+    "ಏಳು": "7",
+    "ಎಂಟು": "8",
+    "ಒಂಬತ್ತು": "9",
+    # ---- Devanagari: English digits in Devanagari script
+    "ज़ीरो": "0",
+    "जीरो": "0",
+    "वन": "1",
+    "टू": "2",
+    "थ्री": "3",
+    "फोर": "4",
+    "फाइव": "5",
+    "सिक्स": "6",
+    "सेवन": "7",
+    "एट": "8",
+    "नाइन": "9",
+    # ---- Devanagari numerals, Hindi and Marathi. The Latin transliterations
+    # of these are already above; these are the same words in their own script.
+    "शून्य": "0",
+    "एक": "1",
+    "दो": "2",
+    "दोन": "2",
+    "तीन": "3",
+    "चार": "4",
+    "पाँच": "5",
+    "पांच": "5",
+    "पाच": "5",
+    "छह": "6",
+    "छे": "6",
+    "सहा": "6",
+    "सात": "7",
+    "आठ": "8",
+    "नौ": "9",
+    "नऊ": "9",
+}
+
+_DIGIT_WORDS.update(_INDIC_DIGIT_WORDS)
+
+#: Punctuation to shave off a token before matching it. The Devanagari danda
+#: ends a sentence the way a full stop does, so "नौ।" has to reach the lookup
+#: as "नौ" or the last digit of every Hindi number is lost.
+_TOKEN_PUNCTUATION = ".,।॥"
+
 # Words that repeat the digit after them.
 _REPEATERS: dict[str, int] = {"double": 2, "triple": 3, "treble": 3}
 
@@ -96,14 +227,14 @@ _RUN_GLUE = {"and", "-", "dash"}
 
 def _token_value(token: str) -> str | None:
     """The digits this token contributes, or None if it is not part of a run."""
-    lowered = token.lower().strip(".,")
+    lowered = token.lower().strip(_TOKEN_PUNCTUATION)
     if _ALREADY_DIGITS.match(lowered):
         return lowered
     return _DIGIT_WORDS.get(lowered)
 
 
 def _is_run_token(token: str) -> bool:
-    lowered = token.lower().strip(".,")
+    lowered = token.lower().strip(_TOKEN_PUNCTUATION)
     return (
         _token_value(token) is not None or lowered in _REPEATERS or lowered in _RUN_GLUE
     )
@@ -121,7 +252,7 @@ def _collapse(tokens: list[str]) -> str | None:
     counted = 0
 
     for token in tokens:
-        lowered = token.lower().strip(".,")
+        lowered = token.lower().strip(_TOKEN_PUNCTUATION)
         if lowered in _RUN_GLUE:
             continue
         if lowered in _REPEATERS:
