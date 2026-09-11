@@ -863,6 +863,98 @@ _SPEECH_TEXT_TRANSFORMS: ContextVar[list | None] = ContextVar(
 )
 
 
+def _tts_language(user_config, provider: str) -> Language | None:
+    """The language to synthesise in, or None when the agent never said.
+
+    Every vendor that accepts a language code was being handed English, by one
+    of two routes, and neither made a sound. The first was a configuration that
+    has no language field at all, so `getattr(..., "language", None)` could only
+    ever answer None. The second was this, in the Smallest branch:
+
+        try:
+            pipecat_language = Language(language_code)
+        except ValueError:
+            pipecat_language = Language.EN
+
+    A code the enum does not recognise -- "ta-IN" where it wanted "ta" -- became
+    English silently. A Tamil agent then read Tamil text with English phonetics,
+    which is not a subtle failure: it is the single thing a caller in Hosur
+    notices first, and nothing in the logs mentioned it.
+
+    So: strip the region before asking the enum, because "ta-IN" and "ta" are
+    the same language to every TTS vendor here. Warn, loudly, when a code still
+    cannot be resolved. And return None rather than English -- a vendor given no
+    language uses its voice's own, which is a guess; a vendor told "en" for
+    Tamil text is a mispronunciation we asked for.
+    """
+    raw = getattr(user_config.tts, "language", None)
+    if not raw:
+        return None
+    try:
+        return Language(raw)
+    except ValueError:
+        pass
+    base = str(raw).split("-")[0].lower()
+    try:
+        return Language(base)
+    except ValueError:
+        logger.warning(
+            "TTS language {!r} is not a language {} can be told about; "
+            "synthesising without one. The voice's own language decides, which "
+            "is usually English.",
+            raw,
+            provider,
+        )
+        return None
+
+
+def _minimax_language_boost(user_config) -> str | None:
+    """MiniMax's language hint, as the string its API wants.
+
+    A separate function from :func:`_tts_language` because MiniMax does not
+    take a code: ``language_boost`` is a language *name*, and an ISO code sent
+    in its place is ignored rather than refused -- the silent kind of wrong
+    this whole change is about.
+    """
+    language = _tts_language(user_config, "MiniMax")
+    if language is None:
+        return None
+    return MINIMAX_LANGUAGE_BOOST.get(str(language.value).split("-")[0].lower())
+
+
+#: MiniMax names languages rather than coding them. Only the ones this product
+#: actually speaks; anything else sends no hint, which is MiniMax's own
+#: default and no worse than today.
+MINIMAX_LANGUAGE_BOOST = {
+    "en": "English",
+    "hi": "Hindi",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "mr": "Marathi",
+    "bn": "Bengali",
+    "gu": "Gujarati",
+    "pa": "Punjabi",
+    "ar": "Arabic",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "fr": "French",
+    "de": "German",
+    "es": "Spanish",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "ru": "Russian",
+    "id": "Indonesian",
+    "vi": "Vietnamese",
+    "th": "Thai",
+    "nl": "Dutch",
+    "tr": "Turkish",
+    "uk": "Ukrainian",
+}
+
+
 def create_tts_service(
     user_config,
     audio_config: "AudioConfig",
@@ -1001,6 +1093,13 @@ def _create_tts_service(
                 speed=user_config.tts.speed,
                 similarity_boost=getattr(user_config.tts, "similarity_boost", 0.75),
                 style=getattr(user_config.tts, "style", 0.0),
+                # The language was being used to pick which managed voice to
+                # send and then thrown away, so ElevenLabs itself was never
+                # told. pipecat puts it in the websocket URL as language_code
+                # and only for the models that accept one -- eleven_flash_v2_5
+                # and eleven_turbo_v2_5 -- warning rather than failing on the
+                # rest, so passing it is safe on every model we offer.
+                language=_tts_language(user_config, "ElevenLabs"),
             ),
         )
     elif user_config.tts.provider == ServiceProviders.CARTESIA.value:
@@ -1299,6 +1398,11 @@ def _create_tts_service(
                 model=user_config.tts.model,
                 voice=voice,
                 speed=speed,
+                # MiniMax calls it language_boost and it was never sent. Its
+                # own default is to infer from the text, which is the case
+                # that fails: Tamil written in Tamil script with English words
+                # in it reads as neither.
+                language_boost=_minimax_language_boost(user_config),
             ),
         )
     elif user_config.tts.provider == ServiceProviders.AZURE_SPEECH.value:
@@ -1322,11 +1426,7 @@ def _create_tts_service(
             settings=AzureTTSSettings(**settings_kwargs),
         )
     elif user_config.tts.provider == ServiceProviders.SMALLEST.value:
-        language_code = getattr(user_config.tts, "language", None) or "en"
-        try:
-            pipecat_language = Language(language_code)
-        except ValueError:
-            pipecat_language = Language.EN
+        pipecat_language = _tts_language(user_config, "Smallest")
         speed = getattr(user_config.tts, "speed", None)
         model = user_config.tts.model.replace("lightning-v", "lightning_v")
         settings_kwargs = SmallestTTSSettings(

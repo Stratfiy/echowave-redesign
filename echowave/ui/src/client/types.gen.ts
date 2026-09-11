@@ -3639,6 +3639,12 @@ export type ElevenlabsTtsConfiguration = {
      */
     style?: number;
     /**
+     * Language
+     *
+     * Language code for synthesis, e.g. 'ta' for Tamil or 'hi' for Hindi. Applied on eleven_flash_v2_5 and eleven_turbo_v2_5, which are the models ElevenLabs accepts a language code on; other models take the language from the voice itself. Leave empty to let the voice decide.
+     */
+    language?: string | null;
+    /**
      * Model
      *
      * ElevenLabs TTS model.
@@ -5734,6 +5740,12 @@ export type MiniMaxTtsConfiguration = {
      * Speech speed (0.5 to 2.0).
      */
     speed?: number;
+    /**
+     * Language
+     *
+     * Language code for synthesis, e.g. 'ta' for Tamil. Sent to MiniMax as language_boost. Leave empty to let MiniMax infer it from the text.
+     */
+    language?: string | null;
     /**
      * Group Id
      *
