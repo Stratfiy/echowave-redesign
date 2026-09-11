@@ -69,3 +69,27 @@ def moving_on_instructions(
         # agent that may hang up is exactly the one told most firmly not to.
         lines.append(_MAY_HANG_UP)
     return " ".join(lines)
+
+
+#: Applies to every node, including the last one and including nodes that do
+#: hold tools. Run 313's false promise came from a node with none, but the
+#: same sentence is hand-written into "Confirm and book" -- "Never say an
+#: appointment is booked unless the tool confirmed it" -- which is the proof
+#: that operators need this and the proof they should not have to write it.
+#:
+#: Not a setting. An operator may reasonably choose whether their agent can
+#: hang up or follow a caller's language; "may it tell the caller something
+#: happened that did not happen" is not a choice a product should offer.
+ACTION_HONESTY = (
+    "Never tell the caller something has been done unless a tool has just "
+    "done it and reported success. A booking, a cancellation, a payment, a "
+    "message, a transfer: none of them are real until the tool that performs "
+    "them says so. If you have not called it, speak about what you will do, "
+    "not what you have done. If a tool failed or returned nothing, say so "
+    "plainly and offer the next step -- never cover it with a reassurance."
+)
+
+
+def action_honesty_instructions() -> str:
+    """The one rule every node gets, whatever it is and whatever it holds."""
+    return ACTION_HONESTY

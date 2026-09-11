@@ -17,7 +17,10 @@ if TYPE_CHECKING:
 from api.constants import DEFAULT_ORGANIZATION_TIMEZONE
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
 from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
-from api.services.workflow.step_instructions import moving_on_instructions
+from api.services.workflow.step_instructions import (
+    action_honesty_instructions,
+    moving_on_instructions,
+)
 from api.services.workflow.tools.knowledge_base import get_knowledge_base_tool
 from api.services.workflow.transition_arguments import argument_properties
 from api.services.workflow.workflow_graph import slugify_tool_name
@@ -154,6 +157,11 @@ def compose_system_prompt_for_node(
     moving_on = moving_on_instructions(node, agent_can_end_call=agent_can_end_call)
     if moving_on:
         parts.append(moving_on)
+
+    # Every node, including the last one and including the ones that do hold
+    # tools. Unconditional: an operator may choose whether their agent can hang
+    # up, but not whether it may tell a caller something happened that did not.
+    parts.append(action_honesty_instructions())
 
     if has_recordings and "RECORDING_ID:" in formatted_node_prompt:
         parts.append(RECORDING_RESPONSE_MODE_INSTRUCTIONS)

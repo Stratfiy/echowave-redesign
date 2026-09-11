@@ -66,3 +66,62 @@ class TestItStaysShort:
         every request and it pushes the operator's own words further from the
         model's attention."""
         assert len(moving_on_instructions(_Node(), agent_can_end_call=True)) < 500
+
+
+class TestNeverClaimingWhatYouDidNotDo:
+    """The rule that would have saved run 313's caller a wasted trip.
+
+    He was told a reminder would be sent for an appointment that was never
+    booked. The node holding the booking tool was never reached, and nothing
+    in the prompt made the difference between doing a thing and saying it.
+    """
+
+    def test_every_node_gets_it(self):
+        from api.services.workflow.step_instructions import (
+            action_honesty_instructions,
+        )
+
+        text = action_honesty_instructions()
+        assert "unless a tool has just" in text
+
+    def test_it_names_the_actions_that_are_not_real_until_confirmed(self):
+        from api.services.workflow.step_instructions import ACTION_HONESTY
+
+        for action in ("booking", "cancellation", "payment", "message", "transfer"):
+            assert action in ACTION_HONESTY
+
+    def test_a_failed_tool_must_be_admitted(self):
+        """The other half. An agent that hides a tool failure behind a
+        reassurance is the same bug wearing a politer face."""
+        from api.services.workflow.step_instructions import ACTION_HONESTY
+
+        assert "failed" in ACTION_HONESTY
+        assert "never cover it" in ACTION_HONESTY
+
+    def test_it_reaches_the_composed_prompt_of_an_end_node(self):
+        """Deliberately the end node: moving_on_instructions stays silent
+        there, so this is where a mistake would show as the rule going
+        missing exactly where a call gets wrapped up."""
+        from api.services.workflow.pipecat_engine_context_composer import (
+            compose_system_prompt_for_node,
+        )
+
+        class _N:
+            is_end = True
+            out_edges: list = []
+            prompt = "Say goodbye."
+            add_global_prompt = False
+
+        class _W:
+            global_node_id = None
+            nodes: dict = {}
+
+        text = compose_system_prompt_for_node(
+            node=_N(),
+            workflow=_W(),
+            format_prompt=lambda p: p,
+            has_recordings=False,
+            today_line="Today is Friday.",
+        )
+        assert "unless a tool has just" in text
+        assert "cannot end the call" not in text
