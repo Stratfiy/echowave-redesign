@@ -8,6 +8,7 @@ from api.enums import PostHogEvent, WorkflowRunState
 from api.services.billing.turn_metrics import record_turn_metrics
 from api.services.campaign.circuit_breaker import circuit_breaker
 from api.services.integrations import IntegrationRuntimeSession
+from api.services.pipecat import stuck_agent
 from api.services.pipecat.audio_config import AudioConfig
 from api.services.pipecat.audio_playback import play_audio_loop
 from api.services.pipecat.in_memory_buffers import (
@@ -431,6 +432,28 @@ def register_event_handlers(
 
         if has_user_speech and "user_speech" not in call_tags:
             call_tags.append("user_speech")
+
+        # A call that talked for a while and never left its first step. Not an
+        # error anywhere -- the agent keeps talking, the recording is clean --
+        # so without a tag it is only ever found by someone reading a
+        # transcript. See stuck_agent.py for why the turn threshold is four.
+        try:
+            if stuck_agent.looks_stuck(
+                nodes_visited=gathered_context.get("nodes_visited"),
+                workflow_node_count=len(getattr(engine.workflow, "nodes", {}) or {}),
+                user_turns=in_memory_logs_buffer.count_user_turns(),
+            ):
+                if stuck_agent.TAG not in call_tags:
+                    call_tags.append(stuck_agent.TAG)
+                logger.warning(
+                    "Run {} never left its first node after {} caller turns; "
+                    "tagged {}.",
+                    workflow_run_id,
+                    in_memory_logs_buffer.count_user_turns(),
+                    stuck_agent.TAG,
+                )
+        except Exception as exc:  # noqa: BLE001 - a missing tag beats a lost call
+            logger.debug("Could not check whether the run got stuck: {}", exc)
 
         # Append any keys from gathered_context that start with 'tag_' to call_tags
         for key in gathered_context:
