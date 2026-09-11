@@ -16,6 +16,7 @@
 import { Loader2, Play } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { client } from "@/client/client.gen";
 import { cn } from "@/lib/utils";
 
 export type VoiceOption = {
@@ -47,30 +48,60 @@ export function VoicePicker({
     voices,
     selected,
     onSelect,
+    provider = "decibyl",
+    model = "",
 }: {
     voices: VoiceOption[];
     selected: string;
     /** Receives the voice id and the group heading, so a caller tracking
      *  gender for its own copy does not have to re-derive it. */
     onSelect: (voiceId: string, gender: string) => void;
+    /** What will actually speak, so a voice nobody has heard yet can be
+     *  recorded on the first press. Defaults to the managed tier. */
+    provider?: string;
+    model?: string;
 }) {
     const playerRef = useRef<HTMLAudioElement | null>(null);
     const [playing, setPlaying] = useState<string | null>(null);
+    // Voices we asked the server to record and it had nothing to give. Kept
+    // so a second press does not repeat a request that already said no.
+    const [silent, setSilent] = useState<Record<string, true>>({});
 
-    const play = (option: VoiceOption) => {
-        // English first, Hindi as the fallback: a sample in a language the
-        // listener does not speak still conveys the voice, and no sample at
-        // all conveys nothing.
-        const url = option.sample_url ?? option.sample_url_hi ?? option.preview_url;
-        if (!url) return;
+    const start = (voiceId: string, url: string) => {
         const player = playerRef.current ?? new Audio();
         playerRef.current = player;
         player.pause();
         player.src = url;
-        setPlaying(option.voice_id);
+        setPlaying(voiceId);
         player.onended = () => setPlaying(null);
         player.onerror = () => setPlaying(null);
         void player.play().catch(() => setPlaying(null));
+    };
+
+    const play = async (option: VoiceOption) => {
+        // English first, Hindi as the fallback: a sample in a language the
+        // listener does not speak still conveys the voice, and no sample at
+        // all conveys nothing.
+        const cached = option.sample_url ?? option.sample_url_hi ?? option.preview_url;
+        if (cached) {
+            start(option.voice_id, cached);
+            return;
+        }
+        // Nobody has ever pressed play on this voice. Ask the server to
+        // record it now; it keeps the recording, so this happens once for
+        // this voice and never again for anyone.
+        setPlaying(option.voice_id);
+        const result = await client.get({
+            url: "/api/v1/agent-options/voice-sample",
+            query: { voice_id: option.voice_id, provider, model },
+        });
+        const url = (result.data as { url?: string | null } | undefined)?.url;
+        if (result.error || !url) {
+            setPlaying(null);
+            setSilent((s) => ({ ...s, [option.voice_id]: true }));
+            return;
+        }
+        start(option.voice_id, url);
     };
 
     return (
@@ -86,10 +117,12 @@ export function VoicePicker({
                         <div className="flex flex-wrap gap-2">
                             {group.map((option) => {
                                 const isSelected = selected === option.voice_id;
-                                const hasSample =
-                                    option.sample_url ||
-                                    option.sample_url_hi ||
-                                    option.preview_url;
+                                // A play button on every voice now, not only
+                                // the ones already recorded: an unrecorded
+                                // voice is one press away from being
+                                // recorded. Only a voice the server has told
+                                // us it cannot record loses its button.
+                                const hasSample = !silent[option.voice_id];
                                 return (
                                     <span
                                         key={option.voice_id}
@@ -114,14 +147,16 @@ export function VoicePicker({
                                                   ? `${option.name} · default`
                                                   : option.name}
                                         </button>
-                                        {/* Only where there is something to play. A
-                                            button that fails on click is worse than
-                                            no button. */}
+                                        {/* Shown until the server says there is
+                                            nothing to play. A button that fails
+                                            on click is worse than no button, so
+                                            one that comes back empty removes
+                                            itself rather than failing twice. */}
                                         {hasSample && (
                                             <button
                                                 type="button"
                                                 aria-label={`Hear ${option.name}`}
-                                                onClick={() => play(option)}
+                                                onClick={() => void play(option)}
                                                 className="-ml-1 rounded-full p-1.5 text-muted-foreground transition-colors hover:text-foreground"
                                             >
                                                 {playing === option.voice_id ? (
