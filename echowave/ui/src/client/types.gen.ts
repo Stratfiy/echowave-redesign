@@ -2088,6 +2088,71 @@ export type CloudonixConfigurationResponse = {
 };
 
 /**
+ * ComposioToolConfig
+ *
+ * Configuration for one tool on one Composio-connected app.
+ *
+ * Deliberately one tool per Decibyl tool rather than a whole toolkit. A
+ * toolkit is hundreds of slugs; handing an agent all of Gmail means handing
+ * it GMAIL_DELETE_MESSAGE, and the operator who wanted "send the customer
+ * their invoice" did not ask for that. Naming the slug is also what makes the
+ * parameters knowable: we can state what the model must supply instead of
+ * letting it guess at a catalog.
+ *
+ * There is no credential field on purpose. Which account this acts on is not
+ * configuration -- it is derived from the calling organization at execution
+ * time (see services/integrations/composio/client.py). A credential here
+ * would be a second, editable answer to a question that must only have one.
+ */
+export type ComposioToolConfig = {
+    /**
+     * Toolkit
+     *
+     * Composio toolkit slug, e.g. GMAIL or GOOGLESHEETS.
+     */
+    toolkit: string;
+    /**
+     * Tool Slug
+     *
+     * Composio tool slug, e.g. GMAIL_SEND_EMAIL.
+     */
+    tool_slug: string;
+    /**
+     * Parameters
+     *
+     * Arguments the agent supplies, passed through to the tool.
+     */
+    parameters?: Array<ToolParameter>;
+    /**
+     * Timeout Secs
+     *
+     * How long to wait for the tool before giving up, in seconds.
+     */
+    timeout_secs?: number;
+};
+
+/**
+ * ComposioToolDefinition
+ *
+ * Tool definition for running one Composio tool.
+ */
+export type ComposioToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'composio';
+    config: ComposioToolConfig;
+};
+
+/**
  * ConfirmRequest
  */
 export type ConfirmRequest = {
@@ -2526,7 +2591,9 @@ export type CreateToolRequest = {
         type: 'mcp';
     } & McpToolDefinition) | ({
         type: 'google_calendar';
-    } & GoogleCalendarToolDefinition);
+    } & GoogleCalendarToolDefinition) | ({
+        type: 'composio';
+    } & ComposioToolDefinition);
 };
 
 /**
@@ -9664,7 +9731,9 @@ export type UpdateToolRequest = {
         type: 'mcp';
     } & McpToolDefinition) | ({
         type: 'google_calendar';
-    } & GoogleCalendarToolDefinition) | null;
+    } & GoogleCalendarToolDefinition) | ({
+        type: 'composio';
+    } & ComposioToolDefinition) | null;
     /**
      * Status
      */

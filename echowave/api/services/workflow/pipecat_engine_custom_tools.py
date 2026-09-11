@@ -22,6 +22,13 @@ from pipecat.utils.enums import EndTaskReason
 
 from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
+from api.schemas.tool import DEFAULT_COMPOSIO_TIMEOUT_SECS
+from api.services.integrations.composio.client import (
+    ComposioNotConfigured,
+)
+from api.services.integrations.composio.client import (
+    execute_tool as execute_composio_tool,
+)
 from api.services.integrations.google_calendar.client import (
     execute_google_calendar_tool,
     google_calendar_function_schema,
@@ -57,6 +64,20 @@ def _is_google_calendar_tool(tool: Any) -> bool:
     is sufficient, since tool creation enforces category == definition.type
     (see api/schemas/tool.py CreateToolRequest.validate_category_matches_definition)."""
     return tool.category == ToolCategory.GOOGLE_CALENDAR.value
+
+
+def _composio_timeout_secs(config: dict) -> float:
+    """How long this Composio tool may take, from its config or the default.
+
+    Tolerant of a malformed stored value rather than strict, unlike the tenant
+    id: the worst case of a wrong timeout is a call that waits the default,
+    while the worst case of a wrong tenant id is a data leak. A bool is still
+    rejected -- ``timeout_secs=True`` is a wrong field, not one second.
+    """
+    value = config.get("timeout_secs")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return DEFAULT_COMPOSIO_TIMEOUT_SECS
+    return float(value) if value > 0 else DEFAULT_COMPOSIO_TIMEOUT_SECS
 
 
 def _render_transfer_destination(
@@ -438,6 +459,14 @@ class CustomToolManager:
         elif tool.category == ToolCategory.TRANSFER_CALL.value:
             timeout_secs = self._transfer_handler_timeout_secs(tool)
             handler = self._create_transfer_call_handler(tool, function_name)
+        elif tool.category == ToolCategory.COMPOSIO.value:
+            # Its own timeout rather than the HTTP tool's `timeout_ms`: this
+            # one is spent waiting on somebody else's SaaS while a caller
+            # listens to silence, and the shipped default is chosen for that
+            # rather than for an API we control.
+            config = (tool.definition or {}).get("config", {}) or {}
+            timeout_secs = _composio_timeout_secs(config)
+            handler = self._create_composio_handler(tool, function_name)
         else:
             timeout_ms = ((tool.definition or {}).get("config", {}) or {}).get(
                 "timeout_ms", 5000
@@ -625,6 +654,59 @@ class CustomToolManager:
                 )
 
         return google_calendar_handler
+
+    def _create_composio_handler(self, tool: Any, function_name: str):
+        """Create a handler that runs one Composio tool for this organization.
+
+        Same ``{"status": ...}`` contract as the HTTP and Calendar handlers, and
+        the same refusal to let an exception unwind the turn: a caller mid-
+        sentence should hear the agent say it could not do the thing, not hear
+        the line go strange.
+        """
+
+        async def composio_handler(
+            function_call_params: FunctionCallParams,
+        ) -> None:
+            logger.info(f"Composio Tool EXECUTED: {function_name}")
+            logger.info(f"Arguments: {function_call_params.arguments}")
+
+            config = (tool.definition or {}).get("config", {}) or {}
+            tool_slug = config.get("tool_slug")
+            if not tool_slug:
+                # Unreachable through the API, which validates the definition on
+                # create. Reachable through a row edited by hand, and the agent
+                # should still be able to speak.
+                logger.error(f"Composio tool '{function_name}' has no tool_slug")
+                await function_call_params.result_callback(
+                    {"status": "error", "error": f"{function_name} is misconfigured"}
+                )
+                return
+
+            try:
+                result = await execute_composio_tool(
+                    tool_slug=tool_slug,
+                    arguments=function_call_params.arguments or {},
+                    organization_id=await self.get_organization_id(),
+                    timeout_secs=_composio_timeout_secs(config),
+                )
+                await function_call_params.result_callback(result)
+            except ComposioNotConfigured as e:
+                # Our deployment, not the caller's problem -- but the agent has
+                # to say something, and "not available" is true.
+                logger.error(f"Composio tool '{function_name}' unavailable: {e}")
+                await function_call_params.result_callback(
+                    {
+                        "status": "error",
+                        "error": f"{function_name} is not available right now",
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Composio tool '{function_name}' failed: {e}")
+                await function_call_params.result_callback(
+                    {"status": "error", "error": str(e)}
+                )
+
+        return composio_handler
 
     def _create_mcp_handler(self, session: "McpToolSession", function_name: str):
         """Create a handler that proxies an LLM function call to a live MCP

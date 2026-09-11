@@ -163,6 +163,32 @@ STACK_PUBLISHABLE_CLIENT_KEY = os.getenv("STACK_PUBLISHABLE_CLIENT_KEY")
 # an absent one. A deployment that sets the name and leaves the value blank is
 # saying "not this one", and treating "" as configured is how a half-configured
 # install ends up with a button that fails after the user has left the site.
+# Composio, the connector layer every non-Google integration goes through.
+#
+# One key for the whole deployment: Composio calls it a *project* key, and it
+# authenticates us to Composio, not any customer to their mailbox. Which
+# account a tool call acts on is decided by the per-organization user_id sent
+# with the call -- see tenant_user_id() in
+# services/integrations/composio/client.py, which is the only thing standing
+# between one customer's inbox and the next customer's agent.
+#
+# Unset means the tool type refuses rather than degrades: a Composio tool with
+# no key cannot be half-executed, and an agent that says it sent the email
+# because the call quietly no-opped is worse than one that says it could not.
+COMPOSIO_API_KEY = os.getenv("COMPOSIO_API_KEY") or None
+
+# Overridable only so a test can point at a local double; there is no second
+# production Composio.
+COMPOSIO_BASE_URL = (
+    os.getenv("COMPOSIO_BASE_URL") or "https://backend.composio.dev"
+).rstrip("/")
+
+# A tool call happens while a caller is on the line listening to silence. The
+# provider's own limit is far longer than a conversation can absorb, so this is
+# deliberately short: past this we would rather tell the caller we could not do
+# it than hold an open line waiting.
+COMPOSIO_TIMEOUT_SECS = 12.0
+
 GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID") or None
 GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or None
 DECIBYL_MPS_SECRET_KEY = os.getenv("DECIBYL_MPS_SECRET_KEY", None)

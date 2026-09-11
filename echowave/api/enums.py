@@ -208,6 +208,7 @@ class ToolCategory(Enum):
     GOOGLE_CALENDAR = (
         "google_calendar"  # Create events on a connected Google Calendar (implemented)
     )
+    COMPOSIO = "composio"  # Run one Composio tool against a connected app (implemented)
 
 
 class ToolStatus(Enum):
