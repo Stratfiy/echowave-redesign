@@ -1,6 +1,6 @@
 import random
 from enum import Enum, auto
-from typing import Annotated, Dict, Literal, Type, TypeVar, Union
+from typing import Annotated, ClassVar, Dict, Literal, Type, TypeVar, Union
 
 from pydantic import (
     BaseModel,
@@ -26,10 +26,12 @@ from api.services.configuration.options import (
     CARTESIA_INK_WHISPER_STT_LANGUAGES,
     CARTESIA_STT_LANGUAGES,
     CARTESIA_STT_MODELS,
+    DEEPGRAM_AURA_VOICES,
     DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
     DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGES,
     DEEPGRAM_LANGUAGES,
     DEEPGRAM_STT_MODELS,
+    DEEPGRAM_TTS_MODELS,
     ELEVENLABS_STT_LANGUAGES,
     ELEVENLABS_STT_MODELS,
     GLADIA_STT_LANGUAGES,
@@ -1316,9 +1318,17 @@ RealtimeConfig = Annotated[
 class DeepgramTTSConfiguration(BaseServiceConfiguration):
     model_config = DEEPGRAM_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.DEEPGRAM] = ServiceProviders.DEEPGRAM
+    #: ``model`` below is computed, so it carries no ``examples`` for model
+    #: discovery to read. Without this the operator's catalogue screen showed
+    #: Deepgram TTS as having no models and blamed a missing key for it.
+    MODEL_EXAMPLES: ClassVar[tuple[str, ...]] = DEEPGRAM_TTS_MODELS
     voice: str = Field(
         default="aura-2-helena-en",
         description="Deepgram voice ID (model is inferred from the 'aura-N' prefix).",
+        json_schema_extra={
+            "examples": [voice for voice, _, _ in DEEPGRAM_AURA_VOICES],
+            "allow_custom_input": True,
+        },
     )
 
     @computed_field
@@ -1889,6 +1899,10 @@ class XAITTSConfiguration(BaseServiceConfiguration):
         description="BCP-47 language code for synthesis (e.g. 'en', 'fr', 'de'), or 'auto' for automatic language detection.",
         json_schema_extra={"allow_custom_input": True},
     )
+
+    #: One value, because the voice is the whole choice -- but the catalogue
+    #: screen still has to be able to put that one value on sale.
+    MODEL_EXAMPLES: ClassVar[tuple[str, ...]] = ("xai-tts",)
 
     @computed_field
     @property
