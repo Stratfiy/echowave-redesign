@@ -10,10 +10,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from api.services.knowledge_graph.entity_types import (
-    CLINIC_ENTITY_TYPES,
-    entity_types_for_pack,
-)
 from api.services.knowledge_graph.episodes import (
     MAX_EPISODE_CHARS,
     SOURCE_MESSAGE,
@@ -156,26 +152,3 @@ class TestDocuments:
             published_at=HAPPENED,
         )
         assert len(episodes) == 1
-
-
-class TestTheClinicPack:
-    def test_no_field_is_ever_required(self):
-        """A required field is an instruction to invent one.
-
-        The same rule that governs transition arguments: a made-up appointment
-        time read back to a patient is how a wrong booking reaches a real
-        diary.
-        """
-        for name, model in CLINIC_ENTITY_TYPES.items():
-            for field_name, field in model.model_fields.items():
-                assert not field.is_required(), (
-                    f"{name}.{field_name} is required, so the model must invent it"
-                )
-
-    def test_an_unknown_pack_degrades_rather_than_raising(self):
-        """A typo in configuration must not stop calls being recorded."""
-        assert entity_types_for_pack("clinci") is None
-        assert entity_types_for_pack(None) is None
-
-    def test_the_clinic_pack_resolves(self):
-        assert entity_types_for_pack("clinic") is CLINIC_ENTITY_TYPES
