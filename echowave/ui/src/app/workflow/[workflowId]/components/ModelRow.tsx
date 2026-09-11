@@ -173,9 +173,10 @@ export function ModelRow({
 }: {
     workflowId: number;
     /**
-     * Put a pencil on each tile. The editor screen shows the row read-only
-     * above the prompts; the Models tab shows the same row with the pencils,
-     * one slot at a time, from what Decibyl sells for that slot.
+     * Put a pencil on each tile, opening a panel to change that one slot
+     * from what Decibyl sells for it. The editor screen and the Models tab
+     * both pass this; a historical version, which cannot be edited, does
+     * not.
      */
     editable?: boolean;
 }) {
@@ -424,6 +425,7 @@ export function ModelRow({
                                             options={catalogue[slot.component] ?? []}
                                             voices={slot.component === "tts" ? voices : undefined}
                                             currentVoice={slot.voice ?? undefined}
+                                            latencyMs={slot.latency_ms}
                                             onSaved={load}
                                         />
                                     )}

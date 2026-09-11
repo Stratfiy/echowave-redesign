@@ -555,7 +555,7 @@ function RenderWorkflow({
                                 onNodesChange={handleSimpleNodesChange}
                                 onOpenCanvas={() => setShowCanvas(true)}
                                 readOnly={isViewingHistoricalVersion}
-                                header={<ModelRow workflowId={workflowId} />}
+                                header={<ModelRow workflowId={workflowId} editable={!isViewingHistoricalVersion} />}
                             />
                         ) : useSimpleView ? (
                             <SimpleAgentEditor
@@ -571,7 +571,7 @@ function RenderWorkflow({
                                 // looking for it. Not on the canvas: that view
                                 // is dense already and the row would compete
                                 // with the graph for the same attention.
-                                header={<ModelRow workflowId={workflowId} />}
+                                header={<ModelRow workflowId={workflowId} editable={!isViewingHistoricalVersion} />}
                             />
                         ) : (
                         <>
