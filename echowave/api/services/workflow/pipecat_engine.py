@@ -795,6 +795,7 @@ class PipecatEngine:
             code_mixed_speech=self._code_mixed_speech,
             opening_notes=self._opening_notes_for(node),
             today_line=await self._get_today_line(),
+            agent_can_end_call=self._agent_can_end_call,
         )
         functions = await compose_functions_for_node(
             node=node,

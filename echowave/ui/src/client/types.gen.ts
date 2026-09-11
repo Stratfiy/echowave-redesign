@@ -1283,6 +1283,38 @@ export type CallDispositionCodes = {
 };
 
 /**
+ * CallIntentItem
+ */
+export type CallIntentItem = {
+    /**
+     * Intent
+     */
+    intent: string;
+    /**
+     * Calls
+     */
+    calls: number;
+    /**
+     * Share
+     */
+    share?: number | null;
+};
+
+/**
+ * CallIntentsResponse
+ */
+export type CallIntentsResponse = {
+    /**
+     * Intents
+     */
+    intents: Array<CallIntentItem>;
+    /**
+     * Total Calls
+     */
+    total_calls: number;
+};
+
+/**
  * CallOutcome
  *
  * One label this agent's calls can be classified as afterwards.
@@ -23487,6 +23519,58 @@ export type GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetResponses = {
 };
 
 export type GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetResponse = GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetResponses[keyof GetUsageOutcomesApiV1OrganizationsUsageOutcomesGetResponses];
+
+export type GetCallIntentsApiV1OrganizationsUsageCallIntentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         *
+         * Number of IST days to include
+         */
+        days?: number;
+        /**
+         * Workflow Id
+         *
+         * Limit to one agent
+         */
+        workflow_id?: number | null;
+    };
+    url: '/api/v1/organizations/usage/call-intents';
+};
+
+export type GetCallIntentsApiV1OrganizationsUsageCallIntentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCallIntentsApiV1OrganizationsUsageCallIntentsGetError = GetCallIntentsApiV1OrganizationsUsageCallIntentsGetErrors[keyof GetCallIntentsApiV1OrganizationsUsageCallIntentsGetErrors];
+
+export type GetCallIntentsApiV1OrganizationsUsageCallIntentsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CallIntentsResponse;
+};
+
+export type GetCallIntentsApiV1OrganizationsUsageCallIntentsGetResponse = GetCallIntentsApiV1OrganizationsUsageCallIntentsGetResponses[keyof GetCallIntentsApiV1OrganizationsUsageCallIntentsGetResponses];
 
 export type GetCurrentPeriodUsageApiV1OrganizationsUsageCurrentPeriodGetData = {
     body?: never;

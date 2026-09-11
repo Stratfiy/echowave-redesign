@@ -22,6 +22,7 @@ from pipecat.transports.base_transport import TransportParams
 
 from api.services.pipecat.worker_runner import run_pipeline_worker
 from api.services.workflow.pipecat_engine import PipecatEngine
+from api.services.workflow.step_instructions import ACTION_HONESTY
 from api.services.workflow.workflow_graph import WorkflowGraph
 from api.tests.conftest import END_CALL_SYSTEM_PROMPT
 from pipecat.tests import MockLLMService, MockTTSService
@@ -184,7 +185,13 @@ class TestPipecatEngineToolCalls:
         # today's date (see compose_system_prompt_for_node). What this test is
         # about is that the node's own prompt reached the model, so it asserts
         # that and lets the prefix be tested where it is defined.
-        assert llm._settings.system_instruction.endswith(END_CALL_SYSTEM_PROMPT)
+        # Present, not last. The composer appends its own generated blocks
+        # after the operator's prompt by design -- the honesty rule has to
+        # outrank a node prompt, not sit above it where it can be talked over.
+        assert END_CALL_SYSTEM_PROMPT in llm._settings.system_instruction
+        assert llm._settings.system_instruction.index(
+            END_CALL_SYSTEM_PROMPT
+        ) < llm._settings.system_instruction.index(ACTION_HONESTY)
         assert llm._functions["end_call"].is_node_transition is True
 
     @pytest.mark.asyncio
@@ -235,7 +242,13 @@ class TestPipecatEngineToolCalls:
         # today's date (see compose_system_prompt_for_node). What this test is
         # about is that the node's own prompt reached the model, so it asserts
         # that and lets the prefix be tested where it is defined.
-        assert llm._settings.system_instruction.endswith(END_CALL_SYSTEM_PROMPT)
+        # Present, not last. The composer appends its own generated blocks
+        # after the operator's prompt by design -- the honesty rule has to
+        # outrank a node prompt, not sit above it where it can be talked over.
+        assert END_CALL_SYSTEM_PROMPT in llm._settings.system_instruction
+        assert llm._settings.system_instruction.index(
+            END_CALL_SYSTEM_PROMPT
+        ) < llm._settings.system_instruction.index(ACTION_HONESTY)
 
     @pytest.mark.asyncio
     async def test_parallel_builtin_and_transition_calls_through_engine_with_text(
@@ -286,7 +299,13 @@ class TestPipecatEngineToolCalls:
         # today's date (see compose_system_prompt_for_node). What this test is
         # about is that the node's own prompt reached the model, so it asserts
         # that and lets the prefix be tested where it is defined.
-        assert llm._settings.system_instruction.endswith(END_CALL_SYSTEM_PROMPT)
+        # Present, not last. The composer appends its own generated blocks
+        # after the operator's prompt by design -- the honesty rule has to
+        # outrank a node prompt, not sit above it where it can be talked over.
+        assert END_CALL_SYSTEM_PROMPT in llm._settings.system_instruction
+        assert llm._settings.system_instruction.index(
+            END_CALL_SYSTEM_PROMPT
+        ) < llm._settings.system_instruction.index(ACTION_HONESTY)
 
     @pytest.mark.asyncio
     async def test_single_transition_call_through_engine(
@@ -323,4 +342,10 @@ class TestPipecatEngineToolCalls:
         # today's date (see compose_system_prompt_for_node). What this test is
         # about is that the node's own prompt reached the model, so it asserts
         # that and lets the prefix be tested where it is defined.
-        assert llm._settings.system_instruction.endswith(END_CALL_SYSTEM_PROMPT)
+        # Present, not last. The composer appends its own generated blocks
+        # after the operator's prompt by design -- the honesty rule has to
+        # outrank a node prompt, not sit above it where it can be talked over.
+        assert END_CALL_SYSTEM_PROMPT in llm._settings.system_instruction
+        assert llm._settings.system_instruction.index(
+            END_CALL_SYSTEM_PROMPT
+        ) < llm._settings.system_instruction.index(ACTION_HONESTY)

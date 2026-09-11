@@ -34,8 +34,13 @@ from api.db.models import WorkflowModel, WorkflowRunModel
 _IST = ZoneInfo("Asia/Kolkata")
 
 
-def _ist_day_bounds_utc(days: int) -> tuple[datetime, datetime]:
-    """UTC bounds covering the last ``days`` IST calendar days, inclusive of today."""
+def ist_day_bounds_utc(days: int) -> tuple[datetime, datetime]:
+    """UTC bounds covering the last ``days`` IST calendar days, inclusive of today.
+
+    Public because call_intent.py answers "today" over the same calls and must
+    mean the same thing by it. Two definitions of an Indian business day is the
+    kind of disagreement nobody notices until two tiles report different
+    totals for the same morning."""
     today_ist = datetime.now(_IST).date()
     start_ist = datetime(
         today_ist.year, today_ist.month, today_ist.day, tzinfo=_IST
@@ -55,7 +60,7 @@ def _rate(numerator: int, denominator: int) -> float | None:
 async def answer_seizure_ratio(
     session: AsyncSession, *, organization_id: int, days: int
 ) -> dict[str, Any]:
-    start_utc, end_utc = _ist_day_bounds_utc(days)
+    start_utc, end_utc = ist_day_bounds_utc(days)
     row = (
         await session.execute(
             select(
@@ -83,7 +88,7 @@ async def answer_seizure_ratio(
 async def cost_by_outcome(
     session: AsyncSession, *, organization_id: int, days: int
 ) -> list[dict[str, Any]]:
-    start_utc, end_utc = _ist_day_bounds_utc(days)
+    start_utc, end_utc = ist_day_bounds_utc(days)
     disposition = func.coalesce(
         WorkflowRunModel.gathered_context["mapped_call_disposition"].as_string(),
         "unknown",

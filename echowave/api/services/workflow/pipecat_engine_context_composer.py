@@ -17,6 +17,10 @@ if TYPE_CHECKING:
 from api.constants import DEFAULT_ORGANIZATION_TIMEZONE
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
 from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
+from api.services.workflow.step_instructions import (
+    action_honesty_instructions,
+    moving_on_instructions,
+)
 from api.services.workflow.tools.knowledge_base import get_knowledge_base_tool
 from api.services.workflow.transition_arguments import argument_properties
 from api.services.workflow.workflow_graph import slugify_tool_name
@@ -94,6 +98,7 @@ def compose_system_prompt_for_node(
     code_mixed_speech: bool = False,
     opening_notes: str | None = None,
     today_line: str | None = None,
+    agent_can_end_call: bool = False,
 ) -> str:
     """Compose the full system prompt text for a workflow node.
 
@@ -112,6 +117,9 @@ def compose_system_prompt_for_node(
         opening_notes: Extra instructions about how this node opens, for a
             start node that lets the caller speak first. Appended after the
             operator's prompts so they read as the latest instruction.
+        agent_can_end_call: Whether this agent may hang up on its own. Read
+            here only so the "this step cannot end the call" instruction does
+            not contradict the end_call tool when both are in play.
         today_line: What day and time it is, worked out once for the whole
             call by the engine so the prompt stays byte-identical across node
             transitions and therefore stays cacheable. Composed here from the
@@ -141,6 +149,19 @@ def compose_system_prompt_for_node(
 
     if opening_notes:
         parts.append(opening_notes)
+
+    # Last of the instruction blocks, because it is the one the model breaks
+    # when it decides a conversation is over -- and because it has to outrank
+    # an operator prompt that says "thank them and close". The recording block
+    # below is a response *format* and still comes after everything.
+    moving_on = moving_on_instructions(node, agent_can_end_call=agent_can_end_call)
+    if moving_on:
+        parts.append(moving_on)
+
+    # Every node, including the last one and including the ones that do hold
+    # tools. Unconditional: an operator may choose whether their agent can hang
+    # up, but not whether it may tell a caller something happened that did not.
+    parts.append(action_honesty_instructions())
 
     if has_recordings and "RECORDING_ID:" in formatted_node_prompt:
         parts.append(RECORDING_RESPONSE_MODE_INSTRUCTIONS)
