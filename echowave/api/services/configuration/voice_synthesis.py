@@ -22,6 +22,7 @@ from api.services.configuration.options.rumik import (
     RUMIK_GATEWAY_URL,
     RUMIK_LANGUAGES,
 )
+from api.services.configuration.options.smallest import SMALLEST_TTS_LANGUAGES
 from api.services.configuration.registry import ServiceProviders
 
 SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech"
@@ -35,11 +36,24 @@ SMALLEST_TTS_URL = "https://api.smallest.ai/waves/v1/tts"
 #: is the honest thing to hear first.
 SMALLEST_SAMPLE_MODEL = "lightning_v3.1"
 
-#: Smallest speaks every language a sample line is written in. Confirmed
-#: against its own documented Indic list (hi, mr, gu, pa, bn, or, ta, te, kn,
-#: ml) rather than against pipecat's client, whose map omits Telugu and only
-#: works there because it falls back to the bare code.
-SMALLEST_LANGUAGES = frozenset({"en", "hi", "ta", "kn", "te"})
+#: Which languages a Smallest sample may be recorded in: the ones this
+#: repository already claims the vendor speaks, narrowed to the ones a sample
+#: line exists for.
+#:
+#: Derived rather than written out, and that is the point. Smallest's current
+#: documentation lists ten Indic languages including Telugu; this repository's
+#: own ``SMALLEST_TTS_LANGUAGES`` does not have Telugu, and neither does
+#: pipecat's map. Hardcoding the documentation here would have let a Telugu
+#: sample through on the strength of one page read once, against two sources
+#: in the tree saying otherwise -- and a sample in a language a vendor cannot
+#: speak is the confident mispronunciation this guard exists to prevent.
+#:
+#: So the vendor's language support stays declared in one place. If Telugu is
+#: genuinely supported, adding it to ``SMALLEST_TTS_LANGUAGES`` is the change,
+#: and every caller gets it rather than just this one.
+SMALLEST_LANGUAGES = frozenset(SMALLEST_TTS_LANGUAGES) & frozenset(
+    voice_samples.SAMPLE_LANGUAGES
+)
 
 #: The Rumik model with preset speakers. ``muga`` takes none -- it is directed
 #: by tone tags in the text -- so there is nothing to name and nothing to

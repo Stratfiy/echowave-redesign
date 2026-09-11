@@ -280,11 +280,29 @@ class TestSmallestCanBeHeardAtLast:
         assert seen == ["lightning_v3.1_pro", voice_synthesis.SMALLEST_SAMPLE_MODEL]
 
     async def test_a_language_it_does_not_speak_is_declined_not_guessed(self):
+        """Telugu, specifically. The vendor's current page says it speaks ten
+        Indic languages including Telugu; this repository's own language list
+        and pipecat's map both say it does not. One page read once does not
+        outvote two sources in the tree, and the cost of being wrong is a
+        stored recording of a confident mispronunciation."""
         with pytest.raises(voice_synthesis.UnsupportedVoice):
             await voice_synthesis.synthesise(
                 provider="smallest",
                 model="lightning_v3.1",
                 voice="arjun",
-                language="mr",
+                language="te",
                 api_key="k",
             )
+
+    def test_the_language_set_is_derived_not_retyped(self):
+        """If the vendor's support changes, it changes in one place and every
+        caller follows. A hardcoded copy here is how the two drift apart."""
+        from api.services.configuration.options.smallest import (
+            SMALLEST_TTS_LANGUAGES,
+        )
+
+        assert voice_synthesis.SMALLEST_LANGUAGES <= set(SMALLEST_TTS_LANGUAGES)
+        assert voice_synthesis.SMALLEST_LANGUAGES <= set(
+            voice_samples.SAMPLE_LANGUAGES
+        )
+        assert "ta" in voice_synthesis.SMALLEST_LANGUAGES
