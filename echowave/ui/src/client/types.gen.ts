@@ -10032,6 +10032,10 @@ export type WorkflowConfigurationDefaults = {
      */
     end_call_farewell?: string | null;
     /**
+     * Agent Can End Call
+     */
+    agent_can_end_call?: boolean;
+    /**
      * Max Call Duration
      */
     max_call_duration?: number;

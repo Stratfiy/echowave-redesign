@@ -476,6 +476,23 @@ export function BrainPanel({ config, onChange, tuning, onTuning }: PanelProps) {
             />
 
             <Setting
+                title="Let the agent end the call"
+                blurb={
+                    config.agent_can_end_call
+                        ? "The agent can hang up when there is nothing left to do — nobody on the line, the caller finished, or a wrong number."
+                        : "Off. Only the caller's own goodbye ends a call, so an agent talking to an empty line keeps talking."
+                }
+                control={
+                    <Switch
+                        id="agent-can-end-call"
+                        aria-label="Let the agent end the call"
+                        checked={config.agent_can_end_call ?? false}
+                        onCheckedChange={(v) => onChange({ agent_can_end_call: v })}
+                    />
+                }
+            />
+
+            <Setting
                 title="Fillers while thinking"
                 blurb="A short “hmm” or “one moment” when a reply is slow to start, so a lookup does not sound like a dropped line."
                 control={

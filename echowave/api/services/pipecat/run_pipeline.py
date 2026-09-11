@@ -31,6 +31,7 @@ from api.services.pipecat.active_calls import (
 from api.services.pipecat.active_calls import (
     unregister_active_call as unregister_worker_active_call,
 )
+from api.services.pipecat.agent_end_call import wants_agent_end_call
 from api.services.pipecat.audio_config import AudioConfig, create_audio_config
 from api.services.pipecat.backchannel import Backchannel, backchannel_settings
 from api.services.pipecat.call_recording import recording_enabled
@@ -1167,6 +1168,8 @@ async def _run_pipeline_impl(
         has_recordings=has_recordings,
         code_mixed_speech=wants_code_mixed_speech(run_configs),
         context_compaction_enabled=context_compaction_enabled,
+        agent_can_end_call=wants_agent_end_call(run_configs),
+        end_call_farewell=end_call_farewell(run_configs),
         call_recorded=keep_recording,
     )
 
