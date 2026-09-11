@@ -47,13 +47,15 @@ from pipecat.frames.frames import (
     Frame,
     InterimTranscriptionFrame,
     LLMFullResponseStartFrame,
+    STTUpdateSettingsFrame,
     TextFrame,
     TranscriptionFrame,
     TTSSpeakFrame,
     TTSUpdateSettingsFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
-from pipecat.services.settings import TTSSettings
+from pipecat.services.settings import STTSettings, TTSSettings
+from pipecat.transcriptions.language import Language
 
 #: Unicode blocks, and the language a run of one means. Every Indian script
 #: here is used by one major language each, with the exception noted below.
@@ -84,6 +86,33 @@ MIN_SCRIPT_CHARS = 4
 
 #: Devanagari belongs to whichever of these the agent is already speaking.
 _DEVANAGARI_KEEP = frozenset({"hi", "mr"})
+
+#: The regional tag a transcriber wants for each of these languages. Sarvam
+#: names them ``ta-IN``, ``hi-IN`` and so on; the bare subtag this module works
+#: in is not a code any of them accept.
+_TRANSCRIBER_LANGUAGE: dict[str, Language] = {
+    "hi": Language.HI_IN,
+    "bn": Language.BN_IN,
+    "pa": Language.PA_IN,
+    "gu": Language.GU_IN,
+    "or": Language.OR_IN,
+    "ta": Language.TA_IN,
+    "te": Language.TE_IN,
+    "kn": Language.KN_IN,
+    "ml": Language.ML_IN,
+    "mr": Language.MR_IN,
+    "en": Language.EN_IN,
+}
+
+#: How many times one call may re-point its transcriber.
+#:
+#: Each one closes the speech-to-text websocket and opens a new one, because
+#: the language is a connect-time parameter — audio arriving in that gap is
+#: gone. Once is the case this exists for: a call opens undecided, the caller
+#: picks a language, and it stays picked. A call that wants a fourth is not a
+#: caller changing language, it is the detector flapping, and the reconnects
+#: would cost more than the wrong language code does.
+MAX_TRANSCRIBER_PINS = 3
 
 
 def script_language(text: str, *, current: str | None = None) -> str | None:
@@ -127,8 +156,29 @@ class SpokenLanguageFollower(FrameProcessor):
             than pointing it at a language the operator never sanctioned --
             and, for a managed tier, possibly one the vendor cannot speak.
             ``None`` allows any.
+        pin_transcriber: Also point the *transcriber* at the settled language,
+            by pushing a settings frame back upstream. Off unless the caller
+            says the transcriber can take it — see the note below.
         on_change: Called with (from, to) after a change is pushed. For
             observability only; a failure here never affects the call.
+
+    **Why the transcriber is pointed at it too.** A transcriber left to detect
+    language per utterance gets it wrong, and on a real call it gets it wrong
+    differently within one utterance. Measured on run 299: a caller who asked
+    for Tamil, in Tamil, had a single stretch of their speech returned as
+    Devanagari, then Marathi, then romanised Tamil, then English. What the
+    model was handed was not a caller who switched language four times in a
+    sentence; it was noise. It answered accordingly -- that call has Cyrillic
+    in the agent's own replies.
+
+    The language is already known by then, and known from the one signal that
+    cannot be a mis-detection: the agent has just written its reply in Tamil
+    script. So the same decision that moves the voice moves the transcriber,
+    and the guessing stops for the rest of the call.
+
+    It is pushed **upstream**, because the transcriber is behind this
+    processor, not in front of it. Speech-to-text services consume a settings
+    frame from either direction.
     """
 
     def __init__(
@@ -136,12 +186,15 @@ class SpokenLanguageFollower(FrameProcessor):
         *,
         initial_language: str | None = None,
         allowed: frozenset[str] | None = None,
+        pin_transcriber: bool = False,
         on_change: Callable[[str | None, str], Awaitable[None]] | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self._current = _configured(initial_language)
         self._allowed = allowed
+        self._pin_transcriber = pin_transcriber
+        self._transcriber_pins = 0
         self._on_change = on_change
 
         #: What this reply has said so far. A reply arrives as a stream of
@@ -212,6 +265,7 @@ class SpokenLanguageFollower(FrameProcessor):
             TTSUpdateSettingsFrame(delta=TTSSettings(language=language)),
             FrameDirection.DOWNSTREAM,
         )
+        await self._pin_the_transcriber(language)
 
         if self._on_change is not None:
             try:
@@ -219,9 +273,52 @@ class SpokenLanguageFollower(FrameProcessor):
             except Exception as exc:  # noqa: BLE001 - observability is not the call
                 logger.error("Spoken-language callback failed: {}", exc)
 
+    async def _pin_the_transcriber(self, language: str) -> None:
+        """Tell the transcriber which language it is listening to, once.
+
+        Silent when the language has no regional code a transcriber would
+        accept, and when the call has already spent its reconnects. Neither is
+        an error: the reply still gets spoken in the right language, and a
+        transcriber left guessing is where this started rather than something
+        this made worse.
+        """
+        if not self._pin_transcriber:
+            return
+
+        code = _TRANSCRIBER_LANGUAGE.get(language)
+        if code is None:
+            return
+
+        if self._transcriber_pins >= MAX_TRANSCRIBER_PINS:
+            logger.warning(
+                "Not re-pointing the transcriber at {} -- this call has already "
+                "done so {} times, and each one drops the audio arriving while "
+                "the connection is remade.",
+                language,
+                self._transcriber_pins,
+            )
+            return
+
+        self._transcriber_pins += 1
+        logger.info(
+            "Pointing the transcriber at {} (change {} of {} allowed)",
+            code,
+            self._transcriber_pins,
+            MAX_TRANSCRIBER_PINS,
+        )
+        await self.push_frame(
+            STTUpdateSettingsFrame(delta=STTSettings(language=code)),
+            FrameDirection.UPSTREAM,
+        )
+
     @property
     def current_language(self) -> str | None:
         return self._current
+
+    @property
+    def transcriber_pins(self) -> int:
+        """How many times this call has re-pointed its transcriber."""
+        return self._transcriber_pins
 
 
 def _configured(language) -> str | None:

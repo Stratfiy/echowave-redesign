@@ -14,21 +14,26 @@ The tests that matter are of two kinds: Tamil text must never be spoken as
 Hindi, and Latin text must never move anything at all.
 """
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 from pipecat.frames.frames import (
     InterimTranscriptionFrame,
     LLMFullResponseStartFrame,
+    STTUpdateSettingsFrame,
     TextFrame,
     TranscriptionFrame,
     TTSSpeakFrame,
     TTSUpdateSettingsFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection
+from pipecat.transcriptions.language import Language
 
 from api.services.pipecat.language_follower import configured_language
+from api.services.pipecat.service_factory import stt_language_can_be_pinned
 from api.services.pipecat.spoken_language import (
+    MAX_TRANSCRIBER_PINS,
     SpokenLanguageFollower,
     script_language,
 )
@@ -260,3 +265,141 @@ class TestTheManagedBaseline:
         assert configured_language(self._Config("hi-IN"), self._Config("unknown")) == (
             "hi"
         )
+
+
+def _stt_settings(follower):
+    """Every transcriber settings frame the follower pushed, with direction."""
+    return [
+        (call.args[0], call.args[1])
+        for call in follower.push_frame.await_args_list
+        if isinstance(call.args[0], STTUpdateSettingsFrame)
+    ]
+
+
+@pytest.mark.asyncio
+class TestItAlsoPointsTheTranscriber:
+    """Run 299: a caller asked for Tamil, in Tamil, and one stretch of their
+    speech came back as Devanagari, then Marathi, then romanised Tamil, then
+    English. The transcriber was guessing per utterance and guessing badly.
+
+    By the time the model has written its reply in Tamil script there is
+    nothing left to guess, so the transcriber is told."""
+
+    async def test_the_transcriber_is_told_which_language_it_is_hearing(self):
+        follower = _follower(initial_language="hi-IN", pin_transcriber=True)
+
+        await _says(follower, TAMIL)
+
+        frames = _stt_settings(follower)
+        assert len(frames) == 1
+        assert frames[0][0].delta.language == Language.TA_IN
+
+    async def test_it_is_pushed_upstream_because_that_is_where_the_transcriber_is(
+        self,
+    ):
+        """The transcriber is behind this processor, not in front of it. A
+        settings frame sent downstream would sail past the voice and reach
+        nothing that transcribes."""
+        follower = _follower(initial_language="hi-IN", pin_transcriber=True)
+
+        await _says(follower, TAMIL)
+
+        assert _stt_settings(follower)[0][1] is FrameDirection.UPSTREAM
+
+    async def test_nothing_is_pushed_unless_it_was_asked_for(self):
+        """Off by default: most transcribers are detecting on purpose."""
+        follower = _follower(initial_language="hi-IN")
+
+        await _says(follower, TAMIL)
+
+        assert _stt_settings(follower) == []
+        assert _settings(follower)  # the voice still moved
+
+    async def test_a_reply_in_the_language_already_set_moves_nothing(self):
+        follower = _follower(initial_language="ta-IN", pin_transcriber=True)
+
+        await _says(follower, TAMIL)
+
+        assert _stt_settings(follower) == []
+
+    async def test_latin_text_never_re_points_anything(self):
+        """Hinglish is Latin script. Reconnecting the transcriber for it would
+        cost audio and settle nothing."""
+        follower = _follower(initial_language="hi-IN", pin_transcriber=True)
+
+        await _says(follower, HINGLISH)
+
+        assert _stt_settings(follower) == []
+
+    async def test_a_language_the_agent_may_not_speak_is_not_pinned_either(self):
+        """The allow-list guards the transcriber as well as the voice: a
+        language the operator never sanctioned must not become the one the
+        call is transcribed in."""
+        follower = _follower(
+            initial_language="hi-IN",
+            allowed=frozenset({"hi", "en"}),
+            pin_transcriber=True,
+        )
+
+        await _says(follower, TAMIL)
+
+        assert _stt_settings(follower) == []
+
+
+@pytest.mark.asyncio
+class TestTheReconnectsAreCapped:
+    """Each pin closes the transcriber's websocket and opens a new one, and
+    the audio arriving in that gap is gone. A call that wants a fourth is a
+    detector flapping, not a caller changing their mind."""
+
+    async def test_a_flapping_call_stops_being_obeyed(self):
+        follower = _follower(initial_language="en-IN", pin_transcriber=True)
+
+        for text in (TAMIL, HINDI, KANNADA, TAMIL, HINDI):
+            await follower.process_frame(
+                LLMFullResponseStartFrame(), FrameDirection.DOWNSTREAM
+            )
+            await _says(follower, text)
+
+        assert follower.transcriber_pins == MAX_TRANSCRIBER_PINS
+        assert len(_stt_settings(follower)) == MAX_TRANSCRIBER_PINS
+
+    async def test_the_voice_keeps_following_after_the_cap(self):
+        """The cap is on reconnecting a websocket, not on speaking correctly.
+        A reply in Hindi is still spoken in Hindi once the pins run out."""
+        follower = _follower(initial_language="en-IN", pin_transcriber=True)
+
+        for text in (TAMIL, HINDI, KANNADA, TAMIL):
+            await follower.process_frame(
+                LLMFullResponseStartFrame(), FrameDirection.DOWNSTREAM
+            )
+            await _says(follower, text)
+
+        assert len(_settings(follower)) == 4
+        assert _settings(follower)[-1].delta.language == "ta"
+
+
+class TestWhichTranscribersCanBeTold:
+    """Narrow on purpose. A provider is here because leaving it to guess was
+    measured to be worse, not because the parameter exists."""
+
+    def _config(self, provider, model):
+        return SimpleNamespace(stt=SimpleNamespace(provider=provider, model=model))
+
+    def test_sarvams_transcribing_models_can_be_told(self):
+        assert stt_language_can_be_pinned(self._config("sarvam", "saaras:v3"))
+        assert stt_language_can_be_pinned(self._config("sarvam", "saarika:v2.5"))
+
+    def test_the_translate_model_cannot_and_would_raise_if_asked(self):
+        """saaras:v2.5 auto-detects and rejects a language outright, so this
+        is excluded by what the model accepts rather than by its name."""
+        assert not stt_language_can_be_pinned(self._config("sarvam", "saaras:v2.5"))
+
+    def test_deepgram_is_left_to_detect(self):
+        """Its multilingual models are asked to detect on purpose and follow a
+        caller who switches mid-sentence. Pinning gives that up."""
+        assert not stt_language_can_be_pinned(self._config("deepgram", "nova-3"))
+
+    def test_an_unknown_model_is_not_assumed_to_take_one(self):
+        assert not stt_language_can_be_pinned(self._config("sarvam", "saaras:v9"))
+        assert not stt_language_can_be_pinned(self._config("sarvam", None))

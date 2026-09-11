@@ -99,6 +99,9 @@ from pipecat.services.openai.tts import OpenAITTSService, OpenAITTSSettings
 from pipecat.services.openrouter.llm import OpenRouterLLMService, OpenRouterLLMSettings
 from pipecat.services.rime.tts import RimeTTSService, RimeTTSSettings
 from pipecat.services.sarvam.llm import SarvamLLMSettings
+from pipecat.services.sarvam.stt import (
+    MODEL_CONFIGS as SARVAM_STT_MODEL_CONFIGS,
+)
 from pipecat.services.sarvam.stt import SarvamSTTService, SarvamSTTSettings
 from pipecat.services.sarvam.tts import SarvamTTSSettings
 from pipecat.services.smallest.stt import SmallestSTTService, SmallestSTTSettings
@@ -265,6 +268,29 @@ def sarvam_stt_ttfs_p99() -> float:
                 f"using {SARVAM_STT_TTFS_P99_DEFAULT}s"
             )
     return SARVAM_STT_TTFS_P99_DEFAULT
+
+
+def stt_language_can_be_pinned(user_config) -> bool:
+    """May this call tell its transcriber which language it is hearing?
+
+    Only Sarvam, and only its transcribing models. The reason is narrow and
+    worth keeping narrow:
+
+    * **Sarvam** is asked to auto-detect today (``language_code=unknown``) and
+      is measurably bad at it on a code-mixed Indian call — run 299 returned
+      one stretch of a Tamil caller as four different languages. Naming the
+      language is the parameter's whole purpose.
+    * **Its translate model** does not accept a language at all; pushing one at
+      it raises rather than being ignored, so it is excluded by capability
+      rather than by name.
+    * **Deepgram** is not included. Its multilingual models are asked to detect
+      on purpose and handle a caller who switches mid-sentence, which is the
+      thing pinning gives up. Nothing measured says it needs this.
+    """
+    if user_config.stt.provider != ServiceProviders.SARVAM.value:
+        return False
+    config = SARVAM_STT_MODEL_CONFIGS.get(getattr(user_config.stt, "model", None))
+    return bool(config and config.supports_language)
 
 
 def stt_uses_external_turns(user_config) -> bool:
