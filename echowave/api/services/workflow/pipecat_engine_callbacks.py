@@ -50,6 +50,17 @@ def _as_seconds(value) -> float:
     return float(value) if value > 0 else 0.0
 
 
+#: How many times a quiet caller is asked before the call is ended. Two,
+#: because one was measured to be too few: run 307 on the Narayani agent ended
+#: with `user_idle_max_duration_exceeded` on a caller who had said nothing yet,
+#: on a greeting that names five languages and takes a while to take in.
+#:
+#: It is a count rather than a longer tick on purpose. The tick also meters
+#: per-node patience, so raising it would quietly change how long every patient
+#: step waits -- a different decision, made by accident.
+NUDGES_BEFORE_HANGING_UP = 2
+
+
 class UserIdleHandler:
     """Helper class to manage user idle retry logic with state."""
 
@@ -72,8 +83,8 @@ class UserIdleHandler:
         "Press 6# on the controller and tell me whether the GPS light is
         blinking" is the second kind, and the default timeout assumes the
         first — that a quiet caller is a caller thinking. Someone walking to a
-        vehicle is not thinking, and prompting them twice and hanging up is
-        exactly the wrong response to a person doing what we asked.
+        vehicle is not thinking, and prompting them repeatedly and hanging up
+        is exactly the wrong response to a person doing what we asked.
 
         None on the node means the agent's default, which is the behaviour
         every existing workflow already has.
@@ -84,10 +95,11 @@ class UserIdleHandler:
     async def handle_idle(self, aggregator):
         """Handle user idle event with escalating prompts.
 
-        The contract is two strikes: the first asks whether the caller is
-        still there, the second disconnects. Only the second may end the call
-        — see the instruction on the first message for why that has to be said
-        out loud.
+        The contract is `NUDGES_BEFORE_HANGING_UP` asks and then goodbye: the
+        first silence asks whether the caller is still there, the second asks
+        again in different words, and the one after the last nudge
+        disconnects. Only that last one may end the call — see the instruction
+        on the nudge messages for why that has to be said out loud.
 
         Before either, a step may ask for more rope. The idle event fires on
         the pipeline's own timer, so patience is spent in whole ticks of it:
@@ -111,7 +123,17 @@ class UserIdleHandler:
         self._retry_count += 1
         logger.debug(f"Handling user_idle, attempt: {self._retry_count}")
 
-        if self._retry_count == 1:
+        if self._retry_count <= NUDGES_BEFORE_HANGING_UP:
+            # Two nudges before goodbye, not one. A person who has gone quiet
+            # gets asked, gets asked once more, and only then is let go --
+            # which is how a person behaves, and it doubles the silence a
+            # caller is allowed without changing the tick.
+            #
+            # Raising the tick instead would have been the obvious fix and is
+            # the wrong one: `_engine_idle_tick` also meters per-node patience,
+            # so doubling it would silently double how long every patient step
+            # waits. See the note on that method.
+            first = self._retry_count == 1
             message = {
                 "role": "user",
                 "content": (
@@ -121,6 +143,12 @@ class UserIdleHandler:
                     "call any tool — say the words and nothing else. They may "
                     "simply be thinking, and hanging up on someone who is "
                     "about to speak is worse than waiting."
+                    if first
+                    else "The user has still not spoken. Say once more, in a "
+                    "different and shorter way, that you are still there and "
+                    "happy to wait. Do not end the call and do not call any "
+                    "tool. Repeating your last sentence word for word is what "
+                    "a machine does; say it as a person would the second time."
                 ),
             }
             await aggregator.push_frame(LLMMessagesAppendFrame([message], run_llm=True))
