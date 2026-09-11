@@ -1496,6 +1496,23 @@ async def _run_pipeline_impl(
             allowed=allowed_languages(run_configs),
         )
 
+    # On for every cascade call, and not behind the switch above: this one does
+    # not decide whether the agent may change language, it makes the voice say
+    # the language the model has already written in. Synthesising Tamil text
+    # under a Hindi language code is never what anybody configured — an agent
+    # whose voice already matches its words never sees it do anything. A
+    # realtime model speaks its own audio and has no TTS settings to push.
+    spoken_language_follower = None
+    if not is_realtime:
+        from api.services.pipecat.spoken_language import SpokenLanguageFollower
+
+        spoken_language_follower = SpokenLanguageFollower(
+            initial_language=getattr(
+                getattr(user_config, "tts", None), "language", None
+            ),
+            allowed=allowed_languages(run_configs),
+        )
+
     # Build the pipeline
     if is_realtime:
         pipeline = build_realtime_pipeline(
@@ -1524,6 +1541,7 @@ async def _run_pipeline_impl(
             digit_normaliser=digit_normaliser,
             dtmf_collector=dtmf_collector,
             language_follower=language_follower,
+            spoken_language_follower=spoken_language_follower,
             interruption_backoff=_create_interruption_backoff(run_configs),
             end_call_phrase_watcher=end_call_phrase_watcher,
             backchannel=backchannel,
