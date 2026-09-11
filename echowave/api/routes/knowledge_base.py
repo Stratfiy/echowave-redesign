@@ -532,15 +532,19 @@ async def search_chunks(
         # Import here to avoid circular dependency
         from api.services.configuration.ai_model_configuration import (
             apply_managed_embeddings_base_url,
-            get_resolved_ai_model_configuration,
+            get_effective_ai_model_configuration_for_organization,
         )
         from api.services.gen_ai import build_embedding_service
 
-        # Try to get the organization's embeddings configuration
-        resolved_config = await get_resolved_ai_model_configuration(
-            organization_id=user.selected_organization_id,
+        # Resolved *with its keys*, which is the whole point. This used to call
+        # get_resolved_ai_model_configuration, which compiles the configuration
+        # and never loads a key into it, so embeddings.api_key was the empty
+        # string on every managed account and every search here answered 500.
+        # The call path has always used the resolution that applies keys; this
+        # route was the one place that did not.
+        effective_config = await get_effective_ai_model_configuration_for_organization(
+            user.selected_organization_id,
         )
-        effective_config = resolved_config.effective
         embeddings_api_key = None
         embeddings_model = None
         embeddings_provider = None
@@ -559,6 +563,22 @@ async def search_chunks(
             )
             embeddings_api_version = getattr(
                 effective_config.embeddings, "api_version", None
+            )
+
+        if not embeddings_api_key:
+            # Distinguishable from a fault, and says what to do. A blanket 500
+            # here is what made the outage above take an evening to find: the
+            # reason existed only in the server log, so the screen showed
+            # "Failed to search chunks" whether the key was missing, the vendor
+            # was down, or the query was malformed.
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "No embeddings key is configured for this account, so "
+                    "documents cannot be searched. Set one under Model "
+                    "Configurations > Embedding, or switch the slot to "
+                    "Decibyl's managed models."
+                ),
             )
 
         # Manual search runs outside any workflow run, so resolve the MPS
@@ -610,6 +630,8 @@ async def search_chunks(
             total_results=len(chunks),
         )
 
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error(f"Error searching chunks: {exc}")
         raise HTTPException(status_code=500, detail="Failed to search chunks") from exc
