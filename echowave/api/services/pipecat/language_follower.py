@@ -312,6 +312,39 @@ class LanguageFollower(FrameProcessor):
 
         await self._switch_to(detected)
 
+    def note_voice_moved(self, language: str | None) -> None:
+        """The voice has already moved to ``language``; stop tracking a switch.
+
+        Two followers watch language and they used to watch it alone. This one
+        watches the *caller* and asks after two turns; the spoken-language one
+        moves the *voice* the moment the model writes in another script, with
+        no confirmations, because the text is not a guess.
+
+        Nothing joined them, and the result was measured on run 303. The agent
+        answered in Tamil, the caller said "I need to book an appointment", and
+        the agent replied "shall we continue in Tamil?" -- while speaking
+        Tamil. It ignored the request and spent a turn asking permission for
+        something it had already done. That is the moment a call stops sounding
+        like a person.
+
+        So the voice tells this follower where it went. The question is only
+        worth asking about a language the agent is *not* already speaking.
+        """
+        moved = primary_subtag(language)
+        if moved is None or moved in NOT_A_LANGUAGE or moved == self._current:
+            return
+        logger.info(
+            "The voice moved {} → {} on its own; not asking about it",
+            self._current,
+            moved,
+        )
+        self._current = moved
+        self._candidate = None
+        self._agreements = 0
+        #: Recorded as asked so a later run of two turns does not reopen a
+        #: question the agent already answered by acting.
+        self._asked.add(moved)
+
     async def _ask_about(self, language: str) -> None:
         """Put the question, once, and go on speaking as before.
 
@@ -320,6 +353,10 @@ class LanguageFollower(FrameProcessor):
         instruction to the model.
         """
         if language in self._asked:
+            return
+        if language == self._current:
+            # The voice got there first. Asking now reads as the agent not
+            # knowing what it is doing.
             return
         self._asked.add(language)
         logger.info(

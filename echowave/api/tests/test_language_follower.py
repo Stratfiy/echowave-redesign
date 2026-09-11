@@ -455,3 +455,65 @@ class TestItAsksBeforeItSwitches:
 
         assert await self._asked_for(follower) == []
         assert self._switched(follower) == []
+
+
+@pytest.mark.asyncio
+class TestItDoesNotAskAboutASwitchAlreadyMade:
+    """Run 303, and the moment the call stopped sounding like a person:
+
+        agent   yes, we can speak Tamil. what do you need?
+        caller  I need to book an appointment
+        agent   shall we continue in Tamil?
+
+    Two followers watch language. This one watches the caller and asks after
+    two turns. The spoken-language one moves the voice the instant the model
+    writes in another script, with no confirmations, because the text is not a
+    guess. Nothing joined them, so this one asked permission for something the
+    agent had already done -- and ignored the caller's actual request to do it.
+    """
+
+    def _asks(self, follower):
+        return [
+            call.args[0]
+            for call in follower.push_frame.await_args_list
+            if isinstance(call.args[0], LLMMessagesAppendFrame)
+        ]
+
+    async def test_the_question_is_dropped_once_the_voice_has_moved(self):
+        follower = _follower(initial_language="en-IN")
+        follower.note_voice_moved("ta")
+
+        await _hear(follower, LONG_TA, "ta", times=CONFIRMATIONS_BEFORE_ASKING)
+
+        assert self._asks(follower) == []
+
+    async def test_without_the_signal_it_still_asks(self):
+        """The guard must not disable the feature it is narrowing."""
+        follower = _follower(initial_language="en-IN")
+
+        await _hear(follower, LONG_TA, "ta", times=CONFIRMATIONS_BEFORE_ASKING)
+
+        assert self._asks(follower), "two Tamil turns should still raise the question"
+
+    async def test_it_adopts_the_language_the_voice_moved_to(self):
+        follower = _follower(initial_language="en-IN")
+
+        follower.note_voice_moved("ta")
+
+        assert follower.current_language == "ta"
+
+    async def test_a_move_to_the_language_it_already_had_changes_nothing(self):
+        follower = _follower(initial_language="ta-IN")
+        follower.note_voice_moved("ta")
+
+        assert follower.current_language == "ta"
+
+    @pytest.mark.parametrize("value", [None, "", "multi", "auto", "unknown"])
+    async def test_a_non_language_is_ignored(self, value):
+        """The vendors' ways of saying "nothing was pinned". Adopting one would
+        make every later reply look like a change away from it."""
+        follower = _follower(initial_language="en-IN")
+
+        follower.note_voice_moved(value)
+
+        assert follower.current_language == "en"
