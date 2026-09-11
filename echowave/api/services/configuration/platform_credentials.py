@@ -275,6 +275,68 @@ async def _active_row(session: AsyncSession, component: str, provider: str):
     )
 
 
+async def _effective_row(session: AsyncSession, component_value: str, provider: str):
+    """The stored row that will actually authenticate this slot.
+
+    One place, because two callers need this answer and they must not be able
+    to differ. :func:`resolve_api_key` decrypts the row to make the call;
+    ``managed_resolution`` reads it, through :func:`active_credential`, to
+    decide whether the slot is still on offer. They each did their own
+    two-step lookup, which is how the platform came to serve a call on one key
+    while judging the tier from another.
+
+    **A realtime slot borrows its sibling's key when its own is unusable, not
+    only when it is absent.** A speech-to-speech provider is the same vendor
+    account as its ordinary sibling — OpenAI Realtime authenticates with your
+    OpenAI key, Gemini Live with your Google key — so requiring a separate row
+    would mean an admin pasting the same key twice and the realtime tier
+    breaking silently whenever they rotated only one.
+
+    An exact row used to win unconditionally, and that is the bug this closes.
+    A revoked ``openai_realtime`` key sat in front of a healthy ``openai`` one,
+    ``is_known_bad`` withdrew the realtime tier, and the platform had a working
+    key for that vendor the whole time. One stale row took the tier down. That
+    happened on this deployment.
+
+    Only a **known**-bad row steps aside, and only for a base that is not
+    itself known-bad. Never-checked and could-not-check both keep their row, so
+    a probe that timed out can never silently reroute a call onto a different
+    key — the same NULL rule ``credential_validation.is_known_bad`` states.
+
+    ``realtime_key_provider`` is an explicit table, not the vendor name with
+    "_realtime" stripped off: Grok Realtime bills through the xAI account, and
+    Ultravox has no ordinary sibling to borrow from at all — it maps to itself,
+    so this never fires for it.
+    """
+    # Imported here rather than at module scope: credential_validation imports
+    # this module, so a top-level import would be a cycle. The rule about what
+    # counts as "bad" lives there and is not restated here.
+    from api.services.configuration.credential_validation import is_known_bad
+
+    row = await _active_row(session, component_value, provider)
+
+    base = realtime_key_provider(provider)
+    if base is None or base == provider:
+        return row
+    if row is not None and not is_known_bad(row):
+        return row
+
+    base_row = await _active_row(session, component_value, base)
+    if base_row is None or is_known_bad(base_row):
+        # Nothing better on offer. Keep whatever we had, so the caller's own
+        # error path reports the real problem rather than a missing key.
+        return row
+
+    logger.info(
+        "Serving managed {} for {} with the stored '{}' key{}.",
+        component_value,
+        provider,
+        base,
+        " because its own key is being rejected by the vendor" if row else "",
+    )
+    return base_row
+
+
 async def active_credential(
     session: AsyncSession, *, component: CostComponent | str, provider: str
 ) -> PlatformProviderCredentialModel | None:
@@ -291,12 +353,7 @@ async def active_credential(
     except PlatformCredentialError:
         return None
 
-    row = await _active_row(session, component_value, provider)
-    if row is None:
-        base = realtime_key_provider(provider)
-        if base is not None and base != provider:
-            row = await _active_row(session, component_value, base)
-    return row
+    return await _effective_row(session, component_value, provider)
 
 
 async def resolve_api_key(
@@ -318,34 +375,11 @@ async def resolve_api_key(
     except PlatformCredentialError:
         return None
 
-    row = await _active_row(session, component_value, provider)
-
-    if row is None:
-        base = realtime_key_provider(provider)
-        if base is not None and base != provider:
-            # A speech-to-speech provider is the same vendor account as its
-            # ordinary sibling: OpenAI Realtime authenticates with your OpenAI
-            # key, Gemini Live with your Google key. Requiring a separate row
-            # would mean an admin pasting the same key twice and the realtime
-            # tier breaking silently whenever they rotated only one — the
-            # exact trap the embeddings component avoids by sharing the LLM
-            # credential.
-            #
-            # ``realtime_key_provider`` is an explicit table, not the vendor
-            # name with "_realtime" stripped off: Grok Realtime bills through
-            # the xAI account, and Ultravox has no ordinary sibling to borrow
-            # from at all — it maps to itself, so this branch never fires for
-            # it. An exact row still wins over this fallback, so a deployment
-            # that already stored one under the realtime name keeps working
-            # untouched.
-            row = await _active_row(session, component_value, base)
-            if row is not None:
-                logger.debug(
-                    "Serving managed {} for {} with the stored '{}' key.",
-                    component_value,
-                    provider,
-                    base,
-                )
+    # Through _effective_row, not a lookup of its own: managed_resolution
+    # decides whether this slot is on offer from the same function, and the two
+    # answering differently is how a call came to run on a key the platform had
+    # already withdrawn the tier for.
+    row = await _effective_row(session, component_value, provider)
 
     if row is None:
         return None
