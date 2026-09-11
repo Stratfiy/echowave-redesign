@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from api.services.workflow.workflow_graph import Node, WorkflowGraph
 
 from api.constants import DEFAULT_ORGANIZATION_TIMEZONE
+from api.services.workflow.known_values import known_values_block
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
 from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
 from api.services.workflow.step_instructions import (
@@ -100,6 +101,7 @@ def compose_system_prompt_for_node(
     opening_notes: str | None = None,
     today_line: str | None = None,
     agent_can_end_call: bool = False,
+    known_values: dict | None = None,
 ) -> str:
     """Compose the full system prompt text for a workflow node.
 
@@ -121,6 +123,12 @@ def compose_system_prompt_for_node(
         agent_can_end_call: Whether this agent may hang up on its own. Read
             here only so the "this step cannot end the call" instruction does
             not contradict the end_call tool when both are in play.
+        known_values: What the caller has already established in this call.
+            Stated as facts near the end of the prompt so a node instruction
+            to "collect the name and a phone number" does not make the agent
+            ask for what it was told two turns ago. Late on purpose: it
+            changes as the call goes on, and everything above it stays
+            cacheable.
         today_line: What day and time it is, worked out once for the whole
             call by the engine so the prompt stays byte-identical across node
             transitions and therefore stays cacheable. Composed here from the
@@ -164,6 +172,13 @@ def compose_system_prompt_for_node(
     # up, but not whether it may tell a caller something happened that did not.
     parts.append(action_honesty_instructions())
     parts.append(fact_honesty_instructions())
+
+    # After every instruction block, because those are byte-identical for the
+    # life of a call and this is not: a value collected on turn six would
+    # otherwise invalidate the cached prefix of every prompt after it.
+    established = known_values_block(known_values)
+    if established:
+        parts.append(established)
 
     if has_recordings and "RECORDING_ID:" in formatted_node_prompt:
         parts.append(RECORDING_RESPONSE_MODE_INSTRUCTIONS)
