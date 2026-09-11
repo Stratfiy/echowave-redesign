@@ -51,7 +51,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 import httpx
@@ -76,6 +76,19 @@ TIMEOUT_SECONDS = 12.0
 
 #: A quota with less than this fraction of its ceiling left is ``low``.
 LOW_QUOTA_FRACTION = 0.10
+
+#: How long a quota cycle runs, for projecting whether one will last. ElevenLabs
+#: bills monthly and reports only the *next* reset, so the cycle start is
+#: inferred by subtracting this. A real month is 28 to 31 days, which puts the
+#: projection out by a few percent at worst — fine for "will this last", and the
+#: reason the projection only ever moves a row to ``low``, never to ``empty``.
+CYCLE_DAYS = 30.0
+
+#: Ignore the projection until this much of the cycle has gone. In the first
+#: hours after a reset, one long call divided by a sliver of elapsed time
+#: projects to millions of characters, and a report that cries wolf every
+#: month on the 1st is one nobody reads on the 20th.
+MIN_CYCLE_ELAPSED = 0.15
 
 #: Below this, a money balance is ``low``. These are roughly a working week of
 #: our current volume, which is the notice period worth having: enough time for
@@ -145,7 +158,25 @@ def _classify_money(
     return "ok"
 
 
-def _classify_quota(used: float, limit: float) -> Status:
+def _classify_quota(
+    used: float, limit: float, *, renews_at: datetime | None = None
+) -> Status:
+    """Where a metered allowance stands, and whether it will last the cycle.
+
+    A bare fraction is the wrong alarm on a small plan. Ten per cent of the
+    39,667 characters on our own starter plan is under four thousand — one or
+    two calls — so the warning arrives after the point where anybody could act
+    on it. The fraction is kept as a floor, because a nearly-spent quota is
+    worth saying whatever the rate, but the question that actually matters is
+    asked first: **at the rate it is being spent, will this run out before it
+    resets?**
+
+    That needs no invented constant. ElevenLabs reports what has been used and
+    when the cycle resets, and the cycle length is known, so the burn rate
+    follows from data the vendor already gives us. Compare that with the Plivo
+    balance, where the vendor names no currency and the operator has to supply
+    the threshold: here the denominator is real, so we use it.
+    """
     if limit <= 0:
         # No ceiling to measure against. Nothing sensible to say beyond "we
         # asked", so do not pretend to a verdict.
@@ -155,7 +186,49 @@ def _classify_quota(used: float, limit: float) -> Status:
         return "empty"
     if left / limit < LOW_QUOTA_FRACTION:
         return "low"
+    if _will_run_out_early(used, limit, renews_at):
+        return "low"
     return "ok"
+
+
+def _cycle_elapsed(renews_at: datetime | None) -> float | None:
+    """How far through the cycle we are, 0 to 1, or None if we cannot tell."""
+    if renews_at is None:
+        return None
+    remaining_days = (renews_at - datetime.now(UTC)).total_seconds() / 86_400
+    if remaining_days <= 0 or remaining_days > CYCLE_DAYS:
+        # A reset in the past is stale, and one further out than a whole cycle
+        # means the cycle is not what we assumed. Either way, do not project.
+        return None
+    return (CYCLE_DAYS - remaining_days) / CYCLE_DAYS
+
+
+def _will_run_out_early(used: float, limit: float, renews_at: datetime | None) -> bool:
+    """Whether this cycle's spending is on course to exhaust the allowance."""
+    elapsed = _cycle_elapsed(renews_at)
+    if elapsed is None or elapsed < MIN_CYCLE_ELAPSED or used <= 0:
+        return False
+    return used / elapsed > limit
+
+
+def exhausted_on(
+    used: float, limit: float, renews_at: datetime | None
+) -> datetime | None:
+    """When this allowance runs out at the current rate, if before the reset.
+
+    Returned so the report can say "around the 22nd, before the 30th" rather
+    than "running low", which is the difference between a number somebody acts
+    on and one they scroll past.
+    """
+    elapsed = _cycle_elapsed(renews_at)
+    if elapsed is None or elapsed < MIN_CYCLE_ELAPSED or used <= 0:
+        return None
+    per_day = used / (elapsed * CYCLE_DAYS)
+    if per_day <= 0:
+        return None
+    days_left = max(limit - used, 0.0) / per_day
+    when = datetime.now(UTC) + timedelta(days=days_left)
+    return when if renews_at is None or when < renews_at else None
 
 
 def _number(value: Any) -> float | None:
@@ -195,14 +268,27 @@ async def _elevenlabs(client: httpx.AsyncClient, api_key: str) -> ProviderBalanc
         )
 
     reset = _number(payload.get("next_character_count_reset_unix"))
+    renews_at = datetime.fromtimestamp(reset, UTC) if reset else None
+
+    notes = [f"{payload.get('tier') or 'unknown'} plan"]
+    runs_out = exhausted_on(used, limit, renews_at)
+    if runs_out is not None:
+        # The actionable half. "Running low" says nothing a person can plan
+        # around; a date before the reset date says exactly what to do and by
+        # when — and it is why this row goes amber long before the last tenth.
+        notes.append(
+            f"at this rate it runs out around {runs_out:%d %b}, "
+            f"before the {renews_at:%d %b} reset"
+        )
+
     return ProviderBalance(
         "elevenlabs",
-        _classify_quota(used, limit),
+        _classify_quota(used, limit, renews_at=renews_at),
         kind="quota",
         used=used,
         limit=limit,
-        renews_at=datetime.fromtimestamp(reset, UTC) if reset else None,
-        detail=f"{payload.get('tier') or 'unknown'} plan",
+        renews_at=renews_at,
+        detail=" · ".join(notes),
     )
 
 

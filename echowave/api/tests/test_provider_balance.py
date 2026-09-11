@@ -6,7 +6,7 @@ unreachable vendor never reports ``empty``, and a provider with no balance API
 says so rather than showing a blank that reads as zero.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -69,6 +69,76 @@ class TestQuotaClassification:
     def test_no_ceiling_makes_no_claim(self):
         # Nothing to measure against, so no verdict is invented.
         assert pb._classify_quota(500.0, 0.0) == "ok"
+
+
+class TestAQuotaThatWillNotLastTheCycle:
+    """The fraction alone was the wrong alarm on a small plan.
+
+    Our own ElevenLabs starter plan is 39,667 characters a cycle. Ten per cent
+    of that is under four thousand — one or two calls — so a warning at the
+    last tenth arrives after the point where anyone could act on it. The
+    question worth asking is whether the burn rate will exhaust the allowance
+    before it resets, and ElevenLabs gives us everything needed to ask it.
+    """
+
+    def test_spending_fast_enough_to_run_out_is_low_while_most_remains(self):
+        # Half the cycle gone, 60% of the allowance spent: on course to run out
+        # with days to spare. The old rule said "ok" right up to the last tenth.
+        renews = datetime.now(UTC) + timedelta(days=15)
+        assert pb._classify_quota(600.0, 1000.0, renews_at=renews) == "low"
+
+    def test_spending_that_will_last_is_ok(self):
+        renews = datetime.now(UTC) + timedelta(days=15)
+        assert pb._classify_quota(300.0, 1000.0, renews_at=renews) == "ok"
+
+    def test_the_fraction_floor_still_applies_without_a_reset_date(self):
+        assert pb._classify_quota(950.0, 1000.0) == "low"
+        assert pb._classify_quota(100.0, 1000.0) == "ok"
+
+    def test_the_first_days_of_a_cycle_never_project(self):
+        """One long call divided by a sliver of elapsed time projects to
+        millions. A report that cries wolf every month on the 1st is one
+        nobody reads on the 20th."""
+        renews = datetime.now(UTC) + timedelta(days=29)
+        assert pb._classify_quota(100.0, 1000.0, renews_at=renews) == "ok"
+
+    def test_a_stale_reset_date_is_not_projected_from(self):
+        renews = datetime.now(UTC) - timedelta(days=2)
+        assert pb._classify_quota(600.0, 1000.0, renews_at=renews) == "ok"
+
+    def test_a_reset_further_out_than_a_cycle_is_not_projected_from(self):
+        # The cycle is not what we assumed, so the elapsed fraction would be
+        # meaningless. Say nothing rather than something invented.
+        renews = datetime.now(UTC) + timedelta(days=90)
+        assert pb._classify_quota(600.0, 1000.0, renews_at=renews) == "ok"
+
+    def test_no_usage_yet_projects_nothing(self):
+        renews = datetime.now(UTC) + timedelta(days=15)
+        assert pb._classify_quota(0.0, 1000.0, renews_at=renews) == "ok"
+
+    def test_projection_never_invents_empty(self):
+        """Only a spent allowance is empty. A forecast is a forecast."""
+        renews = datetime.now(UTC) + timedelta(days=15)
+        assert pb._classify_quota(600.0, 1000.0, renews_at=renews) != "empty"
+
+
+class TestWhenItRunsOut:
+    def test_it_names_a_date_before_the_reset(self):
+        renews = datetime.now(UTC) + timedelta(days=15)
+        when = pb.exhausted_on(600.0, 1000.0, renews)
+        assert when is not None
+        assert when < renews
+
+    def test_an_allowance_that_lasts_has_no_date(self):
+        renews = datetime.now(UTC) + timedelta(days=15)
+        assert pb.exhausted_on(300.0, 1000.0, renews) is None
+
+    def test_no_reset_date_means_no_projection(self):
+        assert pb.exhausted_on(600.0, 1000.0, None) is None
+
+    def test_nothing_spent_means_no_projection(self):
+        renews = datetime.now(UTC) + timedelta(days=15)
+        assert pb.exhausted_on(0.0, 1000.0, renews) is None
 
 
 class TestNumberParsing:
