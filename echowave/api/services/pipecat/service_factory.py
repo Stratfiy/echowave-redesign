@@ -771,6 +771,14 @@ _REQUEST_BASED_TTS_PROVIDERS = frozenset(
 SARVAM_MIN_BUFFER_SIZE = 50
 SARVAM_MAX_CHUNK_LENGTH = 150
 
+#: Cartesia's server-side buffering window in token mode, in milliseconds.
+#: Unset means Cartesia's own default of 3000, which is three seconds of
+#: silence after the brain starts answering. 300 is long enough for Cartesia
+#: to smooth a token boundary and short enough that a caller does not hear
+#: it as a pause. Measured against the 2,657 ms median reply the Sales
+#: Assistant shows, this is the single largest avoidable wait on this vendor.
+CARTESIA_MAX_BUFFER_DELAY_MS = 300
+
 
 def _create_tts_service_instance(provider, service, /, **kwargs):
     """Build a TTS service, applying everything TTS_POLICY decides.
@@ -932,6 +940,24 @@ def _create_tts_service(
             reconnect_on_error=False,
             api_key=user_config.tts.api_key,
             url=elevenlabs_url,
+            # Whole sentences, and explicitly, overriding the policy's token
+            # default -- for the same reason as Sarvam and one more.
+            #
+            # In token mode pipecat has to leave ElevenLabs' server-side
+            # scheduler on, and pipecat exposes no chunk schedule to tune it,
+            # so ElevenLabs' documented default applies: the first byte
+            # arrives after **120 characters** have accumulated. That is
+            # twenty words, and it is the 700 ms this voice measures on the
+            # Sales Assistant. A sentence is usually shorter than that, and
+            # sending one lets pipecat derive auto_mode=True, which is what
+            # ElevenLabs built auto mode for: complete phrases, no server
+            # buffering.
+            #
+            # The second reason: the speech-text transforms -- spacing out a
+            # registration number, respelling a business name -- run on
+            # aggregated text and quietly do nothing in token mode. On the
+            # Global tier every number was going to the voice unfixed.
+            text_aggregation_mode=TextAggregationMode.SENTENCE,
             settings=ElevenLabsTTSSettings(
                 voice=voice_id,
                 model=user_config.tts.model,
@@ -963,6 +989,15 @@ def _create_tts_service(
             user_config.tts.provider,
             CartesiaTTSService,
             api_key=user_config.tts.api_key,
+            # Named, because unnamed is three seconds. In token mode pipecat
+            # leaves this None so that "the server default applies", and
+            # Cartesia's server default is a 3000 ms buffer before the first
+            # byte -- the caller hears nothing for three seconds after the
+            # brain has started answering. The alternative Cartesia itself
+            # warns against is 0 with client-side sentence aggregation, which
+            # stacks two buffers. A short managed window keeps the first byte
+            # early and lets Cartesia still smooth token boundaries.
+            max_buffer_delay_ms=CARTESIA_MAX_BUFFER_DELAY_MS,
             settings=CartesiaTTSSettings(
                 voice=user_config.tts.voice,
                 model=user_config.tts.model,
