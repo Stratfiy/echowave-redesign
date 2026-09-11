@@ -160,6 +160,43 @@ class CallOutcome(BaseModel):
     when: str = Field(default="", max_length=200)
 
 
+class AgentScheduleSlot(BaseModel):
+    """One window in an agent's week.
+
+    Shaped like the campaign scheduler's slot on purpose: an operator who has
+    set calling windows on a campaign should not meet a second, differently
+    shaped idea of a week on the agent.
+    """
+
+    #: Monday is 0, matching datetime.weekday() and the campaign scheduler.
+    #: Sunday-is-0 would shift every window by a day and read as a broken clock.
+    day_of_week: int = Field(ge=0, le=6)
+    start_time: str = Field(pattern=r"^([01]\d|2[0-4]):[0-5]\d$")
+    end_time: str = Field(pattern=r"^([01]\d|2[0-4]):[0-5]\d$")
+
+
+class AgentSchedule(BaseModel):
+    """The hours an agent keeps, as something the platform can enforce.
+
+    Narayani's opening hours live in its prompt -- "9:30 to 1:00 is when the
+    clinic is open" -- so the agent can *say* them and the platform cannot
+    *keep* them. A call at eleven at night is answered, a slot is agreed, and
+    nobody at the clinic will honour it.
+
+    Off by default, and off means always open: an agent nobody has scheduled
+    behaves exactly as it does today. Everything ambiguous resolves to open as
+    well -- see services/workflow/agent_hours.py -- because taking a number off
+    the air is a worse failure than answering a call out of hours.
+    """
+
+    enabled: bool = False
+    #: IST rather than UTC: every account on this platform is Indian, and a
+    #: schedule that silently means something four and a half hours away is the
+    #: kind of default nobody checks until a caller is turned away at nine.
+    timezone: str = "Asia/Kolkata"
+    slots: list[AgentScheduleSlot] = Field(default_factory=list, max_length=50)
+
+
 class WorkflowConfigurationDefaults(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -230,6 +267,8 @@ class WorkflowConfigurationDefaults(BaseModel):
     # what it can and cannot fix.
     caller_environment: Literal["quiet", "normal", "noisy"] = "normal"
     dictionary: str = ""
+    # The hours this agent keeps. Off by default; off means always open.
+    agent_schedule: AgentSchedule = Field(default_factory=AgentSchedule)
     interruption_backoff_secs: float = Field(
         default=DEFAULT_INTERRUPTION_BACKOFF_SECS, ge=0.0, le=3.0
     )

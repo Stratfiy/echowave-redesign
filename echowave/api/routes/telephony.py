@@ -62,7 +62,7 @@ from api.services.telephony.transfer_event_protocol import (
     TransferEvent,
     TransferEventType,
 )
-from api.services.workflow import liveness
+from api.services.workflow import agent_hours, liveness
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 from api.utils.common import get_backend_endpoints
@@ -1219,6 +1219,39 @@ async def handle_inbound_run(request: Request):
         # refused caller should not spend one, and before the run is created,
         # because a run recorded for a call we never answered is a row that
         # looks like a failure in every report that counts them.
+        # The hours the agent keeps, if its operator set any. Before the
+        # concurrency slot and the run, for the same reason the caller checks
+        # below are: a call we were never going to take should not spend
+        # either. Off by default, and anything unreadable resolves to open --
+        # see services/workflow/agent_hours.py.
+        try:
+            released_configurations = await db_client.get_released_configurations(
+                workflow
+            )
+            schedule = (released_configurations or {}).get(agent_hours.CONFIG_KEY)
+        except Exception as exc:  # noqa: BLE001 - fail open, as below
+            # A configuration read that fails must never refuse a call. Same
+            # posture as the contact lookup below: the worst outcome here is
+            # answering out of hours, and the worst outcome of the alternative
+            # is a number that has gone silent for a reason nobody can see.
+            logger.warning(
+                "Could not read the schedule for workflow {}: {}. Treating the "
+                "agent as open.",
+                workflow_id,
+                exc,
+            )
+            schedule = None
+
+        if not agent_hours.is_open(schedule):
+            logger.info(
+                f"/inbound/run: agent {workflow_id} is closed right now "
+                f"({agent_hours.describe(schedule)}); refusing call from "
+                f"{normalized_data.from_number}"
+            )
+            return provider_class.generate_validation_error_response(
+                TelephonyError.WORKFLOW_NOT_FOUND
+            )
+
         decision = await inbound_guard.evaluate(
             caller=normalized_data.from_number,
             phone_number=phone_row,
