@@ -38,6 +38,7 @@ def build_pipeline(
     voicemail_detector=None,
     recording_router=None,
     language_follower=None,
+    spoken_language_follower=None,
     digit_normaliser=None,
     dtmf_collector=None,
     interruption_backoff=None,
@@ -59,6 +60,11 @@ def build_pipeline(
             immediately after STT so it sees the detected language on every
             transcription and can push TTS settings downstream before the
             agent's next utterance is synthesised.
+        spoken_language_follower: Optional SpokenLanguageFollower. When
+            provided, inserted between the LLM and TTS so the voice is told
+            which language the reply is written in before it synthesises it.
+            A different question from the one above, asked of the reply rather
+            than of the caller — see spoken_language.
         voicemail_detector: Optional native pipecat VoicemailDetector. When provided,
             inserts voicemail detection after STT. Note: We don't use the TTS gate
             to avoid blocking TTS frames during classification.
@@ -140,6 +146,10 @@ def build_pipeline(
             # Absent unless configured, so an agent that never asked for it
             # runs the frames it always ran.
             *([interruption_backoff] if interruption_backoff else []),
+            # Last thing before TTS, so it reads the reply as it finally
+            # stands — after the engine's callbacks and any filler — and its
+            # settings frame is immediately ahead of the text it describes.
+            *([spoken_language_follower] if spoken_language_follower else []),
             tts,  # TTS
             transport.output(),  # Transport bot output
             audio_buffer,  # AudioBufferProcessor - records both input and output audio

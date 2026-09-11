@@ -84,7 +84,15 @@ MIN_CHARS_FOR_DETECTION = 12
 #: Decibyl-managed STT defaults to ``multi`` and several providers offer
 #: ``auto``; both mean "work it out from the audio". Treating one as a
 #: configured language makes the first two genuine turns look like a change.
-NOT_A_LANGUAGE = frozenset({"multi", "auto"})
+#:
+#: ``unknown`` is Sarvam's spelling of the same thing, and it is the value the
+#: managed Indian stack actually carries -- ``service_factory`` reads it as "no
+#: language" when it builds the transcriber. Missing it here meant the baseline
+#: for a managed agent was the literal string ``"unknown"``, which no detection
+#: ever equals, so the caller's own language looked like a change from the
+#: first turn and needed three confirmations to be adopted as the baseline it
+#: already was.
+NOT_A_LANGUAGE = frozenset({"multi", "auto", "unknown"})
 
 
 def primary_subtag(language) -> str | None:
