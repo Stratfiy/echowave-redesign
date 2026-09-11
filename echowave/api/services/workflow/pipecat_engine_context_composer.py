@@ -8,6 +8,8 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Callable, Optional
 from zoneinfo import ZoneInfo
 
+from api.services.pipecat import agent_end_call
+
 if TYPE_CHECKING:
     from api.services.workflow.pipecat_engine_custom_tools import CustomToolManager
     from api.services.workflow.workflow_graph import Node, WorkflowGraph
@@ -148,6 +150,7 @@ async def compose_functions_for_node(
     *,
     node: "Node",
     custom_tool_manager: Optional["CustomToolManager"],
+    agent_can_end_call: bool = False,
 ) -> list[dict]:
     """Compose the function/tool schemas for a workflow node.
 
@@ -158,6 +161,10 @@ async def compose_functions_for_node(
     Args:
         node: The workflow node to compose functions for.
         custom_tool_manager: Manager for custom and built-in tools (may be None).
+        agent_can_end_call: Whether this agent may hang up on its own. Off by
+            default -- an agent that can end a call will sometimes end one it
+            should not have, and an operator who never asked for that would
+            rather a caller sat through a confused turn than be cut off.
 
     Returns:
         A list of function schemas to register with the LLM.
@@ -182,6 +189,19 @@ async def compose_functions_for_node(
             mcp_tool_filters=getattr(node, "mcp_tool_filters", None),
         )
         functions.extend(custom_tool_schemas)
+
+    # Hanging up, for agents allowed to. Offered on every node including an
+    # end node: a caller who has gone quiet on the last step is exactly who
+    # this is for, and an end node has no transitions to reach instead.
+    if agent_can_end_call:
+        functions.append(
+            get_function_schema(
+                agent_end_call.TOOL_NAME,
+                agent_end_call.DESCRIPTION,
+                properties=agent_end_call.tool_properties(),
+                required=["reason"],
+            )
+        )
 
     # Transition function schemas
     for outgoing_edge in node.out_edges:

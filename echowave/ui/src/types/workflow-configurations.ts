@@ -283,6 +283,11 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
      */
     end_call_phrases?: string[];
     end_call_farewell?: string | null;
+    /**
+     * May the agent hang up by itself? The phrase list only reacts to the
+     * caller saying goodbye, which cannot help when nobody is there to say it.
+     */
+    agent_can_end_call?: boolean;
     pronunciation_lexicon?: PronunciationEntry[];
     /**
      * What a finished call is classified as. Empty means the platform default
@@ -345,6 +350,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     backchannel_configuration: { enabled: false, delay_secs: BACKCHANNEL_DEFAULT_DELAY_SECS, phrases: [] },
     end_call_phrases: [],
     end_call_farewell: null,
+    agent_can_end_call: false,
     pronunciation_lexicon: [],
     call_outcomes: [],
     follow_caller_language: false,

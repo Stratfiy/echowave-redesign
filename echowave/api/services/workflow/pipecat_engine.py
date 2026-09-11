@@ -49,6 +49,7 @@ from loguru import logger
 
 from api.services.billing.addons import KNOWLEDGE_BASE as ADDON_KNOWLEDGE_BASE
 from api.services.managed_model_services import MPS_CORRELATION_ID_CONTEXT_KEY
+from api.services.pipecat import agent_end_call
 from api.services.workflow import pipecat_engine_callbacks as engine_callbacks
 from api.services.workflow.mcp_tool_session import McpToolSession
 from api.services.workflow.pipecat_engine_context_composer import (
@@ -111,6 +112,8 @@ class PipecatEngine:
         has_recordings: bool = False,
         code_mixed_speech: bool = False,
         context_compaction_enabled: bool = False,
+        agent_can_end_call: bool = False,
+        end_call_farewell: Optional[str] = None,
         is_voice: bool = True,
         call_recorded: bool = True,
     ):
@@ -222,6 +225,14 @@ class PipecatEngine:
 
         # Background context summarization on node transitions
         self._context_compaction_enabled: bool = context_compaction_enabled
+        # Whether the model is offered a hang-up tool. Off unless the
+        # operator asked for it; see api/services/pipecat/agent_end_call.py.
+        self._agent_can_end_call: bool = agent_can_end_call
+        # The same farewell the caller's own "okay bye" gets. Deliberately not
+        # a second setting: an operator who has written one goodbye means it
+        # for both ways a call can end, and two boxes to fill in is how one of
+        # them ends up empty.
+        self._agent_end_call_farewell: Optional[str] = end_call_farewell
         self._context_summarization_manager: Optional[ContextSummarizationManager] = (
             None
         )
@@ -718,6 +729,13 @@ class PipecatEngine:
                     outgoing_edge.data.transition_speech_recording_id,
                 )
 
+        # Hanging up is a tool like any other, registered per node because the
+        # LLM's function table is rebuilt on every node.
+        if self._agent_can_end_call:
+            self.llm.register_function(
+                agent_end_call.TOOL_NAME, self._end_call_tool_handler
+            )
+
         # Register custom tool handlers for this node
         if node.tool_uuids and self._custom_tool_manager:
             await self._custom_tool_manager.register_handlers(
@@ -742,6 +760,7 @@ class PipecatEngine:
         functions = await compose_functions_for_node(
             node=node,
             custom_tool_manager=self._custom_tool_manager,
+            agent_can_end_call=self._agent_can_end_call,
         )
         await self._update_llm_context(system_prompt, functions)
 
@@ -1384,6 +1403,51 @@ class PipecatEngine:
         """Handle agent node execution."""
         # Setup LLM context with prompts and functions.
         await self._setup_llm_context(node)
+
+    async def _end_call_tool_handler(self, function_call_params) -> None:
+        """The model asked to hang up. Say the farewell, then actually hang up.
+
+        The farewell is queued before the end frame so it plays out, the same
+        ordering ``end_call_on_phrase`` uses. The result callback is answered
+        first: a tool call left unanswered leaves the model waiting on a turn
+        that will never come, and on a call that is already ending that shows
+        up as several seconds of silence before the line drops.
+        """
+        arguments = getattr(function_call_params, "arguments", None) or {}
+        reason = agent_end_call.resolve_reason(
+            arguments.get("reason") if isinstance(arguments, dict) else None
+        )
+        logger.info("The agent asked to end the call: {}", reason)
+
+        try:
+            await function_call_params.result_callback(
+                {"status": "ok", "ending": True, "reason": reason}
+            )
+        except Exception as exc:  # noqa: BLE001 - the call is ending regardless
+            logger.debug("Could not acknowledge the end-call tool: {}", exc)
+
+        if self._call_disposed:
+            return
+
+        self._gathered_context["call_disposition"] = agent_end_call.DISPOSITION
+        tags = self._gathered_context.get("call_tags", [])
+        for tag in (agent_end_call.DISPOSITION, f"end_reason:{reason}"):
+            if tag not in tags:
+                tags.append(tag)
+        self._gathered_context["call_tags"] = tags
+
+        farewell = self._agent_end_call_farewell
+        if farewell and self.task is not None:
+            await self.task.queue_frame(
+                TTSSpeakFrame(farewell, append_to_context=True, persist_to_logs=True)
+            )
+            await self.end_call_with_reason(
+                EndTaskReason.USER_HANGUP.value, abort_immediately=False
+            )
+        else:
+            await self.end_call_with_reason(
+                EndTaskReason.USER_HANGUP.value, abort_immediately=True
+            )
 
     async def end_call_with_reason(
         self,

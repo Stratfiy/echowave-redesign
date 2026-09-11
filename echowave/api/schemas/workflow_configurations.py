@@ -190,6 +190,14 @@ class WorkflowConfigurationDefaults(BaseModel):
     # Empty means off. See services/pipecat/end_call_phrases.py.
     end_call_phrases: list[str] = Field(default_factory=list)
     end_call_farewell: Optional[str] = None
+    # May the agent hang up by itself? The phrase list above only reacts to the
+    # caller saying goodbye, which cannot help when nobody is there to say it:
+    # a tester said "I am not there", the agent replied "I will close the call",
+    # and then talked for another twenty-four seconds, because saying so was
+    # the only thing it could do. This gives it a tool that actually ends the
+    # call. Off by default -- an agent that can hang up sometimes will when it
+    # should not have. See services/pipecat/agent_end_call.py.
+    agent_can_end_call: bool = False
     max_call_duration: int = Field(
         default=DEFAULT_MAX_CALL_DURATION_SECONDS,
         gt=0,
