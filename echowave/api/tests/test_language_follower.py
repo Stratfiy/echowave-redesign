@@ -101,15 +101,23 @@ class TestWhereTheConfiguredLanguageLives:
             == "hi"
         )
 
-    def test_it_falls_back_to_stt_when_the_tts_has_no_language_field(self):
-        """ElevenLabs' config has no language at all — its multilingual models
-        infer it from the text. Without this fallback the most common BYOK
-        stack in the product would start with no baseline."""
-        assert not hasattr(ElevenlabsTTSConfiguration(api_key="k"), "language")
+    def test_it_falls_back_to_stt_when_the_tts_language_is_unset(self):
+        """ElevenLabs' config now has a language field, and it defaults to
+        unset. That default is deliberate -- a default of "en" would tell the
+        vendor to read Tamil with English phonetics -- so the fallback this
+        function exists for still has to fire, and an added field must not
+        quietly become an answer of None where STT had one.
+
+        The assertion this replaces was `not hasattr(...)`, which was true
+        until the field was added and was never the property that mattered.
+        """
+        elevenlabs = ElevenlabsTTSConfiguration(api_key="k")
+        assert hasattr(elevenlabs, "language")
+        assert elevenlabs.language is None
 
         assert (
             configured_language(
-                ElevenlabsTTSConfiguration(api_key="k"),
+                elevenlabs,
                 DeepgramSTTConfiguration(api_key="k", language="hi"),
             )
             == "hi"
