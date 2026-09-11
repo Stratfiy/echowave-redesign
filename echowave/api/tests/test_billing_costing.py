@@ -100,6 +100,9 @@ class TestUsageExtraction:
             # an unpriced provider does not fail, it silently costs the call at
             # zero and reports margin at 100%.
             ("DecibylSarvamLLMService#0", "sarvam"),
+            # And the voice subclass, which exists only to feed Sarvam a
+            # clause at a time, is billed as Sarvam too.
+            ("DecibylSarvamTTSService#0", "sarvam"),
         ],
     )
     def test_the_instance_suffix_pipecat_actually_emits_is_stripped(
