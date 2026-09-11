@@ -10,7 +10,7 @@ from typing import Awaitable, Callable, Optional
 
 from fastapi import APIRouter, Header, HTTPException
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.db import db_client
 from api.enums import TriggerState, WorkflowStatus
@@ -31,6 +31,12 @@ from api.services.telephony.factory import (
     get_default_telephony_provider,
     get_telephony_provider_by_id,
 )
+from api.services.workflow.triggered_calls import (
+    TriggerRateLimited,
+    already_delivered,
+    count_trigger,
+    remember_delivery,
+)
 from api.utils.common import get_backend_endpoints
 
 router = APIRouter(prefix="/public/agent")
@@ -42,6 +48,20 @@ class TriggerCallRequest(BaseModel):
     phone_number: str
     initial_context: Optional[dict] = None
     telephony_configuration_id: int | None = None
+    # Optional, and the thing that makes this endpoint safe for a machine.
+    # Every webhook sender ever written retries on a timeout, and without an
+    # id the redelivery is indistinguishable from a second alarm: the customer
+    # is rung twice about one pump. Supply the event's own identifier and a
+    # redelivery returns the first run instead of dialling again.
+    event_id: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description=(
+            "An identifier for the event that caused this call. A second "
+            "request carrying the same event_id within 24 hours returns the "
+            "first call instead of placing another."
+        ),
+    )
 
 
 class TriggerCallResponse(BaseModel):
@@ -439,7 +459,28 @@ async def _initiate_call(
         api_key.organization_id,
         use_draft=use_draft,
     )
-    return await _execute_resolved_target(
+
+    # Before anything is dialled. A redelivery must not ring the customer a
+    # second time, and a sender that has got stuck must not ring them all
+    # night -- see services/workflow/triggered_calls.py for why both of those
+    # are the normal case rather than the pathological one.
+    duplicate = await already_delivered(identifier, request.event_id)
+    if duplicate is not None:
+        logger.info(
+            f"Event {request.event_id} was already delivered for {identifier}; "
+            f"returning run {duplicate} instead of calling again."
+        )
+        return TriggerCallResponse(
+            status="duplicate",
+            workflow_run_id=duplicate,
+            workflow_run_name="",
+        )
+    try:
+        await count_trigger(identifier)
+    except TriggerRateLimited as limited:
+        raise HTTPException(status_code=429, detail=str(limited))
+
+    response = await _execute_resolved_target(
         target,
         request,
         use_draft=use_draft,
@@ -449,6 +490,12 @@ async def _initiate_call(
         # reading a config file; what a key may do is decided by the row.
         key_environment=getattr(api_key, "environment", PRODUCTION),
     )
+    # After the call exists, so a failure to record never becomes a second
+    # call. The cost of the opposite order is a duplicate; the cost of this
+    # one is a duplicate we failed to prevent, which is the same thing only
+    # rarer.
+    await remember_delivery(identifier, request.event_id, response.workflow_run_id)
+    return response
 
 
 @router.post("/{uuid}", response_model=TriggerCallResponse)

@@ -9417,6 +9417,12 @@ export type TriggerCallRequest = {
      * Telephony Configuration Id
      */
     telephony_configuration_id?: number | null;
+    /**
+     * Event Id
+     *
+     * An identifier for the event that caused this call. A second request carrying the same event_id within 24 hours returns the first call instead of placing another.
+     */
+    event_id?: string | null;
 };
 
 /**
