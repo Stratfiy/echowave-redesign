@@ -1,4 +1,4 @@
-"""The model choice as the create wizard asks it: a voice and a brain, with a price.
+"""The model choice as the create wizard asks it: a preset, a voice, with a price.
 
 Thin — the vocabulary and the pricing live in
 ``services/configuration/agent_options.py``, because the wizard is not the only
@@ -9,12 +9,16 @@ non-technical buyer can act on.
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
 
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
-from api.services.configuration import agent_options, voice_samples
+from api.services.configuration import (
+    agent_options,
+    managed_tiers,
+    model_presets,
+    voice_samples,
+)
 from api.services.telephony import carriage
 
 router = APIRouter(prefix="/agent-options", tags=["agent-options"])
@@ -52,21 +56,25 @@ async def get_carriage_basis(user: UserModel = Depends(get_user)) -> dict[str, A
 
 @router.get("")
 async def get_agent_options(
-    workflow_id: int | None = Query(
+    languages: list[str] | None = Query(
         default=None,
         description=(
-            "Read the selection of this agent rather than the account default. "
-            "The options themselves are the same either way."
+            "Languages the agent will serve, by name or subtag. Used to mark "
+            "the preset that fits; the options themselves do not change."
         ),
+    ),
+    uses_tools: bool = Query(
+        default=False,
+        description="Whether the agent will call tools or read documents.",
     ),
     user: UserModel = Depends(get_user),
 ) -> dict[str, Any]:
-    """Voices and brains, each with what it costs a minute.
+    """Voices, brains and presets, each with what it costs a minute.
 
-    Priced per brain rather than per combination: every managed voice resolves
-    to the same tier and the same vendor rate, so the voice does not move the
-    number and pricing the cross-product would be seven identical answers per
-    tier.
+    Brains are priced per tier rather than per combination: every managed
+    voice on a tier resolves to the same vendor rate, so the voice does not
+    move the number. Presets are priced whole, and the one that fits the
+    languages and tools given is marked recommended.
     """
     organization_id = user.selected_organization_id
     if organization_id is None:
@@ -102,28 +110,42 @@ async def get_agent_options(
     # picker renders a play button only where there is something to play, so a
     # deployment that has never run the generation script degrades to names
     # rather than to buttons that fail when clicked.
-    voice_list = []
-    for voice in agent_options.voices():
-        voice_list.append(
-            {
-                "voice_id": voice.voice_id,
-                "name": voice.name,
-                "gender": voice.gender,
-                "description": voice.description,
-                "is_default": voice.is_default,
-                "sample_url": await voice_samples.sample_url(voice.voice_id, "en"),
-                "sample_url_hi": await voice_samples.sample_url(voice.voice_id, "hi"),
-            }
-        )
+    #
+    # Per voice tier, because a preset names its tier and the voices under
+    # Basic are not the voices under Standard. ``voices`` stays as the default
+    # tier's list for callers that ask no further.
+    async def _voice_list(tier: str) -> list[dict[str, Any]]:
+        out = []
+        for voice in agent_options.voices(tier):
+            out.append(
+                {
+                    "voice_id": voice.voice_id,
+                    "name": voice.name,
+                    "gender": voice.gender,
+                    "description": voice.description,
+                    "is_default": voice.is_default,
+                    "sample_url": await voice_samples.sample_url(voice.voice_id, "en"),
+                    "sample_url_hi": await voice_samples.sample_url(
+                        voice.voice_id, "hi"
+                    ),
+                }
+            )
+        return out
+
+    voices_by_tier = {tier: await _voice_list(tier) for tier in managed_tiers.TTS_TIERS}
+    voice_list = voices_by_tier.get("default", [])
 
     async with db_client.async_session() as session:
-        # The Simple picker's cards. Kept on the same request as voices and
-        # brains because the screen needs all three to render one price, and
-        # three round trips to draw one number is how a picker feels slow.
-        bundles = await agent_options.bundle_options(
+        # The preset chips, priced. On the same request as voices and brains
+        # because the screen needs all of them to render one price, and three
+        # round trips to draw one number is how a picker feels slow.
+        presets = await agent_options.preset_options(
             session,
             organization_id=organization_id,
             telephony_provider=basis.provider,
+            requirement=model_presets.Requirement(
+                languages=tuple(languages or []), uses_tools=uses_tools
+            ),
         )
 
     async with db_client.async_session() as session:
@@ -141,89 +163,17 @@ async def get_agent_options(
             session, organization_id=organization_id
         )
 
-    # What this account is on right now, so the picker opens on the saved
-    # choice rather than on the first card every time. Without it the screen
-    # showed a selection it had invented, and pressing Save on what looked like
-    # the current state silently changed it.
-    if workflow_id is not None:
-        try:
-            selected = await agent_options.selected_bundle_for_workflow(
-                workflow_id=workflow_id, organization_id=organization_id
-            )
-        except agent_options.SelectionError as exc:
-            raise HTTPException(status_code=404, detail=str(exc))
-    else:
-        selected = await agent_options.selected_bundle(organization_id=organization_id)
-
     return {
         "brains": priced,
         "voices": voice_list,
-        "bundles": bundles,
-        "selected": selected,
+        "voices_by_tier": voices_by_tier,
+        "presets": presets,
         "balance_paise": int(balance_paise),
         # What the numbers above do and do not contain. A price that excludes
         # the largest variable line has to say so on the screen, or the first
         # invoice is where the customer finds out.
         "telephony": _carriage_view(basis),
     }
-
-
-class BundleSelection(BaseModel):
-    """A Simple-tab choice, as the client is allowed to express it.
-
-    Three fields and no tiers beyond the brain: everything else about the stack
-    is looked up from the bundle server-side. See
-    ``agent_options.save_bundle_selection`` for why that matters.
-    """
-
-    bundle: str
-    tier: str = ""
-    voice: str = ""
-
-
-@router.put("/selection")
-async def save_selection(
-    selection: BundleSelection,
-    workflow_id: int | None = Query(
-        default=None,
-        description=(
-            "Save the choice on this agent alone, as its model override. Omit "
-            "to set the account default every agent without one inherits."
-        ),
-    ),
-    user: UserModel = Depends(get_user),
-) -> dict[str, Any]:
-    """Make this bundle the account's default stack — or one agent's own.
-
-    The Simple tab's Save. It writes the same stored configuration the Advanced
-    tab writes — one account default, expressed in whichever vocabulary the
-    person prefers — rather than a second setting that would then have to be
-    reconciled with the first.
-    """
-    organization_id = user.selected_organization_id
-    if organization_id is None:
-        raise HTTPException(status_code=400, detail="No organization selected")
-
-    async with db_client.async_session() as session:
-        try:
-            if workflow_id is not None:
-                return await agent_options.save_workflow_bundle_selection(
-                    session,
-                    workflow_id=workflow_id,
-                    organization_id=organization_id,
-                    bundle_slug=selection.bundle,
-                    tier=selection.tier,
-                    voice=selection.voice,
-                )
-            return await agent_options.save_bundle_selection(
-                session,
-                organization_id=organization_id,
-                bundle_slug=selection.bundle,
-                tier=selection.tier,
-                voice=selection.voice,
-            )
-        except agent_options.SelectionError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.get("/minutes")

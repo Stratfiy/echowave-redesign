@@ -25,7 +25,6 @@ const TABS = [
     { href: "/superadmin/billing/unit-economics", label: "Unit economics" },
     { href: "/superadmin/billing/pricing-inputs", label: "Pricing inputs" },
     { href: "/superadmin/billing/rate-card", label: "Rate card" },
-    { href: "/superadmin/billing/bundles", label: "Bundles" },
     { href: "/superadmin/billing/plans", label: "Plans" },
     // Not a billing screen, and it is the first step of every billing task on
     // this strip: nothing can be priced on the rate card, put in a bundle or

@@ -128,11 +128,18 @@ type Preset = {
     blurb: string;
     /** False when we hold no key for what this preset resolves to. */
     available: boolean;
+    /** The whole minute on this preset, or null where a part is unpriced. */
+    paise_per_minute?: number | null;
+    /** The rung the agent's own languages and tools point at. */
+    recommended?: boolean;
+    reason?: string | null;
 };
 
 type ModelRowData = {
     is_realtime: boolean;
     slots: Slot[];
+    /** The voices published for what the voice slot resolves to. */
+    voices?: VoiceOption[];
     cost: Cost;
     latency: Latency | null;
     presets?: Preset[];
@@ -221,7 +228,12 @@ export function ModelRow({
                 );
                 return;
             }
-            setData((result.data as ModelRowData | undefined) ?? null);
+            const body = (result.data as ModelRowData | undefined) ?? null;
+            setData(body);
+            // The voice tile's list rides with the row: it is the list for
+            // whatever the agent's voice slot resolves to, so an agent on the
+            // Basic voice sees Rumik's speakers and not Sarvam's.
+            setVoices(body?.voices ?? []);
         } catch {
             setError("Could not load what this agent runs on");
         } finally {
@@ -237,17 +249,10 @@ export function ModelRow({
         // What each pencil can offer. Fetched once, beside the row, and only
         // when there are pencils to feed.
         void (async () => {
-            const [catalogueResult, optionsResult] = await Promise.all([
-                client.get({ url: "/api/v1/agent-options/catalogue" }),
-                client.get({ url: "/api/v1/agent-options" }),
-            ]);
+            const catalogueResult = await client.get({ url: "/api/v1/agent-options/catalogue" });
             if (!catalogueResult.error) {
                 const body = catalogueResult.data as { catalogue?: Record<string, CatalogueOption[]> } | undefined;
                 setCatalogue(body?.catalogue ?? {});
-            }
-            if (!optionsResult.error) {
-                const body = optionsResult.data as { voices?: VoiceOption[] } | undefined;
-                setVoices(body?.voices ?? []);
             }
         })();
     }, [authLoading, user, load, editable]);
@@ -365,19 +370,26 @@ export function ModelRow({
                         </span>
                         {presets.map((preset) => {
                             const active = data.active_preset === preset.slug;
+                            const price =
+                                typeof preset.paise_per_minute === "number"
+                                    ? `${formatCreditsRate(preset.paise_per_minute)}/min`
+                                    : null;
                             return (
                                 <button
                                     key={preset.slug}
                                     type="button"
                                     title={
-                                        preset.available
-                                            ? preset.blurb
-                                            : "Not available on this account yet."
+                                        !preset.available
+                                            ? "Not available on this account yet."
+                                            : preset.recommended && preset.reason
+                                              ? `${preset.blurb} Recommended: ${preset.reason}`
+                                              : preset.blurb
                                     }
+                                    aria-pressed={active}
                                     disabled={!preset.available || applying !== null}
                                     onClick={() => applyPreset(preset.slug)}
                                     className={cn(
-                                        "rounded-full border px-3 py-1 text-xs transition-colors",
+                                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
                                         !preset.available
                                             ? "cursor-not-allowed border-dashed text-muted-foreground opacity-60"
                                             : active
@@ -386,6 +398,20 @@ export function ModelRow({
                                     )}
                                 >
                                     {applying === preset.slug ? "Saving…" : preset.label}
+                                    {/* The price on the chip, because the price is
+                                        the choice. A ladder with no numbers on it
+                                        is a quality scale, which this is not. */}
+                                    {price && applying !== preset.slug && (
+                                        <span className="tabular-nums opacity-70">{price}</span>
+                                    )}
+                                    {preset.recommended && !active && (
+                                        <span
+                                            className="rounded-full bg-[var(--accent-brand-soft)] px-1.5 text-[10px] font-medium text-foreground"
+                                            data-testid="preset-recommended"
+                                        >
+                                            Recommended
+                                        </span>
+                                    )}
                                 </button>
                             );
                         })}

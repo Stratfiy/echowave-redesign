@@ -178,125 +178,10 @@ class TestVoiceSamples:
             assert SAMPLE_LINES.get(language, "").strip()
 
 
-class TestTheSimplePickersCards:
-    """Three cards, priced, each carrying the residency badge.
+class TestThePresetChips:
+    """Four chips, each priced whole, one of them recommended."""
 
-    Every bundle has **variants** even when there is one, so the screen renders
-    a single shape rather than branching on architecture — and a fourth bundle
-    later needs no new case.
-    """
-
-    async def test_every_enabled_bundle_is_offered(self, db_session, async_session):
-        org = await _org(async_session, "bundle-list")
-        cards = await agent_options.bundle_options(
-            async_session, organization_id=org.id
-        )
-
-        assert [c["slug"] for c in cards] == ["everyday", "natural", "premium"]
-
-    async def test_the_pipeline_bundle_offers_the_three_brains(
-        self, db_session, async_session
-    ):
-        """Everyday is three variants of one card, not three cards."""
-        org = await _org(async_session, "bundle-variants")
-        cards = await agent_options.bundle_options(
-            async_session, organization_id=org.id
-        )
-        everyday = next(c for c in cards if c["slug"] == "everyday")
-
-        assert [v["tier"] for v in everyday["variants"]] == [
-            "lite",
-            "default",
-            "accurate",
-        ]
-        assert [v["label"] for v in everyday["variants"]] == ["Lite", "Normal", "Smart"]
-
-    async def test_a_speech_to_speech_bundle_has_exactly_one_variant(
-        self, db_session, async_session
-    ):
-        org = await _org(async_session, "bundle-single")
-        cards = await agent_options.bundle_options(
-            async_session, organization_id=org.id
-        )
-        natural = next(c for c in cards if c["slug"] == "natural")
-
-        assert len(natural["variants"]) == 1
-        assert natural["picks_voice"] is False
-
-    async def test_only_the_pipeline_bundle_picks_a_voice(
-        self, db_session, async_session
-    ):
-        """A speech-to-speech model brings its own voice — there is nothing to
-        choose, and offering a picker that does nothing is worse than none."""
-        org = await _org(async_session, "bundle-voice")
-        cards = await agent_options.bundle_options(
-            async_session, organization_id=org.id
-        )
-
-        assert next(c for c in cards if c["slug"] == "everyday")["picks_voice"] is True
-        assert next(c for c in cards if c["slug"] == "premium")["picks_voice"] is False
-
-    async def test_the_india_badge_rides_on_the_variant_not_the_card(
-        self, db_session, async_session
-    ):
-        """Within Everyday, Lite qualifies and the other two do not — so the
-        badge cannot live on the card."""
-        org = await _org(async_session, "bundle-badge")
-        cards = await agent_options.bundle_options(
-            async_session, organization_id=org.id
-        )
-        by_tier = {
-            v["tier"]: v
-            for v in next(c for c in cards if c["slug"] == "everyday")["variants"]
-        }
-
-        assert by_tier["lite"]["india_only"] is True
-        assert by_tier["default"]["india_only"] is False
-        assert by_tier["accurate"]["india_only"] is False
-
-    async def test_a_disabled_bundle_is_not_offered(self, db_session, async_session):
-        from api.services.configuration import bundles as bundle_service
-
-        org = await _org(async_session, "bundle-hidden")
-        await bundle_service.list_bundles(async_session)
-        await bundle_service.upsert_bundle(
-            async_session, slug="premium", actor_user_id=None, is_enabled=False
-        )
-
-        cards = await agent_options.bundle_options(
-            async_session, organization_id=org.id
-        )
-        assert "premium" not in [c["slug"] for c in cards]
-
-    async def test_the_price_matches_the_estimator_it_came_from(
-        self, db_session, async_session
-    ):
-        """No second calculation. Every pricing bug this week came from a
-        parallel sum drifting from the first one, so the card's number has to
-        be the estimator's number rather than a re-derivation of it.
-        """
-        org = await _org(async_session, "bundle-price")
-        cards = await agent_options.bundle_options(
-            async_session, organization_id=org.id
-        )
-        lite = next(
-            v
-            for v in next(c for c in cards if c["slug"] == "everyday")["variants"]
-            if v["tier"] == "lite"
-        )
-
-        direct = await agent_options.price_per_minute(
-            async_session, organization_id=org.id, brain="lite"
-        )
-        assert lite["paise_per_minute"] == direct
-
-    async def test_a_dearer_brain_costs_more(self, db_session, async_session):
-        """The point of offering the choice at all.
-
-        Needs real rate rows: with an empty price book every provider line is
-        uncosted and all three tiers come back as the platform fee alone —
-        which is correct behaviour and would make this assertion vacuous.
-        """
+    async def _rates(self, async_session):
         from datetime import UTC, datetime
 
         from api.db.models import ProviderRateModel
@@ -312,21 +197,12 @@ class TestTheSimplePickersCards:
                 effective_from=datetime(2020, 1, 1, tzinfo=UTC),
             )
 
-        org = await _org(async_session, "bundle-order")
         async_session.add_all(
             [
                 rate("sarvam", CostComponent.STT, RateUnit.MINUTE, 500),
                 rate("sarvam", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 1500),
-                # Millipaise per 1,000 tokens, at the magnitude the real card
-                # uses. My first pass was a hundred times too small: the line
-                # came out sub-paise, rounded to zero, and all three tiers
-                # priced identically — which looked like a bug in the picker
-                # and was a bug in the fixture.
-                # Tracks the model the "lite" tier actually resolves to. Left
-                # on plain sarvam-105b this fixture stopped matching the tier,
-                # and the lite line priced at zero -- which still satisfies the
-                # ordering asserted below, so the test would have kept passing
-                # while measuring nothing.
+                rate("rumik", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 500),
+                rate("elevenlabs", CostComponent.TTS, RateUnit.THOUSAND_CHARS, 9000),
                 rate(
                     "sarvam",
                     CostComponent.LLM,
@@ -352,12 +228,43 @@ class TestTheSimplePickersCards:
         )
         await async_session.flush()
 
-        cards = await agent_options.bundle_options(
+    async def test_every_preset_is_offered_in_ladder_order(
+        self, db_session, async_session
+    ):
+        org = await _org(async_session, "preset-list")
+        cards = await agent_options.preset_options(
             async_session, organization_id=org.id
         )
-        by_tier = {
-            v["tier"]: v["paise_per_minute"]
-            for v in next(c for c in cards if c["slug"] == "everyday")["variants"]
-        }
+        assert [c["slug"] for c in cards] == ["basic", "standard", "smart", "global"]
+        assert all("available" in c and "paise_per_minute" in c for c in cards)
 
-        assert by_tier["lite"] < by_tier["default"] < by_tier["accurate"]
+    async def test_the_ladder_climbs_in_price(self, db_session, async_session):
+        org = await _org(async_session, "preset-price")
+        await self._rates(async_session)
+        cards = await agent_options.preset_options(
+            async_session, organization_id=org.id
+        )
+        price = {c["slug"]: c["paise_per_minute"] for c in cards}
+        assert None not in price.values(), price
+        assert price["basic"] < price["standard"] < price["smart"]
+
+    async def test_the_recommended_rung_is_marked_with_its_reason(
+        self, db_session, async_session
+    ):
+        from api.services.configuration import model_presets
+
+        org = await _org(async_session, "preset-pick")
+        cards = await agent_options.preset_options(
+            async_session,
+            organization_id=org.id,
+            requirement=model_presets.Requirement(languages=("Hindi", "Tamil")),
+        )
+        marked = [c for c in cards if c["recommended"]]
+        assert len(marked) == 1
+        assert marked[0]["reason"]
+        # Without a requirement nothing is marked: a chip lit for no reason
+        # reads as the default, and the default is the customer's to pick.
+        plain = await agent_options.preset_options(
+            async_session, organization_id=org.id
+        )
+        assert not any(c["recommended"] for c in plain)

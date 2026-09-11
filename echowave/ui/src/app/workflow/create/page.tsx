@@ -26,7 +26,6 @@
  */
 
 import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles, X } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -125,40 +124,25 @@ const STEPS = ["Identity", "Conversation", "Closing"] as const;
  * the number that runs out.
  */
 
-type Brain = {
-    tier: string;
-    label: string;
-    blurb: string;
-    paise_per_minute: number;
-};
-
-/** One managed bundle as the picker draws it. `variants` is uniform across
- *  architectures: the cascade has three (the brain is the customer's choice),
- *  a speech-to-speech bundle has exactly one. */
-type BundleVariant = {
-    tier: string;
-    label: string;
-    blurb: string;
-    paise_per_minute: number | null;
-    /** Do we hold a key for every provider this variant resolves to? */
-    available?: boolean;
-};
-
-type BundleOption = {
+/** One rung of the preset ladder, priced whole. */
+type PresetOption = {
     slug: string;
     label: string;
     blurb: string;
-    architecture: string;
-    picks_voice: boolean;
-    /** False when no variant of this bundle can currently be served. */
-    available?: boolean;
-    variants: BundleVariant[];
+    tts_tier: string;
+    /** False when we hold no key for something this preset resolves to. */
+    available: boolean;
+    paise_per_minute: number | null;
+    /** The rung the languages chosen point at, with why. */
+    recommended: boolean;
+    reason: string | null;
 };
 
 type AgentOptions = {
-    brains: Brain[];
     voices: VoiceOption[];
-    bundles?: BundleOption[];
+    /** The voices under each voice tier; a preset names which. */
+    voices_by_tier?: Record<string, VoiceOption[]>;
+    presets?: PresetOption[];
 };
 
 /** "₹5.20" from 520 paise. */
@@ -252,12 +236,11 @@ export default function CreateWorkflowPage() {
     const [options, setOptions] = useState<AgentOptions | null>(null);
     const [balancePaise, setBalancePaise] = useState<number | null>(null);
     const [voice, setVoice] = useState<string>("");
-    const [brain, setBrain] = useState<string>("default");
-    // Everyday unless the wizard is told otherwise. It is the cheapest to run
-    // and the best of the three on Indian languages, so it is the right thing
-    // for somebody who has not yet formed an opinion — and the finance case
-    // for defaulting elsewhere does not exist.
-    const [bundleSlug, setBundleSlug] = useState<string>("everyday");
+    // Empty until the options arrive, then the rung the server recommends
+    // for the languages chosen -- unless the person has clicked one, in which
+    // case their choice stays put while the recommendation moves underneath.
+    const [presetSlug, setPresetSlug] = useState<string>("");
+    const [presetTouched, setPresetTouched] = useState(false);
     // Step 2 — conversation
     const [welcome, setWelcome] = useState("");
     const [guardrails, setGuardrails] = useState(DEFAULT_GUARDRAILS.join("\n"));
@@ -269,13 +252,19 @@ export default function CreateWorkflowPage() {
     const [useHangupPrompt, setUseHangupPrompt] = useState(false);
     const [hangupPrompt, setHangupPrompt] = useState("");
 
+    // Refetched when the languages change: the recommended rung depends on
+    // them, and a Tamil agent recommended the Hindi-only voice because the
+    // options were fetched before Tamil was ticked is the wrong answer
+    // presented confidently.
+    const languagesKey = languages.join(",");
     useEffect(() => {
         if (!user) return;
         let cancelled = false;
         void (async () => {
-            // Not in the generated SDK yet; the route is newer than the last
-            // client generation.
-            const response = await client.get({ url: "/api/v1/agent-options" });
+            const response = await client.get({
+                url: "/api/v1/agent-options",
+                query: { languages: languagesKey ? languagesKey.split(",") : undefined },
+            });
             if (cancelled || response.error) return;
             const data = response.data as AgentOptions | undefined;
             if (!data) return;
@@ -291,32 +280,40 @@ export default function CreateWorkflowPage() {
                     ?.balance_paise;
                 if (typeof paise === "number") setBalancePaise(paise);
             })();
-            setVoice((current) => current || (data.voices[0]?.voice_id ?? ""));
         })();
         return () => {
             cancelled = true;
         };
-    }, [user]);
+    }, [user, languagesKey]);
 
-    const bundleList = options?.bundles ?? [];
-    // "everyday" is the intended default, but never a bundle we cannot serve:
-    // the form would then submit a stack that fails at dial time.
-    const usableBundles = bundleList.filter((b) => b.available !== false);
-    const chosenBundle =
-        usableBundles.find((b) => b.slug === bundleSlug) ??
-        usableBundles[0] ??
-        bundleList[0] ??
+    const presetList = options?.presets ?? [];
+    const usablePresets = presetList.filter((p) => p.available);
+    const recommended = usablePresets.find((p) => p.recommended) ?? null;
+    // The rung in effect: the one clicked if it can be served, else the
+    // recommendation, else the first that can be. Never one we cannot serve,
+    // or the form submits a stack that fails at dial time.
+    const chosenPreset =
+        (presetTouched ? usablePresets.find((p) => p.slug === presetSlug) : null) ??
+        recommended ??
+        usablePresets[0] ??
         null;
-    // The cascade leaves the language model to the customer; one model that
-    // hears and speaks has no separate brain slot to set, so the question is
-    // not asked rather than asked and ignored.
-    const picksBrain = chosenBundle ? chosenBundle.picks_voice : true;
-    const chosenBrain = picksBrain
-        ? (options?.brains.find((b) => b.tier === brain) ?? null)
-        : null;
-    const bundlePrice = picksBrain
-        ? (chosenBrain?.paise_per_minute ?? null)
-        : (chosenBundle?.variants[0]?.paise_per_minute ?? null);
+    // The voices under the chosen rung's tier. A Basic agent picks among
+    // Rumik's speakers; showing Sarvam's would play one voice and ship another.
+    const chosenTtsTier = chosenPreset?.tts_tier ?? null;
+    const voiceList: VoiceOption[] = useMemo(
+        () =>
+            (chosenTtsTier ? options?.voices_by_tier?.[chosenTtsTier] : null) ??
+            options?.voices ??
+            [],
+        [chosenTtsTier, options],
+    );
+    useEffect(() => {
+        if (voiceList.length === 0) return;
+        setVoice((current) =>
+            voiceList.some((v) => v.voice_id === current) ? current : voiceList[0].voice_id,
+        );
+    }, [voiceList]);
+    const presetPrice = chosenPreset?.paise_per_minute ?? null;
     // Shown with a "roughly" in front of it. It moves with the rate card and
     // with how much the agent actually says, so it is an estimate in the
     // honest sense rather than an entitlement.
@@ -325,8 +322,8 @@ export default function CreateWorkflowPage() {
     // reads as "we are not telling you", which is true. A figure computed from
     // a balance we could not fetch would read as a promise.
     const approxMinutes =
-        bundlePrice !== null && bundlePrice > 0 && balancePaise !== null
-            ? Math.floor(balancePaise / bundlePrice)
+        presetPrice !== null && presetPrice > 0 && balancePaise !== null
+            ? Math.floor(balancePaise / presetPrice)
             : null;
 
     const guardrailCount = useMemo(
@@ -365,15 +362,11 @@ export default function CreateWorkflowPage() {
             gender,
             tone,
             voice,
-            // The bundle actually on screen, not the one in state: when the
-            // remembered slug is unservable the card grid falls back to
-            // another, and submitting the state would build the agent the
-            // customer was not shown.
-            bundle_slug: chosenBundle?.slug ?? bundleSlug,
-            // Only meaningful on the cascade. Sending a brain alongside a
-            // speech-to-speech bundle would describe an agent that cannot
-            // exist, so the field goes empty instead.
-            llm_tier: picksBrain ? brain : "",
+            // The preset actually on screen, not the one in state: when the
+            // clicked rung cannot be served the grid falls back to another,
+            // and submitting the state would build the agent the customer
+            // was not shown. Empty lets the server recommend.
+            preset: chosenPreset?.slug ?? "",
             welcome_message: welcome.trim(),
             conversation_flow: flow.trim(),
             // Empty means "apply the server's own", so an untouched list is
@@ -608,7 +601,7 @@ export default function CreateWorkflowPage() {
                                 </span>
                             ) : (
                                 <VoicePicker
-                                    voices={options.voices}
+                                    voices={voiceList}
                                     selected={voice}
                                     onSelect={(id, group) => {
                                         setVoice(id);
@@ -618,52 +611,49 @@ export default function CreateWorkflowPage() {
                             )}
                         </Field>
 
-                        {bundleList.length > 0 && (
+                        {presetList.length > 0 && (
                             <Field
-                                label="How should it sound?"
-                                hint="Everyday is the cheapest and the best of the three on Indian languages. The other two reply faster, and cost more a minute."
+                                label="How should it run?"
+                                hint="Each step up buys one more thing: every Indian language, a stronger brain, an international voice. The one marked is picked from the languages you chose."
                             >
-                                <div className="grid gap-2 sm:grid-cols-3">
-                                    {bundleList.map((option) => {
-                                        const price =
-                                            option.picks_voice
-                                                ? null
-                                                : (option.variants[0]?.paise_per_minute ?? null);
-                                        // Undefined from an older server means
-                                        // "no opinion" and must read as usable,
-                                        // or a deploy skew empties this grid.
-                                        const usable = option.available !== false;
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                    {presetList.map((option) => {
+                                        const usable = option.available;
+                                        const selected = chosenPreset?.slug === option.slug;
                                         return (
                                             <button
                                                 key={option.slug}
                                                 type="button"
                                                 disabled={!usable}
-                                                onClick={() => setBundleSlug(option.slug)}
-                                                // The bundle actually in
-                                                // effect, not the remembered
-                                                // slug: when that one cannot be
-                                                // served the form falls back to
-                                                // another, and highlighting the
-                                                // state would leave every card
-                                                // unselected while a different
-                                                // bundle is what gets created.
-                                                aria-pressed={chosenBundle?.slug === option.slug}
+                                                onClick={() => {
+                                                    setPresetSlug(option.slug);
+                                                    setPresetTouched(true);
+                                                }}
+                                                aria-pressed={selected}
                                                 className={cn(
                                                     "rounded-lg border p-3 text-left transition-colors",
                                                     !usable
                                                         ? "cursor-not-allowed border-dashed border-border opacity-60"
-                                                        : chosenBundle?.slug === option.slug
+                                                        : selected
                                                           ? "border-primary bg-primary/5"
                                                           : "border-border hover:bg-muted/40",
                                                 )}
                                             >
                                                 <span className="flex items-baseline justify-between gap-2">
-                                                    <span className="font-medium">
+                                                    <span className="flex items-center gap-2 font-medium">
                                                         {option.label}
+                                                        {option.recommended && usable && (
+                                                            <span
+                                                                className="rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-medium"
+                                                                title={option.reason ?? undefined}
+                                                            >
+                                                                Recommended
+                                                            </span>
+                                                        )}
                                                     </span>
-                                                    {usable && price !== null && (
+                                                    {usable && option.paise_per_minute !== null && (
                                                         <span className="text-sm tabular-nums text-muted-foreground">
-                                                            {rupees(price)}/min
+                                                            {rupees(option.paise_per_minute)}/min
                                                         </span>
                                                     )}
                                                 </span>
@@ -676,59 +666,18 @@ export default function CreateWorkflowPage() {
                                         );
                                     })}
                                 </div>
-                                {/* The way out for somebody who does have an
-                                    opinion, without putting provider names in
-                                    front of somebody who does not. */}
-                                <p className="mt-2 text-xs text-muted-foreground">
-                                    Want to name the models yourself?{" "}
-                                    <Link
-                                        href="/workflow"
-                                        className="underline underline-offset-2 hover:text-foreground"
-                                    >
-                                        Advanced setup
-                                    </Link>
-                                </p>
+                                {recommended?.reason && (
+                                    <p className="mt-2 text-xs text-muted-foreground">
+                                        {recommended.label} is recommended: {recommended.reason}
+                                        {" "}You can change any part of it later from the agent&apos;s own screen.
+                                    </p>
+                                )}
                             </Field>
                         )}
 
-                        {picksBrain && (
-                        <Field
-                            label="How clever should it be?"
-                            hint="A bigger brain handles a caller who goes off script better, and costs more a minute."
-                        >
-                            <div className="grid gap-2 sm:grid-cols-3">
-                                {(options?.brains ?? []).map((option) => (
-                                    <button
-                                        key={option.tier}
-                                        type="button"
-                                        onClick={() => setBrain(option.tier)}
-                                        className={cn(
-                                            "rounded-lg border p-3 text-left transition-colors",
-                                            brain === option.tier
-                                                ? "border-primary bg-primary/5"
-                                                : "border-border hover:bg-muted/40",
-                                        )}
-                                    >
-                                        <span className="flex items-baseline justify-between gap-2">
-                                            <span className="font-medium">
-                                                {option.label}
-                                            </span>
-                                            <span className="text-sm tabular-nums text-muted-foreground">
-                                                {rupees(option.paise_per_minute)}/min
-                                            </span>
-                                        </span>
-                                        <span className="mt-1 block text-xs text-muted-foreground">
-                                            {option.blurb}
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </Field>
-                        )}
-
-                        {bundlePrice !== null && (
+                        {presetPrice !== null && (
                             <p className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
-                                <strong>{rupees(bundlePrice)} a minute</strong>
+                                <strong>{rupees(presetPrice)} a minute</strong>
                                 {approxMinutes !== null && balancePaise !== null && (
                                     <>
                                         {` — your ${rupees(balancePaise)} balance is roughly `}

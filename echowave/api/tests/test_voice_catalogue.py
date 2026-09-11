@@ -33,9 +33,29 @@ class TestBeingHonestAboutLimits:
     def test_account_specific_providers_say_why_rather_than_returning_nothing(self):
         """Empty and unlistable must not look the same. One means pick another
         provider; the other means paste an ID."""
-        cat = vc.for_provider("elevenlabs")
+        cat = vc.for_provider("cartesia")
         assert cat.voices == []
         assert cat.unavailable_reason and "your account" in cat.unavailable_reason
+
+    def test_elevenlabs_lists_its_premade_voices(self):
+        """Premade ids are the same on every account, so they can be listed;
+        a cloned voice cannot, and the field stays open to a pasted id."""
+        cat = vc.for_provider("elevenlabs")
+        assert [v.name for v in cat.voices] == [
+            "Rachel",
+            "Bella",
+            "Elli",
+            "Adam",
+            "Antoni",
+            "Josh",
+        ]
+        assert all(v.gender in ("male", "female") for v in cat.voices)
+        assert cat.unavailable_reason is None
+
+    def test_the_global_tier_resolves_to_those_voices(self):
+        managed = vc.for_provider("decibyl", model="global")
+        assert managed.provider == "elevenlabs"
+        assert managed.voices
 
     def test_an_unknown_provider_still_explains_itself(self):
         cat = vc.for_provider("some-provider-we-never-added")

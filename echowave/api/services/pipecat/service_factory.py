@@ -137,6 +137,43 @@ def decibyl_stt_uses_flux_language(language: str | None) -> bool:
     return language in DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS
 
 
+def _managed_voice_or(
+    voice: str | None, tts_section, *, language: str | None
+) -> str | None:
+    """A managed voice sentinel resolved to a real speaker, else ``voice`` as is.
+
+    The Sarvam branch resolves "male" and "female" inline and leaves "default"
+    to the vendor, which works because Sarvam has a default speaker. Vendors
+    that do not -- ElevenLabs refuses a call with no voice id, Rumik generates
+    a voice from whatever text it is handed -- need "default" resolved too, to
+    the first voice the catalogue publishes for what the tier resolves to. A
+    vendor with no published catalogue keeps the value untouched.
+    """
+    from api.services.configuration import voice_catalogue
+
+    provider = getattr(tts_section, "provider", None)
+    provider = provider.value if hasattr(provider, "value") else str(provider or "")
+    model = getattr(tts_section, "model", None)
+    wanted = (voice or "").strip()
+    if wanted in DECIBYL_GENDER_VOICES:
+        resolved = voice_catalogue.default_voice_id(
+            provider, model=model, gender=wanted, language=language
+        )
+        if resolved:
+            return resolved
+        logger.warning(
+            "No {} voice published for {} {}; using the first voice instead.",
+            wanted,
+            provider,
+            model,
+        )
+        wanted = DECIBYL_DEFAULT_VOICE
+    if wanted and wanted != DECIBYL_DEFAULT_VOICE:
+        return wanted
+    published = voice_catalogue.for_provider(provider, model=model).voices
+    return published[0].voice_id if published else (voice or None)
+
+
 def _resolve_elevenlabs_stt_language(
     language_code: str | None,
 ) -> Language | str | None:
@@ -865,6 +902,15 @@ def _create_tts_service(
             voice_id = user_config.tts.voice.split(" - ")[1]
         except IndexError:
             voice_id = user_config.tts.voice
+        # A managed slot stores "default", "male" or "female", never an
+        # ElevenLabs id -- see the Sarvam branch. ElevenLabs has no vendor
+        # default to fall back on, so an unresolved sentinel would be sent as
+        # a voice id and refused after the call connected.
+        voice_id = _managed_voice_or(
+            voice_id,
+            user_config.tts,
+            language=getattr(user_config.tts, "language", None),
+        )
         # ElevenLabs TTS consumes the full normalized WebSocket URL. Realtime
         # STT uses the same normalization before adapting it to Pipecat's
         # scheme-less base_url contract.
@@ -1121,6 +1167,17 @@ def _create_tts_service(
 
         model = getattr(user_config.tts, "model", None) or "mulberry"
         voice = (getattr(user_config.tts, "voice", None) or "").strip().lower()
+        # Rumik treats an unknown speaker as a description hint, so a managed
+        # "default" or "female" sent as-is would generate a stranger rather
+        # than fail. Resolved against the preset voices first.
+        voice = (
+            _managed_voice_or(
+                voice,
+                user_config.tts,
+                language=getattr(user_config.tts, "language", None),
+            )
+            or ""
+        ).lower()
         description = (
             getattr(user_config.tts, "description", None) or ""
         ).strip() or RUMIK_DEFAULT_DESCRIPTION

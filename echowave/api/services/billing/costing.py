@@ -30,6 +30,7 @@ from api.services.billing.delivery import platform_fee_is_waived
 from api.services.billing.fees import addon_rates_mpaise, uplifted_platform_rate_mpaise
 from api.services.billing.internal_accounts import is_internal
 from api.services.billing.markup import resolve_markup_bps, resolve_markup_override_bps
+from api.services.billing.money import MPAISE_PER_PAISE
 from api.services.billing.rates import resolve_platform_rate, resolve_provider_rate
 from api.services.billing.usage import (
     billable_seconds_from_usage_info,
@@ -69,6 +70,13 @@ async def _bundle_flat_rate_mpaise(
             )
         slug = (selected or {}).get("bundle") if isinstance(selected, dict) else None
         if not slug:
+            # Nothing built since the bundles went names one. The preset the
+            # agent's stack matches stands in, so an operator can list a flat
+            # price against a preset slug in the same table and it applies.
+            slug = await _matched_preset_slug(
+                organization_id=organization_id, configurations=configurations
+            )
+        if not slug:
             return None
         row = await session.scalar(
             select(ManagedBundleModel).where(ManagedBundleModel.slug == slug)
@@ -82,6 +90,23 @@ async def _bundle_flat_rate_mpaise(
             "Could not resolve a bundle flat rate for run {}: {}", run.id, exc
         )
         return None
+
+
+async def _matched_preset_slug(
+    *, organization_id: int, configurations: dict | None
+) -> str | None:
+    """The preset this agent's stack is, or None when it matches none."""
+    from api.services.configuration import model_presets
+    from api.services.configuration.ai_model_configuration import (
+        get_effective_ai_model_configuration_for_workflow,
+    )
+
+    effective = await get_effective_ai_model_configuration_for_workflow(
+        organization_id=organization_id,
+        workflow_configurations=configurations,
+    )
+    slug = model_presets.match(effective)
+    return None if slug == model_presets.CUSTOM else slug
 
 
 async def _period_minutes(

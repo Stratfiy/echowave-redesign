@@ -21,7 +21,7 @@ from api.schemas.workflow import WorkflowRunResponseSchema
 from api.schemas.workflow_configurations import WorkflowConfigurationDefaults
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
-from api.services.configuration import bundles
+from api.services.configuration import model_presets
 from api.services.configuration.agent_options import managed_stack_override
 from api.services.configuration.ai_model_configuration import (
     WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
@@ -458,14 +458,15 @@ class CreateWorkflowTemplateRequest(BaseModel):
     #: the agent as a model override so the choice survives the create — the
     #: alternative is a wizard that asks and then quietly uses the org default.
     voice: str = Field("", max_length=64)
+    #: Which preset the wizard chose -- "basic", "standard", "smart",
+    #: "global". A preset is the whole stack: transcriber, voice and brain
+    #: tiers. Empty means "pick for me", and ``model_presets.recommend``
+    #: chooses from the languages above and whether the agent uses tools.
+    preset: str = Field("", max_length=32)
+    #: Retained for a caller still on the old body. The brain is the
+    #: preset's now; a tier given here without a preset picks the preset
+    #: that carries it, so nothing that used to work stops.
     llm_tier: str = Field("", max_length=32)
-    #: Which managed bundle the wizard chose — "everyday", "natural",
-    #: "premium". Everyday is the cascade and leaves the brain to the customer,
-    #: so it carries ``llm_tier`` above; the realtime bundles replace the
-    #: transcriber and the voice with one model that hears and speaks, so they
-    #: carry a realtime tier instead and the brain does not apply. Empty means
-    #: the caller did not choose, and the organization default stands.
-    bundle_slug: str = Field("", max_length=32)
 
     # Step 2 — conversation
     welcome_message: str = Field("", max_length=2000)
@@ -675,6 +676,35 @@ async def create_workflow(
     }
 
 
+def _preset_for_create(
+    request: CreateWorkflowTemplateRequest,
+) -> model_presets.ModelPreset:
+    """The preset a new agent starts on.
+
+    Named by the wizard, or chosen: the cheapest rung that speaks the
+    languages asked for, and Smart when the agent will call tools. An old
+    caller sending only a brain tier lands on the first preset that carries
+    that brain, so the field it knew about still means something.
+    """
+    slug = (request.preset or "").strip().lower()
+    if slug:
+        preset = model_presets.PRESETS_BY_SLUG.get(slug)
+        if preset is None:
+            raise HTTPException(
+                status_code=400, detail=f"{slug!r} is not a preset you can choose."
+            )
+        return preset
+    tier = (request.llm_tier or "").strip().lower()
+    if tier:
+        for preset in model_presets.MODEL_PRESETS:
+            if preset.llm_tier == tier:
+                return preset
+    pick = model_presets.recommend(
+        model_presets.Requirement(languages=tuple(request.languages))
+    )
+    return model_presets.PRESETS_BY_SLUG[pick.slug]
+
+
 @router.post("/create/template")
 async def create_workflow_from_template(
     request: CreateWorkflowTemplateRequest,
@@ -734,30 +764,17 @@ async def create_workflow_from_template(
         # hoped for — see services/workflow/agent_brief.py.
         workflow_def = apply_brief(workflow_def, brief)
 
-        # The voice and brain the wizard asked about, as an agent-level model
-        # override. Both slots stay managed — they name a tier, and
-        # managed_resolution turns that into a vendor at call time — so this
+        # The preset and voice the wizard asked about, as an agent-level
+        # model override. Every slot stays managed -- it names a tier, and
+        # managed_resolution turns that into a vendor at call time -- so this
         # records a product choice rather than pinning a vendor model.
-        # The bundle decides the shape. A realtime bundle names a realtime tier
-        # and drops the brain, because one model that hears and speaks has no
-        # separate language-model slot to set; the cascade keeps both.
-        realtime_tier = ""
-        llm_tier = request.llm_tier
-        if request.bundle_slug:
-            async with db_client.async_session() as session:
-                rows = await bundles.list_bundles(session, enabled_only=True)
-            chosen = next((r for r in rows if r.slug == request.bundle_slug), None)
-            if chosen is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"{request.bundle_slug!r} is not a bundle you can choose.",
-                )
-            realtime_tier = chosen.realtime_tier or ""
-            if realtime_tier:
-                llm_tier = ""
-
+        preset = _preset_for_create(request)
         workflow_configurations = managed_stack_override(
-            voice=request.voice, llm_tier=llm_tier, realtime_tier=realtime_tier
+            voice=request.voice,
+            llm_tier=preset.llm_tier,
+            stt_tier=preset.stt_tier,
+            tts_tier=preset.tts_tier,
+            realtime_tier=preset.realtime_tier,
         )
 
         trigger_paths = extract_trigger_paths(workflow_def) if workflow_def else []
@@ -1101,7 +1118,28 @@ async def get_model_row(
             organization_id=user.selected_organization_id,
             workflow_id=workflow_id,
             workflow_configurations=workflow_configurations,
+            requirement=_requirement_of(
+                source.workflow_json if source else None, workflow_configurations
+            ),
         )
+
+
+def _requirement_of(definition: dict | None, configurations: dict | None):
+    """What this agent has to do, read off what it has: the languages it is
+    allowed to answer in, and whether any node calls a tool or reads a
+    document. Enough for ``model_presets.recommend`` to pick a rung."""
+    languages = (configurations or {}).get("agent_languages") or []
+    uses_tools = False
+    for node in (definition or {}).get("nodes") or []:
+        data = node.get("data") if isinstance(node, dict) else None
+        if not isinstance(data, dict):
+            continue
+        if data.get("tool_uuids") or data.get("document_uuids"):
+            uses_tools = True
+            break
+    return model_presets.Requirement(
+        languages=tuple(str(v) for v in languages if v), uses_tools=uses_tools
+    )
 
 
 class ModelPresetRequest(BaseModel):
@@ -1162,47 +1200,29 @@ async def apply_model_preset(
         current_override.get("stack") if isinstance(current_override, dict) else None
     )
 
-    # A cascade preset changes the brain and nothing else, which is what the
-    # matcher already assumes and what the labels say -- "High Intelligence"
-    # is a claim about thinking, not about which voice reads the reply.
-    #
-    # Writing a whole managed stack instead would quietly take a chosen voice
-    # away: an agent on ElevenLabs at Rs3.30 a minute would be moved to managed
-    # speech by somebody clicking "Balanced", and the ElevenLabs voice id
-    # carried across would not name anything the new vendor knows. Worse, the
-    # matcher would go on reading that agent as Balanced either way, so the
-    # label would have been describing a stack the agent did not have.
-    #
-    # Speech-to-speech is the exception, and unavoidably so: one model hears
-    # and speaks, so there is no transcriber or voice left to preserve.
+    # A preset is the whole stack -- transcriber, voice and brain tiers -- so
+    # it is written whole, and the matcher reads all three back. The one
+    # thing carried across is the voice, and only when the preset keeps the
+    # agent on the same voice tier: a Sarvam speaker's name means nothing to
+    # Rumik, so a preset that moves the tier resets the voice to the tier's
+    # default rather than storing a name the new vendor will reject.
+    voice = ""
+    current_tts = current_stack.get("tts") if isinstance(current_stack, dict) else None
     if (
-        preset.llm_tier
-        and isinstance(current_stack, dict)
-        and current_stack.get("architecture") == "pipeline"
-        and isinstance(current_stack.get("llm"), dict)
+        isinstance(current_tts, dict)
+        and current_tts.get("provider") == ServiceProviders.DECIBYL.value
+        and (current_tts.get("model") or "default") == preset.tts_tier
     ):
-        stack = dict(current_stack)
-        stack["llm"] = {
-            **dict(current_stack["llm"]),
-            "provider": ServiceProviders.DECIBYL.value,
-            "model": preset.llm_tier,
-            "api_key": "",
-        }
-        existing[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY] = {
-            **current_override,
-            "version": 3,
-            "stack": stack,
-        }
-    else:
-        # No override of its own yet, or a realtime preset that replaces the
-        # cascade outright. Either way there is no chosen speech to preserve.
-        existing.update(
-            managed_stack_override(
-                voice="",
-                llm_tier=preset.llm_tier,
-                realtime_tier=preset.realtime_tier,
-            )
+        voice = str(current_tts.get("voice") or "")
+    existing.update(
+        managed_stack_override(
+            voice=voice,
+            llm_tier=preset.llm_tier,
+            stt_tier=preset.stt_tier,
+            tts_tier=preset.tts_tier,
+            realtime_tier=preset.realtime_tier,
         )
+    )
     await db_client.save_workflow_draft(workflow_id, workflow_configurations=existing)
 
     return {"preset": preset.slug, "label": preset.label}

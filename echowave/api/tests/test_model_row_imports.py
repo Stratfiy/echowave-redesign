@@ -38,7 +38,7 @@ MODULE = (
 
 #: Functions whose bodies are checked. Any customer-facing assembler added to
 #: this module is worth adding here -- the cost is one line.
-CHECKED = ("model_row", "bundle_options", "catalogue_options")
+CHECKED = ("model_row", "preset_options", "catalogue_options")
 
 
 def _module_names(tree: ast.Module) -> set[str]:

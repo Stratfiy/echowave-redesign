@@ -93,3 +93,19 @@ ELEVENLABS_STT_LANGUAGES = (
     "zh",
     "zu",
 )
+
+#: ElevenLabs' premade voices, by their public ids. The same six the template
+#: gallery plays, so the voice somebody pressed play on is the voice their
+#: agent answers in. Premade ids are shared across every ElevenLabs account,
+#: which is what makes a managed list possible for a vendor whose *cloned*
+#: voices are per account and cannot be listed here.
+#:
+#: ``(voice_id, name, gender)``.
+ELEVENLABS_PREMADE_VOICES: tuple[tuple[str, str, str], ...] = (
+    ("21m00Tcm4TlvDq8ikWAM", "Rachel", "female"),
+    ("EXAVITQu4vr4xnSDxMaL", "Bella", "female"),
+    ("MF3mGyEYCl7XYWbV9V6O", "Elli", "female"),
+    ("pNInz6obpgDQGcFmaJgB", "Adam", "male"),
+    ("ErXwobaYiN019PkySvjV", "Antoni", "male"),
+    ("TxGEqnHWrfWFTfGW9XjX", "Josh", "male"),
+)
