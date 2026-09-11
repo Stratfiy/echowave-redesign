@@ -84,6 +84,7 @@ from api.services.pipecat.service_factory import (
     create_realtime_llm_service,
     create_stt_service_with_backups,
     create_tts_service_with_backups,
+    stt_language_can_be_pinned,
     stt_uses_external_turns,
 )
 from api.services.pipecat.speech_text import build_speech_text_transforms
@@ -1513,6 +1514,11 @@ async def _run_pipeline_impl(
                 getattr(user_config, "tts", None), "language", None
             ),
             allowed=allowed_languages(run_configs),
+            # The transcriber is guessing the language of every utterance, and
+            # on a code-mixed call it guesses differently within one. Once the
+            # reply's own script has settled the question there is nothing left
+            # to guess, so it is told too.
+            pin_transcriber=stt_language_can_be_pinned(user_config),
         )
 
     # Build the pipeline
