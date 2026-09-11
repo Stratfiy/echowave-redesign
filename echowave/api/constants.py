@@ -101,6 +101,19 @@ UI_APP_URL = (
 DATABASE_URL = os.environ["DATABASE_URL"]
 REDIS_URL = os.environ["REDIS_URL"]
 
+# The knowledge graph every organization's calls are remembered in, as a
+# FalkorDB or Neo4j URI. Unset means this deployment has no graph: writes are
+# skipped and everything behaves exactly as it did before one existed, which is
+# what a self-hosted install and a local checkout get by default.
+#
+# It must be one shared instance rather than something embedded in each worker.
+# Graphiti has an in-process backend (`falkordblite`) and it is the wrong shape
+# here for the same reason a dict was the wrong shape for UHI discovery: with
+# several workers each would hold a different graph, and a deploy would replace
+# the container holding it. Liveness comes from that instance's own volume;
+# safety comes from the nightly backup, not from the graph being local.
+KNOWLEDGE_GRAPH_URL = os.getenv("KNOWLEDGE_GRAPH_URL") or None
+
 DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "oss")
 
 # Coarse HTTP request gate (see services/rate_limit.py). Per-client, per-minute
