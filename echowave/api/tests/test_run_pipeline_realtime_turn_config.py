@@ -29,7 +29,7 @@ from api.services.pipecat.run_pipeline import (
 
 def test_gemini_realtime_uses_local_vad_without_local_interruptions():
     strategies, vad_analyzer = _create_realtime_user_turn_config(
-        ServiceProviders.GOOGLE_REALTIME.value
+        ServiceProviders.GOOGLE_REALTIME.value, {}
     )
 
     assert isinstance(vad_analyzer, SileroVADAnalyzer)
@@ -43,7 +43,7 @@ def test_gemini_realtime_uses_local_vad_without_local_interruptions():
 
 def test_gemini_vertex_realtime_uses_same_turn_config_as_gemini_live():
     strategies, vad_analyzer = _create_realtime_user_turn_config(
-        ServiceProviders.GOOGLE_VERTEX_REALTIME.value
+        ServiceProviders.GOOGLE_VERTEX_REALTIME.value, {}
     )
 
     assert isinstance(vad_analyzer, SileroVADAnalyzer)
@@ -57,7 +57,7 @@ def test_gemini_vertex_realtime_uses_same_turn_config_as_gemini_live():
 
 def test_openai_realtime_uses_provider_turn_frames_without_local_vad():
     strategies, vad_analyzer = _create_realtime_user_turn_config(
-        ServiceProviders.OPENAI_REALTIME.value
+        ServiceProviders.OPENAI_REALTIME.value, {}
     )
 
     assert vad_analyzer is None
@@ -71,7 +71,7 @@ def test_openai_realtime_uses_provider_turn_frames_without_local_vad():
 
 def test_azure_realtime_uses_provider_turn_frames_without_local_vad():
     strategies, vad_analyzer = _create_realtime_user_turn_config(
-        ServiceProviders.AZURE_REALTIME.value
+        ServiceProviders.AZURE_REALTIME.value, {}
     )
 
     assert vad_analyzer is None
@@ -85,7 +85,7 @@ def test_azure_realtime_uses_provider_turn_frames_without_local_vad():
 
 def test_grok_realtime_uses_provider_turn_frames_without_local_vad():
     strategies, vad_analyzer = _create_realtime_user_turn_config(
-        ServiceProviders.GROK_REALTIME.value
+        ServiceProviders.GROK_REALTIME.value, {}
     )
 
     assert vad_analyzer is None
@@ -99,7 +99,7 @@ def test_grok_realtime_uses_provider_turn_frames_without_local_vad():
 
 def test_ultravox_realtime_uses_local_vad_with_local_interruptions():
     strategies, vad_analyzer = _create_realtime_user_turn_config(
-        ServiceProviders.ULTRAVOX_REALTIME.value
+        ServiceProviders.ULTRAVOX_REALTIME.value, {}
     )
 
     assert isinstance(vad_analyzer, SileroVADAnalyzer)
@@ -112,7 +112,7 @@ def test_ultravox_realtime_uses_local_vad_with_local_interruptions():
 
 
 def test_unknown_realtime_providers_keep_local_vad():
-    strategies, vad_analyzer = _create_realtime_user_turn_config("other_realtime")
+    strategies, vad_analyzer = _create_realtime_user_turn_config("other_realtime", {})
 
     assert isinstance(vad_analyzer, SileroVADAnalyzer)
     assert len(strategies.start) == 1
@@ -313,3 +313,19 @@ def test_workflow_config_can_override_user_turn_stop_timeout():
         )
         == 12.5
     )
+
+
+def test_a_realtime_call_in_a_crowd_raises_its_own_vad_bar():
+    """A speech-to-speech model owns barge-in through its own server-side VAD,
+    but the local one still runs and still hears the room. It was built with
+    the library defaults and nothing could change them, so an operator who set
+    a cascade agent to "somewhere noisy" got nothing on the realtime path."""
+    _, quiet = _create_realtime_user_turn_config(
+        ServiceProviders.GOOGLE_REALTIME.value, {}
+    )
+    _, noisy = _create_realtime_user_turn_config(
+        ServiceProviders.GOOGLE_REALTIME.value, {"caller_environment": "noisy"}
+    )
+
+    assert noisy._params.confidence > quiet._params.confidence
+    assert noisy._params.min_volume > quiet._params.min_volume
