@@ -728,17 +728,21 @@ async def get_rate_card() -> dict[str, Any]:
         realized = await realized_rates.measure(session)
 
     configured = {
-        (r["provider"], r["component"]): realized_rates.per_unit(
+        (r["provider"], r["component"], r["model"]): realized_rates.per_unit(
             float(r["rate_mpaise"]), r["unit"]
         )
         for r in card.provider_rates
-        # Provider-wide rows only: a model-specific rate cannot be compared
-        # against a blend measured across every model from that vendor.
+        # Model rows included, keyed by model. They used to be dropped, on the
+        # grounds that a model rate "cannot be compared against a blend across
+        # every model from that vendor" — true, and the fix was to stop
+        # measuring that blend rather than to throw the rates away. Realized
+        # usage is grouped by model now, so each row meets the rate that
+        # actually priced it.
         #
         # A dollar row with no exchange rate on file has no rupee figure to
         # compare against, so it is left out rather than compared at a rate
         # nobody chose — the rate card reports the missing FX itself.
-        if r["model"] is None and r["rate_mpaise"] is not None
+        if r["rate_mpaise"] is not None
     }
     divergences = realized_rates.divergence(realized, configured)
 
@@ -753,6 +757,7 @@ async def get_rate_card() -> dict[str, Any]:
             {
                 "provider": r.provider,
                 "component": r.component,
+                "model": r.model,
                 "rate_mpaise": round(r.mpaise_per_unit, 4),
                 "rate_inr": r.mpaise_per_unit / 100_000,
                 "units": r.units,
@@ -769,6 +774,7 @@ async def get_rate_card() -> dict[str, Any]:
             {
                 "provider": d.provider,
                 "component": d.component,
+                "model": d.model,
                 "configured_mpaise": d.configured_mpaise,
                 "realized_mpaise": round(d.realized_mpaise, 4),
                 "ratio": round(d.ratio, 4),

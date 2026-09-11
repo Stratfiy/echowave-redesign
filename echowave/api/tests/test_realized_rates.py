@@ -16,13 +16,15 @@ from api.services.billing.realized_rates import (
     RealizedRate,
     divergence,
     per_unit,
+    rate_for,
 )
 
 
-def _rate(units: int, cost_paise: int, provider="sarvam", component="tts"):
+def _rate(units: int, cost_paise: int, provider="sarvam", component="tts", model=None):
     return RealizedRate(
         provider=provider,
         component=component,
+        model=model,
         units=units,
         cost_paise=cost_paise,
         calls=10,
@@ -51,23 +53,23 @@ class TestDivergence:
         agree by construction — cost was computed from the rate. Reporting that
         as a finding would bury the real ones."""
         rates = [_rate(100_000, 30_000)]  # 300 mpaise/unit
-        assert divergence(rates, {("sarvam", "tts"): 300.0}) == []
+        assert divergence(rates, {("sarvam", "tts", None): 300.0}) == []
 
     def test_it_catches_the_seeded_sarvam_error(self):
         """The book shipped Sarvam TTS at ₹1.92/1k chars against a published
         ₹3.00 — a 1.56x understatement in the largest line of an Indic call.
         This is the check that would have caught it."""
         realized = [_rate(1_000_000, 300_000)]  # 300 mpaise = ₹3.00/1k chars
-        found = divergence(realized, {("sarvam", "tts"): 192.0})
+        found = divergence(realized, {("sarvam", "tts", None): 192.0})
         assert len(found) == 1
         assert found[0].ratio == pytest.approx(300 / 192, rel=1e-3)
-        assert "understates cost" in found[0].note
+        assert "above" in found[0].note
 
     def test_paying_less_than_configured_reads_as_a_discount(self):
         realized = [_rate(1_000_000, 200_000)]  # 200 mpaise
-        found = divergence(realized, {("sarvam", "tts"): 300.0})
+        found = divergence(realized, {("sarvam", "tts", None): 300.0})
         assert found[0].ratio < 1
-        assert "negotiated" in found[0].note
+        assert "below" in found[0].note
 
     def test_a_gap_inside_the_threshold_is_left_alone(self):
         """Rounding and pulse effects move the blend a little; that is not a
@@ -76,7 +78,10 @@ class TestDivergence:
         units = 1_000_000
         # cost_paise that lands the blend half a threshold above configured.
         inside = int(configured * (1 + DIVERGENCE_THRESHOLD / 2) * units / 1000)
-        assert divergence([_rate(units, inside)], {("sarvam", "tts"): configured}) == []
+        assert (
+            divergence([_rate(units, inside)], {("sarvam", "tts", None): configured})
+            == []
+        )
 
     def test_an_unpriced_provider_is_skipped_not_infinitely_divergent(self):
         """No configured rate is a different problem — the card reports unpriced
@@ -85,15 +90,141 @@ class TestDivergence:
 
     def test_thin_samples_never_raise_a_finding(self):
         realized = [_rate(10, 10_000)]  # wildly divergent, but 10 units
-        assert divergence(realized, {("sarvam", "tts"): 300.0}) == []
+        assert divergence(realized, {("sarvam", "tts", None): 300.0}) == []
 
     def test_the_worst_offender_sorts_first(self):
         realized = [
             _rate(1_000_000, 330_000, provider="a"),  # 1.1x
             _rate(1_000_000, 600_000, provider="b"),  # 2.0x
         ]
-        found = divergence(realized, {("a", "tts"): 300.0, ("b", "tts"): 300.0})
+        found = divergence(
+            realized, {("a", "tts", None): 300.0, ("b", "tts", None): 300.0}
+        )
         assert [d.provider for d in found] == ["b", "a"]
+
+
+class TestItComparesLikeWithLike:
+    """The bug this module was rewritten for.
+
+    Live figures, 10 September: OpenAI LLM usage blended across gpt-4.1 (36,480
+    millipaise per 1k tokens) and gpt-4.1-mini (7,296), measured at 14,551 —
+    and compared against the provider-wide fallback of 2,736, which priced
+    neither of them. The report announced "Paying 5.32x the configured rate.
+    The card understates cost, so margin is being reported too high." Nothing
+    was overpaid and margin was correct.
+    """
+
+    def test_a_model_mix_is_not_a_finding(self):
+        realized = [
+            # 100k tokens at the gpt-4.1-mini rate: 7.296 mpaise/token.
+            _rate(
+                100_000, 730, provider="openai", component="llm", model="gpt-4.1-mini"
+            ),
+            # 20k tokens at the gpt-4.1 rate: 36.48 mpaise/token.
+            _rate(20_000, 730, provider="openai", component="llm", model="gpt-4.1"),
+        ]
+        configured = {
+            ("openai", "llm", None): 2.736,
+            ("openai", "llm", "gpt-4.1-mini"): 7.296,
+            ("openai", "llm", "gpt-4.1"): 36.48,
+        }
+        # Each model met its own rate. The mix between them is not a pricing
+        # error, and reporting it as one sent an operator to raise the fallback.
+        assert divergence(realized, configured) == []
+
+    def test_the_fallback_still_governs_a_model_it_prices(self):
+        """A model with no row of its own is costed at the provider-wide rate,
+        so that is what it must be compared against — the same two-step lookup
+        the cost engine does."""
+        realized = [
+            _rate(
+                100_000,
+                274,
+                provider="openai",
+                component="llm",
+                model="gpt-9-imaginary",
+            )
+        ]
+        configured = {
+            ("openai", "llm", None): 2.74,
+            ("openai", "llm", "gpt-4.1"): 36.48,
+        }
+        assert divergence(realized, configured) == []
+
+    def test_a_rate_that_moved_mid_window_is_still_caught(self):
+        """What the report can honestly detect, and the reason to keep it."""
+        realized = [
+            _rate(
+                1_000_000,
+                4_000,
+                provider="openai",
+                component="llm",
+                model="gpt-4.1-mini",
+            )
+        ]  # 4.0 mpaise/token measured
+        found = divergence(realized, {("openai", "llm", "gpt-4.1-mini"): 7.296})
+        assert len(found) == 1
+        assert found[0].model == "gpt-4.1-mini"
+        assert found[0].ratio < 1
+
+    def test_the_note_makes_no_claim_about_the_vendor(self):
+        """It used to assert what a vendor charges, from data derived entirely
+        from our own rate card. It cannot know that, and here it was wrong."""
+        realized = [_rate(1_000_000, 600_000, provider="sarvam", component="tts")]
+        note = divergence(realized, {("sarvam", "tts", None): 300.0})[0].note
+        assert "understates cost" not in note
+        assert "margin is being reported too high" not in note
+        assert "rate now on the card" in note
+
+    def test_the_subject_names_the_model_when_there_is_one(self):
+        realized = [
+            _rate(
+                1_000_000, 600_000, provider="openai", component="llm", model="gpt-4.1"
+            )
+        ]
+        found = divergence(realized, {("openai", "llm", "gpt-4.1"): 300.0})
+        assert found[0].subject == "openai gpt-4.1"
+        assert "openai gpt-4.1" in found[0].note
+
+    def test_the_subject_is_the_provider_when_there_is_no_model(self):
+        realized = [_rate(1_000_000, 600_000, provider="plivo", component="telephony")]
+        found = divergence(realized, {("plivo", "telephony", None): 300.0})
+        assert found[0].subject == "plivo"
+
+
+class TestResolvingTheRate:
+    CONFIGURED = {
+        ("openai", "llm", None): 2.736,
+        ("openai", "llm", "gpt-4.1"): 36.48,
+    }
+
+    def test_an_exact_model_wins(self):
+        assert (
+            rate_for(
+                self.CONFIGURED, provider="openai", component="llm", model="gpt-4.1"
+            )
+            == 36.48
+        )
+
+    def test_an_unpriced_model_falls_back(self):
+        assert (
+            rate_for(
+                self.CONFIGURED, provider="openai", component="llm", model="gpt-4o"
+            )
+            == 2.736
+        )
+
+    def test_no_model_takes_the_fallback(self):
+        assert (
+            rate_for(self.CONFIGURED, provider="openai", component="llm", model=None)
+            == 2.736
+        )
+
+    def test_an_unknown_provider_has_no_rate(self):
+        assert (
+            rate_for(self.CONFIGURED, provider="nobody", component="llm", model=None)
+            is None
+        )
 
 
 class _FakeResponse:
