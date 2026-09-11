@@ -159,7 +159,44 @@ def tool_schemas() -> list[dict[str, Any]]:
                 "required": ["template_id", "name", "variables"],
             },
         },
+        {
+            "name": "list_my_agents",
+            "description": (
+                "List the agents this account already has, with whether each "
+                "one can be revised here. Call this when the user talks about "
+                "changing something rather than building something."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "revise_agent_facts",
+            "description": (
+                "Change the facts an agent was built with -- its hours, "
+                "address, prices, the names of its staff. Saves a DRAFT; the "
+                "live agent keeps answering exactly as before until a person "
+                "opens it and publishes. Tell the user that, every time. "
+                "Only supply the values that are changing; everything else is "
+                "kept. Only works on agents built from a template here."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "workflow_id": {"type": "integer"},
+                    "variables": {
+                        "type": "object",
+                        "description": "Only the values that change.",
+                        "additionalProperties": {"type": "string"},
+                    },
+                },
+                "required": ["workflow_id", "variables"],
+            },
+        },
     ]
+
+
+#: Where the template id is kept inside ``template_context_variables``. Prefixed
+#: so it can never collide with a template's own variable name.
+PROVENANCE_TEMPLATE_KEY = "__template_id"
 
 
 TOOL_NAMES = frozenset(t["name"] for t in tool_schemas())
@@ -194,6 +231,14 @@ async def dispatch(
             )
         if name == "list_phone_numbers":
             return await _list_numbers(organization_id)
+        if name == "list_my_agents":
+            return await _list_my_agents(organization_id)
+        if name == "revise_agent_facts":
+            return await _revise_agent_facts(
+                organization_id=organization_id,
+                workflow_id=arguments.get("workflow_id"),
+                variables=arguments.get("variables") or {},
+            )
         if name == "create_agent":
             return await _create_agent(
                 organization_id=organization_id,
@@ -386,6 +431,21 @@ async def _create_agent(
         organization_id=organization_id,
     )
 
+    # Which template, and the answers that filled it. Without this a later
+    # revision would have to infer both from the assembled prompts, which is
+    # guessing at something we knew for certain a moment ago.
+    await db_client.update_workflow(
+        workflow_id=workflow.id,
+        name=None,
+        workflow_definition=None,
+        template_context_variables={
+            PROVENANCE_TEMPLATE_KEY: template_id,
+            **variables,
+        },
+        workflow_configurations=None,
+        organization_id=organization_id,
+    )
+
     return {
         "created": True,
         "workflow_id": workflow.id,
@@ -395,5 +455,130 @@ async def _create_agent(
             "Tell the user the agent is built and can be opened and tested now.",
             "Remind them to attach a phone number in Telephony before it can "
             "take real calls.",
+        ],
+    }
+
+
+async def _list_my_agents(organization_id: int) -> dict[str, Any]:
+    """What this account already has, and which of them this chat can revise.
+
+    ``revisable`` is the honest half. An agent built before provenance was
+    recorded, or built on the canvas rather than here, cannot be revised by
+    re-filling variables that were never stored -- and a chat that offers to
+    change one and then cannot is worse than one that says so first.
+    """
+    # Scoped, and the full row rather than the listing projection: the
+    # listing one drops template_context_variables, which is the column
+    # that decides whether an agent can be revised at all.
+    workflows = await db_client.get_all_workflows(organization_id=organization_id)
+    agents = []
+    for workflow in workflows or []:
+        stored = getattr(workflow, "template_context_variables", None) or {}
+        template_id = stored.get(PROVENANCE_TEMPLATE_KEY)
+        agents.append(
+            {
+                "workflow_id": workflow.id,
+                "name": workflow.name,
+                "revisable": bool(template_id and get_template(template_id)),
+                "open_url": f"/workflow/{workflow.id}",
+            }
+        )
+    return {
+        "agents": agents,
+        "note": (
+            "An agent that is not revisable was not built from a template "
+            "here. Point the user at its editor rather than offering to "
+            "change it."
+        ),
+    }
+
+
+async def _revise_agent_facts(
+    *,
+    organization_id: int,
+    workflow_id: Any,
+    variables: dict[str, str],
+) -> dict[str, Any]:
+    """Re-fill an agent's facts and save the result as a draft.
+
+    Never touches what is answering the phone. The platform already separates
+    a draft from the published version, and a person publishes -- which is the
+    same boundary the rest of this catalogue draws around money and destruction,
+    applied to the one thing a chat could otherwise break silently.
+    """
+    if not isinstance(workflow_id, int):
+        return {"error": "workflow_id must be the number from list_my_agents."}
+    if not variables:
+        return {"error": "Nothing to change. Ask the user what should differ."}
+
+    # Scoped. `get_workflow_by_id` exists and is unscoped, and its own
+    # docstring says never to call it with a request-supplied id on a
+    # user-facing path -- and a workflow_id a model produced is exactly
+    # that, however it came by it.
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        return {"error": f"No agent {workflow_id} in this account."}
+
+    stored = dict(getattr(workflow, "template_context_variables", None) or {})
+    template_id = stored.pop(PROVENANCE_TEMPLATE_KEY, None)
+    template = get_template(template_id) if template_id else None
+    if template is None:
+        return {
+            "error": (
+                "This agent was not built from a template here, so its facts "
+                "cannot be changed from this chat. Open it in the editor "
+                f"instead: /workflow/{workflow_id}"
+            )
+        }
+
+    # The stored answers are the base; only what the user changed is replaced.
+    # A caller who says "the new number is X" must not silently blank the
+    # address by omitting it.
+    merged = {**stored, **{k: v for k, v in variables.items() if v and v.strip()}}
+
+    try:
+        built = assemble(template, name=workflow.name, variables=merged)
+    except AssemblyError as exc:
+        return {"error": str(exc)}
+    if built.missing_variables:
+        return {
+            "revised": False,
+            "missing_variables": built.missing_variables,
+            "error": (
+                "Cannot rebuild yet: still missing "
+                f"{', '.join(built.missing_variables)}. Ask for these, then "
+                "call revise_agent_facts again."
+            ),
+        }
+
+    try:
+        dto = ReactFlowDTO.model_validate(built.definition)
+        WorkflowGraph(dto)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Revised template {} did not validate", template_id)
+        return {"error": f"The revised agent did not validate: {exc}"}
+
+    await db_client.update_workflow(
+        workflow_id=workflow_id,
+        name=None,
+        workflow_definition=built.definition,
+        template_context_variables={
+            PROVENANCE_TEMPLATE_KEY: template_id,
+            **merged,
+        },
+        workflow_configurations=None,
+        organization_id=organization_id,
+    )
+    return {
+        "revised": True,
+        "workflow_id": workflow_id,
+        "changed": sorted(variables),
+        "open_url": f"/workflow/{workflow_id}",
+        "next_steps": [
+            "Say plainly that this is saved as a draft and the live agent is "
+            "still answering exactly as it did before.",
+            "Tell them to open the agent, test it, and publish when happy.",
         ],
     }
