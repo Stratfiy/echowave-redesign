@@ -915,7 +915,12 @@ class PipecatEngine:
         return self._format_prompt(text)
 
     async def _speak_recording_disclosure(self, node_id: str) -> bool:
-        """Speak the disclosure. Returns whether anything was said.
+        """Speak the disclosure on its own. Returns whether anything was said.
+
+        Only for the openings that have no text to carry it: a pre-recorded
+        audio greeting, and a start node with no greeting at all. Where the
+        greeting *is* text, :func:`_opening_line` folds the two into one
+        utterance instead — see the note there.
 
         ``append_to_context=True`` so the assistant aggregator commits it to the
         LLM context: without it the model does not know the disclosure was made
@@ -933,6 +938,31 @@ class PipecatEngine:
         logger.debug("Speaking recording disclosure before the opening")
         await self.task.queue_frame(TTSSpeakFrame(text, append_to_context=True))
         return True
+
+    @staticmethod
+    def _opening_line(disclosure: Optional[str], greeting: str) -> str:
+        """The disclosure and the greeting as one thing to say.
+
+        Queued as two frames they are two *turns*: the pipeline finishes
+        synthesising the first, emits bot-stopped-speaking, and only then
+        starts the second. On a real call that pause is the cue that says
+        "your turn" — and callers take it. The transcript from the share
+        link reads:
+
+            agent   Just so you know, this call is recorded...
+            caller  I want to book an appointment
+            agent   Vanakkam, Narayani Dental Clinic. Which language...
+
+        The caller answered a question nobody had asked yet, and the
+        greeting then talked over their actual request. One utterance
+        leaves no gap to speak into.
+        """
+        if not disclosure:
+            return greeting
+        # Joined with a space rather than a newline: this is read aloud, and
+        # the sentence-splitting aggregators treat a newline as a hard break,
+        # which is the gap all over again.
+        return f"{disclosure.rstrip()} {greeting.lstrip()}"
 
     # ----- Who speaks first -------------------------------------------------
 
@@ -1084,13 +1114,17 @@ class PipecatEngine:
             "llm" when an initial LLM generation was queued,
             "none" when nothing was queued.
         """
-        # Before anything else on the opening node: say the call is recorded.
-        # Placed here rather than folded into the greeting because it has to
-        # happen in all three cases below — text greeting, pre-recorded audio
-        # greeting, and no greeting at all — and only one of those is text we
-        # could have prepended to.
-        if previous_node_id is None and node_id == self.workflow.start_node_id:
-            await self._speak_recording_disclosure(node_id)
+        # On the opening node, say the call is recorded. A text greeting
+        # carries it as part of the same utterance (see _opening_line); the
+        # other two openings have no text to prepend to, so it is spoken on
+        # its own there and the gap is unavoidable.
+        opening_node = (
+            previous_node_id is None and node_id == self.workflow.start_node_id
+        )
+        disclosure = (
+            self.resolve_recording_disclosure(node_id) if opening_node else None
+        )
+        disclosure_pending = bool(disclosure)
 
         if previous_node_id != node_id:
             greeting_info = self.get_node_greeting(node_id)
@@ -1103,6 +1137,10 @@ class PipecatEngine:
                     and self._transport_output is not None
                 ):
                     logger.debug(f"Playing audio greeting recording: {greeting_value}")
+                    if disclosure_pending:
+                        # Nothing to prepend to in an audio file.
+                        await self._speak_recording_disclosure(node_id)
+                        disclosure_pending = False
                     result = await self._fetch_recording_audio(
                         recording_pk=int(greeting_value)
                     )
@@ -1141,9 +1179,17 @@ class PipecatEngine:
                     # the greeting to the LLM context once TTS finishes; without
                     # it the LLM would re-greet on its first generation.
                     await self.task.queue_frame(
-                        TTSSpeakFrame(greeting_value, append_to_context=True)
+                        TTSSpeakFrame(
+                            self._opening_line(disclosure, greeting_value),
+                            append_to_context=True,
+                        )
                     )
                     return "greeting"
+
+        # No greeting to carry it: the model writes the opening line, so the
+        # disclosure goes first on its own.
+        if disclosure_pending:
+            await self._speak_recording_disclosure(node_id)
 
         if (
             generate_if_no_greeting

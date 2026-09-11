@@ -179,7 +179,12 @@ class TestItIsSpoken:
 
     async def test_it_precedes_the_greeting(self):
         """It has to be the first thing heard, not an afterthought once the
-        agent has already started talking."""
+        agent has already started talking.
+
+        Still first, and now in the same breath: this used to assert two
+        frames, and two frames turned out to be two turns the caller could
+        speak between. See TestItLeavesNoGapToSpeakInto.
+        """
         built, _ = _engine(
             disclosure_enabled=True, greeting="Hi there!", greeting_type="text"
         )
@@ -187,9 +192,9 @@ class TestItIsSpoken:
         await built.queue_node_opening(node_id="start", previous_node_id=None)
 
         spoken = [call.args[0].text for call in built.task.queue_frame.await_args_list]
-        assert len(spoken) == 2
-        assert "recorded" in spoken[0]
-        assert spoken[1] == "Hi there!"
+        assert len(spoken) == 1
+        assert spoken[0].index("recorded") < spoken[0].index("Hi there!")
+        assert spoken[0].endswith("Hi there!")
 
     async def test_it_is_said_even_with_no_greeting_configured(self):
         """The case a text-only implementation would miss: an agent that opens
@@ -211,3 +216,81 @@ class TestItIsSpoken:
 
         spoken = [call.args[0].text for call in built.task.queue_frame.await_args_list]
         assert not any("recorded" in text for text in spoken)
+
+
+class TestItLeavesNoGapToSpeakInto:
+    """The disclosure and a text greeting are one utterance, not two.
+
+    Queued as two frames they are two *turns*: the pipeline finishes the
+    first, emits bot-stopped-speaking, and only then starts the second. That
+    pause is the cue that says "your turn", and on the share link a caller
+    took it -- answering a question the agent had not asked yet, and having
+    the greeting talk over their actual request:
+
+        agent   Just so you know, this call is recorded...
+        caller  I want to book an appointment
+        agent   Vanakkam, Narayani Dental Clinic. Which language...
+    """
+
+    def test_a_text_greeting_carries_the_disclosure(self):
+        line = PipecatEngine._opening_line(
+            "This call is recorded.", "Vanakkam, Narayani Dental Clinic."
+        )
+        assert line == "This call is recorded. Vanakkam, Narayani Dental Clinic."
+
+    def test_no_disclosure_leaves_the_greeting_exactly_as_written(self):
+        assert PipecatEngine._opening_line(None, "Vanakkam.") == "Vanakkam."
+        assert PipecatEngine._opening_line("", "Vanakkam.") == "Vanakkam."
+
+    def test_the_join_is_a_space_not_a_newline(self):
+        """Sentence aggregators treat a newline as a hard break, which is the
+        gap all over again."""
+        line = PipecatEngine._opening_line("Recorded.  ", "  Hello.")
+        assert "\n" not in line
+        assert line == "Recorded. Hello."
+
+    @pytest.mark.asyncio
+    async def test_one_frame_is_queued_for_a_text_greeting(self):
+        built, _ = _engine(disclosure_enabled=True, greeting="Vanakkam.")
+
+        result = await built.queue_node_opening(
+            node_id="start", previous_node_id=None, generate_if_no_greeting=False
+        )
+
+        assert result == "greeting"
+        frames = built.task.queue_frame.call_args_list
+        assert len(frames) == 1, "two frames is two turns, which is the defect"
+        spoken = frames[0].args[0].text
+        assert spoken.startswith("This call is recorded")
+        assert spoken.endswith("Vanakkam.")
+
+    @pytest.mark.asyncio
+    async def test_an_opening_with_no_greeting_still_discloses_on_its_own(self):
+        """Nothing to prepend to: the model writes the opening line, so the
+        disclosure has to be its own frame and the gap is unavoidable."""
+        built, _ = _engine(disclosure_enabled=True, greeting=None)
+        built.llm = None
+        built.context = None
+
+        await built.queue_node_opening(
+            node_id="start", previous_node_id=None, generate_if_no_greeting=True
+        )
+
+        frames = built.task.queue_frame.call_args_list
+        assert len(frames) == 1
+        assert frames[0].args[0].text.startswith("This call is recorded")
+
+    @pytest.mark.asyncio
+    async def test_a_later_node_neither_discloses_nor_is_folded(self):
+        """The disclosure belongs to the opening. A node reached mid-call that
+        happens to have a greeting must not repeat it."""
+        built, node = _engine(disclosure_enabled=True, greeting="Right then.")
+        built.workflow.nodes["next"] = node
+
+        await built.queue_node_opening(
+            node_id="next", previous_node_id="start", generate_if_no_greeting=False
+        )
+
+        frames = built.task.queue_frame.call_args_list
+        assert len(frames) == 1
+        assert frames[0].args[0].text == "Right then."
