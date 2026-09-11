@@ -31,8 +31,10 @@ import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatCreditsRate } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
+import type { WorkflowConfigurations } from "@/types/workflow-configurations";
 
 import { type CatalogueOption, ModelSlotEditor, type SlotComponent } from "./ModelSlotEditor";
+import type { SlotTuning } from "./SlotSettings";
 
 /**
  * The cost split as a ring. A ring rather than a bar because the three parts
@@ -97,6 +99,8 @@ type Slot = {
     latency_ms: number | null;
     /** Only on the voice slot: the voice it speaks in. */
     voice?: string | null;
+    /** The slot's own knobs as stored; the panel behind the pencil opens on them. */
+    tuning?: SlotTuning;
 };
 
 type Latency = {
@@ -170,8 +174,13 @@ function ms(value: number | null): string {
 export function ModelRow({
     workflowId,
     editable = false,
+    configurations,
+    onSaveConfigurations,
 }: {
     workflowId: number;
+    /** The agent's call configuration, for the settings behind each pencil. */
+    configurations?: WorkflowConfigurations | null;
+    onSaveConfigurations?: (patch: Partial<WorkflowConfigurations>) => Promise<void>;
     /**
      * Put a pencil on each tile, opening a panel to change that one slot
      * from what Decibyl sells for it. The editor screen and the Models tab
@@ -426,6 +435,9 @@ export function ModelRow({
                                             voices={slot.component === "tts" ? voices : undefined}
                                             currentVoice={slot.voice ?? undefined}
                                             latencyMs={slot.latency_ms}
+                                            tuning={slot.tuning}
+                                            configurations={configurations}
+                                            onSaveConfigurations={onSaveConfigurations}
                                             onSaved={load}
                                         />
                                     )}

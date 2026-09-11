@@ -305,3 +305,92 @@ class TestOneSlotAtATime:
             for name, section in stack.items()
             if isinstance(section, dict)
         )
+
+
+class TestTheKnobsBehindThePencil:
+    """The panel behind a tile tunes the slot it is on and no other."""
+
+    def _stack(self):
+        return {
+            "architecture": "pipeline",
+            "stt": {"provider": "decibyl", "model": "default", "api_key": ""},
+            "llm": {
+                "provider": "openai",
+                "model": "gpt-4.1",
+                "api_key": "",
+                "use_platform_key": True,
+                "temperature": 0.7,
+            },
+            "tts": {
+                "provider": "sarvam",
+                "model": "bulbul:v3",
+                "voice": "anushka",
+                "api_key": "",
+                "use_platform_key": True,
+                "speed": 1.0,
+                "language": "hi-IN",
+            },
+        }
+
+    def test_a_value_given_is_written(self):
+        from api.services.configuration.agent_options import with_model_slot
+
+        out = with_model_slot(
+            self._stack(),
+            component="llm",
+            provider="openai",
+            model="gpt-4.1",
+            tuning={"temperature": 0.2, "max_tokens": 200},
+        )
+        assert out["llm"]["temperature"] == 0.2
+        assert out["llm"]["max_tokens"] == 200
+
+    def test_a_value_left_out_keeps_what_the_slot_had(self):
+        from api.services.configuration.agent_options import with_model_slot
+
+        out = with_model_slot(
+            self._stack(),
+            component="tts",
+            provider="sarvam",
+            model="bulbul:v3",
+            tuning={"speed": 1.3, "language": None},
+        )
+        assert out["tts"]["speed"] == 1.3
+        assert out["tts"]["language"] == "hi-IN"
+        assert out["tts"]["voice"] == "anushka"
+
+    def test_a_knob_the_slot_does_not_have_is_not_stored(self):
+        from api.services.configuration.agent_options import with_model_slot
+
+        out = with_model_slot(
+            self._stack(),
+            component="stt",
+            provider="decibyl",
+            model="default",
+            # Temperature is a brain's knob; on the ears it means nothing.
+            tuning={"temperature": 0.9, "language": "ta-IN"},
+        )
+        assert "temperature" not in out["stt"]
+        assert out["stt"]["language"] == "ta-IN"
+
+    def test_the_brain_is_untouched_by_the_voices_knobs(self):
+        from api.services.configuration.agent_options import with_model_slot
+
+        out = with_model_slot(
+            self._stack(),
+            component="tts",
+            provider="sarvam",
+            model="bulbul:v3",
+            tuning={"speed": 0.8},
+        )
+        assert out["llm"] == self._stack()["llm"]
+
+    def test_the_row_reports_what_a_section_carries_and_nothing_it_lacks(self):
+        from api.services.configuration.agent_options import slot_tuning
+
+        llm = SimpleNamespace(temperature=0.4, max_tokens=None)
+        assert slot_tuning("llm", llm) == {"temperature": 0.4}
+        tts = SimpleNamespace(speed=1.2, language="en-IN", voice="x")
+        assert slot_tuning("tts", tts) == {"speed": 1.2, "language": "en-IN"}
+        assert slot_tuning("realtime", SimpleNamespace(voice="alloy")) == {}
+        assert slot_tuning("llm", None) == {}

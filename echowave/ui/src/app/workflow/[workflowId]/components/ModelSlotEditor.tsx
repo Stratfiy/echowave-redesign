@@ -15,8 +15,12 @@
  * height. The tiles stay visible beside it, so the price on the card and
  * the price on the list can be compared without closing anything.
  *
- * A model that is not on the list is what the per-slot editor and the
- * customer's own keys are for; the link at the bottom goes there.
+ * Below the models, the slot's settings — the transcriber's languages and
+ * turn-taking, the brain's temperature and fillers, the voice's speed and
+ * background sound — so a slot is tuned where it is named. Two stores, one
+ * Save: the slot's own knobs go with the model through the slot route, the
+ * call configuration goes as a patch on the workflow, and either failing
+ * keeps the panel open with the reason.
  */
 
 import { Check, Loader2, Pencil } from "lucide-react";
@@ -38,6 +42,12 @@ import {
 import { detailFromResult } from "@/lib/apiError";
 import { formatCreditsLabel } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
+import {
+    resolveWorkflowConfigurations,
+    type WorkflowConfigurations,
+} from "@/types/workflow-configurations";
+
+import { BrainPanel, type SlotTuning, TranscriberPanel, VoicePanel } from "./SlotSettings";
 
 export type SlotComponent = "stt" | "llm" | "tts" | "realtime";
 
@@ -72,6 +82,9 @@ export function ModelSlotEditor({
     voices,
     currentVoice,
     latencyMs,
+    tuning,
+    configurations,
+    onSaveConfigurations,
     onSaved,
 }: {
     workflowId: number;
@@ -84,11 +97,18 @@ export function ModelSlotEditor({
     currentVoice?: string;
     /** This agent's own measured reply time for the slot, when it has one. */
     latencyMs?: number | null;
+    /** The slot's own knobs as stored, so the sliders open where the agent is. */
+    tuning?: SlotTuning;
+    /** The agent's call configuration; the panel edits the parts this slot owns. */
+    configurations?: WorkflowConfigurations | null;
+    onSaveConfigurations?: (patch: Partial<WorkflowConfigurations>) => Promise<void>;
     onSaved: () => Promise<void> | void;
 }) {
     const [open, setOpen] = useState(false);
     const [choice, setChoice] = useState<CatalogueOption | null>(null);
     const [voice, setVoice] = useState(currentVoice ?? "");
+    const [draftTuning, setDraftTuning] = useState<SlotTuning>(tuning ?? {});
+    const [draft, setDraft] = useState<Partial<WorkflowConfigurations>>({});
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -100,36 +120,70 @@ export function ModelSlotEditor({
                 null,
         );
         setVoice(currentVoice ?? "");
+        setDraftTuning(tuning ?? {});
+        setDraft({});
         setError(null);
-    }, [open, options, current.provider, current.model, currentVoice]);
+    }, [open, options, current.provider, current.model, currentVoice, tuning]);
+
+    const slotDirty =
+        choice !== null &&
+        (choice.provider !== current.provider ||
+            choice.model !== current.model ||
+            (component === "tts" && voice !== (currentVoice ?? "")) ||
+            JSON.stringify(draftTuning) !== JSON.stringify(tuning ?? {}));
+    const configDirty = Object.keys(draft).length > 0;
+    const dirty = slotDirty || configDirty;
 
     const save = async () => {
         if (!choice) return;
         setSaving(true);
         setError(null);
-        const result = await client.put({
-            url: `/api/v1/workflow/${workflowId}/model-slot`,
-            body: {
-                component,
-                provider: choice.provider,
-                model: choice.model,
-                voice: component === "tts" && voice ? voice : undefined,
-            },
-        });
-        setSaving(false);
-        if (result.error) {
-            setError(detailFromResult(result, "Could not change this model."));
-            return;
+        // The slot first: a model the catalogue refuses should stop the
+        // whole save, not land a half of it.
+        if (slotDirty) {
+            const result = await client.put({
+                url: `/api/v1/workflow/${workflowId}/model-slot`,
+                body: {
+                    component,
+                    provider: choice.provider,
+                    model: choice.model,
+                    voice: component === "tts" && voice ? voice : undefined,
+                    ...draftTuning,
+                },
+            });
+            if (result.error) {
+                setSaving(false);
+                setError(detailFromResult(result, "Could not change this model."));
+                return;
+            }
         }
+        if (configDirty && onSaveConfigurations) {
+            try {
+                await onSaveConfigurations(draft);
+            } catch (err) {
+                setSaving(false);
+                setError(err instanceof Error ? err.message : "Could not save these settings.");
+                return;
+            }
+        }
+        setSaving(false);
         setOpen(false);
         await onSaved();
     };
 
-    const dirty =
-        choice !== null &&
-        (choice.provider !== current.provider ||
-            choice.model !== current.model ||
-            (component === "tts" && voice !== (currentVoice ?? "")));
+    // What the panel edits: the stored configuration with the draft on top,
+    // so every control shows the value it would save.
+    const panelConfig = configurations
+        ? { ...resolveWorkflowConfigurations(configurations), ...draft }
+        : null;
+    const panelProps = panelConfig && {
+        workflowId,
+        config: panelConfig,
+        onChange: (patch: Partial<WorkflowConfigurations>) =>
+            setDraft((d) => ({ ...d, ...patch })),
+        tuning: draftTuning,
+        onTuning: (patch: SlotTuning) => setDraftTuning((t) => ({ ...t, ...patch })),
+    };
 
     const title = TITLES[component];
 
@@ -216,6 +270,16 @@ export function ModelSlotEditor({
                                 Voice
                             </p>
                             <VoicePicker voices={voices} selected={voice} onSelect={(id) => setVoice(id)} />
+                        </div>
+                    )}
+                    {panelProps && component !== "realtime" && (
+                        <div className="border-t border-border" data-testid="slot-settings">
+                            <p className="px-4 pb-1 pt-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Settings
+                            </p>
+                            {component === "stt" && <TranscriberPanel {...panelProps} />}
+                            {component === "llm" && <BrainPanel {...panelProps} />}
+                            {component === "tts" && <VoicePanel {...panelProps} />}
                         </div>
                     )}
                 </div>

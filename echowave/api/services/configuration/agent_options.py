@@ -805,6 +805,35 @@ def stack_from_configurations(effective) -> dict:
     return stack
 
 
+#: What a slot's settings panel may tune besides the model itself, per slot.
+#: Temperature and reply length are the two knobs Vapi puts under a model;
+#: speed and language are what a voice has. Anything else a vendor accepts
+#: is the per-slot editor's business, not the pencil's.
+SLOT_TUNING: dict[str, tuple[str, ...]] = {
+    "stt": ("language",),
+    "llm": ("temperature", "max_tokens"),
+    "tts": ("speed", "language"),
+    "realtime": (),
+}
+
+
+def slot_tuning(component: str, section) -> dict:
+    """The tunable values a section currently carries, for the panel to open on.
+
+    Only the keys the panel can write, and only where the section has them:
+    a vendor class without ``temperature`` contributes nothing rather than
+    ``None``, so the panel shows the vendor's own default as blank.
+    """
+    if section is None:
+        return {}
+    out = {}
+    for key in SLOT_TUNING.get(component, ()):
+        value = getattr(section, key, None)
+        if value is not None:
+            out[key] = value
+    return out
+
+
 def with_model_slot(
     stack: dict,
     *,
@@ -812,6 +841,7 @@ def with_model_slot(
     provider: str,
     model: str,
     voice: str | None = None,
+    tuning: dict | None = None,
 ) -> dict:
     """The stack with one slot pointed at a managed catalogue model.
 
@@ -819,6 +849,11 @@ def with_model_slot(
     shape — a real vendor and model on ``use_platform_key`` — rather than a
     tier, because the person chose this model by name and a tier would let
     it move under them.
+
+    ``tuning`` carries the slot's own knobs (see ``SLOT_TUNING``). A value
+    given is written; a key absent or ``None`` leaves what the section has,
+    so the panel can change the speed without restating the language. Keys
+    the slot does not tune are ignored rather than stored.
 
     Choosing a speech-to-speech model switches the architecture and drops
     the transcriber and voice, which that model replaces; choosing any
@@ -838,6 +873,10 @@ def with_model_slot(
     )
     if component == "tts" and voice:
         section["voice"] = voice
+    for key in SLOT_TUNING[component]:
+        value = (tuning or {}).get(key)
+        if value is not None:
+            section[key] = value
     next_stack[component] = section
 
     if component == "realtime":
@@ -1179,6 +1218,7 @@ async def model_row(
             ("tts", "Voice", effective.tts),
         ]
 
+    section_by_component = {component: section for component, _title, section in wanted}
     resolved: list[tuple[str, str, str, str]] = []
     for component, title, section in wanted:
         pair = resolve(component, section)
@@ -1266,6 +1306,9 @@ async def model_row(
                     if component == "tts"
                     else None
                 ),
+                # What the slot's panel can tune, as it stands, so the
+                # sliders open where the agent is rather than at a default.
+                "tuning": slot_tuning(component, section_by_component.get(component)),
             }
         )
 

@@ -5750,6 +5750,11 @@ export type ModelPresetRequest = {
  * ModelSlotRequest
  *
  * One tile's pencil: this slot, this managed model, this voice.
+ *
+ * The four below are the slot's own knobs, as the panel behind the pencil
+ * shows them. Each is optional and, left out, leaves the stored value
+ * alone; the ranges match what the vendor classes accept, so a value the
+ * stack cannot run is refused here rather than on the first call.
  */
 export type ModelSlotRequest = {
     /**
@@ -5768,6 +5773,22 @@ export type ModelSlotRequest = {
      * Voice
      */
     voice?: string | null;
+    /**
+     * Temperature
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     */
+    max_tokens?: number | null;
+    /**
+     * Speed
+     */
+    speed?: number | null;
+    /**
+     * Language
+     */
+    language?: string | null;
 };
 
 /**

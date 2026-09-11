@@ -679,6 +679,42 @@ export const useWorkflowState = ({
         [workflowId, workflowName, user, setWorkflowConfigurations, workflowConfigurationDefaults],
     );
 
+    // A few fields at a time, from wherever they are edited. The panels
+    // behind the model tiles each own a handful of these -- the transcriber's
+    // turn-taking, the voice's speed, the brain's fillers -- and each writes
+    // only its own, over whatever the store holds now, so two panels saved
+    // in turn cannot undo each other. The dictionary rides in the store
+    // beside the rest, so a patch that carries it keeps that copy in step.
+    const saveConfigurationPatch = useCallback(
+        async (patch: Partial<WorkflowConfigurations>) => {
+            if (!user) return;
+            const currentConfigurations =
+                useWorkflowStore.getState().workflowConfigurations
+                ?? resolveWorkflowConfigurations(null, workflowConfigurationDefaults);
+            const updatedConfigurations: WorkflowConfigurations = {
+                ...currentConfigurations,
+                ...patch,
+            };
+            const response = await updateWorkflowApiV1WorkflowWorkflowIdPut({
+                path: { workflow_id: workflowId },
+                body: {
+                    name: workflowName,
+                    workflow_definition: null,
+                    workflow_configurations: updatedConfigurations as Record<string, unknown>,
+                },
+            });
+            if (response.error) {
+                const detail = (response.error as { detail?: unknown }).detail;
+                throw new Error(
+                    typeof detail === "string" ? detail : "Could not save these settings",
+                );
+            }
+            if (typeof patch.dictionary === "string") setDictionary(patch.dictionary);
+            setWorkflowConfigurations(updatedConfigurations);
+        },
+        [workflowId, workflowName, user, setDictionary, setWorkflowConfigurations, workflowConfigurationDefaults],
+    );
+
     // Save dictionary
     const saveDictionary = useCallback(async (newDictionary: string) => {
         if (!user) return;
@@ -741,6 +777,7 @@ export const useWorkflowState = ({
         onRun,
         saveTemplateContextVariables,
         saveWorkflowConfigurations,
+        saveConfigurationPatch,
         saveDictionary,
         savePronunciationLexicon,
         saveCallOutcomes,

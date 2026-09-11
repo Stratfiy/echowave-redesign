@@ -1209,12 +1209,22 @@ async def apply_model_preset(
 
 
 class ModelSlotRequest(BaseModel):
-    """One tile's pencil: this slot, this managed model, this voice."""
+    """One tile's pencil: this slot, this managed model, this voice.
+
+    The four below are the slot's own knobs, as the panel behind the pencil
+    shows them. Each is optional and, left out, leaves the stored value
+    alone; the ranges match what the vendor classes accept, so a value the
+    stack cannot run is refused here rather than on the first call.
+    """
 
     component: Literal["stt", "llm", "tts", "realtime"]
     provider: str
     model: str
     voice: str | None = None
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    max_tokens: int | None = Field(default=None, ge=16, le=4096)
+    speed: float | None = Field(default=None, ge=0.5, le=2.0)
+    language: str | None = Field(default=None, max_length=16)
 
 
 @router.put("/{workflow_id}/model-slot")
@@ -1293,6 +1303,12 @@ async def set_model_slot(
             provider=request.provider,
             model=request.model,
             voice=request.voice,
+            tuning={
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+                "speed": request.speed,
+                "language": request.language,
+            },
         )
     except SelectionError as exc:
         raise HTTPException(status_code=422, detail=str(exc))

@@ -28,11 +28,8 @@
 import {
     BarChart3,
     Bot,
-    Brain,
-    FlaskConical,
-    Rocket,
     ScrollText,
-    Settings,
+    Share2,
     Variable,
     Wrench,
 } from "lucide-react";
@@ -44,22 +41,26 @@ import { cn } from "@/lib/utils";
 import type { TabId } from "../settings/tabs";
 
 /**
- * Build it, then run it, then read what happened.
+ * Vapi's five, and Share.
  *
- * `settingsTab` marks the four that are the settings page; the rest are their
- * own routes. Order is the order somebody does these in, not alphabetical and
- * not the order they happened to be built in.
+ * Assistant, Logs, Tools, Analysis, Advanced is the strip on the product we
+ * are measured against, and it is enough: the models and how they listen,
+ * think and speak are behind the pencil on each tile of the Assistant tab,
+ * so they need no tab of their own; evals are a card on Analysis. Share is
+ * the one addition — a link to text a prospect and a widget for a website
+ * are the two ways an agent reaches people outside this account, and
+ * "Deploy" said neither.
+ *
+ * `settingsTab` marks the three that are the settings page; the rest are
+ * their own routes.
  */
 export const AGENT_TABS = [
     { key: "assistant", label: "Assistant", icon: Bot },
-    { key: "models", label: "Models", icon: Brain, settingsTab: "models" },
-    { key: "calling", label: "Calling", icon: Settings, settingsTab: "calling" },
-    { key: "tools", label: "Tools", icon: Wrench },
-    { key: "evals", label: "Evals", icon: FlaskConical },
-    { key: "analysis", label: "Analysis", icon: BarChart3, settingsTab: "analysis" },
     { key: "logs", label: "Logs", icon: ScrollText },
-    { key: "deploy", label: "Deploy", icon: Rocket, settingsTab: "deploy" },
+    { key: "tools", label: "Tools", icon: Wrench },
+    { key: "analysis", label: "Analysis", icon: BarChart3, settingsTab: "analysis" },
     { key: "advanced", label: "Advanced", icon: Variable, settingsTab: "advanced" },
+    { key: "share", label: "Share", icon: Share2, settingsTab: "share" },
 ] as const;
 
 type Tab = (typeof AGENT_TABS)[number];
@@ -72,8 +73,6 @@ function hrefFor(tab: Tab, workflowId: number): string {
             return `${base}/runs`;
         case "tools":
             return `${base}/tools`;
-        case "evals":
-            return `${base}/evals`;
         default:
             return base;
     }
@@ -97,7 +96,6 @@ export function AgentTabs({
         if ("settingsTab" in tab) return settingsTab === tab.settingsTab;
         if (tab.key === "logs") return pathname.startsWith(`${base}/runs`);
         if (tab.key === "tools") return pathname.startsWith(`${base}/tools`);
-        if (tab.key === "evals") return pathname.startsWith(`${base}/evals`);
         // The canvas, and only the canvas. `startsWith` would light it on
         // every tab, since every one of these lives under the same base.
         return pathname === base;

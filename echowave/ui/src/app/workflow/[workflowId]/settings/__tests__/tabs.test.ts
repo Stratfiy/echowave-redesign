@@ -19,14 +19,12 @@ const SECTION_IDS = [
     "qa",
     "outcomes",
     "general",
-    "models",
     "variables",
-    "dictionary",
-    "pronunciation",
-    "language",
     "voicemail",
     "recordings",
     "deployment",
+    "share",
+    "evals",
     "report",
     "identity",
 ];
@@ -58,9 +56,13 @@ describe("settings tabs", () => {
     });
 
     it("accepts only real tab ids from the URL", () => {
-        expect(isTabId("models")).toBe(true);
-        expect(isTabId("calling")).toBe(true);
-        // A stale or hand-typed ?tab= must fall back rather than render nothing.
+        expect(isTabId("advanced")).toBe(true);
+        expect(isTabId("share")).toBe(true);
+        // A stale or hand-typed ?tab= must fall back rather than render
+        // nothing. "models" and "calling" are the two that used to exist,
+        // and a bookmark to either lands on a real tab.
+        expect(isTabId("models")).toBe(false);
+        expect(isTabId("calling")).toBe(false);
         expect(isTabId("general")).toBe(false);
         expect(isTabId("")).toBe(false);
         expect(isTabId(null)).toBe(false);

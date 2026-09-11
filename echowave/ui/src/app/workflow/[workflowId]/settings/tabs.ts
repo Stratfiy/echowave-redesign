@@ -1,18 +1,15 @@
-import { Brain, FileDown, Rocket, Settings, Variable } from "lucide-react";
+import { FileDown, Share2, Variable } from "lucide-react";
 
 /**
- * Five tabs over nine sections.
+ * Three tabs over the sections that have no tile to live behind.
  *
- * This screen was one column of nine cards with a sticky "on this page" list
- * beside it, which is a table of contents for a document rather than a shape
- * for a settings screen: everything was equally prominent and nothing was
- * grouped by the job it belongs to. Both products we are measured against use
- * tabs here — Bolna has seven, Vapi five.
- *
- * Five, not the seven sketched earlier, because seven would have meant two
- * tabs holding nothing. The prompt and the model row now live on the editor,
- * so what is left on this screen is configuration, and it falls into exactly
- * these groups.
+ * This screen was five tabs: Models, Calling, Analysis, Deploy, Advanced.
+ * Models and most of Calling are gone from here, not deleted: the pencil on
+ * each tile of the Assistant tab now opens the slot's own settings, the way
+ * Vapi does it, so the transcriber's turn-taking is edited beside the
+ * transcriber and the voice's speed beside the voice. What is left is what
+ * no single slot owns — how a call ends, what is kept, how it is judged,
+ * and how it reaches people outside this account.
  *
  * ``sections`` is what each tab contains, and it is load-bearing twice: it
  * decides what renders, and it carries the unsaved-changes dot up from a
@@ -21,45 +18,33 @@ import { Brain, FileDown, Rocket, Settings, Variable } from "lucide-react";
  */
 export const TABS = [
     {
-        id: "models",
-        label: "Models",
-        icon: Brain,
-        // "pronunciation" sits here with "dictionary": one tells the
-        // transcriber what to listen for, the other tells the voice how to say
-        // it back, and both are edited in the same sitting.
-        sections: ["models", "dictionary", "pronunciation", "language"],
-    },
-    {
-        id: "calling",
-        label: "Calling",
-        icon: Settings,
-        sections: ["general", "voicemail"],
-    },
-    {
         id: "analysis",
         label: "Analysis",
         icon: FileDown,
         // "outcomes" beside "qa": one says how the call was handled,
         // the other what it achieved, and they come apart constantly.
-        sections: ["qa", "outcomes", "recordings", "report"],
-    },
-    {
-        id: "deploy",
-        label: "Deploy",
-        icon: Rocket,
-        sections: ["deployment"],
+        // "evals" is the way to its own screen.
+        sections: ["qa", "outcomes", "recordings", "report", "evals"],
     },
     {
         id: "advanced",
         label: "Advanced",
         icon: Variable,
-        sections: ["variables", "identity"],
+        // "general" is the call itself: name, fallbacks, limits, recording.
+        sections: ["general", "voicemail", "variables", "identity"],
+    },
+    {
+        id: "share",
+        label: "Share",
+        icon: Share2,
+        // The link to text somebody, and the widget for a website.
+        sections: ["share", "deployment"],
     },
 ] as const;
 
 export type TabId = (typeof TABS)[number]["id"];
 
-export const DEFAULT_TAB: TabId = "models";
+export const DEFAULT_TAB: TabId = "advanced";
 
 export function isTabId(value: string | null): value is TabId {
     return TABS.some((tab) => tab.id === value);

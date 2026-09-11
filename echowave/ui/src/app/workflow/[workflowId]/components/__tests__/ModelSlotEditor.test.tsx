@@ -121,3 +121,77 @@ describe("ModelSlotEditor", () => {
         });
     });
 });
+
+describe("the settings behind the pencil", () => {
+    const configurations = {
+        turn_stop_strategy: "turn_analyzer",
+        smart_turn_stop_secs: 2,
+        speak_like_callers: true,
+    } as unknown as import("@/types/workflow-configurations").WorkflowConfigurations;
+
+    it("shows the slot's own settings under the models", () => {
+        render(editor({ configurations, onSaveConfigurations: vi.fn() }));
+        fireEvent.click(screen.getByRole("button", { name: "Change transcriber" }));
+        expect(screen.getByTestId("slot-settings")).toBeTruthy();
+        // The transcriber's, not the brain's.
+        expect(screen.getByText("Turn-taking")).toBeTruthy();
+        expect(screen.queryByText("Temperature")).toBeNull();
+    });
+
+    it("saves a changed setting as a patch and leaves the model alone", async () => {
+        const onSaveConfigurations = vi.fn().mockResolvedValue(undefined);
+        const onSaved = vi.fn();
+        render(editor({ configurations, onSaveConfigurations, onSaved }));
+        fireEvent.click(screen.getByRole("button", { name: "Change transcriber" }));
+        fireEvent.click(screen.getByRole("switch", { name: /Follow the caller/ }));
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+        await waitFor(() => expect(onSaved).toHaveBeenCalled());
+        expect(onSaveConfigurations).toHaveBeenCalledWith({ follow_caller_language: true });
+        // Nothing about the model changed, so the slot route is not called.
+        expect(api.put).not.toHaveBeenCalled();
+    });
+
+    it("sends a moved temperature with the slot, not as a workflow patch", async () => {
+        const onSaveConfigurations = vi.fn().mockResolvedValue(undefined);
+        const onSaved = vi.fn();
+        render(
+            editor({
+                component: "llm",
+                current: { provider: "openai", model: "gpt-4.1" },
+                options: [
+                    { provider: "openai", model: "gpt-4.1", label: "GPT-4.1", paise_per_minute: 120, approximate: false },
+                ],
+                tuning: { temperature: 0.7 },
+                configurations,
+                onSaveConfigurations,
+                onSaved,
+            }),
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Change brain" }));
+        const slider = screen.getByRole("slider", { name: /Set|Vendor default/ });
+        fireEvent.change(slider, { target: { value: "0.3" } });
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+        await waitFor(() => expect(onSaved).toHaveBeenCalled());
+        expect(api.put.mock.calls[0][0].body).toEqual({
+            component: "llm",
+            provider: "openai",
+            model: "gpt-4.1",
+            voice: undefined,
+            temperature: 0.3,
+        });
+        expect(onSaveConfigurations).not.toHaveBeenCalled();
+    });
+
+    it("stays open with the reason when the patch is refused", async () => {
+        const onSaveConfigurations = vi.fn().mockRejectedValue(new Error("Not yours to change."));
+        render(editor({ configurations, onSaveConfigurations }));
+        fireEvent.click(screen.getByRole("button", { name: "Change transcriber" }));
+        fireEvent.click(screen.getByRole("switch", { name: /Follow the caller/ }));
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+        expect(await screen.findByText("Not yours to change.")).toBeTruthy();
+        expect(screen.getByRole("dialog")).toBeTruthy();
+    });
+});
