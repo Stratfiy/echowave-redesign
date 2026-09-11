@@ -1512,7 +1512,14 @@ async def _run_pipeline_impl(
     if not is_realtime:
         from api.services.pipecat.spoken_language import SpokenLanguageFollower
 
+        async def _voice_moved(_previous, language: str) -> None:
+            # Tell the caller-watching follower where the voice went, so it
+            # never asks permission for a switch that has already happened.
+            if language_follower is not None:
+                language_follower.note_voice_moved(language)
+
         spoken_language_follower = SpokenLanguageFollower(
+            on_change=_voice_moved,
             initial_language=getattr(
                 getattr(user_config, "tts", None), "language", None
             ),
