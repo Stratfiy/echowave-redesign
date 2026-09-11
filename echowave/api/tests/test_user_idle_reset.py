@@ -1,9 +1,9 @@
 """What resets the idle escalation, and why the answer cannot be one event.
 
-The second idle timeout **disconnects the call**. That makes the reset the
-load-bearing half of this feature: if the retry count does not return to zero
-when the caller speaks, a caller who is mid-sentence is hung up on roughly
-twenty seconds into every call.
+The silence after the last nudge **disconnects the call**. That makes the
+reset the load-bearing half of this feature: if the retry count does not
+return to zero when the caller speaks, a caller who is mid-sentence is hung up
+on part-way through every call.
 
 The pipeline used to reset on ``on_user_turn_started`` alone. pipecat does not
 emit user-turn frames at all for a realtime speech-to-speech service — its own
@@ -23,7 +23,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pipecat.utils.enums import EndTaskReason
 
-from api.services.workflow.pipecat_engine_callbacks import UserIdleHandler
+from api.services.workflow.pipecat_engine_callbacks import (
+    NUDGES_BEFORE_HANGING_UP,
+    UserIdleHandler,
+)
 
 
 @pytest.fixture
@@ -51,22 +54,33 @@ class TestTheEscalation:
         aggregator.push_frame.assert_awaited_once()
         engine.end_call_with_reason.assert_not_awaited()
 
-    async def test_the_second_timeout_disconnects(self, engine, aggregator):
+    async def test_every_nudge_before_the_last_only_asks(self, engine, aggregator):
+        handler = UserIdleHandler(engine)
+
+        for _ in range(NUDGES_BEFORE_HANGING_UP):
+            await handler.handle_idle(aggregator)
+
+        assert aggregator.push_frame.await_count == NUDGES_BEFORE_HANGING_UP
+        engine.end_call_with_reason.assert_not_awaited()
+
+    async def test_the_timeout_after_the_last_nudge_disconnects(
+        self, engine, aggregator
+    ):
         """The reason the reset matters as much as the timeout does."""
         handler = UserIdleHandler(engine)
 
-        await handler.handle_idle(aggregator)
-        await handler.handle_idle(aggregator)
+        for _ in range(NUDGES_BEFORE_HANGING_UP + 1):
+            await handler.handle_idle(aggregator)
 
         engine.end_call_with_reason.assert_awaited_once_with(
             EndTaskReason.USER_IDLE_MAX_DURATION_EXCEEDED.value
         )
 
 
-class TestTheFirstNudgeCannotHangUp:
-    """The contract is two strikes, and the code has to enforce both halves.
+class TestANudgeCannotHangUp:
+    """Only the message after the last nudge may end the call.
 
-    The first nudge runs a full LLM generation with the node's tools still
+    Every nudge runs a full LLM generation with the node's tools still
     advertised — `end_call` among them on any node with an end edge. A model
     told "the user has been quiet" and handed a hang-up tool will sometimes
     use it, which collapses the escalation into one strike and disconnects a
@@ -75,23 +89,23 @@ class TestTheFirstNudgeCannotHangUp:
     stopped speaking.
     """
 
-    async def test_the_first_prompt_forbids_ending_the_call(self, engine, aggregator):
+    async def test_every_nudge_forbids_ending_the_call(self, engine, aggregator):
         handler = UserIdleHandler(engine)
 
-        await handler.handle_idle(aggregator)
+        for _ in range(NUDGES_BEFORE_HANGING_UP):
+            await handler.handle_idle(aggregator)
+            frame = aggregator.push_frame.await_args.args[0]
+            content = frame.messages[0]["content"].lower()
+            assert "do not end the call" in content
+            assert "do not call any tool" in content
 
-        frame = aggregator.push_frame.await_args.args[0]
-        content = frame.messages[0]["content"].lower()
-        assert "do not end the call" in content
-        assert "do not call any tool" in content
-
-    async def test_the_second_prompt_is_the_one_that_announces_it(
+    async def test_the_prompt_after_the_last_nudge_announces_it(
         self, engine, aggregator
     ):
         handler = UserIdleHandler(engine)
 
-        await handler.handle_idle(aggregator)
-        await handler.handle_idle(aggregator)
+        for _ in range(NUDGES_BEFORE_HANGING_UP + 1):
+            await handler.handle_idle(aggregator)
 
         frame = aggregator.push_frame.await_args.args[0]
         content = frame.messages[0]["content"].lower()
@@ -111,12 +125,12 @@ class TestTheReset:
         engine.end_call_with_reason.assert_not_awaited()
 
     async def test_without_a_reset_the_count_only_climbs(self, engine, aggregator):
-        """The realtime failure, stated plainly: no reset means the third
-        timeout is a disconnect no matter how much the caller said."""
+        """The realtime failure, stated plainly: no reset means the nudges run
+        out and the call ends, no matter how much the caller said."""
         handler = UserIdleHandler(engine)
 
-        await handler.handle_idle(aggregator)
-        await handler.handle_idle(aggregator)
+        for _ in range(NUDGES_BEFORE_HANGING_UP + 1):
+            await handler.handle_idle(aggregator)
 
         engine.end_call_with_reason.assert_awaited_once()
 
