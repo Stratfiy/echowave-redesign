@@ -44,6 +44,12 @@ const GROUPS = [
     ["male", "Male"],
 ] as const;
 
+/** Anything whose vendor never said. OpenAI publishes no gender for its eleven
+ *  voices, and ElevenLabs' account-fetched ones often carry none either — and
+ *  a voice that matched no group above used to vanish from the picker without
+ *  a trace, which for a whole provider reads as "this model has no voices". */
+const UNGROUPED = "Other";
+
 export function VoicePicker({
     voices,
     selected,
@@ -106,8 +112,16 @@ export function VoicePicker({
 
     return (
         <div className="space-y-3">
-            {GROUPS.map(([key, heading]) => {
-                const group = voices.filter((v) => v.gender === key);
+            {[
+                ...GROUPS.map(([key, heading]) => [heading, voices.filter((v) => v.gender === key)] as const),
+                [
+                    UNGROUPED,
+                    voices.filter(
+                        (v) => !GROUPS.some(([key]) => v.gender === key),
+                    ),
+                ] as const,
+            ].map(([heading, group]) => {
+                const key = heading;
                 if (!group.length) return null;
                 return (
                     <div key={key}>

@@ -166,7 +166,7 @@ export function ModelSlotEditor({
         setLoadingVoices(true);
         void (async () => {
             const result = await client.get({
-                url: `/api/v1/configurations/voices/${choice.provider}`,
+                url: `/api/v1/user/configurations/voices/${choice.provider}`,
                 query: { model: choice.model },
             });
             if (!live) return;

@@ -29,6 +29,7 @@ from api.services.configuration import managed_tiers
 from api.services.configuration.options.deepgram import DEEPGRAM_AURA_VOICES
 from api.services.configuration.options.elevenlabs import ELEVENLABS_PREMADE_VOICES
 from api.services.configuration.options.google import GOOGLE_TTS_VOICES
+from api.services.configuration.options.openai import OPENAI_TTS_VOICES
 from api.services.configuration.options.rumik import (
     RUMIK_FEMALE_VOICES,
     RUMIK_VOICES,
@@ -196,6 +197,12 @@ def _deepgram(_model: str | None) -> list[Voice]:
 
 _LOCAL = {
     ServiceProviders.DEEPGRAM.value: _deepgram,
+    # OpenAI publishes no gender for any of its eleven voices, and none is
+    # invented here. They list under "Other" in the picker rather than being
+    # dropped for lacking a label their vendor never gave them.
+    ServiceProviders.OPENAI.value: lambda _model: [
+        Voice(voice_id=v, name=v.title()) for v in OPENAI_TTS_VOICES
+    ],
     ServiceProviders.SARVAM.value: _sarvam,
     ServiceProviders.RUMIK.value: _rumik,
     ServiceProviders.ELEVENLABS.value: _elevenlabs,

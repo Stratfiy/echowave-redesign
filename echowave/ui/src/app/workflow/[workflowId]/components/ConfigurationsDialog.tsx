@@ -78,6 +78,11 @@ export const ConfigurationsDialog = ({
                 turn_start_min_words: turnStartMinWords,
                 provisional_vad_pause_secs: provisionalVadPauseSecs,
                 turn_stop_strategy: turnStopStrategy,
+                // Carried through rather than edited here: this save is a whole
+                // object, so leaving it out would reset a noisy line to normal
+                // behind the operator's back. It is edited in the transcriber
+                // panel, where the rest of turn-taking lives.
+                caller_environment: resolvedWorkflowConfigurations.caller_environment,
                 // Preserved rather than edited: this dialog offers no control
                 // for it, and rebuilding the object without it would reset a
                 // value set on the settings screen.

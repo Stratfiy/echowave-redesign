@@ -94,6 +94,7 @@ export type AmbientNoiseConfiguration = Omit<
 };
 
 export type TurnStopStrategy = NonNullable<GeneratedWorkflowConfigurationDefaults["turn_stop_strategy"]>;
+export type CallerEnvironment = NonNullable<GeneratedWorkflowConfigurationDefaults["caller_environment"]>;
 export type TurnStartStrategy = NonNullable<GeneratedWorkflowConfigurationDefaults["turn_start_strategy"]>;
 export const DEFAULT_TURN_START_MIN_WORDS = 3;
 // Mirrors DEFAULT_USER_SPEECH_TIMEOUT in api/schemas/workflow_configurations.py,
@@ -264,6 +265,7 @@ type WorkflowConfigurationBase = Omit<
     | "turn_start_min_words"
     | "provisional_vad_pause_secs"
     | "turn_stop_strategy"
+    | "caller_environment"
     | "user_speech_timeout"
     | "interruption_backoff_secs"
     | "dictionary"
@@ -314,6 +316,7 @@ export type WorkflowConfigurations = WorkflowConfigurationBase & {
     turn_start_min_words: number;  // Minimum transcribed words required for minimum-word interruptions
     provisional_vad_pause_secs: number;  // Seconds to pause bot output while awaiting transcript confirmation
     turn_stop_strategy: TurnStopStrategy;  // Strategy for detecting end of user turn
+    caller_environment: CallerEnvironment;  // How noisy the caller's surroundings are; raises the bar before a sound counts as them speaking
     user_speech_timeout: number;  // Silence after VAD stop before the turn ends; "transcription" strategy only
     interruption_backoff_secs: number;  // Pause before the agent speaks again after being cut off
     dictionary?: string;  // Comma-separated words for voice agent to listen for
@@ -345,6 +348,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     pronunciation_lexicon: [],
     call_outcomes: [],
     follow_caller_language: false,
+    caller_environment: "normal",
     accept_keypad_input: false,
     speak_like_callers: true,
     dynamic_greeting_configuration: { enabled: false, url: "" },

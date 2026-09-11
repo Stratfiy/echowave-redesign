@@ -215,6 +215,12 @@ class WorkflowConfigurationDefaults(BaseModel):
     user_speech_timeout: float = Field(
         default=DEFAULT_USER_SPEECH_TIMEOUT, ge=0.15, le=3.0
     )
+    # Where the caller is, in plain words, because an operator knows that and
+    # does not know what a voice-activity confidence threshold is. "noisy"
+    # raises the bar before a sound counts as the caller starting to speak, so
+    # the next table does not interrupt the agent -- see vad_sensitivity for
+    # what it can and cannot fix.
+    caller_environment: Literal["quiet", "normal", "noisy"] = "normal"
     dictionary: str = ""
     interruption_backoff_secs: float = Field(
         default=DEFAULT_INTERRUPTION_BACKOFF_SECS, ge=0.0, le=3.0

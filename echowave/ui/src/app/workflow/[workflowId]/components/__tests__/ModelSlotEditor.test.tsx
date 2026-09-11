@@ -184,14 +184,19 @@ describe("ModelSlotEditor", () => {
 });
 
 describe("the voices follow the model", () => {
-    it("asks for the chosen model's own voices", async () => {
+    it("asks for the chosen model's own voices, at the path the API serves", async () => {
+        // The `/user` is the whole point of this assertion. It shipped without
+        // it, every call 404'd, and the picker fell back to the voices it was
+        // handed — so choosing OpenAI showed ElevenLabs' voices with no error
+        // on screen. A test that asserts the URL the code happens to build
+        // proves nothing; this one is the route as mounted.
         api.get.mockResolvedValue({ data: { voices: BULBUL_VOICES }, error: undefined });
         render(editor(voiceSlot()));
         fireEvent.click(screen.getByRole("button", { name: "Change voice" }));
 
         await waitFor(() =>
             expect(api.get).toHaveBeenCalledWith({
-                url: "/api/v1/configurations/voices/sarvam",
+                url: "/api/v1/user/configurations/voices/sarvam",
                 query: { model: "bulbul:v3" },
             }),
         );
