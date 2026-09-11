@@ -142,6 +142,19 @@ class HttpApiConfig(BaseModel):
     customMessageRecordingId: Optional[str] = Field(
         default=None, description="Recording ID for an audio custom message."
     )
+    mock_response: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Answer the model with this instead of calling the URL. For "
+            "building and demonstrating an agent before the backend exists."
+        ),
+        json_schema_extra=_llm_hint(
+            "Set this to the JSON body the real endpoint would return, so the "
+            "conversation can be finished end to end without one. Every call "
+            "is marked as mocked on the run, and the URL is still required so "
+            "the tool works the moment this is removed."
+        ),
+    )
 
     @field_validator("method", mode="before")
     @classmethod

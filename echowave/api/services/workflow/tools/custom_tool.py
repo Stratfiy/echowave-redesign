@@ -283,6 +283,33 @@ async def execute_http_tool(
 
     resolved_arguments = {**(arguments or {}), **preset_arguments}
 
+    # Answer from the config, without a network call, when the operator has
+    # given this tool a stand-in response.
+    #
+    # This exists because the most common state of a voice agent is "finished,
+    # except the backend it calls does not exist yet". Until it did, such an
+    # agent could be built and never demonstrated: the tool reached a URL that
+    # refused or did not resolve, the model was handed an error at the one
+    # moment the conversation was about to become useful, and the call died in
+    # front of whoever was being shown it.
+    #
+    # Marked `mocked` in the result, and that is the point rather than a
+    # detail. The model is told it succeeded, so a mocked booking sounds
+    # exactly like a real one -- which is right for a demo and a disaster if
+    # anyone downstream cannot tell them apart. The flag rides on the run and
+    # is what the transcript, the receipt and any later audit read.
+    mock_response = config.get("mock_response")
+    if isinstance(mock_response, dict):
+        logger.info(
+            f"Custom tool '{tool.name}' answered from its mock response; "
+            f"{method} {url} was not called"
+        )
+        return {
+            "status": "success",
+            "mocked": True,
+            "data": mock_response,
+        }
+
     # Build request: JSON body for POST/PUT/PATCH, query params for GET/DELETE
     body = None
     params = None

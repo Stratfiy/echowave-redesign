@@ -4573,6 +4573,14 @@ export type HttpApiConfig = {
      * Recording ID for an audio custom message.
      */
     customMessageRecordingId?: string | null;
+    /**
+     * Mock Response
+     *
+     * Answer the model with this instead of calling the URL. For building and demonstrating an agent before the backend exists.
+     */
+    mock_response?: {
+        [key: string]: unknown;
+    } | null;
 };
 
 /**
