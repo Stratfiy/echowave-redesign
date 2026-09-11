@@ -98,6 +98,43 @@ describe("TalkPage", () => {
     );
   });
 
+  it("renders live captions from the widget, and nothing before there are any", async () => {
+    let emit: ((captions: { role: string; text: string; final: boolean }[]) => void) | null = null;
+    (window as unknown as { DecibylWidget: unknown }).DecibylWidget = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      onTranscript: (cb: (c: { role: string; text: string; final: boolean }[]) => void) => {
+        emit = cb;
+      },
+    };
+
+    render(<TalkPage />);
+    await waitFor(() =>
+      expect(document.querySelector('script[src*="decibyl-widget.js"]')).not.toBeNull(),
+    );
+    const script = document.querySelector('script[src*="decibyl-widget.js"]') as HTMLScriptElement;
+    script.onload?.(new Event("load"));
+
+    // An empty panel under the orb is furniture, and on a phone it pushes the
+    // "type instead" link below the fold.
+    await waitFor(() => expect(emit).not.toBeNull());
+    expect(screen.queryByTestId("voice-captions")).toBeNull();
+
+    emit!([
+      { role: "user", text: "my lock is stuck", final: true },
+      { role: "bot", text: "Is it not opening, or not locking?", final: false },
+    ]);
+
+    await waitFor(() => expect(screen.getByTestId("voice-captions")).toBeTruthy());
+    const panel = screen.getByTestId("voice-captions");
+    expect(panel.textContent).toContain("my lock is stuck");
+    expect(panel.textContent).toContain("Is it not opening, or not locking?");
+    // The agent's own name, not "Bot" — the visitor is talking to a clinic or
+    // a support desk, not to a chatbot.
+    expect(panel.textContent).toContain("Elock support");
+    expect(panel.textContent).toContain("You");
+  });
+
   it("shows the link's own sentence when it is not available", async () => {
     (global.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation((url: string) =>
       url.includes("/config/") ? json({ detail: "This link has used its minutes for today." }, 403) : json({}, 404),

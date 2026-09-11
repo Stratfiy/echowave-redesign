@@ -66,6 +66,15 @@
     // Once per page load, not once per call. Somebody who rings back to ask a
     // second question has already seen the offer and declined it.
     postCallShown: false,
+    // Live captions for the voice call. The server already sends these down
+    // the signalling socket — the in-app run view has rendered them for ages
+    // — and the widget simply dropped them on the floor.
+    //
+    // One entry per turn, not per message: the bot's text arrives as separate
+    // sentences and the caller's as interim results that get superseded, so
+    // appending every message verbatim produces a stutter rather than a
+    // transcript.
+    captions: [],
     callbacks: {
       onReady: null,
       onCallStart: null,
@@ -76,7 +85,11 @@
       onStatusChange: null,
       // Headless renders no UI by contract, so the card is a callback there
       // rather than markup we inject into somebody's own design.
-      onPostCall: null
+      onPostCall: null,
+      // (captions) -> void, fired on every change with the whole list, because
+      // an interim line is edited in place rather than appended and a delta
+      // API would make every consumer re-implement that.
+      onTranscript: null
     }
   };
 
@@ -1246,6 +1259,10 @@
    */
   async function startCall() {
     state.gracefulDisconnect = false;
+    // Per call, not per page: a second caller on a shared kiosk, or the same
+    // visitor ringing back, must not open onto the previous conversation's
+    // words still sitting on screen.
+    clearCaptions();
     updateStatus('connecting', 'Connecting...', 'Please wait while we establish the connection');
 
     if (state.callbacks.onCallStart) {
@@ -1623,6 +1640,98 @@
   }
 
   /**
+   * How many turns of caption to keep.
+   *
+   * Captions are a running subtitle, not a transcript: the visitor reads the
+   * last line or two while the call is live, and the full record already
+   * exists server-side on the run. Keeping everything would grow without
+   * bound on a long call and push the orb off a phone screen.
+   */
+  const MAX_CAPTIONS = 6;
+
+  /**
+   * Record a line of speech and tell whoever is listening.
+   *
+   * The two sources behave differently and neither can be appended blindly.
+   * The caller's transcription arrives as interim guesses that are superseded
+   * by a final one, so an interim line is replaced in place. The bot's text
+   * arrives as separate sentences within one turn, so those are joined onto
+   * the line already in progress. Getting either wrong reads as a stutter.
+   */
+  function pushCaption(role, text, isFinal) {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return;
+
+    const last = state.captions[state.captions.length - 1];
+
+    if (last && last.role === role && !last.final) {
+      if (role === 'user') {
+        // A better guess at the same utterance: replace, never append.
+        last.text = trimmed;
+      } else {
+        last.text = last.text + ' ' + trimmed;
+      }
+      last.final = Boolean(isFinal);
+    } else {
+      state.captions.push({ role: role, text: trimmed, final: Boolean(isFinal) });
+    }
+
+    if (state.captions.length > MAX_CAPTIONS) {
+      state.captions = state.captions.slice(-MAX_CAPTIONS);
+    }
+
+    renderCaptions();
+    if (state.callbacks.onTranscript) {
+      try {
+        // A copy: a consumer that mutates what it is handed must not be able
+        // to corrupt the buffer the next turn is appended to.
+        state.callbacks.onTranscript(state.captions.map(function (entry) {
+          return { role: entry.role, text: entry.text, final: entry.final };
+        }));
+      } catch (e) {
+        console.error('onTranscript callback failed:', e);
+      }
+    }
+  }
+
+  /**
+   * Close the bot's current line so the next sentence starts a new one.
+   */
+  function sealCaption(role) {
+    const last = state.captions[state.captions.length - 1];
+    if (last && last.role === role) last.final = true;
+  }
+
+  function clearCaptions() {
+    state.captions = [];
+    renderCaptions();
+  }
+
+  /**
+   * Paint captions into the widget's own UI, where it has one.
+   *
+   * Headless mode renders nothing by contract — there the callback is the
+   * whole feature — and the share page draws its own, so a missing container
+   * is the ordinary case rather than a fault.
+   */
+  function renderCaptions() {
+    const list = document.getElementById('decibyl-captions');
+    if (!list) return;
+
+    list.innerHTML = '';
+    state.captions.forEach(function (entry) {
+      const row = document.createElement('div');
+      row.className =
+        'decibyl-caption decibyl-caption-' + entry.role + (entry.final ? '' : ' decibyl-caption-interim');
+      // textContent, never innerHTML: this is speech relayed from the server
+      // and the widget runs on a customer's own page.
+      row.textContent = entry.text;
+      list.appendChild(row);
+    });
+    list.scrollTop = list.scrollHeight;
+  }
+
+  /**
    * Handle WebSocket messages
    */
   async function handleWebSocketMessage(message) {
@@ -1651,6 +1760,22 @@
             console.error('Failed to add ICE candidate:', e);
           }
         }
+        break;
+
+      case 'rtf-user-transcription':
+        // Interim results are shown, not withheld: watching your own words
+        // appear is how a visitor knows the microphone is working at all.
+        pushCaption('user', (message.payload || {}).text, (message.payload || {}).final);
+        break;
+
+      case 'rtf-bot-text':
+        pushCaption('bot', (message.payload || {}).text, false);
+        break;
+
+      case 'rtf-bot-stopped-speaking':
+        // The turn is over, so the next sentence begins a new line rather than
+        // being glued onto this one.
+        sealCaption('bot');
         break;
 
       case 'error':
@@ -1803,6 +1928,12 @@
     // Fires when a call ends having earned the post-call card. In headless
     // mode it is the whole feature: the offer is yours to render.
     onPostCall: (callback) => { state.callbacks.onPostCall = callback; },
+    // Live captions. Fires with the whole list on every change — see the
+    // callback's own note for why it is not a delta.
+    onTranscript: (callback) => { state.callbacks.onTranscript = callback; },
+    getCaptions: () => state.captions.map(function (entry) {
+      return { role: entry.role, text: entry.text, final: entry.final };
+    }),
 
     // Check if inline mode
     isInlineMode: () => state.config.embedMode === 'inline',
