@@ -70,6 +70,10 @@ from api.services.workflow.tools.knowledge_base import (
     retrieval_unavailable,
     retrieve_from_knowledge_base,
 )
+from api.services.workflow.transition_arguments import (
+    argument_properties,
+    supplied_values,
+)
 from api.utils.template_renderer import render_template
 
 #: How many branch nodes may run back-to-back before the chain is treated as a
@@ -373,8 +377,24 @@ class PipecatEngine:
             logger.info(f"Arguments: {function_call_params.arguments}")
 
             try:
-                # Perform variable extraction before transitioning to new node
-                await self._perform_variable_extraction_if_needed(self._current_node)
+                # What the model handed over with the decision itself. Written
+                # before the extraction pass so the pass can skip what it
+                # already has -- and skip running at all when it has everything.
+                supplied = supplied_values(
+                    argument_properties(self._current_node),
+                    getattr(function_call_params, "arguments", None),
+                )
+                if supplied:
+                    logger.info(f"Transition {name} supplied: {sorted(supplied)}")
+                    self._gathered_context.update(supplied)
+                    self._gathered_context.setdefault("extracted_variables", {}).update(
+                        supplied
+                    )
+
+                # Extract whatever the model did not hand over.
+                await self._perform_variable_extraction_if_needed(
+                    self._current_node, already_supplied=set(supplied)
+                )
 
                 # Queue transition speech/audio before switching nodes
                 speech_type = transition_speech_type or "text"
@@ -607,7 +627,10 @@ class PipecatEngine:
         self.llm.register_function("retrieve_from_knowledge_base", retrieve_kb_func)
 
     async def _perform_variable_extraction_if_needed(
-        self, node: Optional[Node], run_in_background: bool = True
+        self,
+        node: Optional[Node],
+        run_in_background: bool = True,
+        already_supplied: Optional[set[str]] = None,
     ) -> None:
         """Perform variable extraction if the node has extraction enabled.
 
@@ -615,6 +638,10 @@ class PipecatEngine:
             node: The node to extract variables from.
             run_in_background: If True, runs extraction as a fire-and-forget task.
                 If False, awaits the extraction synchronously.
+            already_supplied: Variables the model handed over on the transition
+                itself. Those are not asked for again, and when they are all of
+                them the extraction call is not made at all -- which is the
+                point of asking for them on the transition.
         """
         if not (node and node.extraction_enabled and node.extraction_variables):
             return
@@ -623,12 +650,24 @@ class PipecatEngine:
         # before creating the background task.
         parent_context = self._get_otel_context()
 
+        outstanding = [
+            v
+            for v in node.extraction_variables
+            if v.name not in (already_supplied or set())
+        ]
+        if not outstanding:
+            logger.debug(
+                f"Skipping extraction for node {node.name}: the transition "
+                f"supplied every variable."
+            )
+            return
+
         extraction_prompt = self._format_prompt(node.extraction_prompt)
         extraction_variables = [
             v.model_copy(update={"prompt": self._format_prompt(v.prompt)})
             if v.prompt
             else v
-            for v in node.extraction_variables
+            for v in outstanding
         ]
 
         async def _do_extraction():

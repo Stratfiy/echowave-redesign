@@ -117,7 +117,9 @@ class TestVariableExtractionDuringTransitions:
         # Patch _perform_variable_extraction_if_needed to track calls
         original_perform_extraction = engine._perform_variable_extraction_if_needed
 
-        async def tracked_perform_extraction(node, run_in_background=True):
+        async def tracked_perform_extraction(
+            node, run_in_background=True, already_supplied=None
+        ):
             extraction_calls.append(
                 {
                     "node_id": node.id if node else None,
@@ -127,7 +129,7 @@ class TestVariableExtractionDuringTransitions:
                 }
             )
             # Call original to maintain behavior
-            await original_perform_extraction(node)
+            await original_perform_extraction(node, already_supplied=already_supplied)
 
         engine._perform_variable_extraction_if_needed = tracked_perform_extraction
 

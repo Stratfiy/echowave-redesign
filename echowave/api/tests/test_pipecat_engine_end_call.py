@@ -154,7 +154,9 @@ async def create_engine_with_tracking(
     # Track variable extraction calls
     original_perform_extraction = engine._perform_variable_extraction_if_needed
 
-    async def tracked_perform_extraction(node, run_in_background: bool = True):
+    async def tracked_perform_extraction(
+        node, run_in_background: bool = True, already_supplied=None
+    ):
         test_helper.extraction_calls.append(
             {
                 "node_id": node.id if node else None,
@@ -163,7 +165,9 @@ async def create_engine_with_tracking(
                 "run_in_background": run_in_background,
             }
         )
-        await original_perform_extraction(node, run_in_background=run_in_background)
+        await original_perform_extraction(
+            node, run_in_background=run_in_background, already_supplied=already_supplied
+        )
 
     engine._perform_variable_extraction_if_needed = tracked_perform_extraction
 
