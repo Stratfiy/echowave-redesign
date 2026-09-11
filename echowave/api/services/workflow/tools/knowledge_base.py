@@ -69,7 +69,18 @@ STATUS_WEAK_MATCH = "weak_match"
 #: It is one corpus and one embedding model, so this is evidence and not a law
 #: — hence the environment variable. Raise it and the agent starts saying it
 #: does not know things it does know; lower it and it starts making things up
-#: from whatever was nearest. The second failure is the worse one.
+#: from whatever was nearest. The second failure is the worse one, so this errs
+#: high.
+#:
+#: **The scale is the model's, not the world's.** The end-to-end tests embed
+#: with a bag-of-words stand-in, and under it a correct on-topic match scores
+#: 0.3264 — below this floor. That is not a broken test, it is a second
+#: embedding model disagreeing about what 0.4 means, and it showed up within
+#: minutes of the floor landing. Anyone running a model other than
+#: text-embedding-3-small should measure their own corpus the same way (a
+#: handful of on-topic and off-topic queries, look at the gap) and set
+#: KNOWLEDGE_BASE_MIN_SIMILARITY from what they find, rather than inheriting a
+#: number calibrated against somebody else's vector space.
 WEAK_MATCH_BELOW = float(os.getenv("KNOWLEDGE_BASE_MIN_SIMILARITY") or 0.40)
 
 WEAK_MATCH_INSTRUCTION = (

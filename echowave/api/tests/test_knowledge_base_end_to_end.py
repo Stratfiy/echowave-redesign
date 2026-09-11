@@ -202,6 +202,30 @@ async def _ingest(async_session, org, user, *, filename="refund-policy.txt"):
     return document
 
 
+@pytest.fixture(autouse=True)
+def _no_similarity_floor(monkeypatch):
+    """Neutralise the weak-match floor for this file.
+
+    Every test here embeds with :class:`DeterministicEmbeddingService`, a
+    bag-of-words stand-in whose similarity scale has nothing to do with any
+    real embedding model's. Under it a correct, on-topic match — "how long do
+    I have to ask for a refund" against a refund policy — scores 0.3264, which
+    is below the 0.40 floor calibrated on text-embedding-3-small. CI proved
+    that the moment the floor landed.
+
+    That is worth stating plainly rather than hiding: the floor is
+    model-dependent, and this file is the standing demonstration. It is pinned
+    here, autouse, so these tests keep testing what they are about — that a
+    document can be ingested and then retrieved — instead of re-testing a
+    threshold measured against a different model. The floor's own behaviour is
+    tested in test_knowledge_base_weak_match.py, where the scores are chosen
+    rather than emergent.
+    """
+    from api.services.workflow.tools import knowledge_base as kb_tool
+
+    monkeypatch.setattr(kb_tool, "WEAK_MATCH_BELOW", 0.0)
+
+
 @pytest.mark.asyncio
 class TestTheWholeChain:
     async def test_a_document_is_ingested_and_then_answers_a_question(
