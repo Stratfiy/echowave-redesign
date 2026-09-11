@@ -203,7 +203,7 @@ class TestSarvamTTSServiceFactory:
         )
 
         with patch(
-            "api.services.pipecat.service_factory.SarvamTTSService"
+            "api.services.pipecat.service_factory.DecibylSarvamTTSService"
         ) as mock_service:
             create_tts_service(user_config, audio_config)
 
@@ -235,7 +235,7 @@ class TestSarvamTTSServiceFactory:
         )
 
         with patch(
-            "api.services.pipecat.service_factory.SarvamTTSService"
+            "api.services.pipecat.service_factory.DecibylSarvamTTSService"
         ) as mock_service:
             create_tts_service(user_config, audio_config)
 
@@ -266,7 +266,7 @@ class TestSarvamTTSServiceFactory:
             )
 
             with patch(
-                "api.services.pipecat.service_factory.SarvamTTSService"
+                "api.services.pipecat.service_factory.DecibylSarvamTTSService"
             ) as mock_service:
                 create_tts_service(user_config, audio_config)
 
@@ -297,7 +297,7 @@ class TestSarvamTTSServiceFactory:
         )
 
         with patch(
-            "api.services.pipecat.service_factory.SarvamTTSService"
+            "api.services.pipecat.service_factory.DecibylSarvamTTSService"
         ) as mock_service:
             create_tts_service(user_config, audio_config)
 
@@ -402,7 +402,7 @@ class TestTheBufferSettingsStayInsideSarvamsRange:
             transport_in_sample_rate=16000, transport_out_sample_rate=16000
         )
         with patch(
-            "api.services.pipecat.service_factory.SarvamTTSService"
+            "api.services.pipecat.service_factory.DecibylSarvamTTSService"
         ) as mock_service:
             create_tts_service(user_config, audio_config)
         return mock_service.call_args.kwargs["settings"]

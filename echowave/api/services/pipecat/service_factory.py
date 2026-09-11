@@ -26,6 +26,7 @@ from api.services.pipecat.gemini_json_schema_adapter import (
 )
 from api.services.pipecat.minimax_tts import MiniMaxOwnedSessionTTSService
 from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+from api.services.pipecat.sarvam_tts import DecibylSarvamTTSService
 from api.utils.url_security import validate_user_configured_service_url
 from pipecat.pipeline.service_switcher import (
     ServiceSwitcher,
@@ -99,7 +100,7 @@ from pipecat.services.openrouter.llm import OpenRouterLLMService, OpenRouterLLMS
 from pipecat.services.rime.tts import RimeTTSService, RimeTTSSettings
 from pipecat.services.sarvam.llm import SarvamLLMSettings
 from pipecat.services.sarvam.stt import SarvamSTTService, SarvamSTTSettings
-from pipecat.services.sarvam.tts import SarvamTTSService, SarvamTTSSettings
+from pipecat.services.sarvam.tts import SarvamTTSSettings
 from pipecat.services.smallest.stt import SmallestSTTService, SmallestSTTSettings
 from pipecat.services.smallest.tts import SmallestTTSService, SmallestTTSSettings
 from pipecat.services.speaches.llm import SpeachesLLMService, SpeachesLLMSettings
@@ -1182,17 +1183,19 @@ def _create_tts_service(
             settings_kwargs["pace"] = speed
         return _create_tts_service_instance(
             user_config.tts.provider,
-            SarvamTTSService,
+            DecibylSarvamTTSService,
             api_key=user_config.tts.api_key,
             settings=SarvamTTSSettings(**settings_kwargs),
             # Whole sentences, not tokens. Token feeding with a 30-character
             # buffer handed Sarvam two or three Tamil words at a time with no
             # context, and it was heard: the words came out clipped and
             # mispronounced in every language, which is what the latency work
-            # traded away without anyone listening. A sentence costs a few
-            # hundred milliseconds on the first word and the turns are two
-            # sentences long now; clarity is the product, latency is a
-            # number.
+            # traded away without anyone listening. Clarity is the product.
+            # The subclass then adds clause boundaries on top of the sentence
+            # mode -- a comma after enough words -- so the first audio moves
+            # from "first sentence" to "first clause" without handing the
+            # voice a fragment. See clause_aggregator.py for what is and is
+            # not a boundary.
             text_aggregation_mode=TextAggregationMode.SENTENCE,
         )
     elif user_config.tts.provider == ServiceProviders.RUMIK.value:
