@@ -228,3 +228,158 @@ async def connected_toolkits(
         if isinstance(slug, str) and slug.strip():
             slugs.append(slug.strip().upper())
     return sorted(set(slugs))
+
+
+async def toolkit_name(
+    toolkit: str, *, timeout_secs: float = COMPOSIO_TIMEOUT_SECS
+) -> Optional[str]:
+    """Composio's display name for a toolkit, or None if there is no such app.
+
+    Exists so nothing downstream has to trust a slug a model produced. A model
+    asked to connect "the WhatsApp one" will cheerfully invent ``WHATSAPP_BIZ``,
+    and an auth config created against an invented slug fails later, somewhere
+    less obviously connected to the guess. Checking here turns that into "I
+    don't know that app" in the same turn the user asked.
+    """
+    headers = _headers()
+    url = f"{COMPOSIO_BASE_URL}/api/v3.1/toolkits/{toolkit.strip().lower()}"
+    try:
+        async with httpx.AsyncClient(timeout=timeout_secs) as client:
+            response = await client.get(url, headers=headers)
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Could not look up Composio toolkit {}: {}", toolkit, exc)
+        return None
+
+    if response.status_code == 404:
+        return None
+    if response.status_code >= 400:
+        logger.warning(
+            "Composio toolkit lookup for {} failed: HTTP {}",
+            toolkit,
+            response.status_code,
+        )
+        return None
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    name = body.get("name") if isinstance(body, dict) else None
+    return name if isinstance(name, str) and name.strip() else None
+
+
+async def _managed_auth_config_id(
+    toolkit: str, *, timeout_secs: float
+) -> Optional[str]:
+    """The project's auth config for this app, creating one if it has none.
+
+    Reused rather than created per organization on purpose: an auth config is
+    the *application's* registration with the provider, not a customer's
+    account. One per app, shared; the per-customer part is the connected
+    account hanging off it. Creating one per organization would multiply
+    registrations for no gain and make the provider's rate limits ours to
+    explain.
+    """
+    headers = _headers()
+    slug = toolkit.strip().lower()
+
+    async with httpx.AsyncClient(timeout=timeout_secs) as client:
+        existing = await client.get(
+            f"{COMPOSIO_BASE_URL}/api/v3.1/auth_configs",
+            headers=headers,
+            params={"toolkit_slug": slug},
+        )
+        if existing.status_code < 400:
+            try:
+                items = (existing.json() or {}).get("items") or []
+            except ValueError:
+                items = []
+            for item in items:
+                if isinstance(item, dict) and isinstance(item.get("id"), str):
+                    return item["id"]
+
+        created = await client.post(
+            f"{COMPOSIO_BASE_URL}/api/v3.1/auth_configs",
+            headers=headers,
+            json={
+                "toolkit": {"slug": slug.upper()},
+                # Composio's own verified OAuth application. The alternative is
+                # registering ours with every provider, which for Google's
+                # restricted scopes means an annual paid security assessment
+                # before a single customer can connect a mailbox. Worth doing
+                # later for our own branding on the consent screen; not worth
+                # doing to ship the first one.
+                "auth_config": {"type": "use_composio_managed_auth"},
+            },
+        )
+
+    if created.status_code >= 400:
+        logger.error(
+            "Could not create a Composio auth config for {}: HTTP {} {}",
+            slug,
+            created.status_code,
+            created.text[:200],
+        )
+        return None
+    try:
+        body = created.json()
+    except ValueError:
+        return None
+    config = body.get("auth_config") if isinstance(body, dict) else None
+    config_id = config.get("id") if isinstance(config, dict) else None
+    return config_id if isinstance(config_id, str) else None
+
+
+async def connect_link(
+    *,
+    toolkit: str,
+    organization_id: Optional[int],
+    timeout_secs: float = COMPOSIO_TIMEOUT_SECS,
+) -> dict[str, Any]:
+    """A URL this organization's owner opens to authorize one app.
+
+    The whole OAuth dance belongs to Composio: we never see the provider's
+    tokens, never hold a refresh token, and never implement a callback. What we
+    hold is the mapping from our organization to their ``user_id``, which is
+    the only part that has to be right.
+
+    Note the ``/api/v3/`` path. Managed-auth connections are minted here and
+    not on the v3.1 ``connected_accounts`` endpoint, which now refuses them and
+    says so -- keep the version difference rather than tidying it away.
+    """
+    user_id = tenant_user_id(organization_id)
+    headers = _headers()
+
+    config_id = await _managed_auth_config_id(toolkit, timeout_secs=timeout_secs)
+    if not config_id:
+        return {"error": f"Could not set up {toolkit} for connecting."}
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout_secs) as client:
+            response = await client.post(
+                f"{COMPOSIO_BASE_URL}/api/v3/connected_accounts/link",
+                headers=headers,
+                json={"auth_config_id": config_id, "user_id": user_id},
+            )
+    except httpx.HTTPError as exc:
+        logger.warning("Could not mint a Composio connect link: {}", exc)
+        return {"error": f"Could not start connecting {toolkit} just now."}
+
+    if response.status_code >= 400:
+        logger.error(
+            "Composio refused a connect link for {} ({}): {}",
+            toolkit,
+            response.status_code,
+            response.text[:200],
+        )
+        return {"error": f"Could not start connecting {toolkit} just now."}
+
+    try:
+        body = response.json()
+    except ValueError:
+        return {"error": f"Could not start connecting {toolkit} just now."}
+
+    url = body.get("redirect_url")
+    if not isinstance(url, str) or not url:
+        return {"error": f"Could not start connecting {toolkit} just now."}
+
+    return {"url": url, "expires_at": body.get("expires_at")}

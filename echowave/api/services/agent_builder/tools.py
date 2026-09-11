@@ -39,6 +39,18 @@ from api.services.agent_builder.assemble import (
 from api.services.agent_templates import find_templates, get_template, list_templates
 from api.services.billing.addons import DEFAULT_AGENT_ADDONS
 from api.services.billing.estimator import estimate_cost_per_minute
+from api.services.integrations.composio.client import (
+    connect_link as composio_connect_link,
+)
+from api.services.integrations.composio.client import (
+    connected_toolkits,
+)
+from api.services.integrations.composio.client import (
+    is_configured as composio_configured,
+)
+from api.services.integrations.composio.client import (
+    toolkit_name as composio_toolkit_name,
+)
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.workflow_graph import WorkflowGraph
 
@@ -191,6 +203,44 @@ def tool_schemas() -> list[dict[str, Any]]:
                 "required": ["workflow_id", "variables"],
             },
         },
+        {
+            "name": "list_connected_apps",
+            "description": (
+                "List the outside apps this account has already connected -- "
+                "Gmail, Google Sheets, Slack and so on. Call this before "
+                "offering to connect anything, so you never ask a user to "
+                "connect something they connected last week."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "connect_app",
+            "description": (
+                "Give the user a link to connect one outside app to this "
+                "account, so their agent can use it. Returns a URL -- show it "
+                "to them and ask them to open it and sign in. You cannot "
+                "complete the connection yourself; only they can, and only in "
+                "a browser. The link expires in a few minutes, so call this "
+                "when they are ready rather than in advance. After they say "
+                "they are done, call list_connected_apps to check."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "app": {
+                        "type": "string",
+                        "description": (
+                            "The app's Composio slug, lowercase, e.g. gmail, "
+                            "googlesheets, googlecalendar, slack, notion, "
+                            "hubspot. If you are not sure of the exact slug, "
+                            "say so and ask the user which app they mean "
+                            "rather than guessing -- a wrong slug is refused."
+                        ),
+                    },
+                },
+                "required": ["app"],
+            },
+        },
     ]
 
 
@@ -238,6 +288,13 @@ async def dispatch(
                 organization_id=organization_id,
                 workflow_id=arguments.get("workflow_id"),
                 variables=arguments.get("variables") or {},
+            )
+        if name == "list_connected_apps":
+            return await _list_connected_apps(organization_id)
+        if name == "connect_app":
+            return await _connect_app(
+                organization_id=organization_id,
+                app=arguments.get("app", ""),
             )
         if name == "create_agent":
             return await _create_agent(
@@ -581,4 +638,100 @@ async def _revise_agent_facts(
             "still answering exactly as it did before.",
             "Tell them to open the agent, test it, and publish when happy.",
         ],
+    }
+
+
+async def _list_connected_apps(organization_id: int) -> dict[str, Any]:
+    """Which outside apps this account has authorized.
+
+    A deployment with no Composio key is not an error to report upward -- it is
+    a platform that simply does not offer this, and the builder should stop
+    talking about it rather than tell a clinic owner about a missing
+    environment variable.
+    """
+    if not composio_configured():
+        return {
+            "apps": [],
+            "available": False,
+            "note": (
+                "Connecting outside apps is not switched on for this "
+                "platform. Do not offer it."
+            ),
+        }
+
+    apps = await connected_toolkits(organization_id)
+    return {
+        "apps": apps,
+        "available": True,
+        "note": (
+            "Nothing is connected yet. If the user wants their agent to send "
+            "email, update a sheet or post to Slack, offer connect_app."
+            if not apps
+            else (
+                "These are already connected; do not ask the user to connect "
+                "them again."
+            )
+        ),
+    }
+
+
+async def _connect_app(*, organization_id: int, app: str) -> dict[str, Any]:
+    """A link the user opens to authorize one app.
+
+    Two refusals before any link is minted, and both are deliberate.
+
+    The slug is checked against Composio's own catalogue rather than a list
+    kept here: a hardcoded list goes stale the week they add an app, and the
+    failure mode of a stale list is telling a user we cannot do something we
+    can. The failure mode of an unchecked slug is worse -- an auth config
+    created against an invented app, and a confusing failure later.
+
+    And an app this organization already connected returns no link at all.
+    Minting a second one is how a user ends up with two authorizations and no
+    idea which one their agent uses.
+    """
+    if not composio_configured():
+        return {
+            "error": ("Connecting outside apps is not switched on for this platform.")
+        }
+
+    slug = (app or "").strip().lower()
+    if not slug:
+        return {"error": "Which app? Ask the user, then call this again."}
+
+    already = await connected_toolkits(organization_id)
+    if slug.upper() in already:
+        return {
+            "already_connected": True,
+            "app": slug,
+            "note": (
+                f"{slug} is already connected to this account. Tell the user "
+                "it is ready to use; do not send them a link."
+            ),
+        }
+
+    display_name = await composio_toolkit_name(slug)
+    if not display_name:
+        return {
+            "error": (
+                f"There is no app called {slug!r}. Ask the user which app "
+                "they mean by name and try the obvious slug for it."
+            )
+        }
+
+    link = await composio_connect_link(toolkit=slug, organization_id=organization_id)
+    if "error" in link:
+        return link
+
+    return {
+        "app": slug,
+        "app_name": display_name,
+        "connect_url": link["url"],
+        "expires_at": link.get("expires_at"),
+        "note": (
+            f"Show this link to the user and ask them to open it and sign in "
+            f"to {display_name}. It expires in a few minutes. You cannot "
+            f"complete this for them. When they say they have finished, call "
+            f"list_connected_apps to confirm it worked."
+        ),
     }

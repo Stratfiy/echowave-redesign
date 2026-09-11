@@ -203,3 +203,148 @@ class TestTimeoutResolution:
         self, config, expected
     ):
         assert _composio_timeout_secs(config) == expected
+
+
+class TestAgentBuilderConnectTools:
+    """The builder's side: it can offer a link and never complete one."""
+
+    @staticmethod
+    async def _dispatch(name, args, org=1):
+        from api.services.agent_builder.tools import dispatch
+
+        return await dispatch(name, args, session=None, organization_id=org, user_id=1)
+
+    @pytest.mark.asyncio
+    async def test_a_deployment_without_composio_tells_the_builder_to_stop_offering(
+        self,
+    ):
+        with patch(
+            "api.services.agent_builder.tools.composio_configured", return_value=False
+        ):
+            listed = await self._dispatch("list_connected_apps", {})
+            attempted = await self._dispatch("connect_app", {"app": "gmail"})
+
+        assert listed["available"] is False
+        assert listed["apps"] == []
+        assert "error" in attempted
+
+    @pytest.mark.asyncio
+    async def test_an_app_already_connected_gets_no_second_link(self):
+        """Two live authorizations for one app is how a user ends up unable to
+        say which one their agent is using."""
+        with (
+            patch(
+                "api.services.agent_builder.tools.composio_configured",
+                return_value=True,
+            ),
+            patch(
+                "api.services.agent_builder.tools.connected_toolkits",
+                AsyncMock(return_value=["GMAIL"]),
+            ),
+            patch(
+                "api.services.agent_builder.tools.composio_connect_link"
+            ) as mock_link,
+        ):
+            result = await self._dispatch("connect_app", {"app": "gmail"})
+
+        assert result["already_connected"] is True
+        mock_link.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_an_invented_app_is_refused_before_anything_is_created(self):
+        """A model asked for "the WhatsApp one" will invent a slug. Checking it
+        against Composio's catalogue turns that into a question in the same
+        turn, instead of an auth config for an app that does not exist."""
+        with (
+            patch(
+                "api.services.agent_builder.tools.composio_configured",
+                return_value=True,
+            ),
+            patch(
+                "api.services.agent_builder.tools.connected_toolkits",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "api.services.agent_builder.tools.composio_toolkit_name",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "api.services.agent_builder.tools.composio_connect_link"
+            ) as mock_link,
+        ):
+            result = await self._dispatch("connect_app", {"app": "whatsapp_biz"})
+
+        assert "no app called" in result["error"]
+        mock_link.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_a_link_comes_back_with_the_apps_real_name_for_the_user(self):
+        with (
+            patch(
+                "api.services.agent_builder.tools.composio_configured",
+                return_value=True,
+            ),
+            patch(
+                "api.services.agent_builder.tools.connected_toolkits",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "api.services.agent_builder.tools.composio_toolkit_name",
+                AsyncMock(return_value="Google Sheets"),
+            ),
+            patch(
+                "api.services.agent_builder.tools.composio_connect_link",
+                AsyncMock(return_value={"url": "https://connect.example/lk_1"}),
+            ),
+        ):
+            result = await self._dispatch("connect_app", {"app": "googlesheets"})
+
+        assert result["connect_url"] == "https://connect.example/lk_1"
+        # The user is told the app's name, not its slug.
+        assert "Google Sheets" in result["note"]
+
+    @pytest.mark.asyncio
+    async def test_the_builder_is_told_it_cannot_finish_the_connection_itself(self):
+        """The builder talks to someone who has never seen a dashboard. If the
+        tool does not say plainly that only they can finish it, the model
+        reports success and the user waits for something that never happens."""
+        with (
+            patch(
+                "api.services.agent_builder.tools.composio_configured",
+                return_value=True,
+            ),
+            patch(
+                "api.services.agent_builder.tools.connected_toolkits",
+                AsyncMock(return_value=[]),
+            ),
+            patch(
+                "api.services.agent_builder.tools.composio_toolkit_name",
+                AsyncMock(return_value="Slack"),
+            ),
+            patch(
+                "api.services.agent_builder.tools.composio_connect_link",
+                AsyncMock(return_value={"url": "https://connect.example/lk_2"}),
+            ),
+        ):
+            result = await self._dispatch("connect_app", {"app": "slack"})
+
+        assert "cannot complete this for them" in result["note"]
+
+    @pytest.mark.asyncio
+    async def test_no_app_named_asks_rather_than_guessing(self):
+        with patch(
+            "api.services.agent_builder.tools.composio_configured", return_value=True
+        ):
+            result = await self._dispatch("connect_app", {"app": "   "})
+        assert "Which app?" in result["error"]
+
+    def test_connecting_an_app_never_became_a_way_to_edit_an_agent(self):
+        """The builder creates and cannot overwrite -- see the module docstring.
+        Neither tool added here takes a workflow_id, and this is the test that
+        notices if one grows one."""
+        from api.services.agent_builder.tools import tool_schemas
+
+        for schema in tool_schemas():
+            if schema["name"] in {"list_connected_apps", "connect_app"}:
+                properties = schema["parameters"].get("properties", {})
+                assert "workflow_id" not in properties
