@@ -18,6 +18,7 @@ from api.constants import DEFAULT_ORGANIZATION_TIMEZONE
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
 from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
 from api.services.workflow.tools.knowledge_base import get_knowledge_base_tool
+from api.services.workflow.workflow_graph import slugify_tool_name
 
 # ---------------------------------------------------------------------------
 # Recording response mode markers
@@ -146,6 +147,23 @@ def compose_system_prompt_for_node(
     return "\n\n".join(parts)
 
 
+def _transition_description(edge) -> str:
+    """What the model is told this transition is for.
+
+    Normally the operator's condition, which is what they wrote it for. A
+    label written in a non-Latin script is added in front of it, because such
+    a label cannot appear in the tool's name -- the name is ASCII by the
+    provider's rule -- and the operator has no way to know that. Without this
+    the model sees `option_2` and whatever the condition happens to say, with
+    the name the operator chose nowhere in the request.
+    """
+    condition = (edge.condition or "").strip()
+    label = (edge.label or "").strip()
+    if label and not slugify_tool_name(label):
+        return f"{label}. {condition}" if condition else label
+    return condition
+
+
 async def compose_functions_for_node(
     *,
     node: "Node",
@@ -206,7 +224,8 @@ async def compose_functions_for_node(
     # Transition function schemas
     for outgoing_edge in node.out_edges:
         function_schema = get_function_schema(
-            outgoing_edge.get_function_name(), outgoing_edge.condition
+            outgoing_edge.get_function_name(),
+            _transition_description(outgoing_edge),
         )
         functions.append(function_schema)
 
