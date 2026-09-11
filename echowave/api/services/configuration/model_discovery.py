@@ -111,7 +111,15 @@ def known_models(component: str, provider: str) -> tuple[str, ...]:
             continue
         model_field = config_class.model_fields.get("model")
         if model_field is None:
-            return ()
+            # Some vendors name their model through the voice -- Deepgram's
+            # ``aura-2-thalia-en`` *is* the aura-2 model, xAI's voice is the
+            # whole choice -- so those classes compute ``model`` instead of
+            # carrying a field for it, and a computed property has no
+            # ``examples`` to read. They declare the values here instead.
+            # Without this the operator's catalogue screen showed such a vendor
+            # as having no models at all, under a message blaming a missing key
+            # for it, and there was no way to put it on sale.
+            return tuple(str(m) for m in getattr(config_class, "MODEL_EXAMPLES", ()))
         extra = model_field.json_schema_extra or {}
         if not isinstance(extra, dict):
             return ()

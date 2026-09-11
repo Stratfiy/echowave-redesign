@@ -26,6 +26,7 @@ from dataclasses import dataclass
 
 from api.enums import CostComponent
 from api.services.configuration import managed_tiers
+from api.services.configuration.options.deepgram import DEEPGRAM_AURA_VOICES
 from api.services.configuration.options.elevenlabs import ELEVENLABS_PREMADE_VOICES
 from api.services.configuration.options.google import GOOGLE_TTS_VOICES
 from api.services.configuration.options.rumik import (
@@ -174,7 +175,27 @@ def _elevenlabs(_model: str | None) -> list[Voice]:
 
 
 #: Providers whose catalogue is fixed and therefore knowable without asking.
+def _deepgram(_model: str | None) -> list[Voice]:
+    """Aura-2's speakers.
+
+    The voice *is* the model here: ask for ``aura-2-thalia-en`` and Deepgram
+    reads the ``aura-2`` off the front of it. So the model argument decides
+    nothing, and every voice in the list belongs to the only model on sale.
+
+    English only, deliberately. Aura-2 also speaks Spanish, Dutch, French,
+    German, Italian and Japanese, and none of those is a language this product
+    serves; it speaks no Indian language at all. Listing what it cannot say
+    would put a picker in front of an operator building a Hindi line and let
+    them choose a voice that will read Hindi with an American accent.
+    """
+    return [
+        Voice(voice_id=voice_id, name=name, gender=gender, language="en")
+        for voice_id, name, gender in DEEPGRAM_AURA_VOICES
+    ]
+
+
 _LOCAL = {
+    ServiceProviders.DEEPGRAM.value: _deepgram,
     ServiceProviders.SARVAM.value: _sarvam,
     ServiceProviders.RUMIK.value: _rumik,
     ServiceProviders.ELEVENLABS.value: _elevenlabs,

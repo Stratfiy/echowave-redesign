@@ -16,6 +16,63 @@ DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS = (
     *DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGES,
 )
 DEEPGRAM_STT_MODELS = ("nova-3-general", *DEEPGRAM_FLUX_MODELS)
+
+#: Deepgram names its speech models through the *voice*: you ask for
+#: ``aura-2-thalia-en`` and the model is the ``aura-2`` in front of it. So the
+#: configuration class computes ``model`` from the voice rather than carrying a
+#: field for it, and these are the only two values it can ever produce.
+#:
+#: Declared here because a computed property has no ``examples`` for the model
+#: discovery screen to read, which is why that screen showed Deepgram TTS as
+#: having no models at all and blamed a missing key for it.
+DEEPGRAM_TTS_MODELS = ("aura-2", "aura-1")
+
+#: Aura-2's English speakers, from Deepgram's own model list. Gender is theirs
+#: ("feminine"/"masculine"), mapped to the two the picker groups by.
+#:
+#: **English only, and that is the whole story for an Indian product.** Aura-2
+#: speaks English, Spanish, Dutch, French, German, Italian and Japanese -- no
+#: Hindi, no Tamil, no Indian language at all. It belongs on an English line
+#: and nowhere near a Hinglish one, so the picker lists what it can say and
+#: says nothing it cannot.
+DEEPGRAM_AURA_VOICES: tuple[tuple[str, str, str], ...] = (
+    # (voice id, display name, gender)
+    ("aura-2-thalia-en", "Thalia", "female"),
+    ("aura-2-andromeda-en", "Andromeda", "female"),
+    ("aura-2-helena-en", "Helena", "female"),
+    ("aura-2-asteria-en", "Asteria", "female"),
+    ("aura-2-athena-en", "Athena", "female"),
+    ("aura-2-aurora-en", "Aurora", "female"),
+    ("aura-2-cora-en", "Cora", "female"),
+    ("aura-2-cordelia-en", "Cordelia", "female"),
+    ("aura-2-delia-en", "Delia", "female"),
+    ("aura-2-harmonia-en", "Harmonia", "female"),
+    ("aura-2-hera-en", "Hera", "female"),
+    ("aura-2-iris-en", "Iris", "female"),
+    ("aura-2-juno-en", "Juno", "female"),
+    ("aura-2-luna-en", "Luna", "female"),
+    ("aura-2-minerva-en", "Minerva", "female"),
+    ("aura-2-ophelia-en", "Ophelia", "female"),
+    ("aura-2-phoebe-en", "Phoebe", "female"),
+    ("aura-2-selene-en", "Selene", "female"),
+    ("aura-2-vesta-en", "Vesta", "female"),
+    ("aura-2-apollo-en", "Apollo", "male"),
+    ("aura-2-arcas-en", "Arcas", "male"),
+    ("aura-2-aries-en", "Aries", "male"),
+    ("aura-2-atlas-en", "Atlas", "male"),
+    ("aura-2-hermes-en", "Hermes", "male"),
+    ("aura-2-hyperion-en", "Hyperion", "male"),
+    ("aura-2-janus-en", "Janus", "male"),
+    ("aura-2-jupiter-en", "Jupiter", "male"),
+    ("aura-2-mars-en", "Mars", "male"),
+    ("aura-2-neptune-en", "Neptune", "male"),
+    ("aura-2-odysseus-en", "Odysseus", "male"),
+    ("aura-2-orion-en", "Orion", "male"),
+    ("aura-2-orpheus-en", "Orpheus", "male"),
+    ("aura-2-pluto-en", "Pluto", "male"),
+    ("aura-2-saturn-en", "Saturn", "male"),
+    ("aura-2-zeus-en", "Zeus", "male"),
+)
 DEEPGRAM_LANGUAGES = (
     "multi",
     "ar",

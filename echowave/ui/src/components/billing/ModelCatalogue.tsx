@@ -227,9 +227,19 @@ export function ModelCatalogue({
                         </div>
                     );
                 })}
+                {/* Two different nothings, and telling them apart is the
+                    whole value of this line. "No key" is an errand; "we know
+                    of no models" means type one into the box below, which is
+                    already on screen. Saying the first when the second is true
+                    sent an operator looking for a key that was installed,
+                    checked and working. */}
                 {(found?.models ?? []).length === 0 && (
                     <p className="px-2 py-4 text-center text-sm text-muted-foreground">
-                        Nothing to show. Install a key for this provider first.
+                        {found?.has_key === false
+                            ? "Nothing to show. Install a key for this provider first."
+                            : found?.allow_custom_model
+                              ? "No models we know of for this slot. Add one below by its id."
+                              : "No models we know of for this slot."}
                     </p>
                 )}
             </div>
