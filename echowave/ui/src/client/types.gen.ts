@@ -20667,7 +20667,7 @@ export type GetVoicesApiV1UserConfigurationsVoicesProviderGetData = {
         /**
          * Provider
          */
-        provider: 'elevenlabs' | 'deepgram' | 'sarvam' | 'cartesia' | 'decibyl' | 'rime';
+        provider: string;
     };
     query?: {
         /**

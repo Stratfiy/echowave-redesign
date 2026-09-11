@@ -452,7 +452,26 @@ async def reactivate_api_key(
 
 
 # Voice Configuration Endpoints
-TTSProvider = Literal["elevenlabs", "deepgram", "sarvam", "cartesia", "decibyl", "rime"]
+def _tts_providers() -> set[str]:
+    """Every provider the platform can actually speak with, from the registry.
+
+    This was a hand-written ``Literal`` of six names, and it drifted from what
+    the product sells: OpenAI, Rumik, Google and Smallest are all in the voice
+    catalogue and all answered 422 here. The model picker asks this route for
+    the chosen model's voices, so half the voice slots showed the *previous*
+    model's voices with no error anywhere a user could see.
+
+    Read from the registry instead, so a vendor added to the platform is
+    askable the day it lands rather than the day somebody remembers this line.
+    """
+    from api.services.configuration.registry import REGISTRY, ServiceType
+
+    # The registry is keyed by enum members, and ``str()`` on one gives
+    # "ServiceProviders.OPENAI" rather than "openai" -- which would reject
+    # every provider while looking like it accepted them.
+    return {
+        getattr(key, "value", str(key)) for key in REGISTRY.get(ServiceType.TTS, {})
+    }
 
 
 class VoiceInfo(BaseModel):
@@ -525,7 +544,7 @@ def _vendor_voices_response(
 
 @router.get("/configurations/voices/{provider}")
 async def get_voices(
-    provider: TTSProvider,
+    provider: str,
     model: str | None = None,
     language: str | None = None,
     q: str | None = None,
@@ -539,6 +558,16 @@ async def get_voices(
     which made every picker read "Failed to load voices" and left TTS
     unconfigurable — and an agent with no voice cannot place a call.
     """
+    known = _tts_providers()
+    if provider not in known:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"{provider} is not a voice provider this platform speaks with. "
+                f"Known: {', '.join(sorted(known))}."
+            ),
+        )
+
     try:
         # Providers whose voices live in an account rather than in our code are
         # asked directly, on the platform key. A managed customer holds no key
