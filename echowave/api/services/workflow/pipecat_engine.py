@@ -796,6 +796,7 @@ class PipecatEngine:
             opening_notes=self._opening_notes_for(node),
             today_line=await self._get_today_line(),
             agent_can_end_call=self._agent_can_end_call,
+            known_values=self._gathered_context,
         )
         functions = await compose_functions_for_node(
             node=node,
