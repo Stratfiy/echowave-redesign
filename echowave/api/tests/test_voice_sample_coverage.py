@@ -124,3 +124,87 @@ class TestTheKeyItRecordsWith:
         monkeypatch.setattr(gen, "_sarvam_voices_to_sample", list)
 
         assert await gen.main(force=False) == 0
+
+
+class TestTheRumikVoices:
+    """Mulberry's preset speakers, in the two languages Rumik actually speaks.
+
+    ``muga`` is the model the managed tier currently points at and it takes no
+    preset speaker at all — it is directed by tone tags in the text — so there
+    is nothing to name and nothing to sample there. ``mulberry`` is the one
+    with voices, and the one the options module calls "the one that belongs on
+    a phone call".
+    """
+
+    def test_it_samples_the_model_that_has_speakers(self):
+        from scripts import generate_voice_samples as gen
+
+        assert gen.RUMIK_SAMPLE_MODEL == "mulberry"
+
+    def test_it_records_only_the_languages_rumik_speaks(self):
+        """Rumik is "a cost win for Hindi/English agents and unusable for a
+        Telugu one". Recording the Telugu line anyway would not fail — it would
+        produce a confident sample of a model mispronouncing a language it does
+        not know, which is worse than no sample."""
+        from scripts import generate_voice_samples as gen
+
+        languages = gen._rumik_languages()
+        assert set(languages) == {"en", "hi"}
+        for unsupported in ("ta", "kn", "te"):
+            assert unsupported not in languages
+
+    def test_every_language_it_records_has_a_line_to_say(self):
+        from api.services.configuration import voice_samples
+        from scripts import generate_voice_samples as gen
+
+        for language in gen._rumik_languages():
+            assert voice_samples.SAMPLE_LINES[language].strip()
+
+    @pytest.mark.asyncio
+    async def test_a_name_shared_with_sarvam_is_skipped_not_overwritten(
+        self, monkeypatch
+    ):
+        """Sample paths are keyed by voice id alone, and so is the URL the
+        picker builds, so two vendors sharing a name cannot both have a
+        recording. "sophia" is in both catalogues today. Sarvam is the managed
+        default, so its recording wins — the alternative is a picker playing one
+        vendor's voice under the other's label, which is worse than a missing
+        play button."""
+        from scripts import generate_voice_samples as gen
+
+        sarvam = {voice_id.lower() for voice_id, _ in gen._sarvam_voices_to_sample()}
+        rumik = {v.lower() for v in gen.RUMIK_VOICES}
+        shared = sarvam & rumik
+        assert shared, "this guard is pointless if the catalogues stop overlapping"
+
+        recorded: list[str] = []
+
+        async def _fake_synth(client, *, api_key, voice, language):
+            recorded.append(voice.lower())
+            return b"RIFF"
+
+        class _Storage:
+            async def aget_file_metadata(self, path):
+                return None
+
+            async def acreate_file_from_bytes(self, path, data):
+                return None
+
+        monkeypatch.setattr(gen, "_vendor_key", AsyncMock(return_value="rk-test"))
+        monkeypatch.setattr(gen, "_synthesise_rumik", _fake_synth)
+        monkeypatch.setattr(gen, "get_storage", lambda: _Storage())
+
+        await gen._rumik_samples(force=False)
+
+        assert not (set(recorded) & shared)
+        # Everything that does not clash is still recorded.
+        assert set(recorded) == rumik - shared
+
+    @pytest.mark.asyncio
+    async def test_no_key_skips_rumik_without_failing_the_run(self, monkeypatch):
+        """Unlike Sarvam, Rumik is not the managed default — a deployment with
+        no Rumik key is an ordinary deployment, not a broken one."""
+        from scripts import generate_voice_samples as gen
+
+        monkeypatch.setattr(gen, "_vendor_key", AsyncMock(return_value=None))
+        assert await gen._rumik_samples(force=False) == (0, 0, 0)

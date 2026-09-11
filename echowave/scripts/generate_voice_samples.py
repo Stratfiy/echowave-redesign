@@ -28,9 +28,21 @@ import httpx
 from loguru import logger
 
 from api.services.configuration import voice_catalogue, voice_samples
+from api.services.configuration.options.rumik import (
+    RUMIK_DEFAULT_DESCRIPTION,
+    RUMIK_GATEWAY_URL,
+    RUMIK_LANGUAGES,
+    RUMIK_VOICES,
+)
 from api.services.storage import get_storage
 
 SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech"
+RUMIK_TTS_PATH = "/v1/tts"
+
+#: The Rumik model with preset speakers. ``muga`` takes none — it is directed
+#: by tone tags in the text — so there is nothing to name and nothing to sample
+#: there; see voice_catalogue._rumik, which returns an empty picker for it.
+RUMIK_SAMPLE_MODEL = "mulberry"
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 ELEVENLABS_MODEL = "eleven_multilingual_v2"
 
@@ -132,6 +144,106 @@ async def _synthesise_elevenlabs(
     return response.content
 
 
+async def _synthesise_rumik(
+    client: httpx.AsyncClient, *, api_key: str, voice: str, language: str
+) -> bytes:
+    """One sentence, one Mulberry voice, as WAV bytes.
+
+    The contract is ``pipecat_rumik.RumikHttpTTSService``'s, which is what the
+    call path uses: POST the text with the speaker name, get WAV back. A
+    description rides along because Rumik requires one even when a preset
+    speaker is named — without it every voice drifts toward the model's neutral
+    prior, which would make twelve samples sound like one.
+    """
+    response = await client.post(
+        f"{RUMIK_GATEWAY_URL.rstrip('/')}{RUMIK_TTS_PATH}",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "text": voice_samples.SAMPLE_LINES[language],
+            "model": RUMIK_SAMPLE_MODEL,
+            "speaker": voice,
+            "description": RUMIK_DEFAULT_DESCRIPTION,
+        },
+        timeout=60.0,
+    )
+    response.raise_for_status()
+    return response.content
+
+
+def _rumik_languages() -> tuple[str, ...]:
+    """Only the languages Rumik actually speaks.
+
+    RUMIK_LANGUAGES is hi-IN and en-IN, and the module that declares it says
+    Rumik is "a cost win for Hindi/English agents and unusable for a Telugu
+    one". Recording the Tamil, Kannada and Telugu lines anyway would not fail —
+    it would produce twelve confident samples of a model mispronouncing a
+    language it does not know, which is worse than no sample at all.
+    """
+    served = {code.split("-")[0] for code in RUMIK_LANGUAGES}
+    return tuple(
+        language for language in voice_samples.SAMPLE_LANGUAGES if language in served
+    )
+
+
+async def _rumik_samples(force: bool) -> tuple[int, int, int]:
+    """Mulberry's preset voices, in the two languages it speaks."""
+    api_key = await _vendor_key("RUMIK_API_KEY", "rumik")
+    if not api_key:
+        logger.info(
+            "No Rumik key in the environment or the platform vault; "
+            "skipping the Rumik voices."
+        )
+        return 0, 0, 0
+
+    languages = _rumik_languages()
+    storage = get_storage()
+
+    # Sample paths are keyed by voice id alone, and so is the URL the picker
+    # builds, so two vendors sharing a name cannot both have a recording: the
+    # second run overwrites the first and the picker then plays one vendor's
+    # voice under the other's label. "sophia" is in both catalogues today.
+    #
+    # Sarvam is the managed default, so its recording wins and the clash is
+    # skipped rather than silently overwritten. One voice loses its play button;
+    # nothing is ever mislabelled. Namespacing the path by provider would fix
+    # this properly, but it changes a convention the UI depends on and orphans
+    # every sample already recorded — not a thing to do as a side effect of
+    # adding a vendor.
+    reserved = {voice_id.lower() for voice_id, _ in _sarvam_voices_to_sample()}
+
+    written = skipped = failed = 0
+    async with httpx.AsyncClient() as client:
+        for voice in RUMIK_VOICES:
+            if voice.lower() in reserved:
+                logger.warning(
+                    "Skipping Rumik '{}': the name is also a Sarvam voice and "
+                    "they would share one sample path.",
+                    voice,
+                )
+                continue
+            for language in languages:
+                path = voice_samples.sample_path(voice, language)
+                if not force and await storage.aget_file_metadata(path) is not None:
+                    skipped += 1
+                    continue
+                try:
+                    audio = await _synthesise_rumik(
+                        client, api_key=api_key, voice=voice, language=language
+                    )
+                    await storage.acreate_file_from_bytes(path, audio)
+                    logger.info(f"wrote {path} ({len(audio)} bytes)")
+                    written += 1
+                except Exception as exc:
+                    # One bad voice must not abandon the rest, same as Sarvam.
+                    logger.error(f"failed {voice}/{language}: {exc}")
+                    failed += 1
+
+    return written, skipped, failed
+
+
 async def _elevenlabs_samples(force: bool) -> tuple[int, int, int]:
     """The template gallery's suggested voices, each in its own language."""
     api_key = await _vendor_key("ELEVENLABS_API_KEY", "elevenlabs")
@@ -193,6 +305,13 @@ async def main(force: bool) -> int:
     logger.info(
         f"elevenlabs: {eleven_written} written, {eleven_skipped} skipped, {eleven_failed} failed"
     )
+
+    rumik_written, rumik_skipped, rumik_failed = await _rumik_samples(force)
+    logger.info(
+        f"rumik: {rumik_written} written, {rumik_skipped} skipped, {rumik_failed} failed"
+    )
+    eleven_written += rumik_written
+    eleven_failed += rumik_failed
     api_key = await _vendor_key("SARVAM_API_KEY", "sarvam")
     voices = _sarvam_voices_to_sample()
 
