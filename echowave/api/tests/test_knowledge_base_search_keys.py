@@ -115,6 +115,23 @@ class TestTheOrgLevelResolutionAppliesKeys:
         assert result is sentinel
 
 
+def _search_route_source() -> str:
+    """The body of ``search_chunks``, read from the module that is imported.
+
+    Via ``__file__`` rather than a relative path. The first version of these
+    tests opened "api/routes/knowledge_base.py", which resolves from the repo
+    root and not from ``api/`` — where pytest's rootdir actually is — so they
+    passed locally and failed in CI with FileNotFoundError. A test that depends
+    on the working directory tests the working directory.
+    """
+    from pathlib import Path
+
+    import api.routes.knowledge_base as route_module
+
+    source = Path(route_module.__file__).read_text(encoding="utf-8")
+    return source[source.index("async def search_chunks") :]
+
+
 class TestTheRouteStillResolvesWithKeys:
     def test_the_search_route_uses_the_key_applying_resolution(self):
         """A grep test, deliberately.
@@ -124,10 +141,7 @@ class TestTheRouteStillResolvesWithKeys:
         keys in. Nothing in the route's shape said which it had. This fails if
         somebody swaps it back.
         """
-        from pathlib import Path
-
-        source = Path("api/routes/knowledge_base.py").read_text(encoding="utf-8")
-        search = source[source.index("async def search_chunks") :]
+        search = _search_route_source()
 
         assert "get_effective_ai_model_configuration_for_organization(" in search
         # The call form, not the name: the comment above the call names the old
@@ -135,10 +149,7 @@ class TestTheRouteStillResolvesWithKeys:
         assert "await get_resolved_ai_model_configuration(" not in search
 
     def test_a_missing_key_is_a_409_with_a_reason_not_a_blanket_500(self):
-        from pathlib import Path
-
-        source = Path("api/routes/knowledge_base.py").read_text(encoding="utf-8")
-        search = source[source.index("async def search_chunks") :]
+        search = _search_route_source()
 
         assert "status_code=409" in search
         assert "No embeddings key is configured" in search
