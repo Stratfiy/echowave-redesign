@@ -18,6 +18,7 @@ from api.constants import DEFAULT_ORGANIZATION_TIMEZONE
 from api.services.workflow.pipecat_engine_custom_tools import get_function_schema
 from api.services.workflow.speaking_style import CODE_MIXED_INSTRUCTIONS
 from api.services.workflow.tools.knowledge_base import get_knowledge_base_tool
+from api.services.workflow.transition_arguments import argument_properties
 from api.services.workflow.workflow_graph import slugify_tool_name
 
 # ---------------------------------------------------------------------------
@@ -221,11 +222,16 @@ async def compose_functions_for_node(
             )
         )
 
-    # Transition function schemas
+    # Transition function schemas. A node that collects something offers those
+    # variables on every way out of it, so the model can hand the value over in
+    # the same call as the decision to move. Optional, never required -- see
+    # transition_arguments.
+    transition_properties = argument_properties(node)
     for outgoing_edge in node.out_edges:
         function_schema = get_function_schema(
             outgoing_edge.get_function_name(),
             _transition_description(outgoing_edge),
+            properties=transition_properties,
         )
         functions.append(function_schema)
 
