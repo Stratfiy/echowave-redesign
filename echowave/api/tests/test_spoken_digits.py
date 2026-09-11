@@ -254,3 +254,60 @@ class TestWordsAreMatchedAsWords:
     )
     def test_a_real_code_word_still_spaces_it(self, text):
         assert "4 8 2 1" in spell_out_long_numbers(text)
+
+
+class TestDigitsSpokenInAnIndicScript:
+    """The hole that made Narayani misread a phone number.
+
+    The word list was English plus Latin-transliterated Hindi. A caller
+    speaking Tamil who says "seven zero seven five" -- in English, which is how
+    almost everyone here reads a phone number -- comes back from the
+    transcriber as Tamil script, and matched nothing.
+
+    Measured on run 303: the agent read it back as "0705", losing a digit and
+    reordering the rest, and the caller spent the next minute correcting it.
+    """
+
+    def test_run_303_the_number_that_was_misread(self):
+        assert normalise_spoken_digits("செவன் ஜீரோ செவன் ஃபைவ்") == "7075"
+
+    def test_run_302_ten_telugu_digits_in_one_breath(self):
+        assert (
+            normalise_spoken_digits("వన్ టూ త్రీ ఫోర్ ఫైవ్ సిక్స్ సెవెన్ ఎయిట్ నైన్ జీరో") == "1234567890"
+        )
+
+    def test_run_296_telugu_numerals_rather_than_english_ones(self):
+        """Callers use their own numerals too, in the same call."""
+        assert normalise_spoken_digits("సున్నా సున్నా నాలుగు నాలుగు") == "0044"
+
+    def test_both_registers_in_one_run(self):
+        """Run 303 has "செவன், ஏழு" -- the English word and the Tamil one for
+        the same digit, one after the other, because the caller was correcting
+        themselves."""
+        assert normalise_spoken_digits("செவன் ஏழு ஜீரோ ஃபைவ்") == "7705"
+
+    def test_a_devanagari_sentence_ending_is_not_eaten(self):
+        """The danda ends a sentence the way a full stop does. Without
+        stripping it, the last digit of every Hindi number is lost."""
+        assert normalise_spoken_digits("सात आठ नौ। दो") == "7892"
+
+    def test_kannada_digits(self):
+        assert normalise_spoken_digits("ಒಂದು ಎರಡು ಮೂರು ನಾಲ್ಕು") == "1234"
+
+
+class TestIndicProseIsStillLeftAlone:
+    """The conservative rule matters more here, not less. Several of these
+    words are ordinary vocabulary: ஆறு is 'six' and also 'river', एक is 'one'
+    and also the commonest word in a Hindi sentence."""
+
+    def test_a_tamil_sentence_about_six_oclock(self):
+        text = "ஆறு மணிக்கு வாங்க"
+        assert normalise_spoken_digits(text) == text
+
+    def test_two_hindi_number_words_are_not_a_phone_number(self):
+        text = "एक दो"
+        assert normalise_spoken_digits(text) == text
+
+    def test_a_single_indic_digit_word_never_converts(self):
+        for word in ("ஏழு", "సున్నా", "नौ", "ಒಂದು"):
+            assert normalise_spoken_digits(word) == word
