@@ -76,7 +76,11 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public static assets (anything with a file extension, e.g. /decibyl-logo.png)
+     *
+     * Scripts, stylesheets and text assets are on this list too. A guarded
+     * asset does not get a login page, it gets a broken asset: the browser
+     * is handed HTML where it asked for JavaScript and refuses to run it.
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf)).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|js|mjs|css|map|txt|xml|json|webmanifest)).*)',
   ],
 };
