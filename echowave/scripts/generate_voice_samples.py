@@ -27,7 +27,7 @@ import sys
 import httpx
 from loguru import logger
 
-from api.services.configuration import voice_catalogue, voice_samples
+from api.services.configuration import voice_catalogue, voice_samples, voice_synthesis
 from api.services.configuration.options.rumik import (
     RUMIK_DEFAULT_DESCRIPTION,
     RUMIK_GATEWAY_URL,
@@ -36,8 +36,12 @@ from api.services.configuration.options.rumik import (
 )
 from api.services.storage import get_storage
 
-SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech"
-RUMIK_TTS_PATH = "/v1/tts"
+# The vendor calls themselves live in ``voice_synthesis`` so this script and
+# the runtime speak to Sarvam, ElevenLabs and Rumik through one copy. Two
+# copies of "how do you ask for audio" is how a recorded sample drifts from
+# the voice a call actually uses.
+SARVAM_TTS_URL = voice_synthesis.SARVAM_TTS_URL
+RUMIK_TTS_PATH = voice_synthesis.RUMIK_TTS_PATH
 
 #: The Rumik model with preset speakers. ``muga`` takes none — it is directed
 #: by tone tags in the text — so there is nothing to name and nothing to sample

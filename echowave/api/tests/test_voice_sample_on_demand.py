@@ -1,0 +1,210 @@
+"""A voice preview exists because somebody pressed play, not because an
+operator remembered to run a script.
+
+The samples were "pre-generated" by ``scripts/generate_voice_samples.py``, and
+nothing at runtime depended on it having been run. It never was run against
+production, so every picker showed names and no play buttons for months while
+the missing previews were reported over and over. The design had a human in
+the middle of a cache, and the human is the part that failed.
+
+So the cache fills itself. The list stays a pure lookup -- it asks about forty
+voices at once -- and the recording happens on the press.
+"""
+
+from __future__ import annotations
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from api.services.configuration import voice_samples, voice_synthesis
+
+
+@pytest.mark.asyncio
+class TestTheListStillOnlyLooksUp:
+    """Forty vendor calls to draw a list is not a page anybody waits for."""
+
+    async def test_a_missing_sample_is_none_and_records_nothing(self):
+        with (
+            patch.object(voice_samples, "get_storage") as storage,
+            patch.object(voice_synthesis, "synthesise", new=AsyncMock()) as synth,
+        ):
+            storage.return_value.aget_file_metadata = AsyncMock(return_value=None)
+            assert await voice_samples.sample_url("ritu", "en") is None
+        synth.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+class TestPressingPlayRecordsItOnce:
+    async def test_an_unrecorded_voice_is_synthesised_and_stored(self):
+        with (
+            patch.object(voice_samples, "get_storage") as storage,
+            patch.object(voice_samples, "_vendor_key", new=AsyncMock(return_value="k")),
+            patch.object(
+                voice_synthesis, "synthesise", new=AsyncMock(return_value=b"RIFFwav")
+            ) as synth,
+        ):
+            fs = storage.return_value
+            fs.aget_file_metadata = AsyncMock(return_value=None)
+            fs.acreate_file_from_bytes = AsyncMock()
+            fs.aget_signed_url = AsyncMock(return_value="https://s/ritu-en.wav")
+
+            url = await voice_samples.ensure_sample_url(
+                provider="sarvam", model="bulbul:v3", voice_id="ritu", language="en"
+            )
+
+        assert url == "https://s/ritu-en.wav"
+        synth.assert_awaited_once()
+        fs.acreate_file_from_bytes.assert_awaited_once()
+        assert fs.acreate_file_from_bytes.await_args.args[0].endswith("ritu-en.wav")
+
+    async def test_an_already_recorded_voice_calls_no_vendor(self):
+        """The whole point of storing it: the second listener, and every
+        listener in every other account, pays nothing."""
+        with (
+            patch.object(voice_samples, "get_storage") as storage,
+            patch.object(voice_synthesis, "synthesise", new=AsyncMock()) as synth,
+        ):
+            fs = storage.return_value
+            fs.aget_file_metadata = AsyncMock(return_value={"size": 1})
+            fs.aget_signed_url = AsyncMock(return_value="https://s/ritu-en.wav")
+
+            url = await voice_samples.ensure_sample_url(
+                provider="sarvam", model="bulbul:v3", voice_id="ritu", language="en"
+            )
+
+        assert url == "https://s/ritu-en.wav"
+        synth.assert_not_awaited()
+
+    async def test_an_elevenlabs_sample_is_stored_as_mp3(self):
+        with (
+            patch.object(voice_samples, "get_storage") as storage,
+            patch.object(voice_samples, "_vendor_key", new=AsyncMock(return_value="k")),
+            patch.object(
+                voice_synthesis, "synthesise", new=AsyncMock(return_value=b"ID3")
+            ),
+        ):
+            fs = storage.return_value
+            fs.aget_file_metadata = AsyncMock(return_value=None)
+            fs.acreate_file_from_bytes = AsyncMock()
+            fs.aget_signed_url = AsyncMock(return_value="https://s/x.mp3")
+
+            await voice_samples.ensure_sample_url(
+                provider="elevenlabs",
+                model="eleven_flash_v2_5",
+                voice_id="21m00Tcm4TlvDq8ikWAM",
+                language="en",
+            )
+
+        assert fs.acreate_file_from_bytes.await_args.args[0].endswith(".mp3")
+
+
+@pytest.mark.asyncio
+class TestItSaysNoRatherThanFailing:
+    """The caller is a play button. Every one of these is an honest "you
+    cannot hear this", and none of them is an exception reaching a screen."""
+
+    async def _url(self, **kw):
+        with (
+            patch.object(voice_samples, "get_storage") as storage,
+            patch.object(voice_samples, "_vendor_key", new=AsyncMock(return_value="k")),
+        ):
+            fs = storage.return_value
+            fs.aget_file_metadata = AsyncMock(return_value=None)
+            fs.acreate_file_from_bytes = AsyncMock()
+            fs.aget_signed_url = AsyncMock(return_value="https://s/x")
+            return await voice_samples.ensure_sample_url(**kw)
+
+    async def test_a_language_with_no_sample_line(self):
+        url = await self._url(
+            provider="sarvam", model="bulbul:v3", voice_id="ritu", language="fr"
+        )
+        assert url is None
+
+    async def test_no_platform_key_for_that_vendor(self):
+        with (
+            patch.object(voice_samples, "get_storage") as storage,
+            patch.object(
+                voice_samples, "_vendor_key", new=AsyncMock(return_value=None)
+            ),
+            patch.object(voice_synthesis, "synthesise", new=AsyncMock()) as synth,
+        ):
+            storage.return_value.aget_file_metadata = AsyncMock(return_value=None)
+            url = await voice_samples.ensure_sample_url(
+                provider="rumik", model="mulberry", voice_id="emma", language="en"
+            )
+        assert url is None
+        synth.assert_not_awaited()
+
+    async def test_a_vendor_that_refuses(self):
+        with (
+            patch.object(voice_samples, "get_storage") as storage,
+            patch.object(voice_samples, "_vendor_key", new=AsyncMock(return_value="k")),
+            patch.object(
+                voice_synthesis,
+                "synthesise",
+                new=AsyncMock(side_effect=RuntimeError("502")),
+            ),
+        ):
+            storage.return_value.aget_file_metadata = AsyncMock(return_value=None)
+            url = await voice_samples.ensure_sample_url(
+                provider="sarvam", model="bulbul:v3", voice_id="ritu", language="en"
+            )
+        assert url is None
+
+    async def test_storage_that_cannot_keep_it(self):
+        with (
+            patch.object(voice_samples, "get_storage") as storage,
+            patch.object(voice_samples, "_vendor_key", new=AsyncMock(return_value="k")),
+            patch.object(
+                voice_synthesis, "synthesise", new=AsyncMock(return_value=b"x")
+            ),
+        ):
+            fs = storage.return_value
+            fs.aget_file_metadata = AsyncMock(return_value=None)
+            fs.acreate_file_from_bytes = AsyncMock(side_effect=OSError("disk"))
+            url = await voice_samples.ensure_sample_url(
+                provider="sarvam", model="bulbul:v3", voice_id="ritu", language="en"
+            )
+        assert url is None
+
+
+class TestWhatThereIsNoHonestSampleFor:
+    """Better no button than a confident recording of a model mispronouncing
+    a language it does not know."""
+
+    @pytest.mark.asyncio
+    async def test_rumik_muga_has_no_speaker_to_record(self):
+        with pytest.raises(voice_synthesis.UnsupportedVoice):
+            await voice_synthesis.synthesise(
+                provider="rumik",
+                model="muga",
+                voice="emma",
+                language="en",
+                api_key="k",
+            )
+
+    @pytest.mark.asyncio
+    async def test_rumik_does_not_speak_tamil(self):
+        with pytest.raises(voice_synthesis.UnsupportedVoice):
+            await voice_synthesis.synthesise(
+                provider="rumik",
+                model="mulberry",
+                voice="emma",
+                language="ta",
+                api_key="k",
+            )
+
+    @pytest.mark.asyncio
+    async def test_a_vendor_with_no_recorder_written(self):
+        with pytest.raises(voice_synthesis.UnsupportedVoice):
+            await voice_synthesis.synthesise(
+                provider="cartesia",
+                model="sonic-3",
+                voice="x",
+                language="en",
+                api_key="k",
+            )
+
+    def test_rumik_languages_are_only_the_ones_it_speaks(self):
+        assert set(voice_synthesis.rumik_languages()) <= {"hi", "en"}

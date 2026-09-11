@@ -14233,6 +14233,66 @@ export type GetApproximateMinutesApiV1AgentOptionsMinutesGetResponses = {
 
 export type GetApproximateMinutesApiV1AgentOptionsMinutesGetResponse = GetApproximateMinutesApiV1AgentOptionsMinutesGetResponses[keyof GetApproximateMinutesApiV1AgentOptionsMinutesGetResponses];
 
+export type GetVoiceSampleApiV1AgentOptionsVoiceSampleGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Voice Id
+         */
+        voice_id: string;
+        /**
+         * Provider
+         */
+        provider?: string;
+        /**
+         * Model
+         */
+        model?: string;
+        /**
+         * Language
+         */
+        language?: string;
+    };
+    url: '/api/v1/agent-options/voice-sample';
+};
+
+export type GetVoiceSampleApiV1AgentOptionsVoiceSampleGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetVoiceSampleApiV1AgentOptionsVoiceSampleGetError = GetVoiceSampleApiV1AgentOptionsVoiceSampleGetErrors[keyof GetVoiceSampleApiV1AgentOptionsVoiceSampleGetErrors];
+
+export type GetVoiceSampleApiV1AgentOptionsVoiceSampleGetResponses = {
+    /**
+     * Response Get Voice Sample Api V1 Agent Options Voice Sample Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetVoiceSampleApiV1AgentOptionsVoiceSampleGetResponse = GetVoiceSampleApiV1AgentOptionsVoiceSampleGetResponses[keyof GetVoiceSampleApiV1AgentOptionsVoiceSampleGetResponses];
+
 export type GetCatalogueApiV1AgentOptionsCatalogueGetData = {
     body?: never;
     headers?: {

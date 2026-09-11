@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.db import db_client
 from api.db.models import UserModel
+from api.enums import CostComponent
 from api.services.auth.depends import get_user
 from api.services.configuration import (
     agent_options,
@@ -19,6 +20,7 @@ from api.services.configuration import (
     model_presets,
     voice_samples,
 )
+from api.services.configuration.registry import ServiceProviders
 from api.services.telephony import carriage
 
 router = APIRouter(prefix="/agent-options", tags=["agent-options"])
@@ -212,6 +214,45 @@ async def get_approximate_minutes(
         "minutes": agent_options.approximate_minutes(balance_paise, paise),
         "telephony": _carriage_view(basis),
     }
+
+
+@router.get("/voice-sample")
+async def get_voice_sample(
+    voice_id: str = Query(..., max_length=128),
+    provider: str = Query("decibyl", max_length=32),
+    model: str = Query("", max_length=64),
+    language: str = Query("en", max_length=8),
+    user: UserModel = Depends(get_user),
+) -> dict[str, Any]:
+    """A URL for this voice, recorded now if nobody has asked before.
+
+    What the play button calls. The voice list itself does not record -- it
+    asks about forty voices at once and forty vendor calls to draw a list is
+    not a page anybody waits for -- so the list shows a play button for every
+    voice and the recording happens on the first press. One vendor call, once,
+    for every customer who opens that picker afterwards.
+
+    ``url`` is null when there is honestly nothing to play: a language the
+    vendor does not speak, a model with no named speakers, no platform key,
+    or a vendor that is down. The button reports that rather than failing.
+    """
+    if user.selected_organization_id is None:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    resolved_provider, resolved_model = provider, model
+    if provider == ServiceProviders.DECIBYL.value:
+        # A managed tier names a tier, not a vendor. Resolve it so the sample
+        # is recorded by whoever will actually speak on the call.
+        upstream = managed_tiers.resolve(CostComponent.TTS, model or None)
+        resolved_provider, resolved_model = upstream.provider, upstream.model
+
+    url = await voice_samples.ensure_sample_url(
+        provider=resolved_provider,
+        model=resolved_model,
+        voice_id=voice_id,
+        language=language,
+    )
+    return {"voice_id": voice_id, "language": language, "url": url}
 
 
 @router.get("/catalogue")
