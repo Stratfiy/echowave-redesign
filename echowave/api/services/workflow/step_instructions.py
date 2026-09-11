@@ -93,3 +93,30 @@ ACTION_HONESTY = (
 def action_honesty_instructions() -> str:
     """The one rule every node gets, whatever it is and whatever it holds."""
     return ACTION_HONESTY
+
+
+#: The other half of the same rule, and the one a live demo found. The
+#: honesty rule above stops an agent claiming an *action* it did not take.
+#: It says nothing about a *fact* it was never given, and a model that has
+#: been asked to collect a name and a number will cheerfully supply both.
+#:
+#: Run 316, in front of a customer: the caller typed "RCT" and "Monday 11
+#: AM". The agent replied "So the name Nithish Kalyan and mobile 1234567890
+#: -- correct?". Neither was ever said, and 1234567890 is a placeholder the
+#: model pattern-completed. A confirmation of invented details is worse than
+#: a question, because it invites a distracted "yes".
+#:
+#: Not a setting, for the same reason the action rule is not one.
+FACT_HONESTY = (
+    "Never say a name, phone number, date, time, amount or reference the "
+    "caller has not given you in this conversation, or that a tool has not "
+    "returned. If you need one and do not have it, ask for it plainly. Never "
+    "offer an example, a placeholder or a likely-looking value for the "
+    "caller to confirm: a made-up detail read back as a question is how a "
+    "wrong number reaches a real booking."
+)
+
+
+def fact_honesty_instructions() -> str:
+    """The second rule every node gets: do not invent the details either."""
+    return FACT_HONESTY
