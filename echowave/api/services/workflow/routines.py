@@ -353,6 +353,67 @@ def _hhmm(minute: int) -> str:
     return f"{minute // 60:02d}:{minute % 60:02d}"
 
 
+#: How each cadence reads on a card.
+_CADENCE_WORDS: dict[Cadence, str] = {
+    Cadence.HOURLY: "Every hour",
+    Cadence.DAILY: "Every day",
+    Cadence.WEEKDAYS: "Every weekday",
+    Cadence.WEEKLY: "Every {weekday}",
+}
+
+_WEEKDAYS = (
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+)
+
+
+def describe(spec: RoutineSpec) -> str:
+    """The schedule in a sentence, for the card.
+
+    Written here rather than by a screen for the same reason the timeline's
+    summaries are: two screens formatting the same schedule would eventually
+    disagree, and the one a person quotes back to us would be the wrong one.
+
+    The anchor is the part worth saying out loud. "Every weekday when you
+    open" tells an operator that moving their hours moves the run, which is
+    the whole reason the anchor exists and is invisible in "every weekday at
+    09:30".
+    """
+    words = _CADENCE_WORDS[spec.cadence]
+    if spec.cadence is Cadence.WEEKLY:
+        words = words.format(weekday=_WEEKDAYS[spec.weekday % 7])
+
+    if spec.cadence is Cadence.HOURLY:
+        return f"{words} while you are open, at {spec.at_minute % 60:02d} past"
+
+    if spec.anchor is Anchor.CLOCK:
+        return f"{words} at {_hhmm(_clamp(spec.at_minute))}"
+
+    edge = "open" if spec.anchor is Anchor.OPENING else "close"
+    offset = spec.offset_minutes
+    if not offset:
+        return f"{words} when you {edge}"
+
+    # "Half an hour before you close" reads; "-30 minutes from closing" does
+    # not. Hours where it divides evenly, because 90 minutes is an hour and a
+    # half to everybody except a computer.
+    minutes = abs(offset)
+    if minutes % 60 == 0:
+        hours = minutes // 60
+        span = "an hour" if hours == 1 else f"{hours} hours"
+    elif minutes == 30:
+        span = "half an hour"
+    else:
+        span = f"{minutes} minutes"
+    when = "after" if offset > 0 else "before"
+    return f"{words} {span} {when} you {edge}"
+
+
 def spec_from_model(model: Any) -> RoutineSpec:
     """Read a schedule off an ``agent_routines`` row.
 
@@ -386,6 +447,7 @@ __all__ = [
     "RoutineSpec",
     "SkipReason",
     "decide",
+    "describe",
     "may_arm",
     "next_slot",
     "spec_from_model",

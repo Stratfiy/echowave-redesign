@@ -70,6 +70,99 @@ class RoutineClient(BaseDBClient):
             )
             return result.scalar_one_or_none()
 
+    async def create_routine(
+        self, *, organization_id: int, workflow_id: int, **fields
+    ) -> AgentRoutineModel:
+        """Add one. Off by default, and untested, so it cannot arm yet."""
+        async with self.async_session() as session:
+            routine = AgentRoutineModel(
+                organization_id=organization_id,
+                workflow_id=workflow_id,
+                **fields,
+            )
+            session.add(routine)
+            await session.commit()
+            await session.refresh(routine)
+            return routine
+
+    async def update_routine(
+        self, routine_id: int, *, organization_id: int, workflow_id: int, **fields
+    ) -> Optional[AgentRoutineModel]:
+        """Change a routine's schedule or instruction, or None if not theirs.
+
+        Scoped on both ids. The workflow id comes from the URL path and the
+        routine id from the same URL, so checking only one would let a routine
+        be edited through another bot's path -- same account, wrong bot, and a
+        screen that would show the change where nobody is looking for it.
+
+        A schedule change clears the stored skip reason, which described the
+        old schedule. It does not clear ``tested_at``: the test proved the bot
+        can do the job against real connectors, and moving the run to nine
+        o'clock does not unprove that.
+        """
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(AgentRoutineModel).where(
+                    AgentRoutineModel.id == routine_id,
+                    AgentRoutineModel.organization_id == organization_id,
+                    AgentRoutineModel.workflow_id == workflow_id,
+                )
+            )
+            routine = result.scalar_one_or_none()
+            if routine is None:
+                return None
+            for key, value in fields.items():
+                setattr(routine, key, value)
+            routine.last_skipped_reason = None
+            routine.last_skipped_at = None
+            await session.commit()
+            await session.refresh(routine)
+            return routine
+
+    async def delete_routine(
+        self, routine_id: int, *, organization_id: int, workflow_id: int
+    ) -> bool:
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(AgentRoutineModel).where(
+                    AgentRoutineModel.id == routine_id,
+                    AgentRoutineModel.organization_id == organization_id,
+                    AgentRoutineModel.workflow_id == workflow_id,
+                )
+            )
+            routine = result.scalar_one_or_none()
+            if routine is None:
+                return False
+            await session.delete(routine)
+            await session.commit()
+            return True
+
+    async def set_routine_active(
+        self, routine_id: int, *, organization_id: int, active: bool
+    ) -> Optional[AgentRoutineModel]:
+        """Arm or disarm. The precondition on arming lives in the route and in
+        the runtime; this only writes the flag."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(AgentRoutineModel).where(
+                    AgentRoutineModel.id == routine_id,
+                    AgentRoutineModel.organization_id == organization_id,
+                )
+            )
+            routine = result.scalar_one_or_none()
+            if routine is None:
+                return None
+            routine.is_active = bool(active)
+            if not active:
+                # Switching off is not a skip. Leaving the old reason would
+                # have the screen explain why it did not run as though it were
+                # still trying to.
+                routine.last_skipped_reason = None
+                routine.last_skipped_at = None
+            await session.commit()
+            await session.refresh(routine)
+            return routine
+
     async def mark_routine_fired(self, routine_id: int, *, slot: datetime) -> None:
         """Stamp the slot that fired, and clear any skip.
 

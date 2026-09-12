@@ -43,6 +43,7 @@ from api.routes.public_agent import router as public_agent_router
 from api.routes.public_download import router as public_download_router
 from api.routes.public_embed import router as public_embed_router
 from api.routes.reports import router as reports_router
+from api.routes.routines import router as routines_router
 from api.routes.s3_signed_url import router as s3_router
 from api.routes.service_keys import router as service_keys_router
 from api.routes.superuser import router as superuser_router
@@ -96,6 +97,7 @@ router.include_router(user_router)
 router.include_router(campaign_router)
 router.include_router(credentials_router)
 router.include_router(connectors_router)
+router.include_router(routines_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)
