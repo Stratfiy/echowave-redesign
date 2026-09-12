@@ -17,6 +17,7 @@ from api.services.auth.depends import get_user
 from api.services.integrations.composio import catalogue
 from api.services.integrations.composio.client import (
     connect_link,
+    connected_accounts,
     connected_toolkits,
     is_configured,
     toolkit_name,
@@ -198,3 +199,37 @@ async def connector_activity(
         organization_id=organization_id, days=days
     )
     return ConnectorActivityResponse(apps=[ConnectorActivity(**row) for row in rows])
+
+
+class ConnectedAccount(BaseModel):
+    connected_account_id: str
+    app: str | None
+    #: Composio's generated word-id until somebody renames it. No email comes
+    #: back from them, and "Dr Ramesh's calendar" is a better label than a
+    #: Google address in a clinic anyway.
+    label: str
+    connected_at: str | None = None
+
+
+class ConnectedAccountsResponse(BaseModel):
+    accounts: list[ConnectedAccount]
+
+
+@router.get("/accounts", response_model=ConnectedAccountsResponse)
+async def list_connected_accounts(
+    user: UserModel = Depends(get_user),
+) -> ConnectedAccountsResponse:
+    """Each app account this organization has authorized, individually.
+
+    The catalogue endpoint answers "is Gmail connected". This answers "which
+    Gmail", which is what a clinic with three doctors needs when it points one
+    tool at one calendar.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    if not is_configured():
+        return ConnectedAccountsResponse(accounts=[])
+
+    rows = await connected_accounts(organization_id)
+    return ConnectedAccountsResponse(accounts=[ConnectedAccount(**row) for row in rows])

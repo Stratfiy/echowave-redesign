@@ -97,6 +97,7 @@ async def execute_tool(
     tool_slug: str,
     arguments: dict[str, Any],
     organization_id: Optional[int],
+    connected_account_id: Optional[str] = None,
     timeout_secs: float = COMPOSIO_TIMEOUT_SECS,
 ) -> dict[str, Any]:
     """Run one Composio tool on behalf of one organization.
@@ -113,7 +114,13 @@ async def execute_tool(
     headers = _headers()
 
     url = f"{COMPOSIO_BASE_URL}/api/v3.1/tools/execute/{tool_slug}"
-    payload = {"arguments": arguments or {}, "user_id": user_id}
+    payload: dict[str, Any] = {"arguments": arguments or {}, "user_id": user_id}
+    if connected_account_id:
+        # Names one of this organization's connections. `user_id` still decides
+        # whose data is reachable at all, so a wrong id here fails rather than
+        # crossing a tenant boundary -- Composio will not hand over an account
+        # belonging to a different user_id.
+        payload["connected_account_id"] = connected_account_id
 
     try:
         async with httpx.AsyncClient(timeout=timeout_secs) as client:
@@ -383,3 +390,59 @@ async def connect_link(
         return {"error": f"Could not start connecting {toolkit} just now."}
 
     return {"url": url, "expires_at": body.get("expires_at")}
+
+
+async def connected_accounts(
+    organization_id: Optional[int],
+    *,
+    timeout_secs: float = COMPOSIO_TIMEOUT_SECS,
+) -> list[dict[str, Any]]:
+    """Every app account this organization has authorized, individually.
+
+    :func:`connected_toolkits` answers "is Gmail connected"; this answers
+    "which Gmail", which is the question a clinic with three doctors asks. Both
+    exist because the first is what an editor needs to decide whether to offer
+    a Connect button, and paying for the detail on every screen would be waste.
+
+    No email address comes back -- Composio exposes an opaque id and a
+    generated word-id, and redacts the tokens. The readable name is the
+    operator's to give, in their own words: "Dr Ramesh's calendar" beats a
+    Google address in a clinic anyway.
+    """
+    user_id = tenant_user_id(organization_id)
+    headers = _headers()
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout_secs) as client:
+            response = await client.get(
+                f"{COMPOSIO_BASE_URL}/api/v3.1/connected_accounts",
+                headers=headers,
+                params={"user_ids": user_id, "statuses": "ACTIVE"},
+            )
+            response.raise_for_status()
+            body = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning(
+            "Could not list Composio accounts for org {}: {}", organization_id, exc
+        )
+        return []
+
+    items = body.get("items") if isinstance(body, dict) else None
+    if not isinstance(items, list):
+        return []
+
+    accounts: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("id"), str):
+            continue
+        toolkit = item.get("toolkit")
+        slug = toolkit.get("slug") if isinstance(toolkit, dict) else toolkit
+        accounts.append(
+            {
+                "connected_account_id": item["id"],
+                "app": slug.lower() if isinstance(slug, str) else None,
+                "label": item.get("alias") or item.get("word_id") or item["id"],
+                "connected_at": item.get("created_at"),
+            }
+        )
+    return accounts

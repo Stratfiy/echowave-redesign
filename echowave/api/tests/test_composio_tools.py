@@ -348,3 +348,99 @@ class TestAgentBuilderConnectTools:
             if schema["name"] in {"list_connected_apps", "connect_app"}:
                 properties = schema["parameters"].get("properties", {})
                 assert "workflow_id" not in properties
+
+
+class TestConnectedAccountSelection:
+    """Which of an organization's accounts a tool acts on.
+
+    A clinic with three doctors connects three calendars under one organization
+    identity. "Book with Dr Ramesh" and "Book with Dr Priya" are then two tools
+    differing only by this field -- and because an agent holds a list of tools
+    per node, that settles permissions without a permission system.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_chosen_account_is_sent_with_the_call(self):
+        patcher, mock_client = _patched_post(
+            _mock_response(200, {"successful": True, "data": {}})
+        )
+        try:
+            with patch.object(composio_client, "COMPOSIO_API_KEY", "ak_test"):
+                await composio_client.execute_tool(
+                    tool_slug="GOOGLECALENDAR_CREATE_EVENT",
+                    arguments={},
+                    organization_id=42,
+                    connected_account_id="ca_ramesh",
+                )
+        finally:
+            patcher.stop()
+
+        _, kwargs = mock_client.post.call_args
+        assert kwargs["json"]["connected_account_id"] == "ca_ramesh"
+        # The tenant id is still what decides reachability.
+        assert kwargs["json"]["user_id"] == "decibyl_org_42"
+
+    @pytest.mark.asyncio
+    async def test_omitting_it_sends_nothing_rather_than_a_null(self):
+        """An account this organization has connected once needs no choice, and
+        a null would be a value Composio has to interpret."""
+        patcher, mock_client = _patched_post(
+            _mock_response(200, {"successful": True, "data": {}})
+        )
+        try:
+            with patch.object(composio_client, "COMPOSIO_API_KEY", "ak_test"):
+                await composio_client.execute_tool(
+                    tool_slug="GMAIL_SEND_EMAIL", arguments={}, organization_id=42
+                )
+        finally:
+            patcher.stop()
+
+        _, kwargs = mock_client.post.call_args
+        assert "connected_account_id" not in kwargs["json"]
+
+    @pytest.mark.asyncio
+    async def test_naming_another_tenants_account_is_refused_by_the_provider(self):
+        """Verified against the live API on 2026-09-12: org 2 naming org 1's
+        account id comes back "Connected account user ID does not match the
+        provided user ID". The account id selects among your own connections;
+        it cannot reach past user_id, which is derived and unspoofable."""
+        patcher, _ = _patched_post(
+            _mock_response(
+                200,
+                {
+                    "successful": False,
+                    "error": "Connected account user ID does not match the provided user ID.",
+                },
+            )
+        )
+        try:
+            with patch.object(composio_client, "COMPOSIO_API_KEY", "ak_test"):
+                result = await composio_client.execute_tool(
+                    tool_slug="GMAIL_FETCH_EMAILS",
+                    arguments={},
+                    organization_id=2,
+                    connected_account_id="ca_belonging_to_org_1",
+                )
+        finally:
+            patcher.stop()
+
+        assert result["status"] == "error"
+
+    def test_the_tool_definition_carries_the_choice(self):
+        definition = ComposioToolDefinition.model_validate(
+            {
+                "type": "composio",
+                "config": {
+                    "toolkit": "googlecalendar",
+                    "tool_slug": "GOOGLECALENDAR_CREATE_EVENT",
+                    "connected_account_id": "ca_ramesh",
+                },
+            }
+        )
+        assert definition.config.connected_account_id == "ca_ramesh"
+
+    def test_a_tool_without_one_uses_the_organizations_default(self):
+        definition = ComposioToolDefinition.model_validate(
+            {"type": "composio", "config": {"toolkit": "GMAIL", "tool_slug": "X"}}
+        )
+        assert definition.config.connected_account_id is None

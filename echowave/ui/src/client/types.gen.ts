@@ -2099,10 +2099,17 @@ export type CloudonixConfigurationResponse = {
  * parameters knowable: we can state what the model must supply instead of
  * letting it guess at a catalog.
  *
- * There is no credential field on purpose. Which account this acts on is not
- * configuration -- it is derived from the calling organization at execution
- * time (see services/integrations/composio/client.py). A credential here
- * would be a second, editable answer to a question that must only have one.
+ * There is no credential field on purpose. *Which organization* this acts for
+ * is not configuration -- it is derived from the caller at execution time
+ * (see services/integrations/composio/client.py), so no value stored here can
+ * reach another tenant's data.
+ *
+ * ``connected_account_id`` is a different question and belongs here. A clinic
+ * with three doctors connects three calendars, all under the one organization
+ * identity, and "Book with Dr Ramesh" and "Book with Dr Priya" are then two
+ * tools differing only by this field. Because an agent holds a list of tools
+ * per node, that also settles permissions without a permission system: an
+ * agent that was not given the second tool cannot reach the second calendar.
  */
 export type ComposioToolConfig = {
     /**
@@ -2117,6 +2124,12 @@ export type ComposioToolConfig = {
      * Composio tool slug, e.g. GMAIL_SEND_EMAIL.
      */
     tool_slug: string;
+    /**
+     * Connected Account Id
+     *
+     * Which connected account this tool acts on, e.g. a specific doctor's calendar. Omit to use the organization's default.
+     */
+    connected_account_id?: string | null;
     /**
      * Parameters
      *
@@ -2186,6 +2199,38 @@ export type ConnectLinkResponse = {
      * Expires At
      */
     expires_at?: string | null;
+};
+
+/**
+ * ConnectedAccount
+ */
+export type ConnectedAccount = {
+    /**
+     * Connected Account Id
+     */
+    connected_account_id: string;
+    /**
+     * App
+     */
+    app: string | null;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Connected At
+     */
+    connected_at?: string | null;
+};
+
+/**
+ * ConnectedAccountsResponse
+ */
+export type ConnectedAccountsResponse = {
+    /**
+     * Accounts
+     */
+    accounts: Array<ConnectedAccount>;
 };
 
 /**
@@ -22214,6 +22259,45 @@ export type ConnectorActivityApiV1ConnectorsActivityGetResponses = {
 };
 
 export type ConnectorActivityApiV1ConnectorsActivityGetResponse = ConnectorActivityApiV1ConnectorsActivityGetResponses[keyof ConnectorActivityApiV1ConnectorsActivityGetResponses];
+
+export type ListConnectedAccountsApiV1ConnectorsAccountsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/connectors/accounts';
+};
+
+export type ListConnectedAccountsApiV1ConnectorsAccountsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListConnectedAccountsApiV1ConnectorsAccountsGetError = ListConnectedAccountsApiV1ConnectorsAccountsGetErrors[keyof ListConnectedAccountsApiV1ConnectorsAccountsGetErrors];
+
+export type ListConnectedAccountsApiV1ConnectorsAccountsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectedAccountsResponse;
+};
+
+export type ListConnectedAccountsApiV1ConnectorsAccountsGetResponse = ListConnectedAccountsApiV1ConnectorsAccountsGetResponses[keyof ListConnectedAccountsApiV1ConnectorsAccountsGetResponses];
 
 export type OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetData = {
     body?: never;

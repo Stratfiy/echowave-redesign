@@ -129,6 +129,7 @@ async def _execute(
             tool_slug=config.get("tool_slug") or "",
             arguments=arguments,
             organization_id=organization_id,
+            connected_account_id=config.get("connected_account_id"),
         )
     if tool.category == ToolCategory.GOOGLE_CALENDAR.value:
         return await execute_google_calendar_tool(

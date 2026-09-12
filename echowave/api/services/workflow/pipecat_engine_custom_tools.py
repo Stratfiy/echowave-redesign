@@ -799,6 +799,7 @@ class CustomToolManager:
                     tool_slug=tool_slug,
                     arguments=function_call_params.arguments or {},
                     organization_id=await self.get_organization_id(),
+                    connected_account_id=config.get("connected_account_id"),
                     timeout_secs=_composio_timeout_secs(config),
                 )
                 await function_call_params.result_callback(result)

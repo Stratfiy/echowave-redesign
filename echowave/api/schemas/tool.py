@@ -363,10 +363,17 @@ class ComposioToolConfig(BaseModel):
     parameters knowable: we can state what the model must supply instead of
     letting it guess at a catalog.
 
-    There is no credential field on purpose. Which account this acts on is not
-    configuration -- it is derived from the calling organization at execution
-    time (see services/integrations/composio/client.py). A credential here
-    would be a second, editable answer to a question that must only have one.
+    There is no credential field on purpose. *Which organization* this acts for
+    is not configuration -- it is derived from the caller at execution time
+    (see services/integrations/composio/client.py), so no value stored here can
+    reach another tenant's data.
+
+    ``connected_account_id`` is a different question and belongs here. A clinic
+    with three doctors connects three calendars, all under the one organization
+    identity, and "Book with Dr Ramesh" and "Book with Dr Priya" are then two
+    tools differing only by this field. Because an agent holds a list of tools
+    per node, that also settles permissions without a permission system: an
+    agent that was not given the second tool cannot reach the second calendar.
     """
 
     toolkit: str = Field(
@@ -380,6 +387,18 @@ class ComposioToolConfig(BaseModel):
         json_schema_extra=_llm_hint(
             "Use the exact tool slug from the Composio toolkit catalog. Do not "
             "invent one; an invented slug fails at call time, mid-conversation."
+        ),
+    )
+    connected_account_id: Optional[str] = Field(
+        default=None,
+        max_length=128,
+        description=(
+            "Which connected account this tool acts on, e.g. a specific "
+            "doctor's calendar. Omit to use the organization's default."
+        ),
+        json_schema_extra=_llm_hint(
+            "Use an id from the connected-accounts list. Only needed when the "
+            "account has connected the same app more than once."
         ),
     )
     parameters: list[ToolParameter] = Field(
