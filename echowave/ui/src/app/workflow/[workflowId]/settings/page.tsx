@@ -62,6 +62,7 @@ import { AgentTabs } from "../components/AgentTabs";
 import { QaCard } from "../components/QaCard";
 import { useWorkflowState } from "../hooks/useWorkflowState";
 import { ALWAYS_AVAILABLE, type ToolParameter,toolParameters } from "./outcomeArguments";
+import { OutcomeRateCard } from "./OutcomeRateCard";
 import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
 
 // ---------------------------------------------------------------------------
@@ -1623,6 +1624,12 @@ function WorkflowSettingsInner({
                                 outcomes={workflowConfigurations?.call_outcomes ?? []}
                                 onSave={saveOutcomeActions}
                             />
+
+                            {/* Directly under the steps it measures, so the
+                                person changing them sees what the last change
+                                did without a detour to a reporting screen they
+                                would have to remember exists. */}
+                            <OutcomeRateCard workflowId={Number(workflowId)} />
 
                             {/* Recordings – moved to org-level page */}
                             <Card id="recordings">

@@ -2189,6 +2189,42 @@ export type ConnectLinkResponse = {
 };
 
 /**
+ * ConnectorActivity
+ */
+export type ConnectorActivity = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * App
+     */
+    app: string | null;
+    /**
+     * Calls
+     */
+    calls: number;
+    /**
+     * Errors
+     */
+    errors: number;
+    /**
+     * Avg Ms
+     */
+    avg_ms: number | null;
+};
+
+/**
+ * ConnectorActivityResponse
+ */
+export type ConnectorActivityResponse = {
+    /**
+     * Apps
+     */
+    apps: Array<ConnectorActivity>;
+};
+
+/**
  * ConnectorCatalogueResponse
  */
 export type ConnectorCatalogueResponse = {
@@ -6792,6 +6828,16 @@ export type OutcomeAction = {
 };
 
 /**
+ * OutcomeRateResponse
+ */
+export type OutcomeRateResponse = {
+    /**
+     * Versions
+     */
+    versions: Array<VersionOutcome>;
+};
+
+/**
  * OutcomesResponse
  */
 export type OutcomesResponse = {
@@ -10146,6 +10192,36 @@ export type VerifyEmailRequest = {
      * Code
      */
     code: string;
+};
+
+/**
+ * VersionOutcome
+ */
+export type VersionOutcome = {
+    /**
+     * Definition Id
+     */
+    definition_id: number | null;
+    /**
+     * Version Number
+     */
+    version_number: number | null;
+    /**
+     * Published At
+     */
+    published_at: string | null;
+    /**
+     * Calls
+     */
+    calls: number;
+    /**
+     * Calls With Outcome
+     */
+    calls_with_outcome: number;
+    /**
+     * Outcome Rate
+     */
+    outcome_rate: number | null;
 };
 
 /**
@@ -22094,6 +22170,99 @@ export type StartConnectingApiV1ConnectorsSlugConnectPostResponses = {
 };
 
 export type StartConnectingApiV1ConnectorsSlugConnectPostResponse = StartConnectingApiV1ConnectorsSlugConnectPostResponses[keyof StartConnectingApiV1ConnectorsSlugConnectPostResponses];
+
+export type ConnectorActivityApiV1ConnectorsActivityGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/connectors/activity';
+};
+
+export type ConnectorActivityApiV1ConnectorsActivityGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConnectorActivityApiV1ConnectorsActivityGetError = ConnectorActivityApiV1ConnectorsActivityGetErrors[keyof ConnectorActivityApiV1ConnectorsActivityGetErrors];
+
+export type ConnectorActivityApiV1ConnectorsActivityGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectorActivityResponse;
+};
+
+export type ConnectorActivityApiV1ConnectorsActivityGetResponse = ConnectorActivityApiV1ConnectorsActivityGetResponses[keyof ConnectorActivityApiV1ConnectorsActivityGetResponses];
+
+export type OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/workflow/{workflow_id}/outcome-rate';
+};
+
+export type OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetError = OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetErrors[keyof OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetErrors];
+
+export type OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OutcomeRateResponse;
+};
+
+export type OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetResponse = OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetResponses[keyof OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetResponses];
 
 export type ListToolsApiV1ToolsGetData = {
     body?: never;

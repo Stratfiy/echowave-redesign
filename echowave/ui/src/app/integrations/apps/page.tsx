@@ -24,10 +24,15 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+    connectorActivityApiV1ConnectorsActivityGet,
     listConnectorsApiV1ConnectorsGet,
     startConnectingApiV1ConnectorsSlugConnectPost,
 } from "@/client/sdk.gen";
-import type { ConnectorGroupResponse, ConnectorResponse } from "@/client/types.gen";
+import type {
+    ConnectorActivity,
+    ConnectorGroupResponse,
+    ConnectorResponse,
+} from "@/client/types.gen";
 import { GoogleCalendarConnect } from "@/components/integrations/GoogleCalendarConnect";
 import { IntegrationsTabs } from "@/components/integrations/IntegrationsTabs";
 import { Badge } from "@/components/ui/badge";
@@ -131,6 +136,66 @@ function ConnectorCard({
     );
 }
 
+/** How the apps this account connected have actually behaved.
+ *
+ * The three questions an operator asks when an agent "stopped working" —
+ * is it being called, is it failing, is it slow — and the three nobody could
+ * answer before every action started being recorded. Shown above the
+ * catalogue, because what you already use matters more than what you could.
+ */
+function ActivitySection() {
+    const [apps, setApps] = useState<ConnectorActivity[] | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        connectorActivityApiV1ConnectorsActivityGet()
+            .then((response) => {
+                if (!cancelled) setApps(response.data?.apps ?? []);
+            })
+            .catch(() => {
+                if (!cancelled) setApps([]);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    // Nothing rather than an empty card: an account that has never run an
+    // action is not missing a report, it has not started yet.
+    if (!apps || apps.length === 0) return null;
+
+    return (
+        <section className="space-y-3">
+            <h2 className="text-sm font-medium text-muted-foreground">
+                Last 30 days
+            </h2>
+            <Card>
+                <CardContent className="divide-y py-2">
+                    {apps.map((app) => (
+                        <div
+                            key={`${app.kind}:${app.app ?? "none"}`}
+                            className="flex items-center justify-between py-2 text-sm"
+                        >
+                            <span>{app.app ?? app.kind}</span>
+                            <span className="flex items-center gap-3 text-xs text-muted-foreground">
+                                <span>{app.calls} used</span>
+                                {app.errors > 0 ? (
+                                    <span className="text-destructive">
+                                        {app.errors} failed
+                                    </span>
+                                ) : null}
+                                {app.avg_ms !== null && app.avg_ms !== undefined ? (
+                                    <span>{app.avg_ms}ms</span>
+                                ) : null}
+                            </span>
+                        </div>
+                    ))}
+                </CardContent>
+            </Card>
+        </section>
+    );
+}
+
 export default function AppsPage() {
     const [groups, setGroups] = useState<ConnectorGroupResponse[]>([]);
     const [available, setAvailable] = useState(true);
@@ -175,6 +240,8 @@ export default function AppsPage() {
                     becomes available as a tool during a call and as a step after one.
                 </p>
             </div>
+
+            <ActivitySection />
 
             {/* Google Calendar first, and not as one of the cards below.
                 It is the one integration we built ourselves: our OAuth

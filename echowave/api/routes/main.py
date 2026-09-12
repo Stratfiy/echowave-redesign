@@ -53,6 +53,7 @@ from api.routes.verified_numbers import router as verified_numbers_router
 from api.routes.webrtc_signaling import router as webrtc_signaling_router
 from api.routes.workflow import router as workflow_router
 from api.routes.workflow_embed import router as workflow_embed_router
+from api.routes.workflow_outcomes import router as workflow_outcomes_router
 from api.routes.workflow_recording import router as workflow_recording_router
 from api.routes.workflow_text_chat import router as workflow_text_chat_router
 from api.services.integrations import all_routers
@@ -91,6 +92,7 @@ router.include_router(user_router)
 router.include_router(campaign_router)
 router.include_router(credentials_router)
 router.include_router(connectors_router)
+router.include_router(workflow_outcomes_router)
 router.include_router(tool_router)
 router.include_router(organization_router)
 router.include_router(s3_router)

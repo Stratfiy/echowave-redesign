@@ -165,3 +165,36 @@ async def start_connecting(
         connect_url=link["url"],
         expires_at=link.get("expires_at"),
     )
+
+
+class ConnectorActivity(BaseModel):
+    kind: str
+    app: str | None
+    calls: int
+    errors: int
+    avg_ms: int | None
+
+
+class ConnectorActivityResponse(BaseModel):
+    apps: list[ConnectorActivity]
+
+
+@router.get("/activity", response_model=ConnectorActivityResponse)
+async def connector_activity(
+    days: int = Query(default=30, ge=1, le=365),
+    user: UserModel = Depends(get_user),
+) -> ConnectorActivityResponse:
+    """How each connected app has actually behaved for this account.
+
+    Calls, failures and typical latency, which are the three things an operator
+    asks when an agent "stopped working" and the three nobody could answer
+    before the interactions table existed.
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    rows = await db_client.app_interaction_summary(
+        organization_id=organization_id, days=days
+    )
+    return ConnectorActivityResponse(apps=[ConnectorActivity(**row) for row in rows])
