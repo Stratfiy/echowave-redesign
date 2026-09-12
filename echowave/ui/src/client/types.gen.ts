@@ -2428,6 +2428,37 @@ export type ContactsPage = {
 };
 
 /**
+ * Contributor
+ *
+ * An agent that taught this organisation something.
+ *
+ * ``archived`` is marked rather than filtered, so nobody mistakes a record of
+ * past work for something still answering the phone.
+ */
+export type Contributor = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Archived
+     */
+    archived: boolean;
+    /**
+     * Calls
+     */
+    calls: number;
+    /**
+     * Outcomes
+     */
+    outcomes: number;
+};
+
+/**
  * CostByOutcomeItem
  */
 export type CostByOutcomeItem = {
@@ -5347,6 +5378,50 @@ export type ImportResponse = {
 };
 
 /**
+ * Improvement
+ *
+ * One thing this business could do better, with the count behind it.
+ *
+ * Named Improvement rather than Suggestion because the home screen already
+ * has a Suggestion -- the chips under the composer -- and two schemas with one
+ * name collide in the generated client, where the loser silently disappears.
+ */
+export type Improvement = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Evidence
+     */
+    evidence: string;
+    /**
+     * Severity
+     */
+    severity: string;
+    /**
+     * Action
+     */
+    action: string;
+    /**
+     * Href
+     */
+    href?: string | null;
+    /**
+     * Prompt
+     */
+    prompt?: string | null;
+};
+
+/**
  * InitEmbedRequest
  *
  * Request model for initializing an embed session
@@ -5978,6 +6053,48 @@ export type McpToolDefinition = {
      * MCP server configuration.
      */
     config: McpToolConfig;
+};
+
+/**
+ * MemoryEntry
+ */
+export type MemoryEntry = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Times Seen
+     */
+    times_seen: number;
+    /**
+     * Last Seen At
+     */
+    last_seen_at: string | null;
+    /**
+     * Source Run Id
+     */
+    source_run_id: number | null;
 };
 
 /**
@@ -6853,6 +6970,28 @@ export type OpenRouterLlmConfiguration = {
      * Override only if proxying OpenRouter through your own gateway.
      */
     base_url?: string;
+};
+
+/**
+ * OrganisationResponse
+ */
+export type OrganisationResponse = {
+    /**
+     * Facts
+     */
+    facts: Array<MemoryEntry>;
+    /**
+     * Gaps
+     */
+    gaps: Array<MemoryEntry>;
+    /**
+     * Contributors
+     */
+    contributors: Array<Contributor>;
+    /**
+     * Suggestions
+     */
+    suggestions: Array<Improvement>;
 };
 
 /**
@@ -22789,6 +22928,45 @@ export type ListConnectedAccountsApiV1ConnectorsAccountsGetResponses = {
 };
 
 export type ListConnectedAccountsApiV1ConnectorsAccountsGetResponse = ListConnectedAccountsApiV1ConnectorsAccountsGetResponses[keyof ListConnectedAccountsApiV1ConnectorsAccountsGetResponses];
+
+export type OrganisationApiV1OrganisationGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organisation';
+};
+
+export type OrganisationApiV1OrganisationGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OrganisationApiV1OrganisationGetError = OrganisationApiV1OrganisationGetErrors[keyof OrganisationApiV1OrganisationGetErrors];
+
+export type OrganisationApiV1OrganisationGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganisationResponse;
+};
+
+export type OrganisationApiV1OrganisationGetResponse = OrganisationApiV1OrganisationGetResponses[keyof OrganisationApiV1OrganisationGetResponses];
 
 export type ReadMemoryApiV1OrganisationMemoryGetData = {
     body?: never;

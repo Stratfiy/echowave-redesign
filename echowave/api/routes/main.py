@@ -27,6 +27,7 @@ from api.routes.managed_numbers import router as managed_numbers_router
 from api.routes.missed_calls import router as missed_calls_router
 from api.routes.node_types import router as node_types_router
 from api.routes.notifications import router as notifications_router
+from api.routes.organisation import router as organisation_router
 from api.routes.organisation_memory import router as organisation_memory_router
 from api.routes.organization import router as organization_router
 from api.routes.organization_members import router as organization_members_router
@@ -95,6 +96,7 @@ router.include_router(user_router)
 router.include_router(campaign_router)
 router.include_router(credentials_router)
 router.include_router(connectors_router)
+router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)
 router.include_router(team_router)
