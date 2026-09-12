@@ -254,3 +254,113 @@ class TestAnswerRateDenominator:
             WorkflowRunMode.CHAT,
         ):
             assert mode.value not in CARRIER_RUN_MODES
+
+
+class TestVersionAttribution:
+    """Which published version of an agent took an action.
+
+    The column that turns "we changed the prompt and bookings fell" from a
+    story somebody tells into a number somebody checks.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_version_reaches_the_row(self):
+        async def handler(params):
+            await params.result_callback({"status": "success"})
+
+        async def context():
+            return {
+                "organization_id": 42,
+                "workflow_run_id": 7,
+                "workflow_id": 3,
+                "definition_id": 13,
+            }
+
+        with patch(
+            "api.services.workflow.app_interactions.db_client.create_app_interaction",
+            AsyncMock(),
+        ) as create:
+            await wrap_handler(
+                handler, kind="composio", app="gmail", name="x", context=context
+            )(_params())
+
+        assert create.await_args.kwargs["definition_id"] == 13
+        assert create.await_args.kwargs["workflow_id"] == 3
+
+    @pytest.mark.asyncio
+    async def test_a_context_that_cannot_name_a_version_still_records(self):
+        """A text chat has no telephony and a broken lookup has no answer.
+        Neither is a reason to lose the row -- an action that happened is worth
+        recording unattributed, and NULL is queryable."""
+
+        async def handler(params):
+            await params.result_callback({"status": "success"})
+
+        async def thin_context():
+            return {"organization_id": 42, "workflow_run_id": None}
+
+        with patch(
+            "api.services.workflow.app_interactions.db_client.create_app_interaction",
+            AsyncMock(),
+        ) as create:
+            await wrap_handler(
+                handler, kind="calculator", app=None, name="calc", context=thin_context
+            )(_params())
+
+        assert create.await_args.kwargs["definition_id"] is None
+        assert create.await_args.kwargs["organization_id"] == 42
+
+    @pytest.mark.asyncio
+    async def test_attribution_is_fetched_once_per_call_not_once_per_tool(self):
+        """A caller is waiting through every one of these. The agent and its
+        version cannot change mid-conversation -- a run is pinned to one
+        published definition -- so asking twice is asking the same question
+        twice while somebody listens to silence."""
+        from api.services.workflow.pipecat_engine_custom_tools import CustomToolManager
+
+        engine = SimpleNamespace(_workflow_run_id=7)
+        manager = CustomToolManager.__new__(CustomToolManager)
+        manager._engine = engine
+        manager._attribution = None
+
+        with (
+            patch.object(
+                CustomToolManager, "get_organization_id", AsyncMock(return_value=42)
+            ),
+            patch(
+                "api.services.workflow.pipecat_engine_custom_tools.db_client.run_attribution",
+                AsyncMock(return_value={"workflow_id": 3, "definition_id": 13}),
+            ) as lookup,
+        ):
+            first = await manager._interaction_context()
+            second = await manager._interaction_context()
+
+        assert first["definition_id"] == 13
+        assert second["definition_id"] == 13
+        lookup.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_a_failed_lookup_is_not_retried_on_every_tool_call(self):
+        """Asked and unanswerable has to be distinguishable from not yet
+        asked, or a database blip costs a query per tool call for the rest of
+        the conversation."""
+        from api.services.workflow.pipecat_engine_custom_tools import CustomToolManager
+
+        manager = CustomToolManager.__new__(CustomToolManager)
+        manager._engine = SimpleNamespace(_workflow_run_id=7)
+        manager._attribution = None
+
+        with (
+            patch.object(
+                CustomToolManager, "get_organization_id", AsyncMock(return_value=42)
+            ),
+            patch(
+                "api.services.workflow.pipecat_engine_custom_tools.db_client.run_attribution",
+                AsyncMock(side_effect=RuntimeError("down")),
+            ) as lookup,
+        ):
+            first = await manager._interaction_context()
+            await manager._interaction_context()
+
+        assert first["definition_id"] is None
+        lookup.assert_awaited_once()

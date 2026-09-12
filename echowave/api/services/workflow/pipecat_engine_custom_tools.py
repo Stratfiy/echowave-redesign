@@ -175,6 +175,11 @@ class CustomToolManager:
         # expecting the change to land on that call was never a behaviour
         # anything offered.
         self._tool_cache: Dict[str, Any] = {}
+        # Which agent and which published version this call is running, fetched
+        # once. None means not yet asked; a resolved dict with None inside it
+        # means asked and unanswerable, which must not be retried on every
+        # tool call.
+        self._attribution: Optional[Dict[str, Optional[int]]] = None
 
     async def _load_tools(self, tool_uuids: list[str], organization_id: int) -> list:
         """Return tool rows for these uuids, fetching only the ones not yet seen.
@@ -246,17 +251,37 @@ class CustomToolManager:
         return False
 
     async def _interaction_context(self) -> dict[str, Optional[int]]:
-        """Who this action belongs to, resolved when it is recorded.
+        """Who this action belongs to, and which version of them took it.
 
-        Late rather than captured at registration: the organization is looked
-        up from the run and that lookup is cached on the engine, so paying for
-        it here costs nothing and avoids a handler registered before the run is
-        fully known recording rows against None.
+        Resolved late rather than captured at registration, because the
+        organization lookup is cached on the engine and a handler registered
+        before the run is fully known would otherwise record rows against None.
+
+        The agent and its version come from the run in one small query, cached
+        here for the life of the call: neither can change mid-conversation -- a
+        run is pinned to one published definition -- so asking twice would be
+        asking the same question twice while a caller waits.
+
+        Read from the run rather than from the engine. The engine holds only
+        `_workflow_run_id`; an earlier version of this method reached for
+        `_workflow_id` with a getattr default and silently wrote NULL into
+        every row, which is the failure a getattr default is very good at
+        hiding.
         """
+        run_id = getattr(self._engine, "_workflow_run_id", None)
+        if run_id and self._attribution is None:
+            try:
+                self._attribution = await db_client.run_attribution(run_id)
+            except Exception as exc:  # noqa: BLE001 - a metric must not end a call
+                logger.warning("Could not resolve run attribution: {}", exc)
+                self._attribution = {"workflow_id": None, "definition_id": None}
+
+        attribution = self._attribution or {}
         return {
             "organization_id": await self.get_organization_id(),
-            "workflow_run_id": getattr(self._engine, "_workflow_run_id", None),
-            "workflow_id": getattr(self._engine, "_workflow_id", None),
+            "workflow_run_id": run_id,
+            "workflow_id": attribution.get("workflow_id"),
+            "definition_id": attribution.get("definition_id"),
         }
 
     def _register(

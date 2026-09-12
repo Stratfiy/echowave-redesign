@@ -4918,6 +4918,18 @@ class AppInteractionModel(Base):
     workflow_id = Column(
         Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
     )
+    #: Which published version of the agent took this action.
+    #:
+    #: The column that makes a change measurable. Without it "we changed the
+    #: prompt and bookings fell" is a story; with it, it is a query. Stamped
+    #: from the run rather than looked up later, because the answer changes the
+    #: moment somebody publishes again and a report written next month must
+    #: still say which version was live at the time.
+    definition_id = Column(
+        Integer,
+        ForeignKey("workflow_definitions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     #: The tool category: composio, http_api, google_calendar, mcp, calculator,
     #: rate_table, end_call, transfer_call. A plain string rather than an enum
@@ -4954,6 +4966,9 @@ class AppInteractionModel(Base):
         Index("ix_app_interactions_run", "workflow_run_id"),
         # Connector reliability, across tenants, for us rather than for them.
         Index("ix_app_interactions_app_status", "app", "status"),
+        # "Did version 13 do better than version 12", which is the whole point
+        # of recording the version at all.
+        Index("ix_app_interactions_definition", "definition_id", "status"),
     )
 
 

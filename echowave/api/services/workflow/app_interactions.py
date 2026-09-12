@@ -57,6 +57,7 @@ async def record(
     organization_id: Optional[int],
     workflow_run_id: Optional[int],
     workflow_id: Optional[int],
+    definition_id: Optional[int],
     kind: str,
     app: Optional[str],
     name: str,
@@ -76,6 +77,7 @@ async def record(
             organization_id=organization_id,
             workflow_run_id=workflow_run_id,
             workflow_id=workflow_id,
+            definition_id=definition_id,
             kind=kind,
             app=app,
             name=name,
@@ -171,5 +173,6 @@ async def _safe_record(
         organization_id=ids.get("organization_id"),
         workflow_run_id=ids.get("workflow_run_id"),
         workflow_id=ids.get("workflow_id"),
+        definition_id=ids.get("definition_id"),
         **fields,
     )
