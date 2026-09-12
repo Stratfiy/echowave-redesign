@@ -82,11 +82,18 @@ function MemberRow({ member }: { member: TeamMember }) {
     );
 }
 
-export function TeamPanel() {
-    const [members, setMembers] = useState<TeamMember[] | null>(null);
+/** ``members`` supplied means the caller already loaded them — the home
+ *  screen fetches the whole above-the-fold in one request and would otherwise
+ *  make this panel ask for the same rows a second time. */
+export function TeamPanel({ members: supplied }: { members?: TeamMember[] } = {}) {
+    const [members, setMembers] = useState<TeamMember[] | null>(supplied ?? null);
     const [failed, setFailed] = useState(false);
 
     useEffect(() => {
+        if (supplied) {
+            setMembers(supplied);
+            return;
+        }
         let cancelled = false;
         (async () => {
             try {
@@ -101,7 +108,7 @@ export function TeamPanel() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [supplied]);
 
     if (failed) return null;
     if (members === null) {

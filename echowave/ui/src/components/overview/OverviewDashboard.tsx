@@ -4,7 +4,9 @@
  * The first screen after signing in, once there is something to show.
  *
  * Before an account has taken a call, this is a door: build an agent, hear
- * it, put it on a number. After that it is a dashboard — calls, answer rate,
+ * it, put it on a number. The builder chat that used to sit inside that door
+ * now lives above this component permanently, on the home screen itself —
+ * two composers on one page was two doors into the same room. After that it is a dashboard — calls, answer rate,
  * spend and what is left, the last month at a glance — with the deeper
  * analytics and the daily export one click away. The Reports page's job
  * (yesterday's calls as a CSV) lives here now as an export button, so there
@@ -38,7 +40,6 @@ import {
     getSpendBreakdownApiV1OrganizationsUsageSpendGet,
 } from "@/client/sdk.gen";
 import type { CallIntentsResponse } from "@/client/types.gen";
-import { AgentBuilderPanel } from "@/components/agent-builder/AgentBuilderPanel";
 import { COST_COMPONENTS, seriesColor } from "@/components/charts/chartTheme";
 import {
     axisProps,
@@ -242,7 +243,6 @@ export function OverviewDashboard({ firstName }: { firstName?: string }) {
                         </Button>
                     </div>
                 </div>
-                <AgentBuilderPanel />
             </div>
         );
     }

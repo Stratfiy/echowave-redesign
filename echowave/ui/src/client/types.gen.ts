@@ -4848,6 +4848,42 @@ export type HttpValidationError = {
 };
 
 /**
+ * Headline
+ *
+ * The facts the greeting is built from.
+ *
+ * Facts rather than a finished sentence, because "Good morning" depends on
+ * the reader's clock and ours is in a data centre. Half the accounts would
+ * be greeted with the wrong time of day.
+ */
+export type Headline = {
+    /**
+     * Agents
+     */
+    agents: number;
+    /**
+     * Live
+     */
+    live: number;
+    /**
+     * Calls
+     */
+    calls: number;
+    /**
+     * Answered
+     */
+    answered: number;
+    /**
+     * Outcomes
+     */
+    outcomes: number;
+    /**
+     * Needs Attention
+     */
+    needs_attention: number;
+};
+
+/**
  * HealthResponse
  */
 export type HealthResponse = {
@@ -4895,6 +4931,25 @@ export type HealthResponse = {
      * Stack Publishable Client Key
      */
     stack_publishable_client_key?: string | null;
+};
+
+/**
+ * HomeResponse
+ */
+export type HomeResponse = {
+    /**
+     * Hours
+     */
+    hours: number;
+    headline: Headline;
+    /**
+     * Suggestions
+     */
+    suggestions: Array<Suggestion>;
+    /**
+     * Members
+     */
+    members: Array<TeamMember>;
 };
 
 /**
@@ -9055,6 +9110,32 @@ export type SubscribeRequest = {
      * Plan Code
      */
     plan_code?: string | null;
+};
+
+/**
+ * Suggestion
+ */
+export type Suggestion = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Action
+     */
+    action: string;
+    /**
+     * Prompt
+     */
+    prompt?: string | null;
+    /**
+     * Href
+     */
+    href?: string | null;
 };
 
 /**
@@ -22473,6 +22554,50 @@ export type TeamStatusApiV1TeamStatusGetResponses = {
 };
 
 export type TeamStatusApiV1TeamStatusGetResponse = TeamStatusApiV1TeamStatusGetResponses[keyof TeamStatusApiV1TeamStatusGetResponses];
+
+export type TeamHomeApiV1TeamHomeGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Hours
+         */
+        hours?: number;
+    };
+    url: '/api/v1/team/home';
+};
+
+export type TeamHomeApiV1TeamHomeGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TeamHomeApiV1TeamHomeGetError = TeamHomeApiV1TeamHomeGetErrors[keyof TeamHomeApiV1TeamHomeGetErrors];
+
+export type TeamHomeApiV1TeamHomeGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HomeResponse;
+};
+
+export type TeamHomeApiV1TeamHomeGetResponse = TeamHomeApiV1TeamHomeGetResponses[keyof TeamHomeApiV1TeamHomeGetResponses];
 
 export type OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetData = {
     body?: never;
