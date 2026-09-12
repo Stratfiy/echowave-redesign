@@ -7263,7 +7263,11 @@ export type OrganizationPreferences = {
  * ADMIN
  * Everything a member can do, plus the surfaces where one person's action
  * binds the whole account: the BYOK key vault and integration
- * credentials (secrets, and spend under someone else's contract), the
+ * credentials (secrets, and spend under someone else's contract) --
+ * which includes connecting and disconnecting a third-party app, because
+ * one press grants every agent in the organization access to that
+ * account and, on a paid app, spends against whoever authorized it --
+ * the
  * billing profile (which decides what tax the customer is charged), the
  * autopay mandate (a standing authority to debit a bank account), and
  * removing a number from the do-not-disturb list (a regulatory act, and

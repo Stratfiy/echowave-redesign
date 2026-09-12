@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel
 
 from api.db.models import UserModel
-from api.services.auth.depends import get_user
+from api.enums import OrganizationRole
+from api.services.auth.depends import get_user, require_organization_role
 from api.services.integrations.composio import catalogue
 from api.services.integrations.composio.client import (
     connect_link,
@@ -167,7 +168,21 @@ class ConnectLinkResponse(BaseModel):
 @router.post("/{slug}/connect", response_model=ConnectLinkResponse)
 async def start_connecting(
     slug: str = Path(description="The connector's slug, e.g. gmail."),
-    user: UserModel = Depends(get_user),
+    # Admin, like the credential vault and for the reason the role
+    # documentation already gives: this is "integration credentials --
+    # secrets, and spend under someone else's contract". One member pressing
+    # Connect grants every agent in the organization access to that account,
+    # and on a paid app it spends against whoever authorized it.
+    #
+    # Using a connection stays open to members. Building an agent is what a
+    # member is for, and they can already spend the balance by placing calls;
+    # granting the access is the part that binds the whole account.
+    #
+    # This was `get_user`, so the role restricted nobody here -- which the
+    # OrganizationRole docstring names as the worse failure: "a role that
+    # appears in a picker and restricts nobody is a permission an operator
+    # believes they have granted."
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> ConnectLinkResponse:
     """A link the operator opens to authorize one app for this account.
 

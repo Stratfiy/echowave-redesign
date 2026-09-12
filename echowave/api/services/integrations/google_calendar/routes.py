@@ -27,7 +27,8 @@ from api.constants import (
 )
 from api.db import db_client
 from api.db.models import GoogleCalendarConnectionModel, UserModel
-from api.services.auth.depends import get_user
+from api.enums import OrganizationRole
+from api.services.auth.depends import get_user, require_organization_role
 from api.services.integrations.google_calendar import oauth
 
 router = APIRouter(prefix="/integrations/google-calendar", tags=["google-calendar"])
@@ -45,7 +46,9 @@ def _ui_base_url() -> str:
 
 
 @router.get("/authorize-url")
-async def authorize_url(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+async def authorize_url(
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> dict[str, Any]:
     """The URL the frontend should navigate the browser to next."""
     organization_id = _organization_id(user)
     try:
@@ -122,7 +125,8 @@ class BusyCalendarsRequest(BaseModel):
 
 @router.put("/busy-calendars")
 async def set_busy_calendars(
-    request: BusyCalendarsRequest, user: UserModel = Depends(get_user)
+    request: BusyCalendarsRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict[str, Any]:
     """Choose which calendars are read when deciding whether a slot is free.
 
@@ -182,7 +186,9 @@ async def set_busy_calendars(
 
 
 @router.post("/disconnect")
-async def disconnect(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+async def disconnect(
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> dict[str, Any]:
     organization_id = _organization_id(user)
     async with db_client.async_session() as session:
         await oauth.disconnect(session, organization_id=organization_id)
