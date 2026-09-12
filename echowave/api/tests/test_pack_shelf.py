@@ -121,7 +121,7 @@ class TestTheShelfEndpoint:
         assert [pack.slug for pack in response.packs] == ["front_desk_clinic"]
 
     @pytest.mark.asyncio
-    async def test_a_card_carries_the_computed_price_not_a_typed_one(self, monkeypatch):
+    async def test_a_card_carries_how_it_charges_not_a_typed_price(self, monkeypatch):
         monkeypatch.setattr(
             "api.routes.packs.resolve_listed_packs", AsyncMock(return_value=SHELF)
         )
@@ -135,8 +135,13 @@ class TestTheShelfEndpoint:
         )
         assert response.packs
         for pack in response.packs:
-            assert pack.pricing.is_hire is True
-            assert pack.pricing.included_minutes > 0
+            # No monthly figure on the card any more: the plan is a fixed
+            # platform charge and running the role draws on credit. What the
+            # card must carry is whether the plan needs voice and what unit
+            # the work is metered in.
+            assert pack.charging.needs_voice is True
+            assert pack.charging.unit == "minute"
+            assert pack.charging.hire_price_paise == 0
             assert pack.badges
 
     @pytest.mark.asyncio
@@ -184,8 +189,13 @@ class TestTheChatOffersHiringFirst:
         assert result["roles"]
         first = result["roles"][0]
         assert first["does"]
-        assert first["monthly_price_rupees"] == 6999
-        assert first["priced_as"] == "a hire, per agent"
+        # No monthly figure. Hiring is included in the plan, so what the
+        # model is given is what RUNNING it draws on -- and it used to be
+        # handed "6999", a number nothing in billing ever charged.
+        assert "Included in your plan" in first["costs"]
+        assert "by the minute" in first["costs"]
+        assert first["needs_voice_on_their_plan"] is True
+        assert "monthly_price_rupees" not in first
         assert first["needs_connected"]
 
     @pytest.mark.asyncio

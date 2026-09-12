@@ -7436,7 +7436,7 @@ export type PackCard = {
      * Demo Url
      */
     demo_url: string | null;
-    pricing: PackPricing;
+    charging: PackCharging;
     /**
      * Flow
      */
@@ -7445,6 +7445,42 @@ export type PackCard = {
      * Listed
      */
     listed: boolean;
+};
+
+/**
+ * PackCharging
+ *
+ * How running this role draws on the account's credit, not what it costs.
+ *
+ * There is no per-pack price. The plan is a fixed platform charge whose
+ * remainder is granted as wallet credit, and every unit of work -- language
+ * model, transcription, synthesis, embedding, telephony -- draws from that.
+ * Hiring is free, because unlimited bots is what the platform charge buys.
+ *
+ * Deliberately carries no rupee figure. What a minute costs depends on the
+ * voice and brain the account chose, so the number comes from
+ * ``agent_options`` against their own configuration and is rendered with a
+ * "roughly" in front of it. A figure baked into a card is one that goes
+ * stale the moment somebody changes their voice -- and the fields this
+ * replaced quoted a monthly price that billing never charged.
+ */
+export type PackCharging = {
+    /**
+     * Needs Voice
+     */
+    needs_voice: boolean;
+    /**
+     * Unit
+     */
+    unit: string;
+    /**
+     * Hire Price Paise
+     */
+    hire_price_paise: number;
+    /**
+     * Creator Price Paise
+     */
+    creator_price_paise: number;
 };
 
 /**
@@ -7468,44 +7504,6 @@ export type PackDetail = {
      * Compliance Notes
      */
     compliance_notes: Array<string>;
-};
-
-/**
- * PackPricing
- */
-export type PackPricing = {
-    /**
-     * Is Hire
-     */
-    is_hire: boolean;
-    /**
-     * Seat Price Paise
-     */
-    seat_price_paise: number;
-    /**
-     * Platform Price Paise
-     */
-    platform_price_paise: number;
-    /**
-     * Creator Price Paise
-     */
-    creator_price_paise: number;
-    /**
-     * Monthly Price Paise
-     */
-    monthly_price_paise: number;
-    /**
-     * Included Minutes
-     */
-    included_minutes: number;
-    /**
-     * Included Executions
-     */
-    included_executions: number;
-    /**
-     * Overage Unit
-     */
-    overage_unit: string;
 };
 
 /**

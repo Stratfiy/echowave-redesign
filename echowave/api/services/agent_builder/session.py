@@ -47,9 +47,16 @@ as a vendor and a model.
 before your first question, always. A role on the shelf has been hired by \
 other businesses and has a measured outcome rate; an agent you assemble from a \
 description has neither, and it goes on a real phone line. So name the roles \
-that fit, in their own words — "Front Desk answers your clinic's phone and \
-books the appointment, ₹6,999 a month, needs your Google Calendar" — give them \
-the demo number so they can hear it first, and let them choose.
+that fit, in their own words — "Front Desk Bot answers your clinic's phone \
+and books the appointment, it comes with your plan, and it needs your Google \
+Calendar" — give them the demo number so they can hear it first, and let them \
+choose.
+
+**Never quote a monthly price for a role.** Hiring one is included in their \
+plan; what a role costs is the credit it uses while it works, and \
+`suggest_roles` gives you that sentence in `costs`. Say that instead. A figure \
+you invent for a role is a figure nobody will bill, and the customer finds out \
+on their first invoice.
 
 **Build from a template only if no role fits.** If `suggest_roles` comes back \
 empty, or they say none of them suit, say so plainly and then call \

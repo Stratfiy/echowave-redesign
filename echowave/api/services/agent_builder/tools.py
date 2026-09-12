@@ -63,7 +63,7 @@ from api.services.integrations.composio.client import (
 from api.services.integrations.composio.client import (
     toolkit_name as composio_toolkit_name,
 )
-from api.services.packs import badges, pricing, resolve_listed_packs
+from api.services.packs import badges, charging, resolve_listed_packs
 from api.services.packs import industry as pack_industry
 from api.services.packs.search import search_packs
 from api.services.tool_management import create_tool_for_user
@@ -122,12 +122,22 @@ async def _suggest_roles(
                     for connector in role.required_connectors
                     if connector.required
                 ],
-                "monthly_price_rupees": pricing(role)["monthly_price_paise"] // 100,
-                "priced_as": (
-                    "a hire, per agent"
-                    if pricing(role)["is_hire"]
-                    else "included in the monthly plan"
+                # No per-role price. Hiring is included in the plan, which
+                # is a fixed platform charge -- so what the model must say is
+                # what RUNNING it draws on, and whether their plan allows it.
+                #
+                # This used to quote "Rs6,999 a month", a figure nothing in
+                # billing ever charged. Telling a clinic a number we do not
+                # bill is worse than telling them nothing.
+                "costs": (
+                    "Included in your plan. It uses credit by the minute "
+                    "while it is on a call -- call estimate_agent_cost for "
+                    "the per-minute figure on their own voice."
+                    if charging(role)["needs_voice"]
+                    else "Included in your plan. It uses a little credit each "
+                    "time it runs."
                 ),
+                "needs_voice_on_their_plan": charging(role)["needs_voice"],
                 "demo_number": role.demo_number,
                 "template_id": role.template_id,
             }

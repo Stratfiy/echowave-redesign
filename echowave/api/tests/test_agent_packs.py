@@ -10,10 +10,8 @@ import pytest
 from pydantic import ValidationError
 
 from api.services.packs import (
-    INCLUDED_EXECUTIONS,
-    INCLUDED_MINUTES_PER_SEAT,
-    PLATFORM_PRICE_PAISE,
-    SEAT_PRICE_PAISE,
+    UNIT_MINUTE,
+    UNIT_RUN,
     AgentPack,
     Channel,
     Publisher,
@@ -23,12 +21,12 @@ from api.services.packs import (
     badges,
     card,
     catalogue,
+    charging,
     get_pack,
     hire_steps,
     is_calling,
     jobs,
     listed_packs,
-    pricing,
 )
 from api.services.packs.derive import (
     CHANNEL_LABELS,
@@ -140,28 +138,60 @@ class TestTheBadgeIsDerived:
             assert channel in CHANNEL_LABELS
 
 
-class TestTheBadgeIsThePriceTag:
-    def test_a_calling_pack_is_a_hire(self):
-        priced = pricing(_pack())
-        assert priced["is_hire"] is True
-        assert priced["seat_price_paise"] == SEAT_PRICE_PAISE
-        assert priced["platform_price_paise"] == 0
-        assert priced["included_minutes"] == INCLUDED_MINUTES_PER_SEAT
-        assert priced["overage_unit"] == "minute"
+class TestHowARoleDrawsOnCredit:
+    """There is no per-pack price, and that is the point.
 
-    def test_a_creator_price_is_added_on_top_of_ours_not_instead_of_it(self):
-        priced = pricing(_pack(creator_price_paise=200_000))
-        assert priced["monthly_price_paise"] == SEAT_PRICE_PAISE + 200_000
+    A pack used to carry a seat price of Rs6,999 a month for a voice agent and
+    Rs4,999 for everything else, and NOTHING IN services/billing EVER READ
+    EITHER. They reached only the card and the builder chat, which quoted
+    "Rs6,999 a month" while billing charged the subscription plan instead. We
+    quoted one number and charged another.
+    """
 
-    def test_the_platform_price_is_per_business_not_per_agent(self):
-        """Non-calling agents cost nothing to run and the product is worth more
-        the more of them somebody has, so they are never a seat."""
-        assert PLATFORM_PRICE_PAISE < SEAT_PRICE_PAISE
-        assert INCLUDED_EXECUTIONS > 0
+    def test_a_calling_role_is_metered_by_the_minute_and_needs_voice(self):
+        charge = charging(_pack())
+        assert charge["needs_voice"] is True
+        assert charge["unit"] == UNIT_MINUTE
 
-    def test_is_calling_and_pricing_agree(self):
+    def test_a_role_that_answers_nothing_is_metered_by_the_run(self):
+        quiet = _pack(
+            channels=[Channel.WHATSAPP, Channel.WEB],
+            template_id="internal_knowledge",
+            demo_url=None,
+            demo_number=None,
+        )
+        charge = charging(quiet)
+        assert charge["needs_voice"] is False
+        assert charge["unit"] == UNIT_RUN
+
+    def test_hiring_costs_nothing_of_itself(self):
+        """Unlimited bots is what the fixed platform charge buys, and a
+        per-agent fee would contradict it."""
         for pack in all_packs():
-            assert pricing(pack)["is_hire"] == is_calling(pack)
+            assert charging(pack)["hire_price_paise"] == 0, pack.slug
+
+    def test_a_creator_price_survives_as_the_one_per_pack_amount(self):
+        """A third-party listing is a real thing the format supports -- see
+        Publisher.first_party -- so the publisher's own charge stays."""
+        assert (
+            charging(_pack(creator_price_paise=200_000))["creator_price_paise"]
+            == 200_000
+        )
+        assert all(charging(p)["creator_price_paise"] == 0 for p in all_packs())
+
+    def test_no_rupee_figure_for_running_it_is_baked_into_a_pack(self):
+        """What a minute costs depends on the voice and brain the ACCOUNT
+        chose -- about Rs3 on the managed Indic stack, twice that on a premium
+        English voice. A figure baked into a card goes stale the moment
+        somebody changes their voice, which is how the last one came to quote
+        a price billing never charged."""
+        for pack in all_packs():
+            keys = set(charging(pack))
+            assert not {k for k in keys if "per_minute" in k or "monthly" in k}
+
+    def test_needs_voice_and_is_calling_agree(self):
+        for pack in all_packs():
+            assert charging(pack)["needs_voice"] == is_calling(pack)
 
 
 class TestTheVoiceFlow:
@@ -317,7 +347,7 @@ class TestTheStandardFlow:
             demo_number=None,
         )
         assert flow(pack) == FLOW_STANDARD
-        assert pricing(pack)["is_hire"] is False
+        assert charging(pack)["needs_voice"] is False
 
     def test_it_is_never_asked_to_be_heard_or_given_a_number(self, monkeypatch):
         self._silent_template(monkeypatch)
@@ -474,10 +504,10 @@ class TestTheShelf:
         }
         assert {"business_name", "opening_hours", "location"} <= shared
 
-    def test_a_card_carries_what_the_shelf_needs_and_the_price_it_computed(self):
+    def test_a_card_carries_what_the_shelf_needs_and_how_it_charges(self):
         rendered = card(get_pack("front_desk_clinic"))
         assert rendered["badges"][0] == "Answers calls"
-        assert rendered["pricing"]["is_hire"] is True
+        assert rendered["charging"]["needs_voice"] is True
         assert rendered["publisher"]["name"] == "Decibyl"
 
     def test_the_jobs_on_the_shelf_follow_the_order_packs_declare_them(self):

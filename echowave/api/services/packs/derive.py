@@ -19,28 +19,32 @@ from typing import Any, Optional
 
 from api.services.packs._base import CALLING_CHANNELS, AgentPack, Channel
 
-#: A voice agent, per month, per agent. Priced as a hire rather than as usage
-#: because that is what it is: the alternative to this agent is a salaried
-#: person answering the phone, and teammate pricing lands at 10-30% of the
-#: salary it displaces.
-SEAT_PRICE_PAISE = 699_900
-
-#: The platform and every non-calling agent on it, per month, per business.
-#: Not per agent: those cost nothing to run and the product is worth more the
-#: more of them somebody has.
-PLATFORM_PRICE_PAISE = 499_900
-
-#: Minutes included with a seat, pooled across every voice agent in the
-#: organisation rather than allocated per agent.
+#: What a unit of a pack's work draws on, named rather than priced here.
 #:
-#: Pooling is what stops the format being gamed. Per-agent minutes would push a
-#: customer to cram the front desk, the order confirmation and the NDR chase
-#: into one agent to avoid paying twice -- producing a worse agent, worse calls
-#: and one meaningless status line instead of three useful ones.
-INCLUDED_MINUTES_PER_SEAT = 1_200
+#: There is no per-pack price any more, and deleting it was the point. A pack
+#: used to carry a seat price of Rs6,999 a month for a voice agent and a
+#: platform price of Rs4,999 for everything else -- and **nothing in
+#: services/billing ever read either of them**. They were consumed only by the
+#: card and by the builder chat, which quoted "Rs6,999 a month" to customers
+#: while billing charged the subscription plan instead. We quoted one number
+#: and charged another.
+#:
+#: The model now: the plan is a fixed platform charge, its remainder is granted
+#: as wallet credit, and every LLM, transcription, synthesis, embedding and
+#: telephony unit draws from that credit. Hiring is free -- the plan already
+#: paid for the platform -- so what a card has to say is not a price but two
+#: things: whether the account's plan must include voice, and what unit the
+#: work is metered in.
+#:
+#: Per-agent pricing also fought the product. The pooled-minutes note that
+#: used to live here argued it: per-agent minutes "would push a customer to
+#: cram the front desk, the order confirmation and the NDR chase into one
+#: agent to avoid paying twice -- producing a worse agent, worse calls and one
+#: meaningless status line instead of three useful ones." A per-agent *price*
+#: pushes exactly the same way.
+UNIT_MINUTE = "minute"
+UNIT_RUN = "run"
 
-#: Non-calling agent runs included with the platform plan, per month.
-INCLUDED_EXECUTIONS = 10_000
 
 #: What each channel is called on a card. A mapping rather than a prettified
 #: enum value: "inbound_call" is structure, "Answers calls" is the promise, and
@@ -137,28 +141,37 @@ def badges(pack: AgentPack) -> list[str]:
     return ordered + unlabelled
 
 
-def pricing(pack: AgentPack) -> dict[str, Any]:
-    """What hiring this costs, and in what unit.
+def charging(pack: AgentPack) -> dict[str, Any]:
+    """How running this draws on the wallet, and what the plan must allow.
 
-    Returned as structure rather than a formatted string: the card, the hire
-    flow and the invoice all need this and they format it differently. The one
-    thing they must not do is disagree about it.
+    Deliberately *not* a rupee figure. What a minute costs depends on the
+    voice and brain the account chose -- Rs3.06 on the managed Indic stack,
+    about twice that on a premium English voice -- and a pure function over a
+    pack cannot know either. So the pack says what unit it is metered in and
+    whether it needs voice; the account's own stack supplies the number, via
+    ``services/configuration/agent_options``.
+
+    Splitting it that way is what stops the two disagreeing. A price baked
+    into a pack is a price that goes stale the moment a customer changes their
+    voice, and the last version of this function returned a monthly figure
+    that billing never charged at all.
     """
     calling = is_calling(pack)
     return {
-        "is_hire": calling,
-        "seat_price_paise": SEAT_PRICE_PAISE if calling else 0,
-        "platform_price_paise": 0 if calling else PLATFORM_PRICE_PAISE,
+        #: Whether the account's plan must include the voice capability. The
+        #: one thing about a pack that can make it unhirable on a given plan.
+        "needs_voice": calling,
+        #: What a unit of its work is. A calling agent is metered by the
+        #: minute; everything else by the run.
+        "unit": UNIT_MINUTE if calling else UNIT_RUN,
+        #: Hiring costs nothing of itself. Unlimited bots is the promise the
+        #: fixed platform charge buys, and a per-agent fee would contradict it.
+        "hire_price_paise": 0,
+        #: What the publisher charges on top, in paise. Zero for ours. Kept
+        #: because a third-party pack is a real thing the format supports --
+        #: see Publisher.first_party -- and it is the one per-pack amount that
+        #: survives.
         "creator_price_paise": pack.creator_price_paise,
-        "monthly_price_paise": (
-            (SEAT_PRICE_PAISE if calling else PLATFORM_PRICE_PAISE)
-            + pack.creator_price_paise
-        ),
-        "included_minutes": INCLUDED_MINUTES_PER_SEAT if calling else 0,
-        "included_executions": 0 if calling else INCLUDED_EXECUTIONS,
-        #: The unit overage is billed in, so a card can say what happens next
-        #: rather than leaving somebody to find out on an invoice.
-        "overage_unit": "minute" if calling else "execution",
     }
 
 
@@ -422,7 +435,7 @@ def card(pack: AgentPack) -> dict[str, Any]:
         "languages": list(pack.languages),
         "demo_number": pack.demo_number,
         "demo_url": pack.demo_url,
-        "pricing": pricing(pack),
+        "charging": charging(pack),
         "flow": flow(pack),
         "listed": pack.listed,
     }
