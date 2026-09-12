@@ -12,6 +12,7 @@ from api.db.integration_client import IntegrationClient
 from api.db.knowledge_base_client import KnowledgeBaseClient
 from api.db.kyc_client import KycClient
 from api.db.missed_call_client import MissedCallClient
+from api.db.organisation_fact_client import OrganisationFactClient
 from api.db.organization_client import OrganizationClient
 from api.db.organization_configuration_client import OrganizationConfigurationClient
 from api.db.organization_usage_client import OrganizationUsageClient
@@ -33,6 +34,7 @@ from api.db.workflow_template_client import WorkflowTemplateClient
 
 class DBClient(
     AppInteractionClient,
+    OrganisationFactClient,
     KycClient,
     MissedCallClient,
     ActivationClient,

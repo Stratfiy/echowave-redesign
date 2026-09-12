@@ -26,6 +26,7 @@ from api.services.pipecat.tracing_config import (
     unregister_org_langfuse_credentials,
 )
 from api.services.telephony import credential_encryption
+from api.services.workflow import organisation_memory
 from api.services.workflow.disposition_run import classify_call
 from api.services.workflow.dto import (
     QANodeData,
@@ -491,6 +492,19 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
         if not webhook_nodes:
             logger.debug("No webhook nodes in workflow")
             return
+
+        # What this call taught us about whoever was on it, before the webhooks
+        # fire. Deliberately before rather than after: a webhook that raises
+        # must not cost the account its memory of the conversation, and this
+        # cannot raise (see organisation_memory).
+        await organisation_memory.promote_from_run(
+            organization_id=organization_id,
+            workflow_run_id=workflow_run_id,
+            gathered_context=workflow_run.gathered_context,
+            subject_key=organisation_memory.subject_key_for_run(
+                workflow_run.initial_context
+            ),
+        )
 
         logger.info(f"Found {len(webhook_nodes)} webhook nodes to execute")
 

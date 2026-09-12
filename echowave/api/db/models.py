@@ -4955,3 +4955,80 @@ class AppInteractionModel(Base):
         # Connector reliability, across tenants, for us rather than for them.
         Index("ix_app_interactions_app_status", "app", "status"),
     )
+
+
+class OrganisationFactModel(Base):
+    """What an organization's agents have learned, kept apart from what it told us.
+
+    Deliberately not written into ``contacts.attributes``. Those are the
+    account's own data -- uploaded in a CSV, typed into a screen, trusted. A
+    fact here was inferred by a model from a conversation, and the two must
+    never be stored in the same place, because merging them makes the agent's
+    guess indistinguishable from the customer's record and there is no way back
+    once it has overwritten one. Operator data wins on read, always.
+
+    The subject is a string rather than a foreign key so the same table can
+    remember things about a caller who is not in anybody's contact list, which
+    is most inbound callers on the first call. ``subject_key`` for a person is
+    the normalized phone number -- the same canonical form contacts match on.
+
+    This is the first half of the organization ontology. It stores instances;
+    what kinds of thing an organization deals in, and which of them are worth
+    remembering, is the half that comes next.
+    """
+
+    __tablename__ = "organisation_facts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+
+    #: What kind of thing this is about. "contact" today; "quote" and "shipment"
+    #: are the reason it is a column rather than an assumption.
+    subject_type = Column(String(64), nullable=False, default="contact")
+    #: Which one. A normalized phone number for a contact.
+    subject_key = Column(String(255), nullable=False)
+
+    key = Column(String(128), nullable=False)
+    value = Column(Text, nullable=False)
+
+    #: Which call taught us this, kept so a wrong fact can be traced to the
+    #: conversation that produced it and heard. Without it a bad fact is
+    #: unfalsifiable, and an unfalsifiable fact in front of an agent is worse
+    #: than no fact.
+    source_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    #: How many calls have said the same thing. A value heard three times is
+    #: worth more than one heard once, and this is what lets a later version
+    #: prefer the corroborated answer instead of the most recent one.
+    times_seen = Column(Integer, nullable=False, default=1)
+
+    first_seen_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    last_seen_at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    __table_args__ = (
+        # One row per fact about a subject. A second call saying the same thing
+        # updates the row; a second call saying something different replaces the
+        # value on it. Either way there is exactly one answer to "what is this
+        # customer's delivery address", which is the property the prompt needs.
+        Index(
+            "uq_organisation_facts_subject_key",
+            "organization_id",
+            "subject_type",
+            "subject_key",
+            "key",
+            unique=True,
+        ),
+        Index(
+            "ix_organisation_facts_lookup",
+            "organization_id",
+            "subject_type",
+            "subject_key",
+        ),
+    )
