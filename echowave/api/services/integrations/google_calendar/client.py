@@ -144,48 +144,75 @@ def _localize(naive_iso: str, timezone: str = GOOGLE_CALENDAR_DEFAULT_TIMEZONE) 
 
 async def _find_conflicting_event(
     access_token: str,
-    calendar_id: str,
+    calendar_ids: Any,
     start_iso: str,
     end_iso: str,
     timezone: str = GOOGLE_CALENDAR_DEFAULT_TIMEZONE,
 ) -> Optional[Dict[str, Any]]:
-    """The first non-cancelled event already on the calendar that overlaps
+    """The first event on any of these calendars that overlaps
     [start_iso, end_iso), or None if the slot is free.
+
+    Several calendars rather than one, because a slot already taken on a
+    second calendar was invisible here and could be booked again -- a
+    practitioner whose own appointments sit on a personal calendar got
+    double-booked, and nothing said why. Which calendars count is the
+    operator's explicit choice; an account that made none reads exactly the
+    one calendar it read before.
+
+    Accepts a single id as well as a sequence, so a caller that has only the
+    booking target cannot accidentally iterate a string character by
+    character and ask Google about a calendar named "p".
 
     Best-effort: a failed check is logged and treated as "no conflict found"
     rather than blocking the booking. The write is what matters here -- a
     transient read failure must not turn into no bookings getting made at
     all, the same trade-off issue_receipt_voucher makes for a missing
     supplier identity elsewhere in billing.
+
+    Stops at the first conflict rather than reading every calendar. One is
+    enough to refuse, and the rest would be latency a caller waits through.
     """
-    url = EVENTS_ENDPOINT_TEMPLATE.format(calendar_id=quote(calendar_id, safe=""))
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.get(
-                url,
-                headers={"Authorization": f"Bearer {access_token}"},
-                params={
-                    "timeMin": _localize(start_iso, timezone),
-                    "timeMax": _localize(end_iso, timezone),
-                    "singleEvents": "true",
-                    "orderBy": "startTime",
-                    "maxResults": 5,
-                },
+    if isinstance(calendar_ids, str):
+        calendar_ids = (calendar_ids,)
+
+    for calendar_id in calendar_ids or ("primary",):
+        url = EVENTS_ENDPOINT_TEMPLATE.format(calendar_id=quote(calendar_id, safe=""))
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                response = await client.get(
+                    url,
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    params={
+                        "timeMin": _localize(start_iso, timezone),
+                        "timeMax": _localize(end_iso, timezone),
+                        "singleEvents": "true",
+                        "orderBy": "startTime",
+                        "maxResults": 5,
+                    },
+                )
+        except httpx.HTTPError as exc:
+            logger.warning(
+                "Google Calendar availability check on {} failed: {}",
+                calendar_id,
+                exc,
             )
-    except httpx.HTTPError as exc:
-        logger.warning("Google Calendar availability check failed: {}", exc)
-        return None
+            continue
 
-    if response.status_code != 200:
-        logger.warning(
-            "Google Calendar availability check failed ({}); booking without it.",
-            response.status_code,
-        )
-        return None
+        if response.status_code != 200:
+            # One calendar we cannot read must not stop the others being
+            # checked. A calendar removed or unshared after being configured
+            # is a 404 here, and treating that as "the whole check failed"
+            # would quietly stop checking the calendar that still works.
+            logger.warning(
+                "Google Calendar availability check on {} failed ({}).",
+                calendar_id,
+                response.status_code,
+            )
+            continue
 
-    for item in response.json().get("items") or []:
-        if _occupies_the_chair(item):
-            return item
+        for item in response.json().get("items") or []:
+            if _occupies_the_chair(item):
+                return item
     return None
 
 
@@ -315,9 +342,12 @@ async def execute_google_calendar_tool(
 
             status = await get_status(session, organization_id=organization_id)
             calendar_id = status.calendar_id or "primary"
+            # Read many, write one. The booking goes to `calendar_id`; every
+            # calendar the operator marked as busy is checked first.
+            read_calendar_ids = status.read_calendar_ids
 
         conflict = await _find_conflicting_event(
-            access_token, calendar_id, start_iso, end_iso, event_timezone
+            access_token, read_calendar_ids, start_iso, end_iso, event_timezone
         )
         if conflict:
             conflict_summary = conflict.get("summary") or "an existing event"

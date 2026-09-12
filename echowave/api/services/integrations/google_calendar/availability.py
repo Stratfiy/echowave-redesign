@@ -19,12 +19,17 @@ closure the business made -- leave, a shutdown, a service visit -- so such a
 day has no free slots at all, and only an entry the operator marked Free is
 read as informational.
 
-**One calendar, the same one the write checks.** Reading every calendar on the
-account would need a broader OAuth scope and fresh consent from everybody
-already connected, and -- until the write reads them too -- would have
-availability and booking disagreeing again. It is a real gap: an appointment
-kept on a second calendar is invisible here and can be double-booked. It wants
-its own change, with the re-consent that implies.
+**The same calendars the write checks**, which is now more than one: an
+appointment kept on a second calendar used to be invisible to both, so a slot
+already taken could be offered and booked again. Which calendars count is the
+operator's explicit choice, defaulting to none, because "read everything on the
+account" is right for a solo practitioner with a personal calendar and wrong
+for a two-doctor clinic -- merging both doctors reports the clinic full when
+one of them is free, which is this module's own bug wearing a different hat. A
+multi-practitioner business wants one tool per practitioner instead.
+
+A partial read counts as a failure. Slots computed from two of three calendars
+are how a booked chair gets offered.
 
 Fail-open is **not** the posture here, and that is the one place this module
 departs from ``agent_hours``. A day whose events we could not read returns no
@@ -220,48 +225,70 @@ def free_slots(
 
 
 async def busy_events(
-    access_token: str, calendar_id: str, day: date, timezone: str
+    access_token: str, calendar_ids: Any, day: date, timezone: str
 ) -> Optional[List[Dict[str, Any]]]:
-    """Everything on ``calendar_id`` overlapping ``day``, or None if the read
-    failed.
+    """Everything on these calendars overlapping ``day``, or None if no read
+    succeeded.
+
+    Several calendars because a slot taken on a second one was invisible here
+    and would be offered as free -- the same gap the conflict check had, and
+    the two must agree or the agent offers a time and then cannot book it.
 
     None rather than an empty list on failure, and the distinction is the
     point: an empty calendar and an unanswered question must not produce the
-    same promise to a caller.
+    same promise to a caller. With several calendars that becomes a partial
+    read, which is treated as a failure too: offering slots computed from two
+    of three calendars is exactly how a booked chair gets offered, and "I
+    could not check" is the honest answer.
+
+    Accepts a single id as well as a sequence, so a caller holding one string
+    cannot iterate it character by character.
     """
     from api.services.integrations.google_calendar.client import (
         EVENTS_ENDPOINT_TEMPLATE,
     )
 
+    if isinstance(calendar_ids, str):
+        calendar_ids = (calendar_ids,)
+    wanted = tuple(calendar_ids or ("primary",))
+
     zone = _zone(timezone)
     start = datetime.combine(day, datetime.min.time(), tzinfo=zone)
-    url = EVENTS_ENDPOINT_TEMPLATE.format(calendar_id=quote(calendar_id, safe=""))
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.get(
-                url,
-                headers={"Authorization": f"Bearer {access_token}"},
-                params={
-                    "timeMin": start.isoformat(),
-                    "timeMax": (start + timedelta(days=1)).isoformat(),
-                    "singleEvents": "true",
-                    "orderBy": "startTime",
-                    # A clinic's whole day, not the five the conflict check
-                    # needs: every one of them removes a candidate slot, and a
-                    # truncated list would offer a taken chair.
-                    "maxResults": 250,
-                },
-            )
-    except httpx.HTTPError as exc:
-        logger.warning("Google Calendar availability read failed: {}", exc)
-        return None
 
-    if response.status_code != 200:
-        logger.warning(
-            "Google Calendar availability read failed ({}).", response.status_code
-        )
-        return None
-    return response.json().get("items") or []
+    items: List[Dict[str, Any]] = []
+    for calendar_id in wanted:
+        url = EVENTS_ENDPOINT_TEMPLATE.format(calendar_id=quote(calendar_id, safe=""))
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                response = await client.get(
+                    url,
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    params={
+                        "timeMin": start.isoformat(),
+                        "timeMax": (start + timedelta(days=1)).isoformat(),
+                        "singleEvents": "true",
+                        "orderBy": "startTime",
+                        # A clinic's whole day, not the five the conflict check
+                        # needs: every one of them removes a candidate slot, and
+                        # a truncated list would offer a taken chair.
+                        "maxResults": 250,
+                    },
+                )
+        except httpx.HTTPError as exc:
+            logger.warning(
+                "Google Calendar availability read on {} failed: {}", calendar_id, exc
+            )
+            return None
+
+        if response.status_code != 200:
+            logger.warning(
+                "Google Calendar availability read on {} failed ({}).",
+                calendar_id,
+                response.status_code,
+            )
+            return None
+        items.extend(response.json().get("items") or [])
+    return items
 
 
 async def resolve_open_windows(
@@ -375,9 +402,9 @@ async def execute_check_availability(
                 ),
             }
         status = await get_status(session, organization_id=organization_id)
-        calendar_id = status.calendar_id or "primary"
+        read_calendar_ids = status.read_calendar_ids
 
-    items = await busy_events(access_token, calendar_id, day, timezone)
+    items = await busy_events(access_token, read_calendar_ids, day, timezone)
     if items is None:
         # Deliberately not "everything is free" -- see the module docstring.
         return {

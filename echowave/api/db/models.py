@@ -3873,6 +3873,22 @@ class GoogleCalendarConnectionModel(Base):
         String(255), nullable=False, default="primary", server_default="primary"
     )
 
+    # Extra calendars that count as busy when checking whether a slot is free.
+    # Bookings are still written to `calendar_id` alone -- these are read, never
+    # written.
+    #
+    # Empty by default, and the default is load-bearing. "Read every calendar
+    # on the account" is right for a solo dentist whose own appointments sit on
+    # a personal calendar, and wrong for a two-doctor clinic: merging both
+    # doctors would report the clinic as full when only one of them is booked,
+    # which is the same bug as refusing a free slot. Nothing in a calendar list
+    # says which case an account is, so it is the operator's explicit choice and
+    # an account that makes no choice behaves exactly as it does today.
+    #
+    # A multi-practitioner business wants one tool per practitioner instead --
+    # see ComposioToolConfig.connected_account_id.
+    busy_calendar_ids = Column(JSON, nullable=False, default=list)
+
     is_active = Column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )
