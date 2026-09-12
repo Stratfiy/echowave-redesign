@@ -274,6 +274,83 @@ async def toolkit_name(
     return name if isinstance(name, str) and name.strip() else None
 
 
+#: How many actions to offer for one app. A toolkit is hundreds of slugs and a
+#: model handed all of them picks badly; the ones Composio ranks first are the
+#: ones a business actually means by "send an email".
+TOOLKIT_ACTIONS_SHOWN = 15
+
+
+async def toolkit_actions(
+    toolkit: str,
+    *,
+    limit: int = TOOLKIT_ACTIONS_SHOWN,
+    timeout_secs: float = COMPOSIO_TIMEOUT_SECS,
+) -> Optional[list[dict[str, Any]]]:
+    """What one connected app can actually be asked to do.
+
+    The reason this exists rather than letting the model name a slug: asked to
+    send email it will write ``GMAIL_SEND``, which does not exist, and the
+    failure lands mid-conversation with a caller on the line. An invented slug
+    is only detectable against Composio's own catalogue, so it is read here and
+    the model chooses from what comes back.
+
+    ``None`` rather than ``[]`` when the read fails, and the distinction
+    matters to the caller: an app with no actions and an app we could not ask
+    about need different sentences. Empty means "this app exposes nothing we
+    can attach"; None means "ask again".
+    """
+    headers = _headers()
+    url = f"{COMPOSIO_BASE_URL}/api/v3.1/tools"
+    try:
+        async with httpx.AsyncClient(timeout=timeout_secs) as client:
+            response = await client.get(
+                url,
+                headers=headers,
+                params={"toolkit_slug": toolkit.strip().lower(), "limit": limit},
+            )
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Could not list Composio tools for {}: {}", toolkit, exc)
+        return None
+
+    if response.status_code >= 400:
+        logger.warning(
+            "Composio tool list for {} failed: HTTP {}", toolkit, response.status_code
+        )
+        return None
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+
+    # v3.1 returns {"items": [...]}; older shapes used a bare list. Reading both
+    # rather than one: a shape change here would empty the action list with
+    # nothing logged, and an agent that can no longer be given tools is the
+    # silent kind of broken.
+    rows = body.get("items") if isinstance(body, dict) else body
+    if not isinstance(rows, list):
+        logger.warning(
+            "Composio tool list for {} had an unexpected shape: {}",
+            toolkit,
+            type(body).__name__,
+        )
+        return None
+
+    actions: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        slug = row.get("slug") or row.get("name")
+        if not isinstance(slug, str) or not slug.strip():
+            continue
+        actions.append(
+            {
+                "slug": slug.strip(),
+                "does": (row.get("description") or "").strip()[:200] or None,
+            }
+        )
+    return actions[:limit]
+
+
 async def _managed_auth_config_id(
     toolkit: str, *, timeout_secs: float
 ) -> Optional[str]:
