@@ -272,9 +272,11 @@ confidentiality, and at the Customer's cost — save where the audit reveals
 material non-compliance.
 
 11.3 Decibyl may satisfy an audit request by providing a current third-party
-certification or report where one exists. `[TO CONFIRM — Decibyl holds no
-security certification at the date of this template. Do not state or imply
-otherwise.]`
+certification or report where one exists. **Decibyl holds no security
+certification.** It is not SOC 2 audited, not ISO 27001 certified, and has not
+commissioned an independent penetration test. Annex B states the measures that
+are in place and which of them are enforced by code rather than by intention,
+and is offered in place of a certificate.
 
 ## 12. Liability
 

@@ -37,8 +37,8 @@ implemented
 | Audit logging cannot block the operation it observes | ✅ | By design: a failed audit write is logged loudly and the request proceeds |
 | Billing changes recorded with actor | ✅ | `billing_audit_log` |
 | Role separation between customer users and platform staff | ✅ | `StaffRole` (support/superadmin) separates platform staff from customer accounts entirely; `OrganizationRole` (member/admin/owner) separates standing within a customer account. |
-| Backups | ⚠️ | [TO CONFIRM — schedule, retention, and the last time a restore was actually tested. An untested backup is a hypothesis.] |
-| Documented disaster recovery with RTO/RPO | ❌ | [TO CONFIRM] |
+| Backups | ✅ | Enabled by default and encrypted with the platform credential secret. 30-day retention (`BACKUP_RETENTION_DAYS`); a backup older than 36 hours raises an alert (`BACKUP_STALE_AFTER_HOURS`), so a silently-stopped backup job is noticed rather than discovered during a restore. Optional off-account mirror via `BACKUP_MIRROR_*`, unset by default — see § 2 note. |
+| Documented disaster recovery with RTO/RPO | ❌ | No RTO or RPO is committed. The recovery *point* is the last backup (up to 24 hours) until the database moves to managed Postgres with point-in-time recovery, which takes it to minutes; `MIGRATE-TO-MANAGED-POSTGRES.md` and `scripts/cutover_to_managed_postgres.sh` are the plan and the procedure. Stated rather than promised: a number here is a commitment. |
 | Multi-region redundancy | ❌ | Single region. |
 
 ## 3. Restoring availability after an incident — Art 32(1)(c)
@@ -47,8 +47,8 @@ implemented
 |---|---|
 | Error monitoring and alerting (Sentry) | ✅ |
 | Breach-window report: what was reached between two timestamps, by whom, over how many calls | ✅ `GET /api/v1/privacy/breach-report` — counts and identifiers only, never content, because a breach report containing the compromised data is a second incident |
-| Documented incident response runbook with named roles | ❌ [TO CONFIRM] |
-| Tested restore procedure | ❌ [TO CONFIRM] |
+| Documented incident response runbook with named roles | ❌ No runbook exists. The breach-window report above supplies the facts an incident needs; who is called and in what order is not written down. |
+| Tested restore procedure | ✅ `scripts/rehearse_restore.sh` restores the newest backup into a scratch database, reconciles the ledger and prints how long it took. It is written to be run on a schedule rather than once, because backups break silently — a schema change, a rotated secret — and the failure only shows on the day it cannot. It never touches the live database. |
 
 ## 4. Testing and evaluating effectiveness — Art 32(1)(d)
 
@@ -56,7 +56,7 @@ implemented
 |---|---|
 | Automated test suite covering the privacy controls themselves — retention, erasure, export, access logging, recording disclosure | ✅ `api/tests/test_privacy.py`, `api/tests/test_recording_disclosure.py` |
 | Retention enforcement verified by test, including that storage objects are deleted and not merely dereferenced | ✅ The failure mode that matters: clearing the row and leaving the audio looks exactly like success |
-| Dependency vulnerability scanning | ⚠️ [TO CONFIRM] |
+| Dependency vulnerability scanning | ❌ Not configured. `.github/` carries an issue template and a release workflow and no scanning. A known gap, not an unknown one. |
 | Independent penetration test | ❌ Not performed |
 | SOC 2 / ISO 27001 | ❌ Not held |
 
@@ -96,14 +96,28 @@ in the application enumerates its own hosting: **Amazon Web Services** (hosting,
 database, object storage) and **Razorpay** (payments; card details never reach
 us).
 
-[TO CONFIRM — the notice period for sub-processor changes and the customer's
-right to object belong in the DPA body, not in this annex.]
+Sub-processor changes are notified 30 days in advance, and the Customer may
+object within that period — stated in § 6 of the DPA rather than here, because
+it is an obligation rather than a measure.
 
 ## 8. Transfers — Ch. V
 
-[TO CONFIRM] Hosting region is US. Model vendors are predominantly US. Personal
-data of EU data subjects leaving the EEA needs SCCs plus a transfer impact
-assessment. An EU deployment region is usually cheaper than the paperwork.
+Hosting is in **AWS `ap-south-1` (Mumbai)**, chosen for DPDP residency — call
+recordings and transcripts are conversations with people in India and the region
+holding them is where that data comes to rest. `MIGRATE-TO-MUMBAI.md` records the
+move and `scripts/verify_region_migration.py` checks it, because a green health
+check does not prove the bucket moved.
+
+Model vendors differ by the tier a customer selects, and the answer is computed
+rather than declared: `api/services/configuration/residency.py` derives whether
+speech and language stay in India from the stack a call will actually run on, so
+pointing a tier at a foreign vendor removes the guarantee by itself. Embeddings
+are the documented exception — a knowledge base sends text to a foreign vendor at
+ingest even when every model on the call is Indian.
+
+Personal data of EU data subjects leaving the EEA needs SCCs plus a transfer
+impact assessment, which is `[TO CONFIRM]` and only arises once an
+EU-established customer appears.
 
 ## 9. Personnel
 

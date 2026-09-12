@@ -84,8 +84,10 @@ receive the audio or its text.
 **We publish the current list, and it is generated from the system rather than
 maintained by hand** — so it cannot quietly go out of date. Customers see the
 vendors that handled *their* calls at
-`https://decibyl.ai/app/privacy/subprocessors`. [TO CONFIRM — the public URL you
-will host the general list at.]
+`https://app.decibyl.ai/privacy/subprocessors`, and the general list is at
+`https://decibyl.ai/trust`. Both are generated from `GET /api/v1/privacy/subprocessors`
+rather than copied, because a stale sub-processor list is worse than none: it is a
+specific written claim that is now false.
 
 Beyond those: Amazon Web Services hosts the platform, and Razorpay processes
 payments.
@@ -126,10 +128,20 @@ specific periods. State one and meet it.]
 
 ## Section: Where it is processed
 
-[TO CONFIRM] The platform runs in a US region and several AI vendors are US
-companies. If you are in the EEA or the UK, your data is transferred outside it
-and that needs a stated legal mechanism — Standard Contractual Clauses — and a
-transfer impact assessment behind them. Do not publish a location claim until
+The platform runs in **AWS `ap-south-1` (Mumbai)**. Call recordings and
+transcripts come to rest in India, which is the point of the region: they are
+conversations with people here.
+
+Which AI vendors handle a given call depends on the tier chosen for the agent,
+and we compute the answer rather than assert it — an agent on the Indic speech
+tier is processed in India end to end, and pointing any component at a foreign
+vendor removes that guarantee automatically rather than leaving a stale badge.
+A knowledge base is the exception worth naming: attaching documents sends their
+text to a foreign vendor at ingest even when every model on the call is Indian.
+
+`[TO CONFIRM — EEA/UK paragraph.]` If you are in the EEA or the UK, your data is
+transferred outside it and that needs a stated legal mechanism — Standard
+Contractual Clauses — and a transfer impact assessment behind them. Do not publish a location claim until
 this is decided; it is one of the first things a regulator checks and one of the
 easiest to disprove.
 
