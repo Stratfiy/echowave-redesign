@@ -40,6 +40,10 @@ from api.services.agent_builder.assemble import (
 from api.services.agent_templates import find_templates, get_template, list_templates
 from api.services.billing.addons import DEFAULT_AGENT_ADDONS
 from api.services.billing.estimator import estimate_cost_per_minute
+from api.services.configuration import agent_options
+from api.services.configuration.ai_model_configuration import (
+    WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY as OVERRIDE_KEY,
+)
 from api.services.integrations.composio import skills as app_skills
 from api.services.integrations.composio.client import (
     connect_link as composio_connect_link,
@@ -275,6 +279,59 @@ def tool_schemas() -> list[dict[str, Any]]:
             },
         },
         {
+            "name": "list_voice_and_brain",
+            "description": (
+                "The voices and the brain tiers on offer, each with what it "
+                "costs a minute. Call this before asking the user how the "
+                "agent should sound or how sharp it should be.\n\n"
+                "Ask in these words. A voice by its name and gender, and a "
+                "brain as Lite, Normal or Smart with the price a minute -- "
+                "never a vendor or a model name. Quote the price without "
+                "being asked: knowing what a call costs before making one is "
+                "something no other platform offers."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "type": "function",
+            "name": "set_voice_and_brain",
+            "description": (
+                "Set one agent's voice, its brain, or both. Call this once "
+                "the user has chosen -- asking which voice and then not "
+                "applying it is worse than never asking.\n\n"
+                "Pass only what they chose; whatever you leave out keeps its "
+                "current value. Copy `brain` and `voice` exactly from "
+                "list_voice_and_brain.\n\n"
+                "Saves to the agent's draft and does not publish. Tell them "
+                "it is not live yet and offer to let them hear it."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "workflow_id": {
+                        "type": "number",
+                        "description": "The agent's id, from list_my_agents.",
+                    },
+                    "brain": {
+                        "type": "string",
+                        "description": (
+                            "A `brain` from list_voice_and_brain: lite, "
+                            "default or accurate. Omit to leave it alone."
+                        ),
+                    },
+                    "voice": {
+                        "type": "string",
+                        "description": (
+                            "A `voice` from list_voice_and_brain. Omit to "
+                            "leave it alone."
+                        ),
+                    },
+                },
+                "required": ["workflow_id"],
+            },
+        },
+        {
+            "type": "function",
             "name": "list_phone_numbers",
             "description": (
                 "List the phone numbers this account already owns, so the user "
@@ -556,6 +613,15 @@ async def dispatch(
                 organization_id=organization_id,
                 template_id=arguments.get("template_id", ""),
                 calls_per_month=arguments.get("calls_per_month"),
+            )
+        if name == "list_voice_and_brain":
+            return await _list_voice_and_brain(session, organization_id=organization_id)
+        if name == "set_voice_and_brain":
+            return await _set_voice_and_brain(
+                organization_id=organization_id,
+                workflow_id=arguments.get("workflow_id"),
+                brain=arguments.get("brain", ""),
+                voice=arguments.get("voice", ""),
             )
         if name == "list_phone_numbers":
             return await _list_numbers(organization_id)
@@ -955,6 +1021,157 @@ async def _revise_agent_facts(
             "still answering exactly as it did before.",
             "Tell them to open the agent, test it, and publish when happy.",
         ],
+    }
+
+
+async def _list_voice_and_brain(
+    session: AsyncSession, *, organization_id: int
+) -> dict[str, Any]:
+    """The voice and brain choices, in the words a business owner uses.
+
+    The builder's system prompt says a clinic owner "does not know what an STT
+    model is and should never be asked", and that stays true: what is offered
+    here is a voice you can hear and a brain that is Lite, Normal or Smart,
+    with a price a minute under each. ``agent_options`` already exists to
+    offer the same choice in two vocabularies -- vendor and model on the
+    Models screen, voice and brain here -- and this is the second one.
+
+    The price is the point. A tier somebody cannot price is a tier they will
+    not pick, and knowing what a call costs before making one is something no
+    competitor offers, so it is quoted without being asked for.
+    """
+    priced: list[dict[str, Any]] = []
+    for brain in agent_options.brains():
+        paise = await agent_options.price_per_minute(
+            session, organization_id=organization_id, brain=brain.tier
+        )
+        priced.append(
+            {
+                "brain": brain.tier,
+                "label": brain.label,
+                "what_it_is_for": brain.blurb,
+                # None rather than zero when a component has no rate on file:
+                # "we cannot price this yet" and "this is free" read the same
+                # in a number and differently in a sentence.
+                "rupees_per_minute": (
+                    round(paise / 100, 2) if paise is not None else None
+                ),
+            }
+        )
+
+    return {
+        "brains": priced,
+        "voices": [
+            {
+                "voice": voice.voice_id,
+                "name": voice.name,
+                "gender": voice.gender,
+                "is_default": voice.is_default,
+            }
+            for voice in agent_options.voices()
+        ],
+        "note": (
+            "Every managed voice costs the same, so only the brain changes the "
+            "price. Ask which voice by name and gender, never by vendor."
+        ),
+    }
+
+
+async def _set_voice_and_brain(
+    *,
+    organization_id: int,
+    workflow_id: Any,
+    brain: str = "",
+    voice: str = "",
+) -> dict[str, Any]:
+    """Set an agent's voice and brain, on its draft.
+
+    Never touches what is answering the phone -- the same boundary
+    ``revise_agent_facts`` draws, for the same reason: a chat that can change
+    a live agent's voice mid-call is a chat that can do it by accident.
+
+    Without this tool the chat could *ask* which model to use, take an answer,
+    and silently not apply it, which is the exact failure this codebase keeps
+    having: correct-looking behaviour with nothing behind it, and nobody finds
+    out until a caller hears the wrong voice.
+    """
+    if not isinstance(workflow_id, int):
+        return {"error": "workflow_id must be the number from list_my_agents."}
+
+    chosen_brain = (brain or "").strip()
+    chosen_voice = (voice or "").strip()
+    if not chosen_brain and not chosen_voice:
+        return {"error": "Nothing to set. Ask the user for a brain or a voice."}
+
+    # Validated against what is actually offered rather than trusted. A tier
+    # the model invented would be written into the stack and resolved at call
+    # time to nothing.
+    if chosen_brain:
+        allowed = {option.tier for option in agent_options.brains()}
+        if chosen_brain not in allowed:
+            return {
+                "error": (
+                    f"{chosen_brain!r} is not a brain. Call "
+                    f"list_voice_and_brain and use one of: "
+                    f"{', '.join(sorted(allowed))}."
+                )
+            }
+    if chosen_voice:
+        allowed_voices = {option.voice_id for option in agent_options.voices()}
+        if chosen_voice not in allowed_voices:
+            return {
+                "error": (
+                    f"{chosen_voice!r} is not a voice we have. Call "
+                    "list_voice_and_brain and copy a `voice` from it."
+                )
+            }
+
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        return {"error": f"No agent {workflow_id} in this account."}
+
+    # Merge, never replace. Somebody who says "make it smarter" has not asked
+    # for the voice to go back to default, and a partial answer is what a chat
+    # message always is.
+    #
+    # Read straight off the stored override rather than through
+    # `stack_from_configurations`, which takes a resolved configuration object
+    # and not a raw column.
+    stored = dict(getattr(workflow, "workflow_configurations", None) or {})
+    current = stored.get(OVERRIDE_KEY)
+    current_stack = current.get("stack") if isinstance(current, dict) else None
+    if not isinstance(current_stack, dict):
+        current_stack = {}
+    tts = current_stack.get("tts") if isinstance(current_stack.get("tts"), dict) else {}
+    llm = current_stack.get("llm") if isinstance(current_stack.get("llm"), dict) else {}
+
+    override = agent_options.managed_stack_override(
+        voice=chosen_voice or str(tts.get("voice") or ""),
+        llm_tier=chosen_brain or str(llm.get("model") or "default"),
+    )
+    if not override:
+        return {"error": "Nothing to set. Ask the user for a brain or a voice."}
+
+    try:
+        await db_client.save_workflow_draft(
+            workflow_id, workflow_configurations={**stored, **override}
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Could not set voice/brain on workflow {}", workflow_id)
+        return {"error": f"Could not save that: {exc}"}
+
+    return {
+        "set": True,
+        "brain": chosen_brain or None,
+        "voice": chosen_voice or None,
+        "live": False,
+        "note": (
+            "Saved to the draft. Not live until they publish, and worth "
+            "hearing first -- a voice reads differently out loud than it does "
+            "in a list."
+        ),
     }
 
 
