@@ -118,8 +118,23 @@ export function GoogleCalendarConnect({ returnPath = "/integrations/apps" }: { r
             ) : status?.connected ? (
                 <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                     <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    {/* The email is often absent, and "Connected as ." with a
+                        blank is worse than not naming the account at all — it
+                        reads as data we lost rather than data we never had.
+                        The OAuth scope is calendar.events only, and the
+                        userinfo endpoint needs an email scope to answer, so a
+                        connection made before that scope is granted has no
+                        email to show and never will. */}
                     <span>
-                        Connected as <span className="text-foreground">{status.connected_email}</span>. Events go on the{" "}
+                        {status.connected_email ? (
+                            <>
+                                Connected as{" "}
+                                <span className="text-foreground">{status.connected_email}</span>.{" "}
+                            </>
+                        ) : (
+                            <>Connected. </>
+                        )}
+                        Events go on the{" "}
                         {status.calendar_id === "primary" || !status.calendar_id ? "primary" : status.calendar_id} calendar.
                     </span>
                 </p>
