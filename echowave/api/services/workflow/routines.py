@@ -1,7 +1,7 @@
 """When a scheduled agent runs, and why it did not.
 
-A Desk is an agent nobody rings. Nothing triggers it but the clock, which
-means the clock is the whole product: a Desk that runs at the wrong time, or
+A bot on a routine is one nobody rings. Nothing triggers it but the clock,
+which makes the clock the whole product: a run at the wrong time, or
 twice, or not at all, has no caller waiting to notice and no transcript to
 explain itself. So the decision is a pure function of a schedule and a moment,
 and every outcome is named -- including each way of not running.
@@ -30,7 +30,7 @@ for twenty minutes should still send the eight o'clock summary. One that was
 down overnight should not send it at two in the afternoon, when it is no
 longer a morning report and the figures read as today's. So a run has a
 catch-up window and past that it is ``MISSED`` -- which is recorded, because a
-Desk that stopped for a day is exactly the thing an operator needs told.
+bot that stopped for a day is exactly the thing an operator needs told.
 
 The functions here never touch the database and never read the clock. Both
 arrive as arguments, so a test can put a routine at 23:59 on a Sunday in
@@ -61,7 +61,7 @@ class Cadence(str, Enum):
 
     Deliberately not cron. The person setting this runs a clinic, and the
     difference between ``0 9 * * 1-5`` and ``0 9 * * 1,5`` is a support ticket
-    waiting to happen. Four cadences cover every Desk we have written, and a
+    waiting to happen. Four cadences cover every routine we have written, and a
     fifth is a smaller change than a cron parser plus the screen that would
     have to explain it.
     """
@@ -69,7 +69,7 @@ class Cadence(str, Enum):
     #: Every hour the business is open. For a sweep that should not wait a day.
     HOURLY = "hourly"
     DAILY = "daily"
-    #: Monday to Friday. The most common shape for a back-office Desk, and one
+    #: Monday to Friday. The most common shape for back-office work, and one
     #: nobody should have to express as a day list.
     WEEKDAYS = "weekdays"
     WEEKLY = "weekly"
@@ -101,7 +101,7 @@ class SkipReason(str, Enum):
     #: Never test-run, so never armed. See :func:`may_arm`.
     NEVER_TESTED = "never_tested"
     #: An app this routine cannot work without is failing. Running anyway
-    #: produces a run that reports nothing and looks like the Desk is broken.
+    #: produces a run that reports nothing and looks like the bot is broken.
     CONNECTOR_BROKEN = "connector_broken"
     #: The business is shut on this day, and the routine is anchored to its
     #: hours. A Sunday is not a missed run.
@@ -171,7 +171,7 @@ class Decision:
 def may_arm(spec: RoutineSpec) -> bool:
     """Whether this routine is allowed to be switched on.
 
-    A routine arms only after a test run. The first time a Desk does its job
+    A routine arms only after a test run. The first time a bot does its job
     unsupervised it writes into somebody's real accounting software, and a
     test run is the one chance to see what it would do before it does it --
     which is worth nothing if the toggle does not wait for it.
@@ -200,7 +200,7 @@ def targets_for_day(
         return []
 
     # A literal time is honoured whether the shop is open or not. Somebody who
-    # set 06:00 for a Desk that sweeps yesterday's orders meant 06:00, and
+    # set 06:00 for a routine that sweeps yesterday's orders meant 06:00, and
     # refusing it because the counter is shut would be us overruling them.
     if spec.anchor is Anchor.CLOCK and spec.cadence is not Cadence.HOURLY:
         return [_clamp(spec.at_minute)]
@@ -353,6 +353,67 @@ def _hhmm(minute: int) -> str:
     return f"{minute // 60:02d}:{minute % 60:02d}"
 
 
+#: How each cadence reads on a card.
+_CADENCE_WORDS: dict[Cadence, str] = {
+    Cadence.HOURLY: "Every hour",
+    Cadence.DAILY: "Every day",
+    Cadence.WEEKDAYS: "Every weekday",
+    Cadence.WEEKLY: "Every {weekday}",
+}
+
+_WEEKDAYS = (
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+)
+
+
+def describe(spec: RoutineSpec) -> str:
+    """The schedule in a sentence, for the card.
+
+    Written here rather than by a screen for the same reason the timeline's
+    summaries are: two screens formatting the same schedule would eventually
+    disagree, and the one a person quotes back to us would be the wrong one.
+
+    The anchor is the part worth saying out loud. "Every weekday when you
+    open" tells an operator that moving their hours moves the run, which is
+    the whole reason the anchor exists and is invisible in "every weekday at
+    09:30".
+    """
+    words = _CADENCE_WORDS[spec.cadence]
+    if spec.cadence is Cadence.WEEKLY:
+        words = words.format(weekday=_WEEKDAYS[spec.weekday % 7])
+
+    if spec.cadence is Cadence.HOURLY:
+        return f"{words} while you are open, at {spec.at_minute % 60:02d} past"
+
+    if spec.anchor is Anchor.CLOCK:
+        return f"{words} at {_hhmm(_clamp(spec.at_minute))}"
+
+    edge = "open" if spec.anchor is Anchor.OPENING else "close"
+    offset = spec.offset_minutes
+    if not offset:
+        return f"{words} when you {edge}"
+
+    # "Half an hour before you close" reads; "-30 minutes from closing" does
+    # not. Hours where it divides evenly, because 90 minutes is an hour and a
+    # half to everybody except a computer.
+    minutes = abs(offset)
+    if minutes % 60 == 0:
+        hours = minutes // 60
+        span = "an hour" if hours == 1 else f"{hours} hours"
+    elif minutes == 30:
+        span = "half an hour"
+    else:
+        span = f"{minutes} minutes"
+    when = "after" if offset > 0 else "before"
+    return f"{words} {span} {when} you {edge}"
+
+
 def spec_from_model(model: Any) -> RoutineSpec:
     """Read a schedule off an ``agent_routines`` row.
 
@@ -386,6 +447,7 @@ __all__ = [
     "RoutineSpec",
     "SkipReason",
     "decide",
+    "describe",
     "may_arm",
     "next_slot",
     "spec_from_model",

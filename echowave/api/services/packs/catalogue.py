@@ -100,12 +100,21 @@ def _packs(
     rule is testable: the same catalogue with and without a way to be heard
     must produce a listed and an unlisted shelf.
     """
+    #: Whether a prospect can hear a calling role before hiring it. A shelf
+    #: full of dead demo links is worse than an empty one, so with no way to be
+    #: heard the calling roles are unlisted.
+    #:
+    #: It gates the calling roles only. A role that answers no phone has
+    #: nothing to demonstrate, so gating it on a telephony purchase would take
+    #: the two cheapest things we sell off the shelf for a reason that has
+    #: nothing to do with them -- and a brand-new account with no number would
+    #: see a marketplace with nothing in it at all.
     listed = bool(demo_number or demo_url)
 
     return (
         AgentPack(
             slug="front_desk_clinic",
-            name="Front Desk",
+            name="Front Desk Bot",
             job="Answer the phone",
             summary="Answers every call, books the appointment, and hands anything clinical to a person.",
             publisher=DECIBYL,
@@ -140,7 +149,7 @@ def _packs(
         ),
         AgentPack(
             slug="order_confirmation",
-            name="Order Confirmation",
+            name="Order Confirmation Bot",
             job="Confirm orders before they ship",
             summary="Rings every COD order before dispatch and confirms the customer still wants it.",
             publisher=DECIBYL,
@@ -179,7 +188,7 @@ def _packs(
         ),
         AgentPack(
             slug="payment_reminder",
-            name="Payment Reminder",
+            name="Payment Reminder Bot",
             job="Chase what is owed",
             summary="Calls before the due date, takes the promise to pay, and never calls outside legal hours.",
             publisher=DECIBYL,
@@ -204,7 +213,7 @@ def _packs(
         ),
         AgentPack(
             slug="lead_qualifier",
-            name="Lead Qualifier",
+            name="Lead Qualifier Bot",
             job="Qualify new enquiries",
             summary="Calls a new lead within minutes, finds out what they actually want, and books the visit.",
             publisher=DECIBYL,
@@ -230,7 +239,7 @@ def _packs(
         ),
         AgentPack(
             slug="admissions_desk",
-            name="Admissions Desk",
+            name="Admissions Bot",
             job="Follow up on admissions",
             summary="Calls every enquiry back, answers fees and batches, and books the counselling slot.",
             publisher=DECIBYL,
@@ -263,7 +272,7 @@ def _packs(
         ),
         AgentPack(
             slug="reservations_desk",
-            name="Reservations Desk",
+            name="Reservations Bot",
             job="Answer the phone",
             summary="Takes the booking, holds the table, and stops the phone ringing through service.",
             publisher=DECIBYL,
@@ -288,6 +297,104 @@ def _packs(
             demo_number=demo_number,
             demo_url=demo_url,
             listed=listed,
+        ),
+        # ------------------------------------------------------------------
+        # The two that do not answer a phone.
+        #
+        # Every pack above declares a calling channel, which meant the format's
+        # entire non-calling branch -- priced on the platform plan, billed per
+        # execution, no seat, no demo number, no after-call apps -- was
+        # unreachable, and the cheapest tier we intend to sell had nothing on
+        # the shelf.
+        #
+        # Both declare NO INDUSTRIES, which now means every industry. These are
+        # the two jobs that repeat in every vertical, and listing twenty
+        # industries on each would be a list somebody has to edit every time we
+        # add a vertical.
+        AgentPack(
+            slug="internal_knowledge",
+            name="Internal Knowledge Bot",
+            job="Answer the team's questions",
+            summary=(
+                "Answers your staff from your own documents, and says when the "
+                "answer is not in them."
+            ),
+            publisher=DECIBYL,
+            # No calling channel, so: no seat, no demo number required, and
+            # nothing to do after a call because there is no call.
+            channels=[Channel.WHATSAPP, Channel.WEB],
+            template_id="internal_knowledge",
+            languages=["en", "hi", "ta", "te", "kn", "mr"],
+            required_facts=[
+                _BUSINESS_NAME,
+                RequiredFact(
+                    key="knowledge_scope",
+                    question="What should it be able to answer about?",
+                    example="Return policy, pricing, and shipping rules",
+                    used_for="Keeping it to what your documents actually cover.",
+                ),
+                RequiredFact(
+                    key="who_to_ask",
+                    question="Who should staff ask when it does not know?",
+                    example="Priya on the ops desk",
+                    used_for=(
+                        "The next step it gives them instead of guessing an answer."
+                    ),
+                ),
+            ],
+            # Nothing. It reads the knowledge base, which is ours -- so this is
+            # the cheapest role on the shelf to turn on, and the only one that
+            # works before a customer has connected anything at all.
+            required_connectors=[],
+            # Always listed. Nothing to hear, so nothing to wait for.
+            listed=True,
+        ),
+        AgentPack(
+            slug="compliance_reminder",
+            name="Compliance Reminder Bot",
+            job="Watch what falls due",
+            summary=(
+                "Runs every morning, checks what is coming due, and tells the "
+                "people responsible -- once, with the date and the amount."
+            ),
+            publisher=DECIBYL,
+            channels=[Channel.SCHEDULED, Channel.WHATSAPP, Channel.EMAIL],
+            template_id="compliance_reminder",
+            languages=["en", "hi"],
+            required_facts=[
+                _BUSINESS_NAME,
+                RequiredFact(
+                    key="obligations",
+                    question="What should it keep an eye on?",
+                    kind=FactKind.LIST,
+                    example="GSTR-1 by the 11th; TDS by the 7th; shop licence in March",
+                    used_for="What it checks on every run.",
+                ),
+                RequiredFact(
+                    key="who_to_tell",
+                    question="Who should it tell?",
+                    example="Priya, priya@example.com",
+                    used_for="Where the reminder goes.",
+                ),
+                RequiredFact(
+                    key="notice_days",
+                    question="How many days' warning do you want?",
+                    kind=FactKind.NUMBER,
+                    required=False,
+                    example="5",
+                    used_for="How early it starts reminding. Five if you skip this.",
+                ),
+            ],
+            required_connectors=[
+                RequiredConnector(
+                    app="gmail",
+                    label="Email",
+                    used_for="Sending the reminder to whoever is responsible.",
+                    required=False,
+                ),
+            ],
+            # Always listed. Nothing to hear, so nothing to wait for.
+            listed=True,
         ),
     )
 

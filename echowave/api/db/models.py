@@ -5228,7 +5228,7 @@ class AgentEventModel(Base):
 class AgentRoutineModel(Base):
     """A standing instruction: run this bot at this time, over and over.
 
-    What makes a Desk a Desk. Everything else in this file records something a
+    What lets a bot work on its own. Everything else in this file records something a
     person or a caller started; this is the row that starts things itself, and
     it is the only place in the product where nobody is waiting on the other
     end. That absence is the whole design problem -- a routine that fires at
@@ -5239,7 +5239,7 @@ class AgentRoutineModel(Base):
 
     **Not a cron string.** The person setting this runs a clinic, and the
     difference between ``0 9 * * 1-5`` and ``0 9 * * 1,5`` is a support ticket
-    waiting to happen. Four cadences and three anchors cover every Desk we
+    waiting to happen. Four cadences and three anchors cover every routine we
     have written; a fifth cadence is a smaller change than a cron parser plus
     the screen that would have to explain one.
 
@@ -5270,7 +5270,7 @@ class AgentRoutineModel(Base):
     name = Column(String(120), nullable=False)
     #: What the bot should do each time, in the operator's own words. Fed to
     #: the run as its instruction, so a routine is editable without touching
-    #: the bot's own prompt -- two Desks can share a bot and differ only here.
+    #: the bot's own prompt -- two routines can share a bot and differ only here.
     instruction = Column(Text, nullable=False, default="")
 
     #: ``routines.Cadence``. A literal string like every other status column
@@ -5289,11 +5289,11 @@ class AgentRoutineModel(Base):
 
     #: Connector slugs this routine cannot do its job without. A run whose
     #: shop is disconnected reports nothing, which to the operator looks
-    #: exactly like the Desk being broken -- so it is skipped, and said.
+    #: exactly like the bot being broken -- so it is skipped, and said.
     needs_apps = Column(JSON, nullable=False, default=list)
 
     #: **Off until a person switches it on, and they cannot until it has been
-    #: test-run.** The first time a Desk runs unsupervised it writes into
+    #: test-run.** The first time a bot runs unsupervised it writes into
     #: somebody's real accounting software; a test run is the one chance to
     #: see what it would do before it does it, which is worth nothing if the
     #: toggle does not wait for it.

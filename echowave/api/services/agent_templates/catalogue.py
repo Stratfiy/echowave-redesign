@@ -34,6 +34,7 @@ from api.services.agent_templates._base import (
     CallDirection,
     CallShape,
     RecommendedStack,
+    ScheduleShape,
     SuggestedVoice,
     TemplateEdge,
     TemplateNode,
@@ -91,6 +92,57 @@ _BASE_GUARDRAILS = [
     "immediately. Do not attempt to resolve their issue first.",
     "If the caller says they are busy, ask once for a better time, then end "
     "the call politely.",
+]
+
+
+#: The stack for an agent that never speaks: a language model and nothing else.
+#:
+#: ``RecommendedStack`` requires only the LLM, and the reason is written there:
+#: speech and telephony were mandatory for two good reasons that both turn out
+#: to be reasons about *voice*. This is the first template to take it up.
+#:
+#: Gemini Flash rather than the cheapest tier: a bot reading a day of orders
+#: or a knowledge base is doing comprehension over a lot of text, which is
+#: where the small models get things subtly wrong, and there is no caller
+#: waiting to hear the hesitation a bigger model costs.
+_QUIET = RecommendedStack(
+    llm_provider="google",
+    llm_model="gemini-2.5-flash",
+    rationale=(
+        "No speech and no telephony: nobody is on a line. The whole cost of a "
+        "run is a handful of tokens, so the sensible model is the one that "
+        "reads carefully rather than the one that answers fastest."
+    ),
+)
+
+#: Guardrails for an agent with nobody on the other end.
+#:
+#: A separate list rather than ``_BASE_GUARDRAILS``, because every rule in that
+#: one is about a caller: they interrupt long turns, they answer in Hindi, they
+#: need a number read back digit by digit, they can be asked for a better time.
+#: A bot that runs at eight in the morning against a spreadsheet has none of
+#: those, and handing it "if the caller says they are busy, end the call" is
+#: how a template teaches a model to imagine a conversation that is not
+#: happening.
+#:
+#: Two rules do carry over and are restated rather than imported, so this list
+#: reads as a whole: never invent, and hand to a person rather than guess.
+_QUIET_GUARDRAILS = [
+    "Never invent a number, a name, a date or an amount. If the data does not "
+    "say, report that it does not say. A summary with a plausible figure "
+    "nobody can trace is worse than one that admits a gap.",
+    "Report what you found, not what you expected to find. Nothing to report "
+    "is a complete answer and must be said plainly rather than padded.",
+    "Quote a figure with where it came from -- which order, which invoice, "
+    "which row -- so somebody can check it without asking you.",
+    "Never take an action that spends money, cancels something, or messages a "
+    "customer unless the instruction says to. Reading is the default; writing "
+    "is asked for.",
+    "When something is missing or a connected app fails, say which one and "
+    "what is therefore unknown. A partial answer presented as a whole one is "
+    "the failure this kind of agent has.",
+    "Write for somebody reading on a phone between two other things. Lead "
+    "with what needs doing; put the detail under it.",
 ]
 
 
@@ -960,6 +1012,240 @@ def _all() -> tuple[AgentTemplate, ...]:
                 "booking agent for a salon",
             ],
         ),
+        # ------------------------------------------------------------------
+        # The two that never speak. Every template above this line is on a
+        # phone, which meant the non-voice half of the product had nothing to
+        # sell: `CallDirection.scheduled`, `ScheduleShape` and an LLM-only
+        # stack all existed and nothing used them.
+        #
+        # They are deliberately the two jobs that fit *every* vertical, so
+        # they carry no `vertical` a business has to see itself in.
+        AgentTemplate(
+            id="internal_knowledge",
+            name="Internal knowledge",
+            vertical="Any business with staff who ask the same questions",
+            direction=CallDirection.message,
+            summary=(
+                "Answers a staff member's question from the documents the "
+                "business has already written, and says so when the answer "
+                "is not in them."
+            ),
+            languages=["English", "Hindi", "Tamil", "Telugu", "Kannada", "Marathi"],
+            stack=_QUIET,
+            template_variables={
+                "business_name": "The business, as staff refer to it",
+                "what_it_covers": (
+                    "What these documents are about, in one line: "
+                    "e.g. return policy, pricing and shipping rules"
+                ),
+                "who_to_ask": (
+                    "Who a staff member should go to when the answer is not "
+                    "in the documents"
+                ),
+            },
+            nodes=[
+                TemplateNode(
+                    type="startCall",
+                    name="Take the question",
+                    prompt=(
+                        "You answer questions from {{business_name}}'s own "
+                        "documents, for its staff.\n\n"
+                        "You cover {{what_it_covers}}. Answer from the "
+                        "documents and nothing else.\n\n"
+                        "When the documents do not answer the question, say "
+                        "so in one sentence and say to ask {{who_to_ask}}. Do "
+                        "not reason your way to a likely answer: somebody is "
+                        "about to repeat what you say to a customer, and a "
+                        "confident guess reaches them as policy.\n\n"
+                        "Quote the part you used, so they can check it. If two "
+                        "documents disagree, say that they disagree and show "
+                        "both rather than choosing."
+                    ),
+                    extract={
+                        "question": "What they asked, in their words",
+                        "answered": "yes if the documents answered it, no if not",
+                    },
+                ),
+                TemplateNode(
+                    type="endCall",
+                    name="Close",
+                    prompt=(
+                        "Close out in one line.\n\n"
+                        "If the documents answered it, stop there -- do not "
+                        "add a summary of what you just said.\n\n"
+                        "If they did not, the last thing on the screen must "
+                        "be the next step: say again that it is not covered "
+                        "and that {{who_to_ask}} is who to ask. Somebody who "
+                        "scrolls to the bottom and finds no answer and no "
+                        "instruction goes and guesses instead."
+                    ),
+                ),
+            ],
+            edges=[
+                TemplateEdge(
+                    source="Take the question",
+                    target="Close",
+                    label="answered",
+                    condition="The question has been answered, or reported as not covered",
+                ),
+            ],
+            guardrails=_QUIET_GUARDRAILS
+            + [
+                "Never answer from general knowledge. If it is not in the "
+                "documents, it is not an answer -- staff will repeat this to a "
+                "customer as though the business said it.",
+                "Never guess at a price, a policy deadline or a warranty term. "
+                "These are the three that cost money when wrong.",
+            ],
+            compliance_notes=[
+                "This reads whatever is in the knowledge base. Check what has "
+                "been uploaded before turning it on: a stale price list "
+                "answers confidently with last year's prices.",
+                "It is for staff, not customers. If it is put in front of "
+                "customers, the documents need reviewing for anything "
+                "internal -- margins, supplier names, escalation rules.",
+            ],
+            example_requests=[
+                "a bot that answers my team's questions from our policy documents",
+                "internal helpdesk for my staff",
+                "something my shop floor can ask about the return policy",
+            ],
+        ),
+        # ------------------------------------------------------------------
+        AgentTemplate(
+            id="compliance_reminder",
+            name="Compliance reminder",
+            vertical="Any business with dated obligations -- filings, renewals, licences",
+            direction=CallDirection.scheduled,
+            summary=(
+                "Runs on a routine, checks what is coming due, and tells the "
+                "people responsible -- once, with the date and the amount."
+            ),
+            languages=["English", "Hindi"],
+            stack=_QUIET,
+            schedule_shape=ScheduleShape(
+                runs="every weekday morning, when the business opens",
+                typical_items_per_run=3,
+                typical_runs_per_month=22,
+            ),
+            template_variables={
+                "business_name": "The business, as staff refer to it",
+                "obligations": (
+                    "What to watch, one per line: e.g. GSTR-1 by the 11th, "
+                    "TDS by the 7th, shop licence renewal in March"
+                ),
+                "who_to_tell": (
+                    "Who should be told, and how -- name and email or WhatsApp number"
+                ),
+                "notice_days": ("How many days ahead to start reminding, e.g. 5"),
+            },
+            nodes=[
+                TemplateNode(
+                    type="startCall",
+                    name="Check what is due",
+                    prompt=(
+                        "You watch {{business_name}}'s dated obligations and "
+                        "warn the people responsible before a deadline "
+                        "passes.\n\n"
+                        "What you watch:\n{{obligations}}\n\n"
+                        "Work out what falls due within {{notice_days}} days "
+                        "of today. For each one, give the name, the date, and "
+                        "the amount if there is one.\n\n"
+                        "Nothing due is the most common outcome and is a "
+                        "complete answer. Say 'nothing due in the next "
+                        "{{notice_days}} days' and stop. Do not pad it, and "
+                        "never invent something to report -- a reminder bot "
+                        "that cries wolf is switched off within a week, and "
+                        "then the real deadline is missed too.\n\n"
+                        "Never state a penalty or an interest rate from "
+                        "memory. If it is not in what you were given, say the "
+                        "amount is not recorded."
+                    ),
+                    extract={
+                        "due_count": "How many obligations fall due in the window",
+                        "earliest_due": "The nearest date, as an ISO date",
+                    },
+                ),
+                TemplateNode(
+                    type="agentNode",
+                    name="Tell the people responsible",
+                    prompt=(
+                        "Tell {{who_to_tell}} what is due.\n\n"
+                        "Lead with the nearest deadline. One line each: what, "
+                        "when, how much. Put anything they have to gather "
+                        "underneath.\n\n"
+                        "Somebody is reading this on a phone before their "
+                        "first chai. If it does not fit on a screen, it does "
+                        "not get read."
+                    ),
+                    extract={
+                        "told": "Who was notified and by what means",
+                    },
+                ),
+                TemplateNode(
+                    type="endCall",
+                    name="Close",
+                    prompt=(
+                        "Record the run in one line: what fell due, and who "
+                        "was told.\n\n"
+                        "Write it as a sentence somebody can read a month "
+                        "later -- 'nothing due' and 'GSTR-1 on the 11th, "
+                        "emailed to Priya' both qualify; 'completed' does "
+                        "not. This line is the whole of the run history, and "
+                        "a history of the word 'completed' cannot answer the "
+                        "only question anybody asks of it, which is whether "
+                        "the reminder that should have gone out went out."
+                    ),
+                ),
+            ],
+            edges=[
+                TemplateEdge(
+                    source="Check what is due",
+                    target="Tell the people responsible",
+                    label="something due",
+                    condition="At least one obligation falls due inside the notice window",
+                ),
+                TemplateEdge(
+                    source="Check what is due",
+                    target="Close",
+                    label="nothing due",
+                    condition="Nothing falls due inside the notice window",
+                ),
+                TemplateEdge(
+                    source="Tell the people responsible",
+                    target="Close",
+                    label="told",
+                    condition="The people responsible have been notified",
+                ),
+            ],
+            guardrails=_QUIET_GUARDRAILS
+            + [
+                "Never say an obligation is filed, paid or done. You know what "
+                "is due, not what has been settled -- claiming otherwise is "
+                "how a deadline gets missed by somebody who trusted you.",
+                "Never quote a penalty, an interest rate or a late fee unless "
+                "it was given to you. A wrong penalty figure is the one error "
+                "here that gets repeated to an accountant.",
+                "Remind once per obligation per day. Two reminders for one "
+                "deadline teach people to ignore all of them.",
+            ],
+            compliance_notes=[
+                "This is a reminder, not advice. It must never read as a "
+                "filing having been made, and the copy should say a person "
+                "confirms every filing.",
+                "Tax and statutory dates change, and a hardcoded date list "
+                "goes stale silently. Whoever sets the obligations owns "
+                "keeping them right -- surface when they were last edited.",
+                "It messages staff, not customers, so it is outside calling "
+                "hours and DND. If it is ever pointed at customers, both "
+                "apply again.",
+            ],
+            example_requests=[
+                "remind me before my GST filing is due",
+                "something to watch our licence renewals",
+                "a bot that tells my accountant what is coming up this week",
+            ],
+        ),
     )
 
 
@@ -1073,6 +1359,16 @@ _DEFAULT_VOICES: list[SuggestedVoice] = [
 
 
 def with_suggested_voices(template: AgentTemplate) -> AgentTemplate:
+    """Fill in a voice gallery, for the templates that have a voice.
+
+    A template that never speaks gets none. The fallback to
+    ``_DEFAULT_VOICES`` was written when every template was a voice template,
+    so the first non-speaking one inherited six voices and would have rendered
+    a gallery with play buttons for a bot that makes no sound -- a choice
+    offered, stored, and then silently ignored on every run.
+    """
+    if not template.speaks:
+        return template
     if template.suggested_voices:
         return template
     return template.model_copy(

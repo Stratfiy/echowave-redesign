@@ -13,9 +13,19 @@ import pytest
 from api.routes.packs import pack_detail, shelf
 from api.services.agent_builder.tools import _suggest_roles, tool_schemas
 from api.services.packs import catalogue, hire_steps
+from api.services.packs._base import Channel
 from api.services.packs.search import filter_packs, search_packs
 
 SHELF = catalogue._packs("+911234567890")
+
+#: The channels that put a role on a phone, so the demo assertions below can
+#: say "every calling role" and mean it. The shelf now holds roles that answer
+#: nothing, and a demo number on one of those would be a link to nowhere.
+CALLING = {Channel.INBOUND_CALL, Channel.OUTBOUND_CALL}
+
+
+def _calling(packs) -> list:
+    return [pack for pack in packs if set(pack.channels) & CALLING]
 
 
 def _user():
@@ -35,7 +45,9 @@ class TestSearchNeverLosesARole:
 
     def test_the_roles_own_name_outranks_prose_that_merely_mentions_it(self):
         found = search_packs("front desk", packs=SHELF)
-        assert found[0].name == "Front Desk"
+        # Pinned to the slug, not the display name: a rename is a product
+        # decision and must not be able to break a ranking test.
+        assert found[0].slug == "front_desk_clinic"
 
     def test_an_ecommerce_sentence_reaches_order_confirmation(self):
         found = search_packs("we ship cod orders and half of them bounce", packs=SHELF)
@@ -69,7 +81,27 @@ class TestFilters:
         assert calling | text_only == {pack.slug for pack in SHELF}
 
     def test_a_filter_that_matches_nothing_returns_nothing_rather_than_everything(self):
-        assert filter_packs(industry="Shipbuilding", packs=SHELF) == ()
+        """A filter must narrow, and an unmatched one must not fall open.
+
+        Asserted on `job` rather than on `industry`. An industry nobody serves
+        no longer empties the shelf, and correctly so: a role declaring no
+        industries serves every industry, so an internal knowledge bot really
+        is available to a shipbuilder. The property this test exists for --
+        that a filter narrows rather than falling open -- is unchanged, and
+        `job` is where it can still be shown.
+        """
+        assert filter_packs(job="Fly the aeroplane", packs=SHELF) == ()
+
+    def test_an_unserved_industry_returns_only_the_roles_that_fit_anywhere(self):
+        """The other half of that change, made explicit.
+
+        Not "returns everything": the vertical roles are still excluded, which
+        is what proves the industry filter is doing its job.
+        """
+        found = filter_packs(industry="Shipbuilding", packs=SHELF)
+        assert found, "a horizontal role should reach any industry"
+        assert all(not pack.industries for pack in found)
+        assert "front_desk_clinic" not in {pack.slug for pack in found}
 
 
 class TestTheShelfEndpoint:
@@ -89,7 +121,7 @@ class TestTheShelfEndpoint:
         assert [pack.slug for pack in response.packs] == ["front_desk_clinic"]
 
     @pytest.mark.asyncio
-    async def test_a_card_carries_the_computed_price_not_a_typed_one(self, monkeypatch):
+    async def test_a_card_carries_how_it_charges_not_a_typed_price(self, monkeypatch):
         monkeypatch.setattr(
             "api.routes.packs.resolve_listed_packs", AsyncMock(return_value=SHELF)
         )
@@ -103,8 +135,13 @@ class TestTheShelfEndpoint:
         )
         assert response.packs
         for pack in response.packs:
-            assert pack.pricing.is_hire is True
-            assert pack.pricing.included_minutes > 0
+            # No monthly figure on the card any more: the plan is a fixed
+            # platform charge and running the role draws on credit. What the
+            # card must carry is whether the plan needs voice and what unit
+            # the work is metered in.
+            assert pack.charging.needs_voice is True
+            assert pack.charging.unit == "minute"
+            assert pack.charging.hire_price_paise == 0
             assert pack.badges
 
     @pytest.mark.asyncio
@@ -152,8 +189,13 @@ class TestTheChatOffersHiringFirst:
         assert result["roles"]
         first = result["roles"][0]
         assert first["does"]
-        assert first["monthly_price_rupees"] == 6999
-        assert first["priced_as"] == "a hire, per agent"
+        # No monthly figure. Hiring is included in the plan, so what the
+        # model is given is what RUNNING it draws on -- and it used to be
+        # handed "6999", a number nothing in billing ever charged.
+        assert "Included in your plan" in first["costs"]
+        assert "by the minute" in first["costs"]
+        assert first["needs_voice_on_their_plan"] is True
+        assert "monthly_price_rupees" not in first
         assert first["needs_connected"]
 
     @pytest.mark.asyncio
@@ -202,9 +244,12 @@ class TestHowAProspectHearsIt:
             AsyncMock(return_value=self._contact(url="https://app/talk/abc")),
         ):
             shelf_packs = await catalogue.resolve_listed_packs()
-        assert shelf_packs
-        assert all(pack.demo_url == "https://app/talk/abc" for pack in shelf_packs)
-        assert all(pack.demo_number is None for pack in shelf_packs)
+        # Calling roles only, as the name says. A role that answers no phone
+        # is listed without a demo because it has nothing to demonstrate.
+        calling = [p for p in shelf_packs if set(p.channels) & CALLING]
+        assert calling
+        assert all(pack.demo_url == "https://app/talk/abc" for pack in calling)
+        assert all(pack.demo_number is None for pack in calling)
 
     @pytest.mark.asyncio
     async def test_a_number_alone_also_lists_them(self):
@@ -213,8 +258,9 @@ class TestHowAProspectHearsIt:
             AsyncMock(return_value=self._contact(number="+911234567890")),
         ):
             shelf_packs = await catalogue.resolve_listed_packs()
-        assert shelf_packs
-        assert all(pack.demo_number == "+911234567890" for pack in shelf_packs)
+        calling = [p for p in shelf_packs if set(p.channels) & CALLING]
+        assert calling
+        assert all(pack.demo_number == "+911234567890" for pack in calling)
 
     @pytest.mark.asyncio
     async def test_both_are_offered_when_both_exist(self):
@@ -244,14 +290,21 @@ class TestHowAProspectHearsIt:
         assert "Ring" not in step["detail"]
 
     @pytest.mark.asyncio
-    async def test_no_demo_agent_leaves_the_shelf_empty(self):
-        """An empty shelf is a missing configuration somebody notices; a shelf
-        full of dead demo links is one nobody reports."""
+    async def test_no_demo_agent_unlists_every_calling_role(self):
+        """A shelf full of dead demo links is one nobody reports.
+
+        No longer "leaves the shelf empty". The roles that answer no phone
+        have nothing to demonstrate and stay listed, so an account with no
+        telephony still sees a marketplace with something in it -- which is
+        better than the empty one this test used to require.
+        """
         with patch(
             "api.services.packs.catalogue.db_client.demo_contact",
             AsyncMock(return_value=self._contact()),
         ):
-            assert await catalogue.resolve_listed_packs() == ()
+            shelf_packs = await catalogue.resolve_listed_packs()
+        assert _calling(shelf_packs) == []
+        assert shelf_packs, "the non-calling roles should still be on the shelf"
 
     @pytest.mark.asyncio
     async def test_a_database_that_will_not_answer_falls_back_rather_than_failing(
@@ -264,7 +317,8 @@ class TestHowAProspectHearsIt:
             "api.services.packs.catalogue.db_client.demo_contact",
             AsyncMock(side_effect=RuntimeError("database on fire")),
         ):
-            assert await catalogue.resolve_listed_packs() == ()
+            shelf_packs = await catalogue.resolve_listed_packs()
+        assert _calling(shelf_packs) == []
 
     @pytest.mark.asyncio
     async def test_it_is_not_cached_so_marking_one_takes_effect_immediately(self):
@@ -275,7 +329,7 @@ class TestHowAProspectHearsIt:
             "api.services.packs.catalogue.db_client.demo_contact",
             AsyncMock(return_value=self._contact()),
         ):
-            assert await catalogue.resolve_listed_packs() == ()
+            assert _calling(await catalogue.resolve_listed_packs()) == []
         with patch(
             "api.services.packs.catalogue.db_client.demo_contact",
             AsyncMock(return_value=self._contact(url="https://app/talk/xyz")),

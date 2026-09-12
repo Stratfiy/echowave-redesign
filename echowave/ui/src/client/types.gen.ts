@@ -424,6 +424,13 @@ export type AmbientNoiseUploadResponse = {
 };
 
 /**
+ * Anchor
+ *
+ * What the time is measured from.
+ */
+export type Anchor = 'opening' | 'closing' | 'clock';
+
+/**
  * AnswerSeizureRatioResponse
  */
 export type AnswerSeizureRatioResponse = {
@@ -1327,6 +1334,19 @@ export type BusyCalendarsRequest = {
      */
     calendar_ids?: Array<string>;
 };
+
+/**
+ * Cadence
+ *
+ * How often a routine comes round.
+ *
+ * Deliberately not cron. The person setting this runs a clinic, and the
+ * difference between ``0 9 * * 1-5`` and ``0 9 * * 1,5`` is a support ticket
+ * waiting to happen. Four cadences cover every routine we have written, and a
+ * fifth is a smaller change than a cron parser plus the screen that would
+ * have to explain it.
+ */
+export type Cadence = 'hourly' | 'daily' | 'weekdays' | 'weekly';
 
 /**
  * CalculatorToolDefinition
@@ -7416,7 +7436,7 @@ export type PackCard = {
      * Demo Url
      */
     demo_url: string | null;
-    pricing: PackPricing;
+    charging: PackCharging;
     /**
      * Flow
      */
@@ -7425,6 +7445,42 @@ export type PackCard = {
      * Listed
      */
     listed: boolean;
+};
+
+/**
+ * PackCharging
+ *
+ * How running this role draws on the account's credit, not what it costs.
+ *
+ * There is no per-pack price. The plan is a fixed platform charge whose
+ * remainder is granted as wallet credit, and every unit of work -- language
+ * model, transcription, synthesis, embedding, telephony -- draws from that.
+ * Hiring is free, because unlimited bots is what the platform charge buys.
+ *
+ * Deliberately carries no rupee figure. What a minute costs depends on the
+ * voice and brain the account chose, so the number comes from
+ * ``agent_options`` against their own configuration and is rendered with a
+ * "roughly" in front of it. A figure baked into a card is one that goes
+ * stale the moment somebody changes their voice -- and the fields this
+ * replaced quoted a monthly price that billing never charged.
+ */
+export type PackCharging = {
+    /**
+     * Needs Voice
+     */
+    needs_voice: boolean;
+    /**
+     * Unit
+     */
+    unit: string;
+    /**
+     * Hire Price Paise
+     */
+    hire_price_paise: number;
+    /**
+     * Creator Price Paise
+     */
+    creator_price_paise: number;
 };
 
 /**
@@ -7448,44 +7504,6 @@ export type PackDetail = {
      * Compliance Notes
      */
     compliance_notes: Array<string>;
-};
-
-/**
- * PackPricing
- */
-export type PackPricing = {
-    /**
-     * Is Hire
-     */
-    is_hire: boolean;
-    /**
-     * Seat Price Paise
-     */
-    seat_price_paise: number;
-    /**
-     * Platform Price Paise
-     */
-    platform_price_paise: number;
-    /**
-     * Creator Price Paise
-     */
-    creator_price_paise: number;
-    /**
-     * Monthly Price Paise
-     */
-    monthly_price_paise: number;
-    /**
-     * Included Minutes
-     */
-    included_minutes: number;
-    /**
-     * Included Executions
-     */
-    included_executions: number;
-    /**
-     * Overage Unit
-     */
-    overage_unit: string;
 };
 
 /**
@@ -8871,6 +8889,161 @@ export type RimeTtsConfiguration = {
      * ISO 639-1 language code.
      */
     language?: string;
+};
+
+/**
+ * RoutineListResponse
+ */
+export type RoutineListResponse = {
+    /**
+     * Routines
+     */
+    routines?: Array<RoutineResponse>;
+};
+
+/**
+ * RoutineResponse
+ *
+ * One routine, as a screen needs it.
+ *
+ * Carries the derived answers as well as the stored fields, because every
+ * question an operator asks of this screen -- when does it run next, why did
+ * it not run, may I switch it on -- is a computation over the schedule and
+ * the business's hours, and a screen that recomputed them would eventually
+ * disagree with the tick.
+ */
+export type RoutineResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Instruction
+     */
+    instruction: string;
+    /**
+     * Cadence
+     */
+    cadence: string;
+    /**
+     * Anchor
+     */
+    anchor: string;
+    /**
+     * At Minute
+     */
+    at_minute: number;
+    /**
+     * Offset Minutes
+     */
+    offset_minutes: number;
+    /**
+     * Weekday
+     */
+    weekday: number;
+    /**
+     * Needs Apps
+     */
+    needs_apps: Array<string>;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Tested At
+     */
+    tested_at?: string | null;
+    /**
+     * May Arm
+     */
+    may_arm?: boolean;
+    /**
+     * Last Fired At
+     */
+    last_fired_at?: string | null;
+    /**
+     * Last Skipped Reason
+     */
+    last_skipped_reason?: string | null;
+    /**
+     * Last Skipped At
+     */
+    last_skipped_at?: string | null;
+    /**
+     * Next Run At
+     */
+    next_run_at?: string | null;
+    /**
+     * Schedule Summary
+     */
+    schedule_summary?: string;
+};
+
+/**
+ * RoutineTestResponse
+ *
+ * The answer to pressing Test run.
+ */
+export type RoutineTestResponse = {
+    /**
+     * Started
+     */
+    started: boolean;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
+    /**
+     * Detail
+     */
+    detail?: string;
+};
+
+/**
+ * RoutineWrite
+ *
+ * Creating or changing a routine.
+ *
+ * ``is_active`` is absent on purpose. Arming is its own endpoint, because it
+ * is the one field with a precondition -- a routine cannot be switched on
+ * until it has been test-run -- and folding it into a general save would
+ * make that precondition a surprise in the middle of an edit.
+ */
+export type RoutineWrite = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Instruction
+     */
+    instruction?: string;
+    cadence?: Cadence;
+    anchor?: Anchor;
+    /**
+     * At Minute
+     */
+    at_minute?: number;
+    /**
+     * Offset Minutes
+     */
+    offset_minutes?: number;
+    /**
+     * Weekday
+     */
+    weekday?: number;
+    /**
+     * Needs Apps
+     */
+    needs_apps?: Array<string>;
 };
 
 /**
@@ -23151,6 +23324,291 @@ export type ListConnectedAccountsApiV1ConnectorsAccountsGetResponses = {
 };
 
 export type ListConnectedAccountsApiV1ConnectorsAccountsGetResponse = ListConnectedAccountsApiV1ConnectorsAccountsGetResponses[keyof ListConnectedAccountsApiV1ConnectorsAccountsGetResponses];
+
+export type ListRoutinesApiV1WorkflowsWorkflowIdRoutinesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/routines';
+};
+
+export type ListRoutinesApiV1WorkflowsWorkflowIdRoutinesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListRoutinesApiV1WorkflowsWorkflowIdRoutinesGetError = ListRoutinesApiV1WorkflowsWorkflowIdRoutinesGetErrors[keyof ListRoutinesApiV1WorkflowsWorkflowIdRoutinesGetErrors];
+
+export type ListRoutinesApiV1WorkflowsWorkflowIdRoutinesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: RoutineListResponse;
+};
+
+export type ListRoutinesApiV1WorkflowsWorkflowIdRoutinesGetResponse = ListRoutinesApiV1WorkflowsWorkflowIdRoutinesGetResponses[keyof ListRoutinesApiV1WorkflowsWorkflowIdRoutinesGetResponses];
+
+export type CreateRoutineApiV1WorkflowsWorkflowIdRoutinesPostData = {
+    body: RoutineWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/routines';
+};
+
+export type CreateRoutineApiV1WorkflowsWorkflowIdRoutinesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateRoutineApiV1WorkflowsWorkflowIdRoutinesPostError = CreateRoutineApiV1WorkflowsWorkflowIdRoutinesPostErrors[keyof CreateRoutineApiV1WorkflowsWorkflowIdRoutinesPostErrors];
+
+export type CreateRoutineApiV1WorkflowsWorkflowIdRoutinesPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: RoutineResponse;
+};
+
+export type CreateRoutineApiV1WorkflowsWorkflowIdRoutinesPostResponse = CreateRoutineApiV1WorkflowsWorkflowIdRoutinesPostResponses[keyof CreateRoutineApiV1WorkflowsWorkflowIdRoutinesPostResponses];
+
+export type DeleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Routine Id
+         */
+        routine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/routines/{routine_id}';
+};
+
+export type DeleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDeleteError = DeleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDeleteErrors[keyof DeleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDeleteErrors];
+
+export type DeleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDeleteResponse = DeleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDeleteResponses[keyof DeleteRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdDeleteResponses];
+
+export type UpdateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPutData = {
+    body: RoutineWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Routine Id
+         */
+        routine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/routines/{routine_id}';
+};
+
+export type UpdateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPutError = UpdateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPutErrors[keyof UpdateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPutErrors];
+
+export type UpdateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: RoutineResponse;
+};
+
+export type UpdateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPutResponse = UpdateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPutResponses[keyof UpdateRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdPutResponses];
+
+export type SetActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Routine Id
+         */
+        routine_id: number;
+    };
+    query: {
+        /**
+         * Active
+         */
+        active: boolean;
+    };
+    url: '/api/v1/workflows/{workflow_id}/routines/{routine_id}/active';
+};
+
+export type SetActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePostError = SetActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePostErrors[keyof SetActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePostErrors];
+
+export type SetActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: RoutineResponse;
+};
+
+export type SetActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePostResponse = SetActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePostResponses[keyof SetActiveApiV1WorkflowsWorkflowIdRoutinesRoutineIdActivePostResponses];
+
+export type TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Routine Id
+         */
+        routine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflows/{workflow_id}/routines/{routine_id}/test';
+};
+
+export type TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostError = TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostErrors[keyof TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostErrors];
+
+export type TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: RoutineTestResponse;
+};
+
+export type TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostResponse = TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostResponses[keyof TestRoutineApiV1WorkflowsWorkflowIdRoutinesRoutineIdTestPostResponses];
 
 export type OrganisationApiV1OrganisationGetData = {
     body?: never;

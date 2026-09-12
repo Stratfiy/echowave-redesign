@@ -134,7 +134,7 @@ class AppInteractionClient(BaseDBClient):
     ) -> set[str]:
         """Apps whose **most recent** action failed, for this organisation.
 
-        The signal a Desk needs before it runs. A thirty-day error count
+        The signal a routine needs before it runs. A thirty-day error count
         cannot answer it: one failure in five hundred calls is a blip, and
         five hundred failures a month ago is a connector that has since been
         reconnected. What matters is whether the last thing we tried worked.
@@ -142,7 +142,7 @@ class AppInteractionClient(BaseDBClient):
         Bounded by ``within_hours`` so a connector nobody has used since
         Tuesday is not called broken on the strength of one old failure --
         silence is not evidence either way, and treating it as evidence would
-        stop a Desk on an app that is probably fine.
+        stop a routine on an app that is probably fine.
         """
         since = datetime.now(UTC) - timedelta(hours=within_hours)
         ranked = (

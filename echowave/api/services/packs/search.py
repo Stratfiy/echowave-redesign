@@ -77,15 +77,31 @@ def filter_packs(
     language match membership rather than equality, because a role serves
     several of each and a card claiming five languages must be findable by all
     five.
+
+    **A role that names no industry serves all of them.** Some jobs genuinely
+    repeat across every vertical -- a support bot that answers from the
+    knowledge base, a compliance bot that reminds staff about a schedule --
+    and the honest declaration for one of those is an empty list, not a
+    twenty-entry list that has to be edited every time we add a vertical.
+
+    Read the other way round, an empty list would mean "matches nothing", and
+    a horizontal role would disappear from every industry shelf in the
+    marketplace with nothing anywhere saying so: correct code, invisible gap,
+    and the operator concludes we have no support bot. That is the failure
+    this codebase keeps having, so the direction that fails loudly wins -- the
+    worst case here is a role offered to a business it does not suit, which
+    somebody can see and tell us about.
     """
     shelf = tuple(listed_packs() if packs is None else packs)
     out = []
     for pack in shelf:
         if job and pack.job.lower() != job.lower():
             continue
-        if industry and industry.lower() not in {
-            value.lower() for value in pack.industries
-        }:
+        if (
+            industry
+            and pack.industries
+            and industry.lower() not in {value.lower() for value in pack.industries}
+        ):
             continue
         if language and language.lower() not in {
             value.lower() for value in pack.languages

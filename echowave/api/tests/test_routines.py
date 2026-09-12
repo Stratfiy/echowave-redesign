@@ -1,6 +1,6 @@
-"""When a Desk runs, and every named way it does not.
+"""When a routine runs, and every named way it does not.
 
-A Desk is an agent nobody rings. There is no caller to notice a run that did
+A bot on a routine is one nobody rings. There is no caller to notice a run that did
 not happen and no transcript to explain it, so the schedule is the product and
 a silent skip is the failure mode. Every test here is about a moment.
 """
@@ -60,7 +60,7 @@ class TestArming:
 
     def test_an_active_but_untested_routine_never_fires(self):
         # Belt and braces: the route should refuse the toggle, and the runtime
-        # refuses again. The first time a Desk runs unsupervised it writes
+        # refuses again. The first time a bot runs unsupervised it writes
         # into somebody's real accounting software.
         spec = RoutineSpec(cadence=Cadence.DAILY, is_active=True, tested_at=None)
         decision = decide(
@@ -113,7 +113,7 @@ class TestAnchoredToTheBusiness:
         ) == [0]
 
     def test_a_clock_anchor_is_honoured_when_the_business_is_shut(self):
-        # Somebody who typed 06:00 for a Desk that sweeps yesterday's orders
+        # Somebody who typed 06:00 for a routine that sweeps yesterday's orders
         # meant 06:00. Refusing it would be us overruling them.
         spec = armed(anchor=Anchor.CLOCK, at_minute=6 * 60)
         assert targets_for_day(
@@ -238,7 +238,7 @@ class TestLateness:
 
     def test_a_missed_run_is_worth_telling_somebody_about(self):
         # The one skip that means something went wrong. If this were not in
-        # ATTENTION_SKIPS a Desk could stop for a day in silence, which is the
+        # ATTENTION_SKIPS a bot could stop for a day in silence, which is the
         # exact failure this whole module is built against.
         assert SkipReason.MISSED in ATTENTION_SKIPS
         decision = decide(
@@ -288,7 +288,7 @@ class TestNotRunning:
 
     def test_a_broken_connector_stops_the_run_and_names_the_app(self):
         # Running anyway produces a run that reports nothing, which looks to
-        # the operator exactly like the Desk being broken.
+        # the operator exactly like the bot being broken.
         spec = armed(needs_apps=("shopify", "gmail"))
         decision = decide(
             spec,
