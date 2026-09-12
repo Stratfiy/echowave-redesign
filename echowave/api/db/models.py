@@ -3873,6 +3873,22 @@ class GoogleCalendarConnectionModel(Base):
         String(255), nullable=False, default="primary", server_default="primary"
     )
 
+    # Extra calendars that count as busy when checking whether a slot is free.
+    # Bookings are still written to `calendar_id` alone -- these are read, never
+    # written.
+    #
+    # Empty by default, and the default is load-bearing. "Read every calendar
+    # on the account" is right for a solo dentist whose own appointments sit on
+    # a personal calendar, and wrong for a two-doctor clinic: merging both
+    # doctors would report the clinic as full when only one of them is booked,
+    # which is the same bug as refusing a free slot. Nothing in a calendar list
+    # says which case an account is, so it is the operator's explicit choice and
+    # an account that makes no choice behaves exactly as it does today.
+    #
+    # A multi-practitioner business wants one tool per practitioner instead --
+    # see ComposioToolConfig.connected_account_id.
+    busy_calendar_ids = Column(JSON, nullable=False, default=list)
+
     is_active = Column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )
@@ -5083,4 +5099,232 @@ class OrganisationFactModel(Base):
             "subject_type",
             "subject_key",
         ),
+    )
+
+
+class AgentEventModel(Base):
+    """One thing that happened, on the timeline every screen reads from.
+
+    Append-only. The reason this exists: runs, tool actions and outcomes lived
+    in three tables at three different grains, so ``agent_activity`` is three
+    separate queries and "what did this agent do" could not be answered
+    without writing SQL by hand. A clinic owner asked why their agent refused
+    a free noon slot and the answer took an SSH session.
+
+    One table, four filters, no joins:
+
+    * ``workflow_run_id`` -- one call's story
+    * ``workflow_id`` -- one bot's history
+    * ``folder_id`` -- one team's, without fanning out over its bots and
+      re-merging, which is the three-grain problem again
+    * ``organization_id`` -- the home screen and the deliverables list
+
+    It does not replace ``app_interactions`` or ``workflow_runs``. Those keep
+    their jobs -- one is the support record of what a tool returned, the other
+    is the billing and state record of a call. This is the *narrative*, written
+    alongside them, and a row here carries the sentence a person reads rather
+    than the fields a screen would have to assemble.
+    """
+
+    __tablename__ = "agent_events"
+
+    id = Column(BigInteger, primary_key=True)
+
+    # Every row is tenant-scoped, and this one is not nullable: an event with
+    # no organisation cannot be read back by anyone who should see it and
+    # could be read by someone who should not.
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # All three nullable, deliberately. A routine tick belongs to a bot and no
+    # call; a credit top-up belongs to an organisation and neither; a bot may
+    # be in no team at all. A schema that demanded them would push writers
+    # into inventing values, which is how a log stops being trustworthy.
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=True
+    )
+    definition_id = Column(
+        Integer,
+        ForeignKey("workflow_definitions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="CASCADE"), nullable=True
+    )
+    #: The team, denormalised from the workflow at write time rather than
+    #: joined at read time. A bot moved between teams later must not rewrite
+    #: its history -- the row records which team it was working for when it
+    #: happened, which is the answer a person actually wants.
+    folder_id = Column(
+        Integer, ForeignKey("folders.id", ondelete="SET NULL"), nullable=True
+    )
+
+    at = Column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    #: See ``AgentEventKind``. VARCHAR rather than an ENUM so a kind added
+    #: next year needs no migration.
+    kind = Column(String(48), nullable=False)
+    #: See ``AgentEventActor``. "system" is us, and attributing a credit hold
+    #: to the agent would have a screen say "Meera charged you".
+    actor = Column(String(16), nullable=False)
+
+    #: The one line a person reads, written when the event is recorded.
+    #:
+    #: Deliberately not assembled at render time. A sentence built by a screen
+    #: from a payload drifts the moment the payload shape changes, and the
+    #: history then reads differently than it did -- which for a record
+    #: somebody may rely on in a dispute is the wrong property entirely.
+    summary = Column(String(500), nullable=False)
+    payload = Column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'::json")
+    )
+
+    #: Does this render as a card a person is handed, rather than a line on a
+    #: timeline. A booking filed is both; a credit hold is only a line.
+    is_deliverable = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    #: See ``AgentEventVisibility``. Checked at read time, because consent can
+    #: be withdrawn after the row was written and a stored decision would
+    #: outlive it.
+    visibility = Column(
+        String(16),
+        nullable=False,
+        # Literal rather than the enum, matching every other status column in
+        # this file. `AgentEventVisibility` is the vocabulary; the column just
+        # stores a string, which is what lets a value be added without a
+        # migration.
+        default="always",
+        server_default="always",
+    )
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        # One index per read path above. Every screen orders by time
+        # descending, so the indexes carry the sort rather than making
+        # Postgres re-sort a clinic's whole history to show twenty rows.
+        Index("ix_agent_events_org_at", "organization_id", "at"),
+        Index("ix_agent_events_workflow_at", "workflow_id", "at"),
+        Index("ix_agent_events_run_at", "workflow_run_id", "at"),
+        Index("ix_agent_events_folder_at", "folder_id", "at"),
+        # The deliverables list is "this organisation's cards, newest first",
+        # which without this walks every event ever recorded to find the few
+        # that are cards.
+        Index(
+            "ix_agent_events_org_deliverables",
+            "organization_id",
+            "at",
+            postgresql_where=text("is_deliverable"),
+        ),
+    )
+
+
+class AgentRoutineModel(Base):
+    """A standing instruction: run this bot at this time, over and over.
+
+    What makes a Desk a Desk. Everything else in this file records something a
+    person or a caller started; this is the row that starts things itself, and
+    it is the only place in the product where nobody is waiting on the other
+    end. That absence is the whole design problem -- a routine that fires at
+    the wrong time, twice, or not at all has no caller to notice and no
+    transcript to explain itself -- so the schedule is stored in pieces the
+    runtime can reason about and a person can read, and every firing decision
+    is made by ``services/workflow/routines.py`` against these columns.
+
+    **Not a cron string.** The person setting this runs a clinic, and the
+    difference between ``0 9 * * 1-5`` and ``0 9 * * 1,5`` is a support ticket
+    waiting to happen. Four cadences and three anchors cover every Desk we
+    have written; a fifth cadence is a smaller change than a cron parser plus
+    the screen that would have to explain one.
+
+    **The anchor is why this is not just a time.** "Every morning" means when
+    the business opens, and the opening hours are already recorded and already
+    change. A stored 09:30 goes quietly wrong the week a clinic moves to
+    10:00: the report still arrives, an hour before anybody is there to read
+    it, and nothing anywhere says the schedule is now wrong.
+    """
+
+    __tablename__ = "agent_routines"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    # CASCADE: a deleted bot's standing instructions are not a thing that
+    # should outlive it and quietly keep firing against nothing.
+    workflow_id = Column(
+        Integer,
+        ForeignKey("workflows.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    #: What the operator calls this run. "Morning numbers", not "routine 4".
+    name = Column(String(120), nullable=False)
+    #: What the bot should do each time, in the operator's own words. Fed to
+    #: the run as its instruction, so a routine is editable without touching
+    #: the bot's own prompt -- two Desks can share a bot and differ only here.
+    instruction = Column(Text, nullable=False, default="")
+
+    #: ``routines.Cadence``. A literal string like every other status column
+    #: in this file, so a fifth cadence needs no migration.
+    cadence = Column(String(16), nullable=False, default="daily")
+    #: ``routines.Anchor``: opening, closing, or a literal clock time.
+    anchor = Column(String(16), nullable=False, default="opening")
+    #: Minute of the day for a clock anchor; for hourly, the minute past each
+    #: hour. Ignored by the opening and closing anchors, which compute it.
+    at_minute = Column(Integer, nullable=False, default=0)
+    #: Signed minutes from the anchor. -30 with the closing anchor is "half an
+    #: hour before you shut".
+    offset_minutes = Column(Integer, nullable=False, default=0)
+    #: 0 = Monday, matching ``date.weekday()``. Read only for weekly.
+    weekday = Column(Integer, nullable=False, default=0)
+
+    #: Connector slugs this routine cannot do its job without. A run whose
+    #: shop is disconnected reports nothing, which to the operator looks
+    #: exactly like the Desk being broken -- so it is skipped, and said.
+    needs_apps = Column(JSON, nullable=False, default=list)
+
+    #: **Off until a person switches it on, and they cannot until it has been
+    #: test-run.** The first time a Desk runs unsupervised it writes into
+    #: somebody's real accounting software; a test run is the one chance to
+    #: see what it would do before it does it, which is worth nothing if the
+    #: toggle does not wait for it.
+    is_active = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    #: When it was last test-run. NULL means never, which means it may not arm.
+    tested_at = Column(DateTime(timezone=True), nullable=True)
+
+    #: The slot last fired, not the moment of firing. This is what makes a
+    #: minute tick safe: the runtime compares it against the slot it is
+    #: considering, so a tick that runs twice in one minute, or a worker that
+    #: comes back up inside the catch-up window, cannot send the same report
+    #: twice.
+    last_fired_at = Column(DateTime(timezone=True), nullable=True)
+    #: Why the last tick did not fire, and when. Stored rather than only
+    #: written to the timeline so the routine's own screen can answer "why
+    #: didn't it run" without a query across the event log.
+    last_skipped_reason = Column(String(32), nullable=True)
+    last_skipped_at = Column(DateTime(timezone=True), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        # The tick's only query: every armed routine, across all tenants,
+        # once a minute. Partial so it holds the handful that are switched on
+        # rather than every routine anybody ever drafted.
+        Index(
+            "ix_agent_routines_active",
+            "is_active",
+            postgresql_where=text("is_active"),
+        ),
+        Index("ix_agent_routines_org_workflow", "organization_id", "workflow_id"),
     )

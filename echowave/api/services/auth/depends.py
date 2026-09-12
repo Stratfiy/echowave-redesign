@@ -564,6 +564,11 @@ def require_organization_role(minimum: OrganizationRole):
             )
         return user
 
+    # Stamped so the policy can be read back rather than only enforced. A
+    # permission that cannot be enumerated cannot be tested, and an ungated
+    # route looks exactly like a gated one from the outside -- which is how
+    # the connector routes went a release with ADMIN restricting nobody.
+    _dependency.__org_role_minimum__ = minimum.value  # type: ignore[attr-defined]
     return _dependency
 
 

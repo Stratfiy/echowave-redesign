@@ -10,7 +10,8 @@
  * because the business finds out after choosing rather than before.
  */
 
-import { Check, ExternalLink } from "lucide-react";
+import { ArrowRight, Check, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { startConnectingApiV1ConnectorsSlugConnectPost } from "@/client/sdk.gen";
@@ -25,6 +26,7 @@ const SETUP_LABELS: Record<string, string> = {
     no_auth: "No setup",
     api_key: "Needs your key",
     needs_approval: "Ask us",
+    ours: "We run this",
 };
 
 const SETUP_HINTS: Record<string, string> = {
@@ -33,6 +35,7 @@ const SETUP_HINTS: Record<string, string> = {
     api_key: "Paste a key from that app. We will add a screen for this next.",
     needs_approval:
         "We have to register with this provider before anyone can connect it. Tell us you want it and it moves up the list.",
+    ours: "Decibyl connects to this itself. Set it up on its own screen — a key pasted here is not read by any call.",
 };
 
 export function ConnectorCard({
@@ -97,19 +100,48 @@ export function ConnectorCard({
                         Ready to use in an agent&rsquo;s tools and after-call steps.
                     </p>
                 ) : (
-                    <>
-                        <p className="text-xs text-muted-foreground">
-                            {SETUP_HINTS[connector.setup]}
-                        </p>
-                        {connector.setup === "one_click" ? (
-                            <Button size="sm" onClick={connect} disabled={busy} className="w-full">
-                                {busy ? "Opening…" : "Connect"}
-                                <ExternalLink className="ml-1 h-3 w-3" />
-                            </Button>
-                        ) : null}
-                        {error ? <p className="text-xs text-destructive">{error}</p> : null}
-                    </>
+                    <p className="text-xs text-muted-foreground">
+                        {SETUP_HINTS[connector.setup]}
+                    </p>
                 )}
+
+                {/* The native screen, and it shows even when this vendor is
+                    already connected here as a tool. A connected Plivo saying
+                    only "ready to use in an agent's tools" is how somebody
+                    concludes their phone line is live: it is a true sentence
+                    about the wrong thing. */}
+                {connector.setup_url ? (
+                    <Button asChild size="sm" variant="secondary" className="w-full">
+                        <Link href={connector.setup_url}>
+                            Set up {connector.name}
+                            <ArrowRight className="ml-1 h-3 w-3" />
+                        </Link>
+                    </Button>
+                ) : null}
+
+                {/* Kept below the native route rather than removed. Composio's
+                    toolkit for one of these vendors is a real capability --
+                    an agent sending an SMS from the customer's own Plivo --
+                    and it is simply not what somebody searching for it here
+                    is trying to do. */}
+                {!connector.connected &&
+                (connector.setup === "one_click" || connector.also_connectable) ? (
+                    <Button
+                        size="sm"
+                        variant={connector.setup_url ? "outline" : "default"}
+                        onClick={connect}
+                        disabled={busy}
+                        className="w-full"
+                    >
+                        {busy
+                            ? "Opening…"
+                            : connector.setup_url
+                              ? "Or connect as a tool"
+                              : "Connect"}
+                        <ExternalLink className="ml-1 h-3 w-3" />
+                    </Button>
+                ) : null}
+                {error ? <p className="text-xs text-destructive">{error}</p> : null}
             </CardContent>
         </Card>
     );

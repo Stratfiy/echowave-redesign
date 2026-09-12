@@ -285,7 +285,11 @@ class TestListingActions:
         assert "invent" in result["note"]
 
     @pytest.mark.asyncio
-    async def test_a_failed_read_tells_the_model_not_to_guess(self):
+    async def test_a_failed_read_still_offers_the_skills_we_wrote(self):
+        """A skill names its own action and is shape-checked at import, so a
+        catalogue we cannot reach does not stop the jobs already written.
+        Refusing everything would hide a working capability behind a vendor
+        outage."""
         with (
             patch.object(builder, "composio_configured", lambda: True),
             patch.object(
@@ -296,6 +300,27 @@ class TestListingActions:
             ),
         ):
             result = await builder._list_app_actions(organization_id=42, app="gmail")
+
+        assert "error" not in result
+        assert result["skills"]
+        assert result["actions"] == []
+        assert "do not guess" in result["note"].lower()
+
+    @pytest.mark.asyncio
+    async def test_a_failed_read_on_an_app_we_have_not_written_for_refuses(self):
+        """Nothing written and nothing readable is the one case where there is
+        genuinely nothing to offer, and a guessed slug there fails on a live
+        call."""
+        with (
+            patch.object(builder, "composio_configured", lambda: True),
+            patch.object(
+                builder, "connected_toolkits", AsyncMock(return_value=["notion"])
+            ),
+            patch.object(
+                builder, "composio_toolkit_actions", AsyncMock(return_value=None)
+            ),
+        ):
+            result = await builder._list_app_actions(organization_id=42, app="notion")
         assert "error" in result and "guess" in result["error"]
 
     @pytest.mark.asyncio
@@ -499,3 +524,166 @@ class TestOneToolPerPersonOrResource:
 
         assert "list_app_accounts" in SYSTEM_PROMPT
         assert "fully booked when one doctor is free" in SYSTEM_PROMPT
+
+
+class TestSkillsCarryTheRuleWeAuthored:
+    """A connector gives an agent access; it does not say when to act.
+
+    That sentence is the difference between a working agent and one that
+    emails a confirmation at the wrong moment -- and until now the chat handed
+    a model a raw action slug and asked it to write the sentence freehand, per
+    customer, every time. So the instruction governing a live phone call was
+    improvised by a model rather than authored by anyone who knows the app.
+    """
+
+    def _tool(self):
+        return SimpleNamespace(
+            name="Book appointment", tool_uuid="u1", description="Books a slot."
+        )
+
+    async def _attach(self, **overrides):
+        args = {
+            "session": AsyncMock(),
+            "organization_id": 42,
+            "user_id": 1,
+            "workflow_id": 7,
+            "app": "gmail",
+            "action": "",
+            "name": "",
+            "description": "",
+            "skill": "email-the-confirmation",
+        }
+        args.update(overrides)
+        return await builder._attach_app_tool(**args)
+
+    def _patches(self):
+        return (
+            patch.object(builder, "composio_configured", lambda: True),
+            patch.object(
+                builder, "connected_toolkits", AsyncMock(return_value=["gmail"])
+            ),
+            patch.object(
+                builder,
+                "create_tool_for_user",
+                AsyncMock(return_value=SimpleNamespace(tool_uuid="t1")),
+            ),
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_skill_supplies_the_action_and_the_rule(self):
+        p1, p2, p3 = self._patches()
+        with p1, p2, p3 as create, patch.object(builder, "db_client") as db:
+            db.get_workflow = AsyncMock(return_value=_agent())
+            db.get_user_by_id = AsyncMock(
+                return_value=SimpleNamespace(
+                    id=1, selected_organization_id=42, provider_id="p"
+                )
+            )
+            db.update_workflow = AsyncMock()
+            result = await self._attach()
+
+        assert result["attached"] is True
+        assert result["skill"] == "email-the-confirmation"
+        request = create.await_args.args[0]
+        assert request.definition.config.tool_slug == "GMAIL_SEND_EMAIL"
+        # The authored rule is what a live agent reads.
+        assert "read back to them" in request.description
+
+    @pytest.mark.asyncio
+    async def test_it_needs_no_catalogue_round_trip(self):
+        """The action was authored and shape-checked at import. Requiring a
+        vendor call would let an outage block a capability we already know is
+        correct."""
+        p1, p2, p3 = self._patches()
+        with (
+            p1,
+            p2,
+            p3,
+            patch.object(builder, "composio_toolkit_actions", AsyncMock()) as actions,
+            patch.object(builder, "db_client") as db,
+        ):
+            db.get_workflow = AsyncMock(return_value=_agent())
+            db.get_user_by_id = AsyncMock(
+                return_value=SimpleNamespace(
+                    id=1, selected_organization_id=42, provider_id="p"
+                )
+            )
+            db.update_workflow = AsyncMock()
+            result = await self._attach()
+
+        assert result["attached"] is True
+        actions.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_what_the_model_added_is_kept_alongside_the_rule(self):
+        """The model may know something about *this* business that the skill
+        cannot. Dropping it would make the skill worse than the freehand
+        description it replaced."""
+        p1, p2, p3 = self._patches()
+        with p1, p2, p3 as create, patch.object(builder, "db_client") as db:
+            db.get_workflow = AsyncMock(return_value=_agent())
+            db.get_user_by_id = AsyncMock(
+                return_value=SimpleNamespace(
+                    id=1, selected_organization_id=42, provider_id="p"
+                )
+            )
+            db.update_workflow = AsyncMock()
+            await self._attach(description="Sunrise Dental signs off as 'Dr Anitha'.")
+
+        described = create.await_args.args[0].description
+        assert "read back to them" in described
+        assert "Dr Anitha" in described
+
+    @pytest.mark.asyncio
+    async def test_an_invented_skill_is_refused(self):
+        p1, p2, p3 = self._patches()
+        with p1, p2, p3 as create, patch.object(builder, "db_client") as db:
+            db.get_workflow = AsyncMock(return_value=_agent())
+            result = await self._attach(skill="just-do-the-thing")
+
+        assert "error" in result and "just-do-the-thing" in result["error"]
+        create.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_a_skill_attached_to_the_wrong_app_is_refused(self):
+        """ "Email the confirmation" on the calendar connector is a tool that
+        cannot work, created without complaint."""
+        p1, p2, p3 = self._patches()
+        with p1, p2, p3 as create, patch.object(builder, "db_client") as db:
+            db.get_workflow = AsyncMock(return_value=_agent())
+            result = await self._attach(app="googlecalendar")
+
+        assert "error" in result
+        create.assert_not_awaited()
+
+    def test_every_authored_skill_names_an_action_of_its_own_app(self):
+        """Checked at import by the model validator, asserted here so the
+        failure is a test rather than a startup crash in production."""
+        from api.services.integrations.composio import skills
+
+        assert skills.SKILLS
+        for skill in skills.SKILLS:
+            prefix = skill.app.replace("_", "").upper()
+            assert skill.action.replace("_", "").startswith(prefix), skill.slug
+
+    def test_no_two_skills_share_a_slug(self):
+        """The slug is how the chat attaches one. Two with the same name means
+        whichever was written last silently wins."""
+        from api.services.integrations.composio import skills
+
+        slugs = [s.slug for s in skills.SKILLS]
+        assert len(slugs) == len(set(slugs))
+
+    def test_the_risky_ones_say_when_not_to_act(self):
+        """The expensive failures are all premature -- a payment link sent
+        before the amount was agreed, a confirmation emailed to an address
+        nobody read back. A rule with no negative case does not prevent them."""
+        from api.services.integrations.composio import skills
+
+        for slug in ("send-the-payment-link", "email-the-confirmation"):
+            written = skills.get(slug)
+            assert written is not None, slug
+            assert any(
+                phrase in written.use_when.lower()
+                for phrase in ("never", "do not", "only after")
+            ), slug

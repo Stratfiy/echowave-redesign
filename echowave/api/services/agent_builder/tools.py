@@ -40,6 +40,7 @@ from api.services.agent_builder.assemble import (
 from api.services.agent_templates import find_templates, get_template, list_templates
 from api.services.billing.addons import DEFAULT_AGENT_ADDONS
 from api.services.billing.estimator import estimate_cost_per_minute
+from api.services.integrations.composio import skills as app_skills
 from api.services.integrations.composio.client import (
     connect_link as composio_connect_link,
 )
@@ -59,13 +60,16 @@ from api.services.integrations.composio.client import (
     toolkit_name as composio_toolkit_name,
 )
 from api.services.packs import badges, pricing, resolve_listed_packs
+from api.services.packs import industry as pack_industry
 from api.services.packs.search import search_packs
 from api.services.tool_management import create_tool_for_user
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.workflow_graph import WorkflowGraph
 
 
-async def _suggest_roles(query: str | None) -> dict[str, Any]:
+async def _suggest_roles(
+    query: str | None, *, organization_id: int | None = None
+) -> dict[str, Any]:
     """Roles from the shelf that match what the user described.
 
     Hiring is offered before building, deliberately. A listed role carries a
@@ -79,6 +83,16 @@ async def _suggest_roles(query: str | None) -> dict[str, Any]:
     which is the wrong answer to a configuration problem.
     """
     roles = search_packs(query or "", packs=await resolve_listed_packs())
+
+    # What this account already is, learned from the roles it has hired. A
+    # clinic that types "help with payments" should see the payment role --
+    # ranked under its clinic roles, not filtered away -- so this reorders and
+    # never removes. Stable against the search order: `search_packs` already
+    # sorted by relevance, and Python's sort keeps that within each tier.
+    known = await pack_industry.resolve(organization_id)
+    if roles and known.get("candidates"):
+        roles = tuple(sorted(roles, key=pack_industry.rank_key(known)))
+
     if not roles:
         return {
             "roles": [],
@@ -115,10 +129,19 @@ async def _suggest_roles(query: str | None) -> dict[str, Any]:
             }
             for role in roles[:4]
         ],
+        # What we assumed, so the model can say it rather than act on it
+        # quietly. An inference that is wrong and invisible is the failure this
+        # codebase keeps finding; one that is wrong and spoken gets corrected
+        # in a word.
+        "assumed_about_this_business": pack_industry.sentence(known),
         "note": (
             "Show these to the user with the price and what each needs "
             "connected. Offer the demo number so they can interview it before "
-            "hiring. Build something custom only if they say none fit."
+            "hiring. Build something custom only if they say none fit.\n\n"
+            "If `assumed_about_this_business` is set, say it in one short "
+            "sentence before the roles, and if they correct you, believe them "
+            "and call `set_business_type` -- do not argue with the owner of "
+            "the business about what business it is."
         ),
     }
 
@@ -156,6 +179,32 @@ def tool_schemas() -> list[dict[str, Any]]:
                         ),
                     }
                 },
+            },
+        },
+        {
+            "name": "set_business_type",
+            "description": (
+                "Record what kind of business this account is, when the user "
+                "tells you or corrects a guess. Call it the moment they say "
+                "it -- 'we're a salon, not a clinic' is the whole trigger, and "
+                "a single word is enough. Never argue with the owner of a "
+                "business about what business it is, and never ask this as a "
+                "standalone question: it is remembered from what they hire, "
+                "and asked only when they volunteer a correction."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "business_type": {
+                        "type": "string",
+                        "description": (
+                            "In the user's own words, e.g. 'dental clinic', "
+                            "'D2C skincare brand', 'dental laboratory'. Do "
+                            "not translate it into a category of ours."
+                        ),
+                    },
+                },
+                "required": ["business_type"],
             },
         },
         {
@@ -339,11 +388,14 @@ def tool_schemas() -> list[dict[str, Any]]:
         {
             "name": "list_app_actions",
             "description": (
-                "List what one connected app can actually be asked to do, as "
-                "exact action slugs. Call this before attach_app_tool, always, "
-                "and use a slug exactly as returned. Never write an action "
-                "slug from memory -- an invented one is accepted here and "
-                "fails on a live call with a customer on the line."
+                "List what one connected app can be asked to do. Returns two "
+                "things: `skills` we have written for voice agents -- each "
+                "carrying its exact action and the rule for when to use it on "
+                "a call -- and the raw `actions` from the app's own catalogue. "
+                "Call this before attach_app_tool, always. Prefer a skill. "
+                "Never write an action slug from memory: an invented one is "
+                "accepted downstream and fails on a live call with a customer "
+                "on the line."
             ),
             "parameters": {
                 "type": "object",
@@ -390,6 +442,10 @@ def tool_schemas() -> list[dict[str, Any]]:
                 "an agent access to it; this is the step that does, so call it "
                 "after the user has connected the app and said what they want "
                 "the agent to do with it.\n\n"
+                "Call list_app_actions first and pass a `skill` from it "
+                "whenever one fits -- it supplies the action and the rule for "
+                "when to act. Fall back to a raw `action` only when nothing "
+                "written covers what they asked for.\n\n"
                 "Saves to the agent's draft and does not publish. Tell the "
                 "user it is not live until they publish, and suggest testing "
                 "first -- the action runs for real."
@@ -405,11 +461,23 @@ def tool_schemas() -> list[dict[str, Any]]:
                         "type": "string",
                         "description": "Connected app slug, e.g. gmail.",
                     },
+                    "skill": {
+                        "type": "string",
+                        "description": (
+                            "A `skill` from list_app_actions, e.g. "
+                            "'email-the-confirmation'. Prefer this over "
+                            "`action`: a skill carries the exact action and "
+                            "the rule for when an agent should use it on a "
+                            "live call, which is the part you must not "
+                            "invent. When you pass it, `action` is not needed."
+                        ),
+                    },
                     "action": {
                         "type": "string",
                         "description": (
                             "An exact action slug from list_app_actions, e.g. "
-                            "GMAIL_SEND_EMAIL. Do not modify or invent it."
+                            "GMAIL_SEND_EMAIL, for when no skill fits. Do not "
+                            "modify or invent it."
                         ),
                     },
                     "name": {
@@ -439,7 +507,7 @@ def tool_schemas() -> list[dict[str, Any]]:
                         ),
                     },
                 },
-                "required": ["workflow_id", "app", "action", "name"],
+                "required": ["workflow_id", "app", "name"],
             },
         },
     ]
@@ -470,7 +538,14 @@ async def dispatch(
     """
     try:
         if name == "suggest_roles":
-            return await _suggest_roles(arguments.get("query"))
+            return await _suggest_roles(
+                arguments.get("query"), organization_id=organization_id
+            )
+        if name == "set_business_type":
+            return await _set_business_type(
+                organization_id=organization_id,
+                business_type=arguments.get("business_type", ""),
+            )
         if name == "list_agent_templates":
             return _list_templates(arguments.get("query"))
         if name == "get_agent_template":
@@ -520,6 +595,7 @@ async def dispatch(
                 name=arguments.get("name", ""),
                 description=arguments.get("description", ""),
                 connected_account_id=arguments.get("connected_account_id", ""),
+                skill=arguments.get("skill", ""),
             )
         if name == "create_agent":
             return await _create_agent(
@@ -1014,8 +1090,34 @@ async def _list_app_actions(*, organization_id: int, app: str) -> dict[str, Any]
             )
         }
 
+    # Our own, written for an agent mid-call: the exact action plus when to
+    # reach for it, authored rather than improvised per customer.
+    written = [
+        {
+            "skill": skill.slug,
+            "name": skill.name,
+            "does": skill.does,
+            "use_when": skill.use_when,
+        }
+        for skill in app_skills.for_app(slug)
+    ]
+
     actions = await composio_toolkit_actions(slug)
     if actions is None:
+        # Skills still stand: they name their own action slug, so a catalogue
+        # we could not read does not stop the jobs we have already written.
+        # Refusing everything here would hide a working capability behind a
+        # vendor outage.
+        if written:
+            return {
+                "skills": written,
+                "actions": [],
+                "note": (
+                    "Use one of these skills. The raw action list could not be "
+                    "read just now, so do not offer anything outside them and "
+                    "do not guess a slug."
+                ),
+            }
         return {
             "error": (
                 f"Could not read what {slug} can do just now. Do not guess a "
@@ -1031,10 +1133,68 @@ async def _list_app_actions(*, organization_id: int, app: str) -> dict[str, Any]
             ),
         }
     return {
+        "skills": written,
         "actions": actions,
         "note": (
-            "Pick the one slug that matches what the user asked for and pass "
-            "it to attach_app_tool exactly as written. Do not modify it."
+            (
+                "Prefer a skill: each one carries the exact action and the "
+                "rule for when an agent should use it on a live call, which "
+                "is the part you must not invent. Pass its `skill` to "
+                "attach_app_tool.\n\n"
+                if written
+                else ""
+            )
+            + "If no skill fits, pick the one action slug that matches and "
+            "pass it as `action`, exactly as written. Do not modify it, and "
+            "write the description as a rule about when to act."
+        ),
+    }
+
+
+async def _set_business_type(
+    *, organization_id: int, business_type: str
+) -> dict[str, Any]:
+    """Record what kind of business this is, because they just told us.
+
+    The correction half of the inference. ``suggest_roles`` offers a guess
+    derived from the roles an account has hired, and a guess is only safe if
+    it is cheap to overturn -- one word, in their own vocabulary, and it wins
+    over every later inference.
+
+    Free text rather than a menu. Our pack industries are the shelving we use,
+    not a list a business has to see itself in, and refusing "dental
+    laboratory" because it is not in our enum teaches the operator that we do
+    not serve them.
+
+    Only the one field is written. Preferences arrive as a whole object and a
+    save that carried schema defaults would switch unrelated settings off --
+    the exact bug ``with_staff_fields`` exists for -- so this names one field
+    and everything else keeps what is stored.
+    """
+    from api.schemas.organization_preferences import OrganizationPreferences
+    from api.services.organization_preferences import (
+        get_organization_preferences,
+        upsert_organization_preferences,
+        with_staff_fields,
+    )
+
+    value = (business_type or "").strip()
+    if not value:
+        return {"error": "What kind of business is it? Use their own words."}
+    if len(value) > 120:
+        value = value[:120]
+
+    existing = await get_organization_preferences(organization_id)
+    saved = await upsert_organization_preferences(
+        organization_id,
+        with_staff_fields(OrganizationPreferences(industry=value), existing),
+    )
+    return {
+        "saved": True,
+        "business_type": getattr(saved, "industry", value),
+        "note": (
+            "Acknowledge it in a few words and carry on with what they asked "
+            "for. Do not re-ask this on later turns -- it is remembered now."
         ),
     }
 
@@ -1128,6 +1288,7 @@ async def _attach_app_tool(
     name: str,
     description: str,
     connected_account_id: str = "",
+    skill: str = "",
 ) -> dict[str, Any]:
     """Give one agent the ability to do one thing in a connected app.
 
@@ -1155,6 +1316,38 @@ async def _attach_app_tool(
 
     slug = (app or "").strip().lower()
     action_slug = (action or "").strip()
+
+    # A skill supplies all three of the things a model would otherwise invent:
+    # the action, a name in the operator's language, and the rule for when to
+    # act. It wins over anything passed alongside it, because the point of
+    # authoring them is that they are not negotiable per call.
+    if (skill or "").strip():
+        written = app_skills.get(skill)
+        if written is None:
+            return {
+                "error": (
+                    f"There is no skill called {skill!r}. Call "
+                    "list_app_actions and use a `skill` from it, or pass a "
+                    "raw `action` instead."
+                )
+            }
+        if slug and slug != written.app:
+            return {
+                "error": (
+                    f"Skill {written.slug!r} acts on {written.app}, not "
+                    f"{slug}. Attach it to the right app or pick another."
+                )
+            }
+        slug = written.app
+        action_slug = written.action
+        name = name.strip() or written.name
+        # The authored rule is appended rather than replacing what the model
+        # wrote: the model may know something about *this* business that the
+        # skill cannot, and losing it would make the skill worse than the
+        # freehand description it replaced.
+        extra = (description or "").strip()
+        description = f"{written.use_when}\n\n{extra}" if extra else written.use_when
+
     if not slug or not action_slug:
         return {
             "error": (
@@ -1198,15 +1391,17 @@ async def _attach_app_tool(
 
     # The action has to exist. An invented slug is accepted by every layer
     # below this one and fails at call time, mid-conversation.
-    actions = await composio_toolkit_actions(slug)
-    if actions is None:
+    # A skill's action was authored and shape-checked at import, so it needs
+    # no catalogue round trip -- and must not be blocked by one failing.
+    actions = None if (skill or "").strip() else await composio_toolkit_actions(slug)
+    if actions is None and not (skill or "").strip():
         return {
             "error": (
                 f"Could not check {action_slug} against {slug} just now. Do "
                 "not attach an unverified action -- say you will try again."
             )
         }
-    known = {a["slug"] for a in actions}
+    known = {a["slug"] for a in (actions or [])} or {action_slug}
     if action_slug not in known:
         return {
             "error": (
@@ -1304,6 +1499,7 @@ async def _attach_app_tool(
         "tool_uuid": str(tool_uuid),
         "app": slug,
         "action": action_slug,
+        "skill": (skill or "").strip() or None,
         "acts_on": account_label,
         "published": False,
         "open_url": f"/workflow/{workflow_id}",

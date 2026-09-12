@@ -1317,6 +1317,18 @@ export type BusinessDetailsRequest = {
 };
 
 /**
+ * BusyCalendarsRequest
+ *
+ * The calendars that count as busy besides the booking calendar.
+ */
+export type BusyCalendarsRequest = {
+    /**
+     * Calendar Ids
+     */
+    calendar_ids?: Array<string>;
+};
+
+/**
  * CalculatorToolDefinition
  *
  * Tool definition for Calculator tools.
@@ -2355,6 +2367,14 @@ export type ConnectorResponse = {
      * Connected
      */
     connected: boolean;
+    /**
+     * Setup Url
+     */
+    setup_url?: string | null;
+    /**
+     * Also Connectable
+     */
+    also_connectable?: boolean;
 };
 
 /**
@@ -7211,6 +7231,10 @@ export type OrganizationPreferences = {
      * Timezone
      */
     timezone?: string | null;
+    /**
+     * Industry
+     */
+    industry?: string | null;
     business_hours?: AgentSchedule | null;
     /**
      * Own Keys Allowed
@@ -7251,7 +7275,11 @@ export type OrganizationPreferences = {
  * ADMIN
  * Everything a member can do, plus the surfaces where one person's action
  * binds the whole account: the BYOK key vault and integration
- * credentials (secrets, and spend under someone else's contract), the
+ * credentials (secrets, and spend under someone else's contract) --
+ * which includes connecting and disconnecting a third-party app, because
+ * one press grants every agent in the organization access to that
+ * account and, on a paid app, spends against whoever authorized it --
+ * the
  * billing profile (which decides what tax the customer is charged), the
  * autopay mandate (a standing authority to debit a bank account), and
  * removing a number from the do-not-disturb list (a regulatory act, and
@@ -28915,6 +28943,49 @@ export type StatusApiV1IntegrationsGoogleCalendarStatusGetResponses = {
 };
 
 export type StatusApiV1IntegrationsGoogleCalendarStatusGetResponse = StatusApiV1IntegrationsGoogleCalendarStatusGetResponses[keyof StatusApiV1IntegrationsGoogleCalendarStatusGetResponses];
+
+export type SetBusyCalendarsApiV1IntegrationsGoogleCalendarBusyCalendarsPutData = {
+    body: BusyCalendarsRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/integrations/google-calendar/busy-calendars';
+};
+
+export type SetBusyCalendarsApiV1IntegrationsGoogleCalendarBusyCalendarsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetBusyCalendarsApiV1IntegrationsGoogleCalendarBusyCalendarsPutError = SetBusyCalendarsApiV1IntegrationsGoogleCalendarBusyCalendarsPutErrors[keyof SetBusyCalendarsApiV1IntegrationsGoogleCalendarBusyCalendarsPutErrors];
+
+export type SetBusyCalendarsApiV1IntegrationsGoogleCalendarBusyCalendarsPutResponses = {
+    /**
+     * Response Set Busy Calendars Api V1 Integrations Google Calendar Busy Calendars Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetBusyCalendarsApiV1IntegrationsGoogleCalendarBusyCalendarsPutResponse = SetBusyCalendarsApiV1IntegrationsGoogleCalendarBusyCalendarsPutResponses[keyof SetBusyCalendarsApiV1IntegrationsGoogleCalendarBusyCalendarsPutResponses];
 
 export type DisconnectApiV1IntegrationsGoogleCalendarDisconnectPostData = {
     body?: never;

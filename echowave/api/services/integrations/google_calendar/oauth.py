@@ -299,12 +299,55 @@ async def handle_callback(
     return OAuthCallbackResult(organization_id=organization_id, user_id=user_id)
 
 
+def _busy_ids(raw: object) -> tuple[str, ...]:
+    """Read the ``busy_calendar_ids`` column into ids we will actually fetch.
+
+    A JSON column, so the database guarantees nothing about the shape. The
+    case worth naming: a row holding the bare string ``"personal"`` iterates
+    into eight single-character ids, and the read path would then ask Google
+    about a calendar called "p" -- eight failed requests before an agent can
+    answer a caller. So a value that is not a list or tuple is refused
+    outright rather than iterated.
+
+    An unreadable value falls back to no extra calendars, which is the
+    behaviour of every account that has configured none. Losing an extra
+    calendar shows up as a booking we should have refused; raising here would
+    stop every booking in the account.
+    """
+    if not isinstance(raw, (list, tuple)):
+        if raw is not None:
+            logger.warning(
+                "busy_calendar_ids is a {}, not a list; ignoring it.",
+                type(raw).__name__,
+            )
+        return ()
+    return tuple(
+        entry.strip() for entry in raw if isinstance(entry, str) and entry.strip()
+    )
+
+
 @dataclass(frozen=True)
 class ConnectionStatus:
     connected: bool
     connected_email: str | None
     calendar_id: str | None
     updated_at: str | None
+    #: Extra calendars read when deciding whether a slot is free. Bookings
+    #: still go to ``calendar_id`` alone. Empty unless an operator said
+    #: otherwise -- see the column comment for why the default matters.
+    busy_calendar_ids: tuple[str, ...] = ()
+
+    @property
+    def read_calendar_ids(self) -> tuple[str, ...]:
+        """Every calendar that counts as busy, the booking target included.
+
+        One property rather than each caller remembering to union the two: a
+        read path that checked only the extras would miss the calendar the
+        bookings are actually on, and one that checked only the target is the
+        bug this field exists to fix.
+        """
+        target = self.calendar_id or "primary"
+        return (target, *(c for c in self.busy_calendar_ids if c != target))
 
 
 async def get_status(
@@ -318,13 +361,18 @@ async def get_status(
     )
     if row is None:
         return ConnectionStatus(
-            connected=False, connected_email=None, calendar_id=None, updated_at=None
+            connected=False,
+            connected_email=None,
+            calendar_id=None,
+            updated_at=None,
+            busy_calendar_ids=(),
         )
     return ConnectionStatus(
         connected=True,
         connected_email=row.connected_email,
         calendar_id=row.calendar_id,
         updated_at=row.updated_at.isoformat() if row.updated_at else None,
+        busy_calendar_ids=_busy_ids(row.busy_calendar_ids),
     )
 
 

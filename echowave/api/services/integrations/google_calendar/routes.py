@@ -16,6 +16,9 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
+from loguru import logger
+from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from api.constants import (
     GOOGLE_OAUTH_CLIENT_ID,
@@ -23,8 +26,9 @@ from api.constants import (
     PUBLIC_BASE_URL,
 )
 from api.db import db_client
-from api.db.models import UserModel
-from api.services.auth.depends import get_user
+from api.db.models import GoogleCalendarConnectionModel, UserModel
+from api.enums import OrganizationRole
+from api.services.auth.depends import get_user, require_organization_role
 from api.services.integrations.google_calendar import oauth
 
 router = APIRouter(prefix="/integrations/google-calendar", tags=["google-calendar"])
@@ -42,7 +46,9 @@ def _ui_base_url() -> str:
 
 
 @router.get("/authorize-url")
-async def authorize_url(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+async def authorize_url(
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> dict[str, Any]:
     """The URL the frontend should navigate the browser to next."""
     organization_id = _organization_id(user)
     try:
@@ -101,13 +107,88 @@ async def status(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         "connected": result.connected,
         "connected_email": result.connected_email,
         "calendar_id": result.calendar_id,
+        "busy_calendar_ids": list(result.busy_calendar_ids),
         "updated_at": result.updated_at,
         "configured": bool(GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET),
     }
 
 
+class BusyCalendarsRequest(BaseModel):
+    """The calendars that count as busy besides the booking calendar."""
+
+    #: Ids, as Google writes them: an email address for a secondary calendar,
+    #: or a long "…@group.calendar.google.com". Capped because this is a
+    #: per-request read fan-out -- every id is one more call before an agent
+    #: can answer a caller.
+    calendar_ids: list[str] = Field(default_factory=list, max_length=10)
+
+
+@router.put("/busy-calendars")
+async def set_busy_calendars(
+    request: BusyCalendarsRequest,
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> dict[str, Any]:
+    """Choose which calendars are read when deciding whether a slot is free.
+
+    Read-only, always. Bookings keep going to the connected calendar alone --
+    a second calendar that received bookings would need to know *which* of
+    them, and that is a different feature.
+
+    Deliberately not "read every calendar on the account". That is right for a
+    solo practitioner whose own appointments sit on a personal calendar, and
+    wrong for a two-doctor clinic, where merging both doctors reports the
+    clinic full when only one is booked -- the same failure as refusing a free
+    slot. Nothing in a calendar list says which case an account is, so the
+    operator says, and an account that says nothing behaves as it did before.
+
+    The ids are not verified against Google here. A calendar can be unshared
+    later, so a check now would prove nothing durable, and the read path
+    already skips a calendar it cannot fetch and logs which one. Refusing a
+    valid id because a verification call timed out would be worse.
+    """
+    organization_id = _organization_id(user)
+    async with db_client.async_session() as session:
+        row = await session.scalar(
+            select(GoogleCalendarConnectionModel).where(
+                GoogleCalendarConnectionModel.organization_id == organization_id,
+                GoogleCalendarConnectionModel.is_active.is_(True),
+            )
+        )
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Google Calendar is not connected for this account.",
+            )
+
+        # Deduplicated, and the booking calendar dropped if it was listed: it
+        # is always read, and carrying it here would have it fetched twice on
+        # every check.
+        target = row.calendar_id or "primary"
+        seen: set[str] = set()
+        cleaned: list[str] = []
+        for candidate in request.calendar_ids:
+            value = (candidate or "").strip()
+            if not value or value == target or value in seen:
+                continue
+            seen.add(value)
+            cleaned.append(value)
+
+        row.busy_calendar_ids = cleaned
+        await session.commit()
+
+    logger.info(
+        "Busy calendars for org {} set to {} ({} id(s))",
+        organization_id,
+        cleaned,
+        len(cleaned),
+    )
+    return {"busy_calendar_ids": cleaned}
+
+
 @router.post("/disconnect")
-async def disconnect(user: UserModel = Depends(get_user)) -> dict[str, Any]:
+async def disconnect(
+    user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
+) -> dict[str, Any]:
     organization_id = _organization_id(user)
     async with db_client.async_session() as session:
         await oauth.disconnect(session, organization_id=organization_id)

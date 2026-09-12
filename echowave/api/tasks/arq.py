@@ -64,6 +64,7 @@ from api.tasks.rental_billing import (
     charge_recurring_rentals,
     reconcile_carrier_numbers,
 )
+from api.tasks.routines import fire_due_routines, run_agent_routine
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.settlement import sweep_uncosted_runs
 from api.tasks.tax_invoices import issue_monthly_tax_invoices
@@ -99,6 +100,7 @@ class WorkerSettings:
         send_weekly_digests,
         watch_margins,
         run_eval_case,
+        run_agent_routine,
     ]
     cron_jobs = [
         # Every minute, and at startup so a deployment is not indistinguishable
@@ -110,6 +112,22 @@ class WorkerSettings:
             minute=set(range(0, 60)),
             second=0,
             run_at_startup=True,
+        ),
+        # Every minute, because a Desk anchored to a business's opening time
+        # can be due at any minute of the hour -- a clinic that opens at 09:37
+        # is not a configuration error. Cheap when nothing is armed: one
+        # indexed query against a partial index, and an early return.
+        #
+        # Not at startup. A deploy would re-evaluate every routine the moment
+        # the worker came up, and a routine inside its catch-up window would
+        # fire a second time for a slot it had already served if the stamp had
+        # not committed -- which is exactly when a deploy is most likely to
+        # have interrupted it.
+        cron(
+            fire_due_routines,
+            minute=set(range(0, 60)),
+            second=15,
+            run_at_startup=False,
         ),
         # Safety net for webhook deliveries whose ARQ job was lost (worker
         # restart / Redis flush): re-enqueue any pending delivery that is overdue.
