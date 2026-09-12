@@ -193,35 +193,40 @@ def _occupies_the_chair(event: Dict[str, Any]) -> bool:
     """Whether an event on the calendar means the slot is actually taken.
 
     ``events.list`` returns everything that *overlaps* the window, which is
-    not the same question. Three kinds of overlap do not mean a busy chair,
-    and treating them as conflicts refuses bookings on slots that are free --
-    which is the most expensive bug this integration can have, because the
-    patient rings, is told no, and rings somebody else.
+    not the same question, so two kinds of overlap are not a busy chair.
 
-    **An all-day event overlaps every slot that day.** A public holiday, a
-    birthday, "Dr Anitha on leave" -- any one of them refused every booking
-    from open to close on a calendar that was otherwise free. Google marks
-    these with ``start.date`` instead of ``start.dateTime``, which is how they
-    are told apart.
-
-    **An event marked Free is explicitly not busy.** Google calls it
-    ``transparency: "transparent"`` and means it: a reminder, a held
-    placeholder, a travel note.
+    **An event the owner marked Free is not busy.** Google calls it
+    ``transparency: "transparent"`` and it is the operator's own statement of
+    intent, made in the Busy/Free control beside every event. A reminder, a
+    held placeholder, a travel note, and every entry on Google's own holiday
+    and birthday calendars.
 
     **A cancelled event is not an event.**
 
-    Anything else counts as busy, including a shape we do not recognise. The
-    rule only *removes* conflicts on a marker Google sets explicitly -- an
-    event with no recognisable start is treated as a real one, because the
-    failure this direction risks is a second look at the calendar, and the
-    other direction risks two patients in one chair.
+    Everything else is busy, **including an all-day event**, and that is the
+    line worth defending. An all-day entry on the calendar a business books
+    against is almost always the business closing itself: "Dr Anitha on
+    leave", "Clinic shut for Diwali", "Equipment service". Treating those as
+    free books a patient who then travels to a locked door, which is a worse
+    failure than a slot we declined to offer -- they can ring back for another
+    time, they cannot get the morning back.
+
+    Public holidays do not arrive this way. They live on a separate holiday
+    calendar, which this integration does not read, and they are published
+    ``transparent`` in any case -- so the rule above already lets them
+    through twice over.
+
+    I had this wrong: an earlier version excluded every all-day event on the
+    theory that a holiday was refusing a free noon slot. The refusal turned
+    out not to come from this function at all -- the tool was never called --
+    and the exclusion silently stopped leave and closures from blocking
+    anything. Being wrong in this direction is expensive and invisible, which
+    is why it is now one rule the operator can see rather than an inference
+    about event shapes.
     """
     if event.get("status") == "cancelled":
         return False
     if str(event.get("transparency") or "").lower() == "transparent":
-        return False
-    start = event.get("start")
-    if isinstance(start, dict) and start.get("date"):
         return False
     return True
 
@@ -328,6 +333,19 @@ async def execute_google_calendar_tool(
                 conflict.get("transparency"),
                 conflict.get("status"),
             )
+            # A closure and a clash need different answers from the agent. A
+            # taken slot means offer another time; a day the business has shut
+            # means offer another day, and telling the agent to try 12:30
+            # instead would walk it through every slot of a closed day.
+            if conflict_start.get("date") and not conflict_start.get("dateTime"):
+                return {
+                    "status": "error",
+                    "error": (
+                        f"The business is closed that day ({conflict_summary}). "
+                        "Offer the caller a different date -- no time on this "
+                        "day can be booked."
+                    ),
+                }
             return {
                 "status": "error",
                 "error": (

@@ -14,7 +14,10 @@ Two rules hold this together:
 **One definition of busy, shared with the write.** Availability filters events
 through ``_occupies_the_chair``, the same predicate the conflict check uses. If
 the two disagreed, the agent would offer a slot and then fail to book it, which
-is worse than never offering it.
+is worse than never offering it. That predicate treats an all-day entry as a
+closure the business made -- leave, a shutdown, a service visit -- so such a
+day has no free slots at all, and only an entry the operator marked Free is
+read as informational.
 
 **One calendar, the same one the write checks.** Reading every calendar on the
 account would need a broader OAuth scope and fresh consent from everybody
@@ -146,8 +149,21 @@ def _busy_spans(
     for item in items:
         if not isinstance(item, dict) or not _occupies_the_chair(item):
             continue
-        start_raw = (item.get("start") or {}).get("dateTime")
-        end_raw = (item.get("end") or {}).get("dateTime")
+        start_field = item.get("start") or {}
+        end_field = item.get("end") or {}
+
+        # An all-day entry carries `date` rather than `dateTime`, and by the
+        # time it reaches here `_occupies_the_chair` has already decided it is
+        # busy -- a closure the business entered itself: leave, a shutdown, a
+        # service visit. It takes the whole day. Reading only `dateTime` here
+        # would drop it and offer every slot on a day the clinic is shut,
+        # which is the same hole by a different route.
+        if start_field.get("date") and not start_field.get("dateTime"):
+            spans.append(agent_hours.DAY)
+            continue
+
+        start_raw = start_field.get("dateTime")
+        end_raw = end_field.get("dateTime")
         if not start_raw or not end_raw:
             continue
         try:

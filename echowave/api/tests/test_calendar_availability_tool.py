@@ -170,16 +170,55 @@ class TestWhatCountsAsBusy:
     def test_a_real_appointment_blocks(self):
         assert self._spans([_event("11:00", "11:30")]) == [(660, 690)]
 
-    def test_an_all_day_holiday_does_not_eat_the_day(self):
-        """The same rule as the booking path. One Ganesh Chaturthi entry must
-        not make every slot unavailable."""
+    def test_a_holiday_the_operator_marked_free_does_not_eat_the_day(self):
+        """How a public holiday actually arrives: Google's holiday calendar
+        publishes it Free. Plenty of clinics work Ganesh Chaturthi, so the
+        operator's marking decides rather than the date."""
         holiday = {
             "status": "confirmed",
             "summary": "Ganesh Chaturthi",
             "start": {"date": "2026-09-14"},
             "end": {"date": "2026-09-15"},
+            "transparency": "transparent",
         }
         assert self._spans([holiday]) == []
+
+    def test_a_doctor_on_leave_leaves_no_slot_free(self):
+        """The question this whole rule exists to answer. An all-day entry on
+        the calendar a clinic books against is the clinic closing itself, and
+        a patient booked through it travels to a locked door.
+
+        The span is the whole day rather than skipped: `_busy_spans` reads
+        `dateTime` for timed events, and an all-day entry has none, so dropping
+        it here would offer every slot on a day the clinic is shut -- the same
+        hole by a different route."""
+        leave = {
+            "status": "confirmed",
+            "summary": "Dr Anitha on leave",
+            "start": {"date": "2026-09-14"},
+            "end": {"date": "2026-09-15"},
+        }
+        assert self._spans([leave]) == [agent_hours.DAY]
+        assert (
+            availability.free_slots(
+                open_windows=[MORNING],
+                busy=self._spans([leave]),
+                duration_minutes=30,
+            )
+            == []
+        )
+
+    def test_a_multi_day_shutdown_closes_the_days_it_covers(self):
+        shutdown = {
+            "status": "confirmed",
+            "summary": "Clinic closed for Diwali",
+            "start": {"date": "2026-11-08"},
+            "end": {"date": "2026-11-12"},
+        }
+        spans = availability._busy_spans(
+            [shutdown], availability._zone("Asia/Kolkata"), date(2026, 11, 10)
+        )
+        assert spans == [agent_hours.DAY]
 
     def test_an_event_marked_free_does_not_block(self):
         assert self._spans([_event("11:00", "11:30", transparency="transparent")]) == []
