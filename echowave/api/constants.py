@@ -26,6 +26,19 @@ LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
 # below derive from it (and from PUBLIC_HOST for the TURN/ICE host). Each derived
 # var can still be set explicitly to override it for a split deployment.
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL") or None
+
+#: One number a prospect can ring to hear a published agent before hiring it.
+#:
+#: A voice agent sold on a screenshot is sold on a promise, so a calling pack
+#: cannot be listed on the shelf without one. Configured rather than written
+#: into each pack: we own a handful of numbers, not one per listing, and the
+#: alternative -- a placeholder in the catalogue -- is a number on a card that
+#: rings nothing, which is worse than no card.
+#:
+#: Unset means every calling pack stays unlisted. Deliberately: an empty shelf
+#: is a missing configuration somebody notices, and a shelf full of dead demo
+#: links is one nobody reports.
+PACK_DEMO_NUMBER = os.getenv("PACK_DEMO_NUMBER") or None
 PUBLIC_HOST = os.getenv("PUBLIC_HOST") or None
 
 
