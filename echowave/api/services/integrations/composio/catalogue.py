@@ -301,6 +301,12 @@ def _group_for(categories: list[dict[str, Any]]) -> Optional[str]:
 
 def curate(toolkits: list[dict[str, Any]]) -> list[Connector]:
     """Turn Composio's raw catalogue into the list we are willing to show."""
+    plain_slugs = {
+        t.get("slug")
+        for t in toolkits
+        if isinstance(t, dict) and isinstance(t.get("slug"), str)
+    }
+
     out: list[Connector] = []
     for toolkit in toolkits:
         if not isinstance(toolkit, dict) or toolkit.get("deprecated") is True:
@@ -310,13 +316,18 @@ def curate(toolkits: list[dict[str, Any]]) -> list[Connector]:
         if not isinstance(slug, str) or not isinstance(name, str):
             continue
 
-        # Composio publishes an `<app>_mcp` flavour of many toolkits, which is
-        # the same app reached as an MCP server. Thirty-one of them sit beside
-        # the toolkit they duplicate, and two rows for Box differing only by a
-        # suffix is a worse screen, not a richer one. The rest are developer
-        # tooling, and anything genuinely wanted this way is already reachable
-        # through the `mcp` tool type we have had all along.
-        if slug.endswith("_mcp"):
+        # Composio publishes an `<app>_mcp` flavour of many toolkits. Where the
+        # plain toolkit is also published, the MCP one is a duplicate and two
+        # Box rows differing only by a suffix is a worse screen, not a richer
+        # one -- so it is dropped.
+        #
+        # Only then, though. Fifty-seven of them have no plain twin, and
+        # Cashfree is one: a payment gateway a great many Indian businesses
+        # use, published by Composio only as `cashfree_payments_mcp`. Dropping
+        # every `_mcp` slug took it off the screen entirely, which is the same
+        # silent-absence bug the category allowlist had, wearing a different
+        # hat.
+        if slug.endswith("_mcp") and slug[: -len("_mcp")] in plain_slugs:
             continue
 
         setup = _setup_kind(toolkit)

@@ -92,9 +92,9 @@ class TestDeduplicationAndShape:
         assert [r.slug for r in rows] == ["gmail", "hugging_face"]
         assert rows[1].group == "Developer"
 
-    def test_the_mcp_flavour_of_an_app_is_not_a_second_row(self):
-        """Composio ships `<app>_mcp` beside many toolkits. Two Box rows
-        differing only by a suffix is a worse screen, not a richer one."""
+    def test_the_mcp_flavour_is_dropped_when_the_real_toolkit_is_there(self):
+        """Two Box rows differing only by a suffix is a worse screen, not a
+        richer one."""
         rows = curate(
             [
                 _toolkit("box", name="Box", categories=("documents",)),
@@ -102,6 +102,23 @@ class TestDeduplicationAndShape:
             ]
         )
         assert [r.slug for r in rows] == ["box"]
+
+    def test_an_mcp_only_toolkit_is_kept_because_it_is_the_only_one(self):
+        """Cashfree is published by Composio only as `cashfree_payments_mcp`.
+        Dropping every `_mcp` slug took a payment gateway a great many Indian
+        businesses use off the screen entirely -- the same silent-absence bug
+        the category allowlist had, wearing a different hat."""
+        rows = curate(
+            [
+                _toolkit(
+                    "cashfree_payments_mcp",
+                    name="Cashfree Payments",
+                    categories=("payment processing",),
+                )
+            ]
+        )
+        assert [r.slug for r in rows] == ["cashfree_payments_mcp"]
+        assert rows[0].group == "Money"
 
     def test_a_deprecated_toolkit_is_dropped(self):
         assert curate([_toolkit("old_app", deprecated=True)]) == []
