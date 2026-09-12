@@ -4877,3 +4877,81 @@ class PaymentTokenModel(Base):
         # the code then reads instead.
         Index("uq_payment_tokens_token", "provider", "token_id", unique=True),
     )
+
+
+class AppInteractionModel(Base):
+    """One row per action an agent took in somebody else's software.
+
+    Every tool call, of every kind, whether it worked or not. Written from a
+    single wrapper around the handler registration rather than from inside each
+    handler, so a tool type added next year is recorded without anybody
+    remembering to add the line.
+
+    Three things depend on this table and none of them can be answered without
+    it. Whether a call produced the outcome the customer is paying for, which
+    is the number the product is sold on. Which connector is failing, before
+    the customer tells us. And how long each provider actually takes, which
+    decides whether a tool can sit inside a live turn at all -- measured, not
+    assumed, because the two we did measure differed by a factor of two.
+
+    Deliberately not the transcript's tool-call record. That lives with the
+    run and is read one conversation at a time; this is queried across an
+    organization and a month, and putting an index on somebody's transcript
+    JSON would be the wrong shape for both.
+    """
+
+    __tablename__ = "app_interactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Denormalized from the run on purpose: every question asked of this table
+    # is scoped to one organization, and joining through workflow_runs and
+    # workflows to reach it would put two joins in front of a dashboard query.
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    #: Null for an action taken outside a call -- a post-call outcome, or a
+    #: trigger firing. Not every interaction belongs to a conversation.
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
+
+    #: The tool category: composio, http_api, google_calendar, mcp, calculator,
+    #: rate_table, end_call, transfer_call. A plain string rather than an enum
+    #: so a new tool type needs no migration -- the same reasoning as
+    #: workflow_runs.mode above it.
+    kind = Column(String(64), nullable=False)
+    #: Which outside app, where there is one: "gmail", "googlesheets",
+    #: "razorpay". Null for a calculator or an end-call, which touch nothing.
+    #: This is the column the connector reliability report groups by.
+    app = Column(String(128), nullable=True)
+    #: The function name the model actually called.
+    name = Column(String(255), nullable=False)
+
+    #: "success" or "error". Kept as text rather than a boolean because a third
+    #: state is already foreseeable -- an action awaiting a human's approval is
+    #: neither -- and widening a boolean later costs a migration and a backfill.
+    status = Column(String(24), nullable=False)
+    #: The provider's own words, when it gave any. Truncated on write; a
+    #: provider that returns a stack trace should not be able to fill a column.
+    error = Column(String(1024), nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        # The dashboard query: this organization, this month, grouped by app.
+        Index("ix_app_interactions_org_time", "organization_id", "created_at"),
+        # "What did this call actually do", which is the outcome question and
+        # the one a support ticket starts from.
+        Index("ix_app_interactions_run", "workflow_run_id"),
+        # Connector reliability, across tenants, for us rather than for them.
+        Index("ix_app_interactions_app_status", "app", "status"),
+    )

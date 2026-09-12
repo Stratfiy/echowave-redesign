@@ -10,6 +10,7 @@ import asyncio
 import time
 import uuid
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from loguru import logger
 from pipecat.adapters.schemas.function_schema import FunctionSchema
@@ -38,6 +39,7 @@ from api.services.telephony.call_transfer_manager import get_call_transfer_manag
 from api.services.telephony.escalation import briefing_from_config
 from api.services.telephony.factory import get_telephony_provider_for_run
 from api.services.telephony.transfer_event_protocol import TransferContext
+from api.services.workflow import app_interactions
 from api.services.workflow.tools.calculator import get_calculator_tools, safe_calculator
 from api.services.workflow.tools.custom_tool import (
     execute_http_tool,
@@ -78,6 +80,32 @@ def _composio_timeout_secs(config: dict) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return DEFAULT_COMPOSIO_TIMEOUT_SECS
     return float(value) if value > 0 else DEFAULT_COMPOSIO_TIMEOUT_SECS
+
+
+def _tool_app_slug(tool: Any) -> Optional[str]:
+    """Which outside app this tool touches, when the definition names one.
+
+    Composio names it exactly -- that is the whole point of a toolkit slug. An
+    HTTP tool does not, so it falls back to the host of the URL, which is not a
+    slug but is the thing a reliability report needs to group by: "every call
+    to api.acme.com is failing" is the sentence somebody acts on.
+    """
+    definition = (tool.definition or {}) if hasattr(tool, "definition") else {}
+    config = definition.get("config") or {}
+
+    toolkit = config.get("toolkit")
+    if isinstance(toolkit, str) and toolkit.strip():
+        return toolkit.strip().lower()[:128]
+
+    url = config.get("url")
+    if isinstance(url, str) and url.strip():
+        try:
+            host = urlparse(url).hostname
+        except ValueError:
+            return None
+        if host:
+            return host.lower()[:128]
+    return None
 
 
 def _render_transfer_destination(
@@ -216,6 +244,49 @@ class CustomToolManager:
                 return True
 
         return False
+
+    async def _interaction_context(self) -> dict[str, Optional[int]]:
+        """Who this action belongs to, resolved when it is recorded.
+
+        Late rather than captured at registration: the organization is looked
+        up from the run and that lookup is cached on the engine, so paying for
+        it here costs nothing and avoids a handler registered before the run is
+        fully known recording rows against None.
+        """
+        return {
+            "organization_id": await self.get_organization_id(),
+            "workflow_run_id": getattr(self._engine, "_workflow_run_id", None),
+            "workflow_id": getattr(self._engine, "_workflow_id", None),
+        }
+
+    def _register(
+        self,
+        function_name: str,
+        handler,
+        *,
+        kind: str,
+        app: Optional[str] = None,
+        **register_kwargs,
+    ) -> None:
+        """Register a tool handler, recorded.
+
+        The single place a handler reaches the LLM. Everything the agent can do
+        in outside software passes through here, which is the point: a tool
+        kind added next year is measured without anybody remembering to add the
+        line, and there is no second registration path for somebody to use by
+        accident.
+        """
+        self._engine.llm.register_function(
+            function_name,
+            app_interactions.wrap_handler(
+                handler,
+                kind=kind,
+                app=app,
+                name=function_name,
+                context=self._interaction_context,
+            ),
+            **register_kwargs,
+        )
 
     async def get_organization_id(self) -> Optional[int]:
         """Get the organization ID from the engine (shared cache)."""
@@ -377,9 +448,11 @@ class CustomToolManager:
                 if _is_google_calendar_tool(tool):
                     gcal_schema = google_calendar_function_schema(tool)
                     gcal_function_name = gcal_schema["function"]["name"]
-                    self._engine.llm.register_function(
+                    self._register(
                         gcal_function_name,
                         self._create_google_calendar_handler(tool, gcal_function_name),
+                        kind=ToolCategory.GOOGLE_CALENDAR.value,
+                        app="googlecalendar",
                         timeout_secs=15.0,
                     )
                     logger.debug(
@@ -403,9 +476,14 @@ class CustomToolManager:
                     )
                     mcp_schemas = session.function_schemas(allowed)
                     for fs in mcp_schemas:
-                        self._engine.llm.register_function(
+                        self._register(
                             fs.name,
                             self._create_mcp_handler(session, fs.name),
+                            kind=ToolCategory.MCP.value,
+                            # The customer's own server, named by the tool they
+                            # created rather than by a slug we know -- there is
+                            # no catalogue behind an MCP URL.
+                            app=tool.name,
                             timeout_secs=session.call_timeout_secs,
                         )
                     logger.debug(
@@ -427,9 +505,11 @@ class CustomToolManager:
                     ToolCategory.END_CALL.value,
                     ToolCategory.TRANSFER_CALL.value,
                 }
-                self._engine.llm.register_function(
+                self._register(
                     function_name,
                     handler,
+                    kind=tool.category,
+                    app=_tool_app_slug(tool),
                     timeout_secs=timeout_secs,
                     is_node_transition=is_node_transition,
                 )
@@ -512,7 +592,12 @@ class CustomToolManager:
             except Exception as e:
                 await function_call_params.result_callback({"error": str(e)})
 
-        self._engine.llm.register_function("safe_calculator", calculate_func)
+        # Recorded like everything else although it touches nothing outside.
+        # A calculator that is being called forty times a call is a prompt
+        # problem, and the only way to know is to have counted it.
+        self._register(
+            "safe_calculator", calculate_func, kind=ToolCategory.CALCULATOR.value
+        )
 
     def _register_rate_table_handler(self, tool: Any) -> None:
         """Register the built-in rate-card lookup with the LLM.
@@ -552,7 +637,9 @@ class CustomToolManager:
                     }
                 )
 
-        self._engine.llm.register_function(function_name, rate_lookup_func)
+        self._register(
+            function_name, rate_lookup_func, kind=ToolCategory.RATE_TABLE.value
+        )
 
     def _create_http_tool_handler(self, tool: Any, function_name: str):
         """Create a handler function for an HTTP API tool.
