@@ -221,3 +221,115 @@ before it is one good agent. Everything after it is a platform that gets smarter
   up and the compounding stalls. **This is the central product risk and it is untested**
 - Whether verified memory is a buying reason or merely a sleeping-well reason
 - TTS characters per minute is unmeasured, and it moves every price by up to 58%
+
+---
+
+## Addendum — the spine, and the first vertical
+
+Added the same day, from three founder statements that sharpen the whole document:
+
+1. *"I will build it for a vertical, at least 100 jobs. Logistics, follow-up, compliance,
+   bottleneck finder. Procurement: cost modeller. Production: inventory tracker, planner,
+   scheduler."*
+2. *"They don't speak randomly, only what it has to, with human in the loop and approvals."*
+3. *"Every action is graphed and auditable."*
+
+### Autonomy versus accountability
+
+x.ai's promise is *"AI teammates you can give real work to... come back with finished
+work."* That is **autonomy**. This product's promise is that an agent says only what it is
+approved to say, asks when it is not sure, and leaves a walkable record. That is
+**accountability**.
+
+In procurement, production and compliance, accountability is not the lesser product, it is
+the only deployable one. An agent that autonomously commits to a price is a contractual
+liability and no plant will run it.
+
+**This gap is permanent, not temporary.** A frontier lab is structurally disincentivised
+from shipping approval gates and audit graphs: they make a demo worse and a launch post
+boring, and the lab's economics run on capability and autonomy.
+
+### The three pillars
+
+| Pillar | What it means | Status |
+|---|---|---|
+| **Constrained speech** | The agent states only what has been approved | **Built.** `organisation_learning.py` enforces it in the write path |
+| **Approval gates** | Actions above a threshold need a human *before* they happen | **Partial.** The pattern exists in `kyc.py`, `kyc_admin.py`, `partners.py`, `telephony/provisioning.py`, but flow-specific. Nothing generalises it to "this agent may do X unattended, Y needs approval" |
+| **The action graph** | Every action links to the fact it used, the human who approved that fact, the call it came from, and what it changed where | **Substrate in three places, unified nowhere:** `BillingAuditLogModel` (`actor_user_id`, `actor`), `privacy/access_log.py` (DPDP s11(1)(c), GDPR Art 33), `AppInteractionModel`, `source_run_id` on facts, and the node/edge builder in `organisation_fact_client.py` |
+
+Audit trails already exist for money, for privacy and for KYC. Agent actions are the one
+place the same instinct has not been applied.
+
+### 100 jobs is the output. The ontology is the input.
+
+100 agents, each with its own connector, guardrail, outcome schema, eval set and support
+line, is unmaintainable by five people. Veeva did not beat Salesforce in pharma with 100
+modules; it modelled what pharma deals in, once, correctly.
+
+For industrial operations the object list is short and finite:
+
+> **PO · RFQ · quote · vendor · shipment · SKU · batch · work order · machine · shift · BOM**
+
+Model those once and the named jobs stop being builds:
+
+| Job | What it is over the ontology |
+|---|---|
+| Follow-up agent | A conversation about an RFQ with no quote past its close date |
+| Bottleneck finder | A query over work orders queued at a station |
+| Inventory tracker | A watch on SKU level against a reorder point |
+| Production planner | A constraint solve over work orders, machines and shifts |
+| Cost modeller | An aggregation over quotes, BOMs and vendors |
+| Compliance agent | A rule set over batches and shipments |
+
+**And the ontology is not an optimisation, it is the mechanism behind the differentiator.**
+A hundred agents with a hundred private schemas do not compound; each learns in a silo and
+the second agent starts from zero, which is what every horizontal agent platform does. A
+hundred agents over one ontology do compound, because a fact the RFQ chaser confirmed about
+a vendor is immediately usable by the cost modeller and the compliance agent. That is the
+sentence that sells the second agent, and it is impossible without the shared objects.
+
+### First vertical: industrial, decided by access
+
+The founder confirmed warm access to an industrial buyer, with a meeting obtainable this
+month. That settles it. Warm access beats a faster market at this stage and is the only
+thing that makes a procurement-length cycle survivable on ₹5 lakh.
+
+**First job: RFQ and vendor quote follow-up.** `quote` and `vendor` are already named in
+`OrganisationFactModel` as the next subject types, it is B2B transactional so TRAI barely
+applies, and the buyer already tracks quote coverage and cycle time.
+
+**The pitch is not AI agents.** Every procurement head in India has been pitched those this
+quarter. It is:
+
+> We chase your open RFQs. The agent calls vendors, logs what they said, and structures the
+> quote when it arrives. It never commits to a price, never agrees to a date, and never
+> says anything your team has not approved. Every call, every fact and every field it
+> filled is on one screen with who approved it and when.
+
+Then one question, then silence: **how many of your open RFQs are past their close date
+right now, and who chases them?**
+
+### Revised build order
+
+Replaces §8 for the industrial path.
+
+| Phase | Build | Proves |
+|---|---|---|
+| **0** | Audit F21, F39, F38. Meter agent-builder tokens | A generated client authenticates |
+| **1** | The action graph: one table, one screen, every agent action with actor, source and approval | **The audit screen is the demo.** For this buyer it is the product |
+| **2** | Generalised approval gates: per-agent policy for what runs unattended and what waits | The agent is deployable inside a compliance regime |
+| **3** | Ontology v1: `quote`, `vendor`, `PO` as subject types. RFQ follow-up agent over them | One buyer's quote coverage goes to 100% |
+| **4** | The workspace shell: named agents, status lines, queue, memory review, gaps board | It reads as a teammate rather than a tool |
+| **5** | Second agent (cost modeller) on knowledge the first one earned | **Compounding proven. The catalogue starts paying for itself** |
+
+Phase 1 moved to the front because the audit screen is what gets an industrial buyer past
+IT and compliance, and it is the cheapest of the six.
+
+### Still unproven
+
+- Nobody outside the founding team has configured an agent
+- No customer has paid
+- Whether an operator will do the weekly memory review, or whether unreviewed facts pile up
+  and the compounding stalls. **Still the central product risk**
+- Whether an approval-gated agent is fast enough to be worth having, or whether the human
+  becomes the bottleneck the product was meant to remove
