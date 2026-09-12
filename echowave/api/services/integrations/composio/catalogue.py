@@ -63,6 +63,52 @@ SETUP_API_KEY = "api_key"  # Customer pastes a key from that provider.
 #: register next, and it costs nothing to collect.
 SETUP_NEEDS_APPROVAL = "needs_approval"
 
+#: A vendor Decibyl integrates itself, so the connector platform is the wrong
+#: door. Not a setup difficulty at all -- it is the one value of this field
+#: that says *do not connect it here*.
+#:
+#: Plivo is why this exists. It sits in Composio's catalogue as an ordinary
+#: paste-a-key toolkit, so searching "pli" offered a card reading "Paste a key
+#: from that app", for the carrier that Decibyl's entire telephony runs on. A
+#: customer who followed that would store a second copy of their Plivo
+#: credentials somewhere no call path reads, watch it say Connected, and
+#: conclude their number was live. It never rings. Worse than a missing row:
+#: a confident wrong answer about the one vendor we cannot afford to be wrong
+#: about.
+SETUP_OURS = "ours"
+
+#: Vendors we run natively, mapped to the screen that actually sets them up.
+#:
+#: Keyed by both slug and display name, normalised, because a slug we guessed
+#: wrong would fail the way this codebase keeps failing -- the entry matches
+#: nothing, the generic card renders, and nobody finds out. Matching the name
+#: too means a renamed slug still lands, and the worst case is a card pointing
+#: at a real screen rather than a card telling somebody to paste a key we
+#: will never read.
+OURS: dict[str, str] = {
+    # Telephony. Bring your own carrier credentials, or buy a number from us;
+    # either way it is the telephony screen and never a connector.
+    "plivo": "/telephony-configurations",
+    "twilio": "/telephony-configurations",
+    "telnyx": "/telephony-configurations",
+    "vonage": "/telephony-configurations",
+    # Ours end to end: our OAuth application, our token table, no third party
+    # between the agent and the booking. It already has its own card at the
+    # top of the same screen.
+    "googlecalendar": "/integrations/apps",
+    "google_calendar": "/integrations/apps",
+}
+
+
+def _ours_url(slug: str, name: str) -> Optional[str]:
+    """The native screen for this vendor, or None if we have none."""
+    for candidate in (slug, name):
+        key = str(candidate or "").strip().lower().replace(" ", "").replace("-", "_")
+        if key in OURS:
+            return OURS[key]
+    return None
+
+
 #: Composio's categories, re-filed under headings a business owner would look
 #: under. Order matters: it is the order of the screen, most-asked-for first.
 #: A toolkit lands in the first group that claims any of its categories.
@@ -244,6 +290,20 @@ class Connector:
     group: str
     setup: str
     tools_count: int
+    #: The native screen for this vendor. Set only for ``SETUP_OURS``; None
+    #: for every ordinary connector.
+    setup_url: Optional[str] = None
+    #: True when the connector platform can *also* connect this vendor in one
+    #: click, on top of our native integration.
+    #:
+    #: Both can be true and usually are, which is why this is a second field
+    #: rather than a different setup value. Composio's Plivo toolkit gives an
+    #: agent tools -- send an SMS from the customer's own Plivo -- and that is
+    #: a real capability we should not take away. It is simply not what
+    #: somebody searching "plivo" on this screen is trying to do. So the card
+    #: leads with the telephony screen and keeps the connect button below it,
+    #: rather than pretending one of the two does not exist.
+    also_connectable: bool = False
 
 
 def _setup_kind(toolkit: dict[str, Any]) -> Optional[str]:
@@ -330,7 +390,12 @@ def curate(toolkits: list[dict[str, Any]]) -> list[Connector]:
         if slug.endswith("_mcp") and slug[: -len("_mcp")] in plain_slugs:
             continue
 
-        setup = _setup_kind(toolkit)
+        offered = _setup_kind(toolkit)
+        setup_url = _ours_url(slug, name)
+        # Ours wins the badge. A vendor Composio cannot offer at all still
+        # gets a row, because we can connect it ourselves and the row is the
+        # only thing that says so.
+        setup = SETUP_OURS if setup_url else offered
         if setup is None:
             continue
 
@@ -348,6 +413,8 @@ def curate(toolkits: list[dict[str, Any]]) -> list[Connector]:
                 group=group,
                 setup=setup,
                 tools_count=int(meta.get("tools_count") or 0),
+                setup_url=setup_url,
+                also_connectable=bool(setup_url) and offered == SETUP_ONE_CLICK,
             )
         )
 

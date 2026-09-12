@@ -2367,6 +2367,14 @@ export type ConnectorResponse = {
      * Connected
      */
     connected: boolean;
+    /**
+     * Setup Url
+     */
+    setup_url?: string | null;
+    /**
+     * Also Connectable
+     */
+    also_connectable?: boolean;
 };
 
 /**

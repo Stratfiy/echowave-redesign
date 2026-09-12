@@ -42,6 +42,14 @@ class ConnectorResponse(BaseModel):
     setup: str
     tools_count: int
     connected: bool
+    #: Where the operator should go instead, for a vendor Decibyl integrates
+    #: itself. Set only when ``setup`` is ``ours``; the card renders a link to
+    #: this rather than a connect button, because connecting a carrier here
+    #: would store credentials no call path reads.
+    setup_url: str | None = None
+    #: Whether this vendor can also be connected here as an agent tool, on top
+    #: of the native integration ``setup_url`` points at.
+    also_connectable: bool = False
 
 
 class ConnectorGroupResponse(BaseModel):
@@ -117,6 +125,8 @@ async def list_connectors(
                 setup=row.setup,
                 tools_count=row.tools_count,
                 connected=row.slug.upper() in connected,
+                setup_url=row.setup_url,
+                also_connectable=row.also_connectable,
             )
         )
 
