@@ -200,6 +200,12 @@ export default function AppsPage() {
     const [groups, setGroups] = useState<ConnectorGroupResponse[]>([]);
     const [available, setAvailable] = useState(true);
     const [loading, setLoading] = useState(true);
+    //: The screen could not tell "we have no apps for that" from "the
+    //: catalogue did not load", and reported the second as the first. A
+    //: failure shown as an empty result is a customer concluding we have
+    //: nothing, and a 401 on our own vendor key looked exactly like a search
+    //: that matched nothing for an hour today.
+    const [failed, setFailed] = useState(false);
     const [query, setQuery] = useState("");
 
     const load = useCallback(async (search: string) => {
@@ -208,9 +214,26 @@ export default function AppsPage() {
             const response = await listConnectorsApiV1ConnectorsGet({
                 query: search ? { q: search } : undefined,
             });
-            setGroups(response.data?.groups ?? []);
-            setAvailable(response.data?.available ?? false);
+            // The generated client resolves rather than throws on a 4xx or
+            // 5xx, so without this a backend failure fell through as
+            // `available: false` and rendered "not switched on for this
+            // deployment" -- a broken vendor call reported as a deployment
+            // setting.
+            if (response.error) {
+                setFailed(true);
+                setGroups([]);
+                return;
+            }
+            const fetched = response.data?.groups ?? [];
+            const configured = response.data?.available ?? false;
+            // The catalogue is fifteen hundred rows. Configured, no error, no
+            // search term and nothing back is not an empty catalogue -- it is
+            // a vendor call that did not work.
+            setFailed(configured && !search && fetched.length === 0);
+            setGroups(fetched);
+            setAvailable(configured);
         } catch {
+            setFailed(true);
             setGroups([]);
         } finally {
             setLoading(false);
@@ -273,6 +296,22 @@ export default function AppsPage() {
                 </Card>
             ) : loading && groups.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : failed ? (
+                <Card>
+                    <CardContent className="space-y-2 py-8 text-center">
+                        <p className="text-sm">The app catalogue could not be loaded.</p>
+                        <p className="text-xs text-muted-foreground">
+                            This is us, not you — nothing is wrong with your account.
+                        </p>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void load(query)}
+                        >
+                            Try again
+                        </Button>
+                    </CardContent>
+                </Card>
             ) : total === 0 ? (
                 <Card>
                     <CardContent className="space-y-2 py-8 text-center">
