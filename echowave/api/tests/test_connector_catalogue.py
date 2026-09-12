@@ -5,6 +5,8 @@ one-click really can be connected in one click, and that a row we cannot offer
 at all is still honest about it rather than absent.
 """
 
+import pytest
+
 from api.services.integrations.composio.catalogue import (
     GROUPS,
     SETUP_API_KEY,
@@ -132,3 +134,52 @@ class TestOrdering:
         )
         assert len(rows) == 1
         assert rows[0].group == "Messaging"
+
+
+class TestNothingUsefulIsDroppedSilently:
+    """The allowlist this replaced had no entry for "commerce", so Starshipit,
+    HitPay, Order Desk and Lightspeed vanished and nothing said so. Every
+    category Composio adds after today would have gone the same way."""
+
+    def test_a_commerce_app_reaches_the_screen(self):
+        rows = curate([_toolkit("starshipit", categories=("commerce",))])
+        assert rows and rows[0].group == "Shop & shipping"
+
+    @pytest.mark.parametrize("label", ["ecommerce", "e-commerce", "commerce", "retail"])
+    def test_every_spelling_of_commerce_lands_on_one_shelf(self, label):
+        rows = curate([_toolkit("shop", categories=(label,))])
+        assert rows[0].group == "Shop & shipping"
+
+    def test_a_category_nobody_anticipated_becomes_Other_not_nothing(self):
+        """The point of the blocklist. A shelf we did not think of is worth
+        less than the right shelf and far more than silence."""
+        rows = curate([_toolkit("weird", categories=("underwater basket weaving",))])
+        assert rows and rows[0].group == "Other"
+
+    def test_a_toolkit_claiming_no_category_at_all_still_appears(self):
+        rows = curate([_toolkit("bare", categories=())])
+        assert rows and rows[0].group == "Other"
+
+    def test_a_useful_app_filed_under_developer_tools_survives(self):
+        """Google Maps is categorised 'developer tools' by Composio and is
+        perfectly useful to a business. A toolkit is dropped only when every
+        category it claims is hidden."""
+        rows = curate(
+            [_toolkit("google_maps", categories=("developer tools", "productivity"))]
+        )
+        assert rows and rows[0].group == "Work management"
+
+    def test_something_that_is_only_developer_tooling_is_still_dropped(self):
+        rows = curate(
+            [_toolkit("hugging_face", categories=("developer tools", "ai models"))]
+        )
+        assert rows == []
+
+    def test_other_sorts_last(self):
+        rows = curate(
+            [
+                _toolkit("misc", name="Misc", categories=("misc",)),
+                _toolkit("mail", name="Mail", categories=("email",)),
+            ]
+        )
+        assert [r.group for r in rows] == ["Email", "Other"]

@@ -86,16 +86,28 @@ GROUPS: list[tuple[str, set[str]]] = [
             "accounting",
             "payment processing",
             "proposal & invoice management",
-            "ecommerce",
+            "billing",
+            "finance",
         },
+    ),
+    (
+        "Shop & shipping",
+        {"ecommerce", "e-commerce", "commerce", "retail", "point of sale"},
     ),
     (
         "Spreadsheets & data",
         {"spreadsheets", "databases", "analytics", "business intelligence"},
     ),
+    ("Forms & intake", {"forms & surveys"}),
     (
         "Files & documents",
-        {"documents", "file management & storage", "notes", "signatures"},
+        {
+            "documents",
+            "file management & storage",
+            "notes",
+            "signatures",
+            "content & files",
+        },
     ),
     (
         "Work management",
@@ -105,6 +117,7 @@ GROUPS: list[tuple[str, set[str]]] = [
             "team collaboration",
             "productivity",
             "time tracking software",
+            "product management",
         },
     ),
     (
@@ -115,16 +128,50 @@ GROUPS: list[tuple[str, set[str]]] = [
             "social media accounts",
             "social media marketing",
             "ads & conversion",
+            "url shortener",
         },
     ),
     ("Meetings", {"video conferencing", "ai meeting assistants", "transcription"}),
+    ("People", {"hr talent & recruitment", "human resources"}),
+    ("Learning", {"education", "online courses"}),
+    ("Events", {"event management"}),
+    ("Devices", {"internet of things"}),
 ]
 
-#: Everything above is an allowlist, so a toolkit in none of those groups is
-#: simply not shown. That is the intended behaviour and not an oversight: the
-#: unlisted remainder is developer tooling, AI infrastructure, gaming and
-#: fitness, none of which belong on the integrations screen of a platform sold
-#: to clinics and workshops.
+#: Categories that belong to somebody else's product. A toolkit is dropped only
+#: when *every* category it claims is in here -- Google Maps is filed under
+#: "developer tools" and is perfectly useful to a business, so a toolkit that
+#: is also anything else survives and lands in its group, or in OTHER_GROUP.
+#:
+#: This is a blocklist because the allowlist it replaced failed silently. It
+#: had no entry for "commerce", so Starshipit, HitPay, Order Desk and Lightspeed
+#: were dropped and nothing said so -- and every category Composio adds after
+#: today would have been dropped the same way. A blocklist fails the other
+#: direction: the worst case is a row nobody wanted, which somebody notices.
+HIDDEN_CATEGORIES: set[str] = {
+    "developer tools",
+    "artificial intelligence",
+    "ai web scraping",
+    "ai content generation",
+    "ai models",
+    "ai agents",
+    "ai chatbots",
+    "ai safety compliance detection",
+    "model context protocol",
+    "server monitoring",
+    "it operations",
+    "security & identity tools",
+    "app builder",
+    "website & app building",
+    "website builders",
+    "gaming",
+}
+
+#: Where an offerable toolkit goes when it matches no group above. Last in the
+#: order, and deliberately not empty of meaning: "we can connect this and did
+#: not have a shelf for it" is true and useful, where dropping it silently is
+#: neither.
+OTHER_GROUP = "Other"
 
 
 @dataclass(frozen=True)
@@ -166,15 +213,29 @@ def _setup_kind(toolkit: dict[str, Any]) -> Optional[str]:
 
 
 def _group_for(categories: list[dict[str, Any]]) -> Optional[str]:
+    """Which shelf this goes on, or None if it is somebody else's product.
+
+    Order of the checks is the whole logic. A named group wins first, so an app
+    that is both "ecommerce" and "developer tools" is filed under Shop &
+    shipping rather than hidden. Only a toolkit whose every category is hidden
+    is dropped; anything left over is Other, never silently gone.
+    """
     names = {
         str(c.get("name") or "").strip().lower()
         for c in categories
         if isinstance(c, dict)
     }
+    names.discard("")
+    if not names:
+        return OTHER_GROUP
+
     for group, claimed in GROUPS:
         if names & claimed:
             return group
-    return None
+
+    if names <= HIDDEN_CATEGORIES:
+        return None
+    return OTHER_GROUP
 
 
 def curate(toolkits: list[dict[str, Any]]) -> list[Connector]:
@@ -219,6 +280,7 @@ def curate(toolkits: list[dict[str, Any]]) -> list[Connector]:
         )
 
     order = {group: index for index, (group, _) in enumerate(GROUPS)}
+    order[OTHER_GROUP] = len(GROUPS)
     setup_order = {
         SETUP_ONE_CLICK: 0,
         SETUP_NO_AUTH: 1,
