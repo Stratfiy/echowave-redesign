@@ -41,6 +41,7 @@ import {
     searchNumbersApiV1ManagedNumbersSearchPost,
 } from "@/client/sdk.gen";
 import { AgreementsDialog, useAgreements } from "@/components/AgreementsDialog";
+import { KeepYourNumber } from "@/components/telephony/KeepYourNumber";
 import { TelephonyTabs } from "@/components/telephony/TelephonyTabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -435,6 +436,12 @@ export default function BuyNumberPage() {
                     carrier account.
                 </p>
             </div>
+
+            {/* Offered before the rental flow, not after it. A clinic whose
+                number is painted on the board outside does not need a second
+                number — it needs the first one to stop going unanswered, and
+                three steps of KYC is a long way to travel to find that out. */}
+            <KeepYourNumber />
 
             {error && (
                 <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm">

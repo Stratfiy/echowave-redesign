@@ -115,6 +115,7 @@
               "integrations/telephony/overview",
               "integrations/telephony/inbound",
               "integrations/telephony/managed-numbers",
+              "integrations/telephony/keep-your-number",
               "integrations/telephony/twilio",
               "integrations/telephony/vonage",
               "integrations/telephony/plivo",

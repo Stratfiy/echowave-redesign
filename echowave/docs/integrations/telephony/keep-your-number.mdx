@@ -1,0 +1,113 @@
+---
+title: "Keep Your Own Number"
+description: "Forward the number already on your signage to a Decibyl agent, instead of publishing a new one"
+---
+
+## Why forward instead of switching
+
+A clinic with its number painted on the board, printed on prescription pads
+and listed on Google Maps does not want a new number. Every one of those
+places is a place the old number keeps ringing, and a business cannot change
+them all at once.
+
+Forwarding solves it in the other direction: the number everyone already has
+stays yours, and the calls it cannot answer arrive at a Decibyl agent instead
+of at nobody.
+
+You keep:
+
+- The number on your signage, your cards and your Maps listing
+- Your existing SIM and plan
+- The ability to answer in person whenever you want to
+
+<Note>
+Forwarding is set on **your** line, by you, from your own handset. Decibyl
+cannot set it for you — no platform can, because the instruction goes to your
+telecom operator from the SIM that owns the number.
+</Note>
+
+## Pick which calls the agent should take
+
+This is the decision that matters, and most businesses get more out of the
+second or third option than the first.
+
+| What you want | Forward on |
+|---|---|
+| The agent answers everything | Always |
+| Somebody answers when free, the agent catches the rest | Busy, and no reply |
+| The agent covers nights and Sundays only | Always — switched on when you close |
+| The agent catches calls when the phone is off or out of range | Unreachable |
+
+**Busy + no reply is the common answer for a front desk.** The receptionist
+keeps answering; the agent picks up the second and third caller who would
+otherwise have heard an engaged tone, and the ones nobody reached in time.
+
+## Set it from your handset
+
+These are the standard GSM codes. Dial them like a phone number, from the SIM
+whose calls you want forwarded, and replace `<decibyl number>` with the number
+shown on your agent's Channels tab — including the country code, as
+`+91XXXXXXXXXX`.
+
+| Forward on | Turn on | Turn off |
+|---|---|---|
+| Always | `**21*<decibyl number>#` | `##21#` |
+| Busy | `**67*<decibyl number>#` | `##67#` |
+| No reply | `**61*<decibyl number>#` | `##61#` |
+| Unreachable | `**62*<decibyl number>#` | `##62#` |
+| *(all of the above)* | — | `##002#` |
+
+To set busy **and** no reply, dial the two codes one after the other. They are
+separate settings and do not replace each other.
+
+### Check it took
+
+Dial `*#21#` to see what your line is currently forwarding, and to where. Do
+this every time — the confirmation a handset shows after dialling a code is
+sometimes shown whether or not the operator accepted it.
+
+<Note>
+On some Indian networks the codes are handled by the operator's own app or
+service number rather than by the handset, and on a **landline** they are
+almost always set by the operator on request rather than by dialling. If
+`*#21#` does not confirm the forward, call your operator and ask them to set
+"call forwarding on busy and no answer" to the Decibyl number. It is a routine
+request; the person on the other end will know it.
+</Note>
+
+## Then test it, before you rely on it
+
+Forwarding that was set but not confirmed is the failure that hurts, because
+it looks identical to working until a caller is lost.
+
+1. Ring your own number from a different phone and let it ring out. The agent
+   should answer.
+2. If you forwarded on busy, be on a call and have somebody else ring you. The
+   agent should answer.
+3. Open the agent and check the call is listed with what it did.
+
+If the call rings out to your own voicemail instead of the agent, the forward
+did not take. Re-dial `*#21#` and check.
+
+## What this costs
+
+Two legs, and only one of them is ours:
+
+- **Your operator** charges you for forwarding the call from your number to
+  ours. This is a normal outgoing-call charge on your own plan, and it is
+  between you and your operator.
+- **Decibyl** charges for the call the agent answers, at your per-minute rate.
+
+A forwarded call is therefore slightly more expensive than a call to a Decibyl
+number directly. For most businesses that is worth paying to keep the number
+their customers already know, but it is worth knowing before the first bill.
+
+## When to use a Decibyl number instead
+
+Forwarding is the right answer when the number matters. Take a
+[managed number](/integrations/telephony/managed-numbers) instead when:
+
+- You are starting a new line anyway — a campaign number, a new branch
+- You want calls placed *out*, not just answered; a forwarded number cannot
+  make outbound calls
+- Your line is a landline your operator will not forward

@@ -109,13 +109,15 @@
      badges, 8px buttons, 12px cards, 16px large surfaces, 6px inputs. Nothing
      outside this set — ad-hoc rounding is what makes a system look accreted.
      --radius is the card value because that is what shadcn's Card inherits. */
-  --radius: 0.75rem;
+  --radius: 0.625rem;
   --radius-control: 0.375rem;
-  /* Buttons are pills — the one deliberate departure from the reference set.
-     A round black button on ivory is the product's signature press. Inputs
-     keep their 6px so a field never reads as a button. */
-  --radius-button: 9999px;
-  --radius-large: 1.25rem;
+  /* Buttons are 8px, not pills. A fully round button reads consumer-friendly;
+     this is a tool somebody runs their phone line on, and a squarer press
+     reads as something that does a job. Tags and badges keep --radius-pill,
+     which is where a pill still belongs. Inputs keep their 6px so a field
+     never reads as a button. */
+  --radius-button: 0.5rem;
+  --radius-large: 0.875rem;
   --radius-pill: 9999px;
 
   /* Neutrals. The reference's full ramp, kept by its own names so the intent
@@ -133,16 +135,20 @@
   --color-fog: #737373;
   --color-silver: #a3a3a3;
 
-  /* The floor is ivory, warm rather than grey, so white cards and the white
-     rail lift off it on colour alone — no shadow needed. */
-  --background: #f3efe8;
+  /* The floor is a cool near-white. It was warm ivory, which read soft rather
+     than precise: the whole shell is data a business acts on, and the surface
+     under it should get out of the way.
+     Not pure white, because cards are, and the floor has to be the darker of
+     the two or every panel edge disappears. */
+  --background: #f8f9fa;
   --foreground: #171717;
-  /* Surfaces are warm and slightly see-through, so a card sits *in* the ivory
-     rather than as a white sticker on it. The wash behind shows faintly
-     through; text contrast is unchanged because the fill is near-white. */
-  --card: rgba(255, 253, 249, 0.72);
+  /* Cards are solid white with a real edge. They were translucent, which is
+     what made every panel read hazy — a card you can faintly see through has
+     no boundary, and a screen of them has no structure. Opaque plus a hairline
+     border plus the faintest lift is the whole effect. */
+  --card: #ffffff;
   --card-foreground: #171717;
-  --popover: #fdfcf9;
+  --popover: #ffffff;
   --popover-foreground: #171717;
 
   /* The committed action. Deep coral, white text, 5.55:1 — this is the button
@@ -157,23 +163,23 @@
   --accent-brand: #e15b35;
   --accent-brand-soft: rgba(225, 91, 53, 0.10);
   --accent-brand-tint: #fbe9e2;
-  /* The one gradient, coral into tangerine. It sits on top of the ivory floor
+  /* The one gradient, coral into tangerine. It sits on top of the floor
      as a wash behind a screen or a hero panel; it never sits behind text
      smaller than a display size. */
   --brand-gradient: linear-gradient(135deg, #e15b35 0%, #f08a4b 100%);
   /* Gradient end only — see the note above. Never a fill behind text. */
   --brand-pink: #ED2287;
 
-  --secondary: #f1ece3;
+  --secondary: #f1f3f5;
   --secondary-foreground: #171717;
-  --muted: #f1ece3;
+  --muted: #f1f3f5;
   /* Fog is 4.74:1 on white but only 4.35:1 on the paper surface. Muted text
      sitting on #f5f5f5 uses steel instead — see --muted-foreground-on-paper. */
   --muted-foreground: #737373;
   --muted-foreground-on-paper: #525252;
   /* Hover and selected rows. Neutral, not coral: something you merely hovered
      must not look like the thing you chose. */
-  --accent: #f1ece3;
+  --accent: #eef1f4;
   --accent-foreground: #171717;
 
   /* Destructive stays a true red, well clear of the coral in both lightness
@@ -186,11 +192,11 @@
   --success: #16a34a;
 
   /* The structural line. Used more than any other value in the system. */
-  --border: #e3ddd1;
+  --border: #e4e7eb;
   /* Inputs carry a stronger edge than cards do — the reference makes this a
      signature: a field should look like something you are meant to fill in,
      not like a container that happens to be empty. */
-  --input: #d5cec1;
+  --input: #d3d8de;
   --ring: #e15b35;
 
   /* --brand-* are consumed by call sites written when the brand was blue. They
@@ -210,13 +216,13 @@
      --primary (ink). What remains on it is link text and tints. */
   --brand-blue-soft: rgba(225, 91, 83, 0.10);
   --brand-blue-glow: rgba(225, 91, 83, 0.14);
-  --brand-panel: #fdfcf9;
+  --brand-panel: #ffffff;
   --brand-heading: #171717;
   --brand-body: #737373;
-  --brand-chip: #f1ece3;
+  --brand-chip: #f1f3f5;
   --brand-chip-border: #e5e5e5;
   --brand-chip-fg: #171717;
-  --brand-card: #fdfcf9;
+  --brand-card: #ffffff;
   --brand-amber: #ea580c;
 
   /* Supporting accents, for pill tags and small feature marks. One accent per
@@ -245,9 +251,9 @@
   --sidebar-foreground: #171717;
   --sidebar-primary: #171717;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f1ece3;
+  --sidebar-accent: #eef1f4;
   --sidebar-accent-foreground: #171717;
-  --sidebar-border: #e3ddd1;
+  --sidebar-border: #e4e7eb;
   --sidebar-ring: #e15b35;
 
   /* --cta predates --primary and is used on a handful of CTAs. Both point at
@@ -255,14 +261,21 @@
   --cta: #171717;
   --cta-foreground: #ffffff;
 
-  /* Elevation, reserved. Cards get NO shadow — the border defines them. These
-     exist for the two cases the reference allows: a 1px lift under a filled
-     button, and a lift on a tile that responds to hover. */
+  /* Elevation, used sparingly. A card gets a hairline border and the faintest
+     lift (--shadow-card); everything heavier exists for the two cases the
+     reference allows: a 1px lift under a filled button, and a lift on a tile
+     that responds to hover. */
   --shadow-subtle: rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
   --shadow-sm: rgba(0, 0, 0, 0.1) 0px 4px 6px -1px, rgba(0, 0, 0, 0.1) 0px 2px 4px -2px;
   --shadow-md: rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.1) 0px 4px 6px -4px;
   --shadow-ring: rgba(0, 0, 0, 0.1) 0px 0px 0px 4px;
-  --shadow-card: none;
+  /* Cards get the faintest possible lift. It was `none`, which worked while
+     the floor was ivory and the cards were translucent — the colour step did
+     the separating. On a near-white floor with white cards the border alone
+     reads flat, and this is the one effect that makes a panel sit *on* the
+     page rather than be cut out of it. Deliberately smaller than
+     --shadow-subtle: any more and a screen of cards looks like a pile. */
+  --shadow-card: rgba(16, 24, 40, 0.04) 0px 1px 2px 0px;
   --shadow-raised: rgba(0, 0, 0, 0.1) 0px 4px 6px -1px, rgba(0, 0, 0, 0.1) 0px 2px 4px -2px;
 
   /* Type scale. 16px/1.5 is the canonical body step; 14px for dense data,
@@ -297,8 +310,8 @@
      white rather than breaking. */
   --brand-imprint: none;
   --glass-fill: rgba(255, 253, 249, 0.72);
-  --glass-fill-strong: #fdfcf9;
-  --glass-edge: #e3ddd1;
+  --glass-fill-strong: #ffffff;
+  --glass-edge: #e4e7eb;
   --glass-glow-blue: transparent;
   --glass-glow-amber: transparent;
   --glass-glow-deep: transparent;
@@ -584,7 +597,7 @@
    flush to the viewport edge. The previous treatment floated it as a rounded
    detached card, which costs ~28px of gutter on both sides and makes the nav
    read as a widget sitting on the page rather than as the frame around it. */
-/* The rail floats: a white card on the ivory floor, rounded like every other
+/* The rail floats: a white card on the page floor, rounded like every other
    large surface, edged by the same hairline and nothing else. No drop shadow —
    the floor is warm enough that the card separates on colour alone, and a
    shadow would make the one permanent element on screen the softest one. */
@@ -594,7 +607,7 @@
   /* Opaque, and no backdrop blur: WebKit stops honouring position: fixed
      on the rail once a blurred descendant is inside it, so on an iPad the
      rail scrolled away with the page. Warm near-white does the blending. */
-  background-color: #fdfcf9;
+  background-color: #ffffff;
   box-shadow: none;
   overflow: hidden;
 }

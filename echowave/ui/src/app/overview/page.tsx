@@ -30,7 +30,7 @@ export default function OverviewPage() {
     return (
         <>
             <PageHeader
-                title="Overview"
+                title="Home"
                 // The greeting moved into the body, where it can say what
                 // actually happened rather than what the page contains.
                 description="Your team, and what it has been doing."
