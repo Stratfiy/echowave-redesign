@@ -25,8 +25,13 @@ from api.services.pipecat.tracing_config import (
     register_org_langfuse_credentials,
     unregister_org_langfuse_credentials,
 )
+from api.services.reports import call_intent
 from api.services.telephony import credential_encryption
-from api.services.workflow import organisation_memory, outcomes
+from api.services.workflow import (
+    organisation_learning,
+    organisation_memory,
+    outcomes,
+)
 from api.services.workflow.disposition_run import classify_call
 from api.services.workflow.dto import (
     QANodeData,
@@ -517,14 +522,15 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
                 workflow_run_id=workflow_run_id,
             )
 
-        if not webhook_nodes:
-            logger.debug("No webhook nodes in workflow")
-            return
-
-        # What this call taught us about whoever was on it, before the webhooks
-        # fire. Deliberately before rather than after: a webhook that raises
-        # must not cost the account its memory of the conversation, and this
-        # cannot raise (see organisation_memory).
+        # What this call taught us, before the webhooks and before the early
+        # return below.
+        #
+        # It used to sit *after* `if not webhook_nodes: return`, which meant an
+        # agent with no webhook node never remembered anything -- and most
+        # agents have no webhook node. The memory was not broken, it was
+        # unreachable for the majority of accounts, and nothing failed to say
+        # so. Both calls here are written not to raise, so a webhook that does
+        # cannot cost the account its memory of the conversation.
         await organisation_memory.promote_from_run(
             organization_id=organization_id,
             workflow_run_id=workflow_run_id,
@@ -533,6 +539,25 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
                 workflow_run.initial_context
             ),
         )
+
+        # And what it taught the business about itself: a question no agent
+        # could answer, a handover to a person, a system that would not
+        # respond. Recorded unbelieved -- none of it reaches an agent's prompt
+        # until somebody confirms it.
+        await organisation_learning.learn_from_run(
+            organization_id=organization_id,
+            workflow_run_id=workflow_run_id,
+            intent=call_intent.intent_of(
+                (workflow_run.gathered_context or {}).get("nodes_visited"),
+                call_intent.passthrough_names(workflow_definition),
+            ),
+            gathered_context=workflow_run.gathered_context,
+            interactions=await db_client.app_interactions_for_run(workflow_run_id),
+        )
+
+        if not webhook_nodes:
+            logger.debug("No webhook nodes in workflow")
+            return
 
         logger.info(f"Found {len(webhook_nodes)} webhook nodes to execute")
 

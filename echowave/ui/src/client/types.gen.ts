@@ -4201,6 +4201,18 @@ export type ExtractionLibraryResponse = {
 };
 
 /**
+ * FactsRequest
+ */
+export type FactsRequest = {
+    /**
+     * Facts
+     */
+    facts?: {
+        [key: string]: string;
+    };
+};
+
+/**
  * FallbackServiceConfiguration
  *
  * One backup in an ordered chain, tried when the one before it fails.
@@ -5966,6 +5978,66 @@ export type McpToolDefinition = {
      * MCP server configuration.
      */
     config: McpToolConfig;
+};
+
+/**
+ * MemoryItem
+ */
+export type MemoryItem = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Times Seen
+     */
+    times_seen: number;
+    /**
+     * First Seen At
+     */
+    first_seen_at: string | null;
+    /**
+     * Last Seen At
+     */
+    last_seen_at: string | null;
+    /**
+     * Source Run Id
+     */
+    source_run_id: number | null;
+};
+
+/**
+ * MemoryResponse
+ */
+export type MemoryResponse = {
+    /**
+     * Facts
+     */
+    facts: Array<MemoryItem>;
+    /**
+     * Gaps
+     */
+    gaps: Array<MemoryItem>;
 };
 
 /**
@@ -9294,6 +9366,16 @@ export type StartResponse = {
      * Language
      */
     language?: string | null;
+};
+
+/**
+ * StatusRequest
+ */
+export type StatusRequest = {
+    /**
+     * Status
+     */
+    status: string;
 };
 
 /**
@@ -22707,6 +22789,128 @@ export type ListConnectedAccountsApiV1ConnectorsAccountsGetResponses = {
 };
 
 export type ListConnectedAccountsApiV1ConnectorsAccountsGetResponse = ListConnectedAccountsApiV1ConnectorsAccountsGetResponses[keyof ListConnectedAccountsApiV1ConnectorsAccountsGetResponses];
+
+export type ReadMemoryApiV1OrganisationMemoryGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organisation/memory';
+};
+
+export type ReadMemoryApiV1OrganisationMemoryGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadMemoryApiV1OrganisationMemoryGetError = ReadMemoryApiV1OrganisationMemoryGetErrors[keyof ReadMemoryApiV1OrganisationMemoryGetErrors];
+
+export type ReadMemoryApiV1OrganisationMemoryGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryResponse;
+};
+
+export type ReadMemoryApiV1OrganisationMemoryGetResponse = ReadMemoryApiV1OrganisationMemoryGetResponses[keyof ReadMemoryApiV1OrganisationMemoryGetResponses];
+
+export type WriteFactsApiV1OrganisationMemoryFactsPostData = {
+    body: FactsRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organisation/memory/facts';
+};
+
+export type WriteFactsApiV1OrganisationMemoryFactsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WriteFactsApiV1OrganisationMemoryFactsPostError = WriteFactsApiV1OrganisationMemoryFactsPostErrors[keyof WriteFactsApiV1OrganisationMemoryFactsPostErrors];
+
+export type WriteFactsApiV1OrganisationMemoryFactsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryResponse;
+};
+
+export type WriteFactsApiV1OrganisationMemoryFactsPostResponse = WriteFactsApiV1OrganisationMemoryFactsPostResponses[keyof WriteFactsApiV1OrganisationMemoryFactsPostResponses];
+
+export type SetStatusApiV1OrganisationMemoryFactIdStatusPostData = {
+    body: StatusRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Fact Id
+         */
+        fact_id: number;
+    };
+    query?: never;
+    url: '/api/v1/organisation/memory/{fact_id}/status';
+};
+
+export type SetStatusApiV1OrganisationMemoryFactIdStatusPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetStatusApiV1OrganisationMemoryFactIdStatusPostError = SetStatusApiV1OrganisationMemoryFactIdStatusPostErrors[keyof SetStatusApiV1OrganisationMemoryFactIdStatusPostErrors];
+
+export type SetStatusApiV1OrganisationMemoryFactIdStatusPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryItem;
+};
+
+export type SetStatusApiV1OrganisationMemoryFactIdStatusPostResponse = SetStatusApiV1OrganisationMemoryFactIdStatusPostResponses[keyof SetStatusApiV1OrganisationMemoryFactIdStatusPostResponses];
 
 export type ShelfApiV1PacksGetData = {
     body?: never;

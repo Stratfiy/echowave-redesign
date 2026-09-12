@@ -5008,6 +5008,30 @@ class OrganisationFactModel(Base):
     key = Column(String(128), nullable=False)
     value = Column(Text, nullable=False)
 
+    #: "fact" or "gap". A fact is something we now know; a gap is something a
+    #: caller wanted that no agent could answer or do.
+    #:
+    #: Gaps live here rather than in a table of their own because they are the
+    #: same thing seen from the other side -- "we do not know our Saturday
+    #: hours" is a fact about the organisation, and the screen that shows what
+    #: the business has learned is the screen that should show what it still
+    #: cannot answer. Splitting them would put the two halves of one question
+    #: on two pages.
+    kind = Column(String(16), nullable=False, default="fact", server_default="fact")
+
+    #: "learned", "confirmed" or "rejected".
+    #:
+    #: The column that keeps this safe. Everything inferred from a conversation
+    #: arrives as "learned" and a learned fact never reaches an agent's prompt.
+    #: A person confirms it first. An agent that starts confidently telling
+    #: callers something it merely overheard is the failure mode that would
+    #: cost an account, and no amount of corroboration count substitutes for
+    #: somebody saying yes.
+    status = Column(
+        String(16), nullable=False, default="learned", server_default="learned"
+    )
+    confirmed_at = Column(DateTime(timezone=True), nullable=True)
+
     #: Which call taught us this, kept so a wrong fact can be traced to the
     #: conversation that produced it and heard. Without it a bad fact is
     #: unfalsifiable, and an unfalsifiable fact in front of an agent is worse
