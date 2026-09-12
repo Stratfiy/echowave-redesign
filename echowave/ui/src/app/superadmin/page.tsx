@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, KeyRound, List, Loader2, ShieldCheck, Wallet } from 'lucide-react';
+import { ArrowRight, KeyRound, List, Loader2, PhoneCall, ShieldCheck, Speech, Wallet } from 'lucide-react';
 import Link from "next/link";
 import { useState } from "react";
 
@@ -251,6 +251,53 @@ export default function SuperadminPage() {
                                     <Button className="w-full md:w-auto">
                                         <Wallet className="mr-2 h-4 w-4" />
                                         Open Billing
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </Link>
+                            </CardContent>
+                        </Card>
+                        {/* The switch that takes the shelf from empty to listed. A
+                            role that makes or takes calls cannot be published
+                            without a way to be heard, so with nothing set here every
+                            calling role stays unlisted — and an operator with no link
+                            to this screen has no way to find that out. */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Demo agent</CardTitle>
+                                <CardDescription>
+                                    The agent a prospect hears before hiring a role.
+                                    Until one is set, every calling role stays unlisted.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Link href="/superadmin/telephony/demo-agent">
+                                    <Button className="w-full md:w-auto">
+                                        <Speech className="mr-2 h-4 w-4" />
+                                        Set the demo agent
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </Link>
+                            </CardContent>
+                        </Card>
+
+                        {/* Same gap as Billing had: built, routed and reachable, with
+                            nothing linking to it. The pool size here is the limit that
+                            bites — a third simultaneous trial call waits for one of
+                            these to free up — and it was invisible unless you already
+                            knew the path. */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Shared caller IDs</CardTitle>
+                                <CardDescription>
+                                    Decibyl&apos;s own numbers, lent to every account for
+                                    outbound calls. The pool size is the trial-call limit.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Link href="/superadmin/telephony/shared-outbound">
+                                    <Button className="w-full md:w-auto">
+                                        <PhoneCall className="mr-2 h-4 w-4" />
+                                        Open shared caller IDs
                                         <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 </Link>
