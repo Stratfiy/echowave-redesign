@@ -298,3 +298,136 @@ business. It changes the price and the front door, and it costs one message.
   with human confirm-and-reject is a teaching loop. Outcome rate and readiness are a quality
   loop. Neither appears in `PRD.md` §5 differentiators. The gap in this company is not
   engineering, it is noticing what you have already shipped.
+
+---
+
+# Revision 2 — the vertical catalog, and what the evidence forced
+
+Added 12 September 2026, same session. Two new inputs from the founder:
+
+1. *"Along with workspace we also will have industry/business specific verticals with agents
+   related to their business. Popular job roles from LinkedIn that our agents can do, and some
+   task specific agents."*
+2. Asked how many of the existing role templates have ever been sold or deployed:
+   **"One or two, hand-configured by us."**
+
+The second answer changed the plan more than the first.
+
+## The catalog already exists
+
+`api/services/agent_templates/catalogue.py` ships six role-shaped agents today: **Clinic front
+desk, Property lead qualifier, Loan payment reminder, Admissions counsellor, COD order
+confirmation, Restaurant reservations**, with `GET /agent-templates`, `GET /{id}` and
+`POST /{id}/create`. The marketing site already sells eight verticals (clinics, dental,
+ivf-fertility, diagnostics, real-estate, lending-collections, logistics, education).
+
+The vertical agent catalog is not a thing to build. It is a thing that exists, has never been
+surfaced as a front door, and has never been configured by anyone outside the founding team.
+
+## The contradiction that had to be resolved
+
+`ROADMAP.md`, 2 September, on the template gallery it calls the highest-ROI item on the page:
+
+> Templates are vertical-agnostic. The same six work for a clinic, a salon, a gym, a coaching
+> centre, a garage. **Strip the nouns and the job is identical:** a business pays for leads,
+> the phone rings, nobody picks up, the money is gone.
+
+The proposal in this session is the opposite conclusion, three weeks later, with no new
+evidence in between. The September position is better supported, and by this company's own
+measurements: when vertical-specific marketing content was written, the eight city pages came
+out **60% identical to each other**, four of the five FAQs byte-for-byte the same, 61% of
+visible words shared (measured in the 12 September audit). That is not a writing failure. It
+is what happens when the underlying offer genuinely is one thing wearing eight names.
+
+## Where the vertical actually lives
+
+Not in the agent. In three cheap, composable things:
+
+| What differs by vertical | Example | Where it lives | Cost |
+|---|---|---|---|
+| Connector, the system of record | EMR vs LMS vs DMS vs LOS | Composio, 1,540 toolkits | Low |
+| Guardrail, what it may say | RBI collections conduct, clinical no-advice | Prompt plus a refusal list | Low |
+| Outcome schema, what success is | booking made vs payment promised vs document collected | `workflow_outcomes` | Low |
+| **Call flow** | greet, understand, route, close | The workflow engine | **Identical. This is the expensive part and it does not change.** |
+
+Six agents plus per-vertical connector, guardrail and outcome schema yields roughly forty
+sellable products. Six agents times twenty rebuilt call flows yields twenty things nobody
+maintains. With five people and `evals/` carrying no test coverage at all (audit finding), the
+second number is fiction.
+
+## On job roles as a product frame
+
+- **Sell the job role, do not build the job role.** The name on the tin is how buyers search,
+  and `/ai-receptionist/[city]` already does this. Keep the marketing frame.
+- **A job title as a product promise anchors price to a salary and the bar to a whole job
+  done.** The comparison becomes a ₹15,000-35,000/month human rather than a missed call. That
+  bar is where most AI-SDR-shaped companies died.
+- **LinkedIn titles are the wrong selection filter.** They select for what sounds impressive,
+  not for what an agent can finish. The right filter is three tests: is there a clear success
+  signal, is there a system of record to write to, and is the person on the other end expecting
+  the call? Run the existing six through it.
+- **"Task-specific agents" is the defensible half**, and it was said in the same sentence. A
+  task is a step, a step composes into n8n, a job role does not.
+
+## Two doors, one engine
+
+| Door | Motion | Buyer | Status |
+|---|---|---|---|
+| Template gallery | Retail, rep-led, pick a role and fill six fields | SMB direct | Built in code, never surfaced, never self-served |
+| n8n node plus MCP | Wholesale, agency-led, composable steps | Automation agencies | Not built; the only demand evidence the company has |
+
+Both are packagings of one workflow engine, so both are cheap. Running two go-to-markets with
+five people while adding twenty agents is not cheap, and is the thing to refuse.
+
+## The decisive fact, and the experiment it forces
+
+Templates have only ever been configured by the founders. The commission sales model
+(`ROADMAP.md`: *"sales is commission-based, so headcount scales without burn, but only if a rep
+can sell and set up with no training"*) rests entirely on a claim nobody has tested.
+
+**The n8n clients are the handover test.** An agency configuring an agent for its own client is
+structurally the same actor as an untrained rep, except it pays rather than costs. One motion
+tests four unknowns:
+
+| Unknown | How this motion answers it |
+|---|---|
+| Will anyone pay? | An invoice, GST-compliant, reconciled to the ledger |
+| Can a non-founder configure an agent unaided? | The agency gets a client live with no founder in the room |
+| Is the human-alongside-agent thesis real? | Do they open and resolve inbox tasks without being asked |
+| Which verticals are real? | Which jobs they request that the existing six do not cover |
+
+## Revised sequencing
+
+**Now, 4-6 weeks, unchanged in substance from Revision 1 plus one addition**
+1. n8n community node, backed by existing `sdk_expose` endpoints.
+2. Escalation Inbox, the missing fifth property.
+3. Resume semantics and the webhook back into n8n.
+4. **Expose the six existing templates through the node and the API as starting points.** Not a
+   gallery UI. Just make them reachable, so an agency can pick one instead of starting empty.
+
+**Explicitly not now**
+- New vertical agents. The six are unsold.
+- The gallery UI. Build it once a non-founder has succeeded with the six; before that it is a
+  storefront for untested inventory.
+- The workspace. No demand evidence.
+- The job graph. Not until the inbox has usage.
+
+**Catalog growth rule, from here on**
+> A new vertical agent gets built only after someone outside the founding team has sold or
+> deployed that job twice from a generic template.
+
+The catalog then grows out of revenue rather than ambition, and no agent is maintained that
+nobody bought. Per-vertical connectors, guardrails and outcome schemas are exempt from this
+rule, because they are cheap and composable and are where the vertical actually lives.
+
+## Revised assignment
+
+Replaces the Revision 1 assignment, which stands but is now second priority.
+
+**Give one n8n client the node, the six templates and the inbox, and stay out of the room.**
+Do not configure it for them. Do not join the call. Watch what they message you, and count how
+many minutes pass before they need you. That number is the handover test, and it is the single
+most important unmeasured quantity in the company.
+
+The field visit stays on the list. It answers what the human in the loop actually does. This
+answers whether anyone but you can run the product at all, and it gates the hiring model.
