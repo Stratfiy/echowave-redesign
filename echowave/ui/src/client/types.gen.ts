@@ -7808,6 +7808,50 @@ export type RateTableToolDefinition = {
 };
 
 /**
+ * ReadinessItem
+ */
+export type ReadinessItem = {
+    /**
+     * App
+     */
+    app: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Needed By
+     */
+    needed_by: Array<string>;
+    /**
+     * Recent Failures
+     */
+    recent_failures: number;
+    /**
+     * Connectable
+     */
+    connectable: boolean;
+};
+
+/**
+ * ReadinessResponse
+ */
+export type ReadinessResponse = {
+    /**
+     * Ready
+     */
+    ready: boolean;
+    /**
+     * Items
+     */
+    items: Array<ReadinessItem>;
+};
+
+/**
  * RealtimeEstimateRequest
  *
  * The call to price. Defaults describe a typical Indian outbound call —
@@ -22347,6 +22391,50 @@ export type OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetResponses = {
 };
 
 export type OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetResponse = OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetResponses[keyof OutcomeRateApiV1WorkflowWorkflowIdOutcomeRateGetResponses];
+
+export type AgentReadinessApiV1WorkflowWorkflowIdReadinessGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/readiness';
+};
+
+export type AgentReadinessApiV1WorkflowWorkflowIdReadinessGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AgentReadinessApiV1WorkflowWorkflowIdReadinessGetError = AgentReadinessApiV1WorkflowWorkflowIdReadinessGetErrors[keyof AgentReadinessApiV1WorkflowWorkflowIdReadinessGetErrors];
+
+export type AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReadinessResponse;
+};
+
+export type AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponse = AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponses[keyof AgentReadinessApiV1WorkflowWorkflowIdReadinessGetResponses];
 
 export type ListToolsApiV1ToolsGetData = {
     body?: never;

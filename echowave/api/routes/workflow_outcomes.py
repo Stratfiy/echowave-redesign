@@ -16,6 +16,8 @@ from pydantic import BaseModel
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
+from api.services.integrations.composio.client import connected_toolkits
+from api.services.workflow import readiness
 
 router = APIRouter(prefix="/workflow", tags=["workflow-outcomes"])
 
@@ -64,3 +66,67 @@ async def outcome_rate(
         organization_id=organization_id, workflow_id=workflow_id, days=days
     )
     return OutcomeRateResponse(versions=[VersionOutcome(**row) for row in rows])
+
+
+class ReadinessItem(BaseModel):
+    app: str
+    label: str
+    #: "ready" | "missing" | "failing". Three states rather than a tick box,
+    #: because "never connected" and "stopped working on Tuesday" mean the same
+    #: thing to the business and different things to whoever fixes it.
+    status: str
+    needed_by: list[str]
+    recent_failures: int
+    #: False for the customer's own HTTP endpoint, which we cannot connect for
+    #: them -- listing it without a button is still right, since an agent that
+    #: depends on three things should not appear to depend on two.
+    connectable: bool
+
+
+class ReadinessResponse(BaseModel):
+    ready: bool
+    items: list[ReadinessItem]
+
+
+@router.get("/{workflow_id}/readiness", response_model=ReadinessResponse)
+async def agent_readiness(
+    workflow_id: int,
+    user: UserModel = Depends(get_user),
+) -> ReadinessResponse:
+    """What this agent still needs before it can do its job.
+
+    Not a setup wizard. A wizard is finished once and then lies -- a token
+    revoked three months later leaves a green tick over an agent that has
+    silently stopped filing anything. This is read live, every time, so the
+    same list answers "what is left to set up" and "why did it stop working".
+    """
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    definition = await db_client.get_published_definition(workflow_id, organization_id)
+    if definition is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    uuids = readiness.required_tool_uuids(
+        definition.workflow_json, definition.workflow_configurations
+    )
+    tools = await db_client.get_tools_by_uuids(uuids, organization_id) if uuids else []
+
+    connected = set(await connected_toolkits(organization_id))
+    summary = await db_client.app_interaction_summary(
+        organization_id=organization_id, days=7
+    )
+    failures = {
+        row["app"]: row["errors"]
+        for row in summary
+        if row.get("app") and row.get("errors")
+    }
+
+    items = readiness.build_checklist(
+        tools=tools, connected_apps=connected, failures_by_app=failures
+    )
+    return ReadinessResponse(
+        ready=all(item["status"] == readiness.STATUS_READY for item in items),
+        items=[ReadinessItem(**item) for item in items],
+    )

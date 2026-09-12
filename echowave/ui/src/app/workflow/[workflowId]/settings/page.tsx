@@ -63,6 +63,7 @@ import { QaCard } from "../components/QaCard";
 import { useWorkflowState } from "../hooks/useWorkflowState";
 import { ALWAYS_AVAILABLE, type ToolParameter,toolParameters } from "./outcomeArguments";
 import { OutcomeRateCard } from "./OutcomeRateCard";
+import { ReadinessCard } from "./ReadinessCard";
 import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
 
 // ---------------------------------------------------------------------------
@@ -1619,7 +1620,13 @@ function WorkflowSettingsInner({
                                 what a call can turn out to be, the other what
                                 happens when it does, and reading them apart is
                                 how somebody configures a step that never fires. */}
-                            <OutcomeActionsSection
+{/* Above the steps rather than below them: an operator whose
+                                Sheets connection is broken needs to know that before
+                                they start wondering why the step they configured is
+                                not running. */}
+                            <ReadinessCard workflowId={Number(workflowId)} />
+
+                                                        <OutcomeActionsSection
                                 actions={workflowConfigurations?.outcome_actions ?? []}
                                 outcomes={workflowConfigurations?.call_outcomes ?? []}
                                 onSave={saveOutcomeActions}

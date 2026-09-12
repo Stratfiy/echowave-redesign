@@ -954,3 +954,50 @@ class WorkflowClient(BaseDBClient):
                     f"Failed to add disposition code '{disposition_code}' "
                     f"to workflow {workflow_id}: {e}"
                 )
+
+    async def get_published_definition(
+        self, workflow_id: int, organization_id: int
+    ) -> WorkflowDefinitionModel | None:
+        """The version of this agent that is currently answering.
+
+        Prefers ``released_definition_id`` and falls back to the ``is_current``
+        row, which is the same order ``create_workflow_run`` resolves in — a
+        readiness check that reported on a different version from the one
+        taking calls would be worse than no readiness check.
+
+        Organization-scoped through the workflow, so a definition id cannot be
+        reached by guessing.
+        """
+        async with self.async_session() as session:
+            workflow = (
+                (
+                    await session.execute(
+                        select(WorkflowModel).where(
+                            WorkflowModel.id == workflow_id,
+                            WorkflowModel.organization_id == organization_id,
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if workflow is None:
+                return None
+
+            if workflow.released_definition_id:
+                return await session.get(
+                    WorkflowDefinitionModel, workflow.released_definition_id
+                )
+
+            return (
+                (
+                    await session.execute(
+                        select(WorkflowDefinitionModel).where(
+                            WorkflowDefinitionModel.workflow_id == workflow_id,
+                            WorkflowDefinitionModel.is_current == True,  # noqa: E712
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
