@@ -61,7 +61,15 @@ import { AgentHeader } from "../components/AgentHeader";
 import { AgentTabs } from "../components/AgentTabs";
 import { QaCard } from "../components/QaCard";
 import { useWorkflowState } from "../hooks/useWorkflowState";
-import { ALWAYS_AVAILABLE, type ToolParameter,toolParameters } from "./outcomeArguments";
+import {
+    ALWAYS_AVAILABLE,
+    extractionVariables,
+    suggestArguments,
+    suggestVariableFor,
+    type ToolParameter,
+    toolParameters,
+    variableToken,
+} from "./outcomeArguments";
 import { OutcomeRateCard } from "./OutcomeRateCard";
 import { ReadinessCard } from "./ReadinessCard";
 import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
@@ -770,10 +778,12 @@ type ToolChoice = {
 function ArgumentsEditor({
     tool,
     values,
+    collects,
     onChange,
 }: {
     tool: ToolChoice | undefined;
     values: Record<string, string>;
+    collects: string[];
     onChange: (next: Record<string, string>) => void;
 }) {
     const [freeKey, setFreeKey] = useState("");
@@ -782,8 +792,24 @@ function ArgumentsEditor({
     const declared = tool.parameters;
     const set = (name: string, value: string) => onChange({ ...values, [name]: value });
 
+    // What we would fill in, if asked. Proposed rather than applied: the
+    // operator presses the button, and a field they have already filled is
+    // never overwritten. Only offered when it would actually change something.
+    const proposal = suggestArguments(declared, collects, values);
+    const wouldFill = Object.keys(proposal).filter((key) => !values[key]).length;
+
     return (
         <div className="space-y-2 rounded-md border border-dashed bg-muted/20 p-3">
+            {wouldFill > 0 ? (
+                <button
+                    type="button"
+                    className="rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-muted"
+                    onClick={() => onChange(proposal)}
+                >
+                    Fill {wouldFill} {wouldFill === 1 ? "field" : "fields"} from what this
+                    agent collects
+                </button>
+            ) : null}
             {declared.length > 0 ? (
                 declared.map((parameter) => (
                     <div key={parameter.name} className="space-y-1">
@@ -795,10 +821,41 @@ function ArgumentsEditor({
                         </label>
                         <Input
                             className="h-8 font-mono text-xs"
-                            placeholder="{{ gathered_context.extracted_variables.customer_name }}"
+                            // The hint names *this* agent's own variable where
+                            // one matches. The same placeholder in every field
+                            // taught nothing, and suggesting customer_name
+                            // beside `phone` was a misleading hint.
+                            placeholder={
+                                suggestVariableFor(parameter.name, collects)
+                                    ? variableToken(
+                                          suggestVariableFor(
+                                              parameter.name,
+                                              collects,
+                                          ) as string,
+                                      )
+                                    : "Leave blank, or pick from what this agent collects"
+                            }
                             value={values[parameter.name] ?? ""}
                             onChange={(e) => set(parameter.name, e.target.value)}
                         />
+                        {collects.length > 0 ? (
+                            <select
+                                className="h-7 w-full rounded-md border border-input bg-background px-2 text-xs"
+                                value=""
+                                aria-label={`Fill ${parameter.name} from a collected value`}
+                                onChange={(e) =>
+                                    e.target.value &&
+                                    set(parameter.name, variableToken(e.target.value))
+                                }
+                            >
+                                <option value="">Use a value this agent collects…</option>
+                                {collects.map((name) => (
+                                    <option key={name} value={name}>
+                                        {name}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : null}
                         {parameter.description ? (
                             <p className="text-xs text-muted-foreground">
                                 {parameter.description}
@@ -890,10 +947,13 @@ const RUNNABLE_TOOL_KINDS = ["http_api", "composio", "google_calendar"];
 function OutcomeActionsSection({
     actions,
     outcomes,
+    collects,
     onSave,
 }: {
     actions: OutcomeAction[];
     outcomes: CallOutcome[];
+    /** Variable names this agent extracts, from its own node definitions. */
+    collects: string[];
     onSave: (actions: OutcomeAction[]) => Promise<void>;
 }) {
     const [rows, setRows] = useState<OutcomeAction[]>(actions);
@@ -1020,6 +1080,7 @@ function OutcomeActionsSection({
                                 <ArgumentsEditor
                                     tool={tools.find((t) => t.tool_uuid === row.tool_uuid)}
                                     values={(row.arguments ?? {}) as Record<string, string>}
+                                    collects={collects}
                                     onChange={(next) => update(index, { arguments: next })}
                                 />
                             </div>
@@ -1629,6 +1690,13 @@ function WorkflowSettingsInner({
                                                         <OutcomeActionsSection
                                 actions={workflowConfigurations?.outcome_actions ?? []}
                                 outcomes={workflowConfigurations?.call_outcomes ?? []}
+                                // What this agent already collects. The editor
+                                // used to ask an operator to hand-type Jinja
+                                // paths to variables the agent itself declared
+                                // on its own nodes.
+                                collects={extractionVariables(
+                                    workflow?.workflow_definition,
+                                )}
                                 onSave={saveOutcomeActions}
                             />
 
