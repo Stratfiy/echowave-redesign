@@ -265,3 +265,89 @@ In order. None of these is a build.
   is the line most likely to eat the margin.
 - **Infra numbers are AWS ap-south-1 list prices typed by hand**, per the script's own
   warning, and `CONCURRENT_CALLS_PER_VCPU` is a guess that sets the whole fleet size.
+
+---
+
+## Addendum — per agent, not per seat, and not per execution
+
+Added the same day, after the founder proposed monthly-per-agent, per-execution, or token
+limits per org. **This reverses the ₹699 per-seat recommendation in §4.**
+
+### Per execution is wrong, and this product already proved it
+
+| One "execution" | Duration | Vendor cost |
+|---|---|---|
+| Wrong number, no answer | 15s | ₹0.43 |
+| COD confirmation, clean | 45s | ₹1.29 |
+| NDR, buyer argues | 300s | ₹8.61 |
+
+Twenty times the cost for one billable unit. 15-second pulse billing exists because a
+per-call unit is dishonest; reintroducing it one layer up repeats the mistake the billing
+engine was built to avoid.
+
+### Per seat was wrong, and the reason matters
+
+§4 proposed ₹699 per seat as the revenue line uncorrelated with minutes. That is true and it
+is still the wrong meter, because **seats tax the one behaviour the product depends on.**
+
+The memory only compounds if humans confirm facts. Charge per person and the customer adds
+fewer people, fewer facts get confirmed, agents stop improving, and the differentiator
+degrades. Metering seats means metering the core mechanic.
+
+> **Unlimited seats. Price per agent.**
+
+Seats gate what should be maximised. Agents gate what actually costs money. And "hire an
+agent" matches the catalogue's mental model, so the invoice reads like the product.
+
+### The bands
+
+Per agent, sized to the work it does, at the shipped ₹4.91/min Indic rate and the 1.4x
+managed markup:
+
+| Band | Brand size | Price/mo | Included | Vendor cost | GM | Customer net | ROI |
+|---|---|---|---|---|---|---|---|
+| Starter | ~1,000 orders/mo | ₹4,999 | ₹2,500 | ₹839 | **83%** | ₹17,442 | 3.5x |
+| Growth | ~3,000 orders/mo | ₹9,999 | ₹7,200 | ₹2,518 | **75%** | ₹52,326 | 5.2x |
+| Scale | ~10,000 orders/mo | ₹24,999 | ₹18,500 | ₹8,392 | **66%** | ₹174,421 | 7.0x |
+
+Overage draws from the existing prepaid balance at existing rates. Nothing new to build.
+
+Gaming is self-correcting: cramming several jobs into one agent raises its volume, which
+moves it up a band. The price follows the work either way.
+
+### The second-agent discount
+
+> Agent 1 full price · Agent 2 −30% · Agent 3+ −40%
+
+Not a volume discount dressed up. The marginal cost genuinely is lower — shared memory,
+shared connectors, shared onboarding — because the second agent starts on facts the first
+one earned and a human already confirmed.
+
+**The discount states the compounding story on the invoice**, which is the one document a
+customer reads carefully. No competitor can price this way without shared verified memory.
+
+### Token limits: internal only
+
+- **Never on the invoice.** Nobody buying an NDR agent thinks in tokens, and it makes the
+  bill unpredictable, which is exactly what prepaid solved for Indian SMBs.
+- **Internally, urgently.** A build session costs ₹3.60-₹60, is paid before any revenue, and
+  `grep -rn agent_builder api/services/billing/` returns nothing. `limits.py` caps by message
+  count and its own docstring concedes *"tokens are the real cost"*.
+
+### Final shape
+
+| Line | Meter | Customer-visible |
+|---|---|---|
+| Agent subscription | Per agent per month, banded by volume | **Yes — this is the price** |
+| Overage | Prepaid balance | Yes, built |
+| Seats | None. Unlimited | No, deliberately free |
+| Builder tokens | Internal cap and cost line | No |
+| Enterprise setup | One-time fee, hours tracked separately | Yes |
+
+### Outcome pricing, later
+
+Charging per recovered order rather than per agent would make the stack choice a Decibyl
+cost decision rather than a 31-point margin hole the customer punches. It requires
+attribution defensible in a dispute, which is what the action graph and outcome record
+provide. **Offer it to customer three or four, once the trail can be shown on a screen.**
+A billing dispute with a first customer is expensive in ways unrelated to money.
