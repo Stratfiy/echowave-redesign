@@ -25,6 +25,13 @@ from api.services.integrations.composio.client import (
 
 router = APIRouter(prefix="/connectors")
 
+#: How many favourites the collection row carries.
+#:
+#: Twelve because it fills two tidy rows of six on a desktop and three of four
+#: on a laptop, and because a collection long enough to need its own scroll has
+#: stopped being a shortcut past the categories and become a thirteenth one.
+POPULAR_SHOWN = 12
+
 
 class ConnectorResponse(BaseModel):
     slug: str
@@ -43,7 +50,25 @@ class ConnectorGroupResponse(BaseModel):
 
 class ConnectorCatalogueResponse(BaseModel):
     available: bool
-    groups: list[ConnectorGroupResponse]
+    #: The apps an Indian business asks for by name, across every category.
+    #:
+    #: A collection rather than a category, because the thing somebody wants
+    #: is almost never the thing they would go looking for a *heading* for:
+    #: nobody opens "Messaging" to find WhatsApp, they scan for WhatsApp.
+    #: Empty while a search is running -- a collection of favourites inside a
+    #: filtered result is a second ranking fighting the one the user asked
+    #: for.
+    popular: list[ConnectorResponse] = []
+    groups: list[ConnectorGroupResponse] = []
+    #: The bucket for apps that matched no category, kept apart so the main
+    #: screen can send it to its own page rather than end on nine hundred
+    #: unsorted rows.
+    #:
+    #: It used to be dropped entirely: ``OTHER_GROUP`` is not a member of
+    #: ``GROUPS``, and the response was built by walking ``GROUPS``, so every
+    #: app the categoriser could not place vanished from the screen with
+    #: nothing saying so. The catalogue assigned them and the route lost them.
+    other: list[ConnectorResponse] = []
     connected_count: int
     total: int = 0
 
@@ -103,9 +128,30 @@ async def list_connectors(
         if name in grouped
     ]
 
+    # The favourites, in the catalogue's own popularity order, deduplicated
+    # against nothing: an app appears here *and* in its category, because
+    # somebody who scrolls to "Email" should still find Gmail there.
+    #
+    # Suppressed while searching. A row of favourites above a filtered result
+    # is a second ranking arguing with the one the user typed.
+    popular: list[ConnectorResponse] = []
+    if not q:
+        by_slug = {
+            connector.slug: connector
+            for bucket in grouped.values()
+            for connector in bucket
+        }
+        popular = [
+            by_slug[slug]
+            for slug in catalogue.POPULAR[:POPULAR_SHOWN]
+            if slug in by_slug
+        ]
+
     return ConnectorCatalogueResponse(
         available=True,
+        popular=popular,
         groups=ordered,
+        other=grouped.get(catalogue.OTHER_GROUP, []),
         connected_count=len(connected),
         total=len(rows),
     )

@@ -2288,9 +2288,17 @@ export type ConnectorCatalogueResponse = {
      */
     available: boolean;
     /**
+     * Popular
+     */
+    popular?: Array<ConnectorResponse>;
+    /**
      * Groups
      */
-    groups: Array<ConnectorGroupResponse>;
+    groups?: Array<ConnectorGroupResponse>;
+    /**
+     * Other
+     */
+    other?: Array<ConnectorResponse>;
     /**
      * Connected Count
      */

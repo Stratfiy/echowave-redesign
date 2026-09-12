@@ -184,9 +184,46 @@ async def _find_conflicting_event(
         return None
 
     for item in response.json().get("items") or []:
-        if item.get("status") != "cancelled":
+        if _occupies_the_chair(item):
             return item
     return None
+
+
+def _occupies_the_chair(event: Dict[str, Any]) -> bool:
+    """Whether an event on the calendar means the slot is actually taken.
+
+    ``events.list`` returns everything that *overlaps* the window, which is
+    not the same question. Three kinds of overlap do not mean a busy chair,
+    and treating them as conflicts refuses bookings on slots that are free --
+    which is the most expensive bug this integration can have, because the
+    patient rings, is told no, and rings somebody else.
+
+    **An all-day event overlaps every slot that day.** A public holiday, a
+    birthday, "Dr Anitha on leave" -- any one of them refused every booking
+    from open to close on a calendar that was otherwise free. Google marks
+    these with ``start.date`` instead of ``start.dateTime``, which is how they
+    are told apart.
+
+    **An event marked Free is explicitly not busy.** Google calls it
+    ``transparency: "transparent"`` and means it: a reminder, a held
+    placeholder, a travel note.
+
+    **A cancelled event is not an event.**
+
+    Anything else counts as busy, including a shape we do not recognise. The
+    rule only *removes* conflicts on a marker Google sets explicitly -- an
+    event with no recognisable start is treated as a real one, because the
+    failure this direction risks is a second look at the calendar, and the
+    other direction risks two patients in one chair.
+    """
+    if event.get("status") == "cancelled":
+        return False
+    if str(event.get("transparency") or "").lower() == "transparent":
+        return False
+    start = event.get("start")
+    if isinstance(start, dict) and start.get("date"):
+        return False
+    return True
 
 
 def _combine_start_end(
@@ -279,10 +316,17 @@ async def execute_google_calendar_tool(
         )
         if conflict:
             conflict_summary = conflict.get("summary") or "an existing event"
+            start_field = conflict.get("start")
+            conflict_start = start_field if isinstance(start_field, dict) else {}
             logger.info(
-                "Google Calendar booking for org {} skipped -- conflicts with '{}'",
+                "Google Calendar booking for org {} at {} skipped -- conflicts "
+                "with '{}' (start={}, transparency={}, status={})",
                 organization_id,
+                start_iso,
                 conflict_summary,
+                conflict_start.get("dateTime") or conflict_start.get("date"),
+                conflict.get("transparency"),
+                conflict.get("status"),
             )
             return {
                 "status": "error",

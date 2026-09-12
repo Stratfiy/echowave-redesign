@@ -310,3 +310,124 @@ class TestSearch:
 
     def test_a_query_matching_nothing_returns_nothing(self):
         assert search(self._rows(), "zzzznope") == []
+
+
+class TestTheScreensOwnShape:
+    """The route, not the curation.
+
+    The curation above is careful never to drop an app. The route then rebuilt
+    the response by walking ``GROUPS`` -- and ``OTHER_GROUP`` is not a member
+    of ``GROUPS``, so every app the categoriser could not place was assigned
+    correctly and then lost on the way out. Correct code, nothing logged,
+    nothing to notice. These tests are about what has to *appear*.
+    """
+
+    async def _catalogue(self, monkeypatch, rows, q=""):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+
+        from api.routes import connectors as route
+
+        monkeypatch.setattr(route, "is_configured", lambda: True)
+        monkeypatch.setattr(route.catalogue, "connectors", AsyncMock(return_value=rows))
+        monkeypatch.setattr(route, "connected_toolkits", AsyncMock(return_value=[]))
+        return await route.list_connectors(
+            q=q,
+            refresh=False,
+            user=SimpleNamespace(selected_organization_id=42, id=1),
+        )
+
+    def _rows(self):
+        return curate(
+            [
+                _toolkit("gmail", "Gmail", categories=("email",)),
+                _toolkit("whatsapp", "WhatsApp", categories=("communication",)),
+                _toolkit("mystery", "Mystery", categories=("astrology",)),
+            ]
+        )
+
+    @pytest.mark.asyncio
+    async def test_an_uncategorised_app_reaches_the_screen(self, monkeypatch):
+        """The bug this class exists for. It was assigned to Other and then
+        dropped, so the only way anyone would find out is a customer asking
+        where their app went."""
+        response = await self._catalogue(monkeypatch, self._rows())
+        assert "mystery" in {c.slug for c in response.other}
+
+    @pytest.mark.asyncio
+    async def test_every_curated_app_is_reachable_somewhere_in_the_response(
+        self, monkeypatch
+    ):
+        """Groups plus Other has to account for all of it. An app in neither
+        is invisible however correctly it was classified."""
+        rows = self._rows()
+        response = await self._catalogue(monkeypatch, rows)
+        reachable = {c.slug for group in response.groups for c in group.connectors}
+        reachable |= {c.slug for c in response.other}
+        assert reachable == {row.slug for row in rows}
+
+    @pytest.mark.asyncio
+    async def test_other_is_not_also_folded_into_the_groups(self, monkeypatch):
+        """Kept apart so the screen can send it to its own page. Listing it
+        twice would put nine hundred unsorted rows on the main screen, which
+        is the problem the separate bucket solves."""
+        response = await self._catalogue(monkeypatch, self._rows())
+        assert "Other" not in {group.group for group in response.groups}
+
+    @pytest.mark.asyncio
+    async def test_a_favourite_appears_in_the_collection_and_in_its_category(
+        self, monkeypatch
+    ):
+        """Both, deliberately. Somebody scanning for WhatsApp uses the
+        collection; somebody who opened Messaging still expects it there."""
+        response = await self._catalogue(monkeypatch, self._rows())
+        assert "whatsapp" in {c.slug for c in response.popular}
+        assert "whatsapp" in {
+            c.slug for group in response.groups for c in group.connectors
+        }
+
+    @pytest.mark.asyncio
+    async def test_the_collection_keeps_the_catalogues_popularity_order(
+        self, monkeypatch
+    ):
+        from api.services.integrations.composio.catalogue import POPULAR
+
+        response = await self._catalogue(monkeypatch, self._rows())
+        slugs = [c.slug for c in response.popular]
+        assert slugs == sorted(slugs, key=lambda s: POPULAR.index(s))
+
+    @pytest.mark.asyncio
+    async def test_the_collection_is_capped(self, monkeypatch):
+        from api.routes.connectors import POPULAR_SHOWN
+        from api.services.integrations.composio.catalogue import POPULAR
+
+        rows = curate([_toolkit(slug, slug.title()) for slug in POPULAR])
+        response = await self._catalogue(monkeypatch, rows)
+        assert len(response.popular) == POPULAR_SHOWN
+
+    @pytest.mark.asyncio
+    async def test_searching_drops_the_collection_rather_than_ranking_twice(
+        self, monkeypatch
+    ):
+        """A row of favourites above a filtered result is a second ranking
+        arguing with the one the user typed."""
+        response = await self._catalogue(monkeypatch, self._rows(), q="mystery")
+        assert response.popular == []
+        assert "mystery" in {c.slug for c in response.other}
+
+    @pytest.mark.asyncio
+    async def test_a_deployment_without_a_key_says_so_instead_of_failing(
+        self, monkeypatch
+    ):
+        from types import SimpleNamespace
+
+        from api.routes import connectors as route
+
+        monkeypatch.setattr(route, "is_configured", lambda: False)
+        response = await route.list_connectors(
+            q="",
+            refresh=False,
+            user=SimpleNamespace(selected_organization_id=42, id=1),
+        )
+        assert response.available is False
+        assert response.popular == [] and response.other == []
