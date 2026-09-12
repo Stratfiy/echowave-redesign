@@ -2167,6 +2167,72 @@ export type ConfirmRequest = {
 };
 
 /**
+ * ConnectorCatalogueResponse
+ */
+export type ConnectorCatalogueResponse = {
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Groups
+     */
+    groups: Array<ConnectorGroupResponse>;
+    /**
+     * Connected Count
+     */
+    connected_count: number;
+};
+
+/**
+ * ConnectorGroupResponse
+ */
+export type ConnectorGroupResponse = {
+    /**
+     * Group
+     */
+    group: string;
+    /**
+     * Connectors
+     */
+    connectors: Array<ConnectorResponse>;
+};
+
+/**
+ * ConnectorResponse
+ */
+export type ConnectorResponse = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Logo
+     */
+    logo: string | null;
+    /**
+     * Setup
+     */
+    setup: string;
+    /**
+     * Tools Count
+     */
+    tools_count: number;
+    /**
+     * Connected
+     */
+    connected: boolean;
+};
+
+/**
  * ContactListRequest
  */
 export type ContactListRequest = {
@@ -21855,6 +21921,52 @@ export type UpdateCredentialApiV1CredentialsCredentialUuidPutResponses = {
 };
 
 export type UpdateCredentialApiV1CredentialsCredentialUuidPutResponse = UpdateCredentialApiV1CredentialsCredentialUuidPutResponses[keyof UpdateCredentialApiV1CredentialsCredentialUuidPutResponses];
+
+export type ListConnectorsApiV1ConnectorsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Refresh
+         *
+         * Bypass the cached catalogue and re-read it from Composio.
+         */
+        refresh?: boolean;
+    };
+    url: '/api/v1/connectors';
+};
+
+export type ListConnectorsApiV1ConnectorsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListConnectorsApiV1ConnectorsGetError = ListConnectorsApiV1ConnectorsGetErrors[keyof ListConnectorsApiV1ConnectorsGetErrors];
+
+export type ListConnectorsApiV1ConnectorsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectorCatalogueResponse;
+};
+
+export type ListConnectorsApiV1ConnectorsGetResponse = ListConnectorsApiV1ConnectorsGetResponses[keyof ListConnectorsApiV1ConnectorsGetResponses];
 
 export type ListToolsApiV1ToolsGetData = {
     body?: never;

@@ -12,6 +12,7 @@ from api.routes.agent_templates import router as agent_templates_router
 from api.routes.auth import router as auth_router
 from api.routes.billing_dashboard import router as billing_dashboard_router
 from api.routes.campaign import router as campaign_router
+from api.routes.connectors import router as connectors_router
 from api.routes.contacts import router as contacts_router
 from api.routes.cost_estimate import router as cost_estimate_router
 from api.routes.credentials import router as credentials_router
@@ -89,6 +90,7 @@ router.include_router(workflow_text_chat_router)
 router.include_router(user_router)
 router.include_router(campaign_router)
 router.include_router(credentials_router)
+router.include_router(connectors_router)
 router.include_router(tool_router)
 router.include_router(organization_router)
 router.include_router(s3_router)
