@@ -59,13 +59,16 @@ from api.services.integrations.composio.client import (
     toolkit_name as composio_toolkit_name,
 )
 from api.services.packs import badges, pricing, resolve_listed_packs
+from api.services.packs import industry as pack_industry
 from api.services.packs.search import search_packs
 from api.services.tool_management import create_tool_for_user
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.workflow_graph import WorkflowGraph
 
 
-async def _suggest_roles(query: str | None) -> dict[str, Any]:
+async def _suggest_roles(
+    query: str | None, *, organization_id: int | None = None
+) -> dict[str, Any]:
     """Roles from the shelf that match what the user described.
 
     Hiring is offered before building, deliberately. A listed role carries a
@@ -79,6 +82,16 @@ async def _suggest_roles(query: str | None) -> dict[str, Any]:
     which is the wrong answer to a configuration problem.
     """
     roles = search_packs(query or "", packs=await resolve_listed_packs())
+
+    # What this account already is, learned from the roles it has hired. A
+    # clinic that types "help with payments" should see the payment role --
+    # ranked under its clinic roles, not filtered away -- so this reorders and
+    # never removes. Stable against the search order: `search_packs` already
+    # sorted by relevance, and Python's sort keeps that within each tier.
+    known = await pack_industry.resolve(organization_id)
+    if roles and known.get("candidates"):
+        roles = tuple(sorted(roles, key=pack_industry.rank_key(known)))
+
     if not roles:
         return {
             "roles": [],
@@ -115,10 +128,19 @@ async def _suggest_roles(query: str | None) -> dict[str, Any]:
             }
             for role in roles[:4]
         ],
+        # What we assumed, so the model can say it rather than act on it
+        # quietly. An inference that is wrong and invisible is the failure this
+        # codebase keeps finding; one that is wrong and spoken gets corrected
+        # in a word.
+        "assumed_about_this_business": pack_industry.sentence(known),
         "note": (
             "Show these to the user with the price and what each needs "
             "connected. Offer the demo number so they can interview it before "
-            "hiring. Build something custom only if they say none fit."
+            "hiring. Build something custom only if they say none fit.\n\n"
+            "If `assumed_about_this_business` is set, say it in one short "
+            "sentence before the roles, and if they correct you, believe them "
+            "and call `set_business_type` -- do not argue with the owner of "
+            "the business about what business it is."
         ),
     }
 
@@ -156,6 +178,32 @@ def tool_schemas() -> list[dict[str, Any]]:
                         ),
                     }
                 },
+            },
+        },
+        {
+            "name": "set_business_type",
+            "description": (
+                "Record what kind of business this account is, when the user "
+                "tells you or corrects a guess. Call it the moment they say "
+                "it -- 'we're a salon, not a clinic' is the whole trigger, and "
+                "a single word is enough. Never argue with the owner of a "
+                "business about what business it is, and never ask this as a "
+                "standalone question: it is remembered from what they hire, "
+                "and asked only when they volunteer a correction."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "business_type": {
+                        "type": "string",
+                        "description": (
+                            "In the user's own words, e.g. 'dental clinic', "
+                            "'D2C skincare brand', 'dental laboratory'. Do "
+                            "not translate it into a category of ours."
+                        ),
+                    },
+                },
+                "required": ["business_type"],
             },
         },
         {
@@ -470,7 +518,14 @@ async def dispatch(
     """
     try:
         if name == "suggest_roles":
-            return await _suggest_roles(arguments.get("query"))
+            return await _suggest_roles(
+                arguments.get("query"), organization_id=organization_id
+            )
+        if name == "set_business_type":
+            return await _set_business_type(
+                organization_id=organization_id,
+                business_type=arguments.get("business_type", ""),
+            )
         if name == "list_agent_templates":
             return _list_templates(arguments.get("query"))
         if name == "get_agent_template":
@@ -1035,6 +1090,54 @@ async def _list_app_actions(*, organization_id: int, app: str) -> dict[str, Any]
         "note": (
             "Pick the one slug that matches what the user asked for and pass "
             "it to attach_app_tool exactly as written. Do not modify it."
+        ),
+    }
+
+
+async def _set_business_type(
+    *, organization_id: int, business_type: str
+) -> dict[str, Any]:
+    """Record what kind of business this is, because they just told us.
+
+    The correction half of the inference. ``suggest_roles`` offers a guess
+    derived from the roles an account has hired, and a guess is only safe if
+    it is cheap to overturn -- one word, in their own vocabulary, and it wins
+    over every later inference.
+
+    Free text rather than a menu. Our pack industries are the shelving we use,
+    not a list a business has to see itself in, and refusing "dental
+    laboratory" because it is not in our enum teaches the operator that we do
+    not serve them.
+
+    Only the one field is written. Preferences arrive as a whole object and a
+    save that carried schema defaults would switch unrelated settings off --
+    the exact bug ``with_staff_fields`` exists for -- so this names one field
+    and everything else keeps what is stored.
+    """
+    from api.schemas.organization_preferences import OrganizationPreferences
+    from api.services.organization_preferences import (
+        get_organization_preferences,
+        upsert_organization_preferences,
+        with_staff_fields,
+    )
+
+    value = (business_type or "").strip()
+    if not value:
+        return {"error": "What kind of business is it? Use their own words."}
+    if len(value) > 120:
+        value = value[:120]
+
+    existing = await get_organization_preferences(organization_id)
+    saved = await upsert_organization_preferences(
+        organization_id,
+        with_staff_fields(OrganizationPreferences(industry=value), existing),
+    )
+    return {
+        "saved": True,
+        "business_type": getattr(saved, "industry", value),
+        "note": (
+            "Acknowledge it in a few words and carry on with what they asked "
+            "for. Do not re-ask this on later turns -- it is remembered now."
         ),
     }
 

@@ -7,6 +7,21 @@ class OrganizationPreferences(BaseModel):
     test_phone_number: str | None = None
     timezone: str | None = None
 
+    #: What kind of business this is, in the operator's own words.
+    #:
+    #: Only ever written by a person. The platform infers a *candidate* from
+    #: the roles an account has hired -- see services/packs/industry.py -- and
+    #: deliberately does not write it here: a single candidate is still a
+    #: guess, and storing it would turn "probably a clinic" into "is a clinic"
+    #: without anybody agreeing to it. This field is what somebody said when
+    #: they corrected us, and it wins over every inference afterwards.
+    #:
+    #: Free text rather than an enum. The pack catalogue's industries are our
+    #: vocabulary for shelving roles, not a list a business has to see itself
+    #: in, and a dropdown with no "dental laboratory" in it teaches the
+    #: operator that we do not serve them.
+    industry: str | None = Field(default=None, max_length=120)
+
     #: The hours this business keeps, for the agents that do not set their own.
     #:
     #: Optional, and ``None`` means the account has never been asked -- most

@@ -457,6 +457,36 @@ class WorkflowClient(BaseDBClient):
             result = await session.execute(query)
             return result.scalars().all()
 
+    async def hired_template_ids(self, organization_id: int) -> list[str]:
+        """Which templates this organization has actually built agents from.
+
+        The narrowest possible read: one JSON key per row, extracted in the
+        database. ``get_all_workflows_for_listing`` deliberately leaves
+        ``template_context_variables`` out of its SELECT because it is a large
+        JSON column, and loading the whole thing to read one string would undo
+        that on a screen that runs on every chat turn.
+
+        This is the record of a decision somebody already made, which is why
+        it is worth reading: an account that hired a clinic front desk has
+        told us what kind of business it is more reliably than any form would.
+        """
+        # `as_string()` rather than `.astext`: the column is JSON, not JSONB,
+        # so the JSONB-only accessor is not available on it. This compiles to
+        # `->>` with a cast and works on both.
+        key = WorkflowModel.template_context_variables["__template_id"].as_string()
+        async with self.async_session() as session:
+            rows = (
+                await session.execute(
+                    select(key)
+                    .where(
+                        WorkflowModel.organization_id == organization_id,
+                        key.isnot(None),
+                    )
+                    .distinct()
+                )
+            ).all()
+        return [row[0] for row in rows if row[0]]
+
     async def get_workflow_counts(self, organization_id: int = None) -> dict[str, int]:
         """Get workflow counts by status.
 
