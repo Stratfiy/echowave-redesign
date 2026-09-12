@@ -5028,6 +5028,21 @@ class OrganisationFactModel(Base):
         Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
 
+    #: Whose memory this is. NULL means the organisation's -- every bot reads
+    #: it ("we are closed Sundays"). A workflow id means this bot's alone
+    #: ("the owner wants the morning numbers in Hindi").
+    #:
+    #: One nullable column rather than a second table, because the confirm
+    #: gate, ``source_run_id`` traceability, corroboration count and uniqueness
+    #: rule are needed identically at both scopes. Two tables would mean two
+    #: copies of the gate, and the gate is the first thing that would diverge.
+    #:
+    #: CASCADE: a deleted bot's private memory should not outlive it. An
+    #: organisation fact has no workflow to be deleted and is untouched.
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=True
+    )
+
     #: What kind of thing this is about. "contact" today; "quote" and "shipment"
     #: are the reason it is a column rather than an assumption.
     subject_type = Column(String(64), nullable=False, default="contact")
@@ -5081,10 +5096,26 @@ class OrganisationFactModel(Base):
     )
 
     __table_args__ = (
-        # One row per fact about a subject. A second call saying the same thing
-        # updates the row; a second call saying something different replaces the
-        # value on it. Either way there is exactly one answer to "what is this
-        # customer's delivery address", which is the property the prompt needs.
+        # One row per fact about a subject, PER SCOPE. A second call saying the
+        # same thing updates the row; a second call saying something different
+        # replaces the value on it. Either way there is exactly one answer to
+        # "what is this customer's delivery address", which is the property the
+        # prompt needs.
+        #
+        # Two partial indexes rather than one index over four columns plus
+        # ``workflow_id``, because in Postgres NULLs are distinct in a unique
+        # index: a single index including a nullable ``workflow_id`` would stop
+        # constraining organisation facts entirely, and every repeated fact
+        # about the business would quietly become a second row. That is exactly
+        # the silent-absence shape -- correct-looking code, no error, and a
+        # prompt that fills with duplicates.
+        #
+        # ``coalesce(workflow_id, 0)`` would also work, but an upsert's
+        # ON CONFLICT inference would then have to reproduce the expression
+        # exactly, and a bound parameter in place of the literal 0 silently
+        # fails to match. A predicate of ``IS NULL`` renders with no parameters
+        # at all, so the inference either matches or Postgres refuses the
+        # statement outright.
         Index(
             "uq_organisation_facts_subject_key",
             "organization_id",
@@ -5092,12 +5123,32 @@ class OrganisationFactModel(Base):
             "subject_key",
             "key",
             unique=True,
+            postgresql_where=text("workflow_id IS NULL"),
+        ),
+        Index(
+            "uq_organisation_facts_bot_subject_key",
+            "organization_id",
+            "workflow_id",
+            "subject_type",
+            "subject_key",
+            "key",
+            unique=True,
+            postgresql_where=text("workflow_id IS NOT NULL"),
         ),
         Index(
             "ix_organisation_facts_lookup",
             "organization_id",
             "subject_type",
             "subject_key",
+        ),
+        # A bot's own memory, read on every run it starts. Without this the
+        # union read below falls back to the lookup index and filters
+        # ``workflow_id`` in the heap.
+        Index(
+            "ix_organisation_facts_workflow",
+            "organization_id",
+            "workflow_id",
+            postgresql_where=text("workflow_id IS NOT NULL"),
         ),
     )
 
